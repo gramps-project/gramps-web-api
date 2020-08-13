@@ -5,7 +5,7 @@ from setuptools import find_packages, setup
 with open("README.md") as readme_file:
     README = readme_file.read()
 
-with open("gramps_api/_version.py") as version_file:
+with open("gramps_webapi/_version.py") as version_file:
     exec(version_file.read())
 
 
