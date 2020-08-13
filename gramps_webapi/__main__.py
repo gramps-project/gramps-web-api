@@ -6,7 +6,7 @@ from .api import create_app
 @click.group("cli")
 @click.pass_context
 def cli(ctx):
-    """CLI."""
+    """Gramps Web API command line interface."""
     ctx.obj = create_app()
 
 
@@ -14,7 +14,7 @@ def cli(ctx):
 @click.option("-p", "--port", help="Port to use (default: 5000)", default=5000)
 @click.pass_context
 def run(ctx, port):
-    """Custom CLI command."""
+    """Run the app."""
     app = ctx.obj
     app.run(port=port, threaded=False)
 
