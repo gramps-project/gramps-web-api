@@ -39,4 +39,6 @@ pip install -e . --user
 
 Run
 ```
-python -m gramps_webapi
+python -m gramps_webapi run
+```
+The API will be accesible at `http://127.0.0.1:5000` by default. To choose a different port, add the `--port` option.
