@@ -1,27 +1,26 @@
 """Tests for the `gramps_webapi.api` module."""
 
-import pytest
+import unittest
 
 from gramps_webapi.api import create_app
 
 
-@pytest.fixture
-def client():
-    """Mock client."""
-    app = create_app()
-    app.config["TESTING"] = True
+class TestDummy(unittest.TestCase):
+    def setUp(self):
+        """Mock client."""
+        app = create_app()
+        app.config["TESTING"] = True
+        self.client = app.test_client()
 
-    with app.test_client() as client:
-        yield client
+    def tearDown(self):
+        pass
 
+    def test_dummy_root(self):
+        """Silly test just to get started."""
+        rv = self.client.get("/")
+        assert b"Hello Gramps" in rv.data
 
-def test_dummy_root(client):
-    """Silly test just to get started."""
-    rv = client.get("/")
-    assert b"Hello Gramps" in rv.data
-
-
-def test_dummy_endpoint(client):
-    """Silly test just to get started."""
-    rv = client.get("/api/dummy")
-    assert rv.json == {"key": "value"}
+    def test_dummy_endpoint(self):
+        """Silly test just to get started."""
+        rv = self.client.get("/api/dummy")
+        assert rv.json == {"key": "value"}
