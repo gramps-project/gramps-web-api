@@ -7,10 +7,15 @@ repos:
     rev: v4.3.21
     hooks:
       - id: isort
-  - repo: https://gitlab.com/pycqa/flake8
-    rev: 3.8.3
+  - repo: https://github.com/PyCQA/pylint
+    rev: pylint-2.5.3
     hooks:
-      - id: flake8
-        additional_dependencies:
-          - flake8-docstrings==1.5.0
-          - pydocstyle==5.0.2
+      - id: pylint
+        stages: [commit]
+        args:
+          - --score=n
+  - repo: https://github.com/PyCQA/pydocstyle
+    rev: 5.0.2
+    hooks:
+      - id: pydocstyle
+        stages: [commit]

@@ -2,12 +2,9 @@
 
   "python.formatting.provider": "black",
   "python.linting.pydocstyleEnabled": true,
-  "python.linting.pylintEnabled": false,
+  "python.linting.pylintEnabled": true,
   "python.linting.mypyEnabled": true,
-  "python.linting.flake8Enabled": true,
-  "python.linting.flake8CategorySeverity.F": "Warning",
-  "python.linting.flake8CategorySeverity.E": "Warning",
-  "python.linting.flake8CategorySeverity.W": "Warning",
+  "python.linting.flake8Enabled": false,
   "[python]": {
     "editor.formatOnSave": true
   }
