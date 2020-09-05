@@ -5,6 +5,7 @@ python:
   - "3.7"
   - "3.8"
 install:
+  - python -m pip install git+https://github.com/DavidMStraub/gramps.git/pip
   - pip install pytest
   - pip install .
 script:
