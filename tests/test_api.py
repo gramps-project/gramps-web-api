@@ -1,4 +1,4 @@
-"""Tests for the `gramps_webapi.app` module."""
+"""Tests for the `gramps_webapi.api` module."""
 
 import unittest
 from unittest.mock import patch
@@ -10,7 +10,7 @@ from gramps.gen.dbstate import DbState
 from gramps_webapi.app import create_app
 
 
-class TestDummy(unittest.TestCase):
+class TestPerson(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.name = "Test Web API"
@@ -26,7 +26,7 @@ class TestDummy(unittest.TestCase):
     def tearDownClass(cls):
         cls.dbman.remove_database(cls.name)
 
-    def test_dummy_root(self):
+    def test_person_endpoint(self):
         """Silly test just to get started."""
-        rv = self.client.get("/")
-        assert self.name.encode() in rv.data
+        rv = self.client.get("/api/person/some_id")
+        assert rv.json == {"gramps_id": "some_id"}

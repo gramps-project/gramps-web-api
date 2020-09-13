@@ -4,9 +4,9 @@ import logging
 import os
 
 from flask import Flask, current_app, g
-from flask_restful import Api, Resource
 
 from .dbmanager import DbState, WebDbManager
+from .api import api_blueprint
 
 
 def get_db() -> DbState:
@@ -30,8 +30,7 @@ def create_app():
         raise ValueError("You have to set the `TREE` environment variable.")
     app.config["DB_MANAGER"] = WebDbManager(name=app.config["TREE"])
 
-    # REST API
-    api = Api(app)
+    app.register_blueprint(api_blueprint)
 
     # close DB after every request
     @app.teardown_appcontext
@@ -48,11 +47,4 @@ def create_app():
         res = dbstate.db.get_researcher().get_name()
         return "Database: {}, Researcher: {}".format(dbname, res)
 
-    class DummyEndpoint(Resource):
-        """A dummy endpoint."""
-
-        def get(self):
-            return {"key": "value"}
-
-    api.add_resource(DummyEndpoint, "/api/dummy")
     return app
