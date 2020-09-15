@@ -20,7 +20,6 @@ class WebDbManager:
         self.name = name
         self.path = self._get_path()
         self._check_backend()
-        self._register_plugins()
 
     def _get_path(self) -> str:
         """Get the path of the family tree database."""
@@ -43,13 +42,6 @@ class WebDbManager:
                 )
             )
 
-    def _register_plugins(self) -> None:
-        """Register plugins."""
-        dbstate = DbState()
-        user = User()
-        climanager = CLIManager(dbstate, True, user)
-        climanager.do_reg_plugins(dbstate, uistate=None)
-
     def is_locked(self) -> bool:
         """Return a boolean whether the database is locked."""
         return os.path.isfile(os.path.join(self.path, DBLOCKFN))
@@ -66,8 +58,8 @@ class WebDbManager:
         """
         dbstate = DbState()
         user = User()
-        climanager = CLIManager(dbstate, True, user)
+        smgr = CLIManager(dbstate, True, user)
         if force_unlock:
             self.break_lock()
-        climanager.open_activate(self.path)
+        smgr.open_activate(self.path)
         return dbstate
