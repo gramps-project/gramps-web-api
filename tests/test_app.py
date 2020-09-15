@@ -15,8 +15,7 @@ class TestDummy(unittest.TestCase):
     def setUpClass(cls):
         cls.name = "Test Web API"
         cls.dbman = CLIDbManager(DbState())
-        dirpath, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
-        cls.db = make_database("sqlite")
+        _, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
         with patch.dict("os.environ", {"TREE": cls.name}):
             app = create_app()
         app.config["TESTING"] = True
