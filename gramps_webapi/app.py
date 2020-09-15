@@ -5,8 +5,9 @@ import os
 
 from flask import Flask, current_app, g
 
-from .dbmanager import DbState, WebDbManager
 from .api import api_blueprint
+from .const import ENV_CONFIG_FILE
+from .dbmanager import DbState, WebDbManager
 
 
 def get_db() -> DbState:
@@ -25,9 +26,7 @@ def create_app():
     app = Flask(__name__)
     app.config["PROPAGATE_EXCEPTIONS"] = True
     app.logger.setLevel(logging.INFO)
-    app.config["TREE"] = os.getenv("TREE")
-    if not app.config["TREE"]:
-        raise ValueError("You have to set the `TREE` environment variable.")
+    app.config.from_envvar(ENV_CONFIG_FILE)
     app.config["DB_MANAGER"] = WebDbManager(name=app.config["TREE"])
 
     app.register_blueprint(api_blueprint)

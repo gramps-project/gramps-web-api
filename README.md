@@ -34,11 +34,19 @@ Run
 pip install -e . --user
 ```
 
+### Generate a configuration file
+
+Example content:
+
+```python
+TREE="My Family Tree"
+```
+
 ### Run the app in development mode
 
 
 Run
 ```
-python -m gramps_webapi run
+python -m gramps_webapi --config path/to/config run
 ```
 The API will be accesible at `http://127.0.0.1:5000` by default. To choose a different port, add the `--port` option.

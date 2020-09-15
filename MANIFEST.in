@@ -1,5 +1,6 @@
 include README.md
 
 recursive-include tests *
+recursive-include gramps_webapi *
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]

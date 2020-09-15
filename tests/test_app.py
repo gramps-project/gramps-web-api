@@ -8,6 +8,7 @@ from gramps.gen.db.utils import make_database
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
+from gramps_webapi.const import TEST_CONFIG, ENV_CONFIG_FILE
 
 
 class TestDummy(unittest.TestCase):
@@ -16,7 +17,7 @@ class TestDummy(unittest.TestCase):
         cls.name = "Test Web API"
         cls.dbman = CLIDbManager(DbState())
         _, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
-        with patch.dict("os.environ", {"TREE": cls.name}):
+        with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_CONFIG}):
             app = create_app()
         app.config["TESTING"] = True
         cls.client = app.test_client()
