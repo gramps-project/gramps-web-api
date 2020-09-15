@@ -16,7 +16,7 @@ setup(
     author="Gramps Development Team",
     author_email="...",
     url="https://github.com/gramps-project/web-api",
-    python_requires=">=3.6",
+    python_requires=">=3.5",
     description="A RESTful web API for the Gramps genealogical database.",
     license="GPL v2 or greater",
     install_requires=REQUIREMENTS,
