@@ -33,7 +33,10 @@ def create_app():
 
     if app.config.get("CORS_ORIGINS"):
         CORS(
-            app, resources={f"{API_PREFIX}/*": {"origins": app.config["CORS_ORIGINS"]}}
+            app,
+            resources={
+                "{}/*".format(API_PREFIX): {"origins": app.config["CORS_ORIGINS"]}
+            },
         )
 
     Compress(app)
