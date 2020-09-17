@@ -9,7 +9,14 @@ with open("gramps_webapi/_version.py") as version_file:
     exec(version_file.read())
 
 
-REQUIREMENTS = ["Click>=7.0", "Flask", "Flask-Cors", "Flask-Limiter", "Flask-RESTful"]
+REQUIREMENTS = [
+    "Click>=7.0",
+    "Flask",
+    "Flask-Compress",
+    "Flask-Cors",
+    "Flask-Limiter",
+    "Flask-RESTful",
+]
 
 
 setup(

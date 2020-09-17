@@ -4,6 +4,7 @@ import logging
 import os
 
 from flask import Flask, current_app, g
+from flask_compress import Compress
 from flask_cors import CORS
 
 from .api import api_blueprint
@@ -34,6 +35,8 @@ def create_app():
         CORS(
             app, resources={f"{API_PREFIX}/*": {"origins": app.config["CORS_ORIGINS"]}}
         )
+
+    Compress(app)
 
     app.register_blueprint(api_blueprint)
 
