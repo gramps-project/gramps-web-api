@@ -9,18 +9,7 @@ from flask_cors import CORS
 
 from .api import api_blueprint
 from .const import API_PREFIX, ENV_CONFIG_FILE
-from .dbmanager import DbState, WebDbManager
-
-
-def get_db() -> DbState:
-    """Open the database and get the current state.
-
-    Called before every request.
-    """
-    dbmgr = current_app.config["DB_MANAGER"]
-    if "dbstate" not in g:
-        g.dbstate = dbmgr.get_db()
-    return g.dbstate
+from .dbmanager import WebDbManager
 
 
 def create_app():
@@ -50,12 +39,5 @@ def create_app():
         dbstate = g.pop("dbstate", None)
         if dbstate and dbstate.is_open():
             dbstate.db.close()
-
-    @app.route("/", methods=["GET", "POST"])
-    def dummy_root():
-        dbstate = get_db()
-        dbname = dbstate.db.get_dbname()
-        res = dbstate.db.get_researcher().get_name()
-        return "Database: {}, Researcher: {}".format(dbname, res)
 
     return app

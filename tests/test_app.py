@@ -29,4 +29,4 @@ class TestDummy(unittest.TestCase):
     def test_dummy_root(self):
         """Silly test just to get started."""
         rv = self.client.get("/")
-        assert self.name.encode() in rv.data
+        assert rv.status_code == 404
