@@ -4,9 +4,10 @@ import logging
 import os
 
 from flask import Flask, current_app, g
+from flask_cors import CORS
 
 from .api import api_blueprint
-from .const import ENV_CONFIG_FILE
+from .const import API_PREFIX, ENV_CONFIG_FILE
 from .dbmanager import DbState, WebDbManager
 
 
@@ -28,6 +29,11 @@ def create_app():
     app.logger.setLevel(logging.INFO)
     app.config.from_envvar(ENV_CONFIG_FILE)
     app.config["DB_MANAGER"] = WebDbManager(name=app.config["TREE"])
+
+    if app.config.get("CORS_ORIGINS"):
+        CORS(
+            app, resources={f"{API_PREFIX}/*": {"origins": app.config["CORS_ORIGINS"]}}
+        )
 
     app.register_blueprint(api_blueprint)
 

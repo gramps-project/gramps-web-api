@@ -40,6 +40,7 @@ Example content:
 
 ```python
 TREE="My Family Tree"
+CORS_ORIGINS=""
 ```
 
 ### Run the app in development mode
