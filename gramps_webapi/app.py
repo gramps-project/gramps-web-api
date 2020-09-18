@@ -8,6 +8,7 @@ from flask_compress import Compress
 from flask_cors import CORS
 
 from .api import api_blueprint
+from .config import DefaultConfig
 from .const import API_PREFIX, ENV_CONFIG_FILE
 from .dbmanager import WebDbManager
 
@@ -15,12 +16,19 @@ from .dbmanager import WebDbManager
 def create_app():
     """Flask application factory."""
     app = Flask(__name__)
-    app.config["PROPAGATE_EXCEPTIONS"] = True
     app.logger.setLevel(logging.INFO)
+
+    # load default config
+    app.config.from_object(DefaultConfig)
+
+    # overwrite with user config file
     app.config.from_envvar(ENV_CONFIG_FILE)
+
+    # instantiate DB manager
     app.config["DB_MANAGER"] = WebDbManager(name=app.config["TREE"])
 
     if app.config.get("CORS_ORIGINS"):
+        # enable CORS for /api/... resources
         CORS(
             app,
             resources={
@@ -28,8 +36,10 @@ def create_app():
             },
         )
 
+    # enable gzip compression
     Compress(app)
 
+    # register the API blueprint
     app.register_blueprint(api_blueprint)
 
     # close DB after every request
