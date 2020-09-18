@@ -2,11 +2,11 @@
 
 from gramps.gen.display.name import displayer as name_displayer
 
-from .base import GrampsObjectResource
+from .base import GrampsObjectHelper, GrampsObjectResource, GrampsObjectsResource
 
 
-class PersonResource(GrampsObjectResource):
-    """Person resource."""
+class PersonResourceHelper(GrampsObjectHelper):
+    """Person resource helper."""
 
     gramps_class_name = "Person"
 
@@ -19,3 +19,11 @@ class PersonResource(GrampsObjectResource):
             "name_surname": obj.primary_name.get_surname(),
             "gender": obj.gender,
         }
+
+
+class PersonResource(GrampsObjectResource, PersonResourceHelper):
+    """Person resource."""
+
+
+class PeopleResource(GrampsObjectsResource, PersonResourceHelper):
+    """People resource."""

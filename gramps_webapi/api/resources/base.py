@@ -9,8 +9,8 @@ from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_NAME_MAP
 from ..util import get_dbstate
 
 
-class GrampsObjectResource(Resource):
-    """Gramps object API resource."""
+class GrampsObjectHelper:
+    """Gramps object helper class."""
 
     @property  # type: ignore
     @abstractmethod
@@ -37,9 +37,25 @@ class GrampsObjectResource(Resource):
         raw_obj = dbstate.db._get_raw_from_id_data(obj_class_key, gramps_id)
         return self.object_class.create(raw_obj)
 
-    def get(self, gramps_id: str):  # pylint: disable=no-self-use
+
+class GrampsObjectResource(GrampsObjectHelper, Resource):
+    """Resource for a single object."""
+
+    def get(self, gramps_id: str):
         """Get the object."""
         obj = self.get_object_from_gramps_id(gramps_id)
         if obj is None:
             return abort(404)
         return self.object_to_dict(obj)
+
+
+class GrampsObjectsResource(GrampsObjectHelper, Resource):
+    """Resource for multiple objects."""
+
+    def get(self):
+        """Get all objects."""
+        dbstate = get_dbstate()
+        return [
+            self.object_to_dict(obj)
+            for obj in dbstate.db._iter_objects(self.object_class)
+        ]

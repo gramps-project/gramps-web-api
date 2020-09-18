@@ -57,3 +57,8 @@ class TestPerson(unittest.TestCase):
             "name_surname": "Allen",
             "gender": 1,  # male
         }
+
+    def test_people_endpoint(self):
+        rv = self.client.get("/api/people/")
+        assert type(rv.json) == list
+        assert "gramps_id" in rv.json[0]
