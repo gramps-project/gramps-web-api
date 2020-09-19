@@ -60,5 +60,20 @@ class TestPerson(unittest.TestCase):
 
     def test_people_endpoint(self):
         rv = self.client.get("/api/people/")
-        assert type(rv.json) == list
-        assert "gramps_id" in rv.json[0]
+        assert rv.json == [
+            {
+                "gramps_id": "person001",
+                "name_given": "John",
+                "name_surname": "Allen",
+                "gender": 1,  # male
+            }
+        ]
+
+    def test_token_endpoint(self):
+        rv = self.client.post("/api/login/", data={})
+        # no username or password provided
+        assert rv.status_code == 400
+        rv = self.client.post("/api/login/", data={"username": "user", "password": 123})
+        assert rv.status_code == 200
+        assert "refresh_token" in rv.json
+        assert "access_token" in rv.json

@@ -1,14 +1,16 @@
 """Flask web app providing a REST API to a gramps family tree."""
 
 import logging
-import os
 
-from flask import Flask, current_app, g
+from flask import Flask, g
 from flask_compress import Compress
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager
 
 from .api import api_blueprint
-from .config import DefaultConfig
+from .api.resources.token import limiter
+from .auth import DummyAuthProvider
+from .config import DefaultConfig, DefaultConfigJWT
 from .const import API_PREFIX, ENV_CONFIG_FILE
 from .dbmanager import WebDbManager
 
@@ -27,8 +29,20 @@ def create_app():
     # instantiate DB manager
     app.config["DB_MANAGER"] = WebDbManager(name=app.config["TREE"])
 
+    if app.config.get("DISABLE_AUTH"):
+        pass
+    else:
+        # load JWT default settings
+        app.config.from_object(DefaultConfigJWT)
+
+        # instantiate JWT manager
+        JWTManager(app)
+
+        # instantiate and store auth provider
+        app.config["AUTH_PROVIDER"] = DummyAuthProvider()
+
+    # enable CORS for /api/... resources
     if app.config.get("CORS_ORIGINS"):
-        # enable CORS for /api/... resources
         CORS(
             app,
             resources={
@@ -41,6 +55,7 @@ def create_app():
 
     # register the API blueprint
     app.register_blueprint(api_blueprint)
+    limiter.init_app(app)
 
     # close DB after every request
     @app.teardown_appcontext

@@ -14,6 +14,7 @@ REQUIREMENTS = [
     "Flask",
     "Flask-Compress",
     "Flask-Cors",
+    "Flask-JWT-Extended",
     "Flask-Limiter",
     "Flask-RESTful",
 ]
