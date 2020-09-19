@@ -2,7 +2,11 @@
 
 from gramps.gen.display.name import displayer as name_displayer
 
-from .base import GrampsObjectHelper, GrampsObjectResource, GrampsObjectsResource
+from .base import (
+    GrampsObjectHelper,
+    GrampsObjectProtectedResource,
+    GrampsObjectsProtectedResource,
+)
 
 
 class PersonResourceHelper(GrampsObjectHelper):
@@ -21,9 +25,9 @@ class PersonResourceHelper(GrampsObjectHelper):
         }
 
 
-class PersonResource(GrampsObjectResource, PersonResourceHelper):
+class PersonResource(GrampsObjectProtectedResource, PersonResourceHelper):
     """Person resource."""
 
 
-class PeopleResource(GrampsObjectsResource, PersonResourceHelper):
+class PeopleResource(GrampsObjectsProtectedResource, PersonResourceHelper):
     """People resource."""

@@ -6,11 +6,11 @@ from flask_jwt_extended import (
     create_refresh_token,
     get_jwt_identity,
 )
-from flask_restful import Resource, abort, reqparse
-
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_restful import Resource, abort, reqparse
 
+from . import RefreshProtectedResource
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -51,7 +51,7 @@ class TokenResource(Resource):
         return parser
 
 
-class TokenRefreshResource(Resource):
+class TokenRefreshResource(RefreshProtectedResource):
     """Resource for refreshing a JWT."""
 
     @limiter.limit("1/second")

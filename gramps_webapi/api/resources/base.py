@@ -7,6 +7,7 @@ from flask_restful import Resource, abort
 from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_NAME_MAP
 
 from ..util import get_dbstate
+from . import ProtectedResource
 
 
 class GrampsObjectHelper:
@@ -59,3 +60,11 @@ class GrampsObjectsResource(GrampsObjectHelper, Resource):
             self.object_to_dict(obj)
             for obj in dbstate.db._iter_objects(self.object_class)
         ]
+
+
+class GrampsObjectProtectedResource(GrampsObjectResource, ProtectedResource):
+    """Resource for a single object, requiring authentication."""
+
+
+class GrampsObjectsProtectedResource(GrampsObjectsResource, ProtectedResource):
+    """Resource for a multiple objects, requiring authentication."""
