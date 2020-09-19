@@ -77,3 +77,10 @@ class TestPerson(unittest.TestCase):
         assert rv.status_code == 200
         assert "refresh_token" in rv.json
         assert "access_token" in rv.json
+
+    def test_refresh_token_endpoint(self):
+        rv = self.client.post("/api/refresh/")
+        assert rv.status_code == 200
+        assert "refresh_token" not in rv.json
+        assert "access_token" in rv.json
+        assert rv.json["access_token"] != 1
