@@ -59,6 +59,10 @@ class SQLAuth(AuthProvider):
         role: int = None,
     ):
         """Add a user."""
+        if name == "":
+            raise ValueError("Username must not be empty")
+        if password == "":
+            raise ValueError("Password must not be empty")
         with self.session_scope() as session:
             user = User(
                 id=uuid.uuid4(),
@@ -97,7 +101,7 @@ class SQLAuth(AuthProvider):
     ) -> None:
         """Modify an existing user."""
         with self.session_scope() as session:
-            user = self.session.query(User).filter_by(name=name).scalar()
+            user = session.query(User).filter_by(name=name).scalar()
             if user is None:
                 raise ValueError("User {} not found".format(name))
             if name_new is not None:
