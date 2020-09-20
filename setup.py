@@ -17,6 +17,7 @@ REQUIREMENTS = [
     "Flask-JWT-Extended",
     "Flask-Limiter",
     "Flask-RESTful",
+    "SQLAlchemy",
 ]
 
 

@@ -1,6 +1,6 @@
 import unittest
 
-from gramps_webapp.auth import SQLAuth, User
+from gramps_webapi.auth import SQLAuth, User
 
 
 class TestSQLAuth(unittest.TestCase):
