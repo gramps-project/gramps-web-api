@@ -4,6 +4,24 @@ A RESTful web API for Gramps
 
 ## Development instructions
 
+### Install Gramps
+
+The web API requires the Gramps Python library to be importable. Starting from Gramps 5.2.0, it will be installable via `pip`. For the time being, the two most convenient options are
+
+1. Use the `apt` package `python3-gramps` on Ubuntu
+2. Build your own wheel from Gramps `master` and install it into a virtual environment. Instructions:
+
+```
+python3 -m venv gramps_webapi
+source gramps_webapi/bin/activate
+python3 -m pip install wheel
+git clone https://github.com/gramps-project/gramps.git
+cd gramps
+python3 setup.py bdist_wheel
+python3 -m pip install dist/*.whl
+```
+**Warning:** Gramps `master` is an unstable development snapshot. Do not use it on your existing family tree.
+
 ### Install prerequisites
 
 To start development, please install the dependencies by running
@@ -40,7 +58,7 @@ Example content:
 
 ```python
 TREE="My Family Tree"
-CORS_ORIGINS=""
+DISABLE_AUTH=True
 ```
 
 ### Run the app in development mode
