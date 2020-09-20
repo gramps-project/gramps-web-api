@@ -1,6 +1,15 @@
 """Define methods of providing authentication for users."""
 
-from abc import abstractmethod, ABCMeta
+import uuid
+from abc import ABCMeta, abstractmethod
+from contextlib import contextmanager
+
+import sqlalchemy as sa
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+from .util.passwords import hash_password, verify_password
+from .util.sql_guid import GUID
 
 
 class AuthProvider(metaclass=ABCMeta):
@@ -12,9 +21,116 @@ class AuthProvider(metaclass=ABCMeta):
         return False
 
 
-class DummyAuthProvider(AuthProvider):
-    """Dummy auth provider that always logs in."""
+Base = declarative_base()
+
+
+class SQLAuth(AuthProvider):
+    """SQL Alchemy user database."""
+
+    def __init__(self, db_uri, logging=False):
+        """Initialize given a DB URI."""
+        self.db_uri = db_uri
+        self.engine = sa.create_engine(db_uri, echo=logging)
+
+    @contextmanager
+    def session_scope(self):
+        """Provide a transactional scope around a series of operations."""
+        Session = sessionmaker(bind=self.engine)
+        session = Session()
+        try:
+            yield session
+            session.commit()  # pylint:disable=no-member
+        except:
+            session.rollback()  # pylint:disable=no-member
+            raise
+        finally:
+            session.close()  # pylint:disable=no-member
+
+    def create_table(self):
+        """Create the user table if it does not exist yet."""
+        Base.metadata.create_all(bind=self.engine)
+
+    def add_user(
+        self,
+        name: str,
+        password: str,
+        fullname: str = None,
+        email: str = None,
+        role: int = None,
+    ):
+        """Add a user."""
+        with self.session_scope() as session:
+            user = User(
+                id=uuid.uuid4(),
+                name=name,
+                fullname=fullname,
+                email=email,
+                pwhash=hash_password(password),
+                role=role,
+            )
+            session.add(user)
+
+    def get_guid(self, name: str) -> None:
+        """Get the GUID of an existing user by username."""
+        with self.session_scope() as session:
+            user_id = session.query(User.id).filter_by(name=name).scalar()
+            if user_id is None:
+                raise ValueError("User {} not found".format(name))
+        return user_id
+
+    def delete_user(self, name: str) -> None:
+        """Delete an existing user."""
+        with self.session_scope() as session:
+            user = session.query(User).filter_by(name=name).scalar()
+            if user is None:
+                raise ValueError("User {} not found".format(name))
+            session.delete(user)
+
+    def modify_user(
+        self,
+        name: str,
+        name_new: str = None,
+        password: str = None,
+        fullname: str = None,
+        email: str = None,
+        role: int = None,
+    ) -> None:
+        """Modify an existing user."""
+        with self.session_scope() as session:
+            user = self.session.query(User).filter_by(name=name).scalar()
+            if user is None:
+                raise ValueError("User {} not found".format(name))
+            if name_new is not None:
+                user.name = name_new
+            if password is not None:
+                user.pwhash = hash_password(password)
+            if fullname is not None:
+                user.fullname = fullname
+            user.email = email  # also for None since nullable
+            if role is not None:
+                user.role = role
 
     def authorized(self, username: str, password: str) -> bool:
         """Return true if the username is authorized."""
-        return True
+        with self.session_scope() as session:
+            user = session.query(User).filter_by(name=username).scalar()
+            if user is None:
+                return False
+            return verify_password(password=password, salt_hash=user.pwhash)
+
+
+class User(Base):
+    """User table class for sqlalchemy."""
+
+    __tablename__ = "users"
+
+    id = sa.Column(GUID, primary_key=True)
+    name = sa.Column(sa.String, unique=True, nullable=False)
+    email = sa.Column(sa.String, unique=True)
+    fullname = sa.Column(sa.String)
+    pwhash = sa.Column(sa.String, nullable=False)
+    role = sa.Column(sa.Integer, default=0)
+
+    def __repr__(self):
+        """String representation of instance."""
+        return "<User(name='%s', fullname='%s')>" % (self.name, self.fullname)

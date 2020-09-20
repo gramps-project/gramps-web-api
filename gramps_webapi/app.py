@@ -9,7 +9,7 @@ from flask_jwt_extended import JWTManager
 
 from .api import api_blueprint
 from .api.resources.token import limiter
-from .auth import DummyAuthProvider
+from .auth import SQLAuth
 from .config import DefaultConfig, DefaultConfigJWT
 from .const import API_PREFIX, ENV_CONFIG_FILE
 from .dbmanager import WebDbManager
@@ -39,7 +39,9 @@ def create_app():
         JWTManager(app)
 
         # instantiate and store auth provider
-        app.config["AUTH_PROVIDER"] = DummyAuthProvider()
+        if not app.config.get("USER_DB_URI"):
+            raise ValueError("USER_DB_URI must be specified")
+        app.config["AUTH_PROVIDER"] = SQLAuth(db_uri=app.config["USER_DB_URI"])
 
     # enable CORS for /api/... resources
     if app.config.get("CORS_ORIGINS"):

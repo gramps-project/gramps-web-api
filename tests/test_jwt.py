@@ -34,6 +34,9 @@ class TestPerson(unittest.TestCase):
             cls.app = create_app()
         cls.app.config["TESTING"] = True
         cls.client = cls.app.test_client()
+        sqlauth = cls.app.config["AUTH_PROVIDER"]
+        sqlauth.create_table()
+        sqlauth.add_user(name="user", password="123")
 
     def setUp(self):
         dbstate = self.app.config["DB_MANAGER"].get_db(force_unlock=True)
@@ -68,6 +71,14 @@ class TestPerson(unittest.TestCase):
         rv = self.client.post("/api/login/", data={})
         # no username or password provided
         assert rv.status_code == 400
+        rv = self.client.post("/api/login/", data={"username": "user", "password": 234})
+        # wrong pw
+        assert rv.status_code == 403
+        rv = self.client.post(
+            "/api/login/", data={"username": "admin", "password": 123}
+        )
+        # wrong user
+        assert rv.status_code == 403
         rv = self.client.post("/api/login/", data={"username": "user", "password": 123})
         assert rv.status_code == 200
         assert "refresh_token" in rv.json
