@@ -12,6 +12,6 @@ api = Api(api_blueprint)
 
 
 api.add_resource(PersonResource, "/person/<string:gramps_id>")
-api.add_resource(PeopleResource, "/people/")
+api.add_resource(PeopleResource, "/person/")
 api.add_resource(TokenResource, "/login/")
 api.add_resource(TokenRefreshResource, "/refresh/")

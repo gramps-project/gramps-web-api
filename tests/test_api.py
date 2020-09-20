@@ -59,7 +59,7 @@ class TestPerson(unittest.TestCase):
         }
 
     def test_people_endpoint(self):
-        rv = self.client.get("/api/people/")
+        rv = self.client.get("/api/person/")
         assert rv.json == [
             {
                 "gramps_id": "person001",
