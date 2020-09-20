@@ -2,6 +2,12 @@
 
 A RESTful web API for Gramps
 
+## API docs
+
+The documentation of the current state of the API (which is still work in progress) can be browsed with Swagger:
+
+[Gramps API docs](https://generator.swagger.io/?url=https://raw.githubusercontent.com/gramps-project/web-api/master/gramps_webapi/data/apispec.yaml)
+
 ## Development instructions
 
 ### Install Gramps
