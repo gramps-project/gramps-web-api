@@ -1,7 +1,6 @@
 Pipfile
 Pipfile.lock
 .venv
-.vscode
 *.ipynb
 
 # Byte-compiled / optimized / DLL files

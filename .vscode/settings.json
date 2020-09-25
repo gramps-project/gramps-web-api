@@ -5,6 +5,7 @@
   "python.linting.pylintEnabled": true,
   "python.linting.mypyEnabled": true,
   "python.linting.flake8Enabled": false,
+  "python.linting.pylintArgs": ["--rcfile=setup.cfg"],
   "[python]": {
     "editor.formatOnSave": true
   }
