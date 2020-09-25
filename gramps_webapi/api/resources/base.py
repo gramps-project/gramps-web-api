@@ -4,13 +4,14 @@ from abc import abstractmethod
 
 import gramps.gen.lib
 from flask_restful import Resource, abort
+from gramps.gen.db.base import DbReadBase
 from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_NAME_MAP
 
 from ..util import get_dbstate
 from . import ProtectedResource
 
 
-class GrampsObjectHelper:
+class GrampsObjectResourceHelper:
     """Gramps object helper class."""
 
     @property  # type: ignore
@@ -18,10 +19,23 @@ class GrampsObjectHelper:
     def gramps_class_name(self):
         """To be set on child classes."""
 
-    @staticmethod
     @abstractmethod
-    def object_to_dict(obj):
+    def object_to_dict(self, obj):
         """Get the object as a dictionary."""
+
+    def object_to_dict_filtered(self, obj):
+        """Get the object as a dictionary, omitting None or empty values."""
+        object_dict = self.object_to_dict(obj)
+        return {
+            k: v
+            for k, v in object_dict.items()
+            if v is not None and v != [] and v != {}
+        }
+
+    @property
+    def db(self) -> DbReadBase:
+        """Get the database instance."""
+        return get_dbstate().db
 
     @property
     def object_class(self):
@@ -33,13 +47,22 @@ class GrampsObjectHelper:
 
     def get_object_from_gramps_id(self, gramps_id: str):
         """Get the object given a Gramps ID."""
-        dbstate = get_dbstate()
         obj_class_key = CLASS_TO_KEY_MAP[self.gramps_class_name]
-        raw_obj = dbstate.db._get_raw_from_id_data(obj_class_key, gramps_id)
+        raw_obj = self.db._get_raw_from_id_data(obj_class_key, gramps_id)
         return self.object_class.create(raw_obj)
 
+    def get_object_from_handle(self, handle: str):
+        """Get the object given a Gramps ID."""
+        obj_class_key = CLASS_TO_KEY_MAP[self.gramps_class_name]
+        raw_obj = self.db._get_from_handle(obj_class_key, self.object_class, handle)
+        return self.object_class.create(raw_obj)
 
-class GrampsObjectResource(GrampsObjectHelper, Resource):
+    def get_gramps_id_from_handle(self, handle: str):
+        """Get an object's Gramps ID from its handle."""
+        return self.get_object_from_handle(handle).gramps_id
+
+
+class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
     """Resource for a single object."""
 
     def get(self, gramps_id: str):
@@ -47,18 +70,17 @@ class GrampsObjectResource(GrampsObjectHelper, Resource):
         obj = self.get_object_from_gramps_id(gramps_id)
         if obj is None:
             return abort(404)
-        return self.object_to_dict(obj)
+        return self.object_to_dict_filtered(obj)
 
 
-class GrampsObjectsResource(GrampsObjectHelper, Resource):
+class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
     """Resource for multiple objects."""
 
     def get(self):
         """Get all objects."""
-        dbstate = get_dbstate()
         return [
-            self.object_to_dict(obj)
-            for obj in dbstate.db._iter_objects(self.object_class)
+            self.object_to_dict_filtered(obj)
+            for obj in self.db._iter_objects(self.object_class)
         ]
 
 
