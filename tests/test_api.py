@@ -3,10 +3,13 @@
 import unittest
 from unittest.mock import patch
 
+import yaml
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.db import DbTxn
 from gramps.gen.dbstate import DbState
 from gramps.gen.lib import Person, Surname
+from jsonschema import validate
+from pkg_resources import resource_filename
 
 from gramps_webapi.app import create_app
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_CONFIG
@@ -78,3 +81,10 @@ class TestPerson(unittest.TestCase):
         rv = self.client.post("/api/refresh/")
         assert rv.status_code == 200
         assert rv.json == {"access_token": 1}
+
+    def test_person_schema(self):
+        with open(resource_filename("gramps_webapi", "data/apispec.yaml")) as f:
+            api_schema = yaml.safe_load(f)
+        person_schema = api_schema["definitions"]["Person"]
+        for person in self.client.get("/api/person/").json:
+            validate(instance=person, schema=person_schema)
