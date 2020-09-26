@@ -6,7 +6,7 @@ python:
   - "3.8"
 install:
   - python -m pip install git+https://github.com/gramps-project/gramps@master#egg=gramps
-  - pip install pytest PyYAML
+  - pip install pytest PyYAML jsonschema
   - pip install .
 script:
   - pytest
