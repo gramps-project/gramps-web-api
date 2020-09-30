@@ -70,7 +70,7 @@ class TestPerson(unittest.TestCase):
     def test_token_endpoint(self):
         rv = self.client.post("/api/login/", data={})
         # no username or password provided
-        assert rv.status_code == 400
+        assert rv.status_code == 401
         rv = self.client.post("/api/login/", data={"username": "user", "password": 234})
         # wrong pw
         assert rv.status_code == 403
