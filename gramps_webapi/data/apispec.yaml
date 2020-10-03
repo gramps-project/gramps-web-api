@@ -6,131 +6,479 @@ info:
   license:
     name: GNU GPL v2.0
 basePath: /api
+consumes:
+  - application/json
+produces:
+  - application/json
+
 tags:
 - name: person
   description: Access to person objects
+    
 paths:
   /person:
     get:
       tags:
       - person
       summary: Get multiple persons
-      produces:
-      - application/json
+      operationId: getPeople
+      parameters:
+        - name: gramps_id
+          in: query
+          required: false
+          type: string
       responses:
         200:
-          description: successful operation
+          description: Successful operation
           schema:
             type: array
             items:
               $ref: "#/definitions/Person"
-  /person/{grampsId}:
+  /person/{handle}:
     get:
       tags:
       - person
-      summary: Get person by Gramps ID
-      produces:
-      - application/json
+      summary: Get person by their Gramps handle
       parameters:
-      - name: grampsId
+      - name: handle
         in: path
-        description: Gramps ID
+        description: Gramps handle or id
         required: true
         type: string
         default: available
       responses:
         200:
-          description: successful operation
+          description: Successful operation
           schema:
             $ref: "#/definitions/Person"
-        400:
-          description: invalid ID supplied
         404:
-          description: person not found
+          description: Person not found
+
 definitions:
   Person:
     type: object
     required:
-    - gramps_id
+    - handle
     properties:
-      gramps_id:
+      alternate_names:
+        description: List of all the known names used by the person
+        type: array
+        items:
+          $ref: "#/definitions/Name"
+      associations:
+        description: List of references to relationships with other people
+        type: array
+        items:
+          $ref: "#/definitions/AssociationReference"
+      attributes:
+        description: List of attributes about the person
+        type: array
+        items:
+          $ref: "#/definitions/Attribute"
+      birth_date:
+        description: Date of birth of the person
         type: string
-        example: I0001
+        example: "1685-03-31"
+      birth_indicator:
+        description: Indicates if a birth event is assigned to the person
+        type: integer
+        example: 0
+      birth_place:
+        description: Handle for place of birth of the person
+        type: string
+        example: e9027bf39c27be945fab9df8124
+      change:
+        description: Time in epoch format person was last modified
+        type: number
+        example: 1601335222
+      citations:
+        description: List of handles for citations supporting the person
+        type: array
+        items:
+          type: string
+        example:
+          - e9027bf39c27be945fab9df8124
+          - e9027bf39c36d6cdd046748852e
+      death_date:
+        description: Date of death of the person
+        type: string
+        example: "1750-07-28"
+      death_indicator:
+        description: Indicates if a death event is assigned to the person
+        type: integer
+        example: 0
+      death_place:
+        description: Handle for place of death of the person
+        type: string
+        example: e9027bf39c27be945fab9df8124
+      events:
+        description: List of references to events the person participated in
+        type: array
+        items:
+          $ref: "#/definitions/EventReference"
+      families:
+        description: A list of handles for the families the person was a parent of
+        type: array
+        items:
+          type: string
+        example:
+          - e9027bf39c36d6cdd046748852e
+      gender:
+        description: Sex of the person
+        type: integer
+        example: 1
+      gramps_id:
+        description: Common identifier for a person object, may not be unique
+        type: string
+        example: P0001
+      handle:
+        description: Unique identifier for a person object
+        type: string
+        example: e9027bf389921fb966e851abce5
+      lds:
+        description: List of LDS specific events the person participated in
+        type: array
+        items:
+          $ref: "#/definitions/LDSOrdination"
+      media:
+        description: List of references to media associated with the person
+        type: array
+        items:
+          $ref: "#/definitions/MediaReference"
       name_given:
+        description: Preferred given name of the person
         type: string
         example: Johann Sebastian
       name_surname:
+        description: Preferred surname of the person
         type: string
         example: Bach
-      gender:
-        type: integer
-        example: 1
-      birthdate:
+      notes:
+        description: List of handles for research notes related to the person
+        type: array
+        items:
+          type: string
+        example:
+          - e9027bf39c27be945fab9df8124
+          - e9027bf39c36d6cdd046748852e
+      parents:
+        description: A list of handles for the families of the parents of the person
+        type: array
+        items:
+          type: string
+        example:
+          - e9027bf39c27be945fab9df8124
+          - e9027bf39c36d6cdd046748852e
+      parents_primary:
+        description: The handle of the family of the preferred parents of the person
         type: string
-        example: "1685-03-31"
-      deathdate:
+        example: F0002
+      private:
+        description: Private object indicator
+        type: boolean
+        example: true
+      tags:
+        description: List of handles to tags associated with the person
+        type: array
+        items:
+          type: string
+        example:
+          - e9027bf39c27be945fab9df8124
+          - e9027bf39c36d6cdd046748852e
+      urls:
+        description: List of URLs associated with the person
+        type: array
+        items:
+          $ref: "#/definitions/URL"
+
+  Name:
+    type: object
+    properties:
+      call: 
+        description: Call name
+        type: string
+        example: Joseph
+      citations:
+        description: List of handles for citations supporting the name
+        type: array
+        items:
+          type: string
+        example:
+          - e9027bf39c27be945fab9df8124
+          - e9027bf39c36d6cdd046748852e
+      date:
+        description: Date name in use
         type: string
         example: "1750-07-28"
-      birthplace:
+      display_as:
+        description: For identifying how to display the name
         type: string
-        example: Eisenach
-      deathplace:
+      famnick:
+        description: Family nick name
         type: string
-        example: Leipzig
-      parents:
-        type: array
-        items:
-          type: string
-        example:
-          - I0011
-          - I0012
-      families:
-        type: array
-        items:
-          type: string
-        example:
-          - F0002
-          - F0003
-      events:
-        type: array
-        items:
-          type: object
-          properties:
-            gramps_id:
-              type: string
-            role:
-              type: string
-        example:
-          - gramps_id: E0001
-            role: Primary
-          - gramps_id: E0002
-            role: Family
-      media:
-        type: array
-        items:
-          type: object
-          properties:
-            ref:
-              type: string
-            rect:
-              type: array
-              items:
-                type: number
-        example:
-          - ref: abcdefghi
-          - ref: jklmnopqr
-            rect: [10, 20, 30, 40]
-      citations:
-        type: array
-        items:
-          type: string
-        example:
-          - C0001
-          - C0002
+        example: ""
+      first_name:
+        description: First part of name
+        type: string
+        example: James Joseph
+      group_as:
+        description: For identifying how to group the name
+        type: string
+      nick:
+        description: Nick name
+        type: string
+        example: Jim
       notes:
+        description: List of handles for research notes about the name
         type: array
         items:
           type: string
         example:
-          - N0001
-          - N0002
+          - e9027bf39c27be945fab9df8124
+          - e9027bf39c36d6cdd046748852e
+      private:
+        description: Private object indicator
+        type: boolean
+        example: true
+      sort_as:
+        description: For identifying how to sort the name
+        type: string
+      suffix:
+        description: Suffix, usually denotes credentials
+        type: string
+        example: Phd
+      surname_list:
+        description: Surnames
+        type: array
+        items:
+          $ref: "#/definitions/Surname"
+      title:
+        description: Prefix or title
+        type: string
+        example: Dr
+      type:
+        description: Type of name
+        type: string
+        example: "Also Known As"
+
+  Surname:
+    type: object
+    properties:
+      connector:
+        description: Connector to tie given name and surname together
+        type: string
+        example: van
+      origintype:
+        description: Name origin
+        type: string
+        example: 
+      prefix:
+        description: A name prefix
+        type: string
+        example: van
+      primary:
+        description: Primary surname indicator
+        type: boolean
+        example: true
+      surname:
+        description: Actual surname
+        type: string
+        example: Degroat
+
+  Attribute:
+    type: object
+    properties:
+      citations:
+        description: List of handles for citations supporting the attribute
+        type: array
+        items:
+          type: string
+        example:
+          - e9027bf39c27be945fab9df8124
+          - e9027bf39c36d6cdd046748852e
+      notes:
+        description: List of handles for research notes about the attribute
+        type: array
+        items:
+          type: string
+        example:
+          - e9027bf39c27be945fab9df8124
+          - e9027bf39c36d6cdd046748852e
+      private:
+        description: Private object indicator
+        type: boolean
+        example: true
+      type:
+        description: Type of the attribute
+        type: string
+        example: "Y-DNA Haplogroup"
+      value:
+        description: Value of the attribute
+        type: string
+        example: P259
+            
+  EventReference:
+    type: object
+    properties:
+      attributes:
+        description: List of attributes related to the role of the person in the event
+        type: array
+        items:
+          $ref: "#/definitions/Attribute"
+      notes:
+        description: List of handles for research notes about the event
+        type: array
+        items:
+          type: string
+        example:
+          - e9027bf39c27be945fab9df8124
+          - e9027bf39c36d6cdd046748852e
+      private:
+        description: Private object indicator
+        type: boolean
+        example: true
+      reference:
+        description: Handle of the event reference
+        type: string
+        example: e9027bf389921fb966e851abce5
+      role:
+        description: Role of person in the event
+        type: string
+        example: Witness
+
+  AssociationReference:
+    type: object
+    properties:
+      citations:
+        description: List of handles for citations supporting the association
+        type: array
+        items:
+          type: string
+        example:
+          - e9027bf39c27be945fab9df8124
+          - e9027bf39c36d6cdd046748852e
+      notes:
+        description: List of handles for research notes about the association
+        type: array
+        items:
+          type: string
+        example:
+          - e9027bf39c27be945fab9df8124
+          - e9027bf39c36d6cdd046748852e
+      private:
+        description: Private object indicator
+        type: boolean
+        example: true
+      reference:
+        description: Handle of the person reference
+        type: string
+        example: e9027bf389921fb966e851abce5
+      relationship:
+        description: Relationship between the people
+        type: string
+        example: Godparent
+
+  MediaReference:
+    type: object
+    properties:
+      attributes:
+        description: Attributes related to the media reference
+        type: array
+        items:
+          $ref: AttributeReference
+      citations:
+        description: List of handles for citations supporting the media reference
+        type: array
+        items:
+          type: string
+        example:
+          - e9027bf39c27be945fab9df8124
+          - e9027bf39c36d6cdd046748852e
+      notes:
+        description: List of handles for research notes about the media reference
+        type: array
+        items:
+          type: string
+        example:
+          - e9027bf39c27be945fab9df8124
+          - e9027bf39c36d6cdd046748852e
+      private:
+        description: Private object indicator
+        type: boolean
+        example: true
+      rectangle:
+        description: Rectangle
+        type: array
+        items:
+          type: number
+        example: [10, 20, 30, 40]
+      reference:
+        description: Handle of the media reference
+        type: string
+        example: e9027bf389921fb966e851abce5
+
+  LDSOrdination:
+    type: object
+    properties:
+      citations:
+        description: List of handles for citations supporting the LDS event
+        type: array
+        items:
+          type: string
+        example:
+          - e9027bf39c27be945fab9df8124
+          - e9027bf39c36d6cdd046748852e
+      date:
+        description: Date of event
+        type: string
+        example: "1750-07-28"
+      famc:
+        description: Family
+        type: string
+        example: F0022
+      notes:
+        description: List of handles for research notes about the LDS event
+        type: array
+        items:
+          type: string
+        example:
+          - e9027bf39c27be945fab9df8124
+          - e9027bf39c36d6cdd046748852e
+      place:
+        description: Location of event
+        type: string
+        example: "Salt Lake City, Utah, United States"
+      private:
+        description: Private object indicator
+        type: boolean
+        example: true
+      status:
+        description: Status of event
+        type: string
+      temple:
+        description: Temple
+        type: string
+      type:
+        description: Type of event
+        type: string
+        example: Baptism
+
+  URL:
+    type: object
+    properties:
+      description:
+        description: Description of the URL
+        type: string
+        example: Person page on FamilySearch
+      path:
+        description: URL
+        type: string
+        example: "https://www.familysearch.org/tree/person/details/AYFC-722"
+      private:
+        description: Private object indicator
+        type: boolean
+        example: true
+      type:
+        description: Type of URL
+        type: string
+        example: Unsure

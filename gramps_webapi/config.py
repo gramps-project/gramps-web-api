@@ -8,7 +8,6 @@ class DefaultConfig(object):
 
     PROPAGATE_EXCEPTIONS = True
 
-
 class DefaultConfigJWT(object):
     """Default configuration for JWT auth."""
 

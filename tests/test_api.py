@@ -52,25 +52,55 @@ class TestPerson(unittest.TestCase):
         rv = self.client.get("/api/person/does_not_exist")
         assert rv.status_code == 404
 
-    def test_person_endpoint(self):
-        rv = self.client.get("/api/person/person001")
-        assert rv.json == {
+    def test_people_endpoint(self):
+        rv = self.client.get("/api/person/")
+        it = rv.json[0]
+        assert len(it["handle"]) > 20
+        del it["handle"]
+        assert isinstance(it["change"], int)
+        del it["change"]
+        assert it == {
+            "birth_indicator": -1,
+            "death_indicator": -1,
+            "gender": 1,  # male
             "gramps_id": "person001",
             "name_given": "John",
             "name_surname": "Allen",
+            "private": False,
+        }
+        rv = self.client.get("/api/person/?gramps_id=person001")
+        it = rv.json[0]
+        assert len(it["handle"]) > 20
+        del it["handle"]
+        assert isinstance(it["change"], int)
+        del it["change"]
+        assert it == {
+            "birth_indicator": -1,
+            "death_indicator": -1,
             "gender": 1,  # male
+            "gramps_id": "person001",
+            "name_given": "John",
+            "name_surname": "Allen",
+            "private": False,
         }
 
-    def test_people_endpoint(self):
+    def test_person_endpoint(self):
         rv = self.client.get("/api/person/")
-        assert rv.json == [
-            {
-                "gramps_id": "person001",
-                "name_given": "John",
-                "name_surname": "Allen",
-                "gender": 1,  # male
-            }
-        ]
+        it = rv.json[0]
+        rv = self.client.get("/api/person/" + it["handle"])
+        assert len(rv.json["handle"]) > 20
+        del rv.json["handle"]
+        assert isinstance(rv.json["change"], int)
+        del rv.json["change"]
+        assert rv.json == {
+            "birth_indicator": -1,
+            "death_indicator": -1,
+            "gender": 1,  # male
+            "gramps_id": "person001",
+            "name_given": "John",
+            "name_surname": "Allen",
+            "private": False,
+        }
 
     def test_token_endpoint(self):
         rv = self.client.post("/api/login/", data={})

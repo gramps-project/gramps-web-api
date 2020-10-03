@@ -19,7 +19,7 @@ def register_endpt(resource: Type[Resource], url: str, name: str):
 
 
 # Person
-register_endpt(PersonResource, "/person/<string:gramps_id>", "person")
+register_endpt(PersonResource, "/person/<string:handle>", "person")
 register_endpt(PeopleResource, "/person/", "people")
 # Token
 register_endpt(TokenResource, "/login/", "token")

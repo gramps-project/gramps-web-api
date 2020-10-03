@@ -6,10 +6,10 @@ from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.display.name import NameDisplay
 from gramps.gen.errors import HandleError
-from gramps.gen.lib import Event, Person
+from gramps.gen.lib import Person
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 
-from gramps_webapi.types import GrampsId, Handle
+from gramps_webapi.types import Handle
 
 nd = NameDisplay()
 dd = GRAMPS_LOCALE.date_displayer
@@ -24,13 +24,16 @@ def get_event_date_from_handle(db: DbReadBase, handle: Handle) -> Optional[str]:
     return dd.display(date) or None
 
 
-def get_event_place_from_handle(db: DbReadBase, handle: Handle) -> Optional[GrampsId]:
-    """Get an event's place."""
-    return get_event_place_grampsid(db, db.get_event_from_handle(handle))
+def get_event_place_from_handle(db: DbReadBase, handle: Handle) -> Optional[Handle]:
+    """Get the handle of an event's place."""
+    try:
+        return db.get_event_from_handle(handle).place
+    except:
+        return None
 
 
-def get_birthplace_grampsid(db: DbReadBase, person: Person) -> Optional[GrampsId]:
-    """Return the name of a person's birth place."""
+def get_birthplace_handle(db: DbReadBase, person: Person) -> Optional[Handle]:
+    """Return the handle for a person's birth place."""
     birth_handle = person.get_birth_ref()
     try:
         return get_event_place_from_handle(db, birth_handle.ref)
@@ -38,8 +41,8 @@ def get_birthplace_grampsid(db: DbReadBase, person: Person) -> Optional[GrampsId
         return None
 
 
-def get_deathplace_grampsid(db: DbReadBase, person: Person) -> Optional[GrampsId]:
-    """Return the name of the death place."""
+def get_deathplace_handle(db: DbReadBase, person: Person) -> Optional[Handle]:
+    """Return the handle of the person's death place."""
     death_ref = person.get_death_ref()
     try:
         return get_event_place_from_handle(db, death_ref.ref)
@@ -65,48 +68,126 @@ def get_deathdate(db: DbReadBase, person: Person) -> Optional[str]:
         return None
 
 
-def get_event_place_grampsid(db: DbReadBase, event: Event) -> Optional[GrampsId]:
-    """Get the event's place."""
-    try:
-        return db.get_place_from_handle(event.place).gramps_id
-    except (HandleError, AttributeError):
-        return None
-
-
-def get_parents_grampsids(db: DbReadBase, person: Person) -> Optional[GrampsId]:
-    """Get the Gramps IDs of the family's parents."""
-    handle = person.get_main_parents_family_handle()
-    try:
-        return db.get_family_from_handle(handle).gramps_id
-    except HandleError:
-        return None
-
-
-def get_families_grampsids(db: DbReadBase, person: Person) -> List[GrampsId]:
-    """Get the Gramps IDs of all the person's families."""
-    handles = person.get_family_handle_list() or []
-    return [db.get_family_from_handle(handle).gramps_id for handle in handles]
-
-
-def get_event_grampsids_roles(db, obj: GrampsObject):
-    """Get the Gramps ID and role of events of a Gramps object."""
+def get_surnames(surnames: List) -> List:
+    """Get the attributes for the surnames."""
     return [
         {
-            "gramps_id": db.get_event_from_handle(r.ref).gramps_id,
-            "role": r.get_role().string,
+            "connector": r.connector,
+            "origintype": str(r.get_origintype()),
+            "prefix": r.prefix,
+            "primary": r.primary,
+            "surname": r.surname
+        }
+        for r in surnames
+    ]
+
+
+def get_alternate_names(person: Person) -> List:
+    """Get the alternate names for a Gramps Person."""
+    return [
+        {
+            "call": r.call,
+            "citations": r.get_citation_list(),
+            "date": str(r.date),
+            "display_as": r.display_as,
+            "famnick": r.famnick,
+            "first_name": r.first_name,
+            "group_as": r.group_as,
+            "nick": r.nick,
+            "notes": r.get_note_list(),
+            "private": r.private,
+            "sort_as": r.sort_as,
+            "surname_list": get_surnames(r.surname_list),
+            "suffix": r.suffix,
+            "title": r.title,
+            "type": str(r.type)
+        }
+        for r in person.get_alternate_names()
+    ]
+
+
+def get_attributes(obj: GrampsObject) -> List:
+    """Get the attributes for a Gramps object."""
+    return [
+        {
+            "citations": r.get_citation_list(),
+            "notes": r.get_note_list(),
+            "private": r.private,
+            "type": str(r.type),
+            "value": r.value
+        }
+        for r in obj.get_attribute_list()
+    ]
+
+def get_event_references(obj: GrampsObject) -> List:
+    """Get the event references for a Gramps object."""
+    return [
+        {
+            "attributes": get_attributes(r),
+            "notes": r.get_note_list(),
+            "private": r.private,
+            "reference": r.ref,
+            "role": r.get_role().string
         }
         for r in obj.get_event_ref_list()
     ]
 
 
-def get_citation_grampsids(db: DbReadBase, obj: GrampsObject) -> List[GrampsId]:
-    """Get the Gramps IDs of direct citations of a Gramps object."""
+def get_media_references(obj: GrampsObject) -> List:
+    """Get the media references for a Gramps object."""
     return [
-        db.get_citation_from_handle(handle).gramps_id
-        for handle in obj.get_citation_list()
+        {
+            "attributes": get_attributes(r),
+            "citations": r.get_citation_list(),
+            "notes": r.get_note_list(),
+            "private": r.private,
+            "rectangle": r.rect,
+            "reference": r.ref
+        }
+        for r in obj.get_media_list()
     ]
 
 
-def get_note_grampsids(db: DbReadBase, obj: GrampsObject) -> List[GrampsId]:
-    """Get the Gramps IDs of direct notes of a Gramps object."""
-    return [db.get_note_from_handle(handle).gramps_id for handle in obj.get_note_list()]
+def get_person_references(person: Person) -> List:
+    """Get the person references, known as associations, for a Gramps Person."""
+    return [
+        {
+            "citations": r.get_citation_list(),
+            "notes": r.get_note_list(),
+            "private": r.private,
+            "reference": r.ref,
+            "relationship": r.rel
+        }
+        for r in person.get_person_ref_list()
+    ]
+
+
+def get_urls(obj: GrampsObject) -> List:
+    """Get the urls for a Gramps object."""
+    return [
+        {
+            "description": r.desc,
+            "path": r.path,
+            "private": r.private,
+            "type": str(r.type)
+        }
+        for r in obj.get_url_list()
+    ]
+
+
+def get_lds_events(obj: GrampsObject) -> List:
+    """Get the lds ordination events for a Gramps object."""
+    return [
+        {
+            "citations": r.get_citation_list(),
+            "date": dd.display(r.date),
+            "famc": r.famc,
+            "notes": r.get_note_list(),
+            "place": r.place,
+            "private": r.private,
+            "status": r.status,
+            "temple": r.temple,
+            "type": r.type,
+        }
+        for r in obj.get_lds_ord_list()
+    ]

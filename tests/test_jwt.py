@@ -49,22 +49,41 @@ class TestPerson(unittest.TestCase):
         cls.dbman.remove_database(cls.name)
 
     def test_person_endpoint(self):
-        rv = self.client.get("/api/person/person001")
+        rv = self.client.get("/api/person/")
         # no authorization header!
         assert rv.status_code == 401
         # fetch a token and try again
         rv = self.client.post("/api/login/", data={"username": "user", "password": 123})
         token = rv.json["access_token"]
         rv = self.client.get(
-            "/api/person/person001",
+            "/api/person/",
             headers={"Authorization": "Bearer {}".format(token)},
         )
         assert rv.status_code == 200
+        it = rv.json[0]
+        rv = self.client.get("/api/person/" + it["handle"])
+        # no authorization header!
+        assert rv.status_code == 401
+        # fetch a token and try again
+        rv = self.client.post("/api/login/", data={"username": "user", "password": 123})
+        token = rv.json["access_token"]
+        rv = self.client.get(
+            "/api/person/" + it["handle"],
+            headers={"Authorization": "Bearer {}".format(token)},
+        )
+        assert rv.status_code == 200
+        assert len(rv.json["handle"]) > 20
+        del rv.json["handle"]
+        assert isinstance(rv.json["change"], int)
+        del rv.json["change"]
         assert rv.json == {
+            "birth_indicator": -1,
+            "death_indicator": -1,
+            "gender": 1,  # male
             "gramps_id": "person001",
             "name_given": "John",
             "name_surname": "Allen",
-            "gender": 1,  # male
+            "private": False,
         }
 
     def test_token_endpoint(self):

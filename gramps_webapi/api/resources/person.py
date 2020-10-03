@@ -9,14 +9,16 @@ from .base import (
 )
 from .util import (
     get_birthdate,
-    get_birthplace_grampsid,
-    get_citation_grampsids,
+    get_birthplace_handle,
     get_deathdate,
-    get_deathplace_grampsid,
-    get_event_grampsids_roles,
-    get_families_grampsids,
-    get_note_grampsids,
-    get_parents_grampsids,
+    get_deathplace_handle,
+    get_alternate_names,
+    get_attributes,
+    get_event_references,
+    get_media_references,
+    get_person_references,
+    get_urls,
+    get_lds_events
 )
 
 
@@ -29,20 +31,32 @@ class PersonResourceHelper(GrampsObjectResourceHelper):
         """Return the person as a dictionary."""
         db = self.db
         return {
+            "alternate_names": get_alternate_names(obj),
+            "associations": get_person_references(obj),
+            "attributes": get_attributes(obj),
+            "birth_date": get_birthdate(db, obj),
+            "birth_indicator": obj.birth_ref_index,
+            "birth_place": get_birthplace_handle(db, obj),
+            "change": obj.change,
+            "citations": obj.get_citation_list(),
+            "death_date": get_deathdate(db, obj),
+            "death_indicator": obj.death_ref_index,
+            "death_place": get_deathplace_handle(db, obj),
+            "events": get_event_references(obj),
+            "families": obj.get_family_handle_list(),
+            "gender": obj.gender,
             "gramps_id": obj.gramps_id,
+            "handle": obj.handle,
+            "lds": get_lds_events(obj),
+            "media": get_media_references(obj),
             "name_given": name_displayer.display_given(obj),
             "name_surname": obj.primary_name.get_surname(),
-            "gender": obj.gender,
-            "birthdate": get_birthdate(db, obj),
-            "deathdate": get_deathdate(db, obj),
-            "birthplace": get_birthplace_grampsid(db, obj),
-            "deathplace": get_deathplace_grampsid(db, obj),
-            "parents": get_parents_grampsids(db, obj),
-            "families": get_families_grampsids(db, obj),
-            "events": get_event_grampsids_roles(db, obj),
-            "media": [{"ref": r.ref, "rect": r.rect} for r in obj.get_media_list()],
-            "citations": get_citation_grampsids(db, obj),
-            "notes": get_note_grampsids(db, obj),
+            "notes": obj.get_note_list(),
+            "parents": obj.get_parent_family_handle_list(),
+            "parents_primary": obj.get_main_parents_family_handle(),
+            "private": obj.private,
+            "tags": obj.get_tag_list(),
+            "urls": get_urls(obj)
         }
 
 

@@ -6,6 +6,10 @@ import gramps.gen.lib
 from flask import abort, jsonify
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_NAME_MAP
+from gramps.gen.errors import HandleError
+
+from webargs import fields
+from webargs.flaskparser import use_args
 
 from ..util import get_dbstate
 from . import ProtectedResource, Resource
@@ -52,10 +56,9 @@ class GrampsObjectResourceHelper:
         return self.object_class.create(raw_obj)
 
     def get_object_from_handle(self, handle: str):
-        """Get the object given a Gramps ID."""
+        """Get the object given a Gramps handle."""
         obj_class_key = CLASS_TO_KEY_MAP[self.gramps_class_name]
-        raw_obj = self.db._get_from_handle(obj_class_key, self.object_class, handle)
-        return self.object_class.create(raw_obj)
+        return self.db._get_from_handle(obj_class_key, self.object_class, handle)
 
     def get_gramps_id_from_handle(self, handle: str):
         """Get an object's Gramps ID from its handle."""
@@ -65,10 +68,11 @@ class GrampsObjectResourceHelper:
 class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
     """Resource for a single object."""
 
-    def get(self, gramps_id: str):
+    def get(self, handle: str):
         """Get the object."""
-        obj = self.get_object_from_gramps_id(gramps_id)
-        if obj is None:
+        try:
+            obj = self.get_object_from_handle(handle)
+        except HandleError:
             return abort(404)
         return jsonify(self.object_to_dict_filtered(obj))
 
@@ -76,8 +80,16 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
 class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
     """Resource for multiple objects."""
 
-    def get(self):
+    @use_args(
+        {"gramps_id": fields.Str()}, location="query",
+    )
+    def get(self, args):
         """Get all objects."""
+        if "gramps_id" in args:
+            obj = self.get_object_from_gramps_id(args["gramps_id"])
+            if obj is None:
+                return abort(404)
+            return jsonify([self.object_to_dict_filtered(obj)])
         return jsonify(
             [
                 self.object_to_dict_filtered(obj)
