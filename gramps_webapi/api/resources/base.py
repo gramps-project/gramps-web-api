@@ -3,12 +3,12 @@
 from abc import abstractmethod
 
 import gramps.gen.lib
-from flask_restful import Resource, abort
+from flask import abort, jsonify
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_NAME_MAP
 
 from ..util import get_dbstate
-from . import ProtectedResource
+from . import ProtectedResource, Resource
 
 
 class GrampsObjectResourceHelper:
@@ -70,7 +70,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         obj = self.get_object_from_gramps_id(gramps_id)
         if obj is None:
             return abort(404)
-        return self.object_to_dict_filtered(obj)
+        return jsonify(self.object_to_dict_filtered(obj))
 
 
 class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
@@ -78,10 +78,12 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
 
     def get(self):
         """Get all objects."""
-        return [
-            self.object_to_dict_filtered(obj)
-            for obj in self.db._iter_objects(self.object_class)
-        ]
+        return jsonify(
+            [
+                self.object_to_dict_filtered(obj)
+                for obj in self.db._iter_objects(self.object_class)
+            ]
+        )
 
 
 class GrampsObjectProtectedResource(GrampsObjectResource, ProtectedResource):
