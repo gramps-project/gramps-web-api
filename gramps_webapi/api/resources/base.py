@@ -1,12 +1,14 @@
 """Base for Gramps object API resources."""
 
+import json
 from abc import abstractmethod
 
 import gramps.gen.lib
-from flask import abort, jsonify
+from flask import abort, Response
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_NAME_MAP
 from gramps.gen.errors import HandleError
+from gramps.gen.lib.serialize import __default as gramps_default
 
 from webargs import fields
 from webargs.flaskparser import use_args
@@ -24,17 +26,8 @@ class GrampsObjectResourceHelper:
         """To be set on child classes."""
 
     @abstractmethod
-    def object_to_dict(self, obj):
-        """Get the object as a dictionary."""
-
-    def object_to_dict_filtered(self, obj):
-        """Get the object as a dictionary, omitting None or empty values."""
-        object_dict = self.object_to_dict(obj)
-        return {
-            k: v
-            for k, v in object_dict.items()
-            if v is not None and v != [] and v != {}
-        }
+    def object_denormalize(self, obj):
+        """Denormalize object attributes as needed."""
 
     @property
     def db(self) -> DbReadBase:
@@ -45,6 +38,10 @@ class GrampsObjectResourceHelper:
     def object_class(self):
         """Get the Gramps class of the object."""
         obj_class_name = KEY_TO_NAME_MAP[CLASS_TO_KEY_MAP[self.gramps_class_name]]
+        if obj_class_name == "source":
+            obj_class_name = "src"
+        elif obj_class_name == "repository":
+            obj_class_name = "repo"
         obj_module = getattr(gramps.gen.lib, obj_class_name)
         obj_class = getattr(obj_module, self.gramps_class_name)
         return obj_class
@@ -74,7 +71,8 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             obj = self.get_object_from_handle(handle)
         except HandleError:
             return abort(404)
-        return jsonify(self.object_to_dict_filtered(obj))
+        return Response(response=json.dumps([self.object_denormalize(obj)], default=gramps_default, ensure_ascii=False, sort_keys=True),
+                        status=200, mimetype="application/json")
 
 
 class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
@@ -89,13 +87,12 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             obj = self.get_object_from_gramps_id(args["gramps_id"])
             if obj is None:
                 return abort(404)
-            return jsonify([self.object_to_dict_filtered(obj)])
-        return jsonify(
-            [
-                self.object_to_dict_filtered(obj)
-                for obj in self.db._iter_objects(self.object_class)
-            ]
-        )
+            return Response(response=json.dumps([self.object_denormalize(obj)], default=gramps_default, ensure_ascii=False, sort_keys=True),
+                            status=200, mimetype="application/json")
+        return Response(response=json.dumps([self.object_denormalize(obj)
+                                             for obj in self.db._iter_objects(self.object_class)],
+                                            default=gramps_default, ensure_ascii=False, sort_keys=True),
+                        status=200, mimetype="application/json")
 
 
 class GrampsObjectProtectedResource(GrampsObjectResource, ProtectedResource):
