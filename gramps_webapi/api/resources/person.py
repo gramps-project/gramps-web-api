@@ -25,24 +25,17 @@ class PersonResourceHelper(GrampsObjectResourceHelper):
     def object_denormalize(self, obj):  # pylint: disable=no-self-use
         """Denormalize person attributes if needed."""
         db = self.db
-        obj.birth_date = get_birthdate(db, obj)
-        obj.birth_place = get_birthplace_handle(db, obj)
-        obj.death_date = get_deathdate(db, obj)
-        obj.death_place = get_deathplace_handle(db, obj)
-        obj.name_given = name_displayer.display_given(obj)
-        obj.name_surname = obj.primary_name.get_surname()
+        obj.profile = {
+            "birth_date": get_birthdate(db, obj),
+            "birth_place": get_birthplace_handle(db, obj),
+            "death_date": get_deathdate(db, obj),
+            "death_place": get_deathplace_handle(db, obj),
+            "name_given": name_displayer.display_given(obj),
+            "name_surname": obj.primary_name.get_surname(),
+            "parents_primary": obj.get_main_parents_family_handle()
+        }
         return obj
     
-    def object_to_dict(self, obj):  # pylint: disable=no-self-use
-        """Return the person as a dictionary."""
-        db = self.db
-        obj.birth_date = get_birthdate(db, obj)
-        obj.birth_place = get_birthplace_handle(db, obj)
-        obj.death_date = get_deathdate(db, obj)
-        obj.death_place = get_deathplace_handle(db, obj)
-        obj.name_given = name_displayer.display_given(obj)
-        obj.name_surname = obj.primary_name.get_surname()
-        return json.loads(to_json(obj))
     
 class PersonResource(GrampsObjectProtectedResource, PersonResourceHelper):
     """Person resource."""

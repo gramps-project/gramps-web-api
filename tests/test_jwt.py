@@ -73,18 +73,14 @@ class TestPerson(unittest.TestCase):
         )
         assert rv.status_code == 200
         assert len(rv.json["handle"]) > 20
-        del rv.json["handle"]
         assert isinstance(rv.json["change"], int)
-        del rv.json["change"]
-        assert rv.json == {
-            "birth_indicator": -1,
-            "death_indicator": -1,
-            "gender": 1,  # male
-            "gramps_id": "person001",
-            "name_given": "John",
-            "name_surname": "Allen",
-            "private": False,
-        }
+        assert rv.json["gramps_id"] == "person001"
+        assert rv.json["profile"]["name_given"] == "John"
+        assert rv.json["profile"]["name_surname"] == "Allen"
+        assert rv.json["gender"] == 1  # male
+        assert rv.json["private"] == False
+        assert rv.json["birth_ref_index"] == -1
+        assert rv.json["death_ref_index"] == -1
 
     def test_token_endpoint(self):
         rv = self.client.post("/api/login/", data={})

@@ -56,51 +56,36 @@ class TestPerson(unittest.TestCase):
         rv = self.client.get("/api/person/")
         it = rv.json[0]
         assert len(it["handle"]) > 20
-        del it["handle"]
         assert isinstance(it["change"], int)
-        del it["change"]
-        assert it == {
-            "birth_indicator": -1,
-            "death_indicator": -1,
-            "gender": 1,  # male
-            "gramps_id": "person001",
-            "name_given": "John",
-            "name_surname": "Allen",
-            "private": False,
-        }
+        assert it["gramps_id"] == "person001"
+        assert it["profile"]["name_given"] == "John"
+        assert it["profile"]["name_surname"] == "Allen"
+        assert it["gender"] == 1 # male
+        assert it["birth_ref_index"] == -1
+        assert it["death_ref_index"] == -1
         rv = self.client.get("/api/person/?gramps_id=person001")
         it = rv.json[0]
         assert len(it["handle"]) > 20
-        del it["handle"]
         assert isinstance(it["change"], int)
-        del it["change"]
-        assert it == {
-            "birth_indicator": -1,
-            "death_indicator": -1,
-            "gender": 1,  # male
-            "gramps_id": "person001",
-            "name_given": "John",
-            "name_surname": "Allen",
-            "private": False,
-        }
+        assert it["gramps_id"] == "person001"
+        assert it["profile"]["name_given"] == "John"
+        assert it["profile"]["name_surname"] == "Allen"
+        assert it["gender"] == 1 # male
+        assert it["birth_ref_index"] == -1
+        assert it["death_ref_index"] == -1
 
     def test_person_endpoint(self):
         rv = self.client.get("/api/person/")
         it = rv.json[0]
         rv = self.client.get("/api/person/" + it["handle"])
         assert len(rv.json["handle"]) > 20
-        del rv.json["handle"]
         assert isinstance(rv.json["change"], int)
-        del rv.json["change"]
-        assert rv.json == {
-            "birth_indicator": -1,
-            "death_indicator": -1,
-            "gender": 1,  # male
-            "gramps_id": "person001",
-            "name_given": "John",
-            "name_surname": "Allen",
-            "private": False,
-        }
+        assert rv.json["gramps_id"] == "person001"
+        assert rv.json["profile"]["name_given"] == "John"
+        assert rv.json["profile"]["name_surname"] == "Allen"
+        assert rv.json["gender"] == 1 # male
+        assert rv.json["birth_ref_index"] == -1
+        assert rv.json["death_ref_index"] == -1
 
     def test_token_endpoint(self):
         rv = self.client.post("/api/login/", data={})

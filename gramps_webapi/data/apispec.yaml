@@ -23,10 +23,26 @@ paths:
       summary: Get multiple persons
       operationId: getPeople
       parameters:
-        - name: gramps_id
-          in: query
-          required: false
-          type: string
+      - name: gramps_id
+        in: query
+        required: false
+        type: string
+      - name: handle
+        in: query
+        required: false
+        type: string
+      - name: strip
+        in: query
+        required: false
+        type: boolean
+      - name: raw
+        in: query
+        required: false
+        type: boolean
+      - name: keys
+        in: query
+        required: false
+        type: string
       responses:
         200:
           description: Successful operation
@@ -46,6 +62,18 @@ paths:
         required: true
         type: string
         default: available
+      - name: strip
+        in: query
+        required: false
+        type: boolean
+      - name: raw
+        in: query
+        required: false
+        type: boolean
+      - name: keys
+        in: query
+        required: false
+        type: string
       responses:
         200:
           description: Successful operation
@@ -60,38 +88,30 @@ definitions:
     required:
     - handle
     properties:
+      address_list:
+        description: Address of the person
+        type: array
+        items:
+          $ref: "#/definitions/Address"
       alternate_names:
         description: List of all the known names used by the person
         type: array
         items:
           $ref: "#/definitions/Name"
-      associations:
-        description: List of references to relationships with other people
-        type: array
-        items:
-          $ref: "#/definitions/AssociationReference"
-      attributes:
+      attribute_list:
         description: List of attributes about the person
         type: array
         items:
           $ref: "#/definitions/Attribute"
-      birth_date:
-        description: Date of birth of the person
-        type: string
-        example: "1685-03-31"
-      birth_indicator:
+      birth_ref_index:
         description: Indicates if a birth event is assigned to the person
         type: integer
         example: 0
-      birth_place:
-        description: Handle for place of birth of the person
-        type: string
-        example: e9027bf39c27be945fab9df8124
       change:
         description: Time in epoch format person was last modified
         type: number
         example: 1601335222
-      citations:
+      citation_list:
         description: List of handles for citations supporting the person
         type: array
         items:
@@ -99,24 +119,16 @@ definitions:
         example:
           - e9027bf39c27be945fab9df8124
           - e9027bf39c36d6cdd046748852e
-      death_date:
-        description: Date of death of the person
-        type: string
-        example: "1750-07-28"
-      death_indicator:
+      death_ref_index:
         description: Indicates if a death event is assigned to the person
         type: integer
         example: 0
-      death_place:
-        description: Handle for place of death of the person
-        type: string
-        example: e9027bf39c27be945fab9df8124
-      events:
+      event_ref_list:
         description: List of references to events the person participated in
         type: array
         items:
           $ref: "#/definitions/EventReference"
-      families:
+      family_list:
         description: A list of handles for the families the person was a parent of
         type: array
         items:
@@ -135,25 +147,17 @@ definitions:
         description: Unique identifier for a person object
         type: string
         example: e9027bf389921fb966e851abce5
-      lds:
+      lds_ord_list:
         description: List of LDS specific events the person participated in
         type: array
         items:
           $ref: "#/definitions/LDSOrdination"
-      media:
+      media_list:
         description: List of references to media associated with the person
         type: array
         items:
           $ref: "#/definitions/MediaReference"
-      name_given:
-        description: Preferred given name of the person
-        type: string
-        example: Johann Sebastian
-      name_surname:
-        description: Preferred surname of the person
-        type: string
-        example: Bach
-      notes:
+      note_list:
         description: List of handles for research notes related to the person
         type: array
         items:
@@ -161,7 +165,7 @@ definitions:
         example:
           - e9027bf39c27be945fab9df8124
           - e9027bf39c36d6cdd046748852e
-      parents:
+      parent_family_list:
         description: A list of handles for the families of the parents of the person
         type: array
         items:
@@ -169,14 +173,25 @@ definitions:
         example:
           - e9027bf39c27be945fab9df8124
           - e9027bf39c36d6cdd046748852e
-      parents_primary:
-        description: The handle of the family of the preferred parents of the person
-        type: string
-        example: F0002
+      person_ref_list:
+        description: List of references to relationships with other people
+        type: array
+        items:
+          $ref: "#/definitions/PersonReference"
+      primary_name:
+        description: Primary name of the person
+        type: object
+        items:
+          $ref: "#/definitions/Name"
       private:
         description: Private object indicator
         type: boolean
         example: true
+      profile:
+        description: Key attributes about the person
+        type: object
+        items:
+          $ref: "#/definitions/PersonProfile"
       tags:
         description: List of handles to tags associated with the person
         type: array
@@ -191,6 +206,38 @@ definitions:
         items:
           $ref: "#/definitions/URL"
 
+  PersonProfile:      
+    type: object
+    properties:            
+      birth_date:
+        description: Date of birth of the person
+        type: string
+        example: "1685-03-31"
+      birth_place:
+        description: Handle for place of birth of the person
+        type: string
+        example: e9027bf39c27be945fab9df8124
+      death_date:
+        description: Date of death of the person
+        type: string
+        example: "1750-07-28"
+      death_place:
+        description: Handle for place of death of the person
+        type: string
+        example: e9027bf39c27be945fab9df8124
+      name_given:
+        description: Preferred given name of the person
+        type: string
+        example: Johann Sebastian
+      name_surname:
+        description: Preferred surname of the person
+        type: string
+        example: Bach
+      parents_primary:
+        description: The handle of the family of the preferred parents of the person
+        type: string
+        example: F0002
+
   Name:
     type: object
     properties:
@@ -198,7 +245,7 @@ definitions:
         description: Call name
         type: string
         example: Joseph
-      citations:
+      citation_list:
         description: List of handles for citations supporting the name
         type: array
         items:
@@ -228,7 +275,7 @@ definitions:
         description: Nick name
         type: string
         example: Jim
-      notes:
+      note_list:
         description: List of handles for research notes about the name
         type: array
         items:
@@ -288,7 +335,7 @@ definitions:
   Attribute:
     type: object
     properties:
-      citations:
+      citation_list:
         description: List of handles for citations supporting the attribute
         type: array
         items:
@@ -296,7 +343,7 @@ definitions:
         example:
           - e9027bf39c27be945fab9df8124
           - e9027bf39c36d6cdd046748852e
-      notes:
+      note_list:
         description: List of handles for research notes about the attribute
         type: array
         items:
@@ -320,12 +367,12 @@ definitions:
   EventReference:
     type: object
     properties:
-      attributes:
+      attribute_list:
         description: List of attributes related to the role of the person in the event
         type: array
         items:
           $ref: "#/definitions/Attribute"
-      notes:
+      note_list:
         description: List of handles for research notes about the event
         type: array
         items:
@@ -337,7 +384,7 @@ definitions:
         description: Private object indicator
         type: boolean
         example: true
-      reference:
+      ref:
         description: Handle of the event reference
         type: string
         example: e9027bf389921fb966e851abce5
@@ -346,10 +393,10 @@ definitions:
         type: string
         example: Witness
 
-  AssociationReference:
+  PersonReference:
     type: object
     properties:
-      citations:
+      citation_list:
         description: List of handles for citations supporting the association
         type: array
         items:
@@ -357,7 +404,7 @@ definitions:
         example:
           - e9027bf39c27be945fab9df8124
           - e9027bf39c36d6cdd046748852e
-      notes:
+      note_list:
         description: List of handles for research notes about the association
         type: array
         items:
@@ -369,11 +416,11 @@ definitions:
         description: Private object indicator
         type: boolean
         example: true
-      reference:
+      ref:
         description: Handle of the person reference
         type: string
         example: e9027bf389921fb966e851abce5
-      relationship:
+      rel:
         description: Relationship between the people
         type: string
         example: Godparent
@@ -381,12 +428,12 @@ definitions:
   MediaReference:
     type: object
     properties:
-      attributes:
+      attribute_list:
         description: Attributes related to the media reference
         type: array
         items:
           $ref: AttributeReference
-      citations:
+      citation_list:
         description: List of handles for citations supporting the media reference
         type: array
         items:
@@ -394,7 +441,7 @@ definitions:
         example:
           - e9027bf39c27be945fab9df8124
           - e9027bf39c36d6cdd046748852e
-      notes:
+      note_list:
         description: List of handles for research notes about the media reference
         type: array
         items:
@@ -406,13 +453,13 @@ definitions:
         description: Private object indicator
         type: boolean
         example: true
-      rectangle:
+      rect:
         description: Rectangle
         type: array
         items:
           type: number
         example: [10, 20, 30, 40]
-      reference:
+      ref:
         description: Handle of the media reference
         type: string
         example: e9027bf389921fb966e851abce5
@@ -420,7 +467,7 @@ definitions:
   LDSOrdination:
     type: object
     properties:
-      citations:
+      citation_list:
         description: List of handles for citations supporting the LDS event
         type: array
         items:
@@ -436,7 +483,7 @@ definitions:
         description: Family
         type: string
         example: F0022
-      notes:
+      note_list:
         description: List of handles for research notes about the LDS event
         type: array
         items:
@@ -482,3 +529,50 @@ definitions:
         description: Type of URL
         type: string
         example: Unsure
+
+  Address:
+    type: object
+    properties:
+      citation_list:
+        description: List of handles for citations supporting the media reference
+        type: array
+        items:
+          type: string
+        example:
+          - e9027bf39c27be945fab9df8124
+          - e9027bf39c36d6cdd046748852e
+      city:
+        description: City
+        type: string
+      country:
+        description: Country
+        type: string
+      county:
+        description: County
+        type: string
+      date:
+        type: string
+      locality:
+        description: Locality
+        type: string
+      note_list:
+        description: List of handles for research notes about the media reference
+        type: array
+        items:
+          type: string
+        example:
+          - e9027bf39c27be945fab9df8124
+          - e9027bf39c36d6cdd046748852e
+      phone:
+        description: Phone number
+        type: string
+      postal:
+        description: Postal code
+        type: string
+      private:
+        description: Private object indicator
+        type: boolean
+        example: true
+      state:
+        description: State
+        type: string

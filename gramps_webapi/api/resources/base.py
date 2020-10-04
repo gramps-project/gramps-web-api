@@ -1,6 +1,5 @@
 """Base for Gramps object API resources."""
 
-import json
 from abc import abstractmethod
 
 import gramps.gen.lib
@@ -8,16 +7,15 @@ from flask import abort, Response
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_NAME_MAP
 from gramps.gen.errors import HandleError
-from gramps.gen.lib.serialize import __default as gramps_default
 
 from webargs import fields
 from webargs.flaskparser import use_args
 
 from ..util import get_dbstate
 from . import ProtectedResource, Resource
+from .emit import GrampsJSONEncoder
 
-
-class GrampsObjectResourceHelper:
+class GrampsObjectResourceHelper(GrampsJSONEncoder):
     """Gramps object helper class."""
 
     @property  # type: ignore
@@ -65,13 +63,22 @@ class GrampsObjectResourceHelper:
 class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
     """Resource for a single object."""
 
-    def get(self, handle: str):
+    @use_args(
+        {"strip": fields.Boolean(), "raw": fields.Boolean(), "keys": fields.DelimitedList(fields.Str())}, location="query",
+    )
+    def get(self, args, handle: str):
         """Get the object."""
         try:
             obj = self.get_object_from_handle(handle)
         except HandleError:
             return abort(404)
-        return Response(response=json.dumps([self.object_denormalize(obj)], default=gramps_default, ensure_ascii=False, sort_keys=True),
+        if 'strip' in args:
+            self.strip_empty_keys = args['strip']
+        if 'raw' in args:
+            self.return_raw = args['raw']
+        if 'keys' in args:
+            self.filter_keys = args['keys']
+        return Response(response=self.encode(self.object_denormalize(obj)),
                         status=200, mimetype="application/json")
 
 
@@ -79,19 +86,31 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
     """Resource for multiple objects."""
 
     @use_args(
-        {"gramps_id": fields.Str()}, location="query",
+        {"gramps_id": fields.Str(), "handle": fields.Str(), "strip": fields.Boolean(), "raw": fields.Boolean(), "keys": fields.DelimitedList(fields.Str())}, location="query",
     )
     def get(self, args):
         """Get all objects."""
-        if "gramps_id" in args:
-            obj = self.get_object_from_gramps_id(args["gramps_id"])
+        if 'strip' in args:
+            self.strip_empty_keys = args['strip']
+        if 'raw' in args:
+            self.return_raw = args['raw']
+        if 'keys' in args:
+            self.filter_keys = args['keys']
+        if 'gramps_id' in args:
+            obj = self.get_object_from_gramps_id(args['gramps_id'])
             if obj is None:
                 return abort(404)
-            return Response(response=json.dumps([self.object_denormalize(obj)], default=gramps_default, ensure_ascii=False, sort_keys=True),
+            return Response(response=self.encode([self.object_denormalize(obj)]),
                             status=200, mimetype="application/json")
-        return Response(response=json.dumps([self.object_denormalize(obj)
-                                             for obj in self.db._iter_objects(self.object_class)],
-                                            default=gramps_default, ensure_ascii=False, sort_keys=True),
+        if 'handle' in args:
+            try:
+                obj = self.get_object_from_handle(handle)
+            except HandleError:
+                return abort(404)
+            return Response(response=self.encode([self.object_denormalize(obj)]),
+                            status=200, mimetype="application/json")            
+        return Response(response=self.encode([self.object_denormalize(obj)
+                                              for obj in self.db._iter_objects(self.object_class)]),
                         status=200, mimetype="application/json")
 
 
