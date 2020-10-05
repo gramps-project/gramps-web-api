@@ -1,10 +1,7 @@
 """Place API resource."""
 
-from .base import (
-    GrampsObjectProtectedResource,
-    GrampsObjectResourceHelper,
-    GrampsObjectsProtectedResource,
-)
+from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
+                   GrampsObjectsProtectedResource)
 
 
 class PlaceResourceHelper(GrampsObjectResourceHelper):
@@ -16,7 +13,7 @@ class PlaceResourceHelper(GrampsObjectResourceHelper):
         """Denormalize place attributes if needed."""
         return obj
 
-    
+
 class PlaceResource(GrampsObjectProtectedResource, PlaceResourceHelper):
     """Place resource."""
 

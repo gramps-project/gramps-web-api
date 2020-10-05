@@ -6,18 +6,17 @@ from flask import Blueprint
 
 from ..const import API_PREFIX
 from .resources.base import Resource
-from .resources.person import PeopleResource, PersonResource
+from .resources.citation import CitationResource, CitationsResource
+from .resources.event import EventResource, EventsResource
 from .resources.family import FamiliesResource, FamilyResource
-from .resources.source import SourcesResource, SourceResource
-from .resources.citation import CitationsResource, CitationResource
-from .resources.event import EventsResource, EventResource
-from .resources.media import MediaObjectsResource, MediaObjectResource
-from .resources.place import PlacesResource, PlaceResource
+from .resources.media import MediaObjectResource, MediaObjectsResource
+from .resources.note import NoteResource, NotesResource
+from .resources.person import PeopleResource, PersonResource
+from .resources.place import PlaceResource, PlacesResource
 from .resources.repository import RepositoriesResource, RepositoryResource
-from .resources.note import NotesResource, NoteResource
-from .resources.tag import TagsResource, TagResource
+from .resources.source import SourceResource, SourcesResource
+from .resources.tag import TagResource, TagsResource
 from .resources.token import TokenRefreshResource, TokenResource
-
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
 

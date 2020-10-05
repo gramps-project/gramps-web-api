@@ -1,10 +1,7 @@
 """Note API resource."""
 
-from .base import (
-    GrampsObjectProtectedResource,
-    GrampsObjectResourceHelper,
-    GrampsObjectsProtectedResource,
-)
+from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
+                   GrampsObjectsProtectedResource)
 
 
 class NoteResourceHelper(GrampsObjectResourceHelper):
@@ -16,7 +13,7 @@ class NoteResourceHelper(GrampsObjectResourceHelper):
         """Denormalize note attributes if needed."""
         return obj
 
-    
+
 class NoteResource(GrampsObjectProtectedResource, NoteResourceHelper):
     """Note resource."""
 

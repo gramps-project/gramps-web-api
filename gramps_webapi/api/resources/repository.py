@@ -1,10 +1,7 @@
 """Repository API resource."""
 
-from .base import (
-    GrampsObjectProtectedResource,
-    GrampsObjectResourceHelper,
-    GrampsObjectsProtectedResource,
-)
+from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
+                   GrampsObjectsProtectedResource)
 
 
 class RepositoryResourceHelper(GrampsObjectResourceHelper):
@@ -16,7 +13,7 @@ class RepositoryResourceHelper(GrampsObjectResourceHelper):
         """Denormalize repository attributes if needed."""
         return obj
 
-    
+
 class RepositoryResource(GrampsObjectProtectedResource, RepositoryResourceHelper):
     """Tag resource."""
 

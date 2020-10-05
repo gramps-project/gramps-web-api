@@ -7,7 +7,6 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.db import DbTxn
 from gramps.gen.dbstate import DbState
 from gramps.gen.lib import Person, Surname
-
 from gramps_webapi.app import create_app
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 

@@ -1,10 +1,7 @@
 """Media API resource."""
 
-from .base import (
-    GrampsObjectProtectedResource,
-    GrampsObjectResourceHelper,
-    GrampsObjectsProtectedResource,
-)
+from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
+                   GrampsObjectsProtectedResource)
 
 
 class MediaObjectResourceHelper(GrampsObjectResourceHelper):
@@ -16,7 +13,7 @@ class MediaObjectResourceHelper(GrampsObjectResourceHelper):
         """Denormalize media attributes if needed."""
         return obj
 
-    
+
 class MediaObjectResource(GrampsObjectProtectedResource, MediaObjectResourceHelper):
     """Media object resource."""
 

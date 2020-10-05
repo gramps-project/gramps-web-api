@@ -1,10 +1,7 @@
 """Tag API resource."""
 
-from .base import (
-    GrampsObjectProtectedResource,
-    GrampsObjectResourceHelper,
-    GrampsObjectsProtectedResource,
-)
+from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
+                   GrampsObjectsProtectedResource)
 
 
 class TagResourceHelper(GrampsObjectResourceHelper):
@@ -16,7 +13,7 @@ class TagResourceHelper(GrampsObjectResourceHelper):
         """Denormalize note attributes if needed."""
         return obj
 
-    
+
 class TagResource(GrampsObjectProtectedResource, TagResourceHelper):
     """Tag resource."""
 

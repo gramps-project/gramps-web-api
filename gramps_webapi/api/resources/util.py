@@ -8,7 +8,6 @@ from gramps.gen.display.name import NameDisplay
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Person
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
-
 from gramps_webapi.types import Handle
 
 nd = NameDisplay()

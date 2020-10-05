@@ -1,10 +1,7 @@
 """Citation API resource."""
 
-from .base import (
-    GrampsObjectProtectedResource,
-    GrampsObjectResourceHelper,
-    GrampsObjectsProtectedResource,
-)
+from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
+                   GrampsObjectsProtectedResource)
 
 
 class CitationResourceHelper(GrampsObjectResourceHelper):
@@ -16,7 +13,7 @@ class CitationResourceHelper(GrampsObjectResourceHelper):
         """Denormalize citation attributes if needed."""
         return obj
 
-    
+
 class CitationResource(GrampsObjectProtectedResource, CitationResourceHelper):
     """Citation resource."""
 

@@ -8,11 +8,10 @@ from unittest.mock import patch
 from click.testing import CliRunner
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
-from sqlalchemy.exc import IntegrityError
-
 from gramps_webapi.__main__ import cli
 from gramps_webapi.app import create_app
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
+from sqlalchemy.exc import IntegrityError
 
 
 class TestPerson(unittest.TestCase):

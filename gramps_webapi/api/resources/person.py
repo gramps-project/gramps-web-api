@@ -1,20 +1,14 @@
 """Person API resource."""
 
-from gramps.gen.display.name import displayer as name_displayer
-from gramps.gen.lib.serialize import to_json
 import json
 
-from .base import (
-    GrampsObjectProtectedResource,
-    GrampsObjectResourceHelper,
-    GrampsObjectsProtectedResource,
-)
-from .util import (
-    get_birthdate,
-    get_birthplace_handle,
-    get_deathdate,
-    get_deathplace_handle,
-)
+from gramps.gen.display.name import displayer as name_displayer
+from gramps.gen.lib.serialize import to_json
+
+from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
+                   GrampsObjectsProtectedResource)
+from .util import (get_birthdate, get_birthplace_handle, get_deathdate,
+                   get_deathplace_handle)
 
 
 class PersonResourceHelper(GrampsObjectResourceHelper):
@@ -32,11 +26,11 @@ class PersonResourceHelper(GrampsObjectResourceHelper):
             "death_place": get_deathplace_handle(db, obj),
             "name_given": name_displayer.display_given(obj),
             "name_surname": obj.primary_name.get_surname(),
-            "parents_primary": obj.get_main_parents_family_handle()
+            "parents_primary": obj.get_main_parents_family_handle(),
         }
         return obj
-    
-    
+
+
 class PersonResource(GrampsObjectProtectedResource, PersonResourceHelper):
     """Person resource."""
 

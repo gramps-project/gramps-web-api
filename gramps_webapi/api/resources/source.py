@@ -1,10 +1,7 @@
 """Source API resource."""
 
-from .base import (
-    GrampsObjectProtectedResource,
-    GrampsObjectResourceHelper,
-    GrampsObjectsProtectedResource,
-)
+from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
+                   GrampsObjectsProtectedResource)
 
 
 class SourceResourceHelper(GrampsObjectResourceHelper):
@@ -16,7 +13,7 @@ class SourceResourceHelper(GrampsObjectResourceHelper):
         """Denormalize source attributes if needed."""
         return obj
 
-    
+
 class SourceResource(GrampsObjectProtectedResource, SourceResourceHelper):
     """Source resource."""
 

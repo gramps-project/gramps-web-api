@@ -1,10 +1,7 @@
 """Family API resource."""
 
-from .base import (
-    GrampsObjectProtectedResource,
-    GrampsObjectResourceHelper,
-    GrampsObjectsProtectedResource,
-)
+from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
+                   GrampsObjectsProtectedResource)
 
 
 class FamilyResourceHelper(GrampsObjectResourceHelper):
@@ -15,7 +12,7 @@ class FamilyResourceHelper(GrampsObjectResourceHelper):
     def object_denormalize(self, obj):
         """Denormalize family attributes if needed."""
         return obj
-    
+
 
 class FamilyResource(GrampsObjectProtectedResource, FamilyResourceHelper):
     """Family resource."""

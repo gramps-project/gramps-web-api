@@ -1,10 +1,7 @@
 """Event API resource."""
 
-from .base import (
-    GrampsObjectProtectedResource,
-    GrampsObjectResourceHelper,
-    GrampsObjectsProtectedResource,
-)
+from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
+                   GrampsObjectsProtectedResource)
 
 
 class EventResourceHelper(GrampsObjectResourceHelper):
@@ -16,7 +13,7 @@ class EventResourceHelper(GrampsObjectResourceHelper):
         """Denormalize event attributes if needed."""
         return obj
 
-    
+
 class EventResource(GrampsObjectProtectedResource, EventResourceHelper):
     """Event resource."""
 
