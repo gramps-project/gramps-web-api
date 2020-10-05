@@ -6,6 +6,7 @@ from flask import Blueprint
 
 from ..const import API_PREFIX
 from .resources.base import Resource
+from .resources.bookmark import BookmarkResource, BookmarksResource
 from .resources.citation import CitationResource, CitationsResource
 from .resources.event import EventResource, EventsResource
 from .resources.family import FamiliesResource, FamilyResource
@@ -17,8 +18,8 @@ from .resources.repository import RepositoriesResource, RepositoryResource
 from .resources.source import SourceResource, SourcesResource
 from .resources.tag import TagResource, TagsResource
 from .resources.token import TokenRefreshResource, TokenResource
-from .resources.type import TypeResource, TypesResource
 from .resources.tree import TreeResource
+from .resources.type import TypeResource, TypesResource
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
 
@@ -66,3 +67,6 @@ register_endpt(TypeResource, "/type/<string:gramps_type>", "type")
 register_endpt(TypesResource, "/type/", "types")
 # Tree
 register_endpt(TreeResource, "/tree/", "tree")
+# Bookmark
+register_endpt(BookmarkResource, "/bookmark/<string:bookmark_type>", "bookmark")
+register_endpt(BookmarksResource, "/bookmark/", "bookmarks")

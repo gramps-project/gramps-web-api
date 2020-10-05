@@ -4,6 +4,7 @@ import inspect
 
 import gramps.gen.lib as lib
 from flask.json import JSONEncoder
+from gramps.gen.db import DbBookmarks
 
 PRIMARY_CLASS_MAP = {
     "Person": lib.Person,
@@ -65,5 +66,8 @@ class GrampsJSONEncoder(JSONEncoder):
             gramps_class = getattr(lib, key)
             if isinstance(obj, gramps_class):
                 return self.api_filter(obj)
+
+        if isinstance(obj, DbBookmarks):
+            return self.api_filter(obj)
 
         return JSONEncoder.default(self, obj)
