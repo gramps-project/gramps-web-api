@@ -1,9 +1,6 @@
 """Person API resource."""
 
-import json
-
 from gramps.gen.display.name import displayer as name_displayer
-from gramps.gen.lib.serialize import to_json
 
 from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
                    GrampsObjectsProtectedResource)

@@ -17,6 +17,7 @@ from .resources.repository import RepositoriesResource, RepositoryResource
 from .resources.source import SourceResource, SourcesResource
 from .resources.tag import TagResource, TagsResource
 from .resources.token import TokenRefreshResource, TokenResource
+from .resources.type import TypeResource, TypesResource
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
 
@@ -59,3 +60,6 @@ register_endpt(TagsResource, "/tag/", "tags")
 # Token
 register_endpt(TokenResource, "/login/", "token")
 register_endpt(TokenRefreshResource, "/refresh/", "token_refresh")
+# Type
+register_endpt(TypeResource, "/type/<string:gramps_type>", "type")
+register_endpt(TypesResource, "/type/", "types")
