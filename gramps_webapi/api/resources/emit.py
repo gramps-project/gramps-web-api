@@ -1,5 +1,7 @@
 """Gramps Json Encoder"""
 
+import inspect
+
 import gramps.gen.lib as lib
 from flask.json import JSONEncoder
 
@@ -18,6 +20,8 @@ PRIMARY_CLASS_MAP = {
 
 
 class GrampsJSONEncoder(JSONEncoder):
+    """Customizes Gramps Web API output."""
+
     def __init__(self):
         JSONEncoder.__init__(self)
         self.sort_keys = True
@@ -27,11 +31,14 @@ class GrampsJSONEncoder(JSONEncoder):
         self.filter_keys = []
 
     def api_filter(self, obj):
+        """Filter data in a Gramps object."""
         data = {}
-        if isinstance(obj, PRIMARY_CLASS_MAP[self.gramps_class_name]):
-            filter = True
-        else:
-            filter = False
+        filter = False
+        try:
+            if isinstance(obj, PRIMARY_CLASS_MAP[self.gramps_class_name]):
+                filter = True
+        except:
+            pass
         for key, value in obj.__dict__.items():
             if filter and self.filter_keys != [] and key not in self.filter_keys:
                 continue
@@ -50,35 +57,13 @@ class GrampsJSONEncoder(JSONEncoder):
         return data
 
     def default(self, obj):
+        """Default handler."""
         if isinstance(obj, lib.GrampsType):
             return str(obj)
 
-        for gramps_type in [
-            lib.Place,
-            lib.PlaceName,
-            lib.Date,
-            lib.Note,
-            lib.Citation,
-            lib.Person,
-            lib.Family,
-            lib.ChildRef,
-            lib.Event,
-            lib.EventRef,
-            lib.Attribute,
-            lib.Name,
-            lib.Surname,
-            lib.Media,
-            lib.MediaRef,
-            lib.Source,
-            lib.Repository,
-            lib.Tag,
-            lib.RepoRef,
-            lib.PersonRef,
-            lib.Address,
-            lib.StyledText,
-            lib.StyledTextTag,
-        ]:
-            if isinstance(obj, gramps_type):
+        for key, value in inspect.getmembers(lib, inspect.isclass):
+            gramps_class = getattr(lib, key)
+            if isinstance(obj, gramps_class):
                 return self.api_filter(obj)
 
         return JSONEncoder.default(self, obj)
