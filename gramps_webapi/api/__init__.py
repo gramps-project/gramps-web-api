@@ -18,6 +18,7 @@ from .resources.source import SourceResource, SourcesResource
 from .resources.tag import TagResource, TagsResource
 from .resources.token import TokenRefreshResource, TokenResource
 from .resources.type import TypeResource, TypesResource
+from .resources.tree import TreeResource
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
 
@@ -63,3 +64,5 @@ register_endpt(TokenRefreshResource, "/refresh/", "token_refresh")
 # Type
 register_endpt(TypeResource, "/type/<string:gramps_type>", "type")
 register_endpt(TypesResource, "/type/", "types")
+# Tree
+register_endpt(TreeResource, "/tree/", "tree")
