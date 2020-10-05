@@ -3,6 +3,19 @@
 import gramps.gen.lib as lib
 from flask.json import JSONEncoder
 
+PRIMARY_CLASS_MAP = {
+    "Person": lib.Person,
+    "Family": lib.Family,
+    "Event": lib.Event,
+    "Place": lib.Place,
+    "Source": lib.Source,
+    "Citation": lib.Citation,
+    "Repository": lib.Repository,
+    "Media": lib.Media,
+    "Note": lib.Note,
+    "Tag": lib.Tag,
+}
+
 
 class GrampsJSONEncoder(JSONEncoder):
     def __init__(self):
@@ -15,8 +28,12 @@ class GrampsJSONEncoder(JSONEncoder):
 
     def api_filter(self, obj):
         data = {}
+        if isinstance(obj, PRIMARY_CLASS_MAP[self.gramps_class_name]):
+            filter = True
+        else:
+            filter = False
         for key, value in obj.__dict__.items():
-            if self.filter_keys != [] and key not in self.filter_keys:
+            if filter and self.filter_keys != [] and key not in self.filter_keys:
                 continue
             if self.return_raw and key == "profile":
                 continue
