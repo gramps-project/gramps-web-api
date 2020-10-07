@@ -18,14 +18,19 @@ from .emit import GrampsJSONEncoder
 class GrampsObjectResourceHelper(GrampsJSONEncoder):
     """Gramps object helper class."""
 
+    def __init__(self):
+        """Initialize class."""
+        GrampsJSONEncoder.__init__(self)
+        self.extend_object = False
+
     @property  # type: ignore
     @abstractmethod
     def gramps_class_name(self):
         """To be set on child classes."""
 
     @abstractmethod
-    def object_denormalize(self, obj):
-        """Denormalize object attributes as needed."""
+    def object_extend(self, obj):
+        """Extend the base object attributes as needed."""
 
     @property
     def db(self) -> DbReadBase:
@@ -66,8 +71,9 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
     @use_args(
         {
             "strip": fields.Boolean(),
-            "raw": fields.Boolean(),
             "keys": fields.DelimitedList(fields.Str()),
+            "skipkeys": fields.DelimitedList(fields.Str()),
+            "extend": fields.Boolean(),
         },
         location="query",
     )
@@ -79,11 +85,13 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             return abort(404)
         if "strip" in args:
             self.strip_empty_keys = args["strip"]
-        if "raw" in args:
-            self.return_raw = args["raw"]
         if "keys" in args:
-            self.filter_keys = args["keys"]
-        return self.response(self.object_denormalize(obj))
+            self.filter_only_keys = args["keys"]
+        if "skipkeys" in args:
+            self.filter_skip_keys = args["skipkeys"]
+        if "extend" in args:
+            self.extend_object = args["extend"]
+        return self.response(self.object_extend(obj))
 
 
 class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
@@ -94,8 +102,9 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             "gramps_id": fields.Str(),
             "handle": fields.Str(),
             "strip": fields.Boolean(),
-            "raw": fields.Boolean(),
             "keys": fields.DelimitedList(fields.Str()),
+            "skipkeys": fields.DelimitedList(fields.Str()),
+            "extend": fields.Boolean(),
         },
         location="query",
     )
@@ -103,24 +112,26 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         """Get all objects."""
         if "strip" in args:
             self.strip_empty_keys = args["strip"]
-        if "raw" in args:
-            self.return_raw = args["raw"]
         if "keys" in args:
-            self.filter_keys = args["keys"]
+            self.filter_only_keys = args["keys"]
+        if "skipkeys" in args:
+            self.filter_skip_keys = args["skipkeys"]
+        if "extend" in args:
+            self.extend_object = args["extend"]
         if "gramps_id" in args:
             obj = self.get_object_from_gramps_id(args["gramps_id"])
             if obj is None:
                 return abort(404)
-            return self.response([self.object_denormalize(obj)])
+            return self.response([self.object_extend(obj)])
         if "handle" in args:
             try:
                 obj = self.get_object_from_handle(handle)
             except HandleError:
                 return abort(404)
-            return self.response([self.object_denormalize(obj)])
+            return self.response([self.object_extend(obj)])
         return self.response(
             [
-                self.object_denormalize(obj)
+                self.object_extend(obj)
                 for obj in self.db._iter_objects(self.object_class)
             ]
         )

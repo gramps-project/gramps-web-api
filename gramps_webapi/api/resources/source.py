@@ -2,6 +2,7 @@
 
 from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
                    GrampsObjectsProtectedResource)
+from .util import get_media, get_repositories
 
 
 class SourceResourceHelper(GrampsObjectResourceHelper):
@@ -9,8 +10,16 @@ class SourceResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Source"
 
-    def object_denormalize(self, obj):
-        """Denormalize source attributes if needed."""
+    def object_extend(self, obj):
+        """Extend source attributes as needed."""
+        if self.extend_object:
+            db = self.db
+            obj.extended = {
+                "media": get_media(db, obj),
+                "notes": [db.get_note_from_handle(handle) for handle in obj.note_list],
+                "repositories": get_repositories(db, obj),
+                "tags": [db.get_tag_from_handle(handle) for handle in obj.tag_list],
+            }
         return obj
 
 

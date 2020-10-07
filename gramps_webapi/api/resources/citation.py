@@ -2,6 +2,7 @@
 
 from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
                    GrampsObjectsProtectedResource)
+from .util import get_media, get_source
 
 
 class CitationResourceHelper(GrampsObjectResourceHelper):
@@ -9,8 +10,16 @@ class CitationResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Citation"
 
-    def object_denormalize(self, obj):
-        """Denormalize citation attributes if needed."""
+    def object_extend(self, obj):
+        """Extend citation attributes as needed."""
+        if self.extend_object:
+            db = self.db
+            obj.extended = {
+                "media": get_media(db, obj),
+                "notes": [db.get_note_from_handle(handle) for handle in obj.note_list],
+                "source": get_source(db, obj.source_handle),
+                "tags": [db.get_tag_from_handle(handle) for handle in obj.tag_list],
+            }
         return obj
 
 

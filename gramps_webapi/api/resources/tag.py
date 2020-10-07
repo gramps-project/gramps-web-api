@@ -9,8 +9,8 @@ class TagResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Tag"
 
-    def object_denormalize(self, obj):
-        """Denormalize note attributes if needed."""
+    def object_extend(self, obj):
+        """Extend tag attributes as needed."""
         return obj
 
 

@@ -1,4 +1,4 @@
-"""Gramps Json Encoder"""
+"""Gramps Json Encoder."""
 
 import inspect
 
@@ -25,12 +25,13 @@ class GrampsJSONEncoder(JSONEncoder):
     """Customizes Gramps Web API output."""
 
     def __init__(self):
+        """Initialize class."""
         JSONEncoder.__init__(self)
         self.sort_keys = True
         self.ensure_ascii = False
         self.strip_empty_keys = False
-        self.return_raw = False
-        self.filter_keys = []
+        self.filter_only_keys = []
+        self.filter_skip_keys = []
         self.gramps_classes = [
             getattr(lib, key) for key, value in inspect.getmembers(lib, inspect.isclass)
         ]
@@ -53,10 +54,11 @@ class GrampsJSONEncoder(JSONEncoder):
         except:
             pass
         for key, value in obj.__dict__.items():
-            if filter and self.filter_keys != [] and key not in self.filter_keys:
-                continue
-            if self.return_raw and key == "profile":
-                continue
+            if filter:
+                if self.filter_only_keys != [] and key not in self.filter_only_keys:
+                    continue
+                if self.filter_skip_keys != [] and key in self.filter_skip_keys:
+                    continue
             if key.startswith("_"):
                 key = key[2 + key.find("__") :]
             if self.strip_empty_keys:
