@@ -1,6 +1,6 @@
 """Tree API resource."""
 
-from flask import Response, abort
+from flask import abort
 from gramps.gen.db.base import DbReadBase
 from webargs import fields
 from webargs.flaskparser import use_args
@@ -19,9 +19,7 @@ class TreeResource(ProtectedResource, GrampsJSONEncoder):
         return get_dbstate().db
 
     @use_args(
-        {
-            "surnames": fields.Boolean()
-        },
+        {"surnames": fields.Boolean()},
         location="query",
     )
     def get(self, args):
@@ -35,11 +33,7 @@ class TreeResource(ProtectedResource, GrampsJSONEncoder):
             "savepath": db.get_save_path(),
             "summary": db.get_summary(),
         }
-        if 'surnames' in args:
-            result.update({'surnames': db.get_surname_list()})
+        if "surnames" in args:
+            result.update({"surnames": db.get_surname_list()})
 
-        return Response(
-            response=self.encode(result),
-            status=200,
-            mimetype="application/json",
-        )
+        return self.response(result)

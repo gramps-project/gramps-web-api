@@ -3,7 +3,7 @@
 from abc import abstractmethod
 
 import gramps.gen.lib
-from flask import Response, abort
+from flask import abort
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_NAME_MAP
 from gramps.gen.errors import HandleError
@@ -83,11 +83,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             self.return_raw = args["raw"]
         if "keys" in args:
             self.filter_keys = args["keys"]
-        return Response(
-            response=self.encode(self.object_denormalize(obj)),
-            status=200,
-            mimetype="application/json",
-        )
+        return self.response(self.object_denormalize(obj))
 
 
 class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
@@ -115,30 +111,18 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             obj = self.get_object_from_gramps_id(args["gramps_id"])
             if obj is None:
                 return abort(404)
-            return Response(
-                response=self.encode([self.object_denormalize(obj)]),
-                status=200,
-                mimetype="application/json",
-            )
+            return self.response([self.object_denormalize(obj)])
         if "handle" in args:
             try:
                 obj = self.get_object_from_handle(handle)
             except HandleError:
                 return abort(404)
-            return Response(
-                response=self.encode([self.object_denormalize(obj)]),
-                status=200,
-                mimetype="application/json",
-            )
-        return Response(
-            response=self.encode(
-                [
-                    self.object_denormalize(obj)
-                    for obj in self.db._iter_objects(self.object_class)
-                ]
-            ),
-            status=200,
-            mimetype="application/json",
+            return self.response([self.object_denormalize(obj)])
+        return self.response(
+            [
+                self.object_denormalize(obj)
+                for obj in self.db._iter_objects(self.object_class)
+            ]
         )
 
 

@@ -3,6 +3,7 @@
 import inspect
 
 import gramps.gen.lib as lib
+from flask import Response
 from flask.json import JSONEncoder
 from gramps.gen.db import DbBookmarks
 
@@ -30,9 +31,20 @@ class GrampsJSONEncoder(JSONEncoder):
         self.strip_empty_keys = False
         self.return_raw = False
         self.filter_keys = []
+        self.gramps_classes = [
+            getattr(lib, key) for key, value in inspect.getmembers(lib, inspect.isclass)
+        ]
+
+    def response(self, payload):
+        """Prepare response."""
+        return Response(
+            response=self.encode(payload),
+            status=200,
+            mimetype="application/json",
+        )
 
     def api_filter(self, obj):
-        """Filter data in a Gramps object."""
+        """Filter data for a Gramps object."""
         data = {}
         filter = False
         try:
@@ -50,6 +62,14 @@ class GrampsJSONEncoder(JSONEncoder):
             if self.strip_empty_keys:
                 if isinstance(value, lib.GrampsType):
                     data[key] = str(value)
+                elif isinstance(value, lib.StyledText):
+                    data[key] = str(value)
+                elif isinstance(value, lib.PlaceName):
+                    data[key] = {
+                        "date": value.date,
+                        "lang": value.lang,
+                        "value": value.value,
+                    }
                 else:
                     if value is not None and value != [] and value != {}:
                         data[key] = value
@@ -62,8 +82,7 @@ class GrampsJSONEncoder(JSONEncoder):
         if isinstance(obj, lib.GrampsType):
             return str(obj)
 
-        for key, value in inspect.getmembers(lib, inspect.isclass):
-            gramps_class = getattr(lib, key)
+        for gramps_class in self.gramps_classes:
             if isinstance(obj, gramps_class):
                 return self.api_filter(obj)
 
