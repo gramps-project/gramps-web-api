@@ -2,7 +2,7 @@
 
 from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
                    GrampsObjectsProtectedResource)
-from .util import get_media
+from .util import get_media_for_references
 
 
 class PlaceResourceHelper(GrampsObjectResourceHelper):
@@ -18,7 +18,7 @@ class PlaceResourceHelper(GrampsObjectResourceHelper):
                 "citations": [
                     db.get_citation_from_handle(handle) for handle in obj.citation_list
                 ],
-                "media": get_media(db, obj),
+                "media": get_media_for_references(db, obj),
                 "notes": [db.get_note_from_handle(handle) for handle in obj.note_list],
                 "tags": [db.get_tag_from_handle(handle) for handle in obj.tag_list],
             }

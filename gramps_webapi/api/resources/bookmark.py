@@ -19,24 +19,24 @@ class BookmarkResource(ProtectedResource, GrampsJSONEncoder):
     def get(self, bookmark_type: str):
         """Get list of bookmarks by type."""
         db = self.db
-        if bookmark_type == "bookmarks":
+        if bookmark_type == "person":
             return self.response(db.get_bookmarks())
-        if bookmark_type == "citation":
-            return self.response(db.get_citation_bookmarks())
-        if bookmark_type == "event":
-            return self.response(db.get_event_bookmarks())
         if bookmark_type == "family":
             return self.response(db.get_family_bookmarks())
         if bookmark_type == "media":
             return self.response(db.get_media_bookmarks())
+        if bookmark_type == "event":
+            return self.response(db.get_event_bookmarks())
+        if bookmark_type == "citation":
+            return self.response(db.get_citation_bookmarks())
         if bookmark_type == "note":
             return self.response(db.get_note_bookmarks())
         if bookmark_type == "place":
             return self.response(db.get_place_bookmarks())
-        if bookmark_type == "repo":
-            return self.response(db.get_repo_bookmarks())
         if bookmark_type == "source":
             return self.response(db.get_source_bookmarks())
+        if bookmark_type == "repository":
+            return self.response(db.get_repo_bookmarks())
         return abort(404)
 
 
@@ -47,14 +47,14 @@ class BookmarksResource(ProtectedResource, GrampsJSONEncoder):
         """Get the list of bookmark types."""
         return self.response(
             [
-                "bookmarks",
                 "citation",
                 "event",
                 "family",
                 "media",
                 "note",
+                "person",
                 "place",
-                "repo",
+                "repository",
                 "source",
             ]
         )

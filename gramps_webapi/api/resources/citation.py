@@ -2,7 +2,7 @@
 
 from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
                    GrampsObjectsProtectedResource)
-from .util import get_media, get_source
+from .util import get_media_for_references, get_source_by_handle
 
 
 class CitationResourceHelper(GrampsObjectResourceHelper):
@@ -15,9 +15,9 @@ class CitationResourceHelper(GrampsObjectResourceHelper):
         if self.extend_object:
             db = self.db
             obj.extended = {
-                "media": get_media(db, obj),
+                "media": get_media_for_references(db, obj),
                 "notes": [db.get_note_from_handle(handle) for handle in obj.note_list],
-                "source": get_source(db, obj.source_handle),
+                "source": get_source_by_handle(db, obj.source_handle),
                 "tags": [db.get_tag_from_handle(handle) for handle in obj.tag_list],
             }
         return obj

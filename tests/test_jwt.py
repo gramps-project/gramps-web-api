@@ -60,14 +60,14 @@ class TestPerson(unittest.TestCase):
         )
         assert rv.status_code == 200
         it = rv.json[0]
-        rv = self.client.get("/api/person/" + it["handle"])
+        rv = self.client.get("/api/person/" + it["handle"] + "?profile=1")
         # no authorization header!
         assert rv.status_code == 401
         # fetch a token and try again
         rv = self.client.post("/api/login/", data={"username": "user", "password": 123})
         token = rv.json["access_token"]
         rv = self.client.get(
-            "/api/person/" + it["handle"],
+            "/api/person/" + it["handle"] + "?profile=1",
             headers={"Authorization": "Bearer {}".format(token)},
         )
         assert rv.status_code == 200

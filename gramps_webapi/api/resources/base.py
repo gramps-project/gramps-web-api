@@ -5,7 +5,6 @@ from abc import abstractmethod
 import gramps.gen.lib
 from flask import abort
 from gramps.gen.db.base import DbReadBase
-from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_NAME_MAP
 from gramps.gen.errors import HandleError
 from webargs import fields
 from webargs.flaskparser import use_args
@@ -21,6 +20,7 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
     def __init__(self):
         """Initialize class."""
         GrampsJSONEncoder.__init__(self)
+        self.build_profile = False
         self.extend_object = False
 
     @property  # type: ignore
@@ -37,32 +37,15 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
         """Get the database instance."""
         return get_dbstate().db
 
-    @property
-    def object_class(self):
-        """Get the Gramps class of the object."""
-        obj_class_name = KEY_TO_NAME_MAP[CLASS_TO_KEY_MAP[self.gramps_class_name]]
-        if obj_class_name == "source":
-            obj_class_name = "src"
-        elif obj_class_name == "repository":
-            obj_class_name = "repo"
-        obj_module = getattr(gramps.gen.lib, obj_class_name)
-        obj_class = getattr(obj_module, self.gramps_class_name)
-        return obj_class
-
     def get_object_from_gramps_id(self, gramps_id: str):
         """Get the object given a Gramps ID."""
-        obj_class_key = CLASS_TO_KEY_MAP[self.gramps_class_name]
-        raw_obj = self.db._get_raw_from_id_data(obj_class_key, gramps_id)
-        return self.object_class.create(raw_obj)
+        query_method = self.db.method("get_%s_from_gramps_id", self.gramps_class_name)
+        return query_method(gramps_id)
 
     def get_object_from_handle(self, handle: str):
         """Get the object given a Gramps handle."""
-        obj_class_key = CLASS_TO_KEY_MAP[self.gramps_class_name]
-        return self.db._get_from_handle(obj_class_key, self.object_class, handle)
-
-    def get_gramps_id_from_handle(self, handle: str):
-        """Get an object's Gramps ID from its handle."""
-        return self.get_object_from_handle(handle).gramps_id
+        query_method = self.db.method("get_%s_from_handle", self.gramps_class_name)
+        return query_method(handle)
 
 
 class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
@@ -73,6 +56,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             "strip": fields.Boolean(),
             "keys": fields.DelimitedList(fields.Str()),
             "skipkeys": fields.DelimitedList(fields.Str()),
+            "profile": fields.Boolean(),
             "extend": fields.Boolean(),
         },
         location="query",
@@ -89,6 +73,8 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             self.filter_only_keys = args["keys"]
         if "skipkeys" in args:
             self.filter_skip_keys = args["skipkeys"]
+        if "profile" in args:
+            self.build_profile = args["profile"]
         if "extend" in args:
             self.extend_object = args["extend"]
         return self.response(self.object_extend(obj))
@@ -104,6 +90,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             "strip": fields.Boolean(),
             "keys": fields.DelimitedList(fields.Str()),
             "skipkeys": fields.DelimitedList(fields.Str()),
+            "profile": fields.Boolean(),
             "extend": fields.Boolean(),
         },
         location="query",
@@ -116,6 +103,8 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             self.filter_only_keys = args["keys"]
         if "skipkeys" in args:
             self.filter_skip_keys = args["skipkeys"]
+        if "profile" in args:
+            self.build_profile = args["profile"]
         if "extend" in args:
             self.extend_object = args["extend"]
         if "gramps_id" in args:
@@ -129,11 +118,10 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             except HandleError:
                 return abort(404)
             return self.response([self.object_extend(obj)])
+        iter_method = self.db.method("iter_%s_handles", self.gramps_class_name)
+        query_method = self.db.method("get_%s_from_handle", self.gramps_class_name)
         return self.response(
-            [
-                self.object_extend(obj)
-                for obj in self.db._iter_objects(self.object_class)
-            ]
+            [self.object_extend(query_method(handle)) for handle in iter_method()]
         )
 
 

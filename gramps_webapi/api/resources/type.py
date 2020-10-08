@@ -26,7 +26,7 @@ class TypeResource(ProtectedResource, GrampsJSONEncoder):
         if gramps_type == "person_attribute":
             return self.response(db.get_person_attribute_types())
         if gramps_type == "family_attribute":
-            return self.response(db.get_event_types())
+            return self.response(db.get_family_attribute_types())
         if gramps_type == "media_attribute":
             return self.response(db.get_person_attribute_types())
         if gramps_type == "family_relation":

@@ -53,7 +53,7 @@ class TestPerson(unittest.TestCase):
         assert rv.status_code == 404
 
     def test_people_endpoint(self):
-        rv = self.client.get("/api/person/")
+        rv = self.client.get("/api/person/?profile=1")
         it = rv.json[0]
         assert len(it["handle"]) > 20
         assert isinstance(it["change"], int)
@@ -63,7 +63,7 @@ class TestPerson(unittest.TestCase):
         assert it["gender"] == 1  # male
         assert it["birth_ref_index"] == -1
         assert it["death_ref_index"] == -1
-        rv = self.client.get("/api/person/?gramps_id=person001")
+        rv = self.client.get("/api/person/?gramps_id=person001&profile=1")
         it = rv.json[0]
         assert len(it["handle"]) > 20
         assert isinstance(it["change"], int)
@@ -77,7 +77,7 @@ class TestPerson(unittest.TestCase):
     def test_person_endpoint(self):
         rv = self.client.get("/api/person/")
         it = rv.json[0]
-        rv = self.client.get("/api/person/" + it["handle"])
+        rv = self.client.get("/api/person/" + it["handle"] + "?profile=1")
         assert len(rv.json["handle"]) > 20
         assert isinstance(rv.json["change"], int)
         assert rv.json["gramps_id"] == "person001"

@@ -2,7 +2,8 @@
 
 from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
                    GrampsObjectsProtectedResource)
-from .util import (get_children, get_events, get_media, get_people,
+from .util import (get_children_for_references, get_events_for_references,
+                   get_family_profile_for_object, get_media_for_references,
                    get_person_by_handle)
 
 
@@ -13,16 +14,18 @@ class FamilyResourceHelper(GrampsObjectResourceHelper):
 
     def object_extend(self, obj):  # pylint: disable=no-self-use
         """Extend family attributes as needed."""
+        db = self.db
+        if self.build_profile:
+            obj.profile = get_family_profile_for_object(db, obj, with_events=True)
         if self.extend_object:
-            db = self.db
             obj.extended = {
-                "children": get_children(db, obj),
+                "children": get_children_for_references(db, obj),
                 "citations": [
                     db.get_citation_from_handle(handle) for handle in obj.citation_list
                 ],
-                "events": get_events(db, obj),
+                "events": get_events_for_references(db, obj),
                 "father": get_person_by_handle(db, obj.father_handle),
-                "media": get_media(db, obj),
+                "media": get_media_for_references(db, obj),
                 "mother": get_person_by_handle(db, obj.mother_handle),
                 "notes": [db.get_note_from_handle(handle) for handle in obj.note_list],
                 "tags": [db.get_tag_from_handle(handle) for handle in obj.tag_list],

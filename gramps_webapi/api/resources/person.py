@@ -1,12 +1,10 @@
 """Person API resource."""
 
-from gramps.gen.display.name import displayer as name_displayer
-
 from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
                    GrampsObjectsProtectedResource)
-from .util import (get_birthdate, get_birthplace, get_deathdate,
-                   get_deathplace, get_events, get_family, get_media,
-                   get_people)
+from .util import (get_events_for_references, get_family_by_handle,
+                   get_media_for_references, get_people_for_references,
+                   get_person_profile_for_object)
 
 
 class PersonResourceHelper(GrampsObjectResourceHelper):
@@ -17,30 +15,29 @@ class PersonResourceHelper(GrampsObjectResourceHelper):
     def object_extend(self, obj):  # pylint: disable=no-self-use
         """Extend person attributes as needed."""
         db = self.db
-        obj.profile = {
-            "birth_date": get_birthdate(db, obj),
-            "birth_place": get_birthplace(db, obj),
-            "death_date": get_deathdate(db, obj),
-            "death_place": get_deathplace(db, obj),
-            "name_given": name_displayer.display_given(obj),
-            "name_surname": obj.primary_name.get_surname(),
-        }
+        if self.build_profile:
+            obj.profile = get_person_profile_for_object(
+                db, obj, with_family=True, with_events=True
+            )
         if self.extend_object:
             obj.extended = {
                 "citations": [
                     db.get_citation_from_handle(handle) for handle in obj.citation_list
                 ],
-                "events": get_events(db, obj),
-                "families": [get_family(db, handle) for handle in obj.family_list],
-                "parent_families": [
-                    get_family(db, handle) for handle in obj.parent_family_list
+                "events": get_events_for_references(db, obj),
+                "families": [
+                    get_family_by_handle(db, handle) for handle in obj.family_list
                 ],
-                "primary_parent_family": get_family(
+                "parent_families": [
+                    get_family_by_handle(db, handle)
+                    for handle in obj.parent_family_list
+                ],
+                "primary_parent_family": get_family_by_handle(
                     db, obj.get_main_parents_family_handle()
                 ),
-                "media": get_media(db, obj),
+                "media": get_media_for_references(db, obj),
                 "notes": [db.get_note_from_handle(handle) for handle in obj.note_list],
-                "people": get_people(db, obj),
+                "people": get_people_for_references(db, obj),
                 "tags": [db.get_tag_from_handle(handle) for handle in obj.tag_list],
             }
         return obj
