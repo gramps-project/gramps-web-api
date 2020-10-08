@@ -185,16 +185,19 @@ def get_person_profile_for_object(
         "name_surname": person.primary_name.get_surname(),
     }
     if with_family:
-        profile["parent_families"] = [
-            get_family_profile_for_handle(db, handle)
-            for handle in person.parent_family_list
-        ]
+        primary_parent_family_handle = person.get_main_parents_family_handle()
+        profile["primary_parent_family"] = get_family_profile_for_handle(
+            db, primary_parent_family_handle
+        )
+        profile["other_parent_families"] = []
+        for handle in person.parent_family_list:
+            if handle != primary_parent_family_handle:
+                profile["other_parent_families"].append(
+                    get_family_profile_for_handle(db, handle)
+                )
         profile["families"] = [
             get_family_profile_for_handle(db, handle) for handle in person.family_list
         ]
-        profile["primary_parent_family"] = get_family_profile_for_handle(
-            db, person.get_main_parents_family_handle()
-        )
     if with_events:
         profile["events"] = [
             get_event_profile_for_handle(db, event_ref.ref)
