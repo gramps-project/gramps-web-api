@@ -13,7 +13,7 @@ from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
 
-class TranslateResource(ProtectedResource, GrampsJSONEncoder):
+class TranslationResource(ProtectedResource, GrampsJSONEncoder):
     """Translation resource."""
 
     @use_args(
@@ -22,13 +22,12 @@ class TranslateResource(ProtectedResource, GrampsJSONEncoder):
     )
     def get(self, args):
         """Get translation."""
-        if "strings" not in args or args["strings"] is None:
-            abort(400)
+        if "strings" not in args:
+            return self.response(GRAMPS_LOCALE.get_language_dict())
+
         try:
             strings = json.loads(args["strings"])
         except:
-            abort(400)
-        if not isinstance(strings, List):
             abort(400)
         if "lang" in args and args["lang"] is not None:
             gramps_locale = GrampsLocale(lang=args["lang"])

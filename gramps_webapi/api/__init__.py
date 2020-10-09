@@ -10,16 +10,16 @@ from .resources.bookmark import BookmarkResource, BookmarksResource
 from .resources.citation import CitationResource, CitationsResource
 from .resources.event import EventResource, EventsResource
 from .resources.family import FamiliesResource, FamilyResource
-from .resources.language import LanguageResource
 from .resources.media import MediaObjectResource, MediaObjectsResource
 from .resources.note import NoteResource, NotesResource
 from .resources.person import PeopleResource, PersonResource
 from .resources.place import PlaceResource, PlacesResource
+from .resources.relationship import RelationshipResource
 from .resources.repository import RepositoriesResource, RepositoryResource
 from .resources.source import SourceResource, SourcesResource
 from .resources.tag import TagResource, TagsResource
 from .resources.token import TokenRefreshResource, TokenResource
-from .resources.translate import TranslateResource
+from .resources.translation import TranslationResource
 from .resources.tree import TreeResource
 from .resources.type import TypeResource, TypesResource
 
@@ -72,7 +72,11 @@ register_endpt(TreeResource, "/tree/", "tree")
 # Bookmark
 register_endpt(BookmarkResource, "/bookmark/<string:bookmark_type>", "bookmark")
 register_endpt(BookmarksResource, "/bookmark/", "bookmarks")
-# Language
-register_endpt(LanguageResource, "/language/", "language")
 # Translate
-register_endpt(TranslateResource, "/translate/", "translate")
+register_endpt(TranslationResource, "/translate/", "translation")
+# Relationship
+register_endpt(
+    RelationshipResource,
+    "/relationship/<string:handle1>/<string:handle2>",
+    "relationship",
+)
