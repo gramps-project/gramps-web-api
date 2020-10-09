@@ -10,6 +10,9 @@ from gramps.gen.errors import HandleError
 from gramps.gen.lib import (Event, Family, Media, Person, Place, Repository,
                             Source)
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
+from gramps.gen.utils.db import (get_birth_or_fallback, get_death_or_fallback,
+                                 get_divorce_or_fallback,
+                                 get_marriage_or_fallback)
 from gramps_webapi.types import Handle
 
 nd = NameDisplay()
@@ -127,48 +130,33 @@ def get_event_profile_for_handle(db: DbReadBase, handle: Handle) -> Dict:
 
 def get_birth_profile(db: DbReadBase, person: Person) -> Dict:
     """Return best available birth information for a person."""
-    try:
-        event = db.get_event_from_handle(person.get_birth_ref().ref)
-    except (AttributeError, HandleError):
-        event = None
-        for event_ref in person.event_ref_list:
-            event = db.get_event_from_handle(event_ref.ref)
-            if event.type.is_birth_fallback():
-                break
-        if event is None or not event.type.is_birth_fallback():
-            return {}
+    event = get_birth_or_fallback(db, person)
+    if event is None:
+        return {}
     return get_event_profile_for_object(db, event)
 
 
 def get_death_profile(db: DbReadBase, person: Person) -> Dict:
     """Return best available death information for a person."""
-    try:
-        event = db.get_event_from_handle(person.get_death_ref().ref)
-    except (AttributeError, HandleError):
-        event = None
-        for event_ref in person.event_ref_list:
-            event = db.get_event_from_handle(event_ref.ref)
-            if event.type.is_death_fallback():
-                break
-        if event is None or not event.type.is_death_fallback:
-            return {}
+    event = get_death_or_fallback(db, person)
+    if event is None:
+        return {}
     return get_event_profile_for_object(db, event)
 
 
 def get_marriage_profile(db: DbReadBase, family: Family) -> Dict:
     """Return best available marriage information for a couple."""
-    event = None
-    fallback = None
-    for event_ref in family.event_ref_list:
-        event = db.get_event_from_handle(event_ref.ref)
-        if event.type.is_marriage():
-            break
-        if event.type.is_marriage_fallback():
-            fallback = event
-    if event is None or not event.type.is_marriage():
-        if fallback is None:
-            return {}
-        event = fallback
+    event = get_marriage_or_fallback(db, family)
+    if event is None:
+        return {}
+    return get_event_profile_for_object(db, event)
+
+
+def get_divorce_profile(db: DbReadBase, family: Family) -> Dict:
+    """Return best available divorce information for a couple."""
+    event = get_divorce_or_fallback(db, family)
+    if event is None:
+        return {}
     return get_event_profile_for_object(db, event)
 
 
@@ -231,6 +219,7 @@ def get_family_profile_for_object(
         ),
         "relationship": family.type,
         "marriage": get_marriage_profile(db, family),
+        "divorce": get_divorce_profile(db, family),
         "children": [
             get_person_profile_for_handle(
                 db, child_ref.ref, with_family=False, with_events=False
