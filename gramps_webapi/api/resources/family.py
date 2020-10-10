@@ -1,5 +1,7 @@
 """Family API resource."""
 
+from typing import Dict
+
 from gramps.gen.lib import Family
 
 from .base import (
@@ -21,7 +23,7 @@ class FamilyResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Family"
 
-    def object_extend(self, obj, args) -> Family:
+    def object_extend(self, obj: Family, args: Dict) -> Family:
         """Extend family attributes as needed."""
         db = self.db
         if args["profile"]:

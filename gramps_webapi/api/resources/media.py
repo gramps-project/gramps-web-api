@@ -1,5 +1,7 @@
 """Media API resource."""
 
+from typing import Dict
+
 from gramps.gen.lib import Media
 
 from .base import (
@@ -14,7 +16,7 @@ class MediaObjectResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Media"
 
-    def object_extend(self, obj, args) -> Media:
+    def object_extend(self, obj: Media, args: Dict) -> Media:
         """Extend media attributes as needed."""
         if args["extend"]:
             db = self.db

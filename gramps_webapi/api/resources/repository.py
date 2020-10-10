@@ -1,5 +1,7 @@
 """Repository API resource."""
 
+from typing import Dict
+
 from gramps.gen.lib import Repository
 
 from .base import (
@@ -14,7 +16,7 @@ class RepositoryResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Repository"
 
-    def object_extend(self, obj, args) -> Repository:
+    def object_extend(self, obj: Repository, args: Dict) -> Repository:
         """Extend repository attributes as needed."""
         if args["extend"]:
             db = self.db

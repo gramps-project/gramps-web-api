@@ -1,5 +1,7 @@
 """Place API resource."""
 
+from typing import Dict
+
 from gramps.gen.lib import Place
 
 from .base import (
@@ -15,7 +17,7 @@ class PlaceResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Place"
 
-    def object_extend(self, obj, args) -> Place:
+    def object_extend(self, obj: Place, args: Dict) -> Place:
         """Extend place attributes as needed."""
         if args["extend"]:
             db = self.db

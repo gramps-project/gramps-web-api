@@ -1,6 +1,7 @@
 """Base for Gramps object API resources."""
 
 from abc import abstractmethod
+from typing import Dict
 
 from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
@@ -17,10 +18,8 @@ from .emit import GrampsJSONEncoder
 class GrampsObjectResourceHelper(GrampsJSONEncoder):
     """Gramps object helper class."""
 
-    gramps_class_name = None
-
     @abstractmethod
-    def object_extend(self, obj, args) -> GrampsObject:
+    def object_extend(self, obj: GrampsObject, args: Dict) -> GrampsObject:
         """Extend the base object attributes as needed."""
 
     @property
@@ -52,7 +51,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         },
         location="query",
     )
-    def get(self, args, handle: str) -> Response:
+    def get(self, args: Dict, handle: str) -> Response:
         """Get the object."""
         try:
             obj = self.get_object_from_handle(handle)
@@ -76,7 +75,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         },
         location="query",
     )
-    def get(self, args) -> Response:
+    def get(self, args: Dict) -> Response:
         """Get all objects."""
         if "gramps_id" in args:
             obj = self.get_object_from_gramps_id(args["gramps_id"])

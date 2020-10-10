@@ -1,5 +1,7 @@
 """Event API resource."""
 
+from typing import Dict
+
 from gramps.gen.lib import Event
 
 from .base import (
@@ -19,7 +21,7 @@ class EventResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Event"
 
-    def object_extend(self, obj, args) -> Event:
+    def object_extend(self, obj: Event, args: Dict) -> Event:
         """Extend event attributes as needed."""
         db = self.db
         if args["profile"]:

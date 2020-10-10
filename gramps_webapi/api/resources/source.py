@@ -1,5 +1,7 @@
 """Source API resource."""
 
+from typing import Dict
+
 from gramps.gen.lib import Source
 
 from .base import (
@@ -15,7 +17,7 @@ class SourceResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Source"
 
-    def object_extend(self, obj) -> Source:
+    def object_extend(self, obj: Source, args: Dict) -> Source:
         """Extend source attributes as needed."""
         if args["extend"]:
             db = self.db

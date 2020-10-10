@@ -1,5 +1,7 @@
 """Note API resource."""
 
+from typing import Dict
+
 from gramps.gen.lib import Note
 
 from .base import (
@@ -14,7 +16,7 @@ class NoteResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Note"
 
-    def object_extend(self, obj, args) -> Note:
+    def object_extend(self, obj: Note, args: Dict) -> Note:
         """Extend note attributes as needed."""
         if args["extend"]:
             db = self.db

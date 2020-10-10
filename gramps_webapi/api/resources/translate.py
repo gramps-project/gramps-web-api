@@ -1,6 +1,7 @@
 """Translate API Resource."""
 
 import json
+from typing import Dict
 
 from flask import Response, abort
 from gramps.gen.const import GRAMPS_LOCALE
@@ -15,13 +16,11 @@ from .emit import GrampsJSONEncoder
 class TranslateResource(ProtectedResource, GrampsJSONEncoder):
     """Translation resource."""
 
-    gramps_class_name = None
-
     @use_args(
         {"strings": fields.Str(), "lang": fields.Str()},
         location="query",
     )
-    def get(self, args) -> Response:
+    def get(self, args: Dict) -> Response:
         """Get translation."""
         if "strings" not in args:
             return self.response(GRAMPS_LOCALE.get_language_dict())

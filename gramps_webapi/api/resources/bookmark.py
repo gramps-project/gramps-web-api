@@ -11,8 +11,6 @@ from .emit import GrampsJSONEncoder
 class BookmarkResource(ProtectedResource, GrampsJSONEncoder):
     """Bookmark resource."""
 
-    gramps_class_name = None
-
     @property
     def db(self) -> DbReadBase:
         """Get the database instance."""

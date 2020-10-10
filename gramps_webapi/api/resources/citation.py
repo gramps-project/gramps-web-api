@@ -1,5 +1,7 @@
 """Citation API resource."""
 
+from typing import Dict
+
 from gramps.gen.lib import Citation
 
 from .base import (
@@ -15,7 +17,7 @@ class CitationResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Citation"
 
-    def object_extend(self, obj, args) -> Citation:
+    def object_extend(self, obj: Citation, args: Dict) -> Citation:
         """Extend citation attributes as needed."""
         if args["extend"]:
             db = self.db

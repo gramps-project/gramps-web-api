@@ -2,8 +2,8 @@
 
 from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
+from gramps_webapi.api.util import get_dbstate
 
-from ..util import get_dbstate
 from . import ProtectedResource, Resource
 from .emit import GrampsJSONEncoder
 

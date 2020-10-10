@@ -1,5 +1,7 @@
 """Person API resource."""
 
+from typing import Dict
+
 from gramps.gen.lib import Person
 
 from .base import (
@@ -21,7 +23,7 @@ class PersonResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Person"
 
-    def object_extend(self, obj, args) -> Person:
+    def object_extend(self, obj: Person, args: Dict) -> Person:
         """Extend person attributes as needed."""
         db = self.db
         if args["profile"]:

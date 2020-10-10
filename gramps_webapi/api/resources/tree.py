@@ -1,6 +1,8 @@
 """Tree API resource."""
 
-from flask import Response, abort
+from typing import Dict
+
+from flask import Response
 from gramps.gen.db.base import DbReadBase
 from webargs import fields
 from webargs.flaskparser import use_args
@@ -13,8 +15,6 @@ from .emit import GrampsJSONEncoder
 class TreeResource(ProtectedResource, GrampsJSONEncoder):
     """Tree resource."""
 
-    gramps_class_name = None
-
     @property
     def db(self) -> DbReadBase:
         """Get the database instance."""
@@ -24,7 +24,7 @@ class TreeResource(ProtectedResource, GrampsJSONEncoder):
         {"surnames": fields.Boolean(missing=False)},
         location="query",
     )
-    def get(self, args) -> Response:
+    def get(self, args: Dict) -> Response:
         """Get tree related information."""
         db = self.db
         result = {

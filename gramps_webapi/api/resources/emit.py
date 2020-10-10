@@ -7,11 +7,11 @@ from flask import Response
 from flask.json import JSONEncoder
 from gramps.gen.db import DbBookmarks
 
-from ...const import PLACE_DATE, PLACE_LANG, PLACE_VALUE
-
 
 class GrampsJSONEncoder(JSONEncoder):
     """Customizes Gramps Web API output."""
+
+    gramps_class_name = ""
 
     def __init__(
         self,
@@ -50,7 +50,7 @@ class GrampsJSONEncoder(JSONEncoder):
     def api_filter(self, obj):
         """Filter data for a Gramps object."""
         data = {}
-        if self.gramps_class_name is not None:
+        if self.gramps_class_name:
             apply_filter = True
         else:
             apply_filter = False
@@ -63,19 +63,17 @@ class GrampsJSONEncoder(JSONEncoder):
             if key.startswith("_"):
                 key = key[2 + key.find("__") :]
             if self.strip_empty_keys:
-                for gramps_class in self.gramps_classes:
-                    if isinstance(value, gramps_class):
-                        data[key] = value
-                        break
-                if key not in data:
+                try:
                     if value is not None and value != [] and value != {}:
                         data[key] = value
+                except AttributeError:
+                    data[key] = value
             else:
                 data[key] = value
         return data
 
     def default(self, obj):
-        """Default handler."""
+        """Our default handler."""
         if isinstance(obj, lib.GrampsType):
             return str(obj)
 

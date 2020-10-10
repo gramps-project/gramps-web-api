@@ -15,9 +15,9 @@ from gramps.gen.utils.db import (
     get_divorce_or_fallback,
     get_marriage_or_fallback,
 )
-from gramps_webapi.types import Handle
 
 from ...const import SEX_FEMALE, SEX_MALE, SEX_UNKNOWN
+from ...types import Handle
 
 nd = NameDisplay()
 pd = PlaceDisplay()
@@ -41,7 +41,7 @@ def get_place_by_handle(db: DbReadBase, handle: Handle) -> Optional[Place]:
 
 
 def get_family_by_handle(
-    db: DbReadBase, handle: Handle, extended=False
+    db: DbReadBase, handle: Handle, extended: bool = False
 ) -> Optional[Family]:
     """Get a family and all extended attributes."""
     try:
@@ -125,7 +125,7 @@ def get_event_profile_for_object(db: DbReadBase, event: Event) -> Dict:
     }
 
 
-def get_event_profile_for_handle(db: DbReadBase, handle: Handle) -> Dict:
+def get_event_profile_for_handle(db: DbReadBase, handle: Handle) -> Optional[Dict]:
     """Get event profile given a handle."""
     try:
         obj = db.get_event_from_handle(handle)
@@ -167,7 +167,7 @@ def get_divorce_profile(db: DbReadBase, family: Family) -> Dict:
 
 
 def get_person_profile_for_object(
-    db: DbReadBase, person: Person, with_family=True, with_events=True
+    db: DbReadBase, person: Person, with_family: bool = True, with_events: bool = True
 ) -> Person:
     """Get person profile given a Person."""
     profile = {
@@ -201,8 +201,8 @@ def get_person_profile_for_object(
 
 
 def get_person_profile_for_handle(
-    db: DbReadBase, handle: Handle, with_family=True, with_events=True
-) -> Person:
+    db: DbReadBase, handle: Handle, with_family: bool = True, with_events: bool = True
+) -> Optional[Person]:
     """Get person profile given a handle."""
     try:
         obj = db.get_person_from_handle(handle)
@@ -212,7 +212,7 @@ def get_person_profile_for_handle(
 
 
 def get_family_profile_for_object(
-    db: DbReadBase, family: Family, with_events=True
+    db: DbReadBase, family: Family, with_events: bool = True
 ) -> Family:
     """Get family profile given a Family."""
     profile = {
@@ -242,8 +242,8 @@ def get_family_profile_for_object(
 
 
 def get_family_profile_for_handle(
-    db: DbReadBase, handle: Handle, with_events=True
-) -> Family:
+    db: DbReadBase, handle: Handle, with_events: bool = True
+) -> Optional[Family]:
     """Get family profile given a handle."""
     try:
         obj = db.get_family_from_handle(handle)
