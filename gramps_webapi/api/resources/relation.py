@@ -1,4 +1,4 @@
-"""Relationship API Resource."""
+"""Relation API Resource."""
 
 from flask import abort
 from gramps.gen.db.base import DbReadBase
@@ -12,8 +12,8 @@ from .emit import GrampsJSONEncoder
 from .util import get_person_by_handle
 
 
-class RelationshipResource(ProtectedResource, GrampsJSONEncoder):
-    """Relationship resource."""
+class RelationResource(ProtectedResource, GrampsJSONEncoder):
+    """Relation resource."""
 
     @property
     def db(self) -> DbReadBase:

@@ -14,7 +14,7 @@ from .resources.media import MediaObjectResource, MediaObjectsResource
 from .resources.note import NoteResource, NotesResource
 from .resources.person import PeopleResource, PersonResource
 from .resources.place import PlaceResource, PlacesResource
-from .resources.relationship import RelationshipResource
+from .resources.relation import RelationResource
 from .resources.repository import RepositoriesResource, RepositoryResource
 from .resources.source import SourceResource, SourcesResource
 from .resources.tag import TagResource, TagsResource
@@ -74,9 +74,9 @@ register_endpt(BookmarkResource, "/bookmark/<string:bookmark_type>", "bookmark")
 register_endpt(BookmarksResource, "/bookmark/", "bookmarks")
 # Translate
 register_endpt(TranslationResource, "/translate/", "translation")
-# Relationship
+# Relation
 register_endpt(
-    RelationshipResource,
-    "/relationship/<string:handle1>/<string:handle2>",
-    "relationship",
+    RelationResource,
+    "/relation/<string:handle1>/<string:handle2>",
+    "relation",
 )
