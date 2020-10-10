@@ -62,13 +62,7 @@ class GrampsJSONEncoder(JSONEncoder):
                     continue
             if key.startswith("_"):
                 key = key[2 + key.find("__") :]
-            if self.strip_empty_keys:
-                try:
-                    if value is not None and value != [] and value != {}:
-                        data[key] = value
-                except AttributeError:
-                    data[key] = value
-            else:
+            if not self.strip_empty_keys or value:
                 data[key] = value
         return data
 
