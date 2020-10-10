@@ -1,7 +1,12 @@
 """Citation API resource."""
 
-from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
-                   GrampsObjectsProtectedResource)
+from gramps.gen.lib import Citation
+
+from .base import (
+    GrampsObjectProtectedResource,
+    GrampsObjectResourceHelper,
+    GrampsObjectsProtectedResource,
+)
 from .util import get_media_for_references, get_source_by_handle
 
 
@@ -10,9 +15,9 @@ class CitationResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Citation"
 
-    def object_extend(self, obj):
+    def object_extend(self, obj, args) -> Citation:
         """Extend citation attributes as needed."""
-        if self.extend_object:
+        if args["extend"]:
             db = self.db
             obj.extended = {
                 "media": get_media_for_references(db, obj),

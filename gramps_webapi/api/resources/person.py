@@ -1,10 +1,19 @@
 """Person API resource."""
 
-from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
-                   GrampsObjectsProtectedResource)
-from .util import (get_events_for_references, get_family_by_handle,
-                   get_media_for_references, get_people_for_references,
-                   get_person_profile_for_object)
+from gramps.gen.lib import Person
+
+from .base import (
+    GrampsObjectProtectedResource,
+    GrampsObjectResourceHelper,
+    GrampsObjectsProtectedResource,
+)
+from .util import (
+    get_events_for_references,
+    get_family_by_handle,
+    get_media_for_references,
+    get_people_for_references,
+    get_person_profile_for_object,
+)
 
 
 class PersonResourceHelper(GrampsObjectResourceHelper):
@@ -12,14 +21,14 @@ class PersonResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Person"
 
-    def object_extend(self, obj):  # pylint: disable=no-self-use
+    def object_extend(self, obj, args) -> Person:
         """Extend person attributes as needed."""
         db = self.db
-        if self.build_profile:
+        if args["profile"]:
             obj.profile = get_person_profile_for_object(
                 db, obj, with_family=True, with_events=True
             )
-        if self.extend_object:
+        if args["extend"]:
             obj.extended = {
                 "citations": [
                     db.get_citation_from_handle(handle) for handle in obj.citation_list

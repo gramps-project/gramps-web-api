@@ -1,6 +1,6 @@
 """Bookmark API resource."""
 
-from flask import abort
+from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
 
 from ..util import get_dbstate
@@ -11,12 +11,14 @@ from .emit import GrampsJSONEncoder
 class BookmarkResource(ProtectedResource, GrampsJSONEncoder):
     """Bookmark resource."""
 
+    gramps_class_name = None
+
     @property
     def db(self) -> DbReadBase:
         """Get the database instance."""
         return get_dbstate().db
 
-    def get(self, bookmark_type: str):
+    def get(self, bookmark_type: str) -> Response:
         """Get list of bookmarks by type."""
         db = self.db
         if bookmark_type == "person":
@@ -43,7 +45,7 @@ class BookmarkResource(ProtectedResource, GrampsJSONEncoder):
 class BookmarksResource(ProtectedResource, GrampsJSONEncoder):
     """Bookmarks resource."""
 
-    def get(self):
+    def get(self) -> Response:
         """Get the list of bookmark types."""
         return self.response(
             [

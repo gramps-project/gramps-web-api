@@ -1,7 +1,12 @@
 """Note API resource."""
 
-from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
-                   GrampsObjectsProtectedResource)
+from gramps.gen.lib import Note
+
+from .base import (
+    GrampsObjectProtectedResource,
+    GrampsObjectResourceHelper,
+    GrampsObjectsProtectedResource,
+)
 
 
 class NoteResourceHelper(GrampsObjectResourceHelper):
@@ -9,9 +14,9 @@ class NoteResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Note"
 
-    def object_extend(self, obj):
+    def object_extend(self, obj, args) -> Note:
         """Extend note attributes as needed."""
-        if self.extend_object:
+        if args["extend"]:
             db = self.db
             obj.extended = {
                 "tags": [db.get_tag_from_handle(handle) for handle in obj.tag_list]

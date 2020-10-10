@@ -11,3 +11,13 @@ ENV_CONFIG_FILE = "GRAMPS_API_CONFIG"
 
 # API endpoints
 API_PREFIX = "/api"
+
+# Sex identifiers
+SEX_MALE = "M"
+SEX_FEMALE = "F"
+SEX_UNKNOWN = "U"
+
+# PlaceName keys
+PLACE_DATE = "date"
+PLACE_LANG = "lang"
+PLACE_VALUE = "value"

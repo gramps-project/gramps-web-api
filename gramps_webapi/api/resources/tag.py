@@ -1,7 +1,10 @@
 """Tag API resource."""
 
-from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
-                   GrampsObjectsProtectedResource)
+from .base import (
+    GrampsObjectProtectedResource,
+    GrampsObjectResourceHelper,
+    GrampsObjectsProtectedResource,
+)
 
 
 class TagResourceHelper(GrampsObjectResourceHelper):
@@ -9,7 +12,7 @@ class TagResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Tag"
 
-    def object_extend(self, obj):
+    def object_extend(self, obj, args):
         """Extend tag attributes as needed."""
         return obj
 

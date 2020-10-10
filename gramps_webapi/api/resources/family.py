@@ -1,10 +1,19 @@
 """Family API resource."""
 
-from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
-                   GrampsObjectsProtectedResource)
-from .util import (get_children_for_references, get_events_for_references,
-                   get_family_profile_for_object, get_media_for_references,
-                   get_person_by_handle)
+from gramps.gen.lib import Family
+
+from .base import (
+    GrampsObjectProtectedResource,
+    GrampsObjectResourceHelper,
+    GrampsObjectsProtectedResource,
+)
+from .util import (
+    get_children_for_references,
+    get_events_for_references,
+    get_family_profile_for_object,
+    get_media_for_references,
+    get_person_by_handle,
+)
 
 
 class FamilyResourceHelper(GrampsObjectResourceHelper):
@@ -12,12 +21,12 @@ class FamilyResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Family"
 
-    def object_extend(self, obj):  # pylint: disable=no-self-use
+    def object_extend(self, obj, args) -> Family:
         """Extend family attributes as needed."""
         db = self.db
-        if self.build_profile:
+        if args["profile"]:
             obj.profile = get_family_profile_for_object(db, obj, with_events=True)
-        if self.extend_object:
+        if args["extend"]:
             obj.extended = {
                 "children": get_children_for_references(db, obj),
                 "citations": [

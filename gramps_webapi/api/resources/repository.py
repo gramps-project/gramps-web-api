@@ -1,7 +1,12 @@
 """Repository API resource."""
 
-from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
-                   GrampsObjectsProtectedResource)
+from gramps.gen.lib import Repository
+
+from .base import (
+    GrampsObjectProtectedResource,
+    GrampsObjectResourceHelper,
+    GrampsObjectsProtectedResource,
+)
 
 
 class RepositoryResourceHelper(GrampsObjectResourceHelper):
@@ -9,9 +14,9 @@ class RepositoryResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Repository"
 
-    def object_extend(self, obj):
+    def object_extend(self, obj, args) -> Repository:
         """Extend repository attributes as needed."""
-        if self.extend_object:
+        if args["extend"]:
             db = self.db
             obj.extended = {
                 "notes": [db.get_note_from_handle(handle) for handle in obj.note_list],

@@ -7,37 +7,40 @@ from flask import Response
 from flask.json import JSONEncoder
 from gramps.gen.db import DbBookmarks
 
-PRIMARY_CLASS_MAP = {
-    "Person": lib.Person,
-    "Family": lib.Family,
-    "Event": lib.Event,
-    "Place": lib.Place,
-    "Source": lib.Source,
-    "Citation": lib.Citation,
-    "Repository": lib.Repository,
-    "Media": lib.Media,
-    "Note": lib.Note,
-    "Tag": lib.Tag,
-}
+from ...const import PLACE_DATE, PLACE_LANG, PLACE_VALUE
 
 
 class GrampsJSONEncoder(JSONEncoder):
     """Customizes Gramps Web API output."""
 
-    def __init__(self):
+    def __init__(
+        self,
+        sort_keys=True,
+        ensure_ascii=False,
+        strip_empty_keys=False,
+        filter_only_keys=[],
+        filter_skip_keys=[],
+    ):
         """Initialize class."""
         JSONEncoder.__init__(self)
-        self.sort_keys = True
-        self.ensure_ascii = False
-        self.strip_empty_keys = False
-        self.filter_only_keys = []
-        self.filter_skip_keys = []
+        self.sort_keys = sort_keys
+        self.ensure_ascii = ensure_ascii
+        self.strip_empty_keys = strip_empty_keys
+        self.filter_only_keys = filter_only_keys
+        self.filter_skip_keys = filter_skip_keys
         self.gramps_classes = [
             getattr(lib, key) for key, value in inspect.getmembers(lib, inspect.isclass)
         ]
 
-    def response(self, payload):
+    def response(self, payload, args={}):
         """Prepare response."""
+        if "strip" in args:
+            self.strip_empty_keys = args["strip"]
+        if "keys" in args:
+            self.filter_only_keys = args["keys"]
+        if "skipkeys" in args:
+            self.filter_skip_keys = args["skipkeys"]
+
         return Response(
             response=self.encode(payload),
             status=200,
@@ -47,32 +50,24 @@ class GrampsJSONEncoder(JSONEncoder):
     def api_filter(self, obj):
         """Filter data for a Gramps object."""
         data = {}
-        filter = False
-        try:
-            if isinstance(obj, PRIMARY_CLASS_MAP[self.gramps_class_name]):
-                filter = True
-        except:
-            pass
+        if self.gramps_class_name is not None:
+            apply_filter = True
+        else:
+            apply_filter = False
         for key, value in obj.__dict__.items():
-            if filter:
-                if self.filter_only_keys != [] and key not in self.filter_only_keys:
+            if apply_filter:
+                if self.filter_only_keys and key not in self.filter_only_keys:
                     continue
-                if self.filter_skip_keys != [] and key in self.filter_skip_keys:
+                if self.filter_skip_keys and key in self.filter_skip_keys:
                     continue
             if key.startswith("_"):
                 key = key[2 + key.find("__") :]
             if self.strip_empty_keys:
-                if isinstance(value, lib.GrampsType):
-                    data[key] = str(value)
-                elif isinstance(value, lib.StyledText):
-                    data[key] = str(value)
-                elif isinstance(value, lib.PlaceName):
-                    data[key] = {
-                        "date": value.date,
-                        "lang": value.lang,
-                        "value": value.value,
-                    }
-                else:
+                for gramps_class in self.gramps_classes:
+                    if isinstance(value, gramps_class):
+                        data[key] = value
+                        break
+                if key not in data:
                     if value is not None and value != [] and value != {}:
                         data[key] = value
             else:

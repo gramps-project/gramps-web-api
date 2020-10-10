@@ -1,7 +1,12 @@
 """Media API resource."""
 
-from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
-                   GrampsObjectsProtectedResource)
+from gramps.gen.lib import Media
+
+from .base import (
+    GrampsObjectProtectedResource,
+    GrampsObjectResourceHelper,
+    GrampsObjectsProtectedResource,
+)
 
 
 class MediaObjectResourceHelper(GrampsObjectResourceHelper):
@@ -9,9 +14,9 @@ class MediaObjectResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Media"
 
-    def object_extend(self, obj):
+    def object_extend(self, obj, args) -> Media:
         """Extend media attributes as needed."""
-        if self.extend_object:
+        if args["extend"]:
             db = self.db
             obj.extended = {
                 "citations": [

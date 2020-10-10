@@ -19,7 +19,7 @@ from .resources.repository import RepositoriesResource, RepositoryResource
 from .resources.source import SourceResource, SourcesResource
 from .resources.tag import TagResource, TagsResource
 from .resources.token import TokenRefreshResource, TokenResource
-from .resources.translation import TranslationResource
+from .resources.translate import TranslateResource
 from .resources.tree import TreeResource
 from .resources.type import TypeResource, TypesResource
 
@@ -73,7 +73,7 @@ register_endpt(TreeResource, "/tree/", "tree")
 register_endpt(BookmarkResource, "/bookmark/<string:bookmark_type>", "bookmark")
 register_endpt(BookmarksResource, "/bookmark/", "bookmarks")
 # Translate
-register_endpt(TranslationResource, "/translate/", "translation")
+register_endpt(TranslateResource, "/translate/", "translate")
 # Relation
 register_endpt(
     RelationResource,

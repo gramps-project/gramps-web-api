@@ -1,7 +1,12 @@
 """Source API resource."""
 
-from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
-                   GrampsObjectsProtectedResource)
+from gramps.gen.lib import Source
+
+from .base import (
+    GrampsObjectProtectedResource,
+    GrampsObjectResourceHelper,
+    GrampsObjectsProtectedResource,
+)
 from .util import get_media_for_references, get_repositories_for_references
 
 
@@ -10,9 +15,9 @@ class SourceResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Source"
 
-    def object_extend(self, obj):
+    def object_extend(self, obj) -> Source:
         """Extend source attributes as needed."""
-        if self.extend_object:
+        if args["extend"]:
             db = self.db
             obj.extended = {
                 "media": get_media_for_references(db, obj),

@@ -1,6 +1,6 @@
 """Relation API Resource."""
 
-from flask import abort
+from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.relationship import RelationshipCalculator
 from webargs import fields
@@ -15,6 +15,8 @@ from .util import get_person_by_handle
 class RelationResource(ProtectedResource, GrampsJSONEncoder):
     """Relation resource."""
 
+    gramps_class_name = None
+
     @property
     def db(self) -> DbReadBase:
         """Get the database instance."""
@@ -24,7 +26,7 @@ class RelationResource(ProtectedResource, GrampsJSONEncoder):
         {"depth": fields.Integer(), "all": fields.Boolean()},
         location="query",
     )
-    def get(self, args, handle1: str, handle2: str):
+    def get(self, args, handle1: str, handle2: str) -> Response:
         """Get the relationship between two people."""
         db = self.db
         person1 = get_person_by_handle(db, handle1)

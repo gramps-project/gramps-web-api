@@ -1,9 +1,17 @@
 """Event API resource."""
 
-from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
-                   GrampsObjectsProtectedResource)
-from .util import (get_event_profile_for_object, get_media_for_references,
-                   get_place_by_handle)
+from gramps.gen.lib import Event
+
+from .base import (
+    GrampsObjectProtectedResource,
+    GrampsObjectResourceHelper,
+    GrampsObjectsProtectedResource,
+)
+from .util import (
+    get_event_profile_for_object,
+    get_media_for_references,
+    get_place_by_handle,
+)
 
 
 class EventResourceHelper(GrampsObjectResourceHelper):
@@ -11,12 +19,12 @@ class EventResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Event"
 
-    def object_extend(self, obj):
+    def object_extend(self, obj, args) -> Event:
         """Extend event attributes as needed."""
         db = self.db
-        if self.build_profile:
+        if args["profile"]:
             obj.profile = get_event_profile_for_object(db, obj)
-        if self.extend_object:
+        if args["extend"]:
             obj.extended = {
                 "citations": [
                     db.get_citation_from_handle(handle) for handle in obj.citation_list

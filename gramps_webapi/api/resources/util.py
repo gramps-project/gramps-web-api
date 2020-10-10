@@ -7,20 +7,24 @@ from gramps.gen.db.base import DbReadBase
 from gramps.gen.display.name import NameDisplay
 from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
-from gramps.gen.lib import (Event, Family, Media, Person, Place, Repository,
-                            Source)
+from gramps.gen.lib import Event, Family, Media, Person, Place, Repository, Source
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
-from gramps.gen.utils.db import (get_birth_or_fallback, get_death_or_fallback,
-                                 get_divorce_or_fallback,
-                                 get_marriage_or_fallback)
+from gramps.gen.utils.db import (
+    get_birth_or_fallback,
+    get_death_or_fallback,
+    get_divorce_or_fallback,
+    get_marriage_or_fallback,
+)
 from gramps_webapi.types import Handle
+
+from ...const import SEX_FEMALE, SEX_MALE, SEX_UNKNOWN
 
 nd = NameDisplay()
 pd = PlaceDisplay()
 dd = GRAMPS_LOCALE.date_displayer
 
 
-def get_person_by_handle(db: DbReadBase, handle: Handle) -> Person:
+def get_person_by_handle(db: DbReadBase, handle: Handle) -> Optional[Person]:
     """Safe get person by handle."""
     try:
         return db.get_person_from_handle(handle)
@@ -28,7 +32,7 @@ def get_person_by_handle(db: DbReadBase, handle: Handle) -> Person:
         return None
 
 
-def get_place_by_handle(db: DbReadBase, handle: Handle) -> Place:
+def get_place_by_handle(db: DbReadBase, handle: Handle) -> Optional[Place]:
     """Safe get place by handle."""
     try:
         return db.get_place_from_handle(handle)
@@ -36,7 +40,9 @@ def get_place_by_handle(db: DbReadBase, handle: Handle) -> Place:
         return None
 
 
-def get_family_by_handle(db: DbReadBase, handle: Handle, extended=False) -> Family:
+def get_family_by_handle(
+    db: DbReadBase, handle: Handle, extended=False
+) -> Optional[Family]:
     """Get a family and all extended attributes."""
     try:
         obj = db.get_family_from_handle(handle)
@@ -101,13 +107,13 @@ def get_source_by_handle(db: DbReadBase, handle: Handle) -> Source:
     }
 
 
-def get_sex_profile(person: Person):
+def get_sex_profile(person: Person) -> str:
     """Get character substitution for enumerated sex."""
     if person.gender == person.MALE:
-        return "M"
+        return SEX_MALE
     if person.gender == person.FEMALE:
-        return "F"
-    return "U"
+        return SEX_FEMALE
+    return SEX_UNKNOWN
 
 
 def get_event_profile_for_object(db: DbReadBase, event: Event) -> Dict:

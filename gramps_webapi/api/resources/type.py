@@ -1,6 +1,6 @@
 """Type API resource."""
 
-from flask import abort
+from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
 
 from ..util import get_dbstate
@@ -16,7 +16,7 @@ class TypeResource(ProtectedResource, GrampsJSONEncoder):
         """Get the database instance."""
         return get_dbstate().db
 
-    def get(self, gramps_type: str):
+    def get(self, gramps_type: str) -> Response:
         """Get the type."""
         db = self.db
         if gramps_type == "event_attribute":
@@ -57,7 +57,7 @@ class TypeResource(ProtectedResource, GrampsJSONEncoder):
 class TypesResource(ProtectedResource, GrampsJSONEncoder):
     """Types resource."""
 
-    def get(self):
+    def get(self) -> Response:
         """Get the list of types."""
         return self.response(
             [

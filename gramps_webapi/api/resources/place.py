@@ -1,7 +1,12 @@
 """Place API resource."""
 
-from .base import (GrampsObjectProtectedResource, GrampsObjectResourceHelper,
-                   GrampsObjectsProtectedResource)
+from gramps.gen.lib import Place
+
+from .base import (
+    GrampsObjectProtectedResource,
+    GrampsObjectResourceHelper,
+    GrampsObjectsProtectedResource,
+)
 from .util import get_media_for_references
 
 
@@ -10,9 +15,9 @@ class PlaceResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Place"
 
-    def object_extend(self, obj):
+    def object_extend(self, obj, args) -> Place:
         """Extend place attributes as needed."""
-        if self.extend_object:
+        if args["extend"]:
             db = self.db
             obj.extended = {
                 "citations": [
