@@ -8,7 +8,7 @@ from webargs import fields
 from webargs.flaskparser import use_args
 
 from ..util import get_dbstate
-from . import ProtectedResource, Resource
+from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
 
@@ -16,7 +16,7 @@ class TreeResource(ProtectedResource, GrampsJSONEncoder):
     """Tree resource."""
 
     @property
-    def db(self) -> DbReadBase:
+    def db_handle(self) -> DbReadBase:
         """Get the database instance."""
         return get_dbstate().db
 
@@ -26,15 +26,15 @@ class TreeResource(ProtectedResource, GrampsJSONEncoder):
     )
     def get(self, args: Dict) -> Response:
         """Get tree related information."""
-        db = self.db
+        db_handle = self.db_handle
         result = {
-            "default_person": db.get_default_handle(),
-            "mediapath": db.get_mediapath(),
-            "researcher": db.get_researcher(),
-            "savepath": db.get_save_path(),
-            "summary": db.get_summary(),
+            "default_person": db_handle.get_default_handle(),
+            "mediapath": db_handle.get_mediapath(),
+            "researcher": db_handle.get_researcher(),
+            "savepath": db_handle.get_save_path(),
+            "summary": db_handle.get_summary(),
         }
         if args["surnames"]:
-            result.update({"surnames": db.get_surname_list()})
+            result.update({"surnames": db_handle.get_surname_list()})
 
         return self.response(result)

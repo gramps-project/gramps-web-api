@@ -9,6 +9,7 @@ from .base import (
     GrampsObjectResourceHelper,
     GrampsObjectsProtectedResource,
 )
+from .util import get_extended_attributes
 
 
 class NoteResourceHelper(GrampsObjectResourceHelper):
@@ -19,10 +20,8 @@ class NoteResourceHelper(GrampsObjectResourceHelper):
     def object_extend(self, obj: Note, args: Dict) -> Note:
         """Extend note attributes as needed."""
         if args["extend"]:
-            db = self.db
-            obj.extended = {
-                "tags": [db.get_tag_from_handle(handle) for handle in obj.tag_list]
-            }
+            db_handle = self.db_handle
+            obj.extended = get_extended_attributes(db_handle, obj)
         return obj
 
 

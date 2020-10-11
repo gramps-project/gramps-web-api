@@ -19,7 +19,7 @@ class RelationResource(ProtectedResource, GrampsJSONEncoder):
     """Relation resource."""
 
     @property
-    def db(self) -> DbReadBase:
+    def db_handle(self) -> DbReadBase:
         """Get the database instance."""
         return get_dbstate().db
 
@@ -29,12 +29,12 @@ class RelationResource(ProtectedResource, GrampsJSONEncoder):
     )
     def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:
         """Get the relationship between two people."""
-        db = self.db
-        person1 = get_person_by_handle(db, handle1)
+        db_handle = self.db_handle
+        person1 = get_person_by_handle(db_handle, handle1)
         if person1 is None:
             abort(404)
 
-        person2 = get_person_by_handle(db, handle2)
+        person2 = get_person_by_handle(db_handle, handle2)
         if person2 is None:
             abort(404)
 
@@ -43,7 +43,7 @@ class RelationResource(ProtectedResource, GrampsJSONEncoder):
             calc.set_depth(args["depth"])
 
         if "all" in args and args["all"]:
-            data = calc.get_all_relationships(db, person1, person2)
+            data = calc.get_all_relationships(db_handle, person1, person2)
             index = 0
             result = []
             while index < len(data[0]):
@@ -56,7 +56,7 @@ class RelationResource(ProtectedResource, GrampsJSONEncoder):
                 index = index + 1
             return self.response(result)
 
-        data = calc.get_one_relationship(db, person1, person2, extra_info=True)
+        data = calc.get_one_relationship(db_handle, person1, person2, extra_info=True)
         return self.response(
             {
                 "relationship_string": data[0],

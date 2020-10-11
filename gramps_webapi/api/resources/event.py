@@ -11,7 +11,7 @@ from .base import (
 )
 from .util import (
     get_event_profile_for_object,
-    get_media_for_references,
+    get_extended_attributes,
     get_place_by_handle,
 )
 
@@ -23,19 +23,12 @@ class EventResourceHelper(GrampsObjectResourceHelper):
 
     def object_extend(self, obj: Event, args: Dict) -> Event:
         """Extend event attributes as needed."""
-        db = self.db
+        db_handle = self.db_handle
         if args["profile"]:
-            obj.profile = get_event_profile_for_object(db, obj)
+            obj.profile = get_event_profile_for_object(db_handle, obj)
         if args["extend"]:
-            obj.extended = {
-                "citations": [
-                    db.get_citation_from_handle(handle) for handle in obj.citation_list
-                ],
-                "media": get_media_for_references(db, obj),
-                "notes": [db.get_note_from_handle(handle) for handle in obj.note_list],
-                "place": get_place_by_handle(db, obj.place),
-                "tags": [db.get_tag_from_handle(handle) for handle in obj.tag_list],
-            }
+            obj.extended = get_extended_attributes(db_handle, obj)
+            obj.extended["place"] = get_place_by_handle(db_handle, obj.place)
         return obj
 
 

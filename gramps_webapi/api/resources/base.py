@@ -23,18 +23,22 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
         """Extend the base object attributes as needed."""
 
     @property
-    def db(self) -> DbReadBase:
+    def db_handle(self) -> DbReadBase:
         """Get the database instance."""
         return get_dbstate().db
 
     def get_object_from_gramps_id(self, gramps_id: str) -> GrampsObject:
         """Get the object given a Gramps ID."""
-        query_method = self.db.method("get_%s_from_gramps_id", self.gramps_class_name)
+        query_method = self.db_handle.method(
+            "get_%s_from_gramps_id", self.gramps_class_name
+        )
         return query_method(gramps_id)
 
     def get_object_from_handle(self, handle: str) -> GrampsObject:
         """Get the object given a Gramps handle."""
-        query_method = self.db.method("get_%s_from_handle", self.gramps_class_name)
+        query_method = self.db_handle.method(
+            "get_%s_from_handle", self.gramps_class_name
+        )
         return query_method(handle)
 
 
@@ -88,8 +92,10 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             except HandleError:
                 return abort(404)
             return self.response([self.object_extend(obj, args)], args)
-        iter_method = self.db.method("iter_%s_handles", self.gramps_class_name)
-        query_method = self.db.method("get_%s_from_handle", self.gramps_class_name)
+        iter_method = self.db_handle.method("iter_%s_handles", self.gramps_class_name)
+        query_method = self.db_handle.method(
+            "get_%s_from_handle", self.gramps_class_name
+        )
         return self.response(
             [
                 self.object_extend(query_method(handle), args)

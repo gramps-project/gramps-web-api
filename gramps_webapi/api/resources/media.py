@@ -9,6 +9,7 @@ from .base import (
     GrampsObjectResourceHelper,
     GrampsObjectsProtectedResource,
 )
+from .util import get_extended_attributes
 
 
 class MediaObjectResourceHelper(GrampsObjectResourceHelper):
@@ -19,14 +20,8 @@ class MediaObjectResourceHelper(GrampsObjectResourceHelper):
     def object_extend(self, obj: Media, args: Dict) -> Media:
         """Extend media attributes as needed."""
         if args["extend"]:
-            db = self.db
-            obj.extended = {
-                "citations": [
-                    db.get_citation_from_handle(handle) for handle in obj.citation_list
-                ],
-                "notes": [db.get_note_from_handle(handle) for handle in obj.note_list],
-                "tags": [db.get_tag_from_handle(handle) for handle in obj.tag_list],
-            }
+            db_handle = self.db_handle
+            obj.extended = get_extended_attributes(db_handle, obj)
         return obj
 
 

@@ -9,7 +9,7 @@ from .base import (
     GrampsObjectResourceHelper,
     GrampsObjectsProtectedResource,
 )
-from .util import get_media_for_references, get_source_by_handle
+from .util import get_extended_attributes, get_source_by_handle
 
 
 class CitationResourceHelper(GrampsObjectResourceHelper):
@@ -20,13 +20,9 @@ class CitationResourceHelper(GrampsObjectResourceHelper):
     def object_extend(self, obj: Citation, args: Dict) -> Citation:
         """Extend citation attributes as needed."""
         if args["extend"]:
-            db = self.db
-            obj.extended = {
-                "media": get_media_for_references(db, obj),
-                "notes": [db.get_note_from_handle(handle) for handle in obj.note_list],
-                "source": get_source_by_handle(db, obj.source_handle),
-                "tags": [db.get_tag_from_handle(handle) for handle in obj.tag_list],
-            }
+            db_handle = self.db_handle
+            obj.extended = get_extended_attributes(db_handle, obj)
+            obj.extended["source"] = get_source_by_handle(db_handle, obj.source_handle)
         return obj
 
 

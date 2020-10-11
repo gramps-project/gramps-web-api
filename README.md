@@ -39,7 +39,7 @@ pip install requirements-dev.txt
 
 To set up the pre-commit hooks for the repository, run
 ```
-pre-commit
+pre-commit install
 ```
 in the repository root. This will make sure that all source files are nicely formatted with `black`.
 
