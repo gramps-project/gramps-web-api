@@ -44,10 +44,23 @@ class GrampsJSONEncoder(JSONEncoder):
 
     def api_filter(self, obj: Any) -> Dict:
         """Filter data for a Gramps object."""
+
+        def is_null(value: Any) -> bool:
+            """Test for empty value."""
+            if value is None:
+                return True
+            try:
+                return len(value) == 0
+            except TypeError:
+                pass
+            return False
+
         data = {}
         apply_filter = False
-        if hasattr(self, "gramps_class_name") and isinstance(
-            obj, PRIMARY_GRAMPS_OBJECTS[self.gramps_class_name]
+        if (
+            hasattr(self, "gramps_class_name")
+            and self.gramps_class_name
+            and isinstance(obj, PRIMARY_GRAMPS_OBJECTS[self.gramps_class_name])
         ):
             apply_filter = True
         for key, value in obj.__class__.__dict__.items():
@@ -61,12 +74,7 @@ class GrampsJSONEncoder(JSONEncoder):
                     continue
             if key.startswith("_"):
                 key = key[2 + key.find("__") :]
-            if (
-                not self.strip_empty_keys
-                or bool(value)
-                or int(value) == 0
-                or isinstance(value, bool)
-            ):
+            if not self.strip_empty_keys or not is_null(value):
                 data[key] = value
         return data
 

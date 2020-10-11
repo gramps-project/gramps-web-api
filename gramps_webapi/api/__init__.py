@@ -11,6 +11,7 @@ from .resources.citation import CitationResource, CitationsResource
 from .resources.event import EventResource, EventsResource
 from .resources.family import FamiliesResource, FamilyResource
 from .resources.media import MediaObjectResource, MediaObjectsResource
+from .resources.metadata import MetadataResource
 from .resources.note import NoteResource, NotesResource
 from .resources.person import PeopleResource, PersonResource
 from .resources.place import PlaceResource, PlacesResource
@@ -20,8 +21,6 @@ from .resources.source import SourceResource, SourcesResource
 from .resources.tag import TagResource, TagsResource
 from .resources.token import TokenRefreshResource, TokenResource
 from .resources.translate import TranslationResource, TranslationsResource
-from .resources.tree import TreeResource
-from .resources.type import TypeResource, TypesResource
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
 
@@ -64,11 +63,6 @@ register_endpt(TagsResource, "/tag/", "tags")
 # Token
 register_endpt(TokenResource, "/login/", "token")
 register_endpt(TokenRefreshResource, "/refresh/", "token_refresh")
-# Type
-register_endpt(TypeResource, "/type/<string:gramps_type>", "type")
-register_endpt(TypesResource, "/type/", "types")
-# Tree
-register_endpt(TreeResource, "/tree/", "tree")
 # Bookmark
 register_endpt(BookmarkResource, "/bookmark/<string:bookmark_type>", "bookmark")
 register_endpt(BookmarksResource, "/bookmark/", "bookmarks")
@@ -81,3 +75,5 @@ register_endpt(
     "/relation/<string:handle1>/<string:handle2>",
     "relation",
 )
+# Metadata
+register_endpt(MetadataResource, "/metadata/<string:datatype>", "metadata")
