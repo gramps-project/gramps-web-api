@@ -25,6 +25,7 @@ class GrampsJSONEncoder(JSONEncoder):
         ]
 
     def response(self, payload: Any, args: Dict = {}) -> Response:
+        # pylint:disable=dangerous-default-value
         """Prepare response."""
         if "strip" in args:
             self.strip_empty_keys = args["strip"]
@@ -51,7 +52,12 @@ class GrampsJSONEncoder(JSONEncoder):
                     continue
             if key.startswith("_"):
                 key = key[2 + key.find("__") :]
-            if not self.strip_empty_keys or value:
+            if (
+                not self.strip_empty_keys
+                or bool(value)
+                or int(value) == 0
+                or isinstance(value, bool)
+            ):
                 data[key] = value
         return data
 
