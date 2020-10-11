@@ -8,6 +8,8 @@ from flask import Response
 from flask.json import JSONEncoder
 from gramps.gen.db import DbBookmarks
 
+from ...const import PRIMARY_GRAMPS_OBJECTS
+
 
 class GrampsJSONEncoder(JSONEncoder):
     """Customizes Gramps Web API output."""
@@ -43,7 +45,14 @@ class GrampsJSONEncoder(JSONEncoder):
     def api_filter(self, obj: Any) -> Dict:
         """Filter data for a Gramps object."""
         data = {}
-        apply_filter = bool(self.gramps_class_name)
+        apply_filter = False
+        if hasattr(self, "gramps_class_name") and isinstance(
+            obj, PRIMARY_GRAMPS_OBJECTS[self.gramps_class_name]
+        ):
+            apply_filter = True
+        for key, value in obj.__class__.__dict__.items():
+            if isinstance(value, property):
+                data[key] = getattr(obj, key)
         for key, value in obj.__dict__.items():
             if apply_filter:
                 if self.filter_only_keys and key not in self.filter_only_keys:

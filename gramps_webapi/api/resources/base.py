@@ -18,6 +18,11 @@ from .emit import GrampsJSONEncoder
 class GrampsObjectResourceHelper(GrampsJSONEncoder):
     """Gramps object helper class."""
 
+    @property  # type: ignore
+    @abstractmethod
+    def gramps_class_name(self):
+        """To be set on child classes."""
+
     @abstractmethod
     def object_extend(self, obj: GrampsObject, args: Dict) -> GrampsObject:
         """Extend the base object attributes as needed."""
