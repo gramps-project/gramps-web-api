@@ -13,29 +13,26 @@ from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
 
-class TranslationResource(ProtectedResource, GrampsJSONEncoder):
+class TranslateResource(ProtectedResource, GrampsJSONEncoder):
     """Translation resource."""
 
     @use_args(
-        {"strings": fields.Str(required=True)},
+        {"strings": fields.Str(), "lang": fields.Str()},
         location="query",
     )
-    def get(self, args: Dict, lang: str) -> Response:
+    def get(self, args: Dict) -> Response:
         """Get translation."""
+        if "strings" not in args:
+            return self.response(GRAMPS_LOCALE.get_language_dict())
+
         try:
             strings = json.loads(args["strings"])
         except json.JSONDecodeError:
             abort(400)
-
-        gramps_locale = GrampsLocale(lang=lang)
+        if args.get("lang"):
+            gramps_locale = GrampsLocale(lang=args["lang"])
+        else:
+            gramps_locale = GRAMPS_LOCALE
         return self.response(
             {s: gramps_locale.translation.sgettext(s) for s in strings}
         )
-
-
-class TranslationsResource(ProtectedResource, GrampsJSONEncoder):
-    """Translations resource."""
-
-    def get(self) -> Response:
-        """Get available translations."""
-        return self.response(GRAMPS_LOCALE.get_language_dict())
