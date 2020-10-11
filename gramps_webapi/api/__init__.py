@@ -20,7 +20,7 @@ from .resources.repository import RepositoriesResource, RepositoryResource
 from .resources.source import SourceResource, SourcesResource
 from .resources.tag import TagResource, TagsResource
 from .resources.token import TokenRefreshResource, TokenResource
-from .resources.translate import TranslateResource
+from .resources.translate import TranslationResource, TranslationsResource
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
 
@@ -67,7 +67,8 @@ register_endpt(TokenRefreshResource, "/refresh/", "token_refresh")
 register_endpt(BookmarkResource, "/bookmark/<string:bookmark_type>", "bookmark")
 register_endpt(BookmarksResource, "/bookmark/", "bookmarks")
 # Translate
-register_endpt(TranslateResource, "/translate/", "translate")
+register_endpt(TranslationResource, "/translate/<string:lang>", "translation")
+register_endpt(TranslationsResource, "/translate/", "translations")
 # Relation
 register_endpt(
     RelationResource,
