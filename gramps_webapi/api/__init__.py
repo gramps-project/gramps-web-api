@@ -64,10 +64,10 @@ register_endpt(TagsResource, "/tag/", "tags")
 register_endpt(TokenResource, "/login/", "token")
 register_endpt(TokenRefreshResource, "/refresh/", "token_refresh")
 # Bookmark
-register_endpt(BookmarkResource, "/bookmark/<string:bookmark_type>", "bookmark")
+register_endpt(BookmarkResource, "/bookmark/<string:category>", "bookmark")
 register_endpt(BookmarksResource, "/bookmark/", "bookmarks")
 # Translate
-register_endpt(TranslationResource, "/translate/<string:lang>", "translation")
+register_endpt(TranslationResource, "/translate/<string:code>", "translation")
 register_endpt(TranslationsResource, "/translate/", "translations")
 # Relation
 register_endpt(

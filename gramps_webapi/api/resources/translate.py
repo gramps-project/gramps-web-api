@@ -20,16 +20,19 @@ class TranslationResource(ProtectedResource, GrampsJSONEncoder):
         {"strings": fields.Str(required=True)},
         location="query",
     )
-    def get(self, args: Dict, lang: str) -> Response:
+    def get(self, args: Dict, code: str) -> Response:
         """Get translation."""
         try:
             strings = json.loads(args["strings"])
         except json.JSONDecodeError:
             abort(400)
 
-        gramps_locale = GrampsLocale(lang=lang)
+        gramps_locale = GrampsLocale(lang=code)
         return self.response(
-            {s: gramps_locale.translation.sgettext(s) for s in strings}
+            [
+                {"original": s, "translation": gramps_locale.translation.sgettext(s)}
+                for s in strings
+            ]
         )
 
 
@@ -38,4 +41,7 @@ class TranslationsResource(ProtectedResource, GrampsJSONEncoder):
 
     def get(self) -> Response:
         """Get available translations."""
-        return self.response(GRAMPS_LOCALE.get_language_dict())
+        catalog = GRAMPS_LOCALE.get_language_dict()
+        return self.response(
+            [{"language": language, "code": catalog[language]} for language in catalog]
+        )

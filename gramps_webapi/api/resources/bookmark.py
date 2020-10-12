@@ -16,26 +16,26 @@ class BookmarkResource(ProtectedResource, GrampsJSONEncoder):
         """Get the database instance."""
         return get_dbstate().db
 
-    def get(self, bookmark_type: str) -> Response:
-        """Get list of bookmarks by type."""
+    def get(self, category: str) -> Response:
+        """Get list of bookmarks by category."""
         db_handle = self.db_handle
-        if bookmark_type == "person":
+        if category == "person":
             result = db_handle.get_bookmarks()
-        elif bookmark_type == "family":
+        elif category == "family":
             result = db_handle.get_family_bookmarks()
-        elif bookmark_type == "media":
+        elif category == "media":
             result = db_handle.get_media_bookmarks()
-        elif bookmark_type == "event":
+        elif category == "event":
             result = db_handle.get_event_bookmarks()
-        elif bookmark_type == "citation":
+        elif category == "citation":
             result = db_handle.get_citation_bookmarks()
-        elif bookmark_type == "note":
+        elif category == "note":
             result = db_handle.get_note_bookmarks()
-        elif bookmark_type == "place":
+        elif category == "place":
             result = db_handle.get_place_bookmarks()
-        elif bookmark_type == "source":
+        elif category == "source":
             result = db_handle.get_source_bookmarks()
-        elif bookmark_type == "repository":
+        elif category == "repository":
             result = db_handle.get_repo_bookmarks()
         else:
             return abort(404)
@@ -48,15 +48,17 @@ class BookmarksResource(ProtectedResource, GrampsJSONEncoder):
     def get(self) -> Response:
         """Get the list of bookmark types."""
         return self.response(
-            [
-                "citation",
-                "event",
-                "family",
-                "media",
-                "note",
-                "person",
-                "place",
-                "repository",
-                "source",
-            ]
+            {
+                "categories": [
+                    "citation",
+                    "event",
+                    "family",
+                    "media",
+                    "note",
+                    "person",
+                    "place",
+                    "repository",
+                    "source",
+                ]
+            }
         )
