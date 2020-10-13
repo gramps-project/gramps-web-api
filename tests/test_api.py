@@ -3,16 +3,16 @@
 import unittest
 from unittest.mock import patch
 
+from pkg_resources import resource_filename
+
 import yaml
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.db import DbTxn
 from gramps.gen.dbstate import DbState
 from gramps.gen.lib import Person, Surname
-from jsonschema import validate
-from pkg_resources import resource_filename
-
 from gramps_webapi.app import create_app
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_CONFIG
+from jsonschema import validate
 
 
 def _add_person(gender, first_name, surname, trans, db):
@@ -52,25 +52,40 @@ class TestPerson(unittest.TestCase):
         rv = self.client.get("/api/person/does_not_exist")
         assert rv.status_code == 404
 
-    def test_person_endpoint(self):
-        rv = self.client.get("/api/person/person001")
-        assert rv.json == {
-            "gramps_id": "person001",
-            "name_given": "John",
-            "name_surname": "Allen",
-            "gender": 1,  # male
-        }
-
     def test_people_endpoint(self):
+        rv = self.client.get("/api/person/?profile=1")
+        it = rv.json[0]
+        assert len(it["handle"]) > 20
+        assert isinstance(it["change"], int)
+        assert it["gramps_id"] == "person001"
+        assert it["profile"]["name_given"] == "John"
+        assert it["profile"]["name_surname"] == "Allen"
+        assert it["gender"] == 1  # male
+        assert it["birth_ref_index"] == -1
+        assert it["death_ref_index"] == -1
+        rv = self.client.get("/api/person/?gramps_id=person001&profile=1")
+        it = rv.json[0]
+        assert len(it["handle"]) > 20
+        assert isinstance(it["change"], int)
+        assert it["gramps_id"] == "person001"
+        assert it["profile"]["name_given"] == "John"
+        assert it["profile"]["name_surname"] == "Allen"
+        assert it["gender"] == 1  # male
+        assert it["birth_ref_index"] == -1
+        assert it["death_ref_index"] == -1
+
+    def test_person_endpoint(self):
         rv = self.client.get("/api/person/")
-        assert rv.json == [
-            {
-                "gramps_id": "person001",
-                "name_given": "John",
-                "name_surname": "Allen",
-                "gender": 1,  # male
-            }
-        ]
+        it = rv.json[0]
+        rv = self.client.get("/api/person/" + it["handle"] + "?profile=1")
+        assert len(rv.json["handle"]) > 20
+        assert isinstance(rv.json["change"], int)
+        assert rv.json["gramps_id"] == "person001"
+        assert rv.json["profile"]["name_given"] == "John"
+        assert rv.json["profile"]["name_surname"] == "Allen"
+        assert rv.json["gender"] == 1  # male
+        assert rv.json["birth_ref_index"] == -1
+        assert rv.json["death_ref_index"] == -1
 
     def test_token_endpoint(self):
         rv = self.client.post("/api/login/", data={})

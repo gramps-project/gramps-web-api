@@ -1,17 +1,21 @@
 """Base for Gramps object API resources."""
 
 from abc import abstractmethod
+from typing import Dict
 
-import gramps.gen.lib
-from flask import abort, jsonify
+from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
-from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_NAME_MAP
+from gramps.gen.errors import HandleError
+from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
+from webargs import fields
+from webargs.flaskparser import use_args
 
 from ..util import get_dbstate
 from . import ProtectedResource, Resource
+from .emit import GrampsJSONEncoder
 
 
-class GrampsObjectResourceHelper:
+class GrampsObjectResourceHelper(GrampsJSONEncoder):
     """Gramps object helper class."""
 
     @property  # type: ignore
@@ -20,69 +24,89 @@ class GrampsObjectResourceHelper:
         """To be set on child classes."""
 
     @abstractmethod
-    def object_to_dict(self, obj):
-        """Get the object as a dictionary."""
-
-    def object_to_dict_filtered(self, obj):
-        """Get the object as a dictionary, omitting None or empty values."""
-        object_dict = self.object_to_dict(obj)
-        return {
-            k: v
-            for k, v in object_dict.items()
-            if v is not None and v != [] and v != {}
-        }
+    def object_extend(self, obj: GrampsObject, args: Dict) -> GrampsObject:
+        """Extend the base object attributes as needed."""
 
     @property
-    def db(self) -> DbReadBase:
+    def db_handle(self) -> DbReadBase:
         """Get the database instance."""
         return get_dbstate().db
 
-    @property
-    def object_class(self):
-        """Get the Gramps class of the object."""
-        obj_class_name = KEY_TO_NAME_MAP[CLASS_TO_KEY_MAP[self.gramps_class_name]]
-        obj_module = getattr(gramps.gen.lib, obj_class_name)
-        obj_class = getattr(obj_module, self.gramps_class_name)
-        return obj_class
-
-    def get_object_from_gramps_id(self, gramps_id: str):
+    def get_object_from_gramps_id(self, gramps_id: str) -> GrampsObject:
         """Get the object given a Gramps ID."""
-        obj_class_key = CLASS_TO_KEY_MAP[self.gramps_class_name]
-        raw_obj = self.db._get_raw_from_id_data(obj_class_key, gramps_id)
-        return self.object_class.create(raw_obj)
+        query_method = self.db_handle.method(
+            "get_%s_from_gramps_id", self.gramps_class_name
+        )
+        return query_method(gramps_id)
 
-    def get_object_from_handle(self, handle: str):
-        """Get the object given a Gramps ID."""
-        obj_class_key = CLASS_TO_KEY_MAP[self.gramps_class_name]
-        raw_obj = self.db._get_from_handle(obj_class_key, self.object_class, handle)
-        return self.object_class.create(raw_obj)
-
-    def get_gramps_id_from_handle(self, handle: str):
-        """Get an object's Gramps ID from its handle."""
-        return self.get_object_from_handle(handle).gramps_id
+    def get_object_from_handle(self, handle: str) -> GrampsObject:
+        """Get the object given a Gramps handle."""
+        query_method = self.db_handle.method(
+            "get_%s_from_handle", self.gramps_class_name
+        )
+        return query_method(handle)
 
 
 class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
     """Resource for a single object."""
 
-    def get(self, gramps_id: str):
+    @use_args(
+        {
+            "strip": fields.Boolean(missing=False),
+            "keys": fields.DelimitedList(fields.Str()),
+            "skipkeys": fields.DelimitedList(fields.Str(), missing=[]),
+            "profile": fields.Boolean(missing=False),
+            "extend": fields.Boolean(missing=False),
+        },
+        location="query",
+    )
+    def get(self, args: Dict, handle: str) -> Response:
         """Get the object."""
-        obj = self.get_object_from_gramps_id(gramps_id)
-        if obj is None:
+        try:
+            obj = self.get_object_from_handle(handle)
+        except HandleError:
             return abort(404)
-        return jsonify(self.object_to_dict_filtered(obj))
+        return self.response(self.object_extend(obj, args), args)
 
 
 class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
     """Resource for multiple objects."""
 
-    def get(self):
+    @use_args(
+        {
+            "gramps_id": fields.Str(),
+            "handle": fields.Str(),
+            "strip": fields.Boolean(missing=False),
+            "keys": fields.DelimitedList(fields.Str()),
+            "skipkeys": fields.DelimitedList(fields.Str(), missing=[]),
+            "profile": fields.Boolean(missing=False),
+            "extend": fields.Boolean(missing=False),
+        },
+        location="query",
+    )
+    def get(self, args: Dict) -> Response:
         """Get all objects."""
-        return jsonify(
+        if "gramps_id" in args:
+            obj = self.get_object_from_gramps_id(args["gramps_id"])
+            if obj is None:
+                return abort(404)
+            return self.response([self.object_extend(obj, args)], args)
+        if "handle" in args:
+            try:
+                obj = self.get_object_from_handle(args["handle"])
+            except HandleError:
+                return abort(404)
+            return self.response([self.object_extend(obj, args)], args)
+        iter_method = self.db_handle.method("iter_%s_handles", self.gramps_class_name)
+        query_method = self.db_handle.method(
+            "get_%s_from_handle", self.gramps_class_name
+        )
+        return self.response(
             [
-                self.object_to_dict_filtered(obj)
-                for obj in self.db._iter_objects(self.object_class)
-            ]
+                self.object_extend(query_method(handle), args)
+                for handle in iter_method()
+            ],
+            args,
         )
 
 

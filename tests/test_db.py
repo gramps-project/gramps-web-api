@@ -6,7 +6,6 @@ import unittest
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.db.utils import make_database
 from gramps.gen.dbstate import DbState
-
 from gramps_webapi.dbmanager import WebDbManager
 
 
