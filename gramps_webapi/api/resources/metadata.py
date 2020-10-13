@@ -27,9 +27,12 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
     def get(self, args: Dict, datatype: str) -> Response:
         """Get tree or application related metadata information."""
         db_handle = self.db_handle
-
         if datatype == "summary":
-            return self.response(db_handle.get_summary())
+            summary = {}
+            data = db_handle.get_summary()
+            for item in data:
+                summary[item.replace(" ", "_").lower()] = data[item]
+            return self.response(summary)
         if datatype == "researcher":
             return self.response(db_handle.get_researcher())
         if datatype == "surnames":

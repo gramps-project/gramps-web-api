@@ -26,35 +26,35 @@ securityDefinitions:
 
 tags:
 - name: authentication
-  description: Authentication endpoints.
+  description: Access for presenting credentials.
 - name: person
-  description: Person endpoint.
+  description: Access to person objects.
 - name: family
-  description: Family endpoint.
+  description: Access to family objects.
 - name: event
-  description: Event endpoint.
+  description: Access to event objects.
 - name: place
-  description: Place endpoint.
+  description: Access to place objects.
 - name: citation
-  description: Citation endpoint.
+  description: Access to citation objects.
 - name: source
-  description: Source endpoint.
+  description: Access to source objects.
 - name: repository
-  description: Repository endpoint.
+  description: Access to repository objects.
 - name: media
-  description: Media endpoint.
+  description: Access to media objects.
 - name: note
-  description: Note endpoint.
+  description: Access to note objects.
 - name: tag
-  description: Tag endpoint.
+  description: Access to tag objects.
 - name: bookmark
-  description: Bookmark endpoint.
+  description: Access to user bookmarks.
 - name: translate
-  description: Translate endpoint.
+  description: Access to translation service.
 - name: relation
-  description: Relation endpoint.
+  description: Access to relationship calculator.
 - name: metadata
-  description: Metadata endpoint.
+  description: Access to tree and application metadata.
 
 ##############################################################################
 # Endpoint definitions    
@@ -1418,6 +1418,11 @@ definitions:
         type: array
         items:
           type: object
+        example:
+        - 1
+        - 4
+        - 1875
+        - false
       format:
         description: "TODO: Is this part of the JSON schema?"
         type: string
@@ -1425,7 +1430,7 @@ definitions:
       modifier:
         description: "Modifier."
         type: integer
-        example: 6
+        example: 0
       newyear:
         description: "New year begins."
         type: integer
@@ -1435,17 +1440,17 @@ definitions:
         type: integer
         example: 0
       sortval:
-        description: "Indicator for how to sort the date."
+        description: "Value to use for date sorting."
         type: integer
-        example: 0
+        example: 2405980
       text:
         description: "Textual representation of the date."
         type: string
-        example: "August 1902"
+        example: ""
       year:
-        description: "TODO: Is this part of the JSON schema?"
+        description: "Year"
         type: integer
-        example: 0
+        example: 1875
 
 ##############################################################################
 # Model - Name
@@ -1457,57 +1462,58 @@ definitions:
       call: 
         description: "Call name."
         type: string
-        example: Joseph
+        example: "Anderson"
       citation_list:
         description: "A list of handles for citations supporting the name."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - "c140d56d19a1ced4c7a"
       date:
         description: "Date the name was in use."
         type: object
         items:
           $ref: "#/definitions/Date"
       display_as:
-        description: "For identifying how to display the name."
-        type: string
+        description: "Identified for how to display the name."
+        type: integer
+        example: 0
       famnick:
         description: "Family nick name."
         type: string
-        example: ""
+        example: "Beauregard"
       first_name:
         description: "First part of name."
         type: string
-        example: James Joseph
+        example: "Lewis Anderson"
       group_as:
         description: "For identifying how to group the name."
         type: string
+        example: ""
       nick:
         description: "Nick name."
         type: string
-        example: Jim
+        example: "Big Louie"
       note_list:
         description: "A list of handles for research notes about the name."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       private:
         description: "Private object indicator."
         type: boolean
         example: true
       sort_as:
         description: "For identifying how to sort the name."
-        type: string
+        type: integer
+        example: 0
       suffix:
         description: "Suffix, usually denotes credentials."
         type: string
-        example: Phd
+        example: "Sr"
       surname_list:
         description: "Surnames."
         type: array
@@ -1516,11 +1522,11 @@ definitions:
       title:
         description: "Prefix or title."
         type: string
-        example: Dr
+        example: "Dr."
       type:
         description: "Type of name."
         type: string
-        example: "Also Known As"
+        example: "Birth Name"
 
 ##############################################################################
 # Model - Surname
@@ -1532,23 +1538,23 @@ definitions:
       connector:
         description: "Connector to tie given name and surname together."
         type: string
-        example: van
+        example: ""
       origintype:
         description: "Name origin."
         type: string
-        example: 
+        example: "Inherited"
       prefix:
         description: "A name prefix."
         type: string
-        example: van
+        example: "von"
       primary:
         description: "Primary surname indicator."
         type: boolean
-        example: true
+        example: false
       surname:
         description: "Actual surname."
         type: string
-        example: Degroat
+        example: "Zieliński"
 
 ##############################################################################
 # Model - Attribute
@@ -1563,16 +1569,14 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - "c140d5e5dbf300411bf"
       note_list:
         description: "A list of handles for research notes about the attribute."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       private:
         description: "Private object indicator."
         type: boolean
@@ -1580,11 +1584,11 @@ definitions:
       type:
         description: "Type of the attribute."
         type: string
-        example: "Y-DNA Haplogroup"
+        example: "Social Security Number"
       value:
         description: "Value of the attribute."
         type: string
-        example: P259
+        example: "123-456-7890"
 
 ##############################################################################
 # Model - Person
@@ -1617,19 +1621,20 @@ definitions:
       change:
         description: "Time in epoch format the person record was last modified."
         type: number
-        example: 1601335222
+        example: 1431174904
       citation_list:
         description: "A list of handles for citations supporting the person."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - "c140d25efc045ab2ea5"
+          - "c140d25efe703834da4"
+          - "c140d53ab8b377b4174"
       death_ref_index:
         description: "Indicates if a death event is assigned to the person."
         type: integer
-        example: 0
+        example: 1
       event_ref_list:
         description: "A list of references to events the person participated in."
         type: array
@@ -1646,7 +1651,7 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c36d6cdd046748852e
+          - "9OUJQCBOHW9UEK9CNV"
       gender:
         description: "Sex of the person."
         type: integer
@@ -1654,11 +1659,11 @@ definitions:
       gramps_id:
         description: "An alternate user managed identifier for the person, usually but not guaranteed to be unique."
         type: string
-        example: P0001
+        example: "I0044"
       handle:
         description: "The unique identifier for a person."
         type: string
-        example: e9027bf389921fb966e851abce5
+        example: "GNUJQCL9MD64AM56OH"
       lds_ord_list:
         description: "A list of LDS specific events the person participated in."
         type: array
@@ -1675,16 +1680,17 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - "ac380498c020c7bcdc7"
+          - "b39ff01f75c1f76859a"
+          - "b39ff11d8912173cded"
+          - "c140d4c29520c92055c"
       parent_family_list:
         description: "A list of handles for the families of the parents of the person."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - "8OUJQCUVZ0XML7BQLF"
       person_ref_list:
         description: "A list of references to relationships the person had with other people."
         type: array
@@ -1698,7 +1704,7 @@ definitions:
       private:
         description: "Private object indicator."
         type: boolean
-        example: true
+        example: false
       profile:
         description: "An optional summary of some key events about the person and their familial relationships."
         type: object
@@ -1710,8 +1716,7 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - "e9027bf39c27be945fab9df8124"
       urls:
         description: "A list of URLs associated with the person."
         type: array
@@ -1801,15 +1806,15 @@ definitions:
       handle:
         description: "The unique identifier for a person."
         type: string
-        example: e9027bf389921fb966e851abce5
+        example: "GNUJQCL9MD64AM56OH"
       name_given:
         description: "Preferred given name of the person."
         type: string
-        example: Johann Sebastian
+        example: "Lewis Anderson"
       name_surname:
         description: "Preferred surname of the person."
         type: string
-        example: Bach
+        example: "Garner von Zieliński"
       other_parent_families:
         description: "The family profiles for families of the parents of the person other than the primary parent family profile."
         type: array
@@ -1838,28 +1843,26 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - "c140d694e647717b683"
       note_list:
         description: "A list of handles for research notes about the association."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       private:
         description: "Private object indicator."
         type: boolean
-        example: true
+        example: false
       ref:
         description: "The handle of the person referenced."
         type: string
-        example: e9027bf389921fb966e851abce5
+        example: "VJFKQCFO7WESWPNKHE"
       rel:
         description: "The relationship between the two people."
         type: string
-        example: Godparent
+        example: "Godfather"
 
 ##############################################################################
 # Model - Family
@@ -1878,7 +1881,7 @@ definitions:
       change:
         description: "Time in epoch format the family record was last modified."
         type: number
-        example: 1601335222
+        example: 1328026883
       child_ref_list:
         description: "A list of references to children who were members of the family."
         type: array
@@ -1890,8 +1893,8 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - "c140d2876657c5a98f3"
+          - "c140d934eba1ac92c35"
       event_ref_list:
         description: "A list of references to events the family participated in."
         type: array
@@ -1905,15 +1908,15 @@ definitions:
       father_handle:
         description: "The unique identifier for the father of the family."
         type: string
-        example: e9027bf389921fb966e851abaac
+        example: "GNUJQCL9MD64AM56OH"
       gramps_id:
         description: "An alternate user managed identifier for the family, usually but not guaranteed to be unique."
         type: string
-        example: F0001
+        example: "F0017"
       handle:
         description: "The unique identifier for a family."
         type: string
-        example: e9027bf389921fb966e851abce5
+        example: "9OUJQCBOHW9UEK9CNV"
       lds_ord_list:
         description: "A list of LDS specific events the family participated in."
         type: array
@@ -1927,19 +1930,18 @@ definitions:
       mother_handle:
         description: "The unique identifier for the mother of the family."
         type: string
-        example: e9027bf389921fb966e851abaac
+        example: "FOUJQC7PMC15VC4P0I"
       note_list:
         description: "A list of handles for research notes related to the person."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - "ac3804a1d747a39822c"
       private:
         description: "Private object indicator."
         type: boolean
-        example: true
+        example: false
       profile:
         description: "An optional summary of the members of a family as well as some key events."
         type: object
@@ -1951,12 +1953,11 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - "bb80c2b235b0a1b3f49"
       type:
         description: "The type of relationship between the parents of family."
         type: string
-        example: Married
+        example: "Married"
 
 ##############################################################################
 # Model - FamilyExtended
@@ -2036,7 +2037,7 @@ definitions:
       handle:
         description: "The unique identifier for a family."
         type: string
-        example: e9027bf389921fb966e851abce5
+        example: "9OUJQCBOHW9UEK9CNV"
       marriage:
         description: "The marriage event profile, or best fallback such as marriage license, of the person."
         type: object
@@ -2065,32 +2066,30 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - "e9027bf39c36d6cdd046748852e"
       frel:
-        description: "Relationship between the child and the father."
+        description: "Relationship between the child and father."
         type: string
-        example: Birth
+        example: "Birth"
       mrel:
-        description: "Relationship between the child and the mother."
+        description: "Relationship between the child and mother."
         type: string
-        example: Birth
+        example: "Birth"
       note_list:
         description: "A list of handles for research notes about the membership of the child in the family."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       private:
         description: "Private object indicator."
         type: boolean
-        example: true
+        example: false
       ref:
         description: "The handle of the child referenced."
         type: string
-        example: e9027bf389921fb966e851abce5
+        example: "DPUJQCUYKKDPT78JJV"
 
 ##############################################################################
 # Model - Event
@@ -2109,15 +2108,14 @@ definitions:
       change:
         description: "Time in epoch format the event record was last modified."
         type: number
-        example: 1601335222
+        example: 1284030610
       citation_list:
         description: "A list of handles for citations supporting the event."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       date:
         description: "The date of the event."
         type: object
@@ -2126,7 +2124,7 @@ definitions:
       description:
         description: "A description for the event."
         type: string
-        example: "Arrived at Port of New York on the Amsterdam."
+        example: "Burial of Garner, Lewis Anderson"
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
@@ -2135,11 +2133,11 @@ definitions:
       gramps_id:
         description: "An alternate user managed identifier for the event, usually but not guaranteed to be unique."
         type: string
-        example: E0001
+        example: "E01658"
       handle:
         description: "The unique identifier for an event."
         type: string
-        example: e9027bf389921fb966e851abce5
+        example: "a5af0ecb12e29af8a5d"
       media_list:
         description: "A list of references to media associated with the event."
         type: array
@@ -2151,16 +2149,15 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       place:
         description: "The handle to the place record for where the event occurred."
         type: string
-        example: e9027bf39c28be9457ab9df8124
+        example: "YNUJQC8YM5EGRG868J"
       private:
         description: "Private object indicator."
         type: boolean
-        example: true
+        example: false
       profile:
         description: "An optional summary of the key attributes for the event."
         type: object
@@ -2172,12 +2169,11 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       type:
         description: "The type of event."
         type: string
-        example: "Residence"
+        example: "Burial"
     
 ##############################################################################
 # Model - EventExtended
@@ -2222,11 +2218,11 @@ definitions:
       date:
         description: "Date of the event."
         type: string
-        example: "3 January 1922"
+        example: "1855-06-21"
       place:
         description: "Place of the event."
         type: string
-        example: "Manhattan, New York City, New York, United States"
+        example: "Great Falls, MT, USA"
       type:
         description: "Type of the event."
         type: string
@@ -2250,20 +2246,19 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       private:
         description: "Private object indicator."
         type: boolean
-        example: true
+        example: false
       ref:
         description: "The handle of the event referenced."
         type: string
-        example: e9027bf389921fb966e851abce5
+        example: "a5af0ecb12e29af8a5d"
       role:
         description: "Role of the person in the event."
         type: string
-        example: Witness
+        example: "Primary"
 
 ##############################################################################
 # Model - LDSOrdination
@@ -2278,8 +2273,7 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - "c140d73a2ca52f37800"
       date:
         description: "Date of the event."
         type: object
@@ -2288,33 +2282,34 @@ definitions:
       famc:
         description: "Family."
         type: string
-        example: F0022
+        example: "8OUJQCUVZ0XML7BQLF"
       note_list:
         description: "A list of handles for research notes about the LDS event."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       place:
-        description: "The location of the event."
+        description: "Handle to location of the event."
         type: string
-        example: "Salt Lake City, Utah, United States"
+        example: "WTAKQCGG8L8LYZCSBB"
       private:
         description: "Private object indicator."
         type: boolean
-        example: true
+        example: false
       status:
         description: "Status of the event."
-        type: string
+        type: integer
+        example: 13
       temple:
         description: "Temple the event was held at."
         type: string
+        example: "ADELA"
       type:
         description: "Type of the event."
-        type: string
-        example: Baptism
+        type: integer
+        example: 2
 
 ##############################################################################
 # Model - Place
@@ -2336,18 +2331,18 @@ definitions:
       change:
         description: "Time in epoch format the event place was last modified."
         type: number
-        example: 1601335222
+        example: 1328027392
       citation_list:
         description: "A list of handles for citations supporting the place."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - "c140df00ffa3ee017da"
       code:
         description: "Code."
         type: string
+        example: ""
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
@@ -2356,17 +2351,19 @@ definitions:
       gramps_id:
         description: "An alternate user managed identifier for the place, usually but not guaranteed to be unique."
         type: string
-        example: P0001
+        example: "P1678"
       handle:
         description: "The unique identifier for the place."
         type: string
-        example: e9027bf389921fb966e851abce5
+        example: "YNUJQC8YM5EGRG868J"
       lat:
         description: "Latitude."
         type: string
+        example: "42.5629668"
       long:
         description: "Longitude."
         type: string
+        example: "-114.4608711"
       media_list:
         description: "A list of references to media associated with the person."
         type: array
@@ -2383,11 +2380,11 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       place_type:
         description: "The place type."
         type: string
+        example: "City"
       place_ref_list:
         description: "A list of references to other places."
         type: array
@@ -2396,19 +2393,18 @@ definitions:
       private:
         description: "Private object indicator."
         type: boolean
-        example: true
+        example: false
       tag_list:
         description: "A list of handles to tags associated with the place."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       title:
         description: "The full name of the place."
         type: string
-        example: "440 Robin Run Road, Somewhere, Someplace, USA"
+        example: "Twin Falls, ID"
       urls:
         description: "A list of URLs associated with the place."
         type: array
@@ -2458,9 +2454,11 @@ definitions:
       lang:
         description: "Language the name is in."
         type: string
+        example: ""
       value:
         description: "The name in use."
         type: string
+        example: "Twin Falls"
 
 ##############################################################################
 # Model - PlaceReference
@@ -2477,6 +2475,7 @@ definitions:
       ref:
         description: "Handle of the referenced place."
         type: string
+        example: "c965872719e5db6bfe5fc47b033"
 
 ##############################################################################
 # Model - Address
@@ -2491,17 +2490,19 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - "c140d5aa362797c32d4"
       city:
         description: "City."
         type: string
+        example: "Washington DC"
       country:
         description: "Country."
         type: string
+        example: "USA"
       county:
         description: "County."
         type: string
+        example: ""
       date:
         description: "Date resident at the address."
         type: object
@@ -2510,27 +2511,34 @@ definitions:
       locality:
         description: "Locality."
         type: string
+        example: ""
       note_list:
         description: "A list of handles for research notes about the address."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       phone:
         description: "Phone number."
         type: string
+        example: ""
       postal:
         description: "Postal code."
         type: string
+        example: ""
       private:
         description: "Private object indicator."
         type: boolean
-        example: true
+        example: false
       state:
         description: "State."
         type: string
+        example: "District of Columbia"
+      street:
+        description: "Street."
+        type: string
+        example: "1600 Pennsylvania Ave."
     
 ##############################################################################
 # Model - Location
@@ -2542,30 +2550,39 @@ definitions:
       city:
         description: "City."
         type: string
+        example: "Washington DC"
       country:
         description: "Country."
         type: string
+        example: "USA"
       county:
         description: "County."
         type: string
+        example: ""
       locality:
         description: "Locality."
         type: string
+        example: ""
       parish:
         description: "Parish."
         type: string
+        example: ""
       phone:
         description: "Phone number."
         type: string
+        example: ""
       postal:
         description: "Postal code."
         type: string
+        example: ""
       state:
         description: "State."
         type: string
+        example: "District of Columbia"
       street:
         description: "Street."
         type: string
+        example: "1600 Pennsylvania Avenue"
       
 ##############################################################################
 # Model - Citation
@@ -2584,11 +2601,11 @@ definitions:
       change:
         description: "Time in epoch format the citation record was last modified."
         type: number
-        example: 1601335222
+        example: 1328025946
       confidence:
         description: "Indicator of the confidence in the information being cited."
         type: integer
-        example: 4
+        example: 3
       date:
         description: "The date of the citation."
         type: object
@@ -2602,11 +2619,11 @@ definitions:
       gramps_id:
         description: "An alternate user managed identifier for the citation, usually but not guaranteed to be unique."
         type: string
-        example: C0001
+        example: "C0975"
       handle:
         description: "The unique identifier for the citation."
         type: string
-        example: e9027bf389921fb966e851abce5
+        example: "c140d25efe703834da4"
       media_list:
         description: "A list of references to media associated with the citation."
         type: array
@@ -2618,27 +2635,26 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       page:
         description: "The page in the source material being cited."
         type: string
+        example: ""
       private:
         description: "Private object indicator."
         type: boolean
-        example: true
+        example: false
       source_handle:
         description: "The handle to the source record being cited from."
         type: string
-        example: e9027bf39c36d6cdd041118852e
+        example: "b39fe3f390e30bd2b99"
       tag_list:
         description: "A list of handles to tags associated with the citation."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
 
 ##############################################################################
 # Model - CitationExtended
@@ -2680,7 +2696,7 @@ definitions:
       abbrev:
         description: "An abbreviated name for the source."
         type: string
-        example: "1920 United States Federal Census"
+        example: "BR-GFC 1850"
       attribute_list:
         description: "A list of attributes about the source."
         type: array
@@ -2689,10 +2705,11 @@ definitions:
       author:
         description: "The author of the source."
         type: string
+        example: "Priests of Great Falls Church 1850 - 1867"
       change:
         description: "Time in epoch format the source record was last modified."
         type: number
-        example: 1601335222
+        example: 1234371690
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
@@ -2701,11 +2718,11 @@ definitions:
       gramps_id:
         description: "An alternate user managed identifier for the source, usually but not guaranteed to be unique."
         type: string
-        example: S0001
+        example: "S0000"
       handle:
         description: "The unique identifier for the source."
         type: string
-        example: e9027bf389921fb966e851abce5
+        example: "b39fe3f390e30bd2b99"
       media_list:
         description: "A list of references to media associated with the source."
         type: array
@@ -2717,15 +2734,16 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - "b39feb55e1173f4a699"
+          - "b39fedb8a051544689c"
       private:
         description: "Private object indicator."
         type: boolean
-        example: true
+        example: false
       pubinfo:
         description: "Publication information."
         type: string
+        example: "Microfilm Public Library Great Falls"
       reporef_list:
         description: "A list of references to repositories the source can be found in."
         type: array
@@ -2737,8 +2755,11 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
+      title:
+        description: "Title for the source."
+        type: string
+        example: "Baptize registry 1850 - 1867 Great Falls Church"
 
 ##############################################################################
 # Model - SourceExtended
@@ -2783,7 +2804,7 @@ definitions:
       change:
         description: "Time in epoch format the repository record was last modified."
         type: number
-        example: 1601335222
+        example: 1234370614
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
@@ -2792,34 +2813,37 @@ definitions:
       gramps_id:
         description: "An alternate user managed identifier for the repository, usually but not guaranteed to be unique."
         type: string
-        example: R0001
+        example: "R0000"
       handle:
         description: "The unique identifier for the repository."
         type: string
-        example: e9027bf389921fb966e851abce5
+        example: "b39fe38593f3f8c4f12"
+      name:
+        description: "Name of the repository."
+        type: string
+        example: "Public Library Great Falls"
       note_list:
         description: "A list of handles for research notes related to the repository."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - "b39fe2e143d1e599450"
       private:
         description: "Private object indicator."
         type: boolean
-        example: true
+        example: false
       tag_list:
         description: "A list of handles to tags associated with the repository."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       type:
         description: "The type of repository."
         type: string
+        example: "Library"
       urls:
         description: "A list of URLs associated with the repository."
         type: array
@@ -2854,25 +2878,26 @@ definitions:
       call_number:
         description: "Call number for the source at the repository."
         type: string
+        example: "32Z-345"
       media_type:
         description: "The media source format at the repository."
         type: string
+        example: "Microfilm"
       note_list:
         description: "A list of handles for research notes related to the source at the repository."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       private:
         description: "Private object indicator."
         type: boolean
-        example: true
+        example: false
       ref:
         description: "The handle of the repository referenced."
         type: string
-        example: e9027bf389921fb966e851abce5
+        example: "b39fe38593f3f8c4f12"
 
 ##############################################################################
 # Model - Media
@@ -2891,26 +2916,27 @@ definitions:
       change:
         description: "Time in epoch format the media object record was last modified."
         type: number
-        example: 1601335222
+        example: 1328027158
       checksum:
         description: "A checksum for the media object for integrity validation."
         type: string
+        example: "542c7ed6f97c6af16907339439abffdf"
       citation_list:
         description: "A list of handles for citations supporting the media object."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - "c140dd5edc11679f39b"
       date:
         description: "The date associated with the media object."
         type: object
         items:
           $ref: "#/definitions/Date"
-      description:
+      desc:
         description: "A description of the contents of the media object."
         type: string    
+        example: "654px-Aksel_Andersson"
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
@@ -2919,11 +2945,11 @@ definitions:
       gramps_id:
         description: "An alternate user managed identifier for the media object, usually but not guaranteed to be unique."
         type: string
-        example: M0001
+        example: "O0008"
       handle:
         description: "The unique identifier for the media object."
         type: string
-        example: e9027bf389921fb966e851abce5
+        example: "B1AUFQV7H8R9NR4SZM"
       mime:
         description: "The format of the media object."
         type: string
@@ -2934,26 +2960,26 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       path:
         description: "The path to locate and load the media object from storage."
         type: string
+        example: "654px-Aksel_Andersson.jpg"
       private:
         description: "Private object indicator."
         type: boolean
-        example: true
+        example: false
       tag_list:
         description: "A list of handles to tags associated with the media object."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       thumb:
         description: "TODO: Is this part of the JSON schema?"
         type: object
+        example: null
 
 ##############################################################################
 # Model - MediaExtended
@@ -2996,20 +3022,18 @@ definitions:
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - "c140d6cb9fe7fc1d3cc"
       note_list:
         description: "A list of handles for research notes about the media reference."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       private:
         description: "Private object indicator."
         type: boolean
-        example: true
+        example: false
       rect:
         description: "Rectangle."
         type: array
@@ -3019,7 +3043,7 @@ definitions:
       ref:
         description: "The handle of the media referenced."
         type: string
-        example: e9027bf389921fb966e851abce5
+        example: "B1AUFQV7H8R9NR4SZM"
 
 ##############################################################################
 # Model - Note
@@ -3033,7 +3057,7 @@ definitions:
       change:
         description: "Time in epoch format the note record was last modified."
         type: number
-        example: 1601335222
+        example: 1234371685
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
@@ -3042,26 +3066,26 @@ definitions:
       format:
         description: "Identifier for the note format."
         type: integer
+        example: 1
       gramps_id:
         description: "An alternate user managed identifier for the note, usually but not guaranteed to be unique."
         type: string
-        example: N0001
+        example: "N0010"
       handle:
         description: "The unique identifier for the note."
         type: string
-        example: e9027bf389921fb966e851abce5
+        example: "b39feb55e1173f4a699"
       private:
         description: "Private object indicator."
         type: boolean
-        example: true
+        example: false
       tag_list:
         description: "A list of handles to tags associated with the note."
         type: array
         items:
           type: string
         example:
-          - e9027bf39c27be945fab9df8124
-          - e9027bf39c36d6cdd046748852e
+          - ""
       text:
         description: "The note text."
         type: object
@@ -3070,6 +3094,7 @@ definitions:
       type:
         description: "The type of note."
         type: string
+        example: "Source text"
 
 ##############################################################################
 # Model - NoteExtended
@@ -3094,6 +3119,7 @@ definitions:
       string:
         description: "The text itself."
         type: string
+        example: "1855-06-25\n\n    line 1    fac secunda Junij Baptiza- \n    line 2    tus est Lewis Anderson\n    line 3    filius legitimus Guillielmus \n    line 4    Garner et Elisabetha  \n    line 5    Becks. Susceptores fuerent \n    line 6    petrus Arts et Catharina \n    line 7    van de Voorde"
       tags:
         description: "The text tags."
         type: array
@@ -3110,14 +3136,19 @@ definitions:
       name:
         description: "Name of the tag."
         type: string
+        example: "Bold"
       value:
         description: "Value of the tag. Note type may be null, string, or integer."
         type: object
+        example: "null"
       ranges:
         description: "Ranges."
         type: array
         items:
           type: integer
+        example:
+        - 0
+        - 10
 
 ##############################################################################
 # Model - Tag
@@ -3129,19 +3160,23 @@ definitions:
       change:
         description: "Time in epoch format the tag record was last modified."
         type: number
-        example: 1601335222
+        example: 1288512442
       color:
         description: "Color of the tag."
         type: string
-        example: "#5c3566"
+        example: "#efb60c280c28"
+      handle:
+        description: "The unique identifier for the tag."
+        type: string
+        example: "bb80c2b235b0a1b3f49"
       name:
         description: "Tag name."
         type: string
-        example: "Immigrant Ancestor"
+        example: "ToDo"
       priority:
         description: "Priority of the tag."
         type: integer
-        example: 1
+        example: 0
 
 ##############################################################################
 # Model - URL
@@ -3150,22 +3185,22 @@ definitions:
   URL:
     type: object
     properties:
-      description:
+      desc:
         description: "Description of the URL."
         type: string
-        example: "Person page on FamilySearch"
+        example: ""
       path:
         description: "URL"
         type: string
-        example: "https://www.familysearch.org/tree/person/details/AYFC-722"
+        example: "http://www.gramps-project.org/"
       private:
         description: "Private object indicator."
         type: boolean
-        example: true
+        example: false
       type:
         description: "Type of URL."
         type: string
-        example: "Person"
+        example: "Web Home"
 
 ##############################################################################
 # Model - Translations
@@ -3193,7 +3228,7 @@ definitions:
       original:
         description: "The original string."
         type: string
-        example: death
+        example: "death"
       translation:
         description: "The translated string."
         type: string
@@ -3228,59 +3263,59 @@ definitions:
   TreeSummary:
     type: object
     properties:
-      Database module location:
+      database_module_location:
         description: "The database module location."
         type: string
         example: "/usr/lib64/python3.8/sqlite3/__init__.py"
-      Database module version:
+      database_module_version:
         description: "The database module version."
         type: string
         example: "2.6.0"
-      Database version:
+      database_version":
         description: "The database version."
         type: string
         example: "3.33.0"
-      Number of citations:
+      number_of_citations:
         description: "The number of citations in the database."
         type: number
-        example: 149340
-      Number of events:
+        example: 2854
+      number_of_events:
         description: "The number of events in the database."
         type: number
-        example: 60792
-      Number of families:
+        example: 3432
+      number_of_families:
         description: "The number of families in the database."
         type: number
-        example: 6751
-      Number of media:
+        example: 762
+      number_of_media:
         description: "The number of media items in the database."
         type: number
-        example: 62225
-      Number of notes:
+        example: 7
+      number_of_notes:
         description: "The number of notes in the database."
         type: number
-        example: 399178
-      Number of people:
+        example: 19
+      number_of_people:
         description: "The number of people in the database."
         type: number
-        example: 18232
-      Number of places:
+        example: 2157
+      number_of_places:
         description: "The number of places in the database."
         type: number
-        example: 6716
-      Number of repositories:
+        example: 1294
+      number_of_repositories:
         description: "The number of repositories in the database."
         type: number
-        example: 44
-      Number of sources:
+        example: 3
+      number_of_sources:
         description: "The number of sources in the database."
         type: number
-        example: 1249
-      Number of tags:
+        example: 4
+      number_of_tags:
         description: "The number of tags in the database."
         type: number
-        example: 16
-      Schema version:
+        example: 2
+      schema_version:
         description: "The data model schema version."
         type: string
         example: "18.0.0"
@@ -3295,42 +3330,44 @@ definitions:
       addr:
         description: "Address."
         type: string
+        example: ""
       city:
         description: "City."
         type: string
-        example: "Newark"
+        example: ""
       country:
         description: "Country."
         type: string
-        example: "USA"
+        example: ""
       county:
         description: "County."
         type: string
-        example: "Essex"
+        example: ""
       email:
         description: "Email address."
         type: string
-        example: "noman@nowhere.com"
+        example: ""
       locality:
         description: "Locality."
         type: string
+        example: ""
       name:
         description: "Name of the researcher."
         type: string
-        example: "Norris Man"
+        example: ""
       phone:
         description: "Phone number."
         type: string
-        example: "555-333-1111"
+        example: ""
       postal:
         description: "Postal code."
         type: string
-        example: "07105"
+        example: ""
       state:
         description: "State."
         type: string
-        example: "New Jersey"
+        example: ""
       street:
         description: "Street."
         type: string
-        example: "244 Speedway Lane"
+        example: ""
