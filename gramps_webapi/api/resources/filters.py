@@ -106,7 +106,7 @@ def apply_filter(db_handle: DbReadBase, args: Dict, namespace: str) -> List[Hand
         abort(400)
 
     try:
-        filter_parms = QueryFilterSchema().load(json.loads(args["filters"]))
+        filter_parms = QueryFilterSchema().load(json.loads(args["rules"]))
     except json.JSONDecodeError:
         abort(400)
     except ValidationError:
