@@ -19,7 +19,7 @@ class CitationResourceHelper(GrampsObjectResourceHelper):
 
     def object_extend(self, obj: Citation, args: Dict) -> Citation:
         """Extend citation attributes as needed."""
-        if args["extend"]:
+        if "extend" in args:
             db_handle = self.db_handle
             obj.extended = get_extended_attributes(db_handle, obj)
             obj.extended["source"] = get_source_by_handle(db_handle, obj.source_handle)

@@ -27,31 +27,33 @@ securityDefinitions:
 tags:
 - name: authentication
   description: Access for presenting credentials.
-- name: person
+- name: people
   description: Access to person objects.
-- name: family
+- name: families
   description: Access to family objects.
-- name: event
+- name: events
   description: Access to event objects.
-- name: place
+- name: places
   description: Access to place objects.
-- name: citation
+- name: citations
   description: Access to citation objects.
-- name: source
+- name: sources
   description: Access to source objects.
-- name: repository
+- name: repositories
   description: Access to repository objects.
 - name: media
   description: Access to media objects.
-- name: note
+- name: notes
   description: Access to note objects.
-- name: tag
+- name: tags
   description: Access to tag objects.
-- name: bookmark
+- name: bookmarks
   description: Access to user bookmarks.
-- name: translate
+- name: filters
+  description: Access to filter management.
+- name: translations
   description: Access to translation service.
-- name: relation
+- name: relations
   description: Access to relationship calculator.
 - name: metadata
   description: Access to tree and application metadata.
@@ -124,13 +126,13 @@ paths:
           description: "Unprocessable Entity: Invalid token."
 
 ##############################################################################
-# Endpoint - Person
+# Endpoint - People
 ##############################################################################
 
-  /person:
+  /people:
     get:
       tags:
-      - person
+      - people
       summary: "Get information about multiple people."
       operationId: getPeople
       security:
@@ -140,17 +142,58 @@ paths:
         in: query
         required: false
         type: string
+        minLength: 8
         description: "The unique identifier for a person."
       - name: gramps_id
         in: query
         required: false
         type: string
         description: "An alternate user managed identifier for a person, usually but not guaranteed to be unique."
+      - name: filter
+        in: query
+        required: false
+        type: string
+        description: "The name of an existing custom filter to be used when generating the result set."
+      - name: rules
+        in: query
+        required: false
+        type: string
+        description: >
+          A user defined custom filter expression consisting of one of more filter rules to be used when generating the result set.
+
+
+          This filter is built and applied dynamically, it is not saved like a custom filter. It consists of one or more rules acting in combination, some of which can accept custom filters as arguments.
+
+
+          The expression must be provided in JSON format with abbreviated characters used in place of full keywords. A number of fields are not required and have defaults if not present. The structure is defined as follows:
+          
+          
+          {"f": function, "i": invert, "r": [{"n": name, "v": [values], "r": regex}]}
+          
+          
+          The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
+          
+          
+          The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
+          
+          
+          The r indicates that the list provided is the list of rules to be evaluated. It is a mandatory field.
+          
+          
+          The name in the rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
+          
+          
+          The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
+          
+          
+          The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -164,13 +207,17 @@ paths:
       - name: profile
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the person profile should be included in the response. The person profile contains summarized information about the person and their familial relationships in a more readily consumable format."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates that the person profile should be included in the response. The person profile contains summarized information about the person and their familial relationships in a more readily consumable format."
       - name: extend
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the notes records, this will return the actual records in a separate extended section."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the notes records, this will return the actual records in a separate extended section."
       responses:
         200:
           description: "OK: Successful operation."
@@ -183,10 +230,10 @@ paths:
         404:
           description: "Not Found: No people found."
 
-  /person/{handle}:
+  /people/{handle}:
     get:
       tags:
-      - person
+      - people
       summary: "Get information about a specific person."
       operationId: getPerson
       security:
@@ -196,12 +243,15 @@ paths:
         in: path
         required: true
         type: string
+        minLength: 8
         description: "The unique identifier for a person."
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -215,13 +265,17 @@ paths:
       - name: profile
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the person profile should be included in the response. The person profile contains summarized information about the person and their familial relationships in a more readily consumable format."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates that the person profile should be included in the response. The person profile contains summarized information about the person and their familial relationships in a more readily consumable format."
       - name: extend
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the notes records, this will return the actual records in a separate extended section."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the notes records, this will return the actual records in a separate extended section."
       responses:
         200:
           description: "OK: Successful operation."
@@ -233,13 +287,13 @@ paths:
           description: "Not Found: Person not found."
 
 ##############################################################################
-# Endpoint - Family
+# Endpoint - Families
 ##############################################################################
 
-  /family:
+  /families:
     get:
       tags:
-      - family
+      - families
       summary: "Get information about multiple families."
       operationId: getFamilies
       security:
@@ -249,17 +303,58 @@ paths:
         in: query
         required: false
         type: string
+        minLength: 8
         description: "The unique identifier for a family."
       - name: gramps_id
         in: query
         required: false
         type: string
         description: "An alternate user managed identifier for a family, usually but not guaranteed to be unique."
+      - name: filter
+        in: query
+        required: false
+        type: string
+        description: "The name of an existing custom filter to be used when generating the result set."
+      - name: rules
+        in: query
+        required: false
+        type: string
+        description: >
+          A user defined custom filter expression consisting of one of more filter rules to be used when generating the result set.
+
+
+          This filter is built and applied dynamically, it is not saved like a custom filter. It consists of one or more rules acting in combination, some of which can accept custom filters as arguments.
+
+
+          The expression must be provided in JSON format with abbreviated characters used in place of full keywords. A number of fields are not required and have defaults if not present. The structure is defined as follows:
+          
+          
+          {"f": function, "i": invert, "r": [{"n": name, "v": [values], "r": regex}]}
+          
+          
+          The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
+          
+          
+          The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
+          
+          
+          The r indicates that the list provided is the list of rules to be evaluated. It is a mandatory field.
+          
+          
+          The name in the rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
+          
+          
+          The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
+          
+          
+          The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -273,13 +368,17 @@ paths:
       - name: profile
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the family profile should be included in the response. The family profile contains summarized information about the family and their members in a more readily consumable format."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates that the family profile should be included in the response. The family profile contains summarized information about the family and their members in a more readily consumable format."
       - name: extend
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the notes records, this will return the actual records in a separate extended section."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the notes records, this will return the actual records in a separate extended section."
       responses:
         200:
           description: "OK: Successful operation."
@@ -292,10 +391,10 @@ paths:
         404:
           description: "Not Found: No families found."
 
-  /family/{handle}:
+  /families/{handle}:
     get:
       tags:
-      - family
+      - families
       summary: "Get information about a specific family."
       operationId: getFamily
       security:
@@ -305,12 +404,15 @@ paths:
         in: path
         required: true
         type: string
+        minLength: 8
         description: "The unique identifier for a family."
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates if keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -324,13 +426,17 @@ paths:
       - name: profile
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the family profile should be included in the response. The family profile contains summarized information about the family and their members in a more readily consumable format."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates that the family profile should be included in the response. The family profile contains summarized information about the family and their members in a more readily consumable format."
       - name: extend
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the notes records, this will return the actual records in a separate extended section."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the notes records, this will return the actual records in a separate extended section."
       responses:
         200:
           description: "OK: Successful operation."
@@ -342,13 +448,13 @@ paths:
           description: "Not Found: Family not found."
 
 ##############################################################################
-# Endpoint - Event
+# Endpoint - Events
 ##############################################################################
 
-  /event:
+  /events:
     get:
       tags:
-      - event
+      - events
       summary: "Get information about multiple events."
       operationId: getEvents
       security:
@@ -358,17 +464,58 @@ paths:
         in: query
         required: false
         type: string
+        minLength: 8
         description: "The unique identifier for an event."
       - name: gramps_id
         in: query
         required: false
         type: string
         description: "An alternate user managed identifier for an event, usually but not guaranteed to be unique."
+      - name: filter
+        in: query
+        required: false
+        type: string
+        description: "The name of an existing custom filter to be used when generating the result set."
+      - name: rules
+        in: query
+        required: false
+        type: string
+        description: >
+          A user defined custom filter expression consisting of one of more filter rules to be used when generating the result set.
+
+
+          This filter is built and applied dynamically, it is not saved like a custom filter. It consists of one or more rules acting in combination, some of which can accept custom filters as arguments.
+
+
+          The expression must be provided in JSON format with abbreviated characters used in place of full keywords. A number of fields are not required and have defaults if not present. The structure is defined as follows:
+          
+          
+          {"f": function, "i": invert, "r": [{"n": name, "v": [values], "r": regex}]}
+          
+          
+          The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
+          
+          
+          The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
+          
+          
+          The r indicates that the list provided is the list of rules to be evaluated. It is a mandatory field.
+          
+          
+          The name in the rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
+          
+          
+          The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
+          
+          
+          The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates if keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -382,13 +529,17 @@ paths:
       - name: profile
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the event profile should be included in the response. The event profile contains some brief information about the event in a more readily consumable format."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates that the event profile should be included in the response. The event profile contains some brief information about the event in a more readily consumable format."
       - name: extend
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
       responses:
         200:
           description: "OK: Successful operation."
@@ -401,10 +552,10 @@ paths:
         404:
           description: "Not Found: No events found."
 
-  /event/{handle}:
+  /events/{handle}:
     get:
       tags:
-      - event
+      - events
       summary: "Get information about a specific event."
       operationId: getEvent
       security:
@@ -414,12 +565,15 @@ paths:
         in: path
         required: true
         type: string
+        minLength: 0
         description: "The unique identifier for an event."
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -433,13 +587,17 @@ paths:
       - name: profile
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the event profile should be included in the response. The event profile contains some brief information about the event in a more readily consumable format."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates that the event profile should be included in the response. The event profile contains some brief information about the event in a more readily consumable format."
       - name: extend
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
       responses:
         200:
           description: "OK: Successful operation."
@@ -451,13 +609,13 @@ paths:
           description: "Not Found: Event not found."
 
 ##############################################################################
-# Endpoint - Place
+# Endpoint - Places
 ##############################################################################
 
-  /place:
+  /places:
     get:
       tags:
-      - place
+      - places
       summary: "Get information about multiple places."
       operationId: getPlaces
       security:
@@ -467,17 +625,58 @@ paths:
         in: query
         required: false
         type: string
+        minLength: 8
         description: "The unique identifier for a place."
       - name: gramps_id
         in: query
         required: false
         type: string
         description: "An alternate user managed identifier for a place, usually but not guaranteed to be unique."
+      - name: filter
+        in: query
+        required: false
+        type: string
+        description: "The name of an existing custom filter to be used when generating the result set."
+      - name: rules
+        in: query
+        required: false
+        type: string
+        description: >
+          A user defined custom filter expression consisting of one of more filter rules to be used when generating the result set.
+
+
+          This filter is built and applied dynamically, it is not saved like a custom filter. It consists of one or more rules acting in combination, some of which can accept custom filters as arguments.
+
+
+          The expression must be provided in JSON format with abbreviated characters used in place of full keywords. A number of fields are not required and have defaults if not present. The structure is defined as follows:
+          
+          
+          {"f": function, "i": invert, "r": [{"n": name, "v": [values], "r": regex}]}
+          
+          
+          The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
+          
+          
+          The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
+          
+          
+          The r indicates that the list provided is the list of rules to be evaluated. It is a mandatory field.
+          
+          
+          The name in the rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
+          
+          
+          The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
+          
+          
+          The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -491,8 +690,10 @@ paths:
       - name: extend
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
       responses:
         200:
           description: "OK: Successful operation."
@@ -505,10 +706,10 @@ paths:
         404:
           description: "Not Found: No places found."
 
-  /place/{handle}:
+  /places/{handle}:
     get:
       tags:
-      - place
+      - places
       summary: "Get information about a specific place."
       operationId: getPlace
       security:
@@ -518,12 +719,15 @@ paths:
         in: path
         required: true
         type: string
+        minLength: 8
         description: "The unique identifier for a place."
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -537,8 +741,10 @@ paths:
       - name: extend
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
       responses:
         200:
           description: "OK: Successful operation."
@@ -550,13 +756,13 @@ paths:
           description: "Not Found: Place not found."
 
 ##############################################################################
-# Endpoint - Citation
+# Endpoint - Citations
 ##############################################################################
 
-  /citation:
+  /citations:
     get:
       tags:
-      - citation
+      - citations
       summary: "Get information about multiple citations."
       operationId: getCitations
       security:
@@ -566,17 +772,58 @@ paths:
         in: query
         required: false
         type: string
+        minLength: 0
         description: "The unique identifier for a citation."
       - name: gramps_id
         in: query
         required: false
         type: string
         description: "An alternate user managed identifier for a citation, usually but not guaranteed to be unique."
+      - name: filter
+        in: query
+        required: false
+        type: string
+        description: "The name of an existing custom filter to be used when generating the result set."
+      - name: rules
+        in: query
+        required: false
+        type: string
+        description: >
+          A user defined custom filter expression consisting of one of more filter rules to be used when generating the result set.
+
+
+          This filter is built and applied dynamically, it is not saved like a custom filter. It consists of one or more rules acting in combination, some of which can accept custom filters as arguments.
+
+
+          The expression must be provided in JSON format with abbreviated characters used in place of full keywords. A number of fields are not required and have defaults if not present. The structure is defined as follows:
+          
+          
+          {"f": function, "i": invert, "r": [{"n": name, "v": [values], "r": regex}]}
+          
+          
+          The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
+          
+          
+          The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
+          
+          
+          The r indicates that the list provided is the list of rules to be evaluated. It is a mandatory field.
+          
+          
+          The name in the rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
+          
+          
+          The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
+          
+          
+          The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -590,8 +837,10 @@ paths:
       - name: extend
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
       responses:
         200:
           description: "OK: Successful operation."
@@ -604,10 +853,10 @@ paths:
         404:
           description: "Not Found: No citations found."
 
-  /citation/{handle}:
+  /citations/{handle}:
     get:
       tags:
-      - citation
+      - citations
       summary: "Get information about a specific citation."
       operationId: getCitation
       security:
@@ -617,12 +866,15 @@ paths:
         in: path
         required: true
         type: string
+        minLength: 8
         description: "The unique identifier for a citation."
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -636,8 +888,10 @@ paths:
       - name: extend
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
       responses:
         200:
           description: "OK: Successful operation."
@@ -649,13 +903,13 @@ paths:
           description: "Not Found: Citation not found."
 
 ##############################################################################
-# Endpoint - Source
+# Endpoint - Sources
 ##############################################################################
 
-  /source:
+  /sources:
     get:
       tags:
-      - source
+      - sources
       summary: "Get information about multiple sources."
       operationId: getSources
       security:
@@ -665,17 +919,58 @@ paths:
         in: query
         required: false
         type: string
+        minLength: 8
         description: "The unique identifier for a source."
       - name: gramps_id
         in: query
         required: false
         type: string
         description: "An alternate user managed identifier for a source, usually but not guaranteed to be unique."
+      - name: filter
+        in: query
+        required: false
+        type: string
+        description: "The name of an existing custom filter to be used when generating the result set."
+      - name: rules
+        in: query
+        required: false
+        type: string
+        description: >
+          A user defined custom filter expression consisting of one of more filter rules to be used when generating the result set.
+
+
+          This filter is built and applied dynamically, it is not saved like a custom filter. It consists of one or more rules acting in combination, some of which can accept custom filters as arguments.
+
+
+          The expression must be provided in JSON format with abbreviated characters used in place of full keywords. A number of fields are not required and have defaults if not present. The structure is defined as follows:
+          
+          
+          {"f": function, "i": invert, "r": [{"n": name, "v": [values], "r": regex}]}
+          
+          
+          The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
+          
+          
+          The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
+          
+          
+          The r indicates that the list provided is the list of rules to be evaluated. It is a mandatory field.
+          
+          
+          The name in the rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
+          
+          
+          The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
+          
+          
+          The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -689,8 +984,10 @@ paths:
       - name: extend
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
       responses:
         200:
           description: "OK: Successful operation."
@@ -703,10 +1000,10 @@ paths:
         404:
           description: "Not Found: No sources found."
 
-  /source/{handle}:
+  /sources/{handle}:
     get:
       tags:
-      - source
+      - sources
       summary: "Get information about a specific source."
       operationId: getSource
       security:
@@ -716,12 +1013,15 @@ paths:
         in: path
         required: true
         type: string
+        minLength: 8
         description: "The unique identifier for a source."
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -735,8 +1035,10 @@ paths:
       - name: extend
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
       responses:
         200:
           description: "OK: Successful operation."
@@ -748,13 +1050,13 @@ paths:
           description: "Not Found: Source not found."
 
 ##############################################################################
-# Endpoint - Repository
+# Endpoint - Repositories
 ##############################################################################
 
-  /repository:
+  /repositories:
     get:
       tags:
-      - repository
+      - repositories
       summary: "Get information about multiple repositories."
       operationId: getRepositories
       security:
@@ -764,17 +1066,58 @@ paths:
         in: query
         required: false
         type: string
+        minLength: 8
         description: "The unique identifier for a repository."
       - name: gramps_id
         in: query
         required: false
         type: string
         description: "An alternate user managed identifier for a repository, usually but not guaranteed to be unique."
+      - name: filter
+        in: query
+        required: false
+        type: string
+        description: "The name of an existing custom filter to be used when generating the result set."
+      - name: rules
+        in: query
+        required: false
+        type: string
+        description: >
+          A user defined custom filter expression consisting of one of more filter rules to be used when generating the result set.
+
+
+          This filter is built and applied dynamically, it is not saved like a custom filter. It consists of one or more rules acting in combination, some of which can accept custom filters as arguments.
+
+
+          The expression must be provided in JSON format with abbreviated characters used in place of full keywords. A number of fields are not required and have defaults if not present. The structure is defined as follows:
+          
+          
+          {"f": function, "i": invert, "r": [{"n": name, "v": [values], "r": regex}]}
+          
+          
+          The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
+          
+          
+          The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
+          
+          
+          The r indicates that the list provided is the list of rules to be evaluated. It is a mandatory field.
+          
+          
+          The name in the rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
+          
+          
+          The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
+          
+          
+          The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -788,8 +1131,10 @@ paths:
       - name: extend
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
       responses:
         200:
           description: "OK: Successful operation."
@@ -802,10 +1147,10 @@ paths:
         404:
           description: "Not Found: No repositories found."
 
-  /repository/{handle}:
+  /repositories/{handle}:
     get:
       tags:
-      - repository
+      - repositories
       summary: "Get information about a specific repository."
       operationId: getRepository
       security:
@@ -815,12 +1160,15 @@ paths:
         in: path
         required: true
         type: string
+        minLength: 8
         description: "The unique identifier for a repository."
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -834,8 +1182,10 @@ paths:
       - name: extend
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
       responses:
         200:
           description: "OK: Successful operation."
@@ -863,17 +1213,58 @@ paths:
         in: query
         required: false
         type: string
+        minLength: 8
         description: "The unique identifier for a media item."
       - name: gramps_id
         in: query
         required: false
         type: string
         description: "An alternate user managed identifier for a media item, usually but not guaranteed to be unique."
+      - name: filter
+        in: query
+        required: false
+        type: string
+        description: "The name of an existing custom filter to be used when generating the result set."
+      - name: rules
+        in: query
+        required: false
+        type: string
+        description: >
+          A user defined custom filter expression consisting of one of more filter rules to be used when generating the result set.
+
+
+          This filter is built and applied dynamically, it is not saved like a custom filter. It consists of one or more rules acting in combination, some of which can accept custom filters as arguments.
+
+
+          The expression must be provided in JSON format with abbreviated characters used in place of full keywords. A number of fields are not required and have defaults if not present. The structure is defined as follows:
+          
+          
+          {"f": function, "i": invert, "r": [{"n": name, "v": [values], "r": regex}]}
+          
+          
+          The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
+          
+          
+          The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
+          
+          
+          The r indicates that the list provided is the list of rules to be evaluated. It is a mandatory field.
+          
+          
+          The name in the rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
+          
+          
+          The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
+          
+          
+          The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -887,8 +1278,10 @@ paths:
       - name: extend
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
       responses:
         200:
           description: "OK: Successful operation."
@@ -914,12 +1307,15 @@ paths:
         in: path
         required: true
         type: string
+        minLength: 8
         description: "The unique identifier for a media item."
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -933,8 +1329,10 @@ paths:
       - name: extend
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
       responses:
         200:
           description: "OK: Successful operation."
@@ -946,13 +1344,13 @@ paths:
           description: "Not Found: Media item not found."
 
 ##############################################################################
-# Endpoint - Note
+# Endpoint - Notes
 ##############################################################################
 
-  /note:
+  /notes:
     get:
       tags:
-      - note
+      - notes
       summary: "Get information about multiple notes."
       operationId: getNotes
       security:
@@ -962,17 +1360,58 @@ paths:
         in: query
         required: false
         type: string
+        minLength: 8
         description: "The unique identifier for a note."
       - name: gramps_id
         in: query
         required: false
         type: string
         description: "An alternate user managed identifier for a note, usually but not guaranteed to be unique."
+      - name: filter
+        in: query
+        required: false
+        type: string
+        description: "The name of an existing custom filter to be used when generating the result set."
+      - name: rules
+        in: query
+        required: false
+        type: string
+        description: >
+          A user defined custom filter expression consisting of one of more filter rules to be used when generating the result set.
+
+
+          This filter is built and applied dynamically, it is not saved like a custom filter. It consists of one or more rules acting in combination, some of which can accept custom filters as arguments.
+
+
+          The expression must be provided in JSON format with abbreviated characters used in place of full keywords. A number of fields are not required and have defaults if not present. The structure is defined as follows:
+          
+          
+          {"f": function, "i": invert, "r": [{"n": name, "v": [values], "r": regex}]}
+          
+          
+          The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
+          
+          
+          The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
+          
+          
+          The r indicates that the list provided is the list of rules to be evaluated. It is a mandatory field.
+          
+          
+          The name in the rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
+          
+          
+          The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
+          
+          
+          The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -986,8 +1425,10 @@ paths:
       - name: extend
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1000,10 +1441,10 @@ paths:
         404:
           description: "Not Found: No notes found."
 
-  /note/{handle}:
+  /notes/{handle}:
     get:
       tags:
-      - note
+      - notes
       summary: "Get information about a specific note."
       operationId: getNote
       security:
@@ -1013,12 +1454,15 @@ paths:
         in: path
         required: true
         type: string
+        minLength: 8
         description: "The unique identifier for a note."
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -1032,8 +1476,10 @@ paths:
       - name: extend
         in: query
         required: false
-        type: boolean
-        description: "Indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        type: string
+        minLength: 0
+        maxLength: 0    
+        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1045,13 +1491,13 @@ paths:
           description: "Not Found: Note not found."
 
 ##############################################################################
-# Endpoint - Tag
+# Endpoint - Tags
 ##############################################################################
 
-  /tag:
+  /tags:
     get:
       tags:
-      - tag
+      - tags
       summary: "Get information about multiple tags."
       operationId: getTags
       security:
@@ -1061,12 +1507,15 @@ paths:
         in: query
         required: false
         type: string
+        minLength: 8
         description: "The unique identifier for a tag."
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -1089,10 +1538,10 @@ paths:
         404:
           description: "Not Found: No tags found."
 
-  /tag/{handle}:
+  /tags/{handle}:
     get:
       tags:
-      - tag
+      - tags
       summary: "Get information about a specific tag."
       operationId: getTag
       security:
@@ -1102,12 +1551,15 @@ paths:
         in: path
         required: true
         type: string
+        minLength: 8
         description: "The unique identifier for a tag."
       - name: strip
         in: query
         required: false
-        type: boolean
-        description: "Indicates if keys with empty values should be stripped out of the response."
+        type: string
+        minLength: 0
+        maxLength: 0
+        description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
         required: false
@@ -1129,13 +1581,13 @@ paths:
           description: "Not Found: Tag not found."
 
 ##############################################################################
-# Endpoint - Bookmark
+# Endpoint - Bookmarks
 ##############################################################################
 
-  /bookmark:
+  /bookmarks:
     get:
       tags:
-      - bookmark
+      - bookmarks
       summary: "Get a list of bookmark categories."
       operationId: getBookmarkCategories
       security:
@@ -1146,38 +1598,38 @@ paths:
           schema:
             type: object
             properties:
-              categories:
+              namespaces:
                 type: array
                 items:
                   type: string
             example:
-                categories:
-                - citation
-                - event
-                - family
+              namespaces:
+                - citations
+                - events
+                - families
                 - media
-                - note
-                - person
-                - place
-                - repository
-                - source
+                - notes
+                - people
+                - places
+                - repositories
+                - sources
         401:
           description: "Unauthorized: Missing authorization header."
 
-  /bookmark/{category}:
+  /bookmarks/{namespace}:
     get:
       tags:
-      - bookmark
+      - bookmarks
       summary: "Get bookmarks for a given category."
       operationId: getBookmarks
       security:
         - Bearer: []
       parameters:
-      - name: category
+      - name: namespace
         in: path
         required: true
         type: string
-        description: "The category for the bookmarks."
+        description: "The namespace or category for the bookmarks."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1198,13 +1650,131 @@ paths:
           description: "Not Found: Bookmark type not found."
 
 ##############################################################################
-# Endpoint - Translate
+# Endpoint - Filters
 ##############################################################################
-
-  /translate:
+        
+  /filters/{namespace}:
     get:
       tags:
-      - translate
+      - filters
+      summary: "Get custom filters and rules for a given namespace or category."
+      operationId: getFilters
+      security:
+        - Bearer: []
+      parameters:
+      - name: namespace
+        in: path
+        required: true
+        type: string
+        description: "The namespace or category for the filters."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: object
+            properties:
+              filters:
+                type: array
+                items:
+                  $ref: "#/definitions/CustomFilter"
+              rules:
+                type: array
+                items:
+                  $ref: "#/definitions/FilterRuleDescription"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Namespace not found."
+
+    post:
+      tags:
+      - filters
+      summary: "Create a custom filter."
+      operationId: createFilter
+      security:
+        - Bearer: []
+      parameters:
+      - name: namespace
+        in: path
+        required: true
+        type: string
+        description: "The namespace or category for the custom filter."
+      - name: filter
+        in: body
+        required: true
+        description: "The custom filter to create."
+        schema:
+          $ref: "#/definitions/CustomFilter"    
+      responses:
+        200:
+          description: "OK: Successful operation."
+        401:
+          description: "Unauthorized: Missing expected credentials."
+        403:
+          description: "Forbidden: Bad credentials, authentication failed."
+
+    put:
+      tags:
+      - filters
+      summary: "Update a custom filter."
+      operationId: updateFilter
+      security:
+        - Bearer: []
+      parameters:
+      - name: namespace
+        in: path
+        required: true
+        type: string
+        description: "The namespace or category for the custom filter."
+      - name: filter
+        in: body
+        required: true
+        description: "The custom filter to update."
+        schema:
+          $ref: "#/definitions/CustomFilter"    
+      responses:
+        200:
+          description: "OK: Successful operation."
+        401:
+          description: "Unauthorized: Missing expected credentials."
+        403:
+          description: "Forbidden: Bad credentials, authentication failed."
+
+    delete:
+      tags:
+      - filters
+      summary: "Delete a custom filter."
+      operationId: deleteFilter
+      security:
+        - Bearer: []
+      parameters:
+      - name: namespace
+        in: path
+        required: true
+        type: string
+        description: "The namespace or category for the custom filter."
+      - name: filter
+        in: body
+        required: true
+        description: "The custom filter to delete."
+        schema:
+          $ref: "#/definitions/CustomFilterObject"    
+      responses:
+        200:
+          description: "OK: Successful operation."
+        401:
+          description: "Unauthorized: Missing expected credentials."
+        403:
+          description: "Forbidden: Bad credentials, authentication failed."
+        
+##############################################################################
+# Endpoint - Translations
+##############################################################################
+
+  /translations:
+    get:
+      tags:
+      - translations
       summary: "Get information about available translations."
       operationId: getTranslations
       security:
@@ -1219,10 +1789,10 @@ paths:
         401:
           description: "Unauthorized: Missing authorization header."
 
-  /translate/{code}:
+  /translations/{code}:
     get:
       tags:
-      - translate
+      - translations
       summary: "Get a translation in a specific language."
       operationId: getTranslation
       security:
@@ -1237,7 +1807,7 @@ paths:
         in: query
         required: true
         type: string
-        description: "The list of strings to be translated."
+        description: "The list of strings to be translated. These must be provided in JSON format."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1249,13 +1819,13 @@ paths:
           description: "Unauthorized: Missing authorization header."
 
 ##############################################################################
-# Endpoint - Relation
+# Endpoint - Relations
 ##############################################################################
 
-  /relation/{handle1}/{handle2}:
+  /relations/{handle1}/{handle2}:
     get:
       tags:
-      - relation
+      - relations
       summary: "Get relation between two people if one exists."
       operationId: getRelation
       security:
@@ -1305,9 +1875,7 @@ paths:
         200:
           description: "OK: Successful operation."
           schema:
-            type: object
-            items:
-              $ref: "#/definitions/TreeSummary"
+            $ref: "#/definitions/TreeSummary"
         401:
           description: "Unauthorized: Missing authorization header."
 
@@ -1323,9 +1891,7 @@ paths:
         200:
           description: "OK: Successful operation."
           schema:
-            type: object
-            items:
-              $ref: "#/definitions/TreeResearcher"
+            $ref: "#/definitions/TreeResearcher"
         401:
           description: "Unauthorized: Missing authorization header."
 
@@ -1597,7 +2163,7 @@ definitions:
   Person:
     type: object
     required:
-    - handle
+      - handle
     properties:
       address_list:
         description: "A list of addresses for the person if available."
@@ -1836,6 +2402,8 @@ definitions:
 
   PersonReference:
     type: object
+    required:
+      - ref
     properties:
       citation_list:
         description: "A list of handles for citations supporting the association."
@@ -2059,6 +2627,8 @@ definitions:
 
   ChildReference:
     type: object
+    required:
+      - ref
     properties:
       citation_list:
         description: "A list of handles for citations supporting the reference to the child in the family."
@@ -2234,6 +2804,8 @@ definitions:
 
   EventReference:
     type: object
+    required:
+      - ref
     properties:
       attribute_list:
         description: "A list of attributes related to the role of the person in the event."
@@ -2317,6 +2889,8 @@ definitions:
 
   Place:
     type: object
+    required:
+      - handle
     properties:
       alt_loc:
         description: "Alternate locations for the place."
@@ -2466,6 +3040,8 @@ definitions:
 
   PlaceReference:
     type: object
+    required:
+      - ref
     properties:
       date:
         description: "Date of the reference."
@@ -2592,6 +3168,7 @@ definitions:
     type: object
     required:
       - handle
+      - source_handle
     properties:
       attribute_list:
         description: "A list of attributes about the citation."
@@ -2795,6 +3372,8 @@ definitions:
     
   Repository:
     type: object
+    required:
+      - handle
     properties:
       address_list:
         description: "A list of addresses for the repository if available."
@@ -2874,6 +3453,8 @@ definitions:
     
   RepositoryReference:
     type: object
+    required:
+      - ref
     properties:
       call_number:
         description: "Call number for the source at the repository."
@@ -3010,6 +3591,8 @@ definitions:
 
   MediaReference:
     type: object
+    required:
+      - ref
     properties:
       attribute_list:
         description: "A list of attributes related to the media reference."
@@ -3156,6 +3739,8 @@ definitions:
 
   Tag:
     type: object
+    required:
+      - handle
     properties:
       change:
         description: "Time in epoch format the tag record was last modified."
@@ -3203,11 +3788,126 @@ definitions:
         example: "Web Home"
 
 ##############################################################################
+# Model - FilterRuleDescription
+##############################################################################
+
+  FilterRuleDescription:
+    type: object
+    required:
+       - labels
+       - name
+       - rule
+    properties:
+      category:
+        description: "The filter rule category."
+        type: string
+        example: "General filters"
+      description:
+        description: "A description of the filter rule."
+        type: string
+        example: "Matches people with the particular tag"
+      labels:
+        description: "A list of field labels for filter rules that take parameters."
+        type: array
+        items:
+          type: string
+        example:
+          - "Tag:"
+      name:
+        description: "A more concise rule description."
+        type: string
+        example: "People with the <tag>"
+      rule:
+        description: "The name of the filter rule."
+        type: string
+        example: "HasTag"
+
+##############################################################################
+# Model - FilterRule
+##############################################################################
+
+  FilterRule:
+    type: object
+    required:
+      - name
+    properties:
+      name:
+        description: "The name of the filter rule."
+        type: string
+        example: "HasTag"
+      regex:
+        description: "Indicator whether regular expressions used for text searches."
+        type: boolean
+        example: false
+      values:
+        description: "A list of values if the rule requires parameters."
+        type: array
+        items:
+          type: object
+        example:
+          - "Tag:"
+            
+##############################################################################
+# Model - CustomFilter
+##############################################################################
+
+  CustomFilter:
+    type: object
+    required:
+      - function
+      - invert
+      - name
+      - rules   
+    properties:
+      comment:
+        description: "A comment about purpose of the filter."
+        type: string
+        example: "All private males."
+      function:
+        description: "Logical operation to use in evaluating multiple rules. Must be 'and', 'or', 'xor' or 'one'"
+        type: string
+        example: "and"
+      invert:
+        description: "Indicator whether result set should be inverted."
+        type: boolean
+        example: false
+      name:
+        description: "The name of the custom filter."
+        type: string
+        example: "AllPrivateMales"
+      rules:
+        description: "The list of filter rules to apply as part of the filter."
+        type: array
+        items:
+          $ref: "#/definitions/FilterRule"
+
+##############################################################################
+# Model - CustomFilterObject    
+##############################################################################
+
+  CustomFilterObject:
+    type: object
+    required:
+      - name
+    properties:
+      name:
+        type: string
+        description: "Name of the custom rule to delete."
+        example: "MyTestRule"
+      force:
+        type: boolean
+        description: "Indicator to approve deletion of all dependent filters if any exist."
+        example: true
+                         
+##############################################################################
 # Model - Translations
 ##############################################################################
     
   Translations:
     type: object
+    required:
+      - code
+      - language
     properties:
       code:
         description: "The language code."

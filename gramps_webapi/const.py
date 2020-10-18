@@ -33,3 +33,16 @@ PRIMARY_GRAMPS_OBJECTS = {
     "Note": lib.Note,
     "Tag": lib.Tag,
 }
+
+# To map endpoints to Gramps objects
+GRAMPS_NAMESPACES = {
+    "people": "Person",
+    "families": "Family",
+    "events": "Event",
+    "places": "Place",
+    "citations": "Citation",
+    "sources": "Source",
+    "repositories": "Repository",
+    "media": "Media",
+    "notes": "Note",
+}

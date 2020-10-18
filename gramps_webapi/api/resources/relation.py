@@ -54,13 +54,14 @@ class RelationResource(ProtectedResource, GrampsJSONEncoder):
                     }
                 )
                 index = index + 1
-            return self.response(result)
+            return self.response(200, result)
 
         data = calc.get_one_relationship(db_handle, person1, person2, extra_info=True)
         return self.response(
+            200,
             {
                 "relationship_string": data[0],
                 "distance_common_origin": data[1],
                 "distance_common_other": data[2],
-            }
+            },
         )

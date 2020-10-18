@@ -7,6 +7,7 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.db import DbTxn
 from gramps.gen.dbstate import DbState
 from gramps.gen.lib import Person, Surname
+
 from gramps_webapi.app import create_app
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
@@ -48,26 +49,26 @@ class TestPerson(unittest.TestCase):
         cls.dbman.remove_database(cls.name)
 
     def test_person_endpoint(self):
-        rv = self.client.get("/api/person/")
+        rv = self.client.get("/api/people/")
         # no authorization header!
         assert rv.status_code == 401
         # fetch a token and try again
         rv = self.client.post("/api/login/", data={"username": "user", "password": 123})
         token = rv.json["access_token"]
         rv = self.client.get(
-            "/api/person/",
+            "/api/people/",
             headers={"Authorization": "Bearer {}".format(token)},
         )
         assert rv.status_code == 200
         it = rv.json[0]
-        rv = self.client.get("/api/person/" + it["handle"] + "?profile=1")
+        rv = self.client.get("/api/people/" + it["handle"] + "?profile")
         # no authorization header!
         assert rv.status_code == 401
         # fetch a token and try again
         rv = self.client.post("/api/login/", data={"username": "user", "password": 123})
         token = rv.json["access_token"]
         rv = self.client.get(
-            "/api/person/" + it["handle"] + "?profile=1",
+            "/api/people/" + it["handle"] + "?profile",
             headers={"Authorization": "Bearer {}".format(token)},
         )
         assert rv.status_code == 200

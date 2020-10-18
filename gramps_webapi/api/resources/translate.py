@@ -29,10 +29,11 @@ class TranslationResource(ProtectedResource, GrampsJSONEncoder):
 
         gramps_locale = GrampsLocale(lang=code)
         return self.response(
+            200,
             [
                 {"original": s, "translation": gramps_locale.translation.sgettext(s)}
                 for s in strings
-            ]
+            ],
         )
 
 
@@ -43,5 +44,6 @@ class TranslationsResource(ProtectedResource, GrampsJSONEncoder):
         """Get available translations."""
         catalog = GRAMPS_LOCALE.get_language_dict()
         return self.response(
-            [{"language": language, "code": catalog[language]} for language in catalog]
+            200,
+            [{"language": language, "code": catalog[language]} for language in catalog],
         )

@@ -24,11 +24,11 @@ class PersonResourceHelper(GrampsObjectResourceHelper):
     def object_extend(self, obj: Person, args: Dict) -> Person:
         """Extend person attributes as needed."""
         db_handle = self.db_handle
-        if args["profile"]:
+        if "profile" in args:
             obj.profile = get_person_profile_for_object(
                 db_handle, obj, with_family=True, with_events=True
             )
-        if args["extend"]:
+        if "extend" in args:
             obj.extended = get_extended_attributes(db_handle, obj)
             obj.extended.update(
                 {

@@ -32,11 +32,11 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
             data = db_handle.get_summary()
             for item in data:
                 summary[item.replace(" ", "_").lower()] = data[item]
-            return self.response(summary)
+            return self.response(200, summary)
         if datatype == "researcher":
-            return self.response(db_handle.get_researcher())
+            return self.response(200, db_handle.get_researcher())
         if datatype == "surnames":
-            return self.response(db_handle.get_surname_list())
+            return self.response(200, db_handle.get_surname_list())
         if datatype == "types":
             if args.get("type"):
                 if args["type"] == "event_attribute":
@@ -72,7 +72,7 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 elif args["type"] == "place":
                     result = db_handle.get_place_types()
                 else:
-                    return abort(404)
+                    abort(404)
             else:
                 result = [
                     "event_attribute",
@@ -92,5 +92,5 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                     "url",
                     "place",
                 ]
-            return self.response(result)
+            return self.response(200, result)
         abort(404)

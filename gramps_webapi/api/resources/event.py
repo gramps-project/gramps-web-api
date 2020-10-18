@@ -24,9 +24,9 @@ class EventResourceHelper(GrampsObjectResourceHelper):
     def object_extend(self, obj: Event, args: Dict) -> Event:
         """Extend event attributes as needed."""
         db_handle = self.db_handle
-        if args["profile"]:
+        if "profile" in args:
             obj.profile = get_event_profile_for_object(db_handle, obj)
-        if args["extend"]:
+        if "extend" in args:
             obj.extended = get_extended_attributes(db_handle, obj)
             obj.extended["place"] = get_place_by_handle(db_handle, obj.place)
         return obj
