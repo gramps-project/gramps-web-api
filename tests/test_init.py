@@ -9,5 +9,6 @@ from . import ExampleDb
 
 class TestExampleDb(unittest.TestCase):
     def test_example_db(self):
-        db = ExampleDb().load()
-        self.assertIsInstance(db, DbReadBase)
+        db = ExampleDb()
+        self.assertIsInstance(db.load(), DbReadBase)
+        db.close()
