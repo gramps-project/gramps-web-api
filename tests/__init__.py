@@ -40,7 +40,7 @@ class ExampleDbBase:
                     " found at {}".format(os.path.dirname(self.path_gz))
                 )
             self.path = self._extract_to_tempfile()
-        self.tmp_dbdir: Optional[str] = None
+        self.tmp_dbdir = None
         self.old_path = None
 
     def _extract_to_tempfile(self) -> str:
