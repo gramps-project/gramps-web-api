@@ -93,7 +93,7 @@ def build_filter(filter_parms: Dict, namespace: str, keys="short") -> GenericFil
             if rkey in filter_rule:
                 filter_regex = filter_rule[rkey]
         filter_object.add_rule(rule_instance(filter_args, use_regex=filter_regex))
-        return filter_object
+    return filter_object
 
 
 def apply_filter(db_handle: DbReadBase, args: Dict, namespace: str) -> List[Handle]:
