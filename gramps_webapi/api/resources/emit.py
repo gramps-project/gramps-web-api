@@ -1,7 +1,7 @@
 """Gramps Json Encoder."""
 
 import inspect
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import gramps.gen.lib as lib
 from flask import Response
@@ -26,11 +26,15 @@ class GrampsJSONEncoder(JSONEncoder):
             getattr(lib, key) for key, value in inspect.getmembers(lib, inspect.isclass)
         ]
 
-    def response(self, payload: Any, args: Dict = {}) -> Response:
-        # pylint:disable=dangerous-default-value
+    def response(
+        self, status: int = 200, payload: Any = {}, args: Optional[Dict] = None
+    ) -> Response:
         """Prepare response."""
+        args = args or {}
         if "strip" in args:
-            self.strip_empty_keys = args["strip"]
+            self.strip_empty_keys = True
+        else:
+            self.strip_empty_keys = False
         if "keys" in args:
             self.filter_only_keys = args["keys"]
         if "skipkeys" in args:
@@ -38,7 +42,7 @@ class GrampsJSONEncoder(JSONEncoder):
 
         return Response(
             response=self.encode(payload),
-            status=200,
+            status=status,
             mimetype="application/json",
         )
 

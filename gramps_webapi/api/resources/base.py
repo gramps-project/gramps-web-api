@@ -7,12 +7,14 @@ from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
-from webargs import fields
+from webargs import fields, validate
 from webargs.flaskparser import use_args
 
 from ..util import get_dbstate
 from . import ProtectedResource, Resource
 from .emit import GrampsJSONEncoder
+from .filters import apply_filter
+from .util import get_extended_attributes
 
 
 class GrampsObjectResourceHelper(GrampsJSONEncoder):
@@ -23,9 +25,11 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
     def gramps_class_name(self):
         """To be set on child classes."""
 
-    @abstractmethod
     def object_extend(self, obj: GrampsObject, args: Dict) -> GrampsObject:
         """Extend the base object attributes as needed."""
+        if "extend" in args:
+            obj.extended = get_extended_attributes(self.db_handle, obj)
+        return obj
 
     @property
     def db_handle(self) -> DbReadBase:
@@ -52,11 +56,11 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
 
     @use_args(
         {
-            "strip": fields.Boolean(missing=False),
-            "keys": fields.DelimitedList(fields.Str()),
+            "strip": fields.Str(validate=validate.Length(equal=0)),
+            "keys": fields.DelimitedList(fields.Str(), missing=[]),
             "skipkeys": fields.DelimitedList(fields.Str(), missing=[]),
-            "profile": fields.Boolean(missing=False),
-            "extend": fields.Boolean(missing=False),
+            "profile": fields.Str(validate=validate.Length(equal=0)),
+            "extend": fields.Str(validate=validate.Length(equal=0)),
         },
         location="query",
     )
@@ -65,8 +69,8 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         try:
             obj = self.get_object_from_handle(handle)
         except HandleError:
-            return abort(404)
-        return self.response(self.object_extend(obj, args), args)
+            abort(404)
+        return self.response(200, self.object_extend(obj, args), args)
 
 
 class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
@@ -74,13 +78,15 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
 
     @use_args(
         {
-            "gramps_id": fields.Str(),
-            "handle": fields.Str(),
-            "strip": fields.Boolean(missing=False),
-            "keys": fields.DelimitedList(fields.Str()),
+            "gramps_id": fields.Str(validate=validate.Length(min=1)),
+            "handle": fields.Str(validate=validate.Length(min=1)),
+            "strip": fields.Str(validate=validate.Length(equal=0)),
+            "keys": fields.DelimitedList(fields.Str(), missing=[]),
             "skipkeys": fields.DelimitedList(fields.Str(), missing=[]),
-            "profile": fields.Boolean(missing=False),
-            "extend": fields.Boolean(missing=False),
+            "profile": fields.Str(validate=validate.Length(equal=0)),
+            "extend": fields.Str(validate=validate.Length(equal=0)),
+            "filter": fields.Str(validate=validate.Length(min=1)),
+            "rules": fields.Str(validate=validate.Length(min=1)),
         },
         location="query",
     )
@@ -89,19 +95,24 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         if "gramps_id" in args:
             obj = self.get_object_from_gramps_id(args["gramps_id"])
             if obj is None:
-                return abort(404)
-            return self.response([self.object_extend(obj, args)], args)
-        if "handle" in args:
-            try:
-                obj = self.get_object_from_handle(args["handle"])
-            except HandleError:
-                return abort(404)
-            return self.response([self.object_extend(obj, args)], args)
-        iter_method = self.db_handle.method("iter_%s_handles", self.gramps_class_name)
+                abort(404)
+            return self.response(200, [self.object_extend(obj, args)], args)
         query_method = self.db_handle.method(
             "get_%s_from_handle", self.gramps_class_name
         )
+        if "filter" in args or "rules" in args:
+            handle_list = apply_filter(self.db_handle, args, self.gramps_class_name)
+            return self.response(
+                200,
+                [
+                    self.object_extend(query_method(handle), args)
+                    for handle in handle_list
+                ],
+                args,
+            )
+        iter_method = self.db_handle.method("iter_%s_handles", self.gramps_class_name)
         return self.response(
+            200,
             [
                 self.object_extend(query_method(handle), args)
                 for handle in iter_method()

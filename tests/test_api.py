@@ -3,16 +3,16 @@
 import unittest
 from unittest.mock import patch
 
-from pkg_resources import resource_filename
-
 import yaml
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.db import DbTxn
 from gramps.gen.dbstate import DbState
 from gramps.gen.lib import Person, Surname
+from jsonschema import validate
+from pkg_resources import resource_filename
+
 from gramps_webapi.app import create_app
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_CONFIG
-from jsonschema import validate
 
 
 def _add_person(gender, first_name, surname, trans, db):
@@ -49,11 +49,11 @@ class TestPerson(unittest.TestCase):
         cls.dbman.remove_database(cls.name)
 
     def test_person_endpoint_404(self):
-        rv = self.client.get("/api/person/does_not_exist")
+        rv = self.client.get("/api/people/does_not_exist")
         assert rv.status_code == 404
 
     def test_people_endpoint(self):
-        rv = self.client.get("/api/person/?profile=1")
+        rv = self.client.get("/api/people/?profile")
         it = rv.json[0]
         assert len(it["handle"]) > 20
         assert isinstance(it["change"], int)
@@ -63,7 +63,7 @@ class TestPerson(unittest.TestCase):
         assert it["gender"] == 1  # male
         assert it["birth_ref_index"] == -1
         assert it["death_ref_index"] == -1
-        rv = self.client.get("/api/person/?gramps_id=person001&profile=1")
+        rv = self.client.get("/api/people/?gramps_id=person001&profile")
         it = rv.json[0]
         assert len(it["handle"]) > 20
         assert isinstance(it["change"], int)
@@ -75,9 +75,9 @@ class TestPerson(unittest.TestCase):
         assert it["death_ref_index"] == -1
 
     def test_person_endpoint(self):
-        rv = self.client.get("/api/person/")
+        rv = self.client.get("/api/people/")
         it = rv.json[0]
-        rv = self.client.get("/api/person/" + it["handle"] + "?profile=1")
+        rv = self.client.get("/api/people/" + it["handle"] + "?profile")
         assert len(rv.json["handle"]) > 20
         assert isinstance(rv.json["change"], int)
         assert rv.json["gramps_id"] == "person001"
@@ -101,5 +101,5 @@ class TestPerson(unittest.TestCase):
         with open(resource_filename("gramps_webapi", "data/apispec.yaml")) as f:
             api_schema = yaml.safe_load(f)
         person_schema = api_schema["definitions"]["Person"]
-        for person in self.client.get("/api/person/").json:
+        for person in self.client.get("/api/people/").json:
             validate(instance=person, schema=person_schema)

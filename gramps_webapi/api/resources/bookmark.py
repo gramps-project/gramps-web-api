@@ -16,30 +16,30 @@ class BookmarkResource(ProtectedResource, GrampsJSONEncoder):
         """Get the database instance."""
         return get_dbstate().db
 
-    def get(self, category: str) -> Response:
-        """Get list of bookmarks by category."""
+    def get(self, namespace: str) -> Response:
+        """Get list of bookmarks by namespace."""
         db_handle = self.db_handle
-        if category == "person":
+        if namespace == "people":
             result = db_handle.get_bookmarks()
-        elif category == "family":
+        elif namespace == "families":
             result = db_handle.get_family_bookmarks()
-        elif category == "media":
+        elif namespace == "media":
             result = db_handle.get_media_bookmarks()
-        elif category == "event":
+        elif namespace == "events":
             result = db_handle.get_event_bookmarks()
-        elif category == "citation":
+        elif namespace == "citations":
             result = db_handle.get_citation_bookmarks()
-        elif category == "note":
+        elif namespace == "notes":
             result = db_handle.get_note_bookmarks()
-        elif category == "place":
+        elif namespace == "places":
             result = db_handle.get_place_bookmarks()
-        elif category == "source":
+        elif namespace == "sources":
             result = db_handle.get_source_bookmarks()
-        elif category == "repository":
+        elif namespace == "repositories":
             result = db_handle.get_repo_bookmarks()
         else:
-            return abort(404)
-        return self.response(result)
+            abort(404)
+        return self.response(200, result)
 
 
 class BookmarksResource(ProtectedResource, GrampsJSONEncoder):
@@ -48,17 +48,18 @@ class BookmarksResource(ProtectedResource, GrampsJSONEncoder):
     def get(self) -> Response:
         """Get the list of bookmark types."""
         return self.response(
+            200,
             {
-                "categories": [
-                    "citation",
-                    "event",
-                    "family",
+                "namespaces": [
+                    "citations",
+                    "events",
+                    "families",
                     "media",
-                    "note",
-                    "person",
-                    "place",
-                    "repository",
-                    "source",
+                    "notes",
+                    "people",
+                    "places",
+                    "repositories",
+                    "sources",
                 ]
-            }
+            },
         )
