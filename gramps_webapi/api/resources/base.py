@@ -97,12 +97,6 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             if obj is None:
                 abort(404)
             return self.response(200, [self.object_extend(obj, args)], args)
-        if "handle" in args:
-            try:
-                obj = self.get_object_from_handle(args["handle"])
-            except HandleError:
-                abort(404)
-            return self.response(200, [self.object_extend(obj, args)], args)
         query_method = self.db_handle.method(
             "get_%s_from_handle", self.gramps_class_name
         )

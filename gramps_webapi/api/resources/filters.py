@@ -28,70 +28,80 @@ _RULES_LOOKUP = {
     "Note": filters.rules.note.editor_rule_list,
 }
 
-# The dict used to define a filter is structured with either short or long keys for
-# use in query parms or a post or put body as follows:
-#
-# {
-#     "n": name,              # Filter name
-#     "c": comment,           # Filter comment
-#     "f": function,          # Logical operation: 'and', 'or', 'xor', or 'one'
-#     "i": invert,            # Boolean indicator to invert result set, default False
-#     "r": [                  # List of rules to apply as part of the filter
-#         {
-#             "n": name,      # Class name of the rule
-#             "v": [],        # Values for the rule, default empty list
-#             "r": regex      # Boolean indicator to treat as regex, default False
-#         }
-#     ]
-# }
 
-_FILTER_KEYS = {
-    "short": {
-        "comment": "c",
-        "function": "f",
-        "invert": "i",
-        "name": "n",
-        "rules": "r",
-        "values": "v",
-    },
-    "long": {
-        "comment": "comment",
-        "function": "function",
-        "invert": "invert",
-        "name": "name",
-        "rules": "rules",
-        "values": "values",
-    },
-}
+def get_filter_rules(args: Dict[str, str], namespace: str) -> List[Dict]:
+    """Return a list of available filter rules for a namespace."""
+    rule_list = []
+    for rule_class in _RULES_LOOKUP[namespace]:
+        add_rule = True
+        if args.get("rule") and args["rule"] != rule_class.__name__:
+            add_rule = False
+        if add_rule:
+            rule_list.append(
+                {
+                    "category": rule_class.category,
+                    "description": rule_class.description,
+                    "labels": rule_class.labels,
+                    "name": rule_class.name,
+                    "rule": rule_class.__name__,
+                }
+            )
+    return rule_list
 
 
-def build_filter(filter_parms: Dict, namespace: str, keys="short") -> GenericFilter:
+def get_custom_filters(args: Dict[str, str], namespace: str) -> List[Dict]:
+    """Return a list of custom filters for a namespace."""
+    filter_list = []
+    filters.reload_custom_filters()
+    for filter_class in filters.CustomFilters.get_filters(namespace):
+        add_filter = True
+        if args.get("filter") and args["filter"] != filter_class.get_name():
+            add_filter = False
+        if add_filter:
+            filter_list.append(
+                {
+                    "comment": filter_class.get_comment(),
+                    "function": filter_class.get_logical_op(),
+                    "invert": filter_class.invert,
+                    "name": filter_class.get_name(),
+                    "rules": [
+                        {
+                            "name": filter_rule.__class__.__name__,
+                            "regex": filter_rule.use_regex,
+                            "values": filter_rule.values(),
+                        }
+                        for filter_rule in filter_class.get_rules()
+                    ],
+                }
+            )
+    return filter_list
+
+
+def build_filter(filter_parms: Dict, namespace: str) -> GenericFilter:
     """Build and return a filter object."""
-    key = _FILTER_KEYS[keys]
     filter_object = filters.GenericFilterFactory(namespace)()
-    if key["name"] in filter_parms:
-        filter_object.set_name(filter_parms[key["name"]])
-    if key["comment"] in filter_parms:
-        filter_object.set_comment(filter_parms[key["comment"]])
-    if key["function"] in filter_parms:
-        filter_object.set_logical_op(filter_parms[key["function"]])
-    if key["invert"] in filter_parms:
-        filter_object.set_invert(filter_parms[key["invert"]])
-    for filter_rule in filter_parms[key["rules"]]:
+    if "name" in filter_parms:
+        filter_object.set_name(filter_parms["name"])
+    if "comment" in filter_parms:
+        filter_object.set_comment(filter_parms["comment"])
+    if "function" in filter_parms:
+        filter_object.set_logical_op(filter_parms["function"])
+    if "invert" in filter_parms:
+        filter_object.set_invert(filter_parms["invert"])
+    for filter_rule in filter_parms["rules"]:
         rule_instance = None
         for rule_class in _RULES_LOOKUP[namespace]:
-            if filter_rule[key["name"]] == rule_class.__name__:
+            if filter_rule["name"] == rule_class.__name__:
                 rule_instance = rule_class
                 break
         if rule_instance is None:
             abort(400)
         filter_args = []
-        if key["values"] in filter_rule:
-            filter_args = filter_rule[key["values"]]
+        if "values" in filter_rule:
+            filter_args = filter_rule["values"]
         filter_regex = False
-        for rkey in ["r", "regex"]:
-            if rkey in filter_rule:
-                filter_regex = filter_rule[rkey]
+        if "regex" in filter_rule:
+            filter_regex = filter_rule["regex"]
         filter_object.add_rule(rule_instance(filter_args, use_regex=filter_regex))
     return filter_object
 
@@ -106,18 +116,18 @@ def apply_filter(db_handle: DbReadBase, args: Dict, namespace: str) -> List[Hand
         abort(400)
 
     try:
-        filter_parms = QueryFilterSchema().load(json.loads(args["rules"]))
+        filter_parms = FilterSchema().load(json.loads(args["rules"]))
     except json.JSONDecodeError:
         abort(400)
     except ValidationError:
         abort(400)
 
-    filter_object = build_filter(filter_parms, namespace, keys="short")
+    filter_object = build_filter(filter_parms, namespace)
     return filter_object.apply(db_handle)
 
 
 class RuleSchema(Schema):
-    """Structure for a rule."""
+    """Structure for a filter rule."""
 
     name = fields.Str(required=True, validate=validate.Length(min=1))
     values = fields.List(fields.Raw, required=False)
@@ -127,8 +137,6 @@ class RuleSchema(Schema):
 class FilterSchema(Schema):
     """Structure for a filter."""
 
-    name = fields.Str(required=True, validate=validate.Length(min=1))
-    comment = fields.Str(required=False)
     function = fields.Str(
         required=False,
         missing="and",
@@ -138,24 +146,11 @@ class FilterSchema(Schema):
     rules = fields.List(fields.Nested(RuleSchema))
 
 
-class QueryRuleSchema(Schema):
-    """Structure for validating a rule embedded in query parms."""
+class CustomFilterSchema(FilterSchema):
+    """Structure for a custom filter."""
 
-    n = fields.Str(required=True, validate=validate.Length(min=1))
-    v = fields.List(fields.Raw, required=False)
-    r = fields.Boolean(required=False, missing=False)
-
-
-class QueryFilterSchema(Schema):
-    """Structure for validating a filter embedded in query parms."""
-
-    f = fields.Str(
-        required=False,
-        missing="and",
-        validate=validate.OneOf(["and", "or", "xor", "one"]),
-    )
-    i = fields.Boolean(required=False, missing=False)
-    r = fields.List(fields.Nested(QueryRuleSchema))
+    name = fields.Str(required=True, validate=validate.Length(min=1))
+    comment = fields.Str(required=False)
 
 
 class FilterResource(ProtectedResource, GrampsJSONEncoder):
@@ -165,58 +160,22 @@ class FilterResource(ProtectedResource, GrampsJSONEncoder):
         {"filter": fields.Str(), "rule": fields.Str()},
         location="query",
     )
-    def get(self, args: Dict, namespace: str) -> Response:
+    def get(self, args: Dict[str, str], namespace: str) -> Response:
         """Get available custom filters and rules."""
         try:
             namespace = GRAMPS_NAMESPACES[namespace]
         except KeyError:
             abort(400)
 
-        rule_list = []
-        for rule_class in _RULES_LOOKUP[namespace]:
-            add_rule = True
-            if args.get("rule") and args["rule"] != rule_class.__name__:
-                add_rule = False
-            if add_rule:
-                rule_list.append(
-                    {
-                        "category": rule_class.category,
-                        "description": rule_class.description,
-                        "labels": rule_class.labels,
-                        "name": rule_class.name,
-                        "rule": rule_class.__name__,
-                    }
-                )
+        rule_list = get_filter_rules(args, namespace)
         if args.get("rule") and not args.get("filter"):
             return self.response(200, {"rules": rule_list})
-        filter_list = []
-        filters.reload_custom_filters()
-        for filter_class in filters.CustomFilters.get_filters(namespace):
-            add_filter = True
-            if args.get("filter") and args["filter"] != filter_class.get_name():
-                add_filter = False
-            if add_filter:
-                filter_list.append(
-                    {
-                        "comment": filter_class.get_comment(),
-                        "function": filter_class.get_logical_op(),
-                        "invert": filter_class.invert,
-                        "name": filter_class.get_name(),
-                        "rules": [
-                            {
-                                "name": filter_rule.__class__.__name__,
-                                "regex": filter_rule.use_regex,
-                                "values": filter_rule.values(),
-                            }
-                            for filter_rule in filter_class.get_rules()
-                        ],
-                    }
-                )
+        filter_list = get_custom_filters(args, namespace)
         if args.get("filter") and not args.get("rule"):
             return self.response(200, {"filters": filter_list})
         return self.response(200, {"filters": filter_list, "rules": rule_list})
 
-    @use_args(FilterSchema(), location="json")
+    @use_args(CustomFilterSchema(), location="json")
     def post(self, args: Dict, namespace: str) -> Response:
         """Create a custom filter."""
         try:
@@ -224,7 +183,7 @@ class FilterResource(ProtectedResource, GrampsJSONEncoder):
         except KeyError:
             abort(404)
 
-        new_filter = build_filter(args, namespace, keys="long")
+        new_filter = build_filter(args, namespace)
         filters.reload_custom_filters()
         for filter_rule in filters.CustomFilters.get_filters(namespace):
             if new_filter.get_name() == filter_rule.get_name():
@@ -233,7 +192,7 @@ class FilterResource(ProtectedResource, GrampsJSONEncoder):
         filters.CustomFilters.save()
         return self.response(201, {"message": "Added filter: " + new_filter.get_name()})
 
-    @use_args(FilterSchema(), location="json")
+    @use_args(CustomFilterSchema(), location="json")
     def put(self, args: Dict, namespace: str) -> Response:
         """Update a custom filter."""
         try:
@@ -241,7 +200,7 @@ class FilterResource(ProtectedResource, GrampsJSONEncoder):
         except KeyError:
             abort(404)
 
-        new_filter = build_filter(args, namespace, keys="long")
+        new_filter = build_filter(args, namespace)
         filters.reload_custom_filters()
         for filter_rule in filters.CustomFilters.get_filters(namespace):
             if new_filter.get_name() == filter_rule.get_name():
