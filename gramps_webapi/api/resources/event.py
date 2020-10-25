@@ -28,11 +28,7 @@ class EventResourceHelper(GrampsObjectResourceHelper):
             obj.profile = get_event_profile_for_object(db_handle, obj)
         if "extend" in args:
             obj.extended = get_extended_attributes(db_handle, obj, args)
-            if (
-                "all" in args["extend"]
-                or "" in args["extend"]
-                or "place" in args["extend"]
-            ):
+            if "all" in args["extend"] or "place" in args["extend"]:
                 obj.extended["place"] = get_place_by_handle(db_handle, obj.place)
         return obj
 

@@ -60,7 +60,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             "keys": fields.DelimitedList(fields.Str(), missing=[]),
             "skipkeys": fields.DelimitedList(fields.Str(), missing=[]),
             "profile": fields.Str(validate=validate.Length(equal=0)),
-            "extend": fields.DelimitedList(fields.Str()),
+            "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
         },
         location="query",
     )
@@ -83,7 +83,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             "keys": fields.DelimitedList(fields.Str(), missing=[]),
             "skipkeys": fields.DelimitedList(fields.Str(), missing=[]),
             "profile": fields.Str(validate=validate.Length(equal=0)),
-            "extend": fields.DelimitedList(fields.Str()),
+            "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "filter": fields.Str(validate=validate.Length(min=1)),
             "rules": fields.Str(validate=validate.Length(min=1)),
         },

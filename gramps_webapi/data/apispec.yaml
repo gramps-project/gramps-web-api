@@ -213,10 +213,7 @@ paths:
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
     
-          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
-
-    
-          For a person the possible keys are: 
+          Accepts a comma delimited list of possible keys on which it will operate. For people the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
@@ -288,10 +285,7 @@ paths:
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
     
-          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
-
-
-          For a person the possible keys are: 
+          Accepts a comma delimited list of keys on which it will operate. For a person the possible keys are: 
             Key | Records
             --- | -------
             all | Returns all possible records listed below
@@ -402,10 +396,7 @@ paths:
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
     
-          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
-
-
-          For a family the possible keys are:
+          Accepts a comma delimited list of keys on which it will operate. For families the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
@@ -476,10 +467,7 @@ paths:
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
     
-          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
-
-
-          For a family the possible keys are:
+          Accepts a comma delimited list of keys on which it will operate. For a family the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
@@ -589,10 +577,7 @@ paths:
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
     
-          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
-
-
-          For an event the possible keys are:
+          Accepts a comma delimited list of keys on which it will operate. For events the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
@@ -660,10 +645,7 @@ paths:
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
     
-          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
-
-
-          For an event the possible keys are:
+          Accepts a comma delimited list of keys on which it will operate. For an event the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
@@ -763,10 +745,7 @@ paths:
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
     
-          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
-
-
-          For a place the possible keys are:
+          Accepts a comma delimited list of keys on which it will operate. For places the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
@@ -826,10 +805,7 @@ paths:
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
     
-          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
-
-
-          For a place the possible keys are:
+          Accepts a list of comma delimited keys on which it will operate. For a place the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
@@ -928,10 +904,7 @@ paths:
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
     
-          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
-
-
-          For a citation the possible keys are:
+          Accepts a comma delimited list of keys on which it will operate. For citations the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
@@ -991,10 +964,7 @@ paths:
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
     
-          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
-
-
-          For a citation the possible keys are:
+          Accepts a comma delimited list of keys on which it will operate. For a citation the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
@@ -1093,10 +1063,7 @@ paths:
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
     
-          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
-
-
-          For a source the possible keys are:
+          Accepts a comma delimited list of keys on which it will operate. For sources the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
@@ -1156,10 +1123,7 @@ paths:
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
     
-          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
-
-
-          For a source the possible keys are:
+          Accepts a comma delimited list of keys on which it will operate. For a source the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
@@ -1258,10 +1222,7 @@ paths:
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
     
-          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
-
-
-          For a repository the possible keys are:
+          Accepts a comma delimited list of keys on which it will operate. For repositories the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
@@ -1319,10 +1280,7 @@ paths:
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
     
-          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
-
-
-          For a repository the possible keys are:
+          Accepts a comma delimited list of keys on which it will operate. For a repository the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
@@ -1419,10 +1377,7 @@ paths:
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
     
-          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
-
-
-          For a repository the possible keys are:
+          Accepts a comma delimited list of keys on which it will operate. For media items the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
@@ -1481,10 +1436,7 @@ paths:
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
     
-          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
-
-
-          For a repository the possible keys are:
+          Accepts a comma delimited list of keys on which it will operate. For a media item the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
@@ -1582,10 +1534,7 @@ paths:
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
     
-          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
-
-
-          For a note the possible keys are:
+          Accepts a comma delimited list of keys on which it will operate. For notes the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
@@ -1642,10 +1591,7 @@ paths:
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
     
-          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
-
-
-          For a note the possible keys are:
+          Accepts a comma delimited list of keys on which it will operate. For a note the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below

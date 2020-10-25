@@ -51,17 +51,9 @@ def get_family_by_handle(
     args = args or {}
     if "extend" in args:
         obj.extended = get_extended_attributes(db_handle, obj, args)
-        if (
-            "all" in args["extend"]
-            or "" in args["extend"]
-            or "father" in args["extend"]
-        ):
+        if "all" in args["extend"] or "father" in args["extend"]:
             obj.extended["father"] = get_person_by_handle(db_handle, obj.father_handle)
-        if (
-            "all" in args["extend"]
-            or "" in args["extend"]
-            or "mother" in args["extend"]
-        ):
+        if "all" in args["extend"] or "mother" in args["extend"]:
             obj.extended["mother"] = get_person_by_handle(db_handle, obj.mother_handle)
     return obj
 
@@ -238,7 +230,7 @@ def get_extended_attributes(
     args = args or {}
     result = {}
     do_all = False
-    if "all" in args["extend"] or "" in args["extend"]:
+    if "all" in args["extend"]:
         do_all = True
     if (do_all or "child_ref_list" in args["extend"]) and hasattr(
         obj, "child_ref_list"
