@@ -209,9 +209,26 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the notes records, this will return the actual records in a separate extended section."
+        description: >
+          Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
+
+    
+          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
+
+    
+          For a person the possible keys are: 
+            Key | Records
+            --- | -------
+            all | Returns all possible records listed below
+            citation_list | The list of citation records
+            event_ref_list | The list of referenced event records
+            families | The list of family records
+            media_list | The list of referenced media items
+            note_list | The list of note records
+            parent_families | The list of parent family records
+            person_ref_list | The list of referenced person records
+            primary_parent_family | The primary parent family record
+            tag_list | The list of tags
       responses:
         200:
           description: "OK: Successful operation."
@@ -267,9 +284,26 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the notes records, this will return the actual records in a separate extended section."
+        description: >
+          Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
+
+    
+          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
+
+
+          For a person the possible keys are: 
+            Key | Records
+            --- | -------
+            all | Returns all possible records listed below
+            citation_list | The list of citation records
+            event_ref_list | The list of referenced event records
+            families | The list of family records
+            media_list | The list of referenced media items
+            note_list | The list of note records
+            parent_families | The list of parent family records
+            person_ref_list | The list of referenced person records
+            primary_parent_family | The primary parent family record
+            tag_list | The list of tags
       responses:
         200:
           description: "OK: Successful operation."
@@ -364,9 +398,25 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the notes records, this will return the actual records in a separate extended section."
+        description: >
+          Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
+
+    
+          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
+
+
+          For a family the possible keys are:
+            Key | Records
+            --- | -------
+            all | Returns all possible records listed below
+            child_ref_list | The list of referenced children records
+            citation_list | The list of citation records
+            event_ref_list | The list of referenced event records
+            father | The person record of the father
+            media_list | The list of referenced media items
+            mother | The person record of the mother
+            note_list | The list of note records
+            tag_list | The list of tags
       responses:
         200:
           description: "OK: Successful operation."
@@ -422,9 +472,25 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the notes records, this will return the actual records in a separate extended section."
+        description: >
+          Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
+
+    
+          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
+
+
+          For a family the possible keys are:
+            Key | Records
+            --- | -------
+            all | Returns all possible records listed below
+            child_ref_list | The list of referenced children records
+            citation_list | The list of citation records
+            event_ref_list | The list of referenced event records
+            father | The person record of the father
+            media_list | The list of referenced media items
+            mother | The person record of the mother
+            note_list | The list of note records
+            tag_list | The list of tags
       responses:
         200:
           description: "OK: Successful operation."
@@ -519,9 +585,22 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        description: >
+          Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
+
+    
+          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
+
+
+          For an event the possible keys are:
+            Key | Records
+            --- | -------
+            all | Returns all possible records listed below
+            citation_list | The list of citation records
+            media_list | The list of referenced media items
+            note_list | The list of note records
+            place | The place record for the event
+            tag_list | The list of tags
       responses:
         200:
           description: "OK: Successful operation."
@@ -577,9 +656,22 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        description: >
+          Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
+
+    
+          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
+
+
+          For an event the possible keys are:
+            Key | Records
+            --- | -------
+            all | Returns all possible records listed below
+            citation_list | The list of citation records
+            media_list | The list of referenced media items
+            note_list | The list of note records
+            place | The place record for the event
+            tag_list | The list of tags
       responses:
         200:
           description: "OK: Successful operation."
@@ -667,9 +759,21 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        description: >
+          Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
+
+    
+          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
+
+
+          For a place the possible keys are:
+            Key | Records
+            --- | -------
+            all | Returns all possible records listed below
+            citation_list | The list of citation records
+            media_list | The list of referenced media items
+            note_list | The list of note records
+            tag_list | The list of tags
       responses:
         200:
           description: "OK: Successful operation."
@@ -718,9 +822,21 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0    
-        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        description: >
+          Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
+
+    
+          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
+
+
+          For a place the possible keys are:
+            Key | Records
+            --- | -------
+            all | Returns all possible records listed below
+            citation_list | The list of citation records
+            media_list | The list of referenced media items
+            note_list | The list of note records
+            tag_list | The list of tags
       responses:
         200:
           description: "OK: Successful operation."
@@ -808,9 +924,21 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0    
-        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        description: >
+          Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
+
+    
+          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
+
+
+          For a citation the possible keys are:
+            Key | Records
+            --- | -------
+            all | Returns all possible records listed below
+            media_list | The list of referenced media items
+            note_list | The list of note records
+            source | The source record cited from
+            tag_list | The list of tags
       responses:
         200:
           description: "OK: Successful operation."
@@ -859,9 +987,21 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0    
-        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        description: >
+          Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
+
+    
+          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
+
+
+          For a citation the possible keys are:
+            Key | Records
+            --- | -------
+            all | Returns all possible records listed below
+            media_list | The list of referenced media items
+            note_list | The list of note records
+            source | The source record cited from
+            tag_list | The list of tags
       responses:
         200:
           description: "OK: Successful operation."
@@ -949,9 +1089,21 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0    
-        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        description: >
+          Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
+
+    
+          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
+
+
+          For a source the possible keys are:
+            Key | Records
+            --- | -------
+            all | Returns all possible records listed below
+            media_list | The list of referenced media items
+            note_list | The list of note records
+            reporef_list | The list of referenced repository records
+            tag_list | The list of tags
       responses:
         200:
           description: "OK: Successful operation."
@@ -1000,9 +1152,21 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0    
-        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        description: >
+          Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
+
+    
+          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
+
+
+          For a source the possible keys are:
+            Key | Records
+            --- | -------
+            all | Returns all possible records listed below
+            media_list | The list of referenced media items
+            note_list | The list of note records
+            reporef_list | The list of referenced repository records
+            tag_list | The list of tags
       responses:
         200:
           description: "OK: Successful operation."
@@ -1090,9 +1254,19 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0    
-        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        description: >
+          Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
+
+    
+          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
+
+
+          For a repository the possible keys are:
+            Key | Records
+            --- | -------
+            all | Returns all possible records listed below
+            note_list | The list of note records
+            tag_list | The list of tags
       responses:
         200:
           description: "OK: Successful operation."
@@ -1141,9 +1315,19 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0    
-        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        description: >
+          Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
+
+    
+          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
+
+
+          For a repository the possible keys are:
+            Key | Records
+            --- | -------
+            all | Returns all possible records listed below
+            note_list | The list of note records
+            tag_list | The list of tags
       responses:
         200:
           description: "OK: Successful operation."
@@ -1231,9 +1415,20 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0    
-        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        description: >
+          Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
+
+    
+          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
+
+
+          For a repository the possible keys are:
+            Key | Records
+            --- | -------
+            all | Returns all possible records listed below
+            citation_list | The list of citation records
+            note_list | The list of note records
+            tag_list | The list of tags
       responses:
         200:
           description: "OK: Successful operation."
@@ -1282,9 +1477,20 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0    
-        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        description: >
+          Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
+
+    
+          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
+
+
+          For a repository the possible keys are:
+            Key | Records
+            --- | -------
+            all | Returns all possible records listed below
+            citation_list | The list of citation records
+            note_list | The list of note records
+            tag_list | The list of tags
       responses:
         200:
           description: "OK: Successful operation."
@@ -1372,9 +1578,18 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0    
-        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        description: >
+          Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
+
+    
+          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
+
+
+          For a note the possible keys are:
+            Key | Records
+            --- | -------
+            all | Returns all possible records listed below
+            tag_list | The list of tags
       responses:
         200:
           description: "OK: Successful operation."
@@ -1423,9 +1638,18 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0    
-        description: "Presence indicates that the attributes for referenced handles should be returned in the response. For example, while the note_list contains the handles of the note records, this will return the actual records in a separate extended section."
+        description: >
+          Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
+
+    
+          When provided by itself with no arguments the default behaviour is to return all of the available records. An optional comma delimited list of keys can be provided on which it will operate if only a subset of records is desired.
+
+
+          For a note the possible keys are:
+            Key | Records
+            --- | -------
+            all | Returns all possible records listed below
+            tag_list | The list of tags
       responses:
         200:
           description: "OK: Successful operation."

@@ -21,8 +21,15 @@ class CitationResourceHelper(GrampsObjectResourceHelper):
         """Extend citation attributes as needed."""
         if "extend" in args:
             db_handle = self.db_handle
-            obj.extended = get_extended_attributes(db_handle, obj)
-            obj.extended["source"] = get_source_by_handle(db_handle, obj.source_handle)
+            obj.extended = get_extended_attributes(db_handle, obj, args)
+            if (
+                "all" in args["extend"]
+                or "" in args["extend"]
+                or "source" in args["extend"]
+            ):
+                obj.extended["source"] = get_source_by_handle(
+                    db_handle, obj.source_handle, args
+                )
         return obj
 
 
