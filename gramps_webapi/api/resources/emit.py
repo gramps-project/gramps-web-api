@@ -27,9 +27,13 @@ class GrampsJSONEncoder(JSONEncoder):
         ]
 
     def response(
-        self, status: int = 200, payload: Any = {}, args: Optional[Dict] = None
+        self,
+        status: int = 200,
+        payload: Optional[Any] = None,
+        args: Optional[Dict] = None,
     ) -> Response:
         """Prepare response."""
+        payload = payload or {}
         args = args or {}
         if "strip" in args:
             self.strip_empty_keys = True
@@ -37,8 +41,12 @@ class GrampsJSONEncoder(JSONEncoder):
             self.strip_empty_keys = False
         if "keys" in args:
             self.filter_only_keys = args["keys"]
+        else:
+            self.filter_only_keys = []
         if "skipkeys" in args:
             self.filter_skip_keys = args["skipkeys"]
+        else:
+            self.filter_skip_keys = []
 
         return Response(
             response=self.encode(payload),
@@ -68,6 +76,11 @@ class GrampsJSONEncoder(JSONEncoder):
         ):
             apply_filter = True
         for key, value in obj.__class__.__dict__.items():
+            if apply_filter:
+                if self.filter_only_keys and key not in self.filter_only_keys:
+                    continue
+                if self.filter_skip_keys and key in self.filter_skip_keys:
+                    continue
             if isinstance(value, property):
                 data[key] = getattr(obj, key)
         for key, value in obj.__dict__.items():

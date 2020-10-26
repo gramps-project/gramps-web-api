@@ -28,7 +28,7 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
     def object_extend(self, obj: GrampsObject, args: Dict) -> GrampsObject:
         """Extend the base object attributes as needed."""
         if "extend" in args:
-            obj.extended = get_extended_attributes(self.db_handle, obj)
+            obj.extended = get_extended_attributes(self.db_handle, obj, args)
         return obj
 
     @property
@@ -60,7 +60,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             "keys": fields.DelimitedList(fields.Str(), missing=[]),
             "skipkeys": fields.DelimitedList(fields.Str(), missing=[]),
             "profile": fields.Str(validate=validate.Length(equal=0)),
-            "extend": fields.Str(validate=validate.Length(equal=0)),
+            "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
         },
         location="query",
     )
@@ -79,12 +79,11 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
     @use_args(
         {
             "gramps_id": fields.Str(validate=validate.Length(min=1)),
-            "handle": fields.Str(validate=validate.Length(min=1)),
             "strip": fields.Str(validate=validate.Length(equal=0)),
             "keys": fields.DelimitedList(fields.Str(), missing=[]),
             "skipkeys": fields.DelimitedList(fields.Str(), missing=[]),
             "profile": fields.Str(validate=validate.Length(equal=0)),
-            "extend": fields.Str(validate=validate.Length(equal=0)),
+            "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "filter": fields.Str(validate=validate.Length(min=1)),
             "rules": fields.Str(validate=validate.Length(min=1)),
         },

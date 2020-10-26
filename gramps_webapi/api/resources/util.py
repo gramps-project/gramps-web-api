@@ -41,24 +41,31 @@ def get_place_by_handle(db_handle: DbReadBase, handle: Handle) -> Optional[Place
 
 
 def get_family_by_handle(
-    db_handle: DbReadBase, handle: Handle, extended: bool = False
+    db_handle: DbReadBase, handle: Handle, args: Optional[Dict] = None
 ) -> Optional[Family]:
-    """Get a family and all extended attributes."""
+    """Get a family and optional extended attributes."""
     try:
         obj = db_handle.get_family_from_handle(handle)
     except HandleError:
         return None
-    if extended:
-        obj.extended = get_extended_attributes(db_handle, obj)
-        obj.extended["father"] = get_person_by_handle(db_handle, obj.father_handle)
-        obj.extended["mother"] = get_person_by_handle(db_handle, obj.mother_handle)
+    args = args or {}
+    if "extend" in args:
+        obj.extended = get_extended_attributes(db_handle, obj, args)
+        if "all" in args["extend"] or "father" in args["extend"]:
+            obj.extended["father"] = get_person_by_handle(db_handle, obj.father_handle)
+        if "all" in args["extend"] or "mother" in args["extend"]:
+            obj.extended["mother"] = get_person_by_handle(db_handle, obj.mother_handle)
     return obj
 
 
-def get_source_by_handle(db_handle: DbReadBase, handle: Handle) -> Source:
-    """Get a source and all extended attributes."""
+def get_source_by_handle(
+    db_handle: DbReadBase, handle: Handle, args: Optional[Dict] = None
+) -> Source:
+    """Get a source and optional extended attributes."""
+    args = args or {}
     obj = db_handle.get_source_from_handle(handle)
-    obj.extended = get_extended_attributes(db_handle, obj)
+    if "extend" in args:
+        obj.extended = get_extended_attributes(db_handle, obj, args)
     return obj
 
 
@@ -216,43 +223,55 @@ def get_family_profile_for_handle(
     return get_family_profile_for_object(db_handle, obj, with_events)
 
 
-def get_extended_attributes(db_handle: DbReadBase, obj: GrampsObject) -> Dict:
+def get_extended_attributes(
+    db_handle: DbReadBase, obj: GrampsObject, args: Optional[Dict] = None
+) -> Dict:
     """Get extended attributes for a GrampsObject."""
+    args = args or {}
     result = {}
-    if hasattr(obj, "child_ref_list"):
+    do_all = False
+    if "all" in args["extend"]:
+        do_all = True
+    if (do_all or "child_ref_list" in args["extend"]) and hasattr(
+        obj, "child_ref_list"
+    ):
         result["children"] = [
             db_handle.get_person_from_handle(child_ref.ref)
             for child_ref in obj.child_ref_list
         ]
-    if hasattr(obj, "citation_list"):
+    if (do_all or "citation_list" in args["extend"]) and hasattr(obj, "citation_list"):
         result["citations"] = [
             db_handle.get_citation_from_handle(handle) for handle in obj.citation_list
         ]
-    if hasattr(obj, "event_ref_list"):
+    if (do_all or "event_ref_list" in args["extend"]) and hasattr(
+        obj, "event_ref_list"
+    ):
         result["events"] = [
             db_handle.get_event_from_handle(event_ref.ref)
             for event_ref in obj.event_ref_list
         ]
-    if hasattr(obj, "media_list"):
+    if (do_all or "media_list" in args["extend"]) and hasattr(obj, "media_list"):
         result["media"] = [
             db_handle.get_media_from_handle(media_ref.ref)
             for media_ref in obj.media_list
         ]
-    if hasattr(obj, "note_list"):
+    if (do_all or "note_list" in args["extend"]) and hasattr(obj, "note_list"):
         result["notes"] = [
             db_handle.get_note_from_handle(handle) for handle in obj.note_list
         ]
-    if hasattr(obj, "person_ref_list"):
+    if (do_all or "person_ref_list" in args["extend"]) and hasattr(
+        obj, "person_ref_list"
+    ):
         result["people"] = [
             db_handle.get_person_from_handle(person_ref.ref)
             for person_ref in obj.person_ref_list
         ]
-    if hasattr(obj, "reporef_list"):
+    if (do_all or "reporef_list" in args["extend"]) and hasattr(obj, "reporef_list"):
         result["repositories"] = [
             db_handle.get_repository_from_handle(repo_ref.ref)
             for repo_ref in obj.reporef_list
         ]
-    if hasattr(obj, "tag_list"):
+    if (do_all or "tag_list" in args["extend"]) and hasattr(obj, "tag_list"):
         result["tags"] = [
             db_handle.get_tag_from_handle(handle) for handle in obj.tag_list
         ]

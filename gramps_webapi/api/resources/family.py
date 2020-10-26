@@ -29,9 +29,15 @@ class FamilyResourceHelper(GrampsObjectResourceHelper):
                 db_handle, obj, with_events=True
             )
         if "extend" in args:
-            obj.extended = get_extended_attributes(db_handle, obj)
-            obj.extended["father"] = get_person_by_handle(db_handle, obj.father_handle)
-            obj.extended["mother"] = get_person_by_handle(db_handle, obj.mother_handle)
+            obj.extended = get_extended_attributes(db_handle, obj, args)
+            if "all" in args["extend"] or "father" in args["extend"]:
+                obj.extended["father"] = get_person_by_handle(
+                    db_handle, obj.father_handle
+                )
+            if "all" in args["extend"] or "mother" in args["extend"]:
+                obj.extended["mother"] = get_person_by_handle(
+                    db_handle, obj.mother_handle
+                )
         return obj
 
 
