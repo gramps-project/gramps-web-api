@@ -48,7 +48,7 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 elif args["type"] == "family_attribute":
                     result = db_handle.get_family_attribute_types()
                 elif args["type"] == "media_attribute":
-                    result = db_handle.get_person_attribute_types()
+                    result = db_handle.get_media_attribute_types()
                 elif args["type"] == "family_relation":
                     result = db_handle.get_family_relation_types()
                 elif args["type"] == "child_reference":

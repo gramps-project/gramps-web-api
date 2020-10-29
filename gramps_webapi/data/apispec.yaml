@@ -1706,23 +1706,7 @@ paths:
         200:
           description: "OK: Successful operation."
           schema:
-            type: object
-            properties:
-              namespaces:
-                type: array
-                items:
-                  type: string
-            example:
-              namespaces:
-                - citations
-                - events
-                - families
-                - media
-                - notes
-                - people
-                - places
-                - repositories
-                - sources
+            $ref: "#/definitions/NameSpaces"
         401:
           description: "Unauthorized: Missing authorization header."
 
@@ -1744,16 +1728,7 @@ paths:
         200:
           description: "OK: Successful operation."
           schema:
-            type: object
-            properties:
-              bookmarks:
-                type: array
-                items:
-                  type: string
-            example:
-                bookmarks:
-                - e9027bf5e7f77551b12e7da3c77
-                - e9027bf3de2402f9faaac001cef
+            $ref: "#/definitions/Bookmarks"
         401:
           description: "Unauthorized: Missing authorization header."
         404:
@@ -3677,10 +3652,6 @@ definitions:
           type: string
         example:
           - ""
-      thumb:
-        description: "TODO: Is this part of the JSON schema?"
-        type: object
-        example: null
 
 ##############################################################################
 # Model - MediaExtended
@@ -4191,3 +4162,41 @@ definitions:
         description: "Street."
         type: string
         example: ""
+
+##############################################################################
+# Model - NameSpaces
+##############################################################################
+    
+  NameSpaces:
+    type: object
+    properties:
+      namespaces:
+        description: "Available name spaces."
+        type: array
+        items:
+          type: string
+        example:
+          - citations
+          - events
+          - families
+          - media
+          - notes
+          - people
+          - places
+          - repositories
+          - sources
+
+##############################################################################
+# Model - Bookmarks
+##############################################################################
+
+  Bookmarks:
+    type: object
+    properties:
+      bookmarks:
+        type: array
+        items:
+          type: string
+        example:
+          - e9027bf5e7f77551b12e7da3c77
+          - e9027bf3de2402f9faaac001cef

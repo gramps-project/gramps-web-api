@@ -57,8 +57,10 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
     @use_args(
         {
             "strip": fields.Str(validate=validate.Length(equal=0)),
-            "keys": fields.DelimitedList(fields.Str(), missing=[]),
-            "skipkeys": fields.DelimitedList(fields.Str(), missing=[]),
+            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
+            "skipkeys": fields.DelimitedList(
+                fields.Str(validate=validate.Length(min=1))
+            ),
             "profile": fields.Str(validate=validate.Length(equal=0)),
             "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
         },
@@ -80,8 +82,10 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         {
             "gramps_id": fields.Str(validate=validate.Length(min=1)),
             "strip": fields.Str(validate=validate.Length(equal=0)),
-            "keys": fields.DelimitedList(fields.Str(), missing=[]),
-            "skipkeys": fields.DelimitedList(fields.Str(), missing=[]),
+            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
+            "skipkeys": fields.DelimitedList(
+                fields.Str(validate=validate.Length(min=1))
+            ),
             "profile": fields.Str(validate=validate.Length(equal=0)),
             "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "filter": fields.Str(validate=validate.Length(min=1)),

@@ -84,11 +84,19 @@ class GrampsJSONEncoder(JSONEncoder):
             if isinstance(value, property):
                 data[key] = getattr(obj, key)
         for key, value in obj.__dict__.items():
+            # Values we always filter out, data presented through different endpoint
+            if key in ["thumb"]:
+                continue
             if apply_filter:
                 if self.filter_only_keys and key not in self.filter_only_keys:
                     continue
                 if self.filter_skip_keys and key in self.filter_skip_keys:
                     continue
+            # Values we normalize for schema consistency
+            if key == "rect" and value is None:
+                value = []
+            if key in ["mother_handle", "father_handle", "famc"] and value is None:
+                value = ""
             if key.startswith("_"):
                 key = key[2 + key.find("__") :]
             if not self.strip_empty_keys or not is_null(value):
