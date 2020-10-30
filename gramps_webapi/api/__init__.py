@@ -2,9 +2,11 @@
 
 from typing import Type
 
-from flask import Blueprint
+from flask import Blueprint, current_app
 
 from ..const import API_PREFIX
+from .auth import jwt_required_ifauth
+from .file import LocalFileHandler
 from .resources.base import Resource
 from .resources.bookmark import BookmarkResource, BookmarksResource
 from .resources.citation import CitationResource, CitationsResource
@@ -74,9 +76,16 @@ register_endpt(TranslationResource, "/translations/<string:isocode>", "translati
 register_endpt(TranslationsResource, "/translations/", "translations")
 # Relation
 register_endpt(
-    RelationResource,
-    "/relations/<string:handle1>/<string:handle2>",
-    "relations",
+    RelationResource, "/relations/<string:handle1>/<string:handle2>", "relations",
 )
 # Metadata
 register_endpt(MetadataResource, "/metadata/<string:datatype>", "metadata")
+
+# Media files
+@api_blueprint.route("/media/<string:handle>/file")
+@jwt_required_ifauth
+def download_file(handle):
+    """Download a file."""
+    base_dir = current_app.config["MEDIA_BASE_DIR"]
+    handler = LocalFileHandler(handle, base_dir)
+    return handler.send_file()
