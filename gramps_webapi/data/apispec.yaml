@@ -1884,7 +1884,7 @@ paths:
         401:
           description: "Unauthorized: Missing authorization header."
 
-  /translations/{code}:
+  /translations/{isocode}:
     get:
       tags:
       - translations
@@ -1893,11 +1893,11 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: code
+      - name: isocode
         in: path
         required: true
         type: string
-        description: "The language code or identifier."
+        description: "The ISO language code or identifier."
       - name: strings
         in: query
         required: true
@@ -3997,10 +3997,10 @@ definitions:
   Translations:
     type: object
     required:
-      - code
+      - isocode
       - language
     properties:
-      code:
+      isocode:
         description: "The language code."
         type: string
         example: "fr"

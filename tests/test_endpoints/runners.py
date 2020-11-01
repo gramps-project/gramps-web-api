@@ -1,6 +1,6 @@
 """Test runner utility functions."""
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 
 def run_test_endpoint_gramps_id(client, endpoint: str, driver: Dict):
@@ -120,9 +120,10 @@ def run_test_endpoint_skipkeys(client, endpoint: str, keys: List[str]):
 
 
 def run_test_endpoint_extend(
-    client, endpoint: str, driver: List[Dict], driver_list: List[str] = []
+    client, endpoint: str, driver: List[Dict], driver_list: Optional[List[str]] = None
 ):
     """Test extend parameter for a given endpoint."""
+    driver_list = driver_list or []
     # check 422 returned if missing argument
     rv = client.get(endpoint + "?extend")
     assert rv.status_code == 422
@@ -157,32 +158,32 @@ def run_test_endpoint_extend(
             assert len(rv.json["extended"]) == len(driver)
             for test in driver:
                 assert isinstance(rv.json["extended"][test["key"]], test["type"])
-    # check multiple tags work as expected
+    # check multiple tags work as expected by using two together
     if len(driver_list) > 1:
         for test_id in test_id_list:
             rv = client.get(
                 endpoint
                 + "?extend="
-                + driver_test[0]["arg"]
+                + driver[0]["arg"]
                 + ","
-                + driver_test[0]["arg"]
+                + driver[0]["arg"]
                 + test_id
             )
             if expect_list:
                 assert len(rv.json[0]["extended"]) == 2
                 assert isinstance(
-                    rv.json[0]["extended"][driver_test[0]["key"]],
-                    driver_test[0]["type"],
+                    rv.json[0]["extended"][driver[0]["key"]],
+                    driver[0]["type"],
                 )
                 assert isinstance(
-                    rv.json[0]["extended"][driver_test[1]["key"]],
-                    driver_test[1]["type"],
+                    rv.json[0]["extended"][driver[1]["key"]],
+                    driver[1]["type"],
                 )
             else:
                 assert len(rv.json["extended"]) == 2
                 assert isinstance(
-                    rv.json["extended"][driver_test[0]["key"]], driver_test[0]["type"]
+                    rv.json["extended"][driver[0]["key"]], driver[0]["type"]
                 )
                 assert isinstance(
-                    rv.json["extended"][driver_test[1]["key"]], driver_test[1]["type"]
+                    rv.json["extended"][driver[1]["key"]], driver[1]["type"]
                 )

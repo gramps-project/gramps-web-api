@@ -108,3 +108,86 @@ class TestEvents(unittest.TestCase):
                 schema=API_SCHEMA["definitions"]["Event"],
                 resolver=resolver,
             )
+
+
+class TestEventsHandle(unittest.TestCase):
+    """Test cases for the /api/events/{handle} endpoint for a specific event."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_events_handle_endpoint_404(self):
+        """Test response for a bad handle."""
+        # check 404 returned for non-existent event
+        rv = self.client.get("/api/events/does_not_exist")
+        assert rv.status_code == 404
+
+    def test_events_handle_endpoint(self):
+        """Test response for specific event."""
+        # check expected event returned
+        rv = self.client.get("/api/events/a5af0eb6dd140de132c")
+        assert rv.json["gramps_id"] == "E0043"
+        assert rv.json["place"] == "P4EKQC5TG9HPIOXHN2"
+
+    def test_events_handle_endpoint_422(self):
+        """Test response for an invalid parm."""
+        # check 422 returned for bad parm
+        rv = self.client.get("/api/events/a5af0eb6dd140de132c?junk_parm=1")
+        assert rv.status_code == 422
+
+    def test_events_handle_endpoint_strip(self):
+        """Test response for strip parm."""
+        run_test_endpoint_strip(self.client, "/api/events/a5af0eb6dd140de132c")
+
+    def test_events_handle_endpoint_keys(self):
+        """Test response for keys parm."""
+        run_test_endpoint_keys(
+            self.client,
+            "/api/events/a5af0eb6dd140de132c",
+            ["handle", "description", "type"],
+        )
+
+    def test_events_handle_endpoint_skipkeys(self):
+        """Test response for skipkeys parm."""
+        run_test_endpoint_skipkeys(
+            self.client,
+            "/api/events/a5af0eb6dd140de132c",
+            ["handle", "media_list", "private"],
+        )
+
+    def test_events_handle_endpoint_profile(self):
+        """Test response for profile parm."""
+        # check 422 returned if passed argument
+        rv = self.client.get("/api/events/a5af0eb6dd140de132c?profile=1")
+        assert rv.status_code == 422
+        # check some key expected profile attributes present
+        rv = self.client.get("/api/events/a5af0eb6dd140de132c?profile")
+        assert rv.json["profile"] == {
+            "date": "1250",
+            "place": "Atchison, Atchison, KS, USA",
+            "type": "Birth",
+        }
+
+    def test_events_handle_endpoint_extend(self):
+        """Test response for extend parm."""
+        driver = [
+            {"arg": "citation_list", "key": "citations", "type": List},
+            {"arg": "media_list", "key": "media", "type": List},
+            {"arg": "note_list", "key": "notes", "type": List},
+            {"arg": "place", "key": "place", "type": Dict},
+            {"arg": "tag_list", "key": "tags", "type": List},
+        ]
+        run_test_endpoint_extend(self.client, "/api/events/a5af0eb6dd140de132c", driver)
+
+    def test_event_handle_endpoint_schema(self):
+        """Test the event schema with extensions."""
+        # check event record conforms to expected schema
+        rv = self.client.get("/api/events/a5af0eb6dd140de132c?extend=all&profile")
+        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
+        validate(
+            instance=rv.json,
+            schema=API_SCHEMA["definitions"]["Event"],
+            resolver=resolver,
+        )

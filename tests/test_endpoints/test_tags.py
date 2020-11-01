@@ -56,3 +56,14 @@ class TestTagsHandle(unittest.TestCase):
         # check expected tag returned
         rv = self.client.get("/api/tags/bb80c2b235b0a1b3f49")
         assert rv.json["name"] == "ToDo"
+
+    def test_tag_handle_endpoint_schema(self):
+        """Test the tag schema with extensions."""
+        # check tag record conforms to expected schema
+        rv = self.client.get("/api/tags/bb80c2b235b0a1b3f49")
+        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
+        validate(
+            instance=rv.json,
+            schema=API_SCHEMA["definitions"]["Tag"],
+            resolver=resolver,
+        )
