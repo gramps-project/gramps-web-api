@@ -10,6 +10,7 @@ from .runners import (
     run_test_endpoint_extend,
     run_test_endpoint_gramps_id,
     run_test_endpoint_keys,
+    run_test_endpoint_rules,
     run_test_endpoint_skipkeys,
     run_test_endpoint_strip,
 )
@@ -66,6 +67,26 @@ class TestNotes(unittest.TestCase):
         run_test_endpoint_skipkeys(
             self.client, "/api/notes/", ["change", "format", "tag_list"]
         )
+
+    def test_notes_endpoint_rules(self):
+        """Test some responses for the rules parm."""
+        driver = {
+            400: ['{"rules"[{"name":"HasType","values":["Person Note"]}]}'],
+            422: [
+                '{"some":"where","rules":[{"name":"HasType","values":["Person Note"]}]}',
+                '{"function":"none","rules":[{"name":"HasType","values":["Person Note"]}]}',
+            ],
+            404: ['{"rules":[{"name":"PigsInSpace"}]}'],
+            200: [
+                '{"rules":[{"name":"HasType","values":["Person Note"]}]}',
+                '{"rules":[{"name":"HasType","values":["Person Note"]},{"name":"NotePrivate"}]}',
+                '{"function":"or","rules":[{"name":"HasType","values":["Person Note"]},{"name":"NotePrivate"}]}',
+                '{"function":"xor","rules":[{"name":"HasType","values":["Person Note"]},{"name":"NotePrivate"}]}',
+                '{"function":"one","rules":[{"name":"HasType","values":["Person Note"]},{"name":"NotePrivate"}]}',
+                '{"invert":true,"rules":[{"name":"HasType","values":["Person Note"]}]}',
+            ],
+        }
+        run_test_endpoint_rules(self.client, "/api/notes/", driver)
 
     def test_notes_endpoint_extend(self):
         """Test response for extend parm."""

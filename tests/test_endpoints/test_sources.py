@@ -10,6 +10,7 @@ from .runners import (
     run_test_endpoint_extend,
     run_test_endpoint_gramps_id,
     run_test_endpoint_keys,
+    run_test_endpoint_rules,
     run_test_endpoint_skipkeys,
     run_test_endpoint_strip,
 )
@@ -68,6 +69,26 @@ class TestSources(unittest.TestCase):
         run_test_endpoint_skipkeys(
             self.client, "/api/sources/", ["abbrev", "reporef_list", "tag_list"]
         )
+
+    def test_sources_endpoint_rules(self):
+        """Test some responses for the rules parm."""
+        driver = {
+            400: ['{"rules"[{"name":"HasNote"}]}'],
+            422: [
+                '{"some":"where","rules":[{"name":"HasNote"}]}',
+                '{"function":"none","rules":[{"name":"HasNote"}]}',
+            ],
+            404: ['{"rules":[{"name":"PigsInSpace"}]}'],
+            200: [
+                '{"rules":[{"name":"HasNote"}]}',
+                '{"rules":[{"name":"MatchesTitleSubstringOf","values":["Church"]},{"name":"HasNote"}]}',
+                '{"function":"or","rules":[{"name":"MatchesTitleSubstringOf","values":["Church"]},{"name":"HasNote"}]}',
+                '{"function":"xor","rules":[{"name":"MatchesTitleSubstringOf","values":["Church"]},{"name":"HasNote"}]}',
+                '{"function":"one","rules":[{"name":"MatchesTitleSubstringOf","values":["Church"]},{"name":"HasNote"}]}',
+                '{"invert":true,"rules":[{"name":"HasNote"}]}',
+            ],
+        }
+        run_test_endpoint_rules(self.client, "/api/sources/", driver)
 
     def test_sources_endpoint_extend(self):
         """Test response for extend parm."""

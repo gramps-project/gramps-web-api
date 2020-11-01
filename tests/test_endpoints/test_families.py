@@ -10,6 +10,7 @@ from .runners import (
     run_test_endpoint_extend,
     run_test_endpoint_gramps_id,
     run_test_endpoint_keys,
+    run_test_endpoint_rules,
     run_test_endpoint_skipkeys,
     run_test_endpoint_strip,
 )
@@ -72,21 +73,23 @@ class TestFamilies(unittest.TestCase):
 
     def test_families_endpoint_rules(self):
         """Test some responses for the rules parm."""
-        # check for expected match count using an or filter
-        rv = self.client.get(
-            '/api/families/?rules={"function":"or","rules":[{"name":"HasRelType","values":["Unknown"]},{"name":"IsBookmarked"}]}'
-        )
-        assert len(rv.json) == 6
-        # check for expected match count using an and filter
-        rv = self.client.get(
-            '/api/families/?rules={"rules":[{"name":"HasRelType","values":["Married"]},{"name":"IsBookmarked"}]}'
-        )
-        assert len(rv.json) == 1
-        # check for expected match count using an invert on a filter
-        rv = self.client.get(
-            '/api/families/?rules={"invert":true,"rules":[{"name":"HasRelType","values":["Married"]}]}'
-        )
-        assert len(rv.json) == 5
+        driver = {
+            400: ['{"rules"[{"name":"IsBookmarked"}]}'],
+            422: [
+                '{"some":"where","rules":[{"name":"IsBookmarked"}]}',
+                '{"function":"none","rules":[{"name":"IsBookmarked"}]}',
+            ],
+            404: ['{"rules":[{"name":"PigsInSpace"}]}'],
+            200: [
+                '{"rules":[{"name":"IsBookmarked"}]}',
+                '{"rules":[{"name":"HasRelType","values":["Married"]},{"name":"IsBookmarked"}]}',
+                '{"function":"or","rules":[{"name":"HasRelType","values":["Unknown"]},{"name":"IsBookmarked"}]}',
+                '{"function":"xor","rules":[{"name":"HasRelType","values":["Unknown"]},{"name":"IsBookmarked"}]}',
+                '{"function":"one","rules":[{"name":"HasRelType","values":["Unknown"]},{"name":"IsBookmarked"}]}',
+                '{"invert":true,"rules":[{"name":"HasRelType","values":["Married"]}]}',
+            ],
+        }
+        run_test_endpoint_rules(self.client, "/api/families/", driver)
 
     def test_families_endpoint_profile(self):
         """Test response for profile parm."""

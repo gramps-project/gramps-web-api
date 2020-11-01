@@ -10,6 +10,7 @@ from .runners import (
     run_test_endpoint_extend,
     run_test_endpoint_gramps_id,
     run_test_endpoint_keys,
+    run_test_endpoint_rules,
     run_test_endpoint_skipkeys,
     run_test_endpoint_strip,
 )
@@ -68,6 +69,26 @@ class TestEvents(unittest.TestCase):
         run_test_endpoint_skipkeys(
             self.client, "/api/events/", ["change", "description", "tag_list"]
         )
+
+    def test_events_endpoint_rules(self):
+        """Test some responses for the rules parm."""
+        driver = {
+            400: ['{"rules"[{"name":"HasType","values":["Marriage"]}]}'],
+            422: [
+                '{"some":"where","rules":[{"name":"HasType","values":["Marriage"]}]}',
+                '{"function":"none","rules":[{"name":"HasType","values":["Marriage"]}]}',
+            ],
+            404: ['{"rules":[{"name":"PigsInSpace"}]}'],
+            200: [
+                '{"rules":[{"name":"HasType","values":["Marriage"]}]}',
+                '{"rules":[{"name":"HasType","values":["Death"]},{"name":"HasNote"}]}',
+                '{"function":"or","rules":[{"name":"HasType","values":["Death"]},{"name":"HasNote"}]}',
+                '{"function":"xor","rules":[{"name":"HasType","values":["Death"]},{"name":"HasNote"}]}',
+                '{"function":"one","rules":[{"name":"HasType","values":["Death"]},{"name":"HasNote"}]}',
+                '{"invert":true,"rules":[{"name":"HasType","values":["Married"]}]}',
+            ],
+        }
+        run_test_endpoint_rules(self.client, "/api/events/", driver)
 
     def test_events_endpoint_profile(self):
         """Test response for profile parm."""

@@ -10,6 +10,7 @@ from .runners import (
     run_test_endpoint_extend,
     run_test_endpoint_gramps_id,
     run_test_endpoint_keys,
+    run_test_endpoint_rules,
     run_test_endpoint_skipkeys,
     run_test_endpoint_strip,
 )
@@ -68,6 +69,26 @@ class TestPlaces(unittest.TestCase):
         run_test_endpoint_skipkeys(
             self.client, "/api/places/", ["alt_loc", "code", "placeref_list"]
         )
+
+    def test_places_endpoint_rules(self):
+        """Test some responses for the rules parm."""
+        driver = {
+            400: ['{"rules"[{"name":"HasNoLatOrLon"}]}'],
+            422: [
+                '{"some":"where","rules":[{"name":"HasNoLatOrLon"}]}',
+                '{"function":"none","rules":[{"name":"HasNoLatOrLon"}]}',
+            ],
+            404: ['{"rules":[{"name":"PigsInSpace"}]}'],
+            200: [
+                '{"rules":[{"name":"HasNoLatOrLon"}]}',
+                '{"rules":[{"name":"HasNoLatOrLon"},{"name":"HasTag","values":["None"]}]}',
+                '{"function":"or","rules":[{"name":"HasNoLatOrLon"},{"name":"HasTag","values":["None"]}]}',
+                '{"function":"xor","rules":[{"name":"HasNoLatOrLon"},{"name":"HasTag","values":["None"]}]}',
+                '{"function":"one","rules":[{"name":"HasNoLatOrLon"},{"name":"HasTag","values":["None"]}]}',
+                '{"invert":true,"rules":[{"name":"HasNoLatOrLon"}]}',
+            ],
+        }
+        run_test_endpoint_rules(self.client, "/api/places/", driver)
 
     def test_places_endpoint_extend(self):
         """Test response for extend parm."""

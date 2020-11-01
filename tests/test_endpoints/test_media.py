@@ -10,6 +10,7 @@ from .runners import (
     run_test_endpoint_extend,
     run_test_endpoint_gramps_id,
     run_test_endpoint_keys,
+    run_test_endpoint_rules,
     run_test_endpoint_skipkeys,
     run_test_endpoint_strip,
 )
@@ -66,6 +67,26 @@ class TestMedia(unittest.TestCase):
         run_test_endpoint_skipkeys(
             self.client, "/api/media/", ["citation_list", "desc", "tag_list"]
         )
+
+    def test_media_endpoint_rules(self):
+        """Test some responses for the rules parm."""
+        driver = {
+            400: ['{"rules"[{"name":"MediaPrivate"}]}'],
+            422: [
+                '{"some":"where","rules":[{"name":"MediaPrivate"}]}',
+                '{"function":"none","rules":[{"name":"MediaPrivate"}]}',
+            ],
+            404: ['{"rules":[{"name":"PigsInSpace"}]}'],
+            200: [
+                '{"rules":[{"name":"MediaPrivate"}]}',
+                '{"rules":[{"name":"HasTag","values":["ToDo"]},{"name":"MediaPrivate"}]}',
+                '{"function":"or","rules":[{"name":"HasTag","values":["ToDo"]},{"name":"MediaPrivate"}]}',
+                '{"function":"xor","rules":[{"name":"HasTag","values":["ToDo"]},{"name":"MediaPrivate"}]}',
+                '{"function":"one","rules":[{"name":"HasTag","values":["ToDo"]},{"name":"MediaPrivate"}]}',
+                '{"invert":true,"rules":[{"name":"MediaPrivate"}]}',
+            ],
+        }
+        run_test_endpoint_rules(self.client, "/api/media/", driver)
 
     def test_media_endpoint_extend(self):
         """Test response for extend parm."""

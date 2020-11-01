@@ -10,6 +10,7 @@ from .runners import (
     run_test_endpoint_extend,
     run_test_endpoint_gramps_id,
     run_test_endpoint_keys,
+    run_test_endpoint_rules,
     run_test_endpoint_skipkeys,
     run_test_endpoint_strip,
 )
@@ -68,6 +69,26 @@ class TestRepositories(unittest.TestCase):
         run_test_endpoint_skipkeys(
             self.client, "/api/repositories/", ["change", "private", "tag_list"]
         )
+
+    def test_repositories_endpoint_rules(self):
+        """Test some responses for the rules parm."""
+        driver = {
+            400: ['{"rules"[{"name":"HasTag","values":["ToDo"]}]}'],
+            422: [
+                '{"some":"where","rules":[{"name":"HasTag", "values":["ToDo"]}]}',
+                '{"function":"none","rules":[{"name":"HasTag","values":["ToDo"]}]}',
+            ],
+            404: ['{"rules":[{"name":"PigsInSpace"}]}'],
+            200: [
+                '{"rules":[{"name":"HasTag","values":["ToDo"]}]}',
+                '{"rules":[{"name":"MatchesNameSubstringOf","values":["Library"]},{"name":"HasTag","values":["ToDo"]}]}',
+                '{"function":"or","rules":[{"name":"MatchesNameSubstringOf","values":["Library"]},{"name":"HasTag","values":["ToDo"]}]}',
+                '{"function":"xor","rules":[{"name":"MatchesNameSubstringOf","values":["Library"]},{"name":"HasTag","values":["ToDo"]}]}',
+                '{"function":"one","rules":[{"name":"MatchesNameSubstringOf","values":["Library"]},{"name":"HasTag","values":["ToDo"]}]}',
+                '{"invert":true,"rules":[{"name":"HasTag","values":["ToDo"]}]}',
+            ],
+        }
+        run_test_endpoint_rules(self.client, "/api/repositories/", driver)
 
     def test_repositories_endpoint_extend(self):
         """Test response for extend parm."""

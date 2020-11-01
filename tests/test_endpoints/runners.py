@@ -187,3 +187,23 @@ def run_test_endpoint_extend(
                 assert isinstance(
                     rv.json["extended"][driver[1]["key"]], driver[1]["type"]
                 )
+
+
+def run_test_endpoint_rules(client, endpoint: str, driver: Dict):
+    """Test rules parameter for a given endpoint."""
+    # check 400 returned if passed improperly formatted argument
+    for rules in driver[400]:
+        rv = client.get(endpoint + "?rules=" + rules)
+        assert rv.status_code == 400
+    # check 422 returned if passed properly formatted argument with invalid schema
+    for rules in driver[422]:
+        rv = client.get(endpoint + "?rules=" + rules)
+        assert rv.status_code == 422
+    # check 404 returned if passed proper construct but with non-existent rule
+    for rules in driver[404]:
+        rv = client.get(endpoint + "?rules=" + rules)
+        assert rv.status_code == 404
+    # check 200 returned if rules filter constructed and executed properly
+    for rules in driver[200]:
+        rv = client.get(endpoint + "?rules=" + rules)
+        assert rv.status_code == 200

@@ -10,6 +10,7 @@ from .runners import (
     run_test_endpoint_extend,
     run_test_endpoint_gramps_id,
     run_test_endpoint_keys,
+    run_test_endpoint_rules,
     run_test_endpoint_skipkeys,
     run_test_endpoint_strip,
 )
@@ -67,26 +68,23 @@ class TestPeople(unittest.TestCase):
 
     def test_people_endpoint_rules(self):
         """Test some responses for the rules parm."""
-        # check for expected match count using an or filter
-        rv = self.client.get(
-            '/api/people/?rules={"function":"or","rules":[{"name":"HasTag","values":["complete"]},{"name":"HasTag","values":["ToDo"]}]}'
-        )
-        assert len(rv.json) == 2
-        # check for expected match count using an xor filter
-        rv = self.client.get(
-            '/api/people/?rules={"function":"xor","rules":[{"name":"IsFemale"},{"name":"MultipleMarriages"}]}'
-        )
-        assert len(rv.json) == 958
-        # check for expected match count using an and filter
-        rv = self.client.get(
-            '/api/people/?rules={"rules":[{"name":"IsMale"},{"name":"MultipleMarriages"}]}'
-        )
-        assert len(rv.json) == 28
-        # check for expected match count using an invert for the previous filter
-        rv = self.client.get(
-            '/api/people/?rules={"invert":true,"rules":[{"name":"IsMale"},{"name":"MultipleMarriages"}]}'
-        )
-        assert len(rv.json) == 2129
+        driver = {
+            400: ['{"rules"[{"name":"IsMale"}]}'],
+            422: [
+                '{"some":"where","rules":[{"name":"IsMale"}]}',
+                '{"function":"none","rules":[{"name":"IsMale"}]}',
+            ],
+            404: ['{"rules":[{"name":"PigsInSpace"}]}'],
+            200: [
+                '{"rules":[{"name":"HasUnknownGender"}]}',
+                '{"rules":[{"name":"IsMale"},{"name":"MultipleMarriages"}]}',
+                '{"function":"or","rules":[{"name":"HasTag","values":["complete"]},{"name":"HasTag","values":["ToDo"]}]}',
+                '{"function":"xor","rules":[{"name":"IsFemale"},{"name":"MultipleMarriages"}]}',
+                '{"function":"one","rules":[{"name":"IsFemale"},{"name":"MultipleMarriages"}]}',
+                '{"invert":true,"rules":[{"name":"IsMale"},{"name":"MultipleMarriages"}]}',
+            ],
+        }
+        run_test_endpoint_rules(self.client, "/api/people/", driver)
 
     def test_people_endpoint_profile(self):
         """Test response for profile parm."""
