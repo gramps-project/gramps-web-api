@@ -78,7 +78,7 @@ class ThumbnailHandler:
         else:
             if self.mime_type not in self.MIME_NO_IMAGE:
                 raise ValueError(
-                    f"No thumbnailer found for MIME type {self.mime_type}."
+                    "No thumbnailer found for MIME type {}.".format(self.mime_type)
                 )
             self.is_image = False
 
