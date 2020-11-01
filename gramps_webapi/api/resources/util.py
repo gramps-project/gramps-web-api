@@ -1,6 +1,6 @@
 """Gramps utility functions."""
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
@@ -24,30 +24,30 @@ pd = PlaceDisplay()
 dd = GRAMPS_LOCALE.date_displayer
 
 
-def get_person_by_handle(db_handle: DbReadBase, handle: Handle) -> Optional[Person]:
+def get_person_by_handle(db_handle: DbReadBase, handle: Handle) -> Union[Person, Dict]:
     """Safe get person by handle."""
     try:
         return db_handle.get_person_from_handle(handle)
     except HandleError:
-        return None
+        return {}
 
 
-def get_place_by_handle(db_handle: DbReadBase, handle: Handle) -> Optional[Place]:
+def get_place_by_handle(db_handle: DbReadBase, handle: Handle) -> Union[Place, Dict]:
     """Safe get place by handle."""
     try:
         return db_handle.get_place_from_handle(handle)
     except HandleError:
-        return None
+        return {}
 
 
 def get_family_by_handle(
     db_handle: DbReadBase, handle: Handle, args: Optional[Dict] = None
-) -> Optional[Family]:
+) -> Union[Family, Dict]:
     """Get a family and optional extended attributes."""
     try:
         obj = db_handle.get_family_from_handle(handle)
     except HandleError:
-        return None
+        return {}
     args = args or {}
     if "extend" in args:
         obj.extended = get_extended_attributes(db_handle, obj, args)
@@ -87,14 +87,12 @@ def get_event_profile_for_object(db_handle: DbReadBase, event: Event) -> Dict:
     }
 
 
-def get_event_profile_for_handle(
-    db_handle: DbReadBase, handle: Handle
-) -> Optional[Dict]:
+def get_event_profile_for_handle(db_handle: DbReadBase, handle: Handle) -> Dict:
     """Get event profile given a handle."""
     try:
         obj = db_handle.get_event_from_handle(handle)
     except HandleError:
-        return None
+        return {}
     return get_event_profile_for_object(db_handle, obj)
 
 
@@ -173,12 +171,12 @@ def get_person_profile_for_handle(
     handle: Handle,
     with_family: bool = True,
     with_events: bool = True,
-) -> Optional[Person]:
+) -> Union[Person, Dict]:
     """Get person profile given a handle."""
     try:
         obj = db_handle.get_person_from_handle(handle)
     except HandleError:
-        return None
+        return {}
     return get_person_profile_for_object(db_handle, obj, with_family, with_events)
 
 
@@ -214,12 +212,12 @@ def get_family_profile_for_object(
 
 def get_family_profile_for_handle(
     db_handle: DbReadBase, handle: Handle, with_events: bool = True
-) -> Optional[Family]:
+) -> Union[Family, Dict]:
     """Get family profile given a handle."""
     try:
         obj = db_handle.get_family_from_handle(handle)
     except HandleError:
-        return None
+        return {}
     return get_family_profile_for_object(db_handle, obj, with_events)
 
 

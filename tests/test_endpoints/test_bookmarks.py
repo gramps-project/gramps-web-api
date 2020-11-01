@@ -1,4 +1,4 @@
-"""Tests for the `gramps_webapi.api` module."""
+"""Tests for the /api/bookmarks endpoints using example_gramps."""
 
 import unittest
 
@@ -17,8 +17,8 @@ class TestBookmarks(unittest.TestCase):
 
     def test_bookmarks_endpoint_schema(self):
         """Test bookmarks against the bookmark schema."""
-        rv = self.client.get("/api/bookmarks/")
         # check one response returned for namespace list
+        rv = self.client.get("/api/bookmarks/")
         assert len(rv.json) == 1
         # check record conforms to expected schema
         resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
@@ -27,8 +27,8 @@ class TestBookmarks(unittest.TestCase):
             schema=API_SCHEMA["definitions"]["NameSpaces"],
             resolver=resolver,
         )
-        rv = self.client.get("/api/bookmarks/families")
         # check one response returned for families
+        rv = self.client.get("/api/bookmarks/families")
         assert len(rv.json) == 1
         # check record conforms to expected schema
         resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
@@ -37,8 +37,8 @@ class TestBookmarks(unittest.TestCase):
             schema=API_SCHEMA["definitions"]["Bookmarks"],
             resolver=resolver,
         )
-        rv = self.client.get("/api/bookmarks/people")
         # check one response returned for people
+        rv = self.client.get("/api/bookmarks/people")
         assert len(rv.json) == 1
         # check record conforms to expected schema
         resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
