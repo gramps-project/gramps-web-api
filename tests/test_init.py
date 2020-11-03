@@ -1,6 +1,8 @@
 """Unit test package for gramps_webapi."""
 
 import os
+import shutil
+import tempfile
 import unittest
 
 from gramps.cli.clidbman import CLIDbManager
@@ -22,9 +24,10 @@ class TestExampleDb(unittest.TestCase):
 
     def test_example_db_sqlite(self):
         """Test the SQLite example DB."""
+        test_grampshome = tempfile.mkdtemp()
+        os.environ["GRAMPSHOME"] = test_grampshome
         db = ExampleDbSQLite()
-        db.write()
-        self.assertEqual(getconfig("database.path"), db.tmp_dbdir)
+        self.assertEqual(getconfig("database.path"), db.db_path)
         dbman = CLIDbManager(DbState())
         db_info = dbman.current_names
         # there is only one DB here
@@ -32,9 +35,7 @@ class TestExampleDb(unittest.TestCase):
         # DB name
         self.assertEqual(db_info[0][0], "example")
         # DB path
-        self.assertEqual(os.path.dirname(db_info[0][1]), db.tmp_dbdir)
-        db.delete()
-        # just check that this is not at the tmp dir anymore
-        self.assertNotEqual(getconfig("database.path"), db.tmp_dbdir)
-        # ... and that the tmp dir is gone
-        self.assertTrue(not os.path.exists(db.tmp_dbdir))
+        self.assertEqual(os.path.dirname(db_info[0][1]), db.db_path)
+        # DB cleanup
+        shutil.rmtree(test_grampshome)
+        self.assertTrue(not os.path.exists(test_grampshome))

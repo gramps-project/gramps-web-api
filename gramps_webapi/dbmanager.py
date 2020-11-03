@@ -59,6 +59,7 @@ class WebDbManager:
         dbstate = DbState()
         user = User()
         smgr = CLIManager(dbstate, True, user)
+        smgr.do_reg_plugins(dbstate, uistate=None)
         if force_unlock:
             self.break_lock()
         smgr.open_activate(self.path)

@@ -1,13 +1,15 @@
 """Unit test package for gramps_webapi."""
 
 import gzip
+import importlib
 import os
 import shutil
 import tempfile
 import unittest
 from typing import Optional
 
-from gramps.cli.clidbman import CLIDbManager
+import gramps.cli.clidbman
+import gramps.cli.grampscli
 from gramps.gen.config import get as getconfig
 from gramps.gen.config import set as setconfig
 from gramps.gen.db.base import DbReadBase
@@ -15,7 +17,8 @@ from gramps.gen.db.utils import import_as_dict, make_database
 from gramps.gen.dbstate import DbState
 from gramps.gen.user import User
 from gramps.gen.utils.resourcepath import ResourcePath
-from gramps.plugins.importer.importxml import importData
+
+from gramps_webapi.dbmanager import WebDbManager
 
 
 class ExampleDbBase:
@@ -76,32 +79,39 @@ class ExampleDbInMemory(ExampleDbBase):
             shutil.rmtree(self.tmp_gzdir)
 
 
-class ExampleDbSQLite(ExampleDbBase):
+class ExampleDbSQLite(ExampleDbBase, WebDbManager):
     """Gramps SQLite example database handler.
 
     Usage:
     ```
     exampledb = ExampleDbSQLite()
-    exampledb.write()
-    # ...
-    exampledb.delete()
+    app = create_app(db_manager = exampledb)
     ```
 
-    Between `write` and `delete`, the Gramps database path will be
-    changed to a temporary directory. The tree will be named "example".
+    Instantiation should occur during test fixture setup, at which
+    point GRAMPSHOME should have been set and the temporary Gramps
+    user directory structure created. The database will be imported
+    under there, and when testing is done the test fixture teardown
+    is responsible for cleanup.
     """
 
-    def write(self) -> None:
-        """Write the example DB to a SQLite DB and change the DB path."""
-        self.tmp_dbdir = tempfile.mkdtemp()
-        self.old_path = getconfig("database.path")
-        setconfig("database.path", self.tmp_dbdir)
-        dbman = CLIDbManager(DbState())
-        dbman.import_new_db(self.path, User())
+    def __init__(self, name: str = None) -> None:
+        """Prepare and import the example DB."""
+        importlib.reload(gramps.cli.clidbman)
+        from gramps.cli.clidbman import CLIDbManager
 
-    def delete(self) -> None:
-        """Change the DB path back and delete the SQLite DB."""
-        if self.tmp_dbdir:
-            shutil.rmtree(self.tmp_dbdir)
-        if self.old_path:
-            setconfig("database.path", self.old_path)
+        importlib.reload(gramps.cli.grampscli)
+        from gramps.cli.grampscli import CLIManager
+
+        ExampleDbBase.__init__(self)
+        self.db_path = os.path.join(os.environ["GRAMPSHOME"], "gramps", "grampsdb")
+        if not os.path.isdir(self.db_path):
+            os.makedirs(self.db_path)
+        setconfig("database.path", self.db_path)
+        dbstate = DbState()
+        dbman = CLIDbManager(dbstate)
+        user = User()
+        smgr = CLIManager(dbstate, True, user)
+        smgr.do_reg_plugins(dbstate, uistate=None)
+        self.path, self.name = dbman.import_new_db(self.path, User())
+        WebDbManager.__init__(self, self.name)

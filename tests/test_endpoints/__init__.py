@@ -1,20 +1,25 @@
 """Tests for the `gramps_webapi.api` module."""
 
+import importlib
+import os
+import shutil
+import tempfile
 from unittest.mock import patch
 
+import gramps.gen.const
 import yaml
 from pkg_resources import resource_filename
 
-from gramps_webapi.app import create_app
+import gramps_webapi.app
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EXAMPLE_GRAMPS_CONFIG
 
-from .. import ExampleDbInMemory, ExampleDbSQLite
+from .. import ExampleDbSQLite
 
-global TEST_DB, TEST_APP, TEST_CLIENT, TEST_OBJECT_COUNTS
+global TEST_GRAMPSHOME, TEST_CLIENT, TEST_OBJECT_COUNTS
 
 
 def get_object_count(gramps_object):
-    """Return number of object type in database."""
+    """Return count for an object type in database."""
     return TEST_OBJECT_COUNTS[gramps_object]
 
 
@@ -25,16 +30,26 @@ def get_test_client():
 
 def setUpModule():
     """Test module setup."""
-    global TEST_DB, TEST_APP, TEST_CLIENT, TEST_OBJECT_COUNTS
-    TEST_DB = ExampleDbInMemory()
-    TEST_DB.load()
-    with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EXAMPLE_GRAMPS_CONFIG}):
-        TEST_APP = create_app()
-    TEST_APP.config["TESTING"] = True
-    TEST_CLIENT = TEST_APP.test_client()
+    global TEST_GRAMPSHOME, TEST_CLIENT, TEST_OBJECT_COUNTS
 
-    db_manager = TEST_APP.config["DB_MANAGER"]
-    db_state = db_manager.get_db()
+    TEST_GRAMPSHOME = tempfile.mkdtemp()
+    os.environ["GRAMPSHOME"] = TEST_GRAMPSHOME
+    importlib.reload(gramps.gen.const)
+    from gramps.gen.const import USER_DIRLIST
+
+    for path in USER_DIRLIST:
+        if not os.path.isdir(path):
+            os.makedirs(path)
+    importlib.reload(gramps_webapi.app)
+    from gramps_webapi.app import create_app
+
+    test_db = ExampleDbSQLite()
+    with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EXAMPLE_GRAMPS_CONFIG}):
+        test_app = create_app(db_manager=test_db)
+    test_app.config["TESTING"] = True
+    TEST_CLIENT = test_app.test_client()
+
+    db_state = test_app.config["DB_MANAGER"].get_db()
     TEST_OBJECT_COUNTS = {
         "people": db_state.db.get_number_of_people(),
         "families": db_state.db.get_number_of_families(),
@@ -52,7 +67,8 @@ def setUpModule():
 
 def tearDownModule():
     """Test module tear down."""
-    TEST_DB.close()
+    if TEST_GRAMPSHOME and os.path.isdir(TEST_GRAMPSHOME):
+        shutil.rmtree(TEST_GRAMPSHOME)
 
 
 with open(resource_filename("gramps_webapi", "data/apispec.yaml")) as file_handle:
