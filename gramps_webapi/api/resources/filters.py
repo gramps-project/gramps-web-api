@@ -95,7 +95,7 @@ def build_filter(filter_parms: Dict, namespace: str) -> GenericFilter:
                 rule_instance = rule_class
                 break
         if rule_instance is None:
-            abort(400)
+            abort(404)
         filter_args = []
         if "values" in filter_rule:
             filter_args = filter_rule["values"]
@@ -120,7 +120,7 @@ def apply_filter(db_handle: DbReadBase, args: Dict, namespace: str) -> List[Hand
     except json.JSONDecodeError:
         abort(400)
     except ValidationError:
-        abort(400)
+        abort(422)
 
     filter_object = build_filter(filter_parms, namespace)
     return filter_object.apply(db_handle)
@@ -165,7 +165,7 @@ class FilterResource(ProtectedResource, GrampsJSONEncoder):
         try:
             namespace = GRAMPS_NAMESPACES[namespace]
         except KeyError:
-            abort(400)
+            abort(404)
 
         rule_list = get_filter_rules(args, namespace)
         if args.get("rule") and not args.get("filter"):

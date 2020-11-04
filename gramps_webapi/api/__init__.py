@@ -70,7 +70,7 @@ register_endpt(BookmarksResource, "/bookmarks/", "bookmarks")
 # Filter
 register_endpt(FilterResource, "/filters/<string:namespace>", "filter")
 # Translate
-register_endpt(TranslationResource, "/translations/<string:code>", "translation")
+register_endpt(TranslationResource, "/translations/<string:isocode>", "translation")
 register_endpt(TranslationsResource, "/translations/", "translations")
 # Relation
 register_endpt(

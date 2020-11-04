@@ -76,21 +76,33 @@ class GrampsJSONEncoder(JSONEncoder):
         ):
             apply_filter = True
         for key, value in obj.__class__.__dict__.items():
+            if key.startswith("_"):
+                key = key[2 + key.find("__") :]
             if apply_filter:
                 if self.filter_only_keys and key not in self.filter_only_keys:
                     continue
                 if self.filter_skip_keys and key in self.filter_skip_keys:
                     continue
             if isinstance(value, property):
-                data[key] = getattr(obj, key)
+                value = getattr(obj, key)
+                if not self.strip_empty_keys or not is_null(value):
+                    data[key] = value
         for key, value in obj.__dict__.items():
+            if key.startswith("_"):
+                key = key[2 + key.find("__") :]
+            # Values we always filter out, data presented through different endpoint
+            if key in ["thumb"]:
+                continue
             if apply_filter:
                 if self.filter_only_keys and key not in self.filter_only_keys:
                     continue
                 if self.filter_skip_keys and key in self.filter_skip_keys:
                     continue
-            if key.startswith("_"):
-                key = key[2 + key.find("__") :]
+            # Values we normalize for schema consistency
+            if key == "rect" and value is None:
+                value = []
+            if key in ["mother_handle", "father_handle", "famc"] and value is None:
+                value = ""
             if not self.strip_empty_keys or not is_null(value):
                 data[key] = value
         return data
@@ -98,7 +110,7 @@ class GrampsJSONEncoder(JSONEncoder):
     def default(self, obj: Any):
         """Our default handler."""
         if isinstance(obj, lib.GrampsType):
-            return str(obj)
+            return obj.xml_str()
 
         for gramps_class in self.gramps_classes:
             if isinstance(obj, gramps_class):
