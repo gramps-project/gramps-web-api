@@ -110,7 +110,7 @@ class GrampsJSONEncoder(JSONEncoder):
     def default(self, obj: Any):
         """Our default handler."""
         if isinstance(obj, lib.GrampsType):
-            return str(obj)
+            return obj.xml_str()
 
         for gramps_class in self.gramps_classes:
             if isinstance(obj, gramps_class):
