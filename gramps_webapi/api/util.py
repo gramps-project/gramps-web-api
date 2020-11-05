@@ -20,5 +20,5 @@ def get_dbstate() -> DbState:
 
 def get_media_base_dir():
     """Get the media base directory set in the database."""
-    db = get_dbstate()
+    db = get_dbstate().db
     return expand_media_path(db.get_mediapath(), db)

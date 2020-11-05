@@ -89,7 +89,7 @@ register_endpt(MetadataResource, "/metadata/<string:datatype>", "metadata")
 @jwt_required_ifauth
 def download_file(handle):
     """Download a file."""
-    base_dir = current_app.config["MEDIA_BASE_DIR"]
+    base_dir = current_app.config.get("MEDIA_BASE_DIR")
     handler = LocalFileHandler(handle, base_dir)
     return handler.send_file()
 
@@ -100,7 +100,7 @@ def download_file(handle):
 @use_args({"square": fields.Boolean(missing=False)}, location="query")
 def get_thumbnail(args, handle, size):
     """Get a file's thumbnail."""
-    base_dir = current_app.config["MEDIA_BASE_DIR"]
+    base_dir = current_app.config.get("MEDIA_BASE_DIR")
     handler = LocalFileHandler(handle, base_dir)
     return handler.send_thumbnail(size=size, square=args["square"])
 
@@ -112,7 +112,7 @@ def get_thumbnail(args, handle, size):
 @use_args({"square": fields.Boolean(missing=False)}, location="query")
 def get_cropped(args, handle: str, x1: int, y1: int, x2: int, y2: int):
     """Get the thumbnail of a cropped file."""
-    base_dir = current_app.config["MEDIA_BASE_DIR"]
+    base_dir = current_app.config.get("MEDIA_BASE_DIR")
     handler = LocalFileHandler(handle, base_dir)
     return handler.send_cropped(x1=x1, y1=y1, x2=x2, y2=y2, square=args["square"])
 
@@ -126,7 +126,7 @@ def get_thumbnail_cropped(
     args, handle: str, x1: int, y1: int, x2: int, y2: int, size: int
 ):
     """Get the thumbnail of a cropped file."""
-    base_dir = current_app.config["MEDIA_BASE_DIR"]
+    base_dir = current_app.config.get("MEDIA_BASE_DIR")
     handler = LocalFileHandler(handle, base_dir)
     return handler.send_thumbnail_cropped(
         size=size, x1=x1, y1=y1, x2=x2, y2=y2, square=args["square"]
