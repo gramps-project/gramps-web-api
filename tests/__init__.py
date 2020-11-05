@@ -5,6 +5,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from pathlib import Path
 
 TEST_GRAMPSHOME = tempfile.mkdtemp()
 os.environ["GRAMPSHOME"] = TEST_GRAMPSHOME
@@ -32,6 +33,7 @@ class ExampleDbBase:
             os.makedirs(path, exist_ok=True)
         _resources = ResourcePath()
         doc_dir = _resources.doc_dir
+        os.environ["GRAMPS_RESOURCES"] = str(Path(_resources.data_dir).parent)
         self.path = os.path.join(doc_dir, "example", "gramps", "example.gramps")
         if os.path.isfile(self.path):
             self.is_zipped = False
