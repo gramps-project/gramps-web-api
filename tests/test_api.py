@@ -49,28 +49,43 @@ class TestPerson(unittest.TestCase):
         cls.dbman.remove_database(cls.name)
 
     def test_person_endpoint_404(self):
-        rv = self.client.get("/api/person/does_not_exist")
+        rv = self.client.get("/api/people/does_not_exist")
         assert rv.status_code == 404
 
-    def test_person_endpoint(self):
-        rv = self.client.get("/api/person/person001")
-        assert rv.json == {
-            "gramps_id": "person001",
-            "name_given": "John",
-            "name_surname": "Allen",
-            "gender": 1,  # male
-        }
-
     def test_people_endpoint(self):
-        rv = self.client.get("/api/person/")
-        assert rv.json == [
-            {
-                "gramps_id": "person001",
-                "name_given": "John",
-                "name_surname": "Allen",
-                "gender": 1,  # male
-            }
-        ]
+        rv = self.client.get("/api/people/?profile")
+        it = rv.json[0]
+        assert len(it["handle"]) > 20
+        assert isinstance(it["change"], int)
+        assert it["gramps_id"] == "person001"
+        assert it["profile"]["name_given"] == "John"
+        assert it["profile"]["name_surname"] == "Allen"
+        assert it["gender"] == 1  # male
+        assert it["birth_ref_index"] == -1
+        assert it["death_ref_index"] == -1
+        rv = self.client.get("/api/people/?gramps_id=person001&profile")
+        it = rv.json[0]
+        assert len(it["handle"]) > 20
+        assert isinstance(it["change"], int)
+        assert it["gramps_id"] == "person001"
+        assert it["profile"]["name_given"] == "John"
+        assert it["profile"]["name_surname"] == "Allen"
+        assert it["gender"] == 1  # male
+        assert it["birth_ref_index"] == -1
+        assert it["death_ref_index"] == -1
+
+    def test_person_endpoint(self):
+        rv = self.client.get("/api/people/")
+        it = rv.json[0]
+        rv = self.client.get("/api/people/" + it["handle"] + "?profile")
+        assert len(rv.json["handle"]) > 20
+        assert isinstance(rv.json["change"], int)
+        assert rv.json["gramps_id"] == "person001"
+        assert rv.json["profile"]["name_given"] == "John"
+        assert rv.json["profile"]["name_surname"] == "Allen"
+        assert rv.json["gender"] == 1  # male
+        assert rv.json["birth_ref_index"] == -1
+        assert rv.json["death_ref_index"] == -1
 
     def test_token_endpoint(self):
         rv = self.client.post("/api/login/", data={})
@@ -86,5 +101,5 @@ class TestPerson(unittest.TestCase):
         with open(resource_filename("gramps_webapi", "data/apispec.yaml")) as f:
             api_schema = yaml.safe_load(f)
         person_schema = api_schema["definitions"]["Person"]
-        for person in self.client.get("/api/person/").json:
+        for person in self.client.get("/api/people/").json:
             validate(instance=person, schema=person_schema)

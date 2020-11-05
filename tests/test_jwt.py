@@ -49,23 +49,38 @@ class TestPerson(unittest.TestCase):
         cls.dbman.remove_database(cls.name)
 
     def test_person_endpoint(self):
-        rv = self.client.get("/api/person/person001")
+        rv = self.client.get("/api/people/")
         # no authorization header!
         assert rv.status_code == 401
         # fetch a token and try again
         rv = self.client.post("/api/login/", data={"username": "user", "password": 123})
         token = rv.json["access_token"]
         rv = self.client.get(
-            "/api/person/person001",
+            "/api/people/",
             headers={"Authorization": "Bearer {}".format(token)},
         )
         assert rv.status_code == 200
-        assert rv.json == {
-            "gramps_id": "person001",
-            "name_given": "John",
-            "name_surname": "Allen",
-            "gender": 1,  # male
-        }
+        it = rv.json[0]
+        rv = self.client.get("/api/people/" + it["handle"] + "?profile")
+        # no authorization header!
+        assert rv.status_code == 401
+        # fetch a token and try again
+        rv = self.client.post("/api/login/", data={"username": "user", "password": 123})
+        token = rv.json["access_token"]
+        rv = self.client.get(
+            "/api/people/" + it["handle"] + "?profile",
+            headers={"Authorization": "Bearer {}".format(token)},
+        )
+        assert rv.status_code == 200
+        assert len(rv.json["handle"]) > 20
+        assert isinstance(rv.json["change"], int)
+        assert rv.json["gramps_id"] == "person001"
+        assert rv.json["profile"]["name_given"] == "John"
+        assert rv.json["profile"]["name_surname"] == "Allen"
+        assert rv.json["gender"] == 1  # male
+        assert rv.json["private"] == False
+        assert rv.json["birth_ref_index"] == -1
+        assert rv.json["death_ref_index"] == -1
 
     def test_token_endpoint(self):
         rv = self.client.post("/api/login/", data={})

@@ -1,14 +1,10 @@
 """Authentication endpoint blueprint."""
 
 from flask import abort, current_app
-from flask_jwt_extended import (
-    create_access_token,
-    create_refresh_token,
-    get_jwt_identity,
-)
+from flask_jwt_extended import (create_access_token, create_refresh_token,
+                                get_jwt_identity)
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-
 from webargs import fields
 from webargs.flaskparser import use_args
 
@@ -22,7 +18,8 @@ class TokenResource(Resource):
 
     @limiter.limit("1/second")
     @use_args(
-        {"username": fields.Str(), "password": fields.Str()}, location="form",
+        {"username": fields.Str(), "password": fields.Str()},
+        location="form",
     )
     def post(self, args):
         """Post username and password to fetch a token."""

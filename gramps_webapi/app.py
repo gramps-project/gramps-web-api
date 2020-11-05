@@ -15,7 +15,7 @@ from .const import API_PREFIX, ENV_CONFIG_FILE
 from .dbmanager import WebDbManager
 
 
-def create_app():
+def create_app(db_manager=None):
     """Flask application factory."""
     app = Flask(__name__)
     app.logger.setLevel(logging.INFO)
@@ -27,7 +27,10 @@ def create_app():
     app.config.from_envvar(ENV_CONFIG_FILE)
 
     # instantiate DB manager
-    app.config["DB_MANAGER"] = WebDbManager(name=app.config["TREE"])
+    if db_manager is None:
+        app.config["DB_MANAGER"] = WebDbManager(name=app.config["TREE"])
+    else:
+        app.config["DB_MANAGER"] = db_manager
 
     if app.config.get("DISABLE_AUTH"):
         pass

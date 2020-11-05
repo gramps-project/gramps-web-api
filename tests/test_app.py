@@ -4,11 +4,10 @@ import unittest
 from unittest.mock import patch
 
 from gramps.cli.clidbman import CLIDbManager
-from gramps.gen.db.utils import make_database
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
-from gramps_webapi.const import TEST_CONFIG, ENV_CONFIG_FILE
+from gramps_webapi.const import ENV_CONFIG_FILE, TEST_CONFIG
 
 
 class TestDummy(unittest.TestCase):

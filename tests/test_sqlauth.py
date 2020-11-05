@@ -1,8 +1,7 @@
 import unittest
 
-from sqlalchemy.exc import IntegrityError
-
 from gramps_webapi.auth import SQLAuth, User
+from sqlalchemy.exc import IntegrityError
 
 
 class TestSQLAuth(unittest.TestCase):
