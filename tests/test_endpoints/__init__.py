@@ -11,11 +11,10 @@ import yaml
 from pkg_resources import resource_filename
 
 import gramps_webapi.app
+from gramps_webapi.app import create_app
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EXAMPLE_GRAMPS_CONFIG
 
-from .. import ExampleDbSQLite
-
-global TEST_GRAMPSHOME, TEST_CLIENT, TEST_OBJECT_COUNTS
+from .. import TEST_GRAMPSHOME, ExampleDbSQLite
 
 
 def get_object_count(gramps_object):
@@ -30,18 +29,7 @@ def get_test_client():
 
 def setUpModule():
     """Test module setup."""
-    global TEST_GRAMPSHOME, TEST_CLIENT, TEST_OBJECT_COUNTS
-
-    TEST_GRAMPSHOME = tempfile.mkdtemp()
-    os.environ["GRAMPSHOME"] = TEST_GRAMPSHOME
-    importlib.reload(gramps.gen.const)
-    from gramps.gen.const import USER_DIRLIST
-
-    for path in USER_DIRLIST:
-        if not os.path.isdir(path):
-            os.makedirs(path)
-    importlib.reload(gramps_webapi.app)
-    from gramps_webapi.app import create_app
+    global TEST_CLIENT, TEST_OBJECT_COUNTS
 
     test_db = ExampleDbSQLite()
     with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EXAMPLE_GRAMPS_CONFIG}):

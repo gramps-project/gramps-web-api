@@ -1,17 +1,19 @@
 """Unit test package for gramps_webapi."""
 
 import gzip
-import importlib
 import os
 import shutil
 import tempfile
 import unittest
-from typing import Optional
 
-import gramps.cli.clidbman
-import gramps.cli.grampscli
+TEST_GRAMPSHOME = tempfile.mkdtemp()
+os.environ["GRAMPSHOME"] = TEST_GRAMPSHOME
+
+from gramps.cli.clidbman import CLIDbManager
+from gramps.cli.grampscli import CLIManager
 from gramps.gen.config import get as getconfig
 from gramps.gen.config import set as setconfig
+from gramps.gen.const import USER_DIRLIST
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.db.utils import import_as_dict, make_database
 from gramps.gen.dbstate import DbState
@@ -26,6 +28,8 @@ class ExampleDbBase:
 
     def __init__(self) -> None:
         """Initialize self."""
+        for path in USER_DIRLIST:
+            os.makedirs(path, exist_ok=True)
         _resources = ResourcePath()
         doc_dir = _resources.doc_dir
         self.path = os.path.join(doc_dir, "example", "gramps", "example.gramps")
@@ -43,8 +47,6 @@ class ExampleDbBase:
                     " found at {}".format(os.path.dirname(self.path_gz))
                 )
             self.path = self._extract_to_tempfile()
-        self.tmp_dbdir = None
-        self.old_path = None
 
     def _extract_to_tempfile(self) -> str:
         """Extract the example DB to a temp file and return the path."""
@@ -88,25 +90,17 @@ class ExampleDbSQLite(ExampleDbBase, WebDbManager):
     app = create_app(db_manager = exampledb)
     ```
 
-    Instantiation should occur during test fixture setup, at which
-    point GRAMPSHOME should have been set and the temporary Gramps
-    user directory structure created. The database will be imported
-    under there, and when testing is done the test fixture teardown
-    is responsible for cleanup.
+    Instantiation should occur during test fixture setup, which should
+    insure the temporary Gramps user directory structure was created.
+    The database will be imported under there, and when testing is done
+    the test fixture teardown is responsible for cleanup.
     """
 
     def __init__(self, name: str = None) -> None:
         """Prepare and import the example DB."""
-        importlib.reload(gramps.cli.clidbman)
-        from gramps.cli.clidbman import CLIDbManager
-
-        importlib.reload(gramps.cli.grampscli)
-        from gramps.cli.grampscli import CLIManager
-
         ExampleDbBase.__init__(self)
         self.db_path = os.path.join(os.environ["GRAMPSHOME"], "gramps", "grampsdb")
-        if not os.path.isdir(self.db_path):
-            os.makedirs(self.db_path)
+        os.makedirs(self.db_path, exist_ok=True)
         setconfig("database.path", self.db_path)
         dbstate = DbState()
         dbman = CLIDbManager(dbstate)
