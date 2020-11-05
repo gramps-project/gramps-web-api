@@ -1,4 +1,4 @@
-"""Tests for the /api/xml endpoints using example_gramps."""
+"""Tests for the /api/export/xml endpoints using example_gramps."""
 
 import unittest
 
@@ -6,7 +6,7 @@ from . import get_test_client
 
 
 class TestXml(unittest.TestCase):
-    """Test cases for the /api/xml endpoint for a Gramps XML export."""
+    """Test cases for the /api/export/xml endpoint for a Gramps XML export."""
 
     @classmethod
     def setUpClass(cls):
@@ -15,10 +15,10 @@ class TestXml(unittest.TestCase):
 
     def test_xml_endpoint(self):
         """Test reponse for xml."""
-        rv = self.client.get("/api/xml/")
+        rv = self.client.get("/api/export/xml/")
         assert rv.mime == "application/xml"
 
     def test_xml_endpoint_compress(self):
         """Test reponse for xml with compress option."""
-        rv = self.client.get("/api/xml/?compress=1")
+        rv = self.client.get("/api/export/xml/?compress=1")
         assert rv.mime == "application/gz"

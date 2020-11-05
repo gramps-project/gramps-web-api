@@ -81,4 +81,4 @@ register_endpt(
 register_endpt(MetadataResource, "/metadata/<string:datatype>", "metadata")
 
 # XML export
-api_blueprint.route("/xml")(export_xml)
+api_blueprint.route("/export/xml")(export_xml)
