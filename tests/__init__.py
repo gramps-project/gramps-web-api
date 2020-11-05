@@ -6,8 +6,6 @@ import shutil
 import tempfile
 import unittest
 
-global TEST_GRAMPSHOME
-
 TEST_GRAMPSHOME = tempfile.mkdtemp()
 os.environ["GRAMPSHOME"] = TEST_GRAMPSHOME
 
