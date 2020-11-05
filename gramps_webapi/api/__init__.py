@@ -22,6 +22,7 @@ from .resources.source import SourceResource, SourcesResource
 from .resources.tag import TagResource, TagsResource
 from .resources.token import TokenRefreshResource, TokenResource
 from .resources.translate import TranslationResource, TranslationsResource
+from .resources.xml import export_xml
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
 
@@ -74,9 +75,10 @@ register_endpt(TranslationResource, "/translations/<string:isocode>", "translati
 register_endpt(TranslationsResource, "/translations/", "translations")
 # Relation
 register_endpt(
-    RelationResource,
-    "/relations/<string:handle1>/<string:handle2>",
-    "relations",
+    RelationResource, "/relations/<string:handle1>/<string:handle2>", "relations",
 )
 # Metadata
 register_endpt(MetadataResource, "/metadata/<string:datatype>", "metadata")
+
+# XML export
+api_blueprint.route("/xml")(export_xml)
