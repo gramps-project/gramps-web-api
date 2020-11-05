@@ -16,8 +16,6 @@ from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EXAMPLE_GRAMPS_CONFIG
 
 from .. import TEST_GRAMPSHOME, ExampleDbSQLite
 
-global TEST_CLIENT, TEST_OBJECT_COUNTS
-
 
 def get_object_count(gramps_object):
     """Return count for an object type in database."""
