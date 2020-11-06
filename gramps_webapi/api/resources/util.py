@@ -273,6 +273,13 @@ def get_extended_attributes(
         result["tags"] = [
             db_handle.get_tag_from_handle(handle) for handle in obj.tag_list
         ]
+    if (do_all or "backlinks" in args["extend"]) and hasattr(obj, "backlinks"):
+        result["backlinks"] = {}
+        for class_name, backlinks in obj.backlinks.items():
+            result["backlinks"][class_name] = [
+                db_handle.method("get_%s_from_handle", class_name.upper())(handle)
+                for handle in backlinks
+            ]
     return result
 
 

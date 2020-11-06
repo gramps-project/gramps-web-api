@@ -27,9 +27,9 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
 
     def full_object(self, obj: GrampsObject, args: Dict) -> GrampsObject:
         """Get the full object with extended attributes and backlinks."""
-        obj = self.object_extend(obj, args)
         if args.get("backlinks"):
             obj.backlinks = get_backlinks(self.db_handle, obj.handle)
+        obj = self.object_extend(obj, args)
         return obj
 
     def object_extend(self, obj: GrampsObject, args: Dict) -> GrampsObject:
