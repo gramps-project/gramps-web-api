@@ -2,9 +2,7 @@
 
 import unittest
 
-from jsonschema import validate
-
-from . import get_test_client
+from tests.test_endpoints import get_test_client
 
 
 class TestToken(unittest.TestCase):
@@ -17,12 +15,12 @@ class TestToken(unittest.TestCase):
 
     def test_token_endpoint(self):
         """Test login endpoint."""
-        response_value = self.client.post("/api/login/", data={})
-        assert response_value.status_code == 200
-        assert response_value.json == {"access_token": 1, "refresh_token": 1}
+        result = self.client.post("/api/login/", data={})
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json, {"access_token": 1, "refresh_token": 1})
 
     def test_refresh_token_endpoint(self):
         """Test refresh endpoint."""
-        response_value = self.client.post("/api/refresh/")
-        assert response_value.status_code == 200
-        assert response_value.json == {"access_token": 1}
+        result = self.client.post("/api/refresh/")
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json, {"access_token": 1})

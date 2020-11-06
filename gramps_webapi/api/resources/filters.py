@@ -7,8 +7,8 @@ import gramps.gen.filters as filters
 from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.filters import GenericFilter
-from marshmallow import Schema, ValidationError, fields
-from webargs import validate
+from marshmallow import Schema
+from webargs import ValidationError, fields, validate
 from webargs.flaskparser import use_args
 
 from ...const import GRAMPS_NAMESPACES
@@ -34,8 +34,9 @@ def get_filter_rules(args: Dict[str, str], namespace: str) -> List[Dict]:
     rule_list = []
     for rule_class in _RULES_LOOKUP[namespace]:
         add_rule = True
-        if args.get("rule") and args["rule"] != rule_class.__name__:
-            add_rule = False
+        if "rules" in args and args["rules"]:
+            if rule_class.__name__ not in args["rules"]:
+                add_rule = False
         if add_rule:
             rule_list.append(
                 {
@@ -46,6 +47,8 @@ def get_filter_rules(args: Dict[str, str], namespace: str) -> List[Dict]:
                     "rule": rule_class.__name__,
                 }
             )
+    if "rules" in args and len(args["rules"]) != len(rule_list):
+        abort(404)
     return rule_list
 
 
@@ -55,8 +58,9 @@ def get_custom_filters(args: Dict[str, str], namespace: str) -> List[Dict]:
     filters.reload_custom_filters()
     for filter_class in filters.CustomFilters.get_filters(namespace):
         add_filter = True
-        if args.get("filter") and args["filter"] != filter_class.get_name():
-            add_filter = False
+        if "filters" in args and args["filters"]:
+            if filter_class.get_name() not in args["filters"]:
+                add_filter = False
         if add_filter:
             filter_list.append(
                 {
@@ -74,6 +78,8 @@ def get_custom_filters(args: Dict[str, str], namespace: str) -> List[Dict]:
                     ],
                 }
             )
+    if "filters" in args and len(args["filters"]) != len(filter_list):
+        abort(404)
     return filter_list
 
 
@@ -113,7 +119,7 @@ def apply_filter(db_handle: DbReadBase, args: Dict, namespace: str) -> List[Hand
         for filter_class in filters.CustomFilters.get_filters(namespace):
             if args["filter"] == filter_class.get_name():
                 return filter_class.apply(db_handle)
-        abort(400)
+        abort(404)
 
     try:
         filter_parms = FilterSchema().load(json.loads(args["rules"]))
@@ -143,7 +149,9 @@ class FilterSchema(Schema):
         validate=validate.OneOf(["and", "or", "xor", "one"]),
     )
     invert = fields.Boolean(required=False, missing=False)
-    rules = fields.List(fields.Nested(RuleSchema))
+    rules = fields.List(
+        fields.Nested(RuleSchema), required=True, validate=validate.Length(min=1)
+    )
 
 
 class CustomFilterSchema(FilterSchema):
@@ -151,13 +159,21 @@ class CustomFilterSchema(FilterSchema):
 
     name = fields.Str(required=True, validate=validate.Length(min=1))
     comment = fields.Str(required=False)
+    rules = fields.List(
+        fields.Nested(RuleSchema), required=True, validate=validate.Length(min=1)
+    )
 
 
 class FilterResource(ProtectedResource, GrampsJSONEncoder):
     """Filter resource."""
 
     @use_args(
-        {"filter": fields.Str(), "rule": fields.Str()},
+        {
+            "filters": fields.DelimitedList(
+                fields.Str(validate=validate.Length(min=1))
+            ),
+            "rules": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
+        },
         location="query",
     )
     def get(self, args: Dict[str, str], namespace: str) -> Response:
@@ -168,10 +184,10 @@ class FilterResource(ProtectedResource, GrampsJSONEncoder):
             abort(404)
 
         rule_list = get_filter_rules(args, namespace)
-        if args.get("rule") and not args.get("filter"):
+        if "rules" in args and "filters" not in args:
             return self.response(200, {"rules": rule_list})
         filter_list = get_custom_filters(args, namespace)
-        if args.get("filter") and not args.get("rule"):
+        if "filters" in args and "rules" not in args:
             return self.response(200, {"filters": filter_list})
         return self.response(200, {"filters": filter_list, "rules": rule_list})
 
@@ -214,12 +230,11 @@ class FilterResource(ProtectedResource, GrampsJSONEncoder):
 
     @use_args(
         {
-            "name": fields.Str(required=True),
-            "force": fields.Boolean(required=False, missing=False),
+            "force": fields.Str(validate=validate.Length(equal=0)),
         },
-        location="json",
+        location="query",
     )
-    def delete(self, args: Dict, namespace: str) -> Response:
+    def delete(self, args: Dict, namespace: str, name: str) -> Response:
         """Delete a custom filter."""
         try:
             namespace = GRAMPS_NAMESPACES[namespace]
@@ -229,7 +244,7 @@ class FilterResource(ProtectedResource, GrampsJSONEncoder):
         filters.reload_custom_filters()
         custom_filters = filters.CustomFilters.get_filters(namespace)
         for custom_filter in custom_filters:
-            if args["name"] == custom_filter.get_name():
+            if name == custom_filter.get_name():
                 filter_set = set()
                 self._find_dependent_filters(namespace, custom_filter, filter_set)
                 if len(filter_set) > 1:
@@ -237,9 +252,7 @@ class FilterResource(ProtectedResource, GrampsJSONEncoder):
                         abort(405)
                 list(map(custom_filters.remove, filter_set))
                 filters.CustomFilters.save()
-                return self.response(
-                    200, {"message": "Deleted filter: " + args["name"]}
-                )
+                return self.response(200, {"message": "Deleted filter: " + name})
         return abort(404)
 
     def _find_dependent_filters(

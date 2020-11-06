@@ -4,7 +4,7 @@ import unittest
 
 from jsonschema import RefResolver, validate
 
-from . import API_SCHEMA, get_object_count, get_test_client
+from tests.test_endpoints import API_SCHEMA, get_object_count, get_test_client
 
 
 class TestTags(unittest.TestCase):
@@ -18,20 +18,20 @@ class TestTags(unittest.TestCase):
     def test_tags_endpoint(self):
         """Test response for tags."""
         # check expected number of tags found
-        rv = self.client.get("/api/tags/")
-        assert len(rv.json) == get_object_count("tags")
+        result = self.client.get("/api/tags/")
+        self.assertEqual(len(result.json), get_object_count("tags"))
         # check first record is expected tag
-        assert rv.json[0]["name"] == "complete"
+        self.assertEqual(result.json[0]["name"], "complete")
         # check last record is expected tag
-        last = len(rv.json) - 1
-        assert rv.json[last]["name"] == "ToDo"
+        last = len(result.json) - 1
+        self.assertEqual(result.json[last]["name"], "ToDo")
 
     def test_tags_endpoint_schema(self):
         """Test all tags against the tag schema."""
         # check all records found conform to expected schema
-        rv = self.client.get("/api/tags/")
+        result = self.client.get("/api/tags/")
         resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
-        for tag in rv.json:
+        for tag in result.json:
             validate(
                 instance=tag, schema=API_SCHEMA["definitions"]["Tag"], resolver=resolver
             )
@@ -48,22 +48,22 @@ class TestTagsHandle(unittest.TestCase):
     def test_tags_handle_endpoint_404(self):
         """Test non-existent tag response."""
         # check 404 returned for non-existent tag
-        rv = self.client.get("/api/tags/does_not_exist")
-        assert rv.status_code == 404
+        result = self.client.get("/api/tags/does_not_exist")
+        self.assertEqual(result.status_code, 404)
 
     def test_tags_handle_endpoint(self):
         """Test tag response."""
         # check expected tag returned
-        rv = self.client.get("/api/tags/bb80c2b235b0a1b3f49")
-        assert rv.json["name"] == "ToDo"
+        result = self.client.get("/api/tags/bb80c2b235b0a1b3f49")
+        self.assertEqual(result.json["name"], "ToDo")
 
     def test_tag_handle_endpoint_schema(self):
         """Test the tag schema with extensions."""
         # check tag record conforms to expected schema
-        rv = self.client.get("/api/tags/bb80c2b235b0a1b3f49")
+        result = self.client.get("/api/tags/bb80c2b235b0a1b3f49")
         resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
         validate(
-            instance=rv.json,
+            instance=result.json,
             schema=API_SCHEMA["definitions"]["Tag"],
             resolver=resolver,
         )

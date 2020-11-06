@@ -4,7 +4,7 @@ import unittest
 
 from jsonschema import RefResolver, validate
 
-from . import API_SCHEMA, get_test_client
+from tests.test_endpoints import API_SCHEMA, get_test_client
 
 
 class TestBookmarks(unittest.TestCase):
@@ -18,32 +18,32 @@ class TestBookmarks(unittest.TestCase):
     def test_bookmarks_endpoint_schema(self):
         """Test bookmarks against the bookmark schema."""
         # check one response returned for namespace list
-        rv = self.client.get("/api/bookmarks/")
-        assert len(rv.json) == 1
+        result = self.client.get("/api/bookmarks/")
+        self.assertEqual(len(result.json), 1)
         # check record conforms to expected schema
         resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
         validate(
-            instance=rv.json,
+            instance=result.json,
             schema=API_SCHEMA["definitions"]["NameSpaces"],
             resolver=resolver,
         )
         # check one response returned for families
-        rv = self.client.get("/api/bookmarks/families")
-        assert len(rv.json) == 1
+        result = self.client.get("/api/bookmarks/families")
+        self.assertEqual(len(result.json), 1)
         # check record conforms to expected schema
         resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
         validate(
-            instance=rv.json,
+            instance=result.json,
             schema=API_SCHEMA["definitions"]["Bookmarks"],
             resolver=resolver,
         )
         # check one response returned for people
-        rv = self.client.get("/api/bookmarks/people")
-        assert len(rv.json) == 1
+        result = self.client.get("/api/bookmarks/people")
+        self.assertEqual(len(result.json), 1)
         # check record conforms to expected schema
         resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
         validate(
-            instance=rv.json,
+            instance=result.json,
             schema=API_SCHEMA["definitions"]["Bookmarks"],
             resolver=resolver,
         )

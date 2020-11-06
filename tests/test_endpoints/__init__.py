@@ -13,8 +13,7 @@ from pkg_resources import resource_filename
 import gramps_webapi.app
 from gramps_webapi.app import create_app
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EXAMPLE_GRAMPS_CONFIG
-
-from .. import TEST_GRAMPSHOME, ExampleDbSQLite
+from tests import TEST_GRAMPSHOME, ExampleDbSQLite
 
 
 def get_object_count(gramps_object):
