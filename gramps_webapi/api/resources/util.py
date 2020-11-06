@@ -284,7 +284,8 @@ def get_backlinks(db_handle: DbReadBase, handle: Handle) -> Dict[str, List[Handl
     """
     backlinks = {}
     for obj_type, target_handle in db_handle.find_backlink_handles(handle):
-        if obj_type not in backlinks:
-            backlinks[obj_type.lower()] = []
-        backlinks[obj_type.lower()].append(target_handle)
+        key = obj_type.lower()
+        if key not in backlinks:
+            backlinks[key] = []
+        backlinks[key].append(target_handle)
     return backlinks
