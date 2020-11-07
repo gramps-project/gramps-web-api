@@ -47,6 +47,8 @@ tags:
   description: Access to note objects.
 - name: tags
   description: Access to tag objects.
+- name: name-groups
+  description: Access to name group mappings.
 - name: bookmarks
   description: Access to user bookmarks.
 - name: filters
@@ -1689,6 +1691,77 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Tag not found."
+
+##############################################################################
+# Endpoint - NameGroups
+##############################################################################
+
+  /name-groups:
+    get:
+      tags:
+      - name-groups
+      summary: "Get a list of name group mappings."
+      operationId: getNameGroupMappings
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/NameGroupMapping"
+        401:
+          description: "Unauthorized: Missing authorization header."
+
+  /name-groups/{surname}:
+    get:
+      tags:
+      - name-groups
+      summary: "Get name group mapping for a given surname."
+      operationId: getNameGroupMapping
+      security:
+        - Bearer: []
+      parameters:
+      - name: surname
+        in: path
+        required: true
+        type: string
+        description: "The surname for which to get the grouping."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/NameGroupMapping"
+        401:
+          description: "Unauthorized: Missing authorization header."
+
+  /name-groups/{surname}/{group}:
+    post:
+      tags:
+      - name-groups
+      summary: "Set name group mapping for a given surname."
+      operationId: setNameGroupMapping
+      security:
+        - Bearer: []
+      parameters:
+      - name: surname
+        in: path
+        required: true
+        type: string
+        description: "The surname to set the mapping for."
+      - name: group
+        in: path
+        required: true
+        type: string
+        description: "The group to map the surname to."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/NameGroupMapping"
+        401:
+          description: "Unauthorized: Missing authorization header."
 
 ##############################################################################
 # Endpoint - Bookmarks
@@ -4200,3 +4273,19 @@ definitions:
         example:
           - e9027bf5e7f77551b12e7da3c77
           - e9027bf3de2402f9faaac001cef
+
+##############################################################################
+# Model - NameGroupMapping
+##############################################################################
+
+  NameGroupMapping:
+    type: object
+    properties:
+      surname:
+        description: "Surname to be grouped."
+        type: string
+        example: Fernández
+      group:
+        description: "Surname to be grouped with."
+        type: string
+        example: Fernandez
