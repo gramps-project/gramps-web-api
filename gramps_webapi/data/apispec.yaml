@@ -1909,10 +1909,38 @@ paths:
           description: "Forbidden: Bad credentials, authentication failed."
 
   /filters/{namespace}/{name}:    
+    get:
+      tags:
+      - filters
+      summary: "Get a custom filter for a given namespace or category."
+      operationId: getFilter
+      security:
+        - Bearer: []
+      parameters:
+      - name: namespace
+        in: path
+        required: true
+        type: string
+        description: "The namespace or category for the custom filter."
+      - name: name
+        in: path
+        required: true
+        type: string
+        description: "The name of a custom filter."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/CustomFilter"    
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Namespace or filter not found."
+
     delete:
       tags:
       - filters
-      summary: "Delete a custom filter."
+      summary: "Delete a custom filter in a given namespace or category."
       operationId: deleteFilter
       security:
         - Bearer: []

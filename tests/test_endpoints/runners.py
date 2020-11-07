@@ -248,14 +248,23 @@ def run_test_filters_endpoint_namespace(test, namespace: str, payload: Dict):
     # check response if filter already exists
     result = test.client.post("/api/filters/" + namespace, json=payload)
     test.assertEqual(result.status_code, 422)
-    # check can fetch the filter
+    # check can fetch the filter using query parm
     result = test.client.get("/api/filters/" + namespace + "?filters=" + filter_name)
     test.assertEqual(result.status_code, 200)
     test.assertTrue(len(result.json) == 1 and len(result.json["filters"]) == 1)
     test.assertEqual(result.json["filters"][0]["name"], filter_name)
-    # check response if fetching filter that does not exist
+    # check can fetch the filter using path
+    result = test.client.get("/api/filters/" + namespace + "/" + filter_name)
+    test.assertEqual(result.status_code, 200)
+    test.assertEqual(result.json["name"], filter_name)
+    # check response if fetching filter using query parm that does not exist
     result = test.client.get(
         "/api/filters/" + namespace + "?filters=" + filter_name + "Missing"
+    )
+    test.assertEqual(result.status_code, 404)
+    # check response if fetching filter using path that does not exist
+    result = test.client.get(
+        "/api/filters/" + namespace + "/" + filter_name + "Missing"
     )
     test.assertEqual(result.status_code, 404)
     # check response applying filter that does not exist

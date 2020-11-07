@@ -1,7 +1,7 @@
 """Gramps filter interface."""
 
 import json
-from typing import Dict, List, Set
+from typing import Any, Dict, List, Set
 
 import gramps.gen.filters as filters
 from flask import Response, abort
@@ -29,7 +29,7 @@ _RULES_LOOKUP = {
 }
 
 
-def get_filter_rules(args: Dict[str, str], namespace: str) -> List[Dict]:
+def get_filter_rules(args: Dict[str, Any], namespace: str) -> List[Dict]:
     """Return a list of available filter rules for a namespace."""
     rule_list = []
     for rule_class in _RULES_LOOKUP[namespace]:
@@ -52,7 +52,7 @@ def get_filter_rules(args: Dict[str, str], namespace: str) -> List[Dict]:
     return rule_list
 
 
-def get_custom_filters(args: Dict[str, str], namespace: str) -> List[Dict]:
+def get_custom_filters(args: Dict[str, Any], namespace: str) -> List[Dict]:
     """Return a list of custom filters for a namespace."""
     filter_list = []
     filters.reload_custom_filters()
@@ -164,8 +164,8 @@ class CustomFilterSchema(FilterSchema):
     )
 
 
-class FilterResource(ProtectedResource, GrampsJSONEncoder):
-    """Filter resource."""
+class FiltersResource(ProtectedResource, GrampsJSONEncoder):
+    """Filters resource."""
 
     @use_args(
         {
@@ -227,6 +227,23 @@ class FilterResource(ProtectedResource, GrampsJSONEncoder):
                     200, {"message": "Updated filter: " + new_filter.get_name()}
                 )
         return abort(404)
+
+
+class FilterResource(ProtectedResource, GrampsJSONEncoder):
+    """Filter resource."""
+
+    def get(self, namespace: str, name: str) -> Response:
+        """Get a custom filter."""
+        try:
+            namespace = GRAMPS_NAMESPACES[namespace]
+        except KeyError:
+            abort(404)
+
+        args = {"filters": [name]}
+        filter_list = get_custom_filters(args, namespace)
+        if len(filter_list) == 0:
+            abort(404)
+        return self.response(200, filter_list[0])
 
     @use_args(
         {
