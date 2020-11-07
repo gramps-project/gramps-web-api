@@ -13,6 +13,7 @@ from .resources.family import FamiliesResource, FamilyResource
 from .resources.filters import FilterResource
 from .resources.media import MediaObjectResource, MediaObjectsResource
 from .resources.metadata import MetadataResource
+from .resources.name_groups import NameGroupsResource
 from .resources.note import NoteResource, NotesResource
 from .resources.person import PeopleResource, PersonResource
 from .resources.place import PlaceResource, PlacesResource
@@ -64,6 +65,12 @@ register_endpt(TagsResource, "/tags/", "tags")
 # Token
 register_endpt(TokenResource, "/login/", "token")
 register_endpt(TokenRefreshResource, "/refresh/", "token_refresh")
+# Name Groups
+register_endpt(
+    NameGroupsResource, "/name-groups/<string:surname>/<string:group>", "set-name-group"
+)
+register_endpt(NameGroupsResource, "/name-groups/<string:surname>", "get-name-group")
+register_endpt(NameGroupsResource, "/name-groups/", "name-groups")
 # Bookmark
 register_endpt(BookmarkResource, "/bookmarks/<string:namespace>", "bookmark")
 register_endpt(BookmarksResource, "/bookmarks/", "bookmarks")
