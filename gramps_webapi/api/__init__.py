@@ -2,9 +2,13 @@
 
 from typing import Type
 
-from flask import Blueprint
+from flask import Blueprint, current_app
+from webargs import fields, validate
+from webargs.flaskparser import use_args
 
 from ..const import API_PREFIX
+from .auth import jwt_required_ifauth
+from .file import LocalFileHandler
 from .resources.base import Resource
 from .resources.bookmark import BookmarkResource, BookmarksResource
 from .resources.citation import CitationResource, CitationsResource
@@ -22,6 +26,7 @@ from .resources.source import SourceResource, SourcesResource
 from .resources.tag import TagResource, TagsResource
 from .resources.token import TokenRefreshResource, TokenResource
 from .resources.translate import TranslationResource, TranslationsResource
+
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
 
@@ -74,9 +79,55 @@ register_endpt(TranslationResource, "/translations/<string:isocode>", "translati
 register_endpt(TranslationsResource, "/translations/", "translations")
 # Relation
 register_endpt(
-    RelationResource,
-    "/relations/<string:handle1>/<string:handle2>",
-    "relations",
+    RelationResource, "/relations/<string:handle1>/<string:handle2>", "relations",
 )
 # Metadata
 register_endpt(MetadataResource, "/metadata/<string:datatype>", "metadata")
+
+# Media files
+@api_blueprint.route("/media/<string:handle>/file")
+@jwt_required_ifauth
+def download_file(handle):
+    """Download a file."""
+    base_dir = current_app.config.get("MEDIA_BASE_DIR")
+    handler = LocalFileHandler(handle, base_dir)
+    return handler.send_file()
+
+
+# Media files
+@api_blueprint.route("/media/<string:handle>/thumbnail/<int:size>")
+@jwt_required_ifauth
+@use_args({"square": fields.Boolean(missing=False)}, location="query")
+def get_thumbnail(args, handle, size):
+    """Get a file's thumbnail."""
+    base_dir = current_app.config.get("MEDIA_BASE_DIR")
+    handler = LocalFileHandler(handle, base_dir)
+    return handler.send_thumbnail(size=size, square=args["square"])
+
+
+@api_blueprint.route(
+    "/media/<string:handle>/cropped/<int:x1>/<int:y1>/<int:x2>/<int:y2>"
+)
+@jwt_required_ifauth
+@use_args({"square": fields.Boolean(missing=False)}, location="query")
+def get_cropped(args, handle: str, x1: int, y1: int, x2: int, y2: int):
+    """Get the thumbnail of a cropped file."""
+    base_dir = current_app.config.get("MEDIA_BASE_DIR")
+    handler = LocalFileHandler(handle, base_dir)
+    return handler.send_cropped(x1=x1, y1=y1, x2=x2, y2=y2, square=args["square"])
+
+
+@api_blueprint.route(
+    "/media/<string:handle>/cropped/<int:x1>/<int:y1>/<int:x2>/<int:y2>/thumbnail/<int:size>"
+)
+@jwt_required_ifauth
+@use_args({"square": fields.Boolean(missing=False)}, location="query")
+def get_thumbnail_cropped(
+    args, handle: str, x1: int, y1: int, x2: int, y2: int, size: int
+):
+    """Get the thumbnail of a cropped file."""
+    base_dir = current_app.config.get("MEDIA_BASE_DIR")
+    handler = LocalFileHandler(handle, base_dir)
+    return handler.send_thumbnail_cropped(
+        size=size, x1=x1, y1=y1, x2=x2, y2=y2, square=args["square"]
+    )

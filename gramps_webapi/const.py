@@ -52,3 +52,7 @@ GRAMPS_NAMESPACES = {
     "media": "Media",
     "notes": "Note",
 }
+
+# MIME types
+MIME_PDF = "application/pdf"
+MIME_JPEG = "image/jpeg"

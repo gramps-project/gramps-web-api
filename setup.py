@@ -18,6 +18,8 @@ REQUIREMENTS = [
     "Flask-Limiter",
     "webargs",
     "SQLAlchemy",
+    "pdf2image",
+    "Pillow",
 ]
 
 
