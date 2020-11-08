@@ -1,6 +1,6 @@
 """Types API resource."""
 
-from typing import Dict
+from typing import Dict, List, Optional
 
 from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
@@ -71,30 +71,115 @@ _PARTNER_TYPES = {
     calc.PARTNER_EX_UNKNOWN_REL: "Ex-Unknown Relationship",
 }
 
+_DEFAULT_RECORD_TYPES = [
+    "attribute_types",
+    "child_reference_types",
+    "event_role_types",
+    "event_types",
+    "family_relation_types",
+    "gender_types",
+    "name_origin_types",
+    "name_types",
+    "note_types",
+    "partner_types",
+    "place_types",
+    "repository_types",
+    "sibling_types",
+    "source_attribute_types",
+    "source_media_types",
+    "url_types",
+]
+
+_CUSTOM_RECORD_TYPES = [
+    "child_reference_types",
+    "event_attribute_types",
+    "event_role_types",
+    "event_types",
+    "family_attribute_types",
+    "family_relation_types",
+    "media_attribute_types",
+    "name_origin_types",
+    "name_types",
+    "note_types",
+    "person_attribute_types",
+    "place_types",
+    "repository_types",
+    "source_attribute_types",
+    "source_media_types",
+    "url_types",
+]
+
+
+def get_default_types(datatype: str, locale: bool = False) -> Optional[List]:
+    """Return list of types for a default record type."""
+    result = None
+    if datatype in _DEFAULT_TYPE_CLASSES:
+        types = _DEFAULT_TYPE_CLASSES[datatype]
+        if locale:
+            result = types.get_standard_names()
+        else:
+            result = types.get_standard_xml()
+    elif datatype == "sibling_types":
+        result = [_SIBLING_TYPES[x] for x in _SIBLING_TYPES]
+    elif datatype == "partner_types":
+        result = [_PARTNER_TYPES[x] for x in _PARTNER_TYPES]
+    elif datatype == "gender_types":
+        result = [_GENDER_TYPES[x] for x in _GENDER_TYPES]
+    return result
+
+
+def get_custom_types(db_handle: DbReadBase, datatype: str) -> Optional[List]:
+    """Return list of types for a custom record type."""
+    result = None
+    if datatype == "event_attribute_types":
+        result = db_handle.get_event_attribute_types()
+    elif datatype == "event_types":
+        result = db_handle.get_event_types()
+    elif datatype == "person_attribute_types":
+        result = db_handle.get_person_attribute_types()
+    elif datatype == "family_attribute_types":
+        result = db_handle.get_family_attribute_types()
+    elif datatype == "media_attribute_types":
+        result = db_handle.get_media_attribute_types()
+    elif datatype == "family_relation_types":
+        result = db_handle.get_family_relation_types()
+    elif datatype == "child_reference_types":
+        result = db_handle.get_child_reference_types()
+    elif datatype == "event_role_types":
+        result = db_handle.get_event_roles()
+    elif datatype == "name_types":
+        result = db_handle.get_name_types()
+    elif datatype == "name_origin_types":
+        result = db_handle.get_origin_types()
+    elif datatype == "repository_types":
+        result = db_handle.get_repository_types()
+    elif datatype == "note_types":
+        result = db_handle.get_note_types()
+    elif datatype == "source_attribute_types":
+        result = db_handle.get_source_attribute_types()
+    elif datatype == "source_media_types":
+        result = db_handle.get_source_media_types()
+    elif datatype == "url_types":
+        result = db_handle.get_url_types()
+    elif datatype == "place_types":
+        result = db_handle.get_place_types()
+    return result
+
 
 class DefaultTypesResource(ProtectedResource, GrampsJSONEncoder):
     """Default types resource."""
 
-    def get(self) -> Response:
+    @use_args(
+        {
+            "locale": fields.Boolean(missing=False),
+        },
+        location="query",
+    )
+    def get(self, args: Dict) -> Response:
         """Return a list of available default types."""
-        result = [
-            "attribute_types",
-            "child_reference_types",
-            "event_role_types",
-            "event_types",
-            "family_relation_types",
-            "gender_types",
-            "name_origin_types",
-            "name_types",
-            "note_types",
-            "partner_types",
-            "place_types",
-            "repository_types",
-            "sibling_types",
-            "source_attribute_types",
-            "source_media_types",
-            "url_types",
-        ]
+        result = {}
+        for datatype in _DEFAULT_RECORD_TYPES:
+            result.update({datatype: get_default_types(datatype, args["locale"])})
         return self.response(200, result)
 
 
@@ -109,19 +194,8 @@ class DefaultTypeResource(ProtectedResource, GrampsJSONEncoder):
     )
     def get(self, args: Dict, datatype: str) -> Response:
         """Return a list of values for a default type."""
-        if datatype in _DEFAULT_TYPE_CLASSES:
-            types = _DEFAULT_TYPE_CLASSES[datatype]
-            if args["locale"]:
-                result = types.get_standard_names()
-            else:
-                result = types.get_standard_xml()
-        elif datatype == "sibling_types":
-            result = [_SIBLING_TYPES[x] for x in _SIBLING_TYPES]
-        elif datatype == "partner_types":
-            result = [_PARTNER_TYPES[x] for x in _PARTNER_TYPES]
-        elif datatype == "gender_types":
-            result = [_GENDER_TYPES[x] for x in _GENDER_TYPES]
-        else:
+        result = get_default_types(datatype, args["locale"])
+        if result is None:
             abort(404)
         return self.response(200, result)
 
@@ -148,26 +222,16 @@ class DefaultTypeMapResource(ProtectedResource, GrampsJSONEncoder):
 class CustomTypesResource(ProtectedResource, GrampsJSONEncoder):
     """Custom types resource."""
 
+    @property
+    def db_handle(self) -> DbReadBase:
+        """Get the database instance."""
+        return get_dbstate().db
+
     def get(self) -> Response:
         """Return a list of available custom types."""
-        result = [
-            "child_reference_types",
-            "event_attribute_types",
-            "event_role_types",
-            "event_types",
-            "family_attribute_types",
-            "family_relation_types",
-            "media_attribute_types",
-            "name_origin_types",
-            "name_types",
-            "note_types",
-            "person_attribute_types",
-            "place_types",
-            "repository_types",
-            "source_attribute_types",
-            "source_media_types",
-            "url_types",
-        ]
+        result = {}
+        for datatype in _CUSTOM_RECORD_TYPES:
+            result.update({datatype: get_custom_types(self.db_handle, datatype)})
         return self.response(200, result)
 
 
@@ -181,39 +245,32 @@ class CustomTypeResource(ProtectedResource, GrampsJSONEncoder):
 
     def get(self, datatype: str) -> Response:
         """Return list of values for the custom type."""
-        db_handle = self.db_handle
-        if datatype == "event_attribute_types":
-            result = db_handle.get_event_attribute_types()
-        elif datatype == "event_types":
-            result = db_handle.get_event_types()
-        elif datatype == "person_attribute_types":
-            result = db_handle.get_person_attribute_types()
-        elif datatype == "family_attribute_types":
-            result = db_handle.get_family_attribute_types()
-        elif datatype == "media_attribute_types":
-            result = db_handle.get_media_attribute_types()
-        elif datatype == "family_relation_types":
-            result = db_handle.get_family_relation_types()
-        elif datatype == "child_reference_types":
-            result = db_handle.get_child_reference_types()
-        elif datatype == "event_role_types":
-            result = db_handle.get_event_roles()
-        elif datatype == "name_types":
-            result = db_handle.get_name_types()
-        elif datatype == "name_origin_types":
-            result = db_handle.get_origin_types()
-        elif datatype == "repository_types":
-            result = db_handle.get_repository_types()
-        elif datatype == "note_types":
-            result = db_handle.get_note_types()
-        elif datatype == "source_attribute_types":
-            result = db_handle.get_source_attribute_types()
-        elif datatype == "source_media_types":
-            result = db_handle.get_source_media_types()
-        elif datatype == "url_types":
-            result = db_handle.get_url_types()
-        elif datatype == "place_types":
-            result = db_handle.get_place_types()
-        else:
+        result = get_custom_types(self.db_handle, datatype)
+        if result is None:
             abort(404)
         return self.response(200, result)
+
+
+class TypesResource(ProtectedResource, GrampsJSONEncoder):
+    """Types resource."""
+
+    @property
+    def db_handle(self) -> DbReadBase:
+        """Get the database instance."""
+        return get_dbstate().db
+
+    @use_args(
+        {
+            "locale": fields.Boolean(missing=False),
+        },
+        location="query",
+    )
+    def get(self, args: Dict) -> Response:
+        """Return list of values for the custom type."""
+        custom = {}
+        for datatype in _CUSTOM_RECORD_TYPES:
+            custom.update({datatype: get_custom_types(self.db_handle, datatype)})
+        default = {}
+        for datatype in _DEFAULT_RECORD_TYPES:
+            default.update({datatype: get_default_types(datatype, args["locale"])})
+        return self.response(200, {"default": default, "custom": custom})

@@ -33,6 +33,7 @@ from .resources.types import (
     DefaultTypeMapResource,
     DefaultTypeResource,
     DefaultTypesResource,
+    TypesResource,
 )
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
@@ -81,6 +82,7 @@ register_endpt(
 )
 register_endpt(DefaultTypeResource, "/types/default/<string:datatype>", "default-type")
 register_endpt(DefaultTypesResource, "/types/default/", "default-types")
+register_endpt(TypesResource, "/types/", "all-types")
 # Token
 register_endpt(TokenResource, "/login/", "token")
 register_endpt(TokenRefreshResource, "/refresh/", "token_refresh")

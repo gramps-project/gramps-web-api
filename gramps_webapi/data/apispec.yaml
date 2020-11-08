@@ -1697,23 +1697,54 @@ paths:
 ##############################################################################
 # Endpoint - Types
 ##############################################################################
+
+  /types:
+    get:
+      tags:
+      - types
+      summary: "Get all available default and custom Gramps record types."
+      operationId: getTypes
+      security:
+        - Bearer: []
+      parameters:
+      - name: locale
+        in: query
+        required: false
+        type: boolean
+        description: "Return results in current locale when possible."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            description: "All default and custom Gramps record types."
+            type: object
+            properties:
+              custom:
+                $ref: "#/definitions/CustomTypes"
+              default:
+                $ref: "#/definitions/DefaultTypes"
+        401:
+          description: "Unauthorized: Missing authorization header."
         
   /types/default:
     get:
       tags:
       - types
-      summary: "Get a list of available Gramps default record types."
+      summary: "Get all available Gramps default record types."
       operationId: getDefaultTypes
       security:
         - Bearer: []
+      parameters:
+      - name: locale
+        in: query
+        required: false
+        type: boolean
+        description: "Return results in current locale when possible."
       responses:
         200:
           description: "OK: Successful operation."
           schema:
-            description: "A list of available Gramps default record types."
-            type: array
-            items:
-              type: string
+            $ref: "#/definitions/DefaultTypes"
         401:
           description: "Unauthorized: Missing authorization header."
 
@@ -1731,6 +1762,11 @@ paths:
         required: true
         type: string
         description: "The Gramps default record type."
+      - name: locale
+        in: query
+        required: false
+        type: boolean
+        description: "Return results in current locale when possible."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1739,6 +1775,10 @@ paths:
             type: array
             items:
               type: string
+            example:
+              - Custom
+              - Audio
+              - Book
         401:
           description: "Unauthorized: Missing authorization header."
         404:
@@ -1762,10 +1802,7 @@ paths:
         200:
           description: "OK: Successful operation."
           schema:
-            description: "The mapping for a specific Gramps default record type."
-            type: array
-            items:
-              type: string
+            $ref: "#/definitions/DefaultTypeMap"
         401:
           description: "Unauthorized: Missing authorization header."
         404:
@@ -1775,18 +1812,21 @@ paths:
     get:
       tags:
       - types
-      summary: "Get a list of available Gramps custom record types."
+      summary: "Get all available Gramps custom record types."
       operationId: getCustomTypes
       security:
         - Bearer: []
+      parameters:
+      - name: locale
+        in: query
+        required: false
+        type: boolean
+        description: "Return results in current locale when possible."
       responses:
         200:
           description: "OK: Successful operation."
           schema:
-            description: "A list of available Gramps custom record types."
-            type: array
-            items:
-              type: string
+            $ref: "#/definitions/CustomTypes"
         401:
           description: "Unauthorized: Missing authorization header."
 
@@ -1804,6 +1844,11 @@ paths:
         required: true
         type: string
         description: "The Gramps custom record type."
+      - name: locale
+        in: query
+        required: false
+        type: boolean
+        description: "Return results in current locale when possible."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1812,6 +1857,8 @@ paths:
             type: array
             items:
               type: string
+            example:
+              - Microfilm
         401:
           description: "Unauthorized: Missing authorization header."
         404:
@@ -4387,3 +4434,58 @@ definitions:
         description: "Surname to be grouped with."
         type: string
         example: Fernandez
+
+##############################################################################
+# Model - DefaultTypes
+##############################################################################
+
+  DefaultTypes:
+    type: object
+    additionalProperties:
+      type: array
+      items:
+        type: string
+    example:
+      sibling_types:
+        - Sibling
+        - Maternal Half Sibling
+        - Paternal Half Sibling
+        - Step Sibling
+      source_media_types:
+        - Audio
+        - Book
+        - Card
+
+##############################################################################
+# Model - DefaultTypeMap
+##############################################################################
+
+  DefaultTypeMap:
+    type: object
+    additionalProperties:
+      type: string
+    example:
+      0: Custom
+      1: Audio
+      2: Book
+      3: Card
+
+##############################################################################
+# Model - CustomTypes
+##############################################################################
+
+  CustomTypes:
+    type: object
+    additionalProperties:
+      type: array
+      items:
+        type: string
+    example:
+      source_attribute_types:
+        - Creation date
+        - Book Cover Type
+        - Generated by
+      source_media_types:
+        - Microfilm
+
+      

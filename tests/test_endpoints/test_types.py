@@ -7,6 +7,33 @@ from jsonschema import RefResolver, validate
 from . import API_SCHEMA, get_test_client
 
 
+class TestTypes(unittest.TestCase):
+    """Test cases for the /api/types endpoint."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_types_endpoint(self):
+        """Test response for types listing."""
+        # check expected number of type classes found
+        result = self.client.get("/api/types/")
+        self.assertEqual(len(result.json), 2)
+        # check response conforms to schema
+        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
+        validate(
+            instance=result.json["default"],
+            schema=API_SCHEMA["definitions"]["DefaultTypes"],
+            resolver=resolver,
+        )
+        validate(
+            instance=result.json["custom"],
+            schema=API_SCHEMA["definitions"]["CustomTypes"],
+            resolver=resolver,
+        )
+
+
 class TestDefaultTypes(unittest.TestCase):
     """Test cases for the /api/types/default endpoints."""
 
@@ -17,14 +44,16 @@ class TestDefaultTypes(unittest.TestCase):
 
     def test_default_types_endpoint(self):
         """Test response for default types listing."""
-        # check expected number of types found
+        # check expected number of record types found
         result = self.client.get("/api/types/default/")
         self.assertGreaterEqual(len(result.json), 16)
-        # check first record is expected type
-        self.assertEqual(result.json[0], "attribute_types")
-        # check last record is expected type
-        last = len(result.json) - 1
-        self.assertEqual(result.json[last], "url_types")
+        # check response conforms to schema
+        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
+        validate(
+            instance=result.json,
+            schema=API_SCHEMA["definitions"]["DefaultTypes"],
+            resolver=resolver,
+        )
 
     def test_default_types_type_endpoint(self):
         """Test response for default types type listing."""
@@ -65,11 +94,13 @@ class TestCustomTypes(unittest.TestCase):
         # check expected number of types found
         result = self.client.get("/api/types/custom/")
         self.assertGreaterEqual(len(result.json), 16)
-        # check first record is expected type
-        self.assertEqual(result.json[0], "child_reference_types")
-        # check last record is expected type
-        last = len(result.json) - 1
-        self.assertEqual(result.json[last], "url_types")
+        # check response conforms to schema
+        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
+        validate(
+            instance=result.json,
+            schema=API_SCHEMA["definitions"]["CustomTypes"],
+            resolver=resolver,
+        )
 
     def test_custom_types_type_endpoint(self):
         """Test response for custom types type listing."""
