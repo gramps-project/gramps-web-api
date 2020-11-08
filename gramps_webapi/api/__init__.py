@@ -27,7 +27,13 @@ from .resources.source import SourceResource, SourcesResource
 from .resources.tag import TagResource, TagsResource
 from .resources.token import TokenRefreshResource, TokenResource
 from .resources.translate import TranslationResource, TranslationsResource
-
+from .resources.types import (
+    CustomTypeResource,
+    CustomTypesResource,
+    DefaultTypeMapResource,
+    DefaultTypeResource,
+    DefaultTypesResource,
+)
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
 
@@ -67,6 +73,14 @@ register_endpt(NotesResource, "/notes/", "notes")
 # Tag
 register_endpt(TagResource, "/tags/<string:handle>", "tag")
 register_endpt(TagsResource, "/tags/", "tags")
+# Types
+register_endpt(CustomTypeResource, "/types/custom/<string:datatype>", "custom-type")
+register_endpt(CustomTypesResource, "/types/custom/", "custom-types")
+register_endpt(
+    DefaultTypeMapResource, "/types/default/<string:datatype>/map", "default-type-map"
+)
+register_endpt(DefaultTypeResource, "/types/default/<string:datatype>", "default-type")
+register_endpt(DefaultTypesResource, "/types/default/", "default-types")
 # Token
 register_endpt(TokenResource, "/login/", "token")
 register_endpt(TokenRefreshResource, "/refresh/", "token_refresh")
@@ -86,7 +100,9 @@ register_endpt(TranslationResource, "/translations/<string:isocode>", "translati
 register_endpt(TranslationsResource, "/translations/", "translations")
 # Relation
 register_endpt(
-    RelationResource, "/relations/<string:handle1>/<string:handle2>", "relations",
+    RelationResource,
+    "/relations/<string:handle1>/<string:handle2>",
+    "relations",
 )
 # Metadata
 register_endpt(MetadataResource, "/metadata/<string:datatype>", "metadata")
