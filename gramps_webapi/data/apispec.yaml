@@ -2201,7 +2201,7 @@ paths:
     get:
       tags:
       - relations
-      summary: "Get relation between two people if one exists."
+      summary: "Get description of most direct relationship between two people if one exists."
       operationId: getRelation
       security:
         - Bearer: []
@@ -2221,16 +2221,48 @@ paths:
         required: false
         type: integer
         description: "Depth for the search, default is 15 generations."
-      - name: all
+      - name: locale
         in: query
         required: false
         type: boolean
-        description: "Indicates to return all the ways the people are related as opposed to the most direct way."
+        description: "Indicates to return relationship string in current locale."
       responses:
         200:
           description: "OK: Successful operation."
           schema:
             $ref: "#/definitions/Relationship"
+        401:
+          description: "Unauthorized: Missing authorization header."
+
+  /relations/{handle1}/{handle2}/all:
+    get:
+      tags:
+      - relations
+      summary: "Get descriptions for all possible relationships between two people if any exist."
+      operationId: getRelations
+      security:
+        - Bearer: []
+      parameters:
+      - name: handle1
+        in: path
+        required: true
+        type: string
+        description: "The handle of the first person."
+      - name: handle2
+        in: path
+        required: true
+        type: string
+        description: "The handle of the second person."
+      - name: depth
+        in: query
+        required: false
+        type: integer
+        description: "Depth for the search, default is 15 generations."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/Relationships"
         401:
           description: "Unauthorized: Missing authorization header."
 
@@ -4270,17 +4302,33 @@ definitions:
       relationship_string:
         description: "Descriptive string describing the relationship."
         type: string
+        example: "second great stepgrandaunt"
       distance_common_origin:
         description: "Number of generations to common ancestor, -1 if no common ancestor."
         type: integer
+        example: 5
       distance_common_other:
         description: "Number of generations to other person in common, -1 if there is none."
         type: integer
-      common_ancestors:
-        description: "List of handles of common ancestors."
-        type: array
-        items:
+        example: 1
+
+  Relationships:
+    type: array
+    items:
+      type: object
+      properties:
+        relationship_string:
+          description: "Descriptive string describing the relationship."
           type: string
+          example: "second great stepgrandaunt"
+        common_ancestors:
+          description: "List of handles of common ancestors."
+          type: array
+          items:
+            type: string
+          example:
+          - 35WJQC1B7T7NPV8OLV
+          - 46WJQCIOLQ0KOX2XCC
 
 ##############################################################################
 # Model - TreeSummary
