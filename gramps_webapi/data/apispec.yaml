@@ -4446,11 +4446,10 @@ definitions:
       items:
         type: string
     example:
-      sibling_types:
-        - Sibling
-        - Maternal Half Sibling
-        - Paternal Half Sibling
-        - Step Sibling
+      gender_types:
+        - Male
+        - Female
+        - Unknown
       source_media_types:
         - Audio
         - Book

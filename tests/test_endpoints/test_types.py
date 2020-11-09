@@ -46,7 +46,7 @@ class TestDefaultTypes(unittest.TestCase):
         """Test response for default types listing."""
         # check expected number of record types found
         result = self.client.get("/api/types/default/")
-        self.assertGreaterEqual(len(result.json), 16)
+        self.assertGreaterEqual(len(result.json), 14)
         # check response conforms to schema
         resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
         validate(

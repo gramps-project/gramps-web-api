@@ -18,7 +18,6 @@ from gramps.gen.lib.repotype import RepositoryType
 from gramps.gen.lib.srcattrtype import SrcAttributeType
 from gramps.gen.lib.srcmediatype import SourceMediaType
 from gramps.gen.lib.urltype import UrlType
-from gramps.gen.relationship import RelationshipCalculator
 from webargs import fields
 from webargs.flaskparser import use_args
 
@@ -50,27 +49,6 @@ _GENDER_TYPES = {
     person.UNKNOWN: "Unknown",
 }
 
-calc = RelationshipCalculator()
-
-_SIBLING_TYPES = {
-    calc.NORM_SIB: "Sibling",
-    calc.HALF_SIB_MOTHER: "Maternal Half Sibling",
-    calc.HALF_SIB_FATHER: "Paternal Half Sibling",
-    calc.STEP_SIB: "Step Sibling",
-    calc.UNKNOWN_SIB: "Unknown Sibling",
-}
-
-_PARTNER_TYPES = {
-    calc.PARTNER_MARRIED: "Married",
-    calc.PARTNER_UNMARRIED: "Unmarried",
-    calc.PARTNER_CIVIL_UNION: "Civil Union",
-    calc.PARTNER_UNKNOWN_REL: "Unknown Relationship",
-    calc.PARTNER_EX_MARRIED: "Ex-Married",
-    calc.PARTNER_EX_UNMARRIED: "Ex-Unmarried",
-    calc.PARTNER_EX_CIVIL_UNION: "Ex-Civil Union",
-    calc.PARTNER_EX_UNKNOWN_REL: "Ex-Unknown Relationship",
-}
-
 _DEFAULT_RECORD_TYPES = [
     "attribute_types",
     "child_reference_types",
@@ -81,10 +59,8 @@ _DEFAULT_RECORD_TYPES = [
     "name_origin_types",
     "name_types",
     "note_types",
-    "partner_types",
     "place_types",
     "repository_types",
-    "sibling_types",
     "source_attribute_types",
     "source_media_types",
     "url_types",
@@ -119,10 +95,6 @@ def get_default_types(datatype: str, locale: bool = False) -> Optional[List]:
             result = types.get_standard_names()
         else:
             result = types.get_standard_xml()
-    elif datatype == "sibling_types":
-        result = [_SIBLING_TYPES[x] for x in _SIBLING_TYPES]
-    elif datatype == "partner_types":
-        result = [_PARTNER_TYPES[x] for x in _PARTNER_TYPES]
     elif datatype == "gender_types":
         result = [_GENDER_TYPES[x] for x in _GENDER_TYPES]
     return result
@@ -208,10 +180,6 @@ class DefaultTypeMapResource(ProtectedResource, GrampsJSONEncoder):
         if datatype in _DEFAULT_TYPE_CLASSES:
             types = _DEFAULT_TYPE_CLASSES[datatype]
             result = types.get_map()
-        elif datatype == "sibling_types":
-            result = _SIBLING_TYPES
-        elif datatype == "partner_types":
-            result = _PARTNER_TYPES
         elif datatype == "gender_types":
             result = _GENDER_TYPES
         else:
