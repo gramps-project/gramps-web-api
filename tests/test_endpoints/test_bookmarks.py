@@ -17,33 +17,18 @@ class TestBookmarks(unittest.TestCase):
 
     def test_bookmarks_endpoint_schema(self):
         """Test bookmarks against the bookmark schema."""
-        # check one response returned for namespace list
+        # check response conforms to schema
         result = self.client.get("/api/bookmarks/")
-        self.assertEqual(len(result.json), 1)
-        # check record conforms to expected schema
         resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
         validate(
             instance=result.json,
-            schema=API_SCHEMA["definitions"]["NameSpaces"],
+            schema=API_SCHEMA["definitions"]["Bookmarks"],
             resolver=resolver,
         )
-        # check one response returned for families
+        # check bad entry returns 404
+        result = self.client.get("/api/bookmarks/junk")
+        self.assertEqual(result.status_code, 404)
+        # check valid response returned for families
         result = self.client.get("/api/bookmarks/families")
-        self.assertEqual(len(result.json), 1)
-        # check record conforms to expected schema
-        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
-        validate(
-            instance=result.json,
-            schema=API_SCHEMA["definitions"]["Bookmarks"],
-            resolver=resolver,
-        )
-        # check one response returned for people
-        result = self.client.get("/api/bookmarks/people")
-        self.assertEqual(len(result.json), 1)
-        # check record conforms to expected schema
-        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
-        validate(
-            instance=result.json,
-            schema=API_SCHEMA["definitions"]["Bookmarks"],
-            resolver=resolver,
-        )
+        self.assertEqual(result.status_code, 200)
+        self.assertIsInstance(result.json[0], str)
