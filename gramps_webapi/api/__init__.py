@@ -48,6 +48,7 @@ from .resources.notes import NoteResource, NotesResource
 from .resources.people import PeopleResource, PersonResource
 from .resources.places import PlaceResource, PlacesResource
 from .resources.relations import RelationResource, RelationsResource
+from .resources.reports import ReportResource, ReportRunnerResource, ReportsResource
 from .resources.repositories import RepositoriesResource, RepositoryResource
 from .resources.sources import SourceResource, SourcesResource
 from .resources.tags import TagResource, TagsResource
@@ -142,6 +143,10 @@ register_endpt(
     "/relations/<string:handle1>/<string:handle2>/all",
     "relations",
 )
+# Reports
+register_endpt(ReportsResource, "/reports/", "reports")
+register_endpt(ReportResource, "/reports/<string:id>", "report")
+register_endpt(ReportRunnerResource, "/reports/<string:id>/file", "run-report")
 # Exporters
 register_endpt(
     ExporterFileResource, "/exporters/<string:extension>/file", "exporter-file"
