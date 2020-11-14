@@ -1976,10 +1976,6 @@ paths:
             type: array
             items:
               type: string
-          example:
-            - AWFKQCJELLUWDY2PD3
-            - 35WJQC1B7T7NPV8OLV
-            - Q8HKQC3VMRM1M6M7ES
         401:
           description: "Unauthorized: Missing authorization header."
         404:
