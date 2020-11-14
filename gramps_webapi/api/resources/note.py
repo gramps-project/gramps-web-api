@@ -4,13 +4,13 @@ from typing import Dict
 
 from gramps.gen.lib import Note
 
+from ..html import get_note_html
 from .base import (
     GrampsObjectProtectedResource,
     GrampsObjectResourceHelper,
     GrampsObjectsProtectedResource,
 )
-
-from ..html import get_note_html
+from .util import get_extended_attributes
 
 
 class NoteResourceHelper(GrampsObjectResourceHelper):
@@ -33,6 +33,8 @@ class NoteResourceHelper(GrampsObjectResourceHelper):
                 fmt: self.get_formatted_note(note=obj, fmt=fmt)
                 for fmt in formats_allowed
             }
+        if "extend" in args:
+            obj.extended = get_extended_attributes(self.db_handle, obj, args)
         return obj
 
     def get_formatted_note(self, note: Note, fmt: str) -> str:
