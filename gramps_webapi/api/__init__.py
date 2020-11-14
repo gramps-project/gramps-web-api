@@ -14,7 +14,7 @@ from .resources.bookmark import BookmarkResource, BookmarksResource
 from .resources.citation import CitationResource, CitationsResource
 from .resources.event import EventResource, EventsResource
 from .resources.family import FamiliesResource, FamilyResource
-from .resources.filters import FilterResource
+from .resources.filters import FilterResource, FiltersResource
 from .resources.media import MediaObjectResource, MediaObjectsResource
 from .resources.metadata import MetadataResource
 from .resources.name_groups import NameGroupsResource
@@ -80,7 +80,8 @@ register_endpt(NameGroupsResource, "/name-groups/", "name-groups")
 register_endpt(BookmarkResource, "/bookmarks/<string:namespace>", "bookmark")
 register_endpt(BookmarksResource, "/bookmarks/", "bookmarks")
 # Filter
-register_endpt(FilterResource, "/filters/<string:namespace>", "filter")
+register_endpt(FilterResource, "/filters/<string:namespace>/<string:name>", "filter")
+register_endpt(FiltersResource, "/filters/<string:namespace>", "filters")
 # Translate
 register_endpt(TranslationResource, "/translations/<string:isocode>", "translation")
 register_endpt(TranslationsResource, "/translations/", "translations")

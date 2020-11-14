@@ -1825,16 +1825,16 @@ paths:
         required: true
         type: string
         description: "The namespace or category for the filters."
-      - name: rule
+      - name: rules
         in: query
         required: false
         type: string
-        description: "The name of a specific filter rule to be returned."
-      - name: filter
+        description: "A comma delimited list of specific filter rules to be returned."
+      - name: filters
         in: query
         required: false
         type: string
-        description: "The name of a specific custom filter to be returned."
+        description: "A comma delimited list of specific custom filters to be returned."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1908,10 +1908,39 @@ paths:
         403:
           description: "Forbidden: Bad credentials, authentication failed."
 
+  /filters/{namespace}/{name}:    
+    get:
+      tags:
+      - filters
+      summary: "Get a custom filter for a given namespace or category."
+      operationId: getFilter
+      security:
+        - Bearer: []
+      parameters:
+      - name: namespace
+        in: path
+        required: true
+        type: string
+        description: "The namespace or category for the custom filter."
+      - name: name
+        in: path
+        required: true
+        type: string
+        description: "The name of a custom filter."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/CustomFilter"    
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Namespace or filter not found."
+
     delete:
       tags:
       - filters
-      summary: "Delete a custom filter."
+      summary: "Delete a custom filter in a given namespace or category."
       operationId: deleteFilter
       security:
         - Bearer: []
@@ -1921,12 +1950,16 @@ paths:
         required: true
         type: string
         description: "The namespace or category for the custom filter."
-      - name: filter
-        in: body
+      - name: name
+        in: path
         required: true
-        description: "The custom filter to delete."
-        schema:
-          $ref: "#/definitions/CustomFilterObject"    
+        type: string
+        description: "The name of the custom filter."
+      - name: force
+        in: query
+        required: false
+        type: string
+        description: "Force delete custom filter and all filters that depend upon it."
       responses:
         200:
           description: "OK: Successful operation."
@@ -4045,24 +4078,6 @@ definitions:
         items:
           $ref: "#/definitions/FilterRule"
 
-##############################################################################
-# Model - CustomFilterObject    
-##############################################################################
-
-  CustomFilterObject:
-    type: object
-    required:
-      - name
-    properties:
-      name:
-        type: string
-        description: "Name of the custom rule to delete."
-        example: "MyTestRule"
-      force:
-        type: boolean
-        description: "Indicator to approve deletion of all dependent filters if any exist."
-        example: true
-                         
 ##############################################################################
 # Model - Translations
 ##############################################################################
