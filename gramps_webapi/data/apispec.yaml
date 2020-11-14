@@ -1943,15 +1943,15 @@ paths:
     get:
       tags:
       - bookmarks
-      summary: "Get a list of bookmark categories."
-      operationId: getBookmarkCategories
+      summary: "Get all bookmarks."
+      operationId: getAllBookmarks
       security:
         - Bearer: []
       responses:
         200:
           description: "OK: Successful operation."
           schema:
-            $ref: "#/definitions/NameSpaces"
+            $ref: "#/definitions/Bookmarks"
         401:
           description: "Unauthorized: Missing authorization header."
 
@@ -1973,7 +1973,9 @@ paths:
         200:
           description: "OK: Successful operation."
           schema:
-            $ref: "#/definitions/Bookmarks"
+            type: array
+            items:
+              type: string
         401:
           description: "Unauthorized: Missing authorization header."
         404:
@@ -4425,14 +4427,17 @@ definitions:
 
   Bookmarks:
     type: object
-    properties:
-      bookmarks:
-        type: array
-        items:
-          type: string
-        example:
-          - e9027bf5e7f77551b12e7da3c77
-          - e9027bf3de2402f9faaac001cef
+    additionalProperties:
+      type: array
+      items:
+        type: string
+    example:
+      families:
+        - 9OUJQCBOHW9UEK9CNV
+      people:
+        - AWFKQCJELLUWDY2PD3
+        - 35WJQC1B7T7NPV8OLV
+        - Q8HKQC3VMRM1M6M7ES
 
 ##############################################################################
 # Model - NameGroupMapping
