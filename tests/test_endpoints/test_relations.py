@@ -129,12 +129,3 @@ class TestRelations(unittest.TestCase):
         self.assertEqual(
             result.json[0]["relationship_string"], "second great stepgrandaunt"
         )
-        # check locale parm working
-        result = self.client.get(
-            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?locale"
-        )
-        self.assertEqual(result.status_code, 422)
-        result = self.client.get(
-            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?locale=1"
-        )
-        self.assertEqual(result.status_code, 200)
