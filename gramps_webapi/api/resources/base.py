@@ -63,6 +63,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             ),
             "profile": fields.Str(validate=validate.Length(equal=0)),
             "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
+            "formats": fields.DelimitedList(fields.Str()),
         },
         location="query",
     )
@@ -90,6 +91,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "filter": fields.Str(validate=validate.Length(min=1)),
             "rules": fields.Str(validate=validate.Length(min=1)),
+            "formats": fields.DelimitedList(fields.Str()),
         },
         location="query",
     )

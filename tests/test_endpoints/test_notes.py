@@ -1,5 +1,6 @@
 """Tests for the /api/notes endpoints using example_gramps."""
 
+import re
 import unittest
 from typing import List
 
@@ -150,17 +151,13 @@ class TestNotesHandle(unittest.TestCase):
     def test_notes_handle_endpoint_keys(self):
         """Test response for keys parm."""
         run_test_endpoint_keys(
-            self,
-            "/api/notes/ac3804aac6b762b75a5",
-            ["handle", "text", "type"],
+            self, "/api/notes/ac3804aac6b762b75a5", ["handle", "text", "type"],
         )
 
     def test_notes_handle_endpoint_skipkeys(self):
         """Test response for skipkeys parm."""
         run_test_endpoint_skipkeys(
-            self,
-            "/api/notes/ac3804aac6b762b75a5",
-            ["change", "format", "private"],
+            self, "/api/notes/ac3804aac6b762b75a5", ["change", "format", "private"],
         )
 
     def test_notes_handle_endpoint_extend(self):
@@ -180,3 +177,19 @@ class TestNotesHandle(unittest.TestCase):
             schema=API_SCHEMA["definitions"]["Note"],
             resolver=resolver,
         )
+
+    def test_notes_handle_endpoint_formats_html(self):
+        """Test response for formats parm."""
+        result = self.client.get("/api/notes/b39ff01f75c1f76859a?formats=html")
+        self.assertIn("formatted", result.json)
+        self.assertIn("html", result.json["formatted"])
+        html = result.json["formatted"]["html"]
+        self.assertIsInstance(html, str)
+        # strip tags
+        html_stripped = re.sub("<[^<]+?>", "", html)
+        # strip whitespace
+        html_stripped = re.sub(r"\s", "", html_stripped)
+        text_stripped = re.sub(r"\s", "", result.json["text"]["string"])
+        # the HTML stripped of tags should be equal to the pure text string,
+        # up to white space
+        assert text_stripped == html_stripped

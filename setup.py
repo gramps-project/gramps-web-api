@@ -20,6 +20,7 @@ REQUIREMENTS = [
     "SQLAlchemy",
     "pdf2image",
     "Pillow",
+    "bleach",
 ]
 
 
