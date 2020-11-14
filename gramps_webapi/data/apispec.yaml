@@ -2378,59 +2378,24 @@ paths:
 # Endpoint - Metadata
 ##############################################################################
 
-  /metadata/summary:
+  /metadata:
     get:
       tags:
       - metadata
-      summary: "Get summary information about the currently loaded tree."
-      operationId: getTreeSummary
+      summary: "Get information about the application environment and state."
+      operationId: getMetadata
       security:
         - Bearer: []
       responses:
         200:
           description: "OK: Successful operation."
           schema:
-            $ref: "#/definitions/TreeSummary"
+            $ref: "#/definitions/Metadata"
         401:
           description: "Unauthorized: Missing authorization header."
 
-  /metadata/researcher:
-    get:
-      tags:
-      - metadata
-      summary: "Get information about the researcher for the currently loaded tree."
-      operationId: getTreeResearcher
-      security:
-        - Bearer: []
-      responses:
-        200:
-          description: "OK: Successful operation."
-          schema:
-            $ref: "#/definitions/TreeResearcher"
-        401:
-          description: "Unauthorized: Missing authorization header."
-
-  /metadata/surnames:
-    get:
-      tags:
-      - metadata
-      summary: "Get a list of all surnames from the currently loaded tree."
-      operationId: getTreeSurnames
-      security:
-        - Bearer: []
-      responses:
-        200:
-          description: "OK: Successful operation."
-          schema:
-            description: "The list of surnames."
-            type: array
-            items:
-              type: string
-        401:
-          description: "Unauthorized: Missing authorization header."
-
-##############################################################################
-# Model definitions
+##############################################################################    
+# Model definitions    
 ##############################################################################
 
 definitions:
@@ -4529,74 +4494,165 @@ definitions:
           - 46WJQCIOLQ0KOX2XCC
 
 ##############################################################################
-# Model - TreeSummary
+# Model - Metadata
 ##############################################################################
 
-  TreeSummary:
+  Metadata:
     type: object
     properties:
-      database_module_location:
-        description: "The database module location."
+      database:
+        description: "Information about the currently active database."
+        type: object
+        properties:
+          id:
+            description: "The database id."
+            type: string
+            example: "5f850009"
+          module_location:
+            description: "The database module location."
+            type: string
+            example: "/usr/lib64/python3.8/sqlite3/__init__.py"
+          module_version:
+            description: "The database module version."
+            type: string
+            example: "2.6.0"
+          name:
+            description: "The database and also tree name."
+            type: string
+            example: "example_gramps"
+          savepath:
+            description: "The database file location."
+            type: string
+            example: "/home/webapi/.gramps/grampsdb/5f850009"
+          schema_version:
+            description: "The data model schema version."
+            type: string
+            example: "18.0.0"
+          type:
+            description: "The database type."
+            type: string
+            example: "SQLite"
+          version:
+            description: "The database version."
+            type: string
+            example: "3.33.0"
+      default_person:
+        description: "The handle for the default person in the active database."
         type: string
-        example: "/usr/lib64/python3.8/sqlite3/__init__.py"
-      database_module_version:
-        description: "The database module version."
+        example: "GNUJQCL9MD64AM56OH"
+      gramps:
+        description: "Information about the currently active Gramps instance."
+        type: object
+        properties:
+          config: 
+            description: "The active Gramps configuration."
+            type: object
+            additionalProperties: true
+          env:
+            description: "The active Gramps environment."
+            type: object
+            additionalProperties: true
+      gramps_webapi:
+        description: "Information about the currently active Gramps Web API instance."
+        type: object
+        properties:
+          schema_version:
+            description: "The schema version."
+            type: string
+            example: "0.1.0"
+          version:
+            description: "The code version."
+            type: string
+            example: "0.1-dev"
+      locale:
+        description: "The active locale."
+        type: object
+        properties:
+          lang:
+            description: "The language code."
+            type: string
+            example: "en_US"
+          localedir:
+            description: "The path for the locale directory."
+            type: string
+            example: "/usr/share/locale"
+          localedomain:
+            description: "The domain for the locale."
+            type: string
+            example: "gramps"
+      mediapath:
+        description: "The path to the media objects associated with the database."
         type: string
-        example: "2.6.0"
-      database_version":
-        description: "The database version."
-        type: string
-        example: "3.33.0"
-      number_of_citations:
+        example: "{GRAMPS_RESOURCES}/doc/gramps/example/gramps"
+      object_counts:
+        $ref: "#/definitions/ObjectCounts"
+      researcher:
+        $ref: "#/definitions/Researcher"
+      surnames:
+        description: "A list of all surnames found in the database."
+        type: array
+        items:
+          type: string
+        example:
+          - Abbott
+          - Adams
+          - Adkins 
+
+##############################################################################
+# Model - ObjectCounts
+##############################################################################
+    
+  ObjectCounts:
+    description: "Total numbers for primary object types in the database."
+    type: object
+    properties:
+      citations:
         description: "The number of citations in the database."
         type: number
         example: 2854
-      number_of_events:
+      events:
         description: "The number of events in the database."
         type: number
         example: 3432
-      number_of_families:
+      families:
         description: "The number of families in the database."
         type: number
         example: 762
-      number_of_media:
+      media:
         description: "The number of media items in the database."
         type: number
         example: 7
-      number_of_notes:
+      notes:
         description: "The number of notes in the database."
         type: number
         example: 19
-      number_of_people:
+      people:
         description: "The number of people in the database."
         type: number
         example: 2157
-      number_of_places:
+      places:
         description: "The number of places in the database."
         type: number
         example: 1294
-      number_of_repositories:
+      repositories:
         description: "The number of repositories in the database."
         type: number
         example: 3
-      number_of_sources:
+      sources:
         description: "The number of sources in the database."
         type: number
         example: 4
-      number_of_tags:
+      tags:
         description: "The number of tags in the database."
         type: number
         example: 2
-      schema_version:
-        description: "The data model schema version."
-        type: string
-        example: "18.0.0"
 
 ##############################################################################
-# Model - TreeResearcher
+# Model - Researcher
 ##############################################################################
-
-  TreeResearcher:
+    
+  Researcher:
+    description: "Information about the primary researcher of the data."
     type: object
     properties:
       addr:
@@ -4643,29 +4699,6 @@ definitions:
         description: "Street."
         type: string
         example: ""
-
-##############################################################################
-# Model - NameSpaces
-##############################################################################
-
-  NameSpaces:
-    type: object
-    properties:
-      namespaces:
-        description: "Available name spaces."
-        type: array
-        items:
-          type: string
-        example:
-          - citations
-          - events
-          - families
-          - media
-          - notes
-          - people
-          - places
-          - repositories
-          - sources
 
 ##############################################################################
 # Model - Bookmarks

@@ -3,6 +3,8 @@
 import gramps.gen.lib as lib
 from pkg_resources import resource_filename
 
+from ._version import __version__ as VERSION
+
 # files
 TEST_CONFIG = resource_filename("gramps_webapi", "data/test.cfg")
 TEST_AUTH_CONFIG = resource_filename("gramps_webapi", "data/test_auth.cfg")
