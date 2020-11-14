@@ -21,7 +21,7 @@ from .resources.name_groups import NameGroupsResource
 from .resources.note import NoteResource, NotesResource
 from .resources.person import PeopleResource, PersonResource
 from .resources.place import PlaceResource, PlacesResource
-from .resources.relation import RelationResource
+from .resources.relation import RelationResource, RelationsResource
 from .resources.repository import RepositoriesResource, RepositoryResource
 from .resources.source import SourceResource, SourcesResource
 from .resources.tag import TagResource, TagsResource
@@ -105,6 +105,11 @@ register_endpt(TranslationsResource, "/translations/", "translations")
 register_endpt(
     RelationResource,
     "/relations/<string:handle1>/<string:handle2>",
+    "relation",
+)
+register_endpt(
+    RelationsResource,
+    "/relations/<string:handle1>/<string:handle2>/all",
     "relations",
 )
 # Metadata
