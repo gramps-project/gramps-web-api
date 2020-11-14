@@ -7,7 +7,7 @@ info:
     * The Gramps Web API project is hosted at https://github.com/gramps-project/web-api
 
     * More about Gramps and the numerous features it provides for genealogists can be found at https://gramps-project.org
-  version: "0.0.1"
+  version: "0.1.0"
   license:
     name: "GNU GPL v2.0"
     url: "http://www.gnu.org/licenses/old-licenses/gpl-2.0.html"
@@ -47,6 +47,8 @@ tags:
   description: Access to note objects.
 - name: tags
   description: Access to tag objects.
+- name: types
+  description: Access to default and custom types.
 - name: name-groups
   description: Access to name group mappings.
 - name: bookmarks
@@ -1693,6 +1695,176 @@ paths:
           description: "Not Found: Tag not found."
 
 ##############################################################################
+# Endpoint - Types
+##############################################################################
+
+  /types:
+    get:
+      tags:
+      - types
+      summary: "Get all available default and custom Gramps record types."
+      operationId: getTypes
+      security:
+        - Bearer: []
+      parameters:
+      - name: locale
+        in: query
+        required: false
+        type: boolean
+        description: "Return results in current locale when possible."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            description: "All default and custom Gramps record types."
+            type: object
+            properties:
+              custom:
+                $ref: "#/definitions/CustomTypes"
+              default:
+                $ref: "#/definitions/DefaultTypes"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        
+  /types/default:
+    get:
+      tags:
+      - types
+      summary: "Get all available Gramps default record types."
+      operationId: getDefaultTypes
+      security:
+        - Bearer: []
+      parameters:
+      - name: locale
+        in: query
+        required: false
+        type: boolean
+        description: "Return results in current locale when possible."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/DefaultTypes"
+        401:
+          description: "Unauthorized: Missing authorization header."
+
+  /types/default/{type}:
+    get:
+      tags:
+      - types
+      summary: "Get the list of values for a specific Gramps default record type."
+      operationId: getDefaultType
+      security:
+        - Bearer: []
+      parameters:
+      - name: type
+        in: path
+        required: true
+        type: string
+        description: "The Gramps default record type."
+      - name: locale
+        in: query
+        required: false
+        type: boolean
+        description: "Return results in current locale when possible."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            description: "The list of values for a specific Gramps default record type."
+            type: array
+            items:
+              type: string
+            example:
+              - Custom
+              - Audio
+              - Book
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Gramps default record type not found."
+
+  /types/default/{type}/map:
+    get:
+      tags:
+      - types
+      summary: "Get the mapping for a specific Gramps default record type."
+      operationId: getDefaultTypeMap
+      security:
+        - Bearer: []
+      parameters:
+      - name: type
+        in: path
+        required: true
+        type: string
+        description: "The Gramps default record type."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/DefaultTypeMap"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Gramps default record type not found."
+    
+  /types/custom:
+    get:
+      tags:
+      - types
+      summary: "Get all available Gramps custom record types."
+      operationId: getCustomTypes
+      security:
+        - Bearer: []
+      parameters:
+      - name: locale
+        in: query
+        required: false
+        type: boolean
+        description: "Return results in current locale when possible."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/CustomTypes"
+        401:
+          description: "Unauthorized: Missing authorization header."
+
+  /types/custom/{type}:
+    get:
+      tags:
+      - types
+      summary: "Get the list of values for a specific Gramps custom record type."
+      operationId: getCustomType
+      security:
+        - Bearer: []
+      parameters:
+      - name: type
+        in: path
+        required: true
+        type: string
+        description: "The Gramps custom record type."
+      - name: locale
+        in: query
+        required: false
+        type: boolean
+        description: "Return results in current locale when possible."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            description: "The list of values for a specific Gramps custom record type."
+            type: array
+            items:
+              type: string
+            example:
+              - Microfilm
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Gramps custom record type not found."
+    
+##############################################################################
 # Endpoint - NameGroups
 ##############################################################################
 
@@ -2115,33 +2287,6 @@ paths:
         401:
           description: "Unauthorized: Missing authorization header."
     
-  /metadata/types:
-    get:
-      tags:
-      - metadata
-      summary: "Get a list of available Gramps record types or attributes."
-      operationId: getRecordTypes
-      security:
-        - Bearer: []
-      parameters:
-      - name: type
-        in: query
-        required: false
-        type: string
-        description: "The Gramps record type for which to fetch attributes."
-      responses:
-        200:
-          description: "OK: Successful operation."
-          schema:
-            description: "A list of Gramps record types or attributes."
-            type: array
-            items:
-              type: string
-        401:
-          description: "Unauthorized: Missing authorization header."
-        404:
-          description: "Not Found: Gramps record type not found."
-
 ##############################################################################    
 # Model definitions    
 ##############################################################################
@@ -4304,3 +4449,57 @@ definitions:
         description: "Surname to be grouped with."
         type: string
         example: Fernandez
+
+##############################################################################
+# Model - DefaultTypes
+##############################################################################
+
+  DefaultTypes:
+    type: object
+    additionalProperties:
+      type: array
+      items:
+        type: string
+    example:
+      gender_types:
+        - Male
+        - Female
+        - Unknown
+      source_media_types:
+        - Audio
+        - Book
+        - Card
+
+##############################################################################
+# Model - DefaultTypeMap
+##############################################################################
+
+  DefaultTypeMap:
+    type: object
+    additionalProperties:
+      type: string
+    example:
+      0: Custom
+      1: Audio
+      2: Book
+      3: Card
+
+##############################################################################
+# Model - CustomTypes
+##############################################################################
+
+  CustomTypes:
+    type: object
+    additionalProperties:
+      type: array
+      items:
+        type: string
+    example:
+      source_attribute_types:
+        - Creation date
+        - Book Cover Type
+        - Generated by
+      source_media_types:
+        - Microfilm
+
+      
