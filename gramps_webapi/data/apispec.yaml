@@ -6,7 +6,7 @@ info:
 
     * The Gramps Web API project is hosted at https://github.com/gramps-project/web-api
 
-   
+
     * More about Gramps and the numerous features it provides for genealogists can be found at https://gramps-project.org
   version: "0.1.0"
   license:
@@ -62,6 +62,8 @@ tags:
   description: Access to translation service.
 - name: relations
   description: Access to relationship calculator.
+- name: reports
+  description: Access to report generating service.
 - name: exporters
   description: Access to family tree exporters.
 - name: metadata
@@ -2685,6 +2687,77 @@ paths:
         401:
           description: "Unauthorized: Missing authorization header."
 
+##############################################################################    
+# Endpoint - Reports
+##############################################################################
+
+  /reports:
+    get:
+      tags:
+      - reports
+      summary: "Get information about available reports."
+      operationId: getAllReports
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Report"
+        401:
+          description: "Unauthorized: Missing authorization header."
+
+  /reports/{id}:
+    get:
+      tags:
+      - reports
+      summary: "Get information about a specific report."
+      operationId: getReport
+      security:
+        - Bearer: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        type: string
+        description: "The report identifier."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/Report"
+        401:
+          description: "Unauthorized: Missing authorization header."
+
+  /reports/{id}/file:
+    get:
+      tags:
+      - reports
+      summary: "Get a specific report."
+      operationId: getReportFile
+      security:
+        - Bearer: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        type: string
+        description: "The report identifier."
+      - name: options
+        in: query
+        required: false
+        type: string
+        description: "The report options. Must be provided in JSON format."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: file
+        401:
+          description: "Unauthorized: Missing authorization header."
+
 ##############################################################################
 # Endpoint - Exporters
 ##############################################################################
@@ -2724,7 +2797,7 @@ paths:
       responses:
         200:
           description: "OK: Successful operation."
-          schema:
+          schema:    
             $ref: "#/definitions/Exporter"
         401:
           description: "Unauthorized: Missing authorization header."
@@ -2891,6 +2964,7 @@ paths:
             type: file
         401:
           description: "Unauthorized: Missing authorization header."
+    
         404:
           description: "Not Found: Exporter not found."
         422:
@@ -5330,7 +5404,6 @@ definitions:
       source_media_types:
         - Microfilm
 
-
 ##############################################################################
 # Model - Backlinks
 ##############################################################################
@@ -5470,3 +5543,140 @@ definitions:
         description: "The module name of the exporter plugin."
         type: string
         example: "exportxml"
+
+##############################################################################    
+# Model - Report
+##############################################################################
+
+  Report:
+    type: object
+    properties:
+      authors:
+        description: "Report authors."
+        type: array
+        items:
+          type: string
+        example: 
+          - "Donald N. Allingham"
+      authors_email:
+        description: "Email addresses for report authors."
+        type: array
+        items:
+          type: string
+        example:
+          - "don@gramps-project.org"
+      category:
+        description: "The report category."
+        type: integer
+        example: 0
+      description:
+        description: "A description of the report."
+        type: string
+        example: "Produces a textual ancestral report"
+      fname:
+        description: "Filename of the report module."
+        type: string
+        example: "ancestorreport.py"
+      fpath:
+        description: "Path of directory report module is located in."
+        type: string
+        example: "/usr/lib/python3.8/site-packages/gramps/plugins/textreport"
+      icondir:
+        description: "Path to directory any needed report icons are located in."
+        type: string
+        example: null
+      icons:
+        description: "A list of icons needed by the report."
+        type: array
+        items:
+          type: string
+      id:
+        description: "The report identifier."
+        type: string
+        example: "ancestor_report"
+      load_on_reg:
+        description: "Indicates if plugin should load on registration."
+        type: boolean
+        example: false
+      module:
+        description: "The name of the report module."
+        type: string
+        example: "ancestorreport"
+      name:
+        description: "The name of the report."
+        type: string
+        example: "Ahnentafel Report"
+      name_accell:
+        description: "The name of the report."
+        type: string
+        example: "Ahnentafel Report"
+      option_class:
+        description: "The name of the option class for the report."
+        type: string
+        example: "AncestorOptions"
+      options_dict:
+        description: "Dictionary containing all of the report options with their defaults."
+        type: object
+        additionalProperties: true
+        example: 
+          papero: 0        
+      options_help:
+        description: "Dictionary containing help information for all of the report options."
+        type: object
+        additionalProperties:
+          $ref: "#/definitions/ReportHelpOption"
+        example:
+          papero:
+            - "=number"
+            - "Paper orientation number."
+            -
+              - "0\t"
+              - "1\t"
+      ptype:
+        description: "Plugin type"
+        type: integer
+        example: 0
+      report_modes:
+        description: "List of report modes."
+        type: array
+        items:
+          type: integer
+        example:
+          - 1
+          - 2
+          - 4
+      reportclass:
+        description: "The name of the report class for the report."
+        type: string
+        example: "AncestorReport"
+      require_active:
+        description: "Indicator if user interaction required."
+        type: boolean
+        example: true
+      status:
+        description: "Indicate current status of the report."
+        type: integer
+        example: 0
+      supported:
+        description: "Indicate if the report is still supported."
+        type: boolean
+        example: true
+      version:
+        description: "The version number of the report."
+        type: string
+        example: "1.0"
+
+##############################################################################
+# Model - ReportHelpOption
+##############################################################################
+
+  ReportHelpOption:
+    type: array
+    items: {}
+    example:
+      - "=number"
+      - "Paper orientation number."
+      -
+        - "0\t"
+        - "1\t"
+
