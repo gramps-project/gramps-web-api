@@ -45,6 +45,10 @@ class TestRelation(unittest.TestCase):
         self.assertEqual(result.status_code, 422)
         # check depth parm working as expected
         result = self.client.get(
+            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?depth"
+        )
+        self.assertEqual(result.status_code, 422)
+        result = self.client.get(
             "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?depth=5"
         )
         self.assertEqual(result.json["relationship_string"], "")
@@ -54,6 +58,15 @@ class TestRelation(unittest.TestCase):
         self.assertEqual(
             result.json["relationship_string"], "second great stepgrandaunt"
         )
+        # check locale parm working
+        result = self.client.get(
+            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?locale"
+        )
+        self.assertEqual(result.status_code, 422)
+        result = self.client.get(
+            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?locale=1"
+        )
+        self.assertEqual(result.status_code, 200)
 
 
 class TestRelations(unittest.TestCase):
@@ -103,6 +116,10 @@ class TestRelations(unittest.TestCase):
         self.assertEqual(result.status_code, 422)
         # check depth parm working as expected
         result = self.client.get(
+            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?depth"
+        )
+        self.assertEqual(result.status_code, 422)
+        result = self.client.get(
             "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?depth=5"
         )
         self.assertEqual(result.json, [{}])
@@ -112,3 +129,12 @@ class TestRelations(unittest.TestCase):
         self.assertEqual(
             result.json[0]["relationship_string"], "second great stepgrandaunt"
         )
+        # check locale parm working
+        result = self.client.get(
+            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?locale"
+        )
+        self.assertEqual(result.status_code, 422)
+        result = self.client.get(
+            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?locale=1"
+        )
+        self.assertEqual(result.status_code, 200)
