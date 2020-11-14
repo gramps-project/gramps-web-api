@@ -2709,7 +2709,7 @@ paths:
         401:
           description: "Unauthorized: Missing authorization header."
 
-  /reports/{id}:
+  /reports/{report_id}:
     get:
       tags:
       - reports
@@ -2718,7 +2718,7 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: id
+      - name: report_id
         in: path
         required: true
         type: string
@@ -2731,7 +2731,7 @@ paths:
         401:
           description: "Unauthorized: Missing authorization header."
 
-  /reports/{id}/file:
+  /reports/{report_id}/file:
     get:
       tags:
       - reports
@@ -2740,7 +2740,7 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: id
+      - name: report_id
         in: path
         required: true
         type: string
@@ -2749,7 +2749,17 @@ paths:
         in: query
         required: false
         type: string
-        description: "The report options. Must be provided in JSON format."
+        description: >
+          The report options. Must be provided in JSON format.
+
+
+          There are a core set of options common to all reports, and then sometimes additional options
+          specific to a given report. A few reports do not have defaults for all options and require
+          some be specified in order to run properly.
+
+    
+          If no _off_ option for report output file format is provided then pdf will be used as a fallback.
+          The _of_ option for output file is ignored by this endpoint as the report file is ephemeral.
       responses:
         200:
           description: "OK: Successful operation."

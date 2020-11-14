@@ -87,38 +87,6 @@ GRAMPS_NAMESPACES = {
 # MIME types
 MIME_PDF = "application/pdf"
 MIME_JPEG = "image/jpeg"
-MIME_GIF = "image/gif"
-MIME_PNG = "image/png"
-MIME_TEXT = "text/plain"
-MIME_HTML = "text/html"
-MIME_TEX = "application/x-tex"
-MIME_ODT = "application/vnd.oasis.opendocument.text"
-MIME_PS = "application/postscript"
-MIME_RTF = "application/rtf"
-MIME_DOT = "application/octet-stream"
-MIME_SVG = "image/svg+xml"
-MIME_SVGZ = "image/svg+xml"
-MIME_GSPDF = "application/pdf"
-MIME_GVPDF = "application/pdf"
-
-# Mapping of report output file formats to MIME types
-REPORT_MIMETYPES = {
-    "txt": MIME_TEXT,
-    "html": MIME_HTML,
-    "tex": MIME_TEX,
-    "odt": MIME_ODT,
-    "pdf": MIME_PDF,
-    "ps": MIME_PS,
-    "rtf": MIME_RTF,
-    "dot": MIME_DOT,
-    "gspdf": MIME_GSPDF,
-    "gvpdf": MIME_GVPDF,
-    "svg": MIME_SVG,
-    "svgz": MIME_SVGZ,
-    "jpg": MIME_JPEG,
-    "gif": MIME_GIF,
-    "png": MIME_PNG,
-}
 
 # Mapping of defaults based on report category
 REPORT_DEFAULTS = {

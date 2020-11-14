@@ -4,6 +4,7 @@ import io
 import json
 import os
 import uuid
+from mimetypes import types_map
 from pathlib import Path
 from typing import BinaryIO, Dict
 
@@ -16,14 +17,14 @@ from gramps.gen.utils.resourcepath import ResourcePath
 from webargs import fields, validate
 from webargs.flaskparser import use_args
 
-from ...const import REPORT_DEFAULTS, REPORT_MIMETYPES
+from ...const import REPORT_DEFAULTS
 from ..util import get_dbstate
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
 _UNSUPPORTED = [CATEGORY_WEB, CATEGORY_BOOK]
 
-_EXTENSION_MAP = {"gvpdf": "pdf", "gspdf": "pdf"}
+_EXTENSION_MAP = {".gvpdf": ".pdf", ".gspdf": ".pdf"}
 
 
 def get_report_profile(
@@ -89,11 +90,9 @@ def run_report(db_handle: DbReadBase, report_id: str, report_options: Dict):
                 abort(404)
             if "off" not in report_options:
                 report_options["off"] = REPORT_DEFAULTS[report_data.category]
-            file_type = report_options["off"]
-            if file_type in _EXTENSION_MAP:
-                file_name = str(uuid.uuid4()) + "." + _EXTENSION_MAP[file_type]
-            else:
-                file_name = str(uuid.uuid4()) + "." + file_type
+            file_type = "." + report_options["off"]
+            file_type = file_type or _EXTENSION_MAP.get(file_type)
+            file_name = str(uuid.uuid4()) + file_type
             report_options["of"] = file_name
             report_profile = get_report_profile(db_handle, plugin_manager, report_data)
             validate_options(report_profile, report_options)
@@ -178,9 +177,9 @@ class ReportResource(ProtectedResource, GrampsJSONEncoder):
         """Get the database instance."""
         return get_dbstate().db
 
-    def get(self, id: str) -> Response:
+    def get(self, report_id: str) -> Response:
         """Get specific report attributes."""
-        reports = get_reports(self.db_handle, report_id=id)
+        reports = get_reports(self.db_handle, report_id=report_id)
         if reports == []:
             abort(404)
         return self.response(200, reports[0])
@@ -200,7 +199,7 @@ class ReportRunnerResource(ProtectedResource, GrampsJSONEncoder):
         },
         location="query",
     )
-    def get(self, args: Dict, id: str) -> Response:
+    def get(self, args: Dict, report_id: str) -> Response:
         """Get specific report attributes."""
         report_options = {}
         if "options" in args:
@@ -209,6 +208,6 @@ class ReportRunnerResource(ProtectedResource, GrampsJSONEncoder):
             except json.JSONDecodeError:
                 abort(400)
 
-        file_name, file_type = run_report(self.db_handle, id, report_options)
+        file_name, file_type = run_report(self.db_handle, report_id, report_options)
         buffer = fetch_buffer(file_name)
-        return send_file(buffer, mimetype=REPORT_MIMETYPES[file_type])
+        return send_file(buffer, mimetype=types_map[file_type])
