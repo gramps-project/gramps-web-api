@@ -12,17 +12,15 @@ from flask import Response, abort, send_file
 from gramps.cli.plug import CommandLineReport, cl_report
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.filters import reload_custom_filters
-from gramps.gen.plug import CATEGORY_BOOK, CATEGORY_WEB, BasePluginManager
+from gramps.gen.plug import BasePluginManager
 from gramps.gen.utils.resourcepath import ResourcePath
 from webargs import fields, validate
 from webargs.flaskparser import use_args
 
-from ...const import REPORT_DEFAULTS
+from ...const import REPORT_DEFAULTS, REPORT_FILTERS
 from ..util import get_dbstate
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
-
-_UNSUPPORTED = [CATEGORY_WEB, CATEGORY_BOOK]
 
 _EXTENSION_MAP = {".gvpdf": ".pdf", ".gspdf": ".pdf"}
 
@@ -37,6 +35,13 @@ def get_report_profile(
         db_handle, report_data.name, report_data.category, option_class, {}
     )
     icondir = report_data.icondir or ""
+    options_help = report.options_help
+    if REPORT_FILTERS:
+        for report_type in REPORT_FILTERS:
+            for item in options_help["off"][2]:
+                if item[: len(report_type)] == report_type:
+                    del options_help["off"][2][options_help["off"][2].index(item)]
+                    break
     return {
         "id": report_data.id,
         "name": report_data.name,
@@ -60,7 +65,7 @@ def get_report_profile(
         "report_modes": report_data.report_modes,
         "option_class": report_data.optionclass,
         "options_dict": report.options_dict,
-        "options_help": report.options_help,
+        "options_help": options_help,
     }
 
 
@@ -72,7 +77,7 @@ def get_reports(db_handle: DbReadBase, report_id: str = None):
     for report_data in plugin_manager.get_reg_reports(gui=False):
         if report_id is not None and report_data.id != report_id:
             continue
-        if report_data.category in _UNSUPPORTED:
+        if report_data.category not in REPORT_DEFAULTS:
             continue
         report = get_report_profile(db_handle, plugin_manager, report_data)
         reports.append(report)
@@ -86,13 +91,15 @@ def run_report(
     allow_file: bool = False,
 ):
     """Generate the report."""
+    if "off" in report_options and report_options["off"] in REPORT_FILTERS:
+        abort(422)
     _resources = ResourcePath()
     os.environ["GRAMPS_RESOURCES"] = str(Path(_resources.data_dir).parent)
     reload_custom_filters()
     plugin_manager = BasePluginManager.get_instance()
     for report_data in plugin_manager.get_reg_reports(gui=False):
         if report_data.id == report_id:
-            if report_data.category in _UNSUPPORTED:
+            if report_data.category not in REPORT_DEFAULTS:
                 abort(404)
             if "off" not in report_options:
                 report_options["off"] = REPORT_DEFAULTS[report_data.category]

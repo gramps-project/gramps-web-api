@@ -21,15 +21,7 @@
 """Constants for the web API."""
 
 import gramps.gen.lib as lib
-from gramps.gen.plug import (
-    CATEGORY_BOOK,
-    CATEGORY_CODE,
-    CATEGORY_DRAW,
-    CATEGORY_GRAPHVIZ,
-    CATEGORY_TEXT,
-    CATEGORY_TREE,
-    CATEGORY_WEB,
-)
+from gramps.gen.plug import CATEGORY_DRAW, CATEGORY_GRAPHVIZ, CATEGORY_TEXT
 from pkg_resources import resource_filename
 
 from ._version import __version__ as VERSION
@@ -88,13 +80,19 @@ GRAMPS_NAMESPACES = {
 MIME_PDF = "application/pdf"
 MIME_JPEG = "image/jpeg"
 
-# Mapping of defaults based on report category
-REPORT_DEFAULTS = {
-    CATEGORY_TEXT: "pdf",
-    CATEGORY_DRAW: "pdf",
-    CATEGORY_GRAPHVIZ: "gvpdf",
-    CATEGORY_BOOK: "pdf",
-    CATEGORY_TREE: "pdf",
-    CATEGORY_CODE: "pdf",
-    CATEGORY_WEB: "html",
-}
+# These determine the supported report categories and default formats
+# depending on whether needed dependencies are available.
+try:
+    import gi
+
+    REPORT_DEFAULTS = {
+        CATEGORY_TEXT: "pdf",
+        CATEGORY_DRAW: "pdf",
+        CATEGORY_GRAPHVIZ: "gspdf",
+    }
+    REPORT_FILTERS = []
+except ImportError:
+    REPORT_DEFAULTS = {
+        CATEGORY_TEXT: "rtf",
+    }
+    REPORT_FILTERS = ["pdf", "ps", "gspdf", "gvpdf"]

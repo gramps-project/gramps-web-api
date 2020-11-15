@@ -5,6 +5,8 @@ from mimetypes import types_map
 
 from jsonschema import RefResolver, validate
 
+from gramps_webapi.const import REPORT_DEFAULTS
+
 from . import API_SCHEMA, get_test_client
 
 
@@ -80,7 +82,8 @@ class TestReportFile(unittest.TestCase):
         # check response for valid report
         result = self.client.get("/api/reports/ancestor_report/file")
         self.assertEqual(result.status_code, 200)
-        self.assertEqual(result.mimetype, types_map[".pdf"])
+        mime_type = "." + REPORT_DEFAULTS[0]
+        self.assertEqual(result.mimetype, types_map[mime_type])
         # check bad query parm response
         result = self.client.get("/api/reports/ancestor_report/file?test=1")
         self.assertEqual(result.status_code, 422)
@@ -144,10 +147,10 @@ class TestReportFile(unittest.TestCase):
         self.assertEqual(result.status_code, 422)
         # check different output format accepted and processed properly
         result = self.client.get(
-            '/api/reports/ancestor_report/file?options={"off": "rtf"}'
+            '/api/reports/ancestor_report/file?options={"off": "odt"}'
         )
         self.assertEqual(result.status_code, 200)
-        self.assertEqual(result.mimetype, types_map[".rtf"])
+        self.assertEqual(result.mimetype, types_map[".odt"])
 
     def test_reports_report_id_file_each_one(self):
         """Test one of each available report."""
