@@ -63,14 +63,19 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
 
     @use_args(
         {
-            "strip": fields.Str(validate=validate.Length(equal=0)),
+            "strip": fields.Boolean(missing=False),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
-            "profile": fields.Str(validate=validate.Length(equal=0)),
+            "profile": fields.DelimitedList(
+                fields.Str(validate=validate.Length(min=1)),
+                validate=validate.ContainsOnly(
+                    choices=["all", "name", "families", "events"]
+                ),
+            ),
             "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "formats": fields.DelimitedList(fields.Str()),
+            "formats": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "backlinks": fields.Boolean(missing=False),
         },
         location="query",
@@ -90,16 +95,21 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
     @use_args(
         {
             "gramps_id": fields.Str(validate=validate.Length(min=1)),
-            "strip": fields.Str(validate=validate.Length(equal=0)),
+            "strip": fields.Boolean(missing=False),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
-            "profile": fields.Str(validate=validate.Length(equal=0)),
+            "profile": fields.DelimitedList(
+                fields.Str(validate=validate.Length(min=1)),
+                validate=validate.ContainsOnly(
+                    choices=["all", "name", "families", "events"]
+                ),
+            ),
             "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "filter": fields.Str(validate=validate.Length(min=1)),
             "rules": fields.Str(validate=validate.Length(min=1)),
-            "formats": fields.DelimitedList(fields.Str()),
+            "formats": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "backlinks": fields.Boolean(missing=False),
         },
         location="query",

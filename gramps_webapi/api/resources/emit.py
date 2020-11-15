@@ -35,10 +35,7 @@ class GrampsJSONEncoder(JSONEncoder):
         """Prepare response."""
         payload = payload or {}
         args = args or {}
-        if "strip" in args:
-            self.strip_empty_keys = True
-        else:
-            self.strip_empty_keys = False
+        self.strip_empty_keys = args["strip"]
         if "keys" in args:
             self.filter_only_keys = args["keys"]
         else:
