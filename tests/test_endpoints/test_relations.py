@@ -97,14 +97,9 @@ class TestRelations(unittest.TestCase):
         result = self.client.get(
             "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all"
         )
+        self.assertIn("common_ancestors", result.json[0])
         self.assertEqual(
-            result.json,
-            [
-                {
-                    "common_ancestors": ["35WJQC1B7T7NPV8OLV", "46WJQCIOLQ0KOX2XCC"],
-                    "relationship_string": "second great stepgrandaunt",
-                }
-            ],
+            result.json[0]["relationship_string"], "second great stepgrandaunt"
         )
 
     def test_relations_all_endpoint_parms(self):
