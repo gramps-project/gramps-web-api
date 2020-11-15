@@ -5594,7 +5594,7 @@ definitions:
       icondir:
         description: "Path to directory any needed report icons are located in."
         type: string
-        example: null
+        example: ""
       icons:
         description: "A list of icons needed by the report."
         type: array

@@ -36,6 +36,7 @@ def get_report_profile(
     report = CommandLineReport(
         db_handle, report_data.name, report_data.category, option_class, {}
     )
+    icondir = report_data.icondir or ""
     return {
         "id": report_data.id,
         "name": report_data.name,
@@ -51,7 +52,7 @@ def get_report_profile(
         "supported": report_data.supported,
         "load_on_reg": report_data.load_on_reg,
         "icons": report_data.icons,
-        "icondir": report_data.icondir,
+        "icondir": icondir,
         "category": report_data.category,
         "module": report_data.mod_name,
         "reportclass": report_data.reportclass,
@@ -78,7 +79,12 @@ def get_reports(db_handle: DbReadBase, report_id: str = None):
     return reports
 
 
-def run_report(db_handle: DbReadBase, report_id: str, report_options: Dict):
+def run_report(
+    db_handle: DbReadBase,
+    report_id: str,
+    report_options: Dict,
+    allow_file: bool = False,
+):
     """Generate the report."""
     _resources = ResourcePath()
     os.environ["GRAMPS_RESOURCES"] = str(Path(_resources.data_dir).parent)
@@ -91,11 +97,11 @@ def run_report(db_handle: DbReadBase, report_id: str, report_options: Dict):
             if "off" not in report_options:
                 report_options["off"] = REPORT_DEFAULTS[report_data.category]
             file_type = "." + report_options["off"]
-            file_type = file_type or _EXTENSION_MAP.get(file_type)
+            file_type = _EXTENSION_MAP.get(file_type) or file_type
             file_name = str(uuid.uuid4()) + file_type
             report_options["of"] = file_name
             report_profile = get_report_profile(db_handle, plugin_manager, report_data)
-            validate_options(report_profile, report_options)
+            validate_options(report_profile, report_options, allow_file=allow_file)
             module = plugin_manager.load_plugin(report_data)
             option_class = getattr(module, report_data.optionclass)
             report_class = getattr(module, report_data.reportclass)
@@ -111,7 +117,7 @@ def run_report(db_handle: DbReadBase, report_id: str, report_options: Dict):
     abort(404)
 
 
-def validate_options(report: Dict, report_options: Dict):
+def validate_options(report: Dict, report_options: Dict, allow_file: bool = False):
     """Check validity of provided report options."""
     if report["id"] == "familylines_graph":
         if "gidlist" not in report_options or not report_options["gidlist"]:
@@ -163,7 +169,8 @@ class ReportsResource(ProtectedResource, GrampsJSONEncoder):
         """Get the database instance."""
         return get_dbstate().db
 
-    def get(self) -> Response:
+    @use_args({}, location="query")
+    def get(self, args: Dict) -> Response:
         """Get all available report attributes."""
         reports = get_reports(self.db_handle)
         return self.response(200, reports)
@@ -177,7 +184,8 @@ class ReportResource(ProtectedResource, GrampsJSONEncoder):
         """Get the database instance."""
         return get_dbstate().db
 
-    def get(self, report_id: str) -> Response:
+    @use_args({}, location="query")
+    def get(self, args: Dict, report_id: str) -> Response:
         """Get specific report attributes."""
         reports = get_reports(self.db_handle, report_id=report_id)
         if reports == []:
@@ -207,6 +215,8 @@ class ReportRunnerResource(ProtectedResource, GrampsJSONEncoder):
                 report_options = json.loads(args["options"])
             except json.JSONDecodeError:
                 abort(400)
+        if "of" in report_options:
+            abort(422)
 
         file_name, file_type = run_report(self.db_handle, report_id, report_options)
         buffer = fetch_buffer(file_name)
