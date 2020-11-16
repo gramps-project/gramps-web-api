@@ -19,7 +19,9 @@ class TestSearch(unittest.TestCase):
         cls.index_dir = tempfile.mkdtemp()
         cls.dbmgr = cls.client.application.config["DB_MANAGER"]
         cls.search = SearchIndexer(cls.index_dir)
-        cls.search.reindex_full(cls.dbmgr.get_db().db)
+        db = cls.dbmgr.get_db().db
+        cls.search.reindex_full(db)
+        db.close()
 
     @classmethod
     def tearDownClass(cls):
