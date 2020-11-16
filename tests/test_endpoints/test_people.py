@@ -423,3 +423,38 @@ class TestPeopleHandle(unittest.TestCase):
             schema=API_SCHEMA["definitions"]["Person"],
             resolver=resolver,
         )
+
+    def test_people_handle_endpoint_backlinks(self):
+        """Test the people handle endpoint with backlinks."""
+        # check person record conforms to expected schema
+        rv = self.client.get("/api/people/SOTJQCKJPETYI38BRM")
+        assert "backlinks" not in rv.json
+        rv = self.client.get("/api/people/SOTJQCKJPETYI38BRM?backlinks=1")
+        assert "backlinks" in rv.json
+        assert rv.json["backlinks"] == {
+            "family": ["LOTJQC78O5B4WQGJRP", "UPTJQC4VPCABZUDB75"]
+        }
+
+    def test_people_handle_endpoint_backlinks_extended(self):
+        """Test the people handle endpoint with extended backlinks."""
+        # check person record conforms to expected schema
+        rv = self.client.get(
+            "/api/people/SOTJQCKJPETYI38BRM?backlinks=1&extend=backlinks"
+        )
+        assert "backlinks" in rv.json
+        assert "extended" in rv.json
+        assert "backlinks" in rv.json["extended"]
+        backlinks = rv.json["extended"]["backlinks"]
+        assert backlinks["family"][0]["handle"] == "LOTJQC78O5B4WQGJRP"
+        assert backlinks["family"][1]["handle"] == "UPTJQC4VPCABZUDB75"
+
+    def test_people_endpoint_backlinks(self):
+        """Test the people endpoint with backlinks."""
+        rv = self.client.get("/api/people/?gramps_id=I0021")
+        assert "backlinks" not in rv.json
+        rv = self.client.get("/api/people/?gramps_id=I0021&backlinks=1")
+        assert "backlinks" in rv.json[0]
+        assert rv.json[0]["backlinks"] == {
+            "family": ["LOTJQC78O5B4WQGJRP", "UPTJQC4VPCABZUDB75"]
+        }
+

@@ -14,7 +14,7 @@ from ..util import get_dbstate
 from . import ProtectedResource, Resource
 from .emit import GrampsJSONEncoder
 from .filters import apply_filter
-from .util import get_extended_attributes
+from .util import get_backlinks, get_extended_attributes
 
 
 class GrampsObjectResourceHelper(GrampsJSONEncoder):
@@ -24,6 +24,13 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
     @abstractmethod
     def gramps_class_name(self):
         """To be set on child classes."""
+
+    def full_object(self, obj: GrampsObject, args: Dict) -> GrampsObject:
+        """Get the full object with extended attributes and backlinks."""
+        if args.get("backlinks"):
+            obj.backlinks = get_backlinks(self.db_handle, obj.handle)
+        obj = self.object_extend(obj, args)
+        return obj
 
     def object_extend(self, obj: GrampsObject, args: Dict) -> GrampsObject:
         """Extend the base object attributes as needed."""
@@ -64,6 +71,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             "profile": fields.Str(validate=validate.Length(equal=0)),
             "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "formats": fields.DelimitedList(fields.Str()),
+            "backlinks": fields.Boolean(missing=False),
         },
         location="query",
     )
@@ -73,7 +81,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             obj = self.get_object_from_handle(handle)
         except HandleError:
             abort(404)
-        return self.response(200, self.object_extend(obj, args), args)
+        return self.response(200, self.full_object(obj, args), args)
 
 
 class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
@@ -92,6 +100,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             "filter": fields.Str(validate=validate.Length(min=1)),
             "rules": fields.Str(validate=validate.Length(min=1)),
             "formats": fields.DelimitedList(fields.Str()),
+            "backlinks": fields.Boolean(missing=False),
         },
         location="query",
     )
@@ -101,7 +110,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             obj = self.get_object_from_gramps_id(args["gramps_id"])
             if obj is None:
                 abort(404)
-            return self.response(200, [self.object_extend(obj, args)], args)
+            return self.response(200, [self.full_object(obj, args)], args)
         query_method = self.db_handle.method(
             "get_%s_from_handle", self.gramps_class_name
         )
@@ -110,7 +119,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             return self.response(
                 200,
                 [
-                    self.object_extend(query_method(handle), args)
+                    self.full_object(query_method(handle), args)
                     for handle in handle_list
                 ],
                 args,
@@ -118,10 +127,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         iter_method = self.db_handle.method("iter_%s_handles", self.gramps_class_name)
         return self.response(
             200,
-            [
-                self.object_extend(query_method(handle), args)
-                for handle in iter_method()
-            ],
+            [self.full_object(query_method(handle), args) for handle in iter_method()],
             args,
         )
 

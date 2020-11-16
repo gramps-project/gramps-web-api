@@ -1,6 +1,6 @@
 """Gramps utility functions."""
 
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
@@ -273,4 +273,26 @@ def get_extended_attributes(
         result["tags"] = [
             db_handle.get_tag_from_handle(handle) for handle in obj.tag_list
         ]
+    if (do_all or "backlinks" in args["extend"]) and hasattr(obj, "backlinks"):
+        result["backlinks"] = {}
+        for class_name, backlinks in obj.backlinks.items():
+            result["backlinks"][class_name] = [
+                db_handle.method("get_%s_from_handle", class_name.upper())(handle)
+                for handle in backlinks
+            ]
     return result
+
+
+def get_backlinks(db_handle: DbReadBase, handle: Handle) -> Dict[str, List[Handle]]:
+    """Get backlinks to a handle.
+
+    Will return a dictionary of the form
+    `{'object_type': ['handle1', 'handle2', ...], ...}`
+    """
+    backlinks = {}
+    for obj_type, target_handle in db_handle.find_backlink_handles(handle):
+        key = obj_type.lower()
+        if key not in backlinks:
+            backlinks[key] = []
+        backlinks[key].append(target_handle)
+    return backlinks

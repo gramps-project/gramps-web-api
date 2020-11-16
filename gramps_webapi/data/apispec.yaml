@@ -63,8 +63,8 @@ tags:
   description: Access to tree and application metadata.
 
 ##############################################################################
-# Endpoint definitions    
-##############################################################################    
+# Endpoint definitions
+##############################################################################
 
 paths:
 
@@ -164,26 +164,26 @@ paths:
 
 
           The expression must be provided in JSON format and a number of fields are not required and have defaults if not present. The structure is defined as follows:
-          
-          
+
+
           {"function": function, "invert": invert, "rules": [{"name": name, "values": [values], "regex": regex}]}
-          
-          
+
+
           The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
-          
-          
+
+
           The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
-          
-          
+
+
           The rules consists of the list of rules to be evaluated. It is a mandatory field.
-          
-          
+
+
           The name in a rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
-          
-          
+
+
           The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
-          
-          
+
+
           The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
       - name: strip
         in: query
@@ -209,6 +209,11 @@ paths:
         minLength: 0
         maxLength: 0
         description: "Presence indicates that the person profile should be included in the response. The person profile contains summarized information about the person and their familial relationships in a more readily consumable format."
+      - name: backlinks
+        in: query
+        required: false
+        type: boolean
+        description: "Presence indicates that objects referring to the person should be included in the response."
       - name: extend
         in: query
         required: false
@@ -216,7 +221,7 @@ paths:
         description: >
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
-    
+
           Accepts a comma delimited list of possible keys on which it will operate. For people the possible keys are:
             Key | Records
             --- | -------
@@ -230,6 +235,7 @@ paths:
             person_ref_list | The list of referenced person records
             primary_parent_family | The primary parent family record
             tag_list | The list of tags
+            backlinks | The lists of backlinks per object type
       responses:
         200:
           description: "OK: Successful operation."
@@ -281,6 +287,11 @@ paths:
         minLength: 0
         maxLength: 0
         description: "Presence indicates that the person profile should be included in the response. The person profile contains summarized information about the person and their familial relationships in a more readily consumable format."
+      - name: backlinks
+        in: query
+        required: false
+        type: boolean
+        description: "Presence indicates that objects referring to the person should be included in the response."
       - name: extend
         in: query
         required: false
@@ -288,8 +299,8 @@ paths:
         description: >
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
-    
-          Accepts a comma delimited list of keys on which it will operate. For a person the possible keys are: 
+
+          Accepts a comma delimited list of keys on which it will operate. For a person the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
@@ -302,6 +313,7 @@ paths:
             person_ref_list | The list of referenced person records
             primary_parent_family | The primary parent family record
             tag_list | The list of tags
+            backlinks | The lists of backlinks per object type
       responses:
         200:
           description: "OK: Successful operation."
@@ -347,26 +359,26 @@ paths:
 
 
           The expression must be provided in JSON format and a number of fields are not required and have defaults if not present. The structure is defined as follows:
-          
-          
+
+
           {"function": function, "invert": invert, "rules": [{"name": name, "values": [values], "regex": regex}]}
-          
-          
+
+
           The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
-          
-          
+
+
           The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
-          
-          
+
+
           The rules consists of the list of rules to be evaluated. It is a mandatory field.
-          
-          
+
+
           The name in a rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
-          
-          
+
+
           The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
-          
-          
+
+
           The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
       - name: strip
         in: query
@@ -392,6 +404,11 @@ paths:
         minLength: 0
         maxLength: 0
         description: "Presence indicates that the family profile should be included in the response. The family profile contains summarized information about the family and their members in a more readily consumable format."
+      - name: backlinks
+        in: query
+        required: false
+        type: boolean
+        description: "Presence indicates that objects referring to the family should be included in the response."
       - name: extend
         in: query
         required: false
@@ -399,7 +416,7 @@ paths:
         description: >
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
-    
+
           Accepts a comma delimited list of keys on which it will operate. For families the possible keys are:
             Key | Records
             --- | -------
@@ -412,6 +429,7 @@ paths:
             mother | The person record of the mother
             note_list | The list of note records
             tag_list | The list of tags
+            backlinks | The lists of backlinks per object type
       responses:
         200:
           description: "OK: Successful operation."
@@ -463,6 +481,11 @@ paths:
         minLength: 0
         maxLength: 0
         description: "Presence indicates that the family profile should be included in the response. The family profile contains summarized information about the family and their members in a more readily consumable format."
+      - name: backlinks
+        in: query
+        required: false
+        type: boolean
+        description: "Presence indicates that objects referring to the family should be included in the response."
       - name: extend
         in: query
         required: false
@@ -470,7 +493,7 @@ paths:
         description: >
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
-    
+
           Accepts a comma delimited list of keys on which it will operate. For a family the possible keys are:
             Key | Records
             --- | -------
@@ -483,6 +506,7 @@ paths:
             mother | The person record of the mother
             note_list | The list of note records
             tag_list | The list of tags
+            backlinks | The lists of backlinks per object type
       responses:
         200:
           description: "OK: Successful operation."
@@ -528,26 +552,26 @@ paths:
 
 
           The expression must be provided in JSON format and a number of fields are not required and have defaults if not present. The structure is defined as follows:
-          
-          
+
+
           {"function": function, "invert": invert, "rules": [{"name": name, "values": [values], "regex": regex}]}
-          
-          
+
+
           The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
-          
-          
+
+
           The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
-          
-          
+
+
           The rules consists of the list of rules to be evaluated. It is a mandatory field.
-          
-          
+
+
           The name in a rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
-          
-          
+
+
           The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
-          
-          
+
+
           The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
       - name: strip
         in: query
@@ -573,6 +597,11 @@ paths:
         minLength: 0
         maxLength: 0
         description: "Presence indicates that the event profile should be included in the response. The event profile contains some brief information about the event in a more readily consumable format."
+      - name: backlinks
+        in: query
+        required: false
+        type: boolean
+        description: "Presence indicates that objects referring to the event should be included in the response."
       - name: extend
         in: query
         required: false
@@ -580,7 +609,7 @@ paths:
         description: >
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
-    
+
           Accepts a comma delimited list of keys on which it will operate. For events the possible keys are:
             Key | Records
             --- | -------
@@ -590,6 +619,7 @@ paths:
             note_list | The list of note records
             place | The place record for the event
             tag_list | The list of tags
+            backlinks | The lists of backlinks per object type
       responses:
         200:
           description: "OK: Successful operation."
@@ -641,6 +671,11 @@ paths:
         minLength: 0
         maxLength: 0
         description: "Presence indicates that the event profile should be included in the response. The event profile contains some brief information about the event in a more readily consumable format."
+      - name: backlinks
+        in: query
+        required: false
+        type: boolean
+        description: "Presence indicates that objects referring to the event should be included in the response."
       - name: extend
         in: query
         required: false
@@ -648,7 +683,7 @@ paths:
         description: >
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
-    
+
           Accepts a comma delimited list of keys on which it will operate. For an event the possible keys are:
             Key | Records
             --- | -------
@@ -658,6 +693,7 @@ paths:
             note_list | The list of note records
             place | The place record for the event
             tag_list | The list of tags
+            backlinks | The lists of backlinks per object type
       responses:
         200:
           description: "OK: Successful operation."
@@ -703,33 +739,33 @@ paths:
 
 
           The expression must be provided in JSON format and a number of fields are not required and have defaults if not present. The structure is defined as follows:
-          
-          
+
+
           {"function": function, "invert": invert, "rules": [{"name": name, "values": [values], "regex": regex}]}
-          
-          
+
+
           The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
-          
-          
+
+
           The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
-          
-          
+
+
           The rules consists of the list of rules to be evaluated. It is a mandatory field.
-          
-          
+
+
           The name in a rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
-          
-          
+
+
           The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
-          
-          
+
+
           The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
       - name: strip
         in: query
         required: false
         type: string
         minLength: 0
-        maxLength: 0    
+        maxLength: 0
         description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
@@ -741,6 +777,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: backlinks
+        in: query
+        required: false
+        type: boolean
+        description: "Presence indicates that objects referring to the place should be included in the response."
       - name: extend
         in: query
         required: false
@@ -748,7 +789,7 @@ paths:
         description: >
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
-    
+
           Accepts a comma delimited list of keys on which it will operate. For places the possible keys are:
             Key | Records
             --- | -------
@@ -757,6 +798,7 @@ paths:
             media_list | The list of referenced media items
             note_list | The list of note records
             tag_list | The list of tags
+            backlinks | The lists of backlinks per object type
       responses:
         200:
           description: "OK: Successful operation."
@@ -801,6 +843,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: backlinks
+        in: query
+        required: false
+        type: boolean
+        description: "Presence indicates that objects referring to the place should be included in the response."
       - name: extend
         in: query
         required: false
@@ -808,7 +855,7 @@ paths:
         description: >
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
-    
+
           Accepts a list of comma delimited keys on which it will operate. For a place the possible keys are:
             Key | Records
             --- | -------
@@ -817,6 +864,7 @@ paths:
             media_list | The list of referenced media items
             note_list | The list of note records
             tag_list | The list of tags
+            backlinks | The lists of backlinks per object type
       responses:
         200:
           description: "OK: Successful operation."
@@ -862,33 +910,33 @@ paths:
 
 
           The expression must be provided in JSON format and a number of fields are not required and have defaults if not present. The structure is defined as follows:
-          
-          
+
+
           {"function": function, "invert": invert, "rules": [{"name": name, "values": [values], "regex": regex}]}
-          
-          
+
+
           The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
-          
-          
+
+
           The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
-          
-          
+
+
           The rules consists of the list of rules to be evaluated. It is a mandatory field.
-          
-          
+
+
           The name in a rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
-          
-          
+
+
           The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
-          
-          
+
+
           The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
       - name: strip
         in: query
         required: false
         type: string
         minLength: 0
-        maxLength: 0    
+        maxLength: 0
         description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
@@ -900,6 +948,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: backlinks
+        in: query
+        required: false
+        type: boolean
+        description: "Presence indicates that objects referring to the citation should be included in the response."
       - name: extend
         in: query
         required: false
@@ -907,7 +960,7 @@ paths:
         description: >
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
-    
+
           Accepts a comma delimited list of keys on which it will operate. For citations the possible keys are:
             Key | Records
             --- | -------
@@ -916,6 +969,7 @@ paths:
             note_list | The list of note records
             source | The source record cited from
             tag_list | The list of tags
+            backlinks | The lists of backlinks per object type
       responses:
         200:
           description: "OK: Successful operation."
@@ -948,7 +1002,7 @@ paths:
         required: false
         type: string
         minLength: 0
-        maxLength: 0    
+        maxLength: 0
         description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
@@ -960,6 +1014,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: backlinks
+        in: query
+        required: false
+        type: boolean
+        description: "Presence indicates that objects referring to the citation should be included in the response."
       - name: extend
         in: query
         required: false
@@ -967,7 +1026,7 @@ paths:
         description: >
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
-    
+
           Accepts a comma delimited list of keys on which it will operate. For a citation the possible keys are:
             Key | Records
             --- | -------
@@ -976,6 +1035,7 @@ paths:
             note_list | The list of note records
             source | The source record cited from
             tag_list | The list of tags
+            backlinks | The lists of backlinks per object type
       responses:
         200:
           description: "OK: Successful operation."
@@ -1021,33 +1081,33 @@ paths:
 
 
           The expression must be provided in JSON format and a number of fields are not required and have defaults if not present. The structure is defined as follows:
-          
-          
+
+
           {"function": function, "invert": invert, "rules": [{"name": name, "values": [values], "regex": regex}]}
-          
-          
+
+
           The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
-          
-          
+
+
           The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
-          
-          
+
+
           The rules consists of the list of rules to be evaluated. It is a mandatory field.
-          
-          
+
+
           The name in a rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
-          
-          
+
+
           The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
-          
-          
+
+
           The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
       - name: strip
         in: query
         required: false
         type: string
         minLength: 0
-        maxLength: 0    
+        maxLength: 0
         description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
@@ -1059,6 +1119,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: backlinks
+        in: query
+        required: false
+        type: boolean
+        description: "Presence indicates that objects referring to the source should be included in the response."
       - name: extend
         in: query
         required: false
@@ -1066,7 +1131,7 @@ paths:
         description: >
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
-    
+
           Accepts a comma delimited list of keys on which it will operate. For sources the possible keys are:
             Key | Records
             --- | -------
@@ -1075,6 +1140,7 @@ paths:
             note_list | The list of note records
             reporef_list | The list of referenced repository records
             tag_list | The list of tags
+            backlinks | The lists of backlinks per object type
       responses:
         200:
           description: "OK: Successful operation."
@@ -1107,7 +1173,7 @@ paths:
         required: false
         type: string
         minLength: 0
-        maxLength: 0    
+        maxLength: 0
         description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
@@ -1119,6 +1185,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: backlinks
+        in: query
+        required: false
+        type: boolean
+        description: "Presence indicates that objects referring to the source should be included in the response."
       - name: extend
         in: query
         required: false
@@ -1126,7 +1197,7 @@ paths:
         description: >
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
-    
+
           Accepts a comma delimited list of keys on which it will operate. For a source the possible keys are:
             Key | Records
             --- | -------
@@ -1135,6 +1206,7 @@ paths:
             note_list | The list of note records
             reporef_list | The list of referenced repository records
             tag_list | The list of tags
+            backlinks | The lists of backlinks per object type
       responses:
         200:
           description: "OK: Successful operation."
@@ -1180,33 +1252,33 @@ paths:
 
 
           The expression must be provided in JSON format and a number of fields are not required and have defaults if not present. The structure is defined as follows:
-          
-          
+
+
           {"function": function, "invert": invert, "rules": [{"name": name, "values": [values], "regex": regex}]}
-          
-          
+
+
           The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
-          
-          
+
+
           The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
-          
-          
+
+
           The rules consists of the list of rules to be evaluated. It is a mandatory field.
-          
-          
+
+
           The name in a rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
-          
-          
+
+
           The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
-          
-          
+
+
           The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
       - name: strip
         in: query
         required: false
         type: string
         minLength: 0
-        maxLength: 0    
+        maxLength: 0
         description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
@@ -1218,6 +1290,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific keys to omit from a response, keeping all others."
+      - name: backlinks
+        in: query
+        required: false
+        type: boolean
+        description: "Presence indicates that objects referring to the repository should be included in the response."
       - name: extend
         in: query
         required: false
@@ -1225,13 +1302,14 @@ paths:
         description: >
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
-    
+
           Accepts a comma delimited list of keys on which it will operate. For repositories the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
             note_list | The list of note records
             tag_list | The list of tags
+            backlinks | The lists of backlinks per object type
       responses:
         200:
           description: "OK: Successful operation."
@@ -1264,7 +1342,7 @@ paths:
         required: false
         type: string
         minLength: 0
-        maxLength: 0    
+        maxLength: 0
         description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
@@ -1276,6 +1354,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: backlinks
+        in: query
+        required: false
+        type: boolean
+        description: "Presence indicates that objects referring to the repository should be included in the response."
       - name: extend
         in: query
         required: false
@@ -1283,13 +1366,14 @@ paths:
         description: >
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
-    
+
           Accepts a comma delimited list of keys on which it will operate. For a repository the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
             note_list | The list of note records
             tag_list | The list of tags
+            backlinks | The lists of backlinks per object type
       responses:
         200:
           description: "OK: Successful operation."
@@ -1335,33 +1419,33 @@ paths:
 
 
           The expression must be provided in JSON format and a number of fields are not required and have defaults if not present. The structure is defined as follows:
-          
-          
+
+
           {"function": function, "invert": invert, "rules": [{"name": name, "values": [values], "regex": regex}]}
-          
-          
+
+
           The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
-          
-          
+
+
           The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
-          
-          
+
+
           The rules consists of the list of rules to be evaluated. It is a mandatory field.
-          
-          
+
+
           The name in a rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
-          
-          
+
+
           The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
-          
-          
+
+
           The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
       - name: strip
         in: query
         required: false
         type: string
         minLength: 0
-        maxLength: 0    
+        maxLength: 0
         description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
@@ -1373,6 +1457,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: backlinks
+        in: query
+        required: false
+        type: boolean
+        description: "Presence indicates that objects referring to the media item should be included in the response."
       - name: extend
         in: query
         required: false
@@ -1380,7 +1469,7 @@ paths:
         description: >
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
-    
+
           Accepts a comma delimited list of keys on which it will operate. For media items the possible keys are:
             Key | Records
             --- | -------
@@ -1388,6 +1477,7 @@ paths:
             citation_list | The list of citation records
             note_list | The list of note records
             tag_list | The list of tags
+            backlinks | The lists of backlinks per object type
       responses:
         200:
           description: "OK: Successful operation."
@@ -1420,7 +1510,7 @@ paths:
         required: false
         type: string
         minLength: 0
-        maxLength: 0    
+        maxLength: 0
         description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
@@ -1432,6 +1522,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: backlinks
+        in: query
+        required: false
+        type: boolean
+        description: "Presence indicates that objects referring to the media item should be included in the response."
       - name: extend
         in: query
         required: false
@@ -1439,7 +1534,7 @@ paths:
         description: >
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
-    
+
           Accepts a comma delimited list of keys on which it will operate. For a media item the possible keys are:
             Key | Records
             --- | -------
@@ -1447,6 +1542,7 @@ paths:
             citation_list | The list of citation records
             note_list | The list of note records
             tag_list | The list of tags
+            backlinks | The lists of backlinks per object type
       responses:
         200:
           description: "OK: Successful operation."
@@ -1492,33 +1588,33 @@ paths:
 
 
           The expression must be provided in JSON format and a number of fields are not required and have defaults if not present. The structure is defined as follows:
-          
-          
+
+
           {"function": function, "invert": invert, "rules": [{"name": name, "values": [values], "regex": regex}]}
-          
-          
+
+
           The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
-          
-          
+
+
           The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
-          
-          
+
+
           The rules consists of the list of rules to be evaluated. It is a mandatory field.
-          
-          
+
+
           The name in a rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
-          
-          
+
+
           The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
-          
-          
+
+
           The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
       - name: strip
         in: query
         required: false
         type: string
         minLength: 0
-        maxLength: 0    
+        maxLength: 0
         description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
@@ -1530,6 +1626,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: backlinks
+        in: query
+        required: false
+        type: boolean
+        description: "Presence indicates that objects referring to the note should be included in the response."
       - name: extend
         in: query
         required: false
@@ -1537,12 +1638,13 @@ paths:
         description: >
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
-    
+
           Accepts a comma delimited list of keys on which it will operate. For notes the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
             tag_list | The list of tags
+            backlinks | The lists of backlinks per object type
       responses:
         200:
           description: "OK: Successful operation."
@@ -1575,7 +1677,7 @@ paths:
         required: false
         type: string
         minLength: 0
-        maxLength: 0    
+        maxLength: 0
         description: "Presence indicates keys with empty values should be stripped out of the response."
       - name: keys
         in: query
@@ -1587,6 +1689,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: backlinks
+        in: query
+        required: false
+        type: boolean
+        description: "Presence indicates that objects referring to the note should be included in the response."
       - name: extend
         in: query
         required: false
@@ -1594,12 +1701,13 @@ paths:
         description: >
           Enables the return of extended record information, allowing a client to fetch most of the available information for the object in one pass without having to perform multiple queries. These additional records are included under the top level 'extended' keyword in the response.
 
-    
+
           Accepts a comma delimited list of keys on which it will operate. For a note the possible keys are:
             Key | Records
             --- | -------
             all | Returns all possible records listed below
             tag_list | The list of tags
+            backlinks | The lists of backlinks per object type
       responses:
         200:
           description: "OK: Successful operation."
@@ -1725,7 +1833,7 @@ paths:
                 $ref: "#/definitions/DefaultTypes"
         401:
           description: "Unauthorized: Missing authorization header."
-        
+
   /types/default:
     get:
       tags:
@@ -1807,7 +1915,7 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Gramps default record type not found."
-    
+
   /types/custom:
     get:
       tags:
@@ -1863,7 +1971,7 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Gramps custom record type not found."
-    
+
 ##############################################################################
 # Endpoint - NameGroups
 ##############################################################################
@@ -1984,7 +2092,7 @@ paths:
 ##############################################################################
 # Endpoint - Filters
 ##############################################################################
-        
+
   /filters/{namespace}:
     get:
       tags:
@@ -2046,7 +2154,7 @@ paths:
         required: true
         description: "The custom filter to create."
         schema:
-          $ref: "#/definitions/CustomFilter"    
+          $ref: "#/definitions/CustomFilter"
       responses:
         200:
           description: "OK: Successful operation."
@@ -2073,7 +2181,7 @@ paths:
         required: true
         description: "The custom filter to update."
         schema:
-          $ref: "#/definitions/CustomFilter"    
+          $ref: "#/definitions/CustomFilter"
       responses:
         200:
           description: "OK: Successful operation."
@@ -2082,7 +2190,7 @@ paths:
         403:
           description: "Forbidden: Bad credentials, authentication failed."
 
-  /filters/{namespace}/{name}:    
+  /filters/{namespace}/{name}:
     get:
       tags:
       - filters
@@ -2105,7 +2213,7 @@ paths:
         200:
           description: "OK: Successful operation."
           schema:
-            $ref: "#/definitions/CustomFilter"    
+            $ref: "#/definitions/CustomFilter"
         401:
           description: "Unauthorized: Missing authorization header."
         404:
@@ -2141,7 +2249,7 @@ paths:
           description: "Unauthorized: Missing expected credentials."
         403:
           description: "Forbidden: Bad credentials, authentication failed."
-        
+
 ##############################################################################
 # Endpoint - Translations
 ##############################################################################
@@ -2320,9 +2428,9 @@ paths:
               type: string
         401:
           description: "Unauthorized: Missing authorization header."
-    
-##############################################################################    
-# Model definitions    
+
+##############################################################################
+# Model definitions
 ##############################################################################
 
 definitions:
@@ -2405,7 +2513,7 @@ definitions:
   Name:
     type: object
     properties:
-      call: 
+      call:
         description: "Call name."
         type: string
         example: "Anderson"
@@ -2586,6 +2694,11 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/EventReference"
+      backlinks:
+        description: "A mapping with lists of objects referring to the object, grouped by object type"
+        type: object
+        items:
+          $ref: "#/definitions/Backlinks"
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
@@ -2675,7 +2788,7 @@ definitions:
 
   PersonExtended:
     type: object
-    properties:            
+    properties:
       citations:
         description: "The citation records for any referenced citations."
         type: array
@@ -2721,14 +2834,19 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/Tag"
+      backlinks:
+        description: "The object records referring to the object"
+        type: object
+        items:
+          $ref: "#/definitions/BacklinksExtended"
 
 ##############################################################################
 # Model - PersonProfile
 ##############################################################################
 
-  PersonProfile:      
+  PersonProfile:
     type: object
-    properties:            
+    properties:
       birth:
         description: "The birth event profile, or best fallback such as baptism, of the person."
         type: object
@@ -2738,7 +2856,7 @@ definitions:
         description: "The death event profile, or best fallback such as burial, of the person."
         type: object
         items:
-          $ref: "#/definitions/EventProfile"    
+          $ref: "#/definitions/EventProfile"
       events:
         description: "The event profiles for all the referenced events for the person."
         type: array
@@ -2770,7 +2888,7 @@ definitions:
         description: "The family profile for the primary or preferred parents of the person."
         type: object
         items:
-          $ref: "#/definitions/FamilyProfile"    
+          $ref: "#/definitions/FamilyProfile"
       sex:
         description: "Simple identified for gender/sex of the person."
         type: string
@@ -2815,7 +2933,7 @@ definitions:
 ##############################################################################
 # Model - Family
 ##############################################################################
-    
+
   Family:
     type: object
     required:
@@ -2848,6 +2966,11 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/EventReference"
+      backlinks:
+        description: "A mapping with lists of objects referring to the object, grouped by object type"
+        type: object
+        items:
+          $ref: "#/definitions/Backlinks"
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
@@ -2913,7 +3036,7 @@ definitions:
 
   FamilyExtended:
     type: object
-    properties:            
+    properties:
       children:
         description: "The person records for any referenced children."
         type: array
@@ -2954,12 +3077,17 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/Tag"
-    
+      backlinks:
+        description: "The object records referring to the object"
+        type: object
+        items:
+          $ref: "#/definitions/BacklinksExtended"
+
 ##############################################################################
 # Model - FamilyProfile
 ##############################################################################
 
-  FamilyProfile:      
+  FamilyProfile:
     type: object
     properties:
       children:
@@ -2990,7 +3118,7 @@ definitions:
         description: "The marriage event profile, or best fallback such as marriage license, of the person."
         type: object
         items:
-          $ref: "#/definitions/EventProfile"    
+          $ref: "#/definitions/EventProfile"
       mother:
         description: "The person profile for the mother of the family."
         type: object
@@ -3044,7 +3172,7 @@ definitions:
 ##############################################################################
 # Model - Event
 ##############################################################################
-    
+
   Event:
     type: object
     required:
@@ -3075,6 +3203,11 @@ definitions:
         description: "A description for the event."
         type: string
         example: "Burial of Garner, Lewis Anderson"
+      backlinks:
+        description: "A mapping with lists of objects referring to the object, grouped by object type"
+        type: object
+        items:
+          $ref: "#/definitions/Backlinks"
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
@@ -3124,14 +3257,14 @@ definitions:
         description: "The type of event."
         type: string
         example: "Burial"
-    
+
 ##############################################################################
 # Model - EventExtended
 ##############################################################################
 
   EventExtended:
     type: object
-    properties:            
+    properties:
       citations:
         description: "The citation records for any referenced citations."
         type: array
@@ -3157,6 +3290,11 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/Tag"
+      backlinks:
+        description: "The object records referring to the object"
+        type: object
+        items:
+          $ref: "#/definitions/BacklinksExtended"
 
 ##############################################################################
 # Model - EventProfile
@@ -3281,7 +3419,7 @@ definitions:
         description: "Alternate names for the place."
         type: array
         items:
-          $ref: "#/definitions/PlaceName"    
+          $ref: "#/definitions/PlaceName"
       change:
         description: "Time in epoch format the event place was last modified."
         type: number
@@ -3297,6 +3435,11 @@ definitions:
         description: "Code."
         type: string
         example: ""
+      backlinks:
+        description: "A mapping with lists of objects referring to the object, grouped by object type"
+        type: object
+        items:
+          $ref: "#/definitions/Backlinks"
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
@@ -3327,7 +3470,7 @@ definitions:
         description: "The place name."
         type: object
         items:
-          $ref: "#/definitions/PlaceName"    
+          $ref: "#/definitions/PlaceName"
       note_list:
         description: "A list of handles for research notes related to the person."
         type: array
@@ -3371,7 +3514,7 @@ definitions:
 
   PlaceExtended:
     type: object
-    properties:            
+    properties:
       citations:
         description: "The citation records for any referenced citations."
         type: array
@@ -3392,6 +3535,11 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/Tag"
+      backlinks:
+        description: "The object records referring to the object"
+        type: object
+        items:
+          $ref: "#/definitions/BacklinksExtended"
 
 ##############################################################################
 # Model - PlaceName
@@ -3495,7 +3643,7 @@ definitions:
         description: "Street."
         type: string
         example: "1600 Pennsylvania Ave."
-    
+
 ##############################################################################
 # Model - Location
 ##############################################################################
@@ -3539,11 +3687,11 @@ definitions:
         description: "Street."
         type: string
         example: "1600 Pennsylvania Avenue"
-      
+
 ##############################################################################
 # Model - Citation
 ##############################################################################
-    
+
   Citation:
     type: object
     required:
@@ -3568,6 +3716,11 @@ definitions:
         type: object
         items:
           $ref: "#/definitions/Date"
+      backlinks:
+        description: "A mapping with lists of objects referring to the object, grouped by object type"
+        type: object
+        items:
+          $ref: "#/definitions/Backlinks"
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
@@ -3619,7 +3772,7 @@ definitions:
 
   CitationExtended:
     type: object
-    properties:            
+    properties:
       media:
         description: "The media records for any referenced media objects."
         type: array
@@ -3634,17 +3787,22 @@ definitions:
         description: "The source record for the citation."
         type: object
         items:
-          $ref: "#/definitions/Source"    
+          $ref: "#/definitions/Source"
       tags:
         description: "The tag records for any referenced tags."
         type: array
         items:
           $ref: "#/definitions/Tag"
+      backlinks:
+        description: "The object records referring to the object"
+        type: object
+        items:
+          $ref: "#/definitions/BacklinksExtended"
 
 ##############################################################################
 # Model - Source
 ##############################################################################
-    
+
   Source:
     type: object
     required:
@@ -3667,6 +3825,11 @@ definitions:
         description: "Time in epoch format the source record was last modified."
         type: number
         example: 1234371690
+      backlinks:
+        description: "A mapping with lists of objects referring to the object, grouped by object type"
+        type: object
+        items:
+          $ref: "#/definitions/Backlinks"
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
@@ -3724,7 +3887,7 @@ definitions:
 
   SourceExtended:
     type: object
-    properties:            
+    properties:
       media:
         description: "The media records for any referenced media objects."
         type: array
@@ -3739,17 +3902,22 @@ definitions:
         description: "The repository records for any referenced repositories."
         type: array
         items:
-          $ref: "#/definitions/Repository" 
+          $ref: "#/definitions/Repository"
       tags:
         description: "The tag records for any referenced tags."
         type: array
         items:
           $ref: "#/definitions/Tag"
+      backlinks:
+        description: "The object records referring to the object"
+        type: object
+        items:
+          $ref: "#/definitions/BacklinksExtended"
 
 ##############################################################################
 # Model - Repository
 ##############################################################################
-    
+
   Repository:
     type: object
     required:
@@ -3764,6 +3932,11 @@ definitions:
         description: "Time in epoch format the repository record was last modified."
         type: number
         example: 1234370614
+      backlinks:
+        description: "A mapping with lists of objects referring to the object, grouped by object type"
+        type: object
+        items:
+          $ref: "#/definitions/Backlinks"
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
@@ -3815,7 +3988,7 @@ definitions:
 
   RepositoryExtended:
     type: object
-    properties:            
+    properties:
       notes:
         description: "The note records for any referenced notes."
         type: array
@@ -3826,11 +3999,16 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/Tag"
+      backlinks:
+        description: "The object records referring to the object"
+        type: object
+        items:
+          $ref: "#/definitions/BacklinksExtended"
 
 ##############################################################################
 # Model - RepositoryReference
 ##############################################################################
-    
+
   RepositoryReference:
     type: object
     required:
@@ -3863,7 +4041,7 @@ definitions:
 ##############################################################################
 # Model - Media
 ##############################################################################
-    
+
   Media:
     type: object
     required:
@@ -3896,8 +4074,13 @@ definitions:
           $ref: "#/definitions/Date"
       desc:
         description: "A description of the contents of the media object."
-        type: string    
+        type: string
         example: "654px-Aksel_Andersson"
+      backlinks:
+        description: "A mapping with lists of objects referring to the object, grouped by object type"
+        type: object
+        items:
+          $ref: "#/definitions/Backlinks"
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
@@ -3944,7 +4127,7 @@ definitions:
 
   MediaExtended:
     type: object
-    properties:            
+    properties:
       citations:
         description: "The citation records for any referenced citations."
         type: array
@@ -3960,6 +4143,11 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/Tag"
+      backlinks:
+        description: "The object records referring to the object"
+        type: object
+        items:
+          $ref: "#/definitions/BacklinksExtended"
 
 ##############################################################################
 # Model - MediaReference
@@ -4007,7 +4195,7 @@ definitions:
 ##############################################################################
 # Model - Note
 ##############################################################################
-    
+
   Note:
     type: object
     required:
@@ -4017,6 +4205,11 @@ definitions:
         description: "Time in epoch format the note record was last modified."
         type: number
         example: 1234371685
+      backlinks:
+        description: "A mapping with lists of objects referring to the object, grouped by object type"
+        type: object
+        items:
+          $ref: "#/definitions/Backlinks"
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
@@ -4061,17 +4254,22 @@ definitions:
 
   NoteExtended:
     type: object
-    properties:            
+    properties:
       tags:
         description: "The tag records for any referenced tags."
         type: array
         items:
           $ref: "#/definitions/Tag"
-                    
+      backlinks:
+        description: "The object records referring to the object"
+        type: object
+        items:
+          $ref: "#/definitions/BacklinksExtended"
+
 ##############################################################################
 # Model - StyledText
 ##############################################################################
-    
+
   StyledText:
     type: object
     properties:
@@ -4088,7 +4286,7 @@ definitions:
 ##############################################################################
 # Model - StyledTextTag
 ##############################################################################
-    
+
   StyledTextTag:
     type: object
     properties:
@@ -4222,7 +4420,7 @@ definitions:
           type: object
         example:
           - "Tag:"
-            
+
 ##############################################################################
 # Model - CustomFilter
 ##############################################################################
@@ -4233,7 +4431,7 @@ definitions:
       - function
       - invert
       - name
-      - rules   
+      - rules
     properties:
       comment:
         description: "A comment about purpose of the filter."
@@ -4260,7 +4458,7 @@ definitions:
 ##############################################################################
 # Model - Translations
 ##############################################################################
-    
+
   Translations:
     type: object
     required:
@@ -4279,7 +4477,7 @@ definitions:
 ##############################################################################
 # Model - Translation
 ##############################################################################
-    
+
   Translation:
     type: object
     properties:
@@ -4295,7 +4493,7 @@ definitions:
 ##############################################################################
 # Model - Relationship
 ##############################################################################
-    
+
   Relationship:
     type: object
     properties:
@@ -4333,7 +4531,7 @@ definitions:
 ##############################################################################
 # Model - TreeSummary
 ##############################################################################
-    
+
   TreeSummary:
     type: object
     properties:
@@ -4397,7 +4595,7 @@ definitions:
 ##############################################################################
 # Model - TreeResearcher
 ##############################################################################
-    
+
   TreeResearcher:
     type: object
     properties:
@@ -4449,7 +4647,7 @@ definitions:
 ##############################################################################
 # Model - NameSpaces
 ##############################################################################
-    
+
   NameSpaces:
     type: object
     properties:
@@ -4555,4 +4753,104 @@ definitions:
       source_media_types:
         - Microfilm
 
-      
+
+##############################################################################
+# Model - Backlinks
+##############################################################################
+
+  Backlinks:
+    type: object
+    properties:
+      person:
+        description: "A list of handles of people referring to the object."
+        type: array
+        items:
+          type: string
+          example:
+            - "c140d5e5dbf300411bf"
+      family:
+        description: "A list of handles of families referring to the object."
+        type: array
+        items:
+          type: string
+          example:
+            - "c140d5e5dbf300411bf"
+      event:
+        description: "A list of handles of events referring to the object."
+        type: array
+        items:
+          type: string
+          example:
+            - "c140d5e5dbf300411bf"
+      place:
+        description: "A list of handles of places referring to the object."
+        type: array
+        items:
+          type: string
+          example:
+            - "c140d5e5dbf300411bf"
+      source:
+        description: "A list of handles of sources referring to the object."
+        type: array
+        items:
+          type: string
+          example:
+            - "c140d5e5dbf300411bf"
+      citation:
+        description: "A list of handles of citations referring to the object."
+        type: array
+        items:
+          type: string
+          example:
+            - "c140d5e5dbf300411bf"
+      media:
+        description: "A list of handles of media items referring to the object."
+        type: array
+        items:
+          type: string
+          example:
+            - "c140d5e5dbf300411bf"
+
+
+##############################################################################
+# Model - Backlinks extended
+##############################################################################
+
+  BacklinksExtended:
+    type: object
+    properties:
+      person:
+        description: "A list of handles of people referring to the object."
+        type: array
+        items:
+          $ref: "#/definitions/Person"
+      family:
+        description: "A list of handles of families referring to the object."
+        type: array
+        items:
+          $ref: "#/definitions/Family"
+      event:
+        description: "A list of handles of events referring to the object."
+        type: array
+        items:
+          $ref: "#/definitions/Event"
+      place:
+        description: "A list of handles of places referring to the object."
+        type: array
+        items:
+          $ref: "#/definitions/Place"
+      source:
+        description: "A list of handles of sources referring to the object."
+        type: array
+        items:
+          $ref: "#/definitions/Source"
+      citation:
+        description: "A list of handles of citations referring to the object."
+        type: array
+        items:
+          $ref: "#/definitions/Citation"
+      media:
+        description: "A list of handles of media items referring to the object."
+        type: array
+        items:
+          $ref: "#/definitions/Media"
