@@ -81,7 +81,7 @@ def get_sex_profile(person: Person) -> str:
 def get_event_profile_for_object(db_handle: DbReadBase, event: Event) -> Dict:
     """Get event profile given an Event."""
     return {
-        "type": event.type.xml_str(),
+        "type": str(event.type),
         "date": dd.display(event.date),
         "place": pd.display_event(db_handle, event),
     }
