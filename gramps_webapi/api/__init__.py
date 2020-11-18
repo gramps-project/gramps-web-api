@@ -113,7 +113,7 @@ register_endpt(
     "relations",
 )
 # Metadata
-register_endpt(MetadataResource, "/metadata/<string:datatype>", "metadata")
+register_endpt(MetadataResource, "/metadata/", "metadata")
 
 # Media files
 @api_blueprint.route("/media/<string:handle>/file")
