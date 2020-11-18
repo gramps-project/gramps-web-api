@@ -35,6 +35,7 @@ from .resources.types import (
     DefaultTypesResource,
     TypesResource,
 )
+from .resources.user import UserChangePasswordResource
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
 
@@ -86,6 +87,8 @@ register_endpt(TypesResource, "/types/", "all-types")
 # Token
 register_endpt(TokenResource, "/login/", "token")
 register_endpt(TokenRefreshResource, "/refresh/", "token_refresh")
+# User
+register_endpt(UserChangePasswordResource, "/user/password/change", "change_password")
 # Name Groups
 register_endpt(
     NameGroupsResource, "/name-groups/<string:surname>/<string:group>", "set-name-group"
@@ -103,14 +106,10 @@ register_endpt(TranslationResource, "/translations/<string:isocode>", "translati
 register_endpt(TranslationsResource, "/translations/", "translations")
 # Relation
 register_endpt(
-    RelationResource,
-    "/relations/<string:handle1>/<string:handle2>",
-    "relation",
+    RelationResource, "/relations/<string:handle1>/<string:handle2>", "relation",
 )
 register_endpt(
-    RelationsResource,
-    "/relations/<string:handle1>/<string:handle2>/all",
-    "relations",
+    RelationsResource, "/relations/<string:handle1>/<string:handle2>/all", "relations",
 )
 # Metadata
 register_endpt(MetadataResource, "/metadata/", "metadata")
