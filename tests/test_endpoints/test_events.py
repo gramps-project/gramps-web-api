@@ -1,3 +1,23 @@
+#
+# Gramps Web API - A RESTful API for the Gramps genealogy program
+#
+# Copyright (C) 2020      Christopher Horn
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+#
+
 """Tests for the /api/events endpoints using example_gramps."""
 
 import unittest
@@ -96,11 +116,15 @@ class TestEvents(unittest.TestCase):
 
     def test_events_endpoint_profile(self):
         """Test response for profile parm."""
-        # check 422 returned if passed argument
-        result = self.client.get("/api/events/?profile=1")
+        # check 422 returned if missing or bad argument
+        result = self.client.get("/api/events/?profile")
+        self.assertEqual(result.status_code, 422)
+        result = self.client.get("/api/events/?profile=3")
+        self.assertEqual(result.status_code, 422)
+        result = self.client.get("/api/events/?profile=alpha")
         self.assertEqual(result.status_code, 422)
         # check expected number of events found
-        result = self.client.get("/api/events/?profile")
+        result = self.client.get("/api/events/?profile=all")
         self.assertEqual(len(result.json), get_object_count("events"))
         # check all expected profile attributes present for first event
         self.assertEqual(
@@ -125,7 +149,7 @@ class TestEvents(unittest.TestCase):
 
     def test_events_endpoint_schema(self):
         """Test all events against the event schema."""
-        result = self.client.get("/api/events/?extend=all&profile")
+        result = self.client.get("/api/events/?extend=all&profile=all")
         # check expected number of events found
         self.assertEqual(len(result.json), get_object_count("events"))
         # check all records found conform to expected schema
@@ -187,11 +211,15 @@ class TestEventsHandle(unittest.TestCase):
 
     def test_events_handle_endpoint_profile(self):
         """Test response for profile parm."""
-        # check 422 returned if passed argument
-        result = self.client.get("/api/events/a5af0eb6dd140de132c?profile=1")
+        # check 422 returned if passed missing or bad argument
+        result = self.client.get("/api/events/a5af0eb6dd140de132c?profile")
+        self.assertEqual(result.status_code, 422)
+        result = self.client.get("/api/events/a5af0eb6dd140de132c?profile=3")
+        self.assertEqual(result.status_code, 422)
+        result = self.client.get("/api/events/a5af0eb6dd140de132c?profile=omega")
         self.assertEqual(result.status_code, 422)
         # check some key expected profile attributes present
-        result = self.client.get("/api/events/a5af0eb6dd140de132c?profile")
+        result = self.client.get("/api/events/a5af0eb6dd140de132c?profile=all")
         self.assertEqual(
             result.json["profile"],
             {
@@ -215,7 +243,9 @@ class TestEventsHandle(unittest.TestCase):
     def test_event_handle_endpoint_schema(self):
         """Test the event schema with extensions."""
         # check event record conforms to expected schema
-        result = self.client.get("/api/events/a5af0eb6dd140de132c?extend=all&profile")
+        result = self.client.get(
+            "/api/events/a5af0eb6dd140de132c?extend=all&profile=all"
+        )
         resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
         validate(
             instance=result.json,

@@ -1,3 +1,24 @@
+#
+# Gramps Web API - A RESTful API for the Gramps genealogy program
+#
+# Copyright (C) 2020      David Straub
+# Copyright (C) 2020      Christopher Horn
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+#
+
 """Tests for the /api/people endpoints using example_gramps."""
 
 import unittest
@@ -95,12 +116,16 @@ class TestPeople(unittest.TestCase):
         run_test_endpoint_rules(self, "/api/people/", driver)
 
     def test_people_endpoint_profile(self):
-        """Test response for profile parm."""
+        """Test response for missing or bad parm."""
         # check 422 returned if passed argument
-        result = self.client.get("/api/people/?profile=1")
+        result = self.client.get("/api/people/?profile")
+        self.assertEqual(result.status_code, 422)
+        result = self.client.get("/api/people/?profile=3")
+        self.assertEqual(result.status_code, 422)
+        result = self.client.get("/api/people/?profile=alpha")
         self.assertEqual(result.status_code, 422)
         # check expected number of people found
-        result = self.client.get("/api/people/?profile")
+        result = self.client.get("/api/people/?profile=all")
         self.assertEqual(len(result.json), get_object_count("people"))
         # check all expected profile attributes present for first person
         self.assertEqual(
@@ -187,7 +212,7 @@ class TestPeople(unittest.TestCase):
     def test_people_endpoint_schema(self):
         """Test all people against the people schema."""
         # check expected number of people found
-        result = self.client.get("/api/people/?extend=all&profile")
+        result = self.client.get("/api/people/?extend=all&profile=all")
         self.assertEqual(len(result.json), get_object_count("people"))
         # check all records found conform to expected schema
         resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
@@ -251,11 +276,25 @@ class TestPeopleHandle(unittest.TestCase):
 
     def test_people_handle_endpoint_profile(self):
         """Test response for profile parm."""
-        # check 422 returned if passed argument
+        # check 422 returned if passed no or bad argument
+        result = self.client.get("/api/people/0PWJQCZYFXOS0HGREE?profile")
+        self.assertEqual(result.status_code, 422)
         result = self.client.get("/api/people/0PWJQCZYFXOS0HGREE?profile=1")
         self.assertEqual(result.status_code, 422)
-        # check some key expected profile attributes present
-        result = self.client.get("/api/people/0PWJQCZYFXOS0HGREE?profile")
+        result = self.client.get("/api/people/0PWJQCZYFXOS0HGREE?profile=omega")
+        self.assertEqual(result.status_code, 422)
+        # check some request variations work
+        result = self.client.get("/api/people/0PWJQCZYFXOS0HGREE?profile=self")
+        self.assertNotIn("events", result.json["profile"])
+        self.assertNotIn("families", result.json["profile"])
+        result = self.client.get("/api/people/0PWJQCZYFXOS0HGREE?profile=families")
+        self.assertIn("families", result.json["profile"])
+        self.assertNotIn("events", result.json["profile"])
+        result = self.client.get("/api/people/0PWJQCZYFXOS0HGREE?profile=events")
+        self.assertIn("events", result.json["profile"])
+        self.assertNotIn("families", result.json["profile"])
+        # check key expected profile attributes present for full request
+        result = self.client.get("/api/people/0PWJQCZYFXOS0HGREE?profile=all")
         self.assertEqual(
             result.json["profile"],
             {
@@ -416,7 +455,9 @@ class TestPeopleHandle(unittest.TestCase):
     def test_people_handle_endpoint_schema(self):
         """Test the people schema with extensions."""
         # check person record conforms to expected schema
-        result = self.client.get("/api/people/0PWJQCZYFXOS0HGREE?extend=all&profile")
+        result = self.client.get(
+            "/api/people/0PWJQCZYFXOS0HGREE?extend=all&profile=all"
+        )
         resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
         validate(
             instance=result.json,
@@ -457,4 +498,3 @@ class TestPeopleHandle(unittest.TestCase):
         assert rv.json[0]["backlinks"] == {
             "family": ["LOTJQC78O5B4WQGJRP", "UPTJQC4VPCABZUDB75"]
         }
-

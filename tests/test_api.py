@@ -1,3 +1,23 @@
+#
+# Gramps Web API - A RESTful API for the Gramps genealogy program
+#
+# Copyright (C) 2020      David Straub
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+#
+
 """Tests for the `gramps_webapi.api` module."""
 
 import unittest
@@ -53,7 +73,7 @@ class TestPerson(unittest.TestCase):
         assert rv.status_code == 404
 
     def test_people_endpoint(self):
-        rv = self.client.get("/api/people/?profile")
+        rv = self.client.get("/api/people/?profile=all")
         it = rv.json[0]
         assert len(it["handle"]) > 20
         assert isinstance(it["change"], int)
@@ -63,7 +83,7 @@ class TestPerson(unittest.TestCase):
         assert it["gender"] == 1  # male
         assert it["birth_ref_index"] == -1
         assert it["death_ref_index"] == -1
-        rv = self.client.get("/api/people/?gramps_id=person001&profile")
+        rv = self.client.get("/api/people/?gramps_id=person001&profile=all")
         it = rv.json[0]
         assert len(it["handle"]) > 20
         assert isinstance(it["change"], int)
@@ -77,7 +97,7 @@ class TestPerson(unittest.TestCase):
     def test_person_endpoint(self):
         rv = self.client.get("/api/people/")
         it = rv.json[0]
-        rv = self.client.get("/api/people/" + it["handle"] + "?profile")
+        rv = self.client.get("/api/people/" + it["handle"] + "?profile=all")
         assert len(rv.json["handle"]) > 20
         assert isinstance(rv.json["change"], int)
         assert rv.json["gramps_id"] == "person001"

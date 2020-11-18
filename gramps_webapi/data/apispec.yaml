@@ -49,6 +49,8 @@ tags:
   description: Access to tag objects.
 - name: types
   description: Access to default and custom types.
+- name: name-formats
+  description: Access to name formats.
 - name: name-groups
   description: Access to name group mappings.
 - name: bookmarks
@@ -188,10 +190,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -206,14 +206,22 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates that the person profile should be included in the response. The person profile contains summarized information about the person and their familial relationships in a more readily consumable format."
+        description: >
+          Enables the return of summarized information about the person and their familial relationships in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided. For people the possible objects are:
+            Object | Contents
+            ------ | --------
+            all | Returns all information below
+            self | Returns name, sex, birth and death information and is an implied default when events or families specified
+            events | Returns event list with name, date and location
+            families | Returns family information with parents, children, and key relationship between parents
       - name: backlinks
         in: query
         required: false
         type: boolean
-        description: "Presence indicates that objects referring to the person should be included in the response."
+        description: "Indicates whether handles to objects referring to the person should be included in the response or not."
       - name: extend
         in: query
         required: false
@@ -266,10 +274,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -284,14 +290,22 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates that the person profile should be included in the response. The person profile contains summarized information about the person and their familial relationships in a more readily consumable format."
+        description: >
+          Enables the return of summarized information about the person and their familial relationships in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided. For people the possible objects are:
+            Object | Contents
+            ------ | --------
+            all | Returns all information below
+            self | Returns name, sex, birth and death information and is an implied default when events or families specified
+            events | Returns event list with name, date and location
+            families | Returns family information with parents, children, and key relationship between parents
       - name: backlinks
         in: query
         required: false
         type: boolean
-        description: "Presence indicates that objects referring to the person should be included in the response."
+        description: "Indicates whether handles to objects referring to the person should be included in the response or not."
       - name: extend
         in: query
         required: false
@@ -383,10 +397,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -401,14 +413,21 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates that the family profile should be included in the response. The family profile contains summarized information about the family and their members in a more readily consumable format."
+        description: >
+          Enables the return of summarized information about the family in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided. For families the possible objects are:
+            Object | Contents
+            ------ | --------
+            all | Returns all information below
+            self | Returns family information with parents, children, and key relationship between parents and is an implied default if events specified
+            events | Returns family event list with name, date and location
       - name: backlinks
         in: query
         required: false
         type: boolean
-        description: "Presence indicates that objects referring to the family should be included in the response."
+        description: "Indicates whether handles to objects referring to the family should be included in the response or not."
       - name: extend
         in: query
         required: false
@@ -460,10 +479,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates if keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -478,14 +495,21 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates that the family profile should be included in the response. The family profile contains summarized information about the family and their members in a more readily consumable format."
+        description: >
+          Enables the return of summarized information about the family in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided. For a family the possible objects are:
+            Object | Contents
+            ------ | --------
+            all | Returns all information below
+            self | Returns family information with parents, children, and key relationship between parents and is an implied default if events specified
+            events | Returns family event list with name, date and location
       - name: backlinks
         in: query
         required: false
         type: boolean
-        description: "Presence indicates that objects referring to the family should be included in the response."
+        description: "Indicates whether handles to objects referring to the family should be included in the response or not."
       - name: extend
         in: query
         required: false
@@ -576,10 +600,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates if keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -594,14 +616,20 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates that the event profile should be included in the response. The event profile contains some brief information about the event in a more readily consumable format."
+        description: >
+          Enables the return of summarized information about the event in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided. For events the possible objects are:
+            Object | Contents
+            ------ | --------
+            all | Returns all information below
+            events | Returns event name, date and location
       - name: backlinks
         in: query
         required: false
         type: boolean
-        description: "Presence indicates that objects referring to the event should be included in the response."
+        description: "Indicates whether handles to objects referring to the event should be included in the response or not."
       - name: extend
         in: query
         required: false
@@ -650,10 +678,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -668,14 +694,20 @@ paths:
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates that the event profile should be included in the response. The event profile contains some brief information about the event in a more readily consumable format."
+        description: >
+          Enables the return of summarized information about the event in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided. For an event the possible objects are:
+            Object | Contents
+            ------ | --------
+            all | Returns all information below
+            events | Returns event name, date and location
       - name: backlinks
         in: query
         required: false
         type: boolean
-        description: "Presence indicates that objects referring to the event should be included in the response."
+        description: "Indicates whether handles to objects referring to the event should be included in the response or not."
       - name: extend
         in: query
         required: false
@@ -763,10 +795,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -781,7 +811,7 @@ paths:
         in: query
         required: false
         type: boolean
-        description: "Presence indicates that objects referring to the place should be included in the response."
+        description: "Indicates whether handles to objects referring to the place should be included in the response or not."
       - name: extend
         in: query
         required: false
@@ -829,10 +859,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -847,7 +875,7 @@ paths:
         in: query
         required: false
         type: boolean
-        description: "Presence indicates that objects referring to the place should be included in the response."
+        description: "Indicates whether handles to objects referring to the place should be included in the response or not."
       - name: extend
         in: query
         required: false
@@ -934,10 +962,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -952,7 +978,7 @@ paths:
         in: query
         required: false
         type: boolean
-        description: "Presence indicates that objects referring to the citation should be included in the response."
+        description: "Indicates whether handles to objects referring to the citation should be included in the response or not."
       - name: extend
         in: query
         required: false
@@ -1000,10 +1026,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -1018,7 +1042,7 @@ paths:
         in: query
         required: false
         type: boolean
-        description: "Presence indicates that objects referring to the citation should be included in the response."
+        description: "Indicates whether handles to objects referring to the citation should be included in the response or not."
       - name: extend
         in: query
         required: false
@@ -1105,10 +1129,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -1123,7 +1145,7 @@ paths:
         in: query
         required: false
         type: boolean
-        description: "Presence indicates that objects referring to the source should be included in the response."
+        description: "Indicates whether handles to objects referring to the source should be included in the response or not."
       - name: extend
         in: query
         required: false
@@ -1171,10 +1193,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -1189,7 +1209,7 @@ paths:
         in: query
         required: false
         type: boolean
-        description: "Presence indicates that objects referring to the source should be included in the response."
+        description: "Indicates whether handles to objects referring to the source should be included in the response or not."
       - name: extend
         in: query
         required: false
@@ -1276,10 +1296,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -1294,7 +1312,7 @@ paths:
         in: query
         required: false
         type: boolean
-        description: "Presence indicates that objects referring to the repository should be included in the response."
+        description: "Indicates whether handles to objects referring to the repository should be included in the response or not."
       - name: extend
         in: query
         required: false
@@ -1340,10 +1358,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -1358,7 +1374,7 @@ paths:
         in: query
         required: false
         type: boolean
-        description: "Presence indicates that objects referring to the repository should be included in the response."
+        description: "Indicates whether handles to objects referring to the repository should be included in the response or not."
       - name: extend
         in: query
         required: false
@@ -1443,10 +1459,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -1461,7 +1475,7 @@ paths:
         in: query
         required: false
         type: boolean
-        description: "Presence indicates that objects referring to the media item should be included in the response."
+        description: "Indicates whether handles to objects referring to the media item should be included in the response or not."
       - name: extend
         in: query
         required: false
@@ -1508,10 +1522,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -1526,7 +1538,7 @@ paths:
         in: query
         required: false
         type: boolean
-        description: "Presence indicates that objects referring to the media item should be included in the response."
+        description: "Indicates whether handles to objects referring to the media item should be included in the response or not."
       - name: extend
         in: query
         required: false
@@ -1576,6 +1588,15 @@ paths:
         required: false
         type: string
         description: "The name of an existing custom filter to be used when generating the result set."
+      - name: formats
+        in: query
+        required: false
+        type: string
+        description: >
+          A comma delimited list of formats to apply to the note text, returning the result under the top level 'formatted' keyword. Supported formats are:
+
+
+          html
       - name: rules
         in: query
         required: false
@@ -1612,10 +1633,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -1630,7 +1649,7 @@ paths:
         in: query
         required: false
         type: boolean
-        description: "Presence indicates that objects referring to the note should be included in the response."
+        description: "Indicates whether handles to objects referring to the note should be included in the response or not."
       - name: extend
         in: query
         required: false
@@ -1672,13 +1691,20 @@ paths:
         type: string
         minLength: 8
         description: "The unique identifier for a note."
-      - name: strip
+      - name: formats
         in: query
         required: false
         type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates keys with empty values should be stripped out of the response."
+        description: >
+          A comma delimited list of formats to apply to the note text, returning the result under the top level 'formatted' keyword. Supported formats are:
+
+
+          html
+      - name: strip
+        in: query
+        required: false
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -1693,7 +1719,7 @@ paths:
         in: query
         required: false
         type: boolean
-        description: "Presence indicates that objects referring to the note should be included in the response."
+        description: "Indicates whether handles to objects referring to the note should be included in the response or not."
       - name: extend
         in: query
         required: false
@@ -1734,10 +1760,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -1778,10 +1802,8 @@ paths:
       - name: strip
         in: query
         required: false
-        type: string
-        minLength: 0
-        maxLength: 0
-        description: "Presence indicates keys with empty values should be stripped out of the response."
+        type: boolean
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
         required: false
@@ -1971,6 +1993,28 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Gramps custom record type not found."
+
+##############################################################################
+# Endpoint - NameFormats
+##############################################################################
+
+  /name-formats:
+    get:
+      tags:
+      - name-formats
+      summary: "Get a list of name formats."
+      operationId: getNameFormats
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/NameFormat"
+        401:
+          description: "Unauthorized: Missing authorization header."
 
 ##############################################################################
 # Endpoint - NameGroups
@@ -4693,6 +4737,30 @@ definitions:
         - AWFKQCJELLUWDY2PD3
         - 35WJQC1B7T7NPV8OLV
         - Q8HKQC3VMRM1M6M7ES
+
+##############################################################################
+# Model - NameFormat
+##############################################################################
+
+  NameFormat:
+    type: object
+    properties:
+      active:
+        description: "Indicate if format is in use."
+        type: boolean
+        example: true
+      format:
+        description: "The format string."
+        type: string
+        example: "SURNAME, given (common)"
+      name:
+        description: "The name of the format."
+        type: string
+        example: "SURNAME, Given (Common)"
+      number:
+        description: "Surname to be grouped."
+        type: integer
+        example: -1
 
 ##############################################################################
 # Model - NameGroupMapping

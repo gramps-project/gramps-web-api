@@ -1,3 +1,23 @@
+#
+# Gramps Web API - A RESTful API for the Gramps genealogy program
+#
+# Copyright (C) 2020      David Straub
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+#
+
 """Tests for the `gramps_webapi.api` module."""
 
 import unittest
@@ -61,14 +81,14 @@ class TestPerson(unittest.TestCase):
         )
         assert rv.status_code == 200
         it = rv.json[0]
-        rv = self.client.get("/api/people/" + it["handle"] + "?profile")
+        rv = self.client.get("/api/people/" + it["handle"] + "?profile=all")
         # no authorization header!
         assert rv.status_code == 401
         # fetch a token and try again
         rv = self.client.post("/api/login/", data={"username": "user", "password": 123})
         token = rv.json["access_token"]
         rv = self.client.get(
-            "/api/people/" + it["handle"] + "?profile",
+            "/api/people/" + it["handle"] + "?profile=all",
             headers={"Authorization": "Bearer {}".format(token)},
         )
         assert rv.status_code == 200

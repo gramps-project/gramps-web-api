@@ -1,6 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
+# Copyright (C) 2020      David Straub
 # Copyright (C) 2020      Christopher Horn
 #
 # This program is free software; you can redistribute it and/or modify
@@ -18,24 +19,24 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 
-"""Tests for the `gramps_webapi.api` module."""
+"""Place API resource."""
 
-import unittest
+from .base import (
+    GrampsObjectProtectedResource,
+    GrampsObjectResourceHelper,
+    GrampsObjectsProtectedResource,
+)
 
-import yaml
-from jsonschema import Draft4Validator, validate
-from pkg_resources import resource_filename
+
+class PlaceResourceHelper(GrampsObjectResourceHelper):
+    """Place resource helper."""
+
+    gramps_class_name = "Place"
 
 
-class TestSchema(unittest.TestCase):
-    """Test cases to validate schema format."""
+class PlaceResource(GrampsObjectProtectedResource, PlaceResourceHelper):
+    """Place resource."""
 
-    def test_schema(self):
-        """Check schema for validity."""
-        # check it loads okay
-        with open(
-            resource_filename("gramps_webapi", "data/apispec.yaml")
-        ) as file_handle:
-            api_schema = yaml.safe_load(file_handle)
-        # check structure
-        Draft4Validator.check_schema(api_schema)
+
+class PlacesResource(GrampsObjectsProtectedResource, PlaceResourceHelper):
+    """Places resource."""

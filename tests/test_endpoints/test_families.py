@@ -1,3 +1,23 @@
+#
+# Gramps Web API - A RESTful API for the Gramps genealogy program
+#
+# Copyright (C) 2020      Christopher Horn
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+#
+
 """Tests for the /api/families endpoints using example_gramps."""
 
 import unittest
@@ -97,11 +117,15 @@ class TestFamilies(unittest.TestCase):
 
     def test_families_endpoint_profile(self):
         """Test response for profile parm."""
-        # check 422 returned if passed argument
-        result = self.client.get("/api/families/?profile=1")
+        # check 422 returned if passed missing or bad argument
+        result = self.client.get("/api/families/?profile")
+        self.assertEqual(result.status_code, 422)
+        result = self.client.get("/api/families/?profile=3")
+        self.assertEqual(result.status_code, 422)
+        result = self.client.get("/api/families/?profile=alpha")
         self.assertEqual(result.status_code, 422)
         # check expected number of families found
-        result = self.client.get("/api/families/?profile")
+        result = self.client.get("/api/families/?profile=all")
         self.assertEqual(len(result.json), get_object_count("families"))
         # check all expected profile attributes present for first family
         self.assertEqual(
@@ -184,7 +208,7 @@ class TestFamilies(unittest.TestCase):
     def test_families_endpoint_schema(self):
         """Test all families against the family schema."""
         # check expected number of families found
-        result = self.client.get("/api/families/?extend=all&profile")
+        result = self.client.get("/api/families/?extend=all&profile=all")
         self.assertEqual(len(result.json), get_object_count("families"))
         # check all records found conform to expected schema
         resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
@@ -246,11 +270,20 @@ class TestFamiliesHandle(unittest.TestCase):
 
     def test_families_handle_endpoint_profile(self):
         """Test response for profile parm."""
-        # check 422 returned if passed argument
-        result = self.client.get("/api/families/7MTJQCHRUUYSUA8ABB?profile=1")
-        self.assertEqual(result.status_code, 422)
-        # check all expected profile attributes present
+        # check 422 returned if passed missing or bad argument
         result = self.client.get("/api/families/7MTJQCHRUUYSUA8ABB?profile")
+        self.assertEqual(result.status_code, 422)
+        result = self.client.get("/api/families/7MTJQCHRUUYSUA8ABB?profile=3")
+        self.assertEqual(result.status_code, 422)
+        result = self.client.get("/api/families/7MTJQCHRUUYSUA8ABB?profile=alpha")
+        self.assertEqual(result.status_code, 422)
+        # check events works as expected
+        result = self.client.get("/api/families/7MTJQCHRUUYSUA8ABB?profile=self")
+        self.assertNotIn("events", result.json["profile"])
+        result = self.client.get("/api/families/7MTJQCHRUUYSUA8ABB?profile=events")
+        self.assertIn("events", result.json["profile"])
+        # check all expected profile attributes present
+        result = self.client.get("/api/families/7MTJQCHRUUYSUA8ABB?profile=all")
         self.assertEqual(
             result.json["profile"],
             {
@@ -335,7 +368,9 @@ class TestFamiliesHandle(unittest.TestCase):
     def test_families_handle_endpoint_schema(self):
         """Test the family schema with extensions."""
         # check family record conforms to expected schema
-        result = self.client.get("/api/families/1J4KQCRKU4410338P7?extend=all&profile")
+        result = self.client.get(
+            "/api/families/1J4KQCRKU4410338P7?extend=all&profile=all"
+        )
         resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
         validate(
             instance=result.json,
