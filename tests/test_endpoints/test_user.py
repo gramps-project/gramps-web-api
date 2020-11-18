@@ -38,59 +38,59 @@ class TestUser(unittest.TestCase):
     def test_change_password_no_token(self):
         rv = self.client.post(
             "/api/user/password/change",
-            data={"old_password": "123", "new_password": "456"},
+            json={"old_password": "123", "new_password": "456"},
         )
         assert rv.status_code == 401
 
     def test_change_password_wrong_old_pw(self):
         rv = self.client.post(
-            "/api/login/", data={"username": "user", "password": "123"}
+            "/api/login/", json={"username": "user", "password": "123"}
         )
         assert rv.status_code == 200
         token = rv.json["access_token"]
         rv = self.client.post(
             "/api/user/password/change",
             headers={"Authorization": "Bearer {}".format(token)},
-            data={"old_password": "012", "new_password": "456"},
+            json={"old_password": "012", "new_password": "456"},
         )
         assert rv.status_code == 403
 
     def test_change_password(self):
         rv = self.client.post(
-            "/api/login/", data={"username": "user", "password": "123"}
+            "/api/login/", json={"username": "user", "password": "123"}
         )
         assert rv.status_code == 200
         token = rv.json["access_token"]
         rv = self.client.post(
             "/api/user/password/change",
             headers={"Authorization": "Bearer {}".format(token)},
-            data={"old_password": "123", "new_password": "456"},
+            json={"old_password": "123", "new_password": "456"},
         )
         assert rv.status_code == 201
         rv = self.client.post(
-            "/api/login/", data={"username": "user", "password": "123"}
+            "/api/login/", json={"username": "user", "password": "123"}
         )
         assert rv.status_code == 403
         rv = self.client.post(
-            "/api/login/", data={"username": "user", "password": "456"}
+            "/api/login/", json={"username": "user", "password": "456"}
         )
         assert rv.status_code == 200
 
     def test_change_password_twice(self):
         rv = self.client.post(
-            "/api/login/", data={"username": "user", "password": "123"}
+            "/api/login/", json={"username": "user", "password": "123"}
         )
         assert rv.status_code == 200
         token = rv.json["access_token"]
         rv = self.client.post(
             "/api/user/password/change",
             headers={"Authorization": "Bearer {}".format(token)},
-            data={"old_password": "123", "new_password": "456"},
+            json={"old_password": "123", "new_password": "456"},
         )
         assert rv.status_code == 201
         rv = self.client.post(
             "/api/user/password/change",
             headers={"Authorization": "Bearer {}".format(token)},
-            data={"old_password": "123", "new_password": "456"},
+            json={"old_password": "123", "new_password": "456"},
         )
         assert rv.status_code == 403

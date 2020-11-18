@@ -15,7 +15,7 @@ class TestToken(unittest.TestCase):
 
     def test_token_endpoint(self):
         """Test login endpoint."""
-        result = self.client.post("/api/login/", data={})
+        result = self.client.post("/api/login/")
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.json, {"access_token": 1, "refresh_token": 1})
 

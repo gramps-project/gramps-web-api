@@ -21,7 +21,7 @@ class TokenResource(Resource):
 
     @limiter.limit("1/second")
     @use_args(
-        {"username": fields.Str(), "password": fields.Str()}, location="form",
+        {"username": fields.Str(), "password": fields.Str()}, location="json",
     )
     def post(self, args):
         """Post username and password to fetch a token."""
