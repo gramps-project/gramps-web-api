@@ -16,7 +16,7 @@ class UserChangePasswordResource(ProtectedResource):
             "old_password": fields.Str(required=True),
             "new_password": fields.Str(required=True),
         },
-        location="form",
+        location="json",
     )
     def post(self, args):
         """Post new password."""

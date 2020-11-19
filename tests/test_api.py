@@ -88,7 +88,7 @@ class TestPerson(unittest.TestCase):
         assert rv.json["death_ref_index"] == -1
 
     def test_token_endpoint(self):
-        rv = self.client.post("/api/login/", data={})
+        rv = self.client.post("/api/login/", json={})
         assert rv.status_code == 200
         assert rv.json == {"access_token": 1, "refresh_token": 1}
 
