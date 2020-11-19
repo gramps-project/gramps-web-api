@@ -20,6 +20,9 @@
 
 """Utility functions."""
 
+import io
+import os
+from typing import BinaryIO
 
 from flask import current_app, g
 from gramps.gen.const import GRAMPS_LOCALE
@@ -53,3 +56,15 @@ def get_locale_for_language(language_code: str):
         if catalog[language] == language_code:
             return GrampsLocale(lang=language_code)
     return None
+
+
+def get_buffer_for_file(filename: str, delete=True) -> BinaryIO:
+    """Return binary buffer with file contents."""
+    try:
+        with open(filename, "rb") as file_handle:
+            buffer = io.BytesIO(file_handle.read())
+    except FileNotFoundError:
+        abort(500)
+    if delete:
+        os.remove(filename)
+    return buffer

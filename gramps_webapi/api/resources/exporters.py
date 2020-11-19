@@ -20,12 +20,11 @@
 
 """Exporters Plugin API resource."""
 
-import io
 import os
 import uuid
 from mimetypes import types_map
 from pathlib import Path
-from typing import BinaryIO, Dict
+from typing import Dict
 
 from flask import Response, abort, current_app, send_file
 from gramps.gen.const import GRAMPS_LOCALE as glocale
@@ -47,10 +46,11 @@ from gramps.gen.proxy import (
     ReferencedBySelectionProxyDb,
 )
 from gramps.gen.user import User
+from gramps.gen.utils.resourcepath import ResourcePath
 from webargs import fields, validate
 from webargs.flaskparser import use_args
 
-from ..util import get_dbstate, get_locale_for_language
+from ..util import get_buffer_for_file, get_dbstate, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .util import get_person_by_handle
@@ -92,6 +92,8 @@ def prepare_options(db_handle: DbReadBase, args: Dict):
     options.include_marriages = int(args["include_marriages"])
     options.include_children = int(args["include_children"])
     options.include_places = int(args["include_places"])
+    options.include_witnesses = int(args["include_witnesses"])
+    options.include_media = int(args["include_media"])
     options.translate_headers = int(args["translate_headers"])
     options.compression = int(args["compress"])
     if args["person"] is not None:
@@ -137,6 +139,9 @@ def run_export(
     if current_app.config.get("EXPORT_PATH"):
         export_path = current_app.config.get("EXPORT_PATH")
     file_name = os.path.join(export_path, "{}.{}".format(uuid.uuid4(), extension))
+    _resources = ResourcePath()
+    os.environ["GRAMPS_RESOURCES"] = str(Path(_resources.data_dir).parent)
+    reload_custom_filters()
     plugin_manager = BasePluginManager.get_instance()
     for plugin in plugin_manager.get_export_plugins():
         if extension == plugin.get_extension():
@@ -145,18 +150,6 @@ def run_export(
             if not result:
                 abort(500)
             return file_name, "." + extension
-
-
-def fetch_buffer(filename: str, delete=True) -> BinaryIO:
-    """Pull file into a binary buffer."""
-    try:
-        with open(filename, "rb") as file_handle:
-            buffer = io.BytesIO(file_handle.read())
-    except FileNotFoundError:
-        abort(500)
-    if delete:
-        os.remove(filename)
-    return buffer
 
 
 class ExportersResource(ProtectedResource, GrampsJSONEncoder):
@@ -183,10 +176,10 @@ class ExporterResource(ProtectedResource, GrampsJSONEncoder):
         return get_dbstate().db
 
     @use_args({}, location="query")
-    def get(self, args: Dict, exporter: str) -> Response:
+    def get(self, args: Dict, extension: str) -> Response:
         """Get specific report attributes."""
         db = self.db_handle
-        exporters = get_exporters(exporter)
+        exporters = get_exporters(extension)
         if exporters == []:
             abort(404)
         return self.response(200, exporters[0])
@@ -203,7 +196,16 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
     @use_args(
         {
             "compress": fields.Boolean(missing=True),
-            "private": fields.Boolean(missing=False),
+            "current_year": fields.Integer(missing=None),
+            "event": fields.Str(missing=None),
+            "gramps_id": fields.Str(missing=None),
+            "handle": fields.Str(missing=None),
+            "include_children": fields.Boolean(missing=True),
+            "include_individuals": fields.Boolean(missing=True),
+            "include_marriages": fields.Boolean(missing=True),
+            "include_media": fields.Boolean(missing=True),
+            "include_places": fields.Boolean(missing=True),
+            "include_witnesses": fields.Boolean(missing=True),
             "living": fields.Str(
                 missing="IncludeAll",
                 validate=validate.OneOf(
@@ -216,33 +218,29 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
                     ]
                 ),
             ),
-            "current_year": fields.Integer(missing=None),
-            "years_after_death": fields.Integer(missing=0),
             "locale": fields.Str(missing=None),
-            "gramps_id": fields.Str(missing=None),
-            "handle": fields.Str(missing=None),
-            "person": fields.Str(missing=None),
-            "event": fields.Str(missing=None),
             "note": fields.Str(missing=None),
+            "person": fields.Str(missing=None),
+            "private": fields.Boolean(missing=False),
             "reference": fields.Boolean(missing=False),
             "sequence": fields.Str(
                 missing="privacy,living,person,event,note,reference"
             ),
-            "include_individuals": fields.Boolean(missing=True),
-            "include_marriages": fields.Boolean(missing=True),
-            "include_children": fields.Boolean(missing=True),
-            "include_places": fields.Boolean(missing=True),
             "translate_headers": fields.Boolean(missing=True),
+            "years_after_death": fields.Integer(missing=0),
         },
         location="query",
     )
-    def get(self, args: Dict, exporter: str) -> Response:
+    def get(self, args: Dict, extension: str) -> Response:
         """Get export file."""
         db_handle = self.db_handle
         options = prepare_options(db_handle, args)
-        file_name, file_type = run_export(db_handle, exporter, options)
-        buffer = fetch_buffer(file_name)
-        return send_file(buffer, mimetype=types_map[file_type])
+        file_name, file_type = run_export(db_handle, extension, options)
+        buffer = get_buffer_for_file(file_name, delete=True)
+        mime_type = "application/octet-stream"
+        if file_type != ".pl" and file_type in types_map:
+            mime_type = types_map[file_type]
+        return send_file(buffer, mimetype=mime_type)
 
 
 # ExportOptions derived from WriterOptionBox, review of the database
@@ -273,6 +271,9 @@ class ExportOptions:
         self.include_children = 1
         self.include_places = 1
         self.translate_headers = 1
+        # Referenced by third party ged2 export plugin
+        self.include_witnesses = 1
+        self.include_media = 1
 
     def get_custom_filter(self, name: str, namespace: str):
         """Get the named custom filter from a namespace."""
@@ -327,7 +328,7 @@ class ExportOptions:
         return
 
     # called by export plugins
-    def get_filtered_database(self, dbase):
+    def get_filtered_database(self, dbase, progress=None):
         """Apply filters to the database."""
         self.proxy_dbase.clear()
         for proxy_name in self.proxy_order.split(","):

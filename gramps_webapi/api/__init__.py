@@ -144,9 +144,9 @@ register_endpt(
 )
 # Exporters
 register_endpt(
-    ExporterFileResource, "/exporters/<string:exporter>/file", "exporter-file"
+    ExporterFileResource, "/exporters/<string:extension>/file", "exporter-file"
 )
-register_endpt(ExporterResource, "/exporters/<string:exporter>", "exporter")
+register_endpt(ExporterResource, "/exporters/<string:extension>", "exporter")
 register_endpt(ExportersResource, "/exporters/", "exporters")
 # Metadata
 register_endpt(MetadataResource, "/metadata/", "metadata")
