@@ -1,3 +1,23 @@
+#
+# Gramps Web API - A RESTful API for the Gramps genealogy program
+#
+# Copyright (C) 2020      Christopher Horn
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+#
+
 """Test runner utility functions."""
 
 from typing import Dict, List, Optional
@@ -18,12 +38,16 @@ def run_test_endpoint_gramps_id(test, endpoint: str, driver: Dict):
 
 def run_test_endpoint_strip(test, endpoint: str):
     """Test strip parameter for a given endpoint."""
-    # check 422 returned if passed argument
-    result = test.client.get(endpoint + "?strip=1")
+    # check 422 returned if passed no or bad arguments
+    result = test.client.get(endpoint + "?strip")
+    test.assertEqual(result.status_code, 422)
+    result = test.client.get(endpoint + "?strip=3")
+    test.assertEqual(result.status_code, 422)
+    result = test.client.get(endpoint + "?strip=alpha")
     test.assertEqual(result.status_code, 422)
     # check that keys for empty items are no longer in second object
     baseline = test.client.get(endpoint)
-    result = test.client.get(endpoint + "?strip")
+    result = test.client.get(endpoint + "?strip=1")
     if isinstance(result.json, type([])):
         for item in baseline.json:
             check_keys_stripped(test, item, result.json[baseline.json.index(item)])

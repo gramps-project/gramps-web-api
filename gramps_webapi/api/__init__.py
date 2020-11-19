@@ -1,3 +1,23 @@
+#
+# Gramps Web API - A RESTful API for the Gramps genealogy program
+#
+# Copyright (C) 2020      David Straub
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+#
+
 """REST API blueprint."""
 
 from typing import Type
@@ -10,23 +30,24 @@ from ..const import API_PREFIX
 from .auth import jwt_required_ifauth
 from .file import LocalFileHandler
 from .resources.base import Resource
-from .resources.bookmark import BookmarkResource, BookmarksResource
-from .resources.citation import CitationResource, CitationsResource
-from .resources.event import EventResource, EventsResource
-from .resources.family import FamiliesResource, FamilyResource
+from .resources.bookmarks import BookmarkResource, BookmarksResource
+from .resources.citations import CitationResource, CitationsResource
+from .resources.events import EventResource, EventsResource
+from .resources.families import FamiliesResource, FamilyResource
 from .resources.filters import FilterResource, FiltersResource
 from .resources.media import MediaObjectResource, MediaObjectsResource
 from .resources.metadata import MetadataResource
+from .resources.name_formats import NameFormatsResource
 from .resources.name_groups import NameGroupsResource
-from .resources.note import NoteResource, NotesResource
-from .resources.person import PeopleResource, PersonResource
-from .resources.place import PlaceResource, PlacesResource
-from .resources.relation import RelationResource, RelationsResource
-from .resources.repository import RepositoriesResource, RepositoryResource
-from .resources.source import SourceResource, SourcesResource
-from .resources.tag import TagResource, TagsResource
+from .resources.notes import NoteResource, NotesResource
+from .resources.people import PeopleResource, PersonResource
+from .resources.places import PlaceResource, PlacesResource
+from .resources.relations import RelationResource, RelationsResource
+from .resources.repositories import RepositoriesResource, RepositoryResource
+from .resources.sources import SourceResource, SourcesResource
+from .resources.tags import TagResource, TagsResource
 from .resources.token import TokenRefreshResource, TokenResource
-from .resources.translate import TranslationResource, TranslationsResource
+from .resources.translations import TranslationResource, TranslationsResource
 from .resources.types import (
     CustomTypeResource,
     CustomTypesResource,
@@ -45,34 +66,37 @@ def register_endpt(resource: Type[Resource], url: str, name: str):
     api_blueprint.add_url_rule(url, view_func=resource.as_view(name))
 
 
-# Person
+# Token
+register_endpt(TokenResource, "/login/", "token")
+register_endpt(TokenRefreshResource, "/refresh/", "token_refresh")
+# People
 register_endpt(PersonResource, "/people/<string:handle>", "person")
 register_endpt(PeopleResource, "/people/", "people")
-# Family
+# Families
 register_endpt(FamilyResource, "/families/<string:handle>", "family")
 register_endpt(FamiliesResource, "/families/", "families")
-# Source
-register_endpt(SourceResource, "/sources/<string:handle>", "source")
-register_endpt(SourcesResource, "/sources/", "sources")
-# Citation
-register_endpt(CitationResource, "/citations/<string:handle>", "citation")
-register_endpt(CitationsResource, "/citations/", "citations")
-# Event
+# Events
 register_endpt(EventResource, "/events/<string:handle>", "event")
 register_endpt(EventsResource, "/events/", "events")
-# Media Object
-register_endpt(MediaObjectResource, "/media/<string:handle>", "media_object")
-register_endpt(MediaObjectsResource, "/media/", "media_objects")
-# Place
+# Places
 register_endpt(PlaceResource, "/places/<string:handle>", "place")
 register_endpt(PlacesResource, "/places/", "places")
-# Repository
+# Citations
+register_endpt(CitationResource, "/citations/<string:handle>", "citation")
+register_endpt(CitationsResource, "/citations/", "citations")
+# Sources
+register_endpt(SourceResource, "/sources/<string:handle>", "source")
+register_endpt(SourcesResource, "/sources/", "sources")
+# Repositories
 register_endpt(RepositoryResource, "/repositories/<string:handle>", "repository")
 register_endpt(RepositoriesResource, "/repositories/", "repositories")
-# Note
+# Media
+register_endpt(MediaObjectResource, "/media/<string:handle>", "media_object")
+register_endpt(MediaObjectsResource, "/media/", "media_objects")
+# Notes
 register_endpt(NoteResource, "/notes/<string:handle>", "note")
 register_endpt(NotesResource, "/notes/", "notes")
-# Tag
+# Tags
 register_endpt(TagResource, "/tags/<string:handle>", "tag")
 register_endpt(TagsResource, "/tags/", "tags")
 # Types
@@ -83,28 +107,25 @@ register_endpt(
 )
 register_endpt(DefaultTypeResource, "/types/default/<string:datatype>", "default-type")
 register_endpt(DefaultTypesResource, "/types/default/", "default-types")
-register_endpt(TypesResource, "/types/", "all-types")
-# Token
-register_endpt(TokenResource, "/login/", "token")
-register_endpt(TokenRefreshResource, "/refresh/", "token_refresh")
-# User
-register_endpt(UserChangePasswordResource, "/user/password/change", "change_password")
+register_endpt(TypesResource, "/types/", "types")
+# Name Formats
+register_endpt(NameFormatsResource, "/name-formats/", "name-formats")
 # Name Groups
 register_endpt(
     NameGroupsResource, "/name-groups/<string:surname>/<string:group>", "set-name-group"
 )
 register_endpt(NameGroupsResource, "/name-groups/<string:surname>", "get-name-group")
 register_endpt(NameGroupsResource, "/name-groups/", "name-groups")
-# Bookmark
+# Bookmarks
 register_endpt(BookmarkResource, "/bookmarks/<string:namespace>", "bookmark")
 register_endpt(BookmarksResource, "/bookmarks/", "bookmarks")
-# Filter
+# Filters
 register_endpt(FilterResource, "/filters/<string:namespace>/<string:name>", "filter")
 register_endpt(FiltersResource, "/filters/<string:namespace>", "filters")
-# Translate
+# Translations
 register_endpt(TranslationResource, "/translations/<string:isocode>", "translation")
 register_endpt(TranslationsResource, "/translations/", "translations")
-# Relation
+# Relations
 register_endpt(
     RelationResource, "/relations/<string:handle1>/<string:handle2>", "relation",
 )
@@ -113,6 +134,8 @@ register_endpt(
 )
 # Metadata
 register_endpt(MetadataResource, "/metadata/", "metadata")
+# User
+register_endpt(UserChangePasswordResource, "/user/password/change", "change_password")
 
 # Media files
 @api_blueprint.route("/media/<string:handle>/file")

@@ -1,3 +1,24 @@
+#
+# Gramps Web API - A RESTful API for the Gramps genealogy program
+#
+# Copyright (C) 2020      David Straub
+# Copyright (C) 2020      Christopher Horn
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+#
+
 """Person API resource."""
 
 from typing import Dict
@@ -25,8 +46,16 @@ class PersonResourceHelper(GrampsObjectResourceHelper):
         """Extend person attributes as needed."""
         db_handle = self.db_handle
         if "profile" in args:
+            if "all" in args["profile"] or "families" in args["profile"]:
+                with_family = True
+            else:
+                with_family = False
+            if "all" in args["profile"] or "events" in args["profile"]:
+                with_events = True
+            else:
+                with_events = False
             obj.profile = get_person_profile_for_object(
-                db_handle, obj, with_family=True, with_events=True
+                db_handle, obj, with_family=with_family, with_events=with_events
             )
         if "extend" in args:
             obj.extended = get_extended_attributes(db_handle, obj, args)
