@@ -5583,47 +5583,14 @@ definitions:
         description: "A description of the report."
         type: string
         example: "Produces a textual ancestral report"
-      fname:
-        description: "Filename of the report module."
-        type: string
-        example: "ancestorreport.py"
-      fpath:
-        description: "Path of directory report module is located in."
-        type: string
-        example: "/usr/lib/python3.8/site-packages/gramps/plugins/textreport"
-      icondir:
-        description: "Path to directory any needed report icons are located in."
-        type: string
-        example: ""
-      icons:
-        description: "A list of icons needed by the report."
-        type: array
-        items:
-          type: string
       id:
         description: "The report identifier."
         type: string
         example: "ancestor_report"
-      load_on_reg:
-        description: "Indicates if plugin should load on registration."
-        type: boolean
-        example: false
-      module:
-        description: "The name of the report module."
-        type: string
-        example: "ancestorreport"
       name:
         description: "The name of the report."
         type: string
         example: "Ahnentafel Report"
-      name_accell:
-        description: "The name of the report."
-        type: string
-        example: "Ahnentafel Report"
-      option_class:
-        description: "The name of the option class for the report."
-        type: string
-        example: "AncestorOptions"
       options_dict:
         description: "Dictionary containing all of the report options with their defaults."
         type: object
@@ -5642,10 +5609,6 @@ definitions:
             -
               - "0\t"
               - "1\t"
-      ptype:
-        description: "Plugin type"
-        type: integer
-        example: 0
       report_modes:
         description: "List of report modes."
         type: array
@@ -5655,22 +5618,6 @@ definitions:
           - 1
           - 2
           - 4
-      reportclass:
-        description: "The name of the report class for the report."
-        type: string
-        example: "AncestorReport"
-      require_active:
-        description: "Indicator if user interaction required."
-        type: boolean
-        example: true
-      status:
-        description: "Indicate current status of the report."
-        type: integer
-        example: 0
-      supported:
-        description: "Indicate if the report is still supported."
-        type: boolean
-        example: true
       version:
         description: "The version number of the report."
         type: string

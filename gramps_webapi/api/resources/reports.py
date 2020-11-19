@@ -1,15 +1,35 @@
+#
+# Gramps Web API - A RESTful API for the Gramps genealogy program
+#
+# Copyright (C) 2020      Christopher Horn
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+#
+
 """Reports Plugin API resource."""
 
-import io
 import json
 import os
 import uuid
 from mimetypes import types_map
 from pathlib import Path
-from typing import BinaryIO, Dict
+from typing import Dict
 
-from flask import Response, abort, send_file
+from flask import Response, abort, current_app, send_file
 from gramps.cli.plug import CommandLineReport, cl_report
+from gramps.gen.const import TEMP_DIR
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.filters import reload_custom_filters
 from gramps.gen.plug import BasePluginManager
@@ -18,7 +38,7 @@ from webargs import fields, validate
 from webargs.flaskparser import use_args
 
 from ...const import REPORT_DEFAULTS, REPORT_FILTERS
-from ..util import get_dbstate
+from ..util import get_buffer_for_file, get_dbstate
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -43,29 +63,16 @@ def get_report_profile(
                     del options_help["off"][2][options_help["off"][2].index(item)]
                     break
     return {
-        "id": report_data.id,
-        "name": report_data.name,
-        "name_accell": report_data.name_accell,
-        "description": report_data.description,
-        "version": report_data.version,
-        "status": report_data.status,
-        "fname": report_data.fname,
-        "fpath": report_data.fpath,
-        "ptype": report_data.ptype,
         "authors": report_data.authors,
         "authors_email": report_data.authors_email,
-        "supported": report_data.supported,
-        "load_on_reg": report_data.load_on_reg,
-        "icons": report_data.icons,
-        "icondir": icondir,
         "category": report_data.category,
-        "module": report_data.mod_name,
-        "reportclass": report_data.reportclass,
-        "require_active": report_data.require_active,
-        "report_modes": report_data.report_modes,
-        "option_class": report_data.optionclass,
+        "description": report_data.description,
+        "id": report_data.id,
+        "name": report_data.name,
         "options_dict": report.options_dict,
         "options_help": options_help,
+        "report_modes": report_data.report_modes,
+        "version": report_data.version,
     }
 
 
@@ -105,7 +112,12 @@ def run_report(
                 report_options["off"] = REPORT_DEFAULTS[report_data.category]
             file_type = "." + report_options["off"]
             file_type = _EXTENSION_MAP.get(file_type) or file_type
-            file_name = str(uuid.uuid4()) + file_type
+            report_path = TEMP_DIR
+            if current_app.config.get("REPORT_PATH"):
+                report_path = current_app.config.get("REPORT_PATH")
+            file_name = os.path.join(
+                report_path, "{}{}".format(uuid.uuid4(), file_type)
+            )
             report_options["of"] = file_name
             report_profile = get_report_profile(db_handle, plugin_manager, report_data)
             validate_options(report_profile, report_options, allow_file=allow_file)
@@ -154,18 +166,6 @@ def validate_options(report: Dict, report_options: Dict, allow_file: bool = Fals
                 float(report_options[option])
             except ValueError:
                 abort(422)
-
-
-def fetch_buffer(filename: str, delete=True) -> BinaryIO:
-    """Pull file into a binary buffer."""
-    try:
-        with open(filename, "rb") as file_handle:
-            buffer = io.BytesIO(file_handle.read())
-    except FileNotFoundError:
-        abort(500)
-    if delete:
-        os.remove(filename)
-    return buffer
 
 
 class ReportsResource(ProtectedResource, GrampsJSONEncoder):
@@ -226,5 +226,5 @@ class ReportRunnerResource(ProtectedResource, GrampsJSONEncoder):
             abort(422)
 
         file_name, file_type = run_report(self.db_handle, report_id, report_options)
-        buffer = fetch_buffer(file_name)
+        buffer = get_buffer_for_file(file_name)
         return send_file(buffer, mimetype=types_map[file_type])

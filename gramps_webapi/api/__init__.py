@@ -144,9 +144,9 @@ register_endpt(
     "relations",
 )
 # Reports
-register_endpt(ReportsResource, "/reports/", "reports")
-register_endpt(ReportResource, "/reports/<string:id>", "report")
 register_endpt(ReportRunnerResource, "/reports/<string:id>/file", "run-report")
+register_endpt(ReportResource, "/reports/<string:id>", "report")
+register_endpt(ReportsResource, "/reports/", "reports")
 # Exporters
 register_endpt(
     ExporterFileResource, "/exporters/<string:extension>/file", "exporter-file"
