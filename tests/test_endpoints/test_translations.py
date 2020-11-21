@@ -43,23 +43,22 @@ class TestTranslations(unittest.TestCase):
         self.assertGreaterEqual(len(result.json), 39)
         # check all records found conform to expected schema
         resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
-        for translation in result.json:
-            validate(
-                instance=translation,
-                schema=API_SCHEMA["definitions"]["Translation"],
-                resolver=resolver,
-            )
+        validate(
+            instance=result.json,
+            schema=API_SCHEMA["definitions"]["Translations"],
+            resolver=resolver,
+        )
 
 
-class TestTranslationsISOCode(unittest.TestCase):
-    """Test cases for the /api/translations/{isocode} endpoint."""
+class TestTranslationsLanguage(unittest.TestCase):
+    """Test cases for the /api/translations/{language} endpoint."""
 
     @classmethod
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_translations_isocode_endpoint_422(self):
+    def test_translations_language_endpoint_422(self):
         """Test response for an invalid parm."""
         # check 422 returned if missing parm
         result = self.client.get("/api/translations/fr")
@@ -68,19 +67,19 @@ class TestTranslationsISOCode(unittest.TestCase):
         result = self.client.get("/api/translations/fr?junk_parm=1")
         self.assertEqual(result.status_code, 422)
 
-    def test_translations_isocode_endpoint_404(self):
-        """Test response for a unsupported iso code."""
+    def test_translations_language_endpoint_404(self):
+        """Test response for a unsupported language code."""
         # check 404 returned for non-existent place
         result = self.client.get('/api/translations/fake?strings=["Birth"]')
         self.assertEqual(result.status_code, 404)
 
-    def test_translations_isocode_endpoint_400(self):
+    def test_translations_language_endpoint_400(self):
         """Test response for improperly formatted strings argument."""
         # check 404 returned for non-existent place
         result = self.client.get("/api/translations/fake?strings=[Birth]")
         self.assertEqual(result.status_code, 400)
 
-    def test_translations_isocode_endpoint(self):
+    def test_translations_language_endpoint(self):
         """Test response for a translation."""
         # check a single expected translation was returned
         result = self.client.get('/api/translations/fr?strings=["Birth"]')
@@ -95,10 +94,3 @@ class TestTranslationsISOCode(unittest.TestCase):
             result.json[0], {"original": "Birth", "translation": "Naissance"}
         )
         self.assertEqual(result.json[1], {"original": "Death", "translation": "Décès"})
-
-    def test_translations_isocode_endpoint_separator(self):
-        """Test expected response using - or _ separator in iso language code."""
-        result = self.client.get('/api/translations/zh-TW?strings=["Marriage"]')
-        self.assertEqual(result.json[0], {"original": "Marriage", "translation": "婚姻"})
-        result = self.client.get('/api/translations/zh_TW?strings=["Marriage"]')
-        self.assertEqual(result.json[0], {"original": "Marriage", "translation": "婚姻"})

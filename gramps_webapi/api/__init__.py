@@ -123,14 +123,18 @@ register_endpt(BookmarksResource, "/bookmarks/", "bookmarks")
 register_endpt(FilterResource, "/filters/<string:namespace>/<string:name>", "filter")
 register_endpt(FiltersResource, "/filters/<string:namespace>", "filters")
 # Translations
-register_endpt(TranslationResource, "/translations/<string:isocode>", "translation")
+register_endpt(TranslationResource, "/translations/<string:language>", "translation")
 register_endpt(TranslationsResource, "/translations/", "translations")
 # Relations
 register_endpt(
-    RelationResource, "/relations/<string:handle1>/<string:handle2>", "relation",
+    RelationResource,
+    "/relations/<string:handle1>/<string:handle2>",
+    "relation",
 )
 register_endpt(
-    RelationsResource, "/relations/<string:handle1>/<string:handle2>/all", "relations",
+    RelationsResource,
+    "/relations/<string:handle1>/<string:handle2>/all",
+    "relations",
 )
 # Metadata
 register_endpt(MetadataResource, "/metadata/", "metadata")
