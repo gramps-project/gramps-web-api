@@ -41,30 +41,28 @@ class TranslationResource(ProtectedResource, GrampsJSONEncoder):
         {"strings": fields.Str(required=True)},
         location="query",
     )
-    def get(self, args: Dict, isocode: str) -> Response:
+    def get(self, args: Dict, language: str) -> Response:
         """Get translation."""
         try:
             strings = json.loads(args["strings"])
         except json.JSONDecodeError:
             abort(400)
 
-        language_code = isocode.replace("-", "_")
         catalog = GRAMPS_LOCALE.get_language_dict()
-        found = False
-        for language in catalog:
-            if catalog[language] == language_code:
-                found = True
-        if not found:
-            abort(404)
-
-        gramps_locale = GrampsLocale(lang=language_code)
-        return self.response(
-            200,
-            [
-                {"original": s, "translation": gramps_locale.translation.sgettext(s)}
-                for s in strings
-            ],
-        )
+        for entry in catalog:
+            if catalog[entry] == language:
+                gramps_locale = GrampsLocale(lang=language)
+                return self.response(
+                    200,
+                    [
+                        {
+                            "original": s,
+                            "translation": gramps_locale.translation.sgettext(s),
+                        }
+                        for s in strings
+                    ],
+                )
+        abort(404)
 
 
 class TranslationsResource(ProtectedResource, GrampsJSONEncoder):
@@ -73,10 +71,4 @@ class TranslationsResource(ProtectedResource, GrampsJSONEncoder):
     def get(self) -> Response:
         """Get available translations."""
         catalog = GRAMPS_LOCALE.get_language_dict()
-        return self.response(
-            200,
-            [
-                {"language": language, "isocode": catalog[language].replace("_", "-")}
-                for language in catalog
-            ],
-        )
+        return self.response(200, {catalog[entry]: entry for entry in catalog})

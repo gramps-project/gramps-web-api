@@ -21,10 +21,11 @@
 """Metadata API resource."""
 
 import yaml
-from flask import Response
+from flask import Response, abort
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.const import ENV, GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
+from gramps.gen.utils.grampslocale import INCOMPLETE_TRANSLATIONS, GrampsLocale
 from pkg_resources import resource_filename
 
 from gramps_webapi.const import VERSION
@@ -44,13 +45,26 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
 
     def get(self) -> Response:
         """Get active database and application related metadata information."""
+        catalog = GRAMPS_LOCALE.get_language_dict()
+        languages = {catalog[entry]: entry for entry in catalog}
+        if GRAMPS_LOCALE.lang in languages:
+            language = GRAMPS_LOCALE.lang
+        elif GRAMPS_LOCALE.lang[:2] in languages:
+            language = GRAMPS_LOCALE.lang[:2]
+        else:
+            abort(500)
+
         db_handle = self.db_handle
         db_name = db_handle.get_dbname()
-        for data in CLIDbManager(get_dbstate()).family_tree_summary():
-            for item in data:
-                if item == "Family Tree" and data[item] == db_name:
-                    db_type = data["Database"]
-                    break
+        db_type = "Unknown"
+        db_summary = CLIDbManager(get_dbstate()).family_tree_summary(
+            database_names=[db_name]
+        )
+        if len(db_summary) == 1:
+            db_key = GrampsLocale(lang=language).translation.sgettext("Database")
+            for key in db_summary[0]:
+                if key == db_key:
+                    db_type = db_summary[0][key]
 
         with open(
             resource_filename("gramps_webapi", "data/apispec.yaml")
@@ -68,26 +82,45 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 "version": ENV["VERSION"],
             },
             "gramps_webapi": {
-                "schema_version": schema["info"]["version"],
+                "schema": schema["info"]["version"],
                 "version": VERSION,
             },
             "locale": {
-                "lang": GRAMPS_LOCALE.lang,
+                "locale": GRAMPS_LOCALE.lang,
+                "language": language,
+                "description": GRAMPS_LOCALE._get_language_string(GRAMPS_LOCALE.lang),
+                "incomplete_translation": bool(language in INCOMPLETE_TRANSLATIONS),
             },
-            "object_counts": {},
+            "object_counts": {
+                "people": db_handle.get_number_of_people(),
+                "families": db_handle.get_number_of_families(),
+                "sources": db_handle.get_number_of_sources(),
+                "citations": db_handle.get_number_of_citations(),
+                "events": db_handle.get_number_of_events(),
+                "media": db_handle.get_number_of_media(),
+                "places": db_handle.get_number_of_places(),
+                "repositories": db_handle.get_number_of_repositories(),
+                "notes": db_handle.get_number_of_notes(),
+                "tags": db_handle.get_number_of_tags(),
+            },
             "researcher": db_handle.get_researcher(),
             "surnames": db_handle.get_surname_list(),
         }
         data = db_handle.get_summary()
+        db_version_key = GrampsLocale(lang=language).translation.sgettext(
+            "Database version"
+        )
+        db_module_key = GrampsLocale(lang=language).translation.sgettext(
+            "Database module version"
+        )
+        db_schema_key = GrampsLocale(lang=language).translation.sgettext(
+            "Schema version"
+        )
         for item in data:
-            key = item.replace(" ", "_").lower()
-            if "database" in key or "schema" in key:
-                key = key.replace("database_", "")
-                if key != "module_location":
-                    result["database"].update({key: data[item]})
-            elif "number_of" in key:
-                key = key.replace("number_of_", "")
-                result["object_counts"].update({key: data[item]})
-            else:
-                result[key] = data[item]
+            if item == db_version_key:
+                result["database"]["version"] = data[item]
+            elif item == db_module_key:
+                result["database"]["module"] = data[item]
+            elif item == db_schema_key:
+                result["database"]["schema"] = data[item]
         return self.response(200, result)

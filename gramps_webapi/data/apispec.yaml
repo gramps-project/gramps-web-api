@@ -2310,13 +2310,11 @@ paths:
         200:
           description: "OK: Successful operation."
           schema:
-            type: array
-            items:
-              $ref: "#/definitions/Translations"
+            $ref: "#/definitions/Translations"
         401:
           description: "Unauthorized: Missing authorization header."
 
-  /translations/{isocode}:
+  /translations/{language}:
     get:
       tags:
       - translations
@@ -2325,11 +2323,11 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: isocode
+      - name: language
         in: path
         required: true
         type: string
-        description: "The ISO language code or identifier."
+        description: "The language code or identifier."
       - name: strings
         in: query
         required: true
@@ -4470,18 +4468,12 @@ definitions:
 
   Translations:
     type: object
-    required:
-      - isocode
-      - language
-    properties:
-      isocode:
-        description: "The language code."
-        type: string
-        example: "fr"
-      language:
-        description: "The language name."
-        type: string
-        example: "French"
+    additionalProperties:
+      type: string
+    example:
+      ar: Arabic
+      bg: Bulgarian
+      ca: Catalan
 
 ##############################################################################
 # Model - Translation
@@ -4552,7 +4544,7 @@ definitions:
             description: "The database id."
             type: string
             example: "5f850009"
-          module_version:
+          module:
             description: "The database module version."
             type: string
             example: "2.6.0"
@@ -4560,7 +4552,7 @@ definitions:
             description: "The database and also tree name."
             type: string
             example: "example_gramps"
-          schema_version:
+          schema:
             description: "The data model schema version."
             type: string
             example: "18.0.0"
@@ -4588,7 +4580,7 @@ definitions:
         description: "Information about the currently active Gramps Web API instance."
         type: object
         properties:
-          schema_version:
+          schema:
             description: "The version of the Gramps Web API schema."
             type: string
             example: "0.1.0"
@@ -4600,8 +4592,20 @@ definitions:
         description: "The active locale."
         type: object
         properties:
-          lang:
+          description:
+            description: "The language description."
+            type: string
+            example: "English (USA)"
+          incomplete_translation:
+            description: "Indicates whether less than 70% of the language is currently translated."
+            type: boolean
+            example: false
+          language:
             description: "The language code."
+            type: string
+            example: "en"
+          locale:
+            description: "The locale code."
             type: string
             example: "en_US"
       object_counts:
