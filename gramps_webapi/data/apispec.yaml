@@ -63,7 +63,7 @@ tags:
 - name: relations
   description: Access to relationship calculator.
 - name: exporters
-  description: Access to tree exporters.
+  description: Access to family tree exporters.
 - name: metadata
   description: Access to tree and application metadata.
 
@@ -2824,15 +2824,15 @@ paths:
             ------- | -----------
             IncludeAll | Include all living people and information about them in the export
             FullNameOnly | Include only the full name of living people omitting all other information about them
-            LastNameOnly | Replace the first name of living people with <living> omitting all other information about them
-            ReplaceCompleteName | Replace the full name of living people with <living> <living> omitting all other information about them
+            LastNameOnly | Replace the first name of living people with 'living' omitting all other information about them
+            ReplaceCompleteName | Replace the full name of living people with 'living' 'living' omitting all other information about them
             ExcludeAll | Exclude all living people from the export
       - name: locale
         in: query
         required: false
         type: string
         default: "current locale"
-        description: "The language code of the locale to use for those items to which translation can be applied."
+        description: "The language code of the locale to use for those items to which translation can be applied when filtering the names of living people."
       - name: note
         in: query
         required: false
@@ -2877,7 +2877,7 @@ paths:
         required: false
         type: boolean
         default: true
-        description: "Indicates whether or not header records in a csv export should be translated. Specific to the csv exporter."
+        description: "Indicates whether or not header records in a csv export should be translated. Note it is to the current locale, the locale keyword does not influence it. Specific to the csv exporter."
       - name: years_after_death
         in: query
         required: false
@@ -2893,6 +2893,8 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Exporter not found."
+        422:
+          description: "Unprocessable Entity"
 
 ##############################################################################
 # Endpoint - Metadata

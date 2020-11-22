@@ -24,7 +24,7 @@ import io
 import os
 from typing import BinaryIO
 
-from flask import current_app, g
+from flask import abort, current_app, g
 from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.utils.file import expand_media_path
 from gramps.gen.utils.grampslocale import GrampsLocale

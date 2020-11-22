@@ -29,15 +29,11 @@ from typing import Dict
 from flask import Response, abort, current_app, send_file
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.const import TEMP_DIR
+from gramps.gen.errors import HandleError
 
 _ = glocale.translation.gettext
+import gramps.gen.filters as filters
 from gramps.gen.db.base import DbReadBase
-from gramps.gen.filters import (
-    CustomFilters,
-    GenericFilter,
-    reload_custom_filters,
-    rules,
-)
 from gramps.gen.plug import BasePluginManager
 from gramps.gen.proxy import (
     FilterProxyDb,
@@ -53,7 +49,6 @@ from webargs.flaskparser import use_args
 from ..util import get_buffer_for_file, get_dbstate, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
-from .util import get_person_by_handle
 
 LIVING_FILTERS = {
     "IncludeAll": LivingProxyDb.MODE_INCLUDE_ALL,
@@ -96,30 +91,34 @@ def prepare_options(db_handle: DbReadBase, args: Dict):
     options.include_media = int(args["include_media"])
     options.translate_headers = int(args["translate_headers"])
     options.compression = int(args["compress"])
-    if args["person"] is not None:
-        gramps_id = args["gramps_id"]
-        if gramps_id is None:
-            if args["handle"] is not None:
-                person = get_person_by_handle(db_handle, args["handle"])
-                if not person:
-                    abort(404)
-                gramps_id = person.gramps_id
-            else:
-                abort(400)
+    if args["person"] is None:
+        if args["gramps_id"] is not None or args["handle"] is not None:
+            abort(422)
+    else:
+        if args["gramps_id"] is not None:
+            gramps_id = args["gramps_id"]
+            if db_handle.get_person_from_gramps_id(gramps_id) is None:
+                abort(422)
+        else:
+            try:
+                person = db_handle.get_person_from_handle(args["handle"])
+            except HandleError:
+                abort(422)
+            gramps_id = person.gramps_id
         try:
             options.set_person_filter(args["person"], gramps_id)
         except ValueError:
-            abort(404)
+            abort(422)
     if args["event"] is not None:
         try:
             options.set_event_filter(args["event"])
         except ValueError:
-            abort(404)
+            abort(422)
     if args["note"] is not None:
         try:
             options.set_note_filter(args["note"])
         except ValueError:
-            abort(404)
+            abort(422)
     try:
         options.set_proxy_order(args["sequence"])
     except ValueError:
@@ -127,13 +126,11 @@ def prepare_options(db_handle: DbReadBase, args: Dict):
     if args["locale"] is not None:
         options.locale = get_locale_for_language(args["locale"])
         if options.locale is None:
-            abort(404)
+            abort(422)
     return options
 
 
-def run_export(
-    db_handle: DbReadBase, extension: str, options, allow_file: bool = False
-):
+def run_export(db_handle: DbReadBase, extension: str, options):
     """Generate the export."""
     export_path = TEMP_DIR
     if current_app.config.get("EXPORT_PATH"):
@@ -141,7 +138,7 @@ def run_export(
     file_name = os.path.join(export_path, "{}.{}".format(uuid.uuid4(), extension))
     _resources = ResourcePath()
     os.environ["GRAMPS_RESOURCES"] = str(Path(_resources.data_dir).parent)
-    reload_custom_filters()
+    filters.reload_custom_filters()
     plugin_manager = BasePluginManager.get_instance()
     for plugin in plugin_manager.get_export_plugins():
         if extension == plugin.get_extension():
@@ -234,6 +231,9 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
     def get(self, args: Dict, extension: str) -> Response:
         """Get export file."""
         db_handle = self.db_handle
+        exporters = get_exporters(extension)
+        if exporters == []:
+            abort(404)
         options = prepare_options(db_handle, args)
         file_name, file_type = run_export(db_handle, extension, options)
         buffer = get_buffer_for_file(file_name, delete=True)
@@ -277,38 +277,44 @@ class ExportOptions:
 
     def get_custom_filter(self, name: str, namespace: str):
         """Get the named custom filter from a namespace."""
-        reload_custom_filters()
-        for filter_class in CustomFilters.get_filters(namespace):
+        filters.reload_custom_filters()
+        for filter_class in filters.CustomFilters.get_filters(namespace):
             if name == filter_class.get_name():
                 return filter_class
-        raise ValueError("can not find filter '%s' in namespace '%s'" % name, namespace)
+        raise ValueError(
+            "can not find filter '%s' in namespace '%s'" % (name, namespace)
+        )
 
     def set_person_filter(self, name: str, gramps_id: str):
         """Add the specified person filter."""
         self.gramps_id = gramps_id
-        self.pfilter = GenericFilter()
+        self.pfilter = filters.GenericFilter()
         if name == "Descendants":
-            self.pfilter.set_name(_("Descendants of %s") % name)
-            self.pfilter.add_rule(rules.person.IsDescendantOf([gramps_id, 1]))
+            self.pfilter.set_name(_("Descendants of %s") % gramps_id)
+            self.pfilter.add_rule(filters.rules.person.IsDescendantOf([gramps_id, 1]))
         elif name == "DescendantFamilies":
-            self.pfilter.set_name(_("Descendant Families of %s") % name)
-            self.pfilter.add_rule(rules.person.IsDescendantFamilyOf([gramps_id, 1]))
+            self.pfilter.set_name(_("Descendant Families of %s") % gramps_id)
+            self.pfilter.add_rule(
+                filters.rules.person.IsDescendantFamilyOf([gramps_id, 1])
+            )
         elif name == "Ancestors":
-            self.pfilter.set_name(_("Ancestors of %s") % name)
-            self.pfilter.add_rule(rules.person.IsAncestorOf([gramps_id, 1]))
+            self.pfilter.set_name(_("Ancestors of %s") % gramps_id)
+            self.pfilter.add_rule(filters.rules.person.IsAncestorOf([gramps_id, 1]))
         elif name == "CommonAncestor":
-            self.pfilter.set_name(_("People with common ancestor with %s") % name)
-            self.pfilter.add_rule(rules.person.HasCommonAncestorWith([gramps_id]))
+            self.pfilter.set_name(_("People with common ancestor with %s") % gramps_id)
+            self.pfilter.add_rule(
+                filters.rules.person.HasCommonAncestorWith([gramps_id])
+            )
         else:
-            self.pfilter = self.get_custom_filter(name, "people")
+            self.pfilter = self.get_custom_filter(name, "Person")
 
     def set_event_filter(self, name: str):
         """Add the specified event filter."""
-        self.efilter = self.get_custom_filter(name, "events")
+        self.efilter = self.get_custom_filter(name, "Event")
 
     def set_note_filter(self, name: str):
         """Add the specified note filter."""
-        self.nfilter = self.get_custom_filter(name, "notes")
+        self.nfilter = self.get_custom_filter(name, "Note")
 
     # called by export plugins
     def get_use_compression(self):
@@ -342,7 +348,13 @@ class ExportOptions:
                 dbase = PrivateProxyDb(dbase)
         elif proxy_name == "living":
             if self.living != LivingProxyDb.MODE_INCLUDE_ALL:
-                dbase = LivingProxyDb(dbase, self.living)
+                dbase = LivingProxyDb(
+                    dbase,
+                    self.living,
+                    current_year=self.current_year,
+                    years_after_death=self.years_after_death,
+                    llocale=self.locale,
+                )
         elif proxy_name == "person":
             if self.pfilter is not None and not self.pfilter.is_empty():
                 dbase = FilterProxyDb(dbase, person_filter=self.pfilter, user=User())
