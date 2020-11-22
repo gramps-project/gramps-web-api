@@ -121,7 +121,7 @@ class TestExporterFile(unittest.TestCase):
         result = self.client.get("/api/exporters/ged/file?private=0")
         self.assertEqual(result.status_code, 200)
         self.assertIn("1 SSN 123-456-7890", str(result.data))
-        result = self.client.get("/api/exporters/ged/file?reference=1")
+        result = self.client.get("/api/exporters/ged/file?private=1")
         self.assertEqual(result.status_code, 200)
         self.assertNotIn("1 SSN 123-456-7890", str(result.data))
 
@@ -131,7 +131,7 @@ class TestExporterFile(unittest.TestCase):
         result = self.client.get("/api/exporters/gramps/file?living=NoOneReal")
         self.assertEqual(result.status_code, 422)
         # check normal response
-        result = self.client.get("/api/exporters/gramps/file?living=IncludeAdd")
+        result = self.client.get("/api/exporters/gramps/file?living=IncludeAll")
         self.assertEqual(result.status_code, 200)
         # check response for exclude all using a year offset
         result = self.client.get(

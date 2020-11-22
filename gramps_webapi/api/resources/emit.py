@@ -53,7 +53,8 @@ class GrampsJSONEncoder(JSONEncoder):
         args: Optional[Dict] = None,
     ) -> Response:
         """Prepare response."""
-        payload = payload or {}
+        if payload != []:
+            payload = payload or {}
         args = args or {}
         if "strip" in args:
             self.strip_empty_keys = args["strip"]
