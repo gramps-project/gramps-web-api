@@ -21,11 +21,11 @@
 """Metadata API resource."""
 
 import yaml
-from flask import Response, abort
+from flask import Response
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.const import ENV, GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
-from gramps.gen.utils.grampslocale import INCOMPLETE_TRANSLATIONS, GrampsLocale
+from gramps.gen.utils.grampslocale import INCOMPLETE_TRANSLATIONS
 from pkg_resources import resource_filename
 
 from gramps_webapi.const import VERSION
@@ -46,13 +46,10 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
     def get(self) -> Response:
         """Get active database and application related metadata information."""
         catalog = GRAMPS_LOCALE.get_language_dict()
-        languages = {catalog[entry]: entry for entry in catalog}
-        if GRAMPS_LOCALE.lang in languages:
-            language = GRAMPS_LOCALE.lang
-        elif GRAMPS_LOCALE.lang[:2] in languages:
-            language = GRAMPS_LOCALE.lang[:2]
-        else:
-            abort(500)
+        for entry in catalog:
+            if catalog[entry] == GRAMPS_LOCALE.language[0]:
+                language_name = entry
+                break
 
         db_handle = self.db_handle
         db_name = db_handle.get_dbname()
@@ -61,7 +58,7 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
             database_names=[db_name]
         )
         if len(db_summary) == 1:
-            db_key = GrampsLocale(lang=language).translation.sgettext("Database")
+            db_key = GRAMPS_LOCALE.translation.sgettext("Database")
             for key in db_summary[0]:
                 if key == db_key:
                     db_type = db_summary[0][key]
@@ -86,10 +83,12 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 "version": VERSION,
             },
             "locale": {
-                "locale": GRAMPS_LOCALE.lang,
-                "language": language,
-                "description": GRAMPS_LOCALE._get_language_string(GRAMPS_LOCALE.lang),
-                "incomplete_translation": bool(language in INCOMPLETE_TRANSLATIONS),
+                "lang": GRAMPS_LOCALE.lang,
+                "language": GRAMPS_LOCALE.language[0],
+                "description": language_name,
+                "incomplete_translation": bool(
+                    GRAMPS_LOCALE.language[0] in INCOMPLETE_TRANSLATIONS
+                ),
             },
             "object_counts": {
                 "people": db_handle.get_number_of_people(),
@@ -107,15 +106,9 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
             "surnames": db_handle.get_surname_list(),
         }
         data = db_handle.get_summary()
-        db_version_key = GrampsLocale(lang=language).translation.sgettext(
-            "Database version"
-        )
-        db_module_key = GrampsLocale(lang=language).translation.sgettext(
-            "Database module version"
-        )
-        db_schema_key = GrampsLocale(lang=language).translation.sgettext(
-            "Schema version"
-        )
+        db_version_key = GRAMPS_LOCALE.translation.sgettext("Database version")
+        db_module_key = GRAMPS_LOCALE.translation.sgettext("Database module version")
+        db_schema_key = GRAMPS_LOCALE.translation.sgettext("Schema version")
         for item in data:
             if item == db_version_key:
                 result["database"]["version"] = data[item]
