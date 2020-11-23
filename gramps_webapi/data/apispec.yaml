@@ -132,6 +132,37 @@ paths:
           description: "Unprocessable Entity: Invalid token."
 
 ##############################################################################
+# Endpoint - User
+##############################################################################
+
+  /user/password/change:
+    post:
+      tags:
+      - authentication
+      summary: "Change a user password."
+      operationId: changeUserPassword
+      security:
+        - Bearer: []
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        type: string
+        description: "The JWT refresh token."
+      - name: passwords
+        in: body
+        required: true
+        schema:
+          $ref: "#/definitions/PasswordChange"
+      responses:
+        200:
+          description: "OK: Successful operation."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid token."
+    
+##############################################################################
 # Endpoint - People
 ##############################################################################
 
@@ -5186,3 +5217,22 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/Media"
+
+##############################################################################
+# Model - PasswordChange
+##############################################################################
+
+  PasswordChange:
+    type: object
+    required:
+      - old_password
+      - new_password
+    properties:
+      old_password:
+        description: "The old password."
+        type: string
+        example: "abc123"
+      new_password:
+        description: "The new password."
+        type: string
+        example: "321cba"
