@@ -28,7 +28,7 @@ from gramps.gen.db.base import DbReadBase
 from gramps.gen.display.name import NameDisplay
 from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
-from gramps.gen.lib import Event, Family, Person, Place, Source
+from gramps.gen.lib import Event, Family, Person, Place, Source, Span
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.utils.db import (
     get_birth_or_fallback,
@@ -99,147 +99,180 @@ def get_sex_profile(person: Person) -> str:
     return SEX_UNKNOWN
 
 
-def get_event_profile_for_object(db_handle: DbReadBase, event: Event) -> Dict:
+def get_event_profile_for_object(
+    db_handle: DbReadBase, event: Event, base_event=None, label="span"
+) -> Dict:
     """Get event profile given an Event."""
-    return {
+    result = {
         "type": str(event.type),
         "date": dd.display(event.date),
         "place": pd.display_event(db_handle, event),
     }
+    if base_event is not None:
+        result[label] = (
+            Span(base_event.date, event.date).format(precision=3).strip("()")
+        )
+    return result
 
 
-def get_event_profile_for_handle(db_handle: DbReadBase, handle: Handle) -> Dict:
+def get_event_profile_for_handle(
+    db_handle: DbReadBase, handle: Handle, base_event=None, label="span"
+) -> Dict:
     """Get event profile given a handle."""
     try:
         obj = db_handle.get_event_from_handle(handle)
     except HandleError:
         return {}
-    return get_event_profile_for_object(db_handle, obj)
+    return get_event_profile_for_object(db_handle, obj, base_event, label)
 
 
 def get_birth_profile(db_handle: DbReadBase, person: Person) -> Dict:
     """Return best available birth information for a person."""
     event = get_birth_or_fallback(db_handle, person)
     if event is None:
-        return {}
-    return get_event_profile_for_object(db_handle, event)
+        return {}, None
+    return get_event_profile_for_object(db_handle, event), event
 
 
 def get_death_profile(db_handle: DbReadBase, person: Person) -> Dict:
     """Return best available death information for a person."""
     event = get_death_or_fallback(db_handle, person)
     if event is None:
-        return {}
-    return get_event_profile_for_object(db_handle, event)
+        return {}, None
+    return get_event_profile_for_object(db_handle, event), event
 
 
 def get_marriage_profile(db_handle: DbReadBase, family: Family) -> Dict:
     """Return best available marriage information for a couple."""
     event = get_marriage_or_fallback(db_handle, family)
     if event is None:
-        return {}
-    return get_event_profile_for_object(db_handle, event)
+        return {}, None
+    return get_event_profile_for_object(db_handle, event), event
 
 
 def get_divorce_profile(db_handle: DbReadBase, family: Family) -> Dict:
     """Return best available divorce information for a couple."""
     event = get_divorce_or_fallback(db_handle, family)
     if event is None:
-        return {}
-    return get_event_profile_for_object(db_handle, event)
+        return {}, None
+    return get_event_profile_for_object(db_handle, event), event
 
 
 def get_person_profile_for_object(
-    db_handle: DbReadBase,
-    person: Person,
-    with_family: bool = True,
-    with_events: bool = True,
+    db_handle: DbReadBase, person: Person, args: List
 ) -> Person:
     """Get person profile given a Person."""
+    birth, birth_event = get_birth_profile(db_handle, person)
+    death, death_event = get_death_profile(db_handle, person)
+    if "all" in args or "age" in args:
+        if birth_event is not None:
+            birth["age"] = "0 days"
+            if death_event is not None:
+                death["age"] = (
+                    Span(birth_event.date, death_event.date)
+                    .format(precision=3)
+                    .strip("()")
+                )
     profile = {
         "handle": person.handle,
         "sex": get_sex_profile(person),
-        "birth": get_birth_profile(db_handle, person),
-        "death": get_death_profile(db_handle, person),
+        "birth": birth,
+        "death": death,
         "name_given": nd.display_given(person),
         "name_surname": person.primary_name.get_surname(),
     }
-    if with_family:
+    if "all" in args or "family" in args:
         primary_parent_family_handle = person.get_main_parents_family_handle()
         profile["primary_parent_family"] = get_family_profile_for_handle(
-            db_handle, primary_parent_family_handle
+            db_handle, primary_parent_family_handle, []
         )
         profile["other_parent_families"] = []
         for handle in person.parent_family_list:
             if handle != primary_parent_family_handle:
                 profile["other_parent_families"].append(
-                    get_family_profile_for_handle(db_handle, handle)
+                    get_family_profile_for_handle(db_handle, handle, [])
                 )
         profile["families"] = [
-            get_family_profile_for_handle(db_handle, handle)
+            get_family_profile_for_handle(db_handle, handle, [])
             for handle in person.family_list
         ]
-    if with_events:
+    if "all" in args or "events" in args:
+        if "age" not in args and "all" not in args:
+            birth_event = None
         profile["events"] = [
-            get_event_profile_for_handle(db_handle, event_ref.ref)
+            get_event_profile_for_handle(db_handle, event_ref.ref, birth_event, "age")
             for event_ref in person.event_ref_list
         ]
     return profile
 
 
 def get_person_profile_for_handle(
-    db_handle: DbReadBase,
-    handle: Handle,
-    with_family: bool = True,
-    with_events: bool = True,
+    db_handle: DbReadBase, handle: Handle, args: List
 ) -> Union[Person, Dict]:
     """Get person profile given a handle."""
     try:
         obj = db_handle.get_person_from_handle(handle)
     except HandleError:
         return {}
-    return get_person_profile_for_object(db_handle, obj, with_family, with_events)
+    return get_person_profile_for_object(db_handle, obj, args)
 
 
 def get_family_profile_for_object(
-    db_handle: DbReadBase, family: Family, with_events: bool = True
+    db_handle: DbReadBase, family: Family, args: List
 ) -> Family:
     """Get family profile given a Family."""
+    marriage, marriage_event = get_marriage_profile(db_handle, family)
+    divorce, divorce_event = get_divorce_profile(db_handle, family)
+    if "all" in args or "span" in args:
+        if marriage_event is not None:
+            marriage["span"] = "0 days"
+            if divorce_event is not None:
+                divorce["span"] = (
+                    Span(marriage_event.date, divorce_event.date)
+                    .format(precision=3)
+                    .strip("()")
+                )
+    if "all" in args or "age" in args:
+        family_args = ["age"]
+    else:
+        family_args = []
     profile = {
         "handle": family.handle,
         "father": get_person_profile_for_handle(
-            db_handle, family.father_handle, with_family=False, with_events=False
+            db_handle, family.father_handle, family_args
         ),
         "mother": get_person_profile_for_handle(
-            db_handle, family.mother_handle, with_family=False, with_events=False
+            db_handle, family.mother_handle, family_args
         ),
         "relationship": family.type,
-        "marriage": get_marriage_profile(db_handle, family),
-        "divorce": get_divorce_profile(db_handle, family),
+        "marriage": marriage,
+        "divorce": divorce,
         "children": [
-            get_person_profile_for_handle(
-                db_handle, child_ref.ref, with_family=False, with_events=False
-            )
+            get_person_profile_for_handle(db_handle, child_ref.ref, family_args)
             for child_ref in family.child_ref_list
         ],
     }
-    if with_events:
+    if "all" in args or "events" in args:
+        if "span" not in args and "all" not in args:
+            marriage_event = None
         profile["events"] = [
-            get_event_profile_for_handle(db_handle, event_ref.ref)
+            get_event_profile_for_handle(
+                db_handle, event_ref.ref, marriage_event, label="span"
+            )
             for event_ref in family.event_ref_list
         ]
     return profile
 
 
 def get_family_profile_for_handle(
-    db_handle: DbReadBase, handle: Handle, with_events: bool = True
+    db_handle: DbReadBase, handle: Handle, args: List
 ) -> Union[Family, Dict]:
     """Get family profile given a handle."""
     try:
         obj = db_handle.get_family_from_handle(handle)
     except HandleError:
         return {}
-    return get_family_profile_for_object(db_handle, obj, with_events)
+    return get_family_profile_for_object(db_handle, obj, args)
 
 
 def get_extended_attributes(

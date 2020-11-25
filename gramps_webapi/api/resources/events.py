@@ -23,14 +23,23 @@
 
 from typing import Dict
 
-from flask import abort
-from gramps.gen.lib import Event
+from flask import Response, abort
+from gramps.gen.const import GRAMPS_LOCALE
+from gramps.gen.db.base import DbReadBase
+from gramps.gen.errors import HandleError
+from gramps.gen.lib import Event, Span
+from webargs import fields, validate
+from webargs.flaskparser import use_args
 
+from ...types import Handle
+from ..util import get_dbstate, get_locale_for_language
+from . import ProtectedResource
 from .base import (
     GrampsObjectProtectedResource,
     GrampsObjectResourceHelper,
     GrampsObjectsProtectedResource,
 )
+from .emit import GrampsJSONEncoder
 from .util import (
     get_event_profile_for_object,
     get_extended_attributes,
@@ -63,3 +72,44 @@ class EventResource(GrampsObjectProtectedResource, EventResourceHelper):
 
 class EventsResource(GrampsObjectsProtectedResource, EventResourceHelper):
     """Events resource."""
+
+
+class EventSpanResource(ProtectedResource, GrampsJSONEncoder):
+    """Event date span resource."""
+
+    @property
+    def db_handle(self) -> DbReadBase:
+        """Get the database instance."""
+        return get_dbstate().db
+
+    @use_args(
+        {
+            "as_age": fields.Boolean(missing=True),
+            "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
+            "precision": fields.Integer(
+                missing=2, validate=validate.Range(min=1, max=3)
+            ),
+        },
+        location="query",
+    )
+    def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:
+        """Get the time span between two event dates."""
+        try:
+            event1 = self.db_handle.get_event_from_handle(handle1)
+            event2 = self.db_handle.get_event_from_handle(handle2)
+        except HandleError:
+            abort(404)
+
+        if args["locale"] is not None:
+            locale = get_locale_for_language(args["locale"])
+            if locale is None:
+                abort(400)
+        else:
+            locale = GRAMPS_LOCALE
+
+        span = (
+            Span(event1.date, event2.date)
+            .format(precision=args["precision"], as_age=args["as_age"], dlocale=locale)
+            .strip("()")
+        )
+        return self.response(200, {"span": str(span)})

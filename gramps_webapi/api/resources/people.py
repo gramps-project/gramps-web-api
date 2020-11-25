@@ -46,17 +46,7 @@ class PersonResourceHelper(GrampsObjectResourceHelper):
         """Extend person attributes as needed."""
         db_handle = self.db_handle
         if "profile" in args:
-            if "all" in args["profile"] or "families" in args["profile"]:
-                with_family = True
-            else:
-                with_family = False
-            if "all" in args["profile"] or "events" in args["profile"]:
-                with_events = True
-            else:
-                with_events = False
-            obj.profile = get_person_profile_for_object(
-                db_handle, obj, with_family=with_family, with_events=with_events
-            )
+            obj.profile = get_person_profile_for_object(db_handle, obj, args["profile"])
         if "extend" in args:
             obj.extended = get_extended_attributes(db_handle, obj, args)
             if "all" in args["extend"] or "families" in args["extend"]:
