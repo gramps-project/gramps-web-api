@@ -47,15 +47,7 @@ class FamilyResourceHelper(GrampsObjectResourceHelper):
         """Extend family attributes as needed."""
         db_handle = self.db_handle
         if "profile" in args:
-            if "families" in args["profile"]:
-                abort(422)
-            if "all" in args["profile"] or "events" in args["profile"]:
-                with_events = True
-            else:
-                with_events = False
-            obj.profile = get_family_profile_for_object(
-                db_handle, obj, with_events=with_events
-            )
+            obj.profile = get_family_profile_for_object(db_handle, obj, args["profile"])
         if "extend" in args:
             obj.extended = get_extended_attributes(db_handle, obj, args)
             if "all" in args["extend"] or "father_handle" in args["extend"]:

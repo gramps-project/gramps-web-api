@@ -32,7 +32,7 @@ from .file import LocalFileHandler
 from .resources.base import Resource
 from .resources.bookmarks import BookmarkResource, BookmarksResource
 from .resources.citations import CitationResource, CitationsResource
-from .resources.events import EventResource, EventsResource
+from .resources.events import EventResource, EventSpanResource, EventsResource
 from .resources.exporters import (
     ExporterFileResource,
     ExporterResource,
@@ -81,6 +81,9 @@ register_endpt(PeopleResource, "/people/", "people")
 register_endpt(FamilyResource, "/families/<string:handle>", "family")
 register_endpt(FamiliesResource, "/families/", "families")
 # Events
+register_endpt(
+    EventSpanResource, "/events/<string:handle1>/span/<string:handle2>", "event-span"
+)
 register_endpt(EventResource, "/events/<string:handle>", "event")
 register_endpt(EventsResource, "/events/", "events")
 # Places

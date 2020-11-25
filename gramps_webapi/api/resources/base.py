@@ -91,7 +91,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
-                    choices=["all", "self", "families", "events"]
+                    choices=["all", "self", "families", "events", "age", "span"]
                 ),
             ),
             "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
@@ -125,7 +125,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
-                    choices=["all", "self", "families", "events"]
+                    choices=["all", "self", "families", "events", "age", "span"]
                 ),
             ),
             "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
