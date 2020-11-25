@@ -132,6 +132,37 @@ paths:
           description: "Unprocessable Entity: Invalid token."
 
 ##############################################################################
+# Endpoint - User
+##############################################################################
+
+  /user/password/change:
+    post:
+      tags:
+      - authentication
+      summary: "Change a user password."
+      operationId: changeUserPassword
+      security:
+        - Bearer: []
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        type: string
+        description: "The JWT refresh token."
+      - name: passwords
+        in: body
+        required: true
+        schema:
+          $ref: "#/definitions/PasswordChange"
+      responses:
+        200:
+          description: "OK: Successful operation."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid token."
+    
+##############################################################################
 # Endpoint - People
 ##############################################################################
 
@@ -191,6 +222,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -221,6 +253,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether handles to objects referring to the person should be included in the response or not."
       - name: extend
         in: query
@@ -275,6 +308,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -305,6 +339,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether handles to objects referring to the person should be included in the response or not."
       - name: extend
         in: query
@@ -398,6 +433,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -427,6 +463,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether handles to objects referring to the family should be included in the response or not."
       - name: extend
         in: query
@@ -480,6 +517,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -509,6 +547,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether handles to objects referring to the family should be included in the response or not."
       - name: extend
         in: query
@@ -601,6 +640,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -629,6 +669,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether handles to objects referring to the event should be included in the response or not."
       - name: extend
         in: query
@@ -679,6 +720,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -707,6 +749,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether handles to objects referring to the event should be included in the response or not."
       - name: extend
         in: query
@@ -796,6 +839,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -811,6 +855,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether handles to objects referring to the place should be included in the response or not."
       - name: extend
         in: query
@@ -860,6 +905,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -875,6 +921,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether handles to objects referring to the place should be included in the response or not."
       - name: extend
         in: query
@@ -963,6 +1010,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -978,6 +1026,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether handles to objects referring to the citation should be included in the response or not."
       - name: extend
         in: query
@@ -1027,6 +1076,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -1042,6 +1092,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether handles to objects referring to the citation should be included in the response or not."
       - name: extend
         in: query
@@ -1130,6 +1181,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -1145,6 +1197,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether handles to objects referring to the source should be included in the response or not."
       - name: extend
         in: query
@@ -1194,6 +1247,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -1209,6 +1263,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether handles to objects referring to the source should be included in the response or not."
       - name: extend
         in: query
@@ -1297,6 +1352,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -1312,6 +1368,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether handles to objects referring to the repository should be included in the response or not."
       - name: extend
         in: query
@@ -1359,6 +1416,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -1374,6 +1432,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether handles to objects referring to the repository should be included in the response or not."
       - name: extend
         in: query
@@ -1460,6 +1519,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -1475,6 +1535,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether handles to objects referring to the media item should be included in the response or not."
       - name: extend
         in: query
@@ -1523,6 +1584,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -1538,6 +1600,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether handles to objects referring to the media item should be included in the response or not."
       - name: extend
         in: query
@@ -1565,6 +1628,174 @@ paths:
         404:
           description: "Not Found: Media item not found."
 
+  /media/{handle}/file:
+    get:
+      tags:
+      - media
+      summary: "Download a specific media item."
+      operationId: getMediaItemFile
+      security:
+        - Bearer: []
+      parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        minLength: 8
+        description: "The unique identifier for a media item."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: file
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Media item not found."
+
+  /media/{handle}/thumbnail/{size}:
+    get:
+      tags:
+      - media
+      summary: "Download the thumbnail for a specific media item."
+      operationId: getMediaItemThumbnail
+      security:
+        - Bearer: []
+      parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        minLength: 8
+        description: "The unique identifier for a media item."
+      - name: size
+        in: path
+        required: true
+        type: integer
+        description: "The size of the thumbnail to generate."
+      - name: square
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether image should be cropped to a centered square."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: file
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Media item not found."
+
+  /media/{handle}/cropped/{x1}/{y1}/{x2}/{y2}:
+    get:
+      tags:
+      - media
+      summary: "Download the cropped version of a specific media item."
+      operationId: getMediaItemCropped
+      security:
+        - Bearer: []
+      parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        minLength: 8
+        description: "The unique identifier for a media item."
+      - name: x1
+        in: path
+        required: true
+        type: integer
+        description: "The x1 coordinate to use for cropping."
+      - name: y1
+        in: path
+        required: true
+        type: integer
+        description: "The y1 coordinate to use for cropping."
+      - name: x2
+        in: path
+        required: true
+        type: integer
+        description: "The x2 coordinate to use for cropping."
+      - name: y2
+        in: path
+        required: true
+        type: integer
+        description: "The y2 coordinate to use for cropping."
+      - name: square
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether image should be cropped to a centered square."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: file
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Media item not found."
+
+  /media/{handle}/cropped/{x1}/{y1}/{x2}/{y2}/thumbnail/{size}:
+    get:
+      tags:
+      - media
+      summary: "Download the thumbnail of a cropped version of a specific media item."
+      operationId: getMediaItemCroppedThumbnail
+      security:
+        - Bearer: []
+      parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        minLength: 8
+        description: "The unique identifier for a media item."
+      - name: x1
+        in: path
+        required: true
+        type: integer
+        description: "The x1 coordinate to use for cropping."
+      - name: y1
+        in: path
+        required: true
+        type: integer
+        description: "The y1 coordinate to use for cropping."
+      - name: x2
+        in: path
+        required: true
+        type: integer
+        description: "The x2 coordinate to use for cropping."
+      - name: y2
+        in: path
+        required: true
+        type: integer
+        description: "The y2 coordinate to use for cropping."
+      - name: size
+        in: path
+        required: true
+        type: integer
+        description: "The size of the thumbnail to generate."
+      - name: square
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether image should be cropped to a centered square."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: file
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Media item not found."
+    
 ##############################################################################
 # Endpoint - Notes
 ##############################################################################
@@ -1634,6 +1865,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -1649,6 +1881,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether handles to objects referring to the note should be included in the response or not."
       - name: extend
         in: query
@@ -1704,6 +1937,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -1719,6 +1953,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether handles to objects referring to the note should be included in the response or not."
       - name: extend
         in: query
@@ -1761,6 +1996,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -1803,6 +2039,7 @@ paths:
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates whether keys with empty values should be stripped out of the response or not."
       - name: keys
         in: query
@@ -2137,6 +2374,41 @@ paths:
 # Endpoint - Filters
 ##############################################################################
 
+  /filters:
+    get:
+      tags:
+      - filters
+      summary: "Get all custom filters and rules for all namespaces."
+      operationId: getAllFilters
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: object
+            properties:
+              people:
+                $ref: "#/definitions/NamespaceFilters"
+              families:
+                $ref: "#/definitions/NamespaceFilters"
+              events:
+                $ref: "#/definitions/NamespaceFilters"
+              places:
+                $ref: "#/definitions/NamespaceFilters"
+              citations:
+                $ref: "#/definitions/NamespaceFilters"
+              sources:
+                $ref: "#/definitions/NamespaceFilters"
+              repositories:
+                $ref: "#/definitions/NamespaceFilters"
+              media:
+                $ref: "#/definitions/NamespaceFilters"
+              notes:
+                $ref: "#/definitions/NamespaceFilters"                            
+        401:
+          description: "Unauthorized: Missing authorization header."
+    
   /filters/{namespace}:
     get:
       tags:
@@ -2165,16 +2437,7 @@ paths:
         200:
           description: "OK: Successful operation."
           schema:
-            type: object
-            properties:
-              filters:
-                type: array
-                items:
-                  $ref: "#/definitions/CustomFilter"
-              rules:
-                type: array
-                items:
-                  $ref: "#/definitions/FilterRuleDescription"
+            $ref: "#/definitions/NamespaceFilters"
         401:
           description: "Unauthorized: Missing authorization header."
         404:
@@ -2370,11 +2633,13 @@ paths:
         in: query
         required: false
         type: integer
+        default: 15
         description: "Depth for the search, default is 15 generations."
       - name: locale
         in: query
         required: false
         type: boolean
+        default: false
         description: "Indicates to return relationship string in current locale."
       responses:
         200:
@@ -2407,6 +2672,7 @@ paths:
         in: query
         required: false
         type: integer
+        default: false
         description: "Depth for the search, default is 15 generations."
       responses:
         200:
@@ -4463,6 +4729,22 @@ definitions:
           $ref: "#/definitions/FilterRule"
 
 ##############################################################################
+# Model - NamespaceFilters
+##############################################################################
+
+  NamespaceFilters:
+    type: object
+    properties:
+      filters:
+        type: array
+        items:
+          $ref: "#/definitions/CustomFilter"
+      rules:
+        type: array
+        items:
+          $ref: "#/definitions/FilterRuleDescription"
+    
+##############################################################################
 # Model - Translations
 ##############################################################################
 
@@ -4604,8 +4886,8 @@ definitions:
             description: "The language code."
             type: string
             example: "en"
-          locale:
-            description: "The locale code."
+          lang:
+            description: "The effective language locale."
             type: string
             example: "en_US"
       object_counts:
@@ -4935,3 +5217,22 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/Media"
+
+##############################################################################
+# Model - PasswordChange
+##############################################################################
+
+  PasswordChange:
+    type: object
+    required:
+      - old_password
+      - new_password
+    properties:
+      old_password:
+        description: "The old password."
+        type: string
+        example: "abc123"
+      new_password:
+        description: "The new password."
+        type: string
+        example: "321cba"

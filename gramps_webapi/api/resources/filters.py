@@ -184,6 +184,23 @@ class CustomFilterSchema(FilterSchema):
     )
 
 
+class FiltersResources(ProtectedResource, GrampsJSONEncoder):
+    """Filters resources."""
+
+    @use_args(
+        {},
+        location="query",
+    )
+    def get(self, args: Dict[str, str]) -> Response:
+        """Get available custom filters and rules."""
+        results = {}
+        for namespace in GRAMPS_NAMESPACES:
+            rule_list = get_filter_rules(args, GRAMPS_NAMESPACES[namespace])
+            filter_list = get_custom_filters(args, GRAMPS_NAMESPACES[namespace])
+            results[namespace] = {"filters": filter_list, "rules": rule_list}
+        return self.response(200, results)
+
+
 class FiltersResource(ProtectedResource, GrampsJSONEncoder):
     """Filters resource."""
 

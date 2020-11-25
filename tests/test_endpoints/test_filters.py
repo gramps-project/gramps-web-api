@@ -29,6 +29,29 @@ from tests.test_endpoints import API_SCHEMA, get_test_client
 from tests.test_endpoints.runners import run_test_filters_endpoint_namespace
 
 
+class TestAllFilters(unittest.TestCase):
+    """Test cases for the /api/filters endpoint."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_filters_endpoint_schema(self):
+        """Test against the filters schema."""
+        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
+        result = self.client.get("/api/filters/")
+        for namespace in GRAMPS_NAMESPACES:
+            # check present in response
+            self.assertIn(namespace, result.json)
+            # check against schema
+            validate(
+                instance=result.json[namespace],
+                schema=API_SCHEMA["definitions"]["NamespaceFilters"],
+                resolver=resolver,
+            )
+
+
 class TestFilters(unittest.TestCase):
     """Test cases for the /api/filters/{namespace} endpoint."""
 
