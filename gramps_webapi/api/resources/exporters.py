@@ -152,30 +152,20 @@ def run_export(db_handle: DbReadBase, extension: str, options):
 class ExportersResource(ProtectedResource, GrampsJSONEncoder):
     """Exporters resource."""
 
-    @property
-    def db_handle(self) -> DbReadBase:
-        """Get the database instance."""
-        return get_dbstate().db
-
     @use_args({}, location="query")
     def get(self, args: Dict) -> Response:
         """Get all available exporter attributes."""
-        db = self.db_handle
+        db_handle = get_dbstate().db
         return self.response(200, get_exporters())
 
 
 class ExporterResource(ProtectedResource, GrampsJSONEncoder):
     """Export resource."""
 
-    @property
-    def db_handle(self) -> DbReadBase:
-        """Get the database instance."""
-        return get_dbstate().db
-
     @use_args({}, location="query")
     def get(self, args: Dict, extension: str) -> Response:
         """Get specific report attributes."""
-        db = self.db_handle
+        db_handle = get_dbstate().db
         exporters = get_exporters(extension)
         if exporters == []:
             abort(404)
@@ -184,11 +174,6 @@ class ExporterResource(ProtectedResource, GrampsJSONEncoder):
 
 class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
     """Export file resource."""
-
-    @property
-    def db_handle(self) -> DbReadBase:
-        """Get the database instance."""
-        return get_dbstate().db
 
     @use_args(
         {
@@ -230,7 +215,7 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
     )
     def get(self, args: Dict, extension: str) -> Response:
         """Get export file."""
-        db_handle = self.db_handle
+        db_handle = get_dbstate().db
         exporters = get_exporters(extension)
         if exporters == []:
             abort(404)

@@ -43,6 +43,7 @@ REQUIREMENTS = [
     "bleach",
 ]
 
+EXTRA_REQUIREMENTS = ["pycairo", "PyGObject"]
 
 setup(
     author="Gramps Development Team",
@@ -52,6 +53,7 @@ setup(
     description="A RESTful web API for the Gramps genealogical database.",
     license="GPL v2 or greater",
     install_requires=REQUIREMENTS,
+    extra_requires=EXTRA_REQUIREMENTS,
     long_description=README,
     long_description_content_type="text/markdown",
     include_package_data=True,
