@@ -6,7 +6,7 @@ info:
 
     * The Gramps Web API project is hosted at https://github.com/gramps-project/web-api
 
-   
+
     * More about Gramps and the numerous features it provides for genealogists can be found at https://gramps-project.org
   version: "0.1.0"
   license:
@@ -249,7 +249,9 @@ paths:
             Object | Contents
             ------ | --------
             all | Returns all information below
+            age | Returns age at time of a personal event
             self | Returns name, sex, birth and death information and is an implied default when events or families specified
+            span | Returns elapsed time span from union that formed the family and familial events
             events | Returns event list with name, date and location
             families | Returns family information with parents, children, and key relationship between parents
       - name: backlinks
@@ -335,7 +337,9 @@ paths:
             Object | Contents
             ------ | --------
             all | Returns all information below
+            age | Returns age at time of a personal event
             self | Returns name, sex, birth and death information and is an implied default when events or families specified
+            span | Returns elapsed time span from union that formed the family and familial events
             events | Returns event list with name, date and location
             families | Returns family information with parents, children, and key relationship between parents
       - name: backlinks
@@ -460,7 +464,9 @@ paths:
             Object | Contents
             ------ | --------
             all | Returns all information below
+            age | Returns age at time of a personal event    
             self | Returns family information with parents, children, and key relationship between parents and is an implied default if events specified
+            span | Returns elapsed time span from union that formed the family and familial events
             events | Returns family event list with name, date and location
       - name: backlinks
         in: query
@@ -544,7 +550,9 @@ paths:
             Object | Contents
             ------ | --------
             all | Returns all information below
+            age | Returns age at time of a personal event    
             self | Returns family information with parents, children, and key relationship between parents and is an implied default if events specified
+            span | Returns elapsed time span from union that formed the family and familial events
             events | Returns family event list with name, date and location
       - name: backlinks
         in: query
@@ -2696,9 +2704,8 @@ paths:
       - name: locale
         in: query
         required: false
-        type: boolean
-        default: false
-        description: "Indicates to return relationship string in current locale."
+        type: string
+        description: "Specifies the locale for the translated string if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -2732,6 +2739,11 @@ paths:
         type: integer
         default: false
         description: "Depth for the search, default is 15 generations."
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for the translated string if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."

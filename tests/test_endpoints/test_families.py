@@ -134,6 +134,7 @@ class TestFamilies(unittest.TestCase):
                 "children": [
                     {
                         "birth": {
+                            "age": "0 days",
                             "date": "",
                             "place": "Gadsden, Etowah, AL, USA",
                             "type": "Birth",
@@ -150,16 +151,19 @@ class TestFamilies(unittest.TestCase):
                     {
                         "date": "1879-07-25",
                         "place": "Greensboro, NC, USA",
+                        "span": "0 days",
                         "type": "Marriage",
                     }
                 ],
                 "father": {
                     "birth": {
+                        "age": "0 days",
                         "date": "1847-06-28",
                         "place": "El Campo, Wharton, TX, USA",
                         "type": "Birth",
                     },
                     "death": {
+                        "age": "44 years, 8 months, 7 days",
                         "date": "1892-03-05",
                         "place": "Plymouth, Marshall, IN, USA",
                         "type": "Death",
@@ -173,10 +177,12 @@ class TestFamilies(unittest.TestCase):
                 "marriage": {
                     "date": "1879-07-25",
                     "place": "Greensboro, NC, USA",
+                    "span": "0 days",
                     "type": "Marriage",
                 },
                 "mother": {
                     "birth": {
+                        "age": "0 days",
                         "date": "",
                         "place": "Jacksonville, NC, USA",
                         "type": "Birth",
@@ -290,6 +296,7 @@ class TestFamiliesHandle(unittest.TestCase):
                 "children": [
                     {
                         "birth": {
+                            "age": "0 days",
                             "date": "1983-10-05",
                             "place": "Ottawa, La Salle, IL, USA",
                             "type": "Birth",
@@ -302,6 +309,7 @@ class TestFamiliesHandle(unittest.TestCase):
                     },
                     {
                         "birth": {
+                            "age": "0 days",
                             "date": "1985-02-11",
                             "place": "Ottawa, La Salle, IL, USA",
                             "type": "Birth",
@@ -318,11 +326,13 @@ class TestFamiliesHandle(unittest.TestCase):
                     {
                         "date": "1979-01-06",
                         "place": "Farmington, MO, USA",
+                        "span": "0 days",
                         "type": "Marriage",
                     }
                 ],
                 "father": {
                     "birth": {
+                        "age": "0 days",
                         "date": "1955-07-31",
                         "place": "Ottawa, La Salle, IL, USA",
                         "type": "Birth",
@@ -337,10 +347,16 @@ class TestFamiliesHandle(unittest.TestCase):
                 "marriage": {
                     "date": "1979-01-06",
                     "place": "Farmington, MO, USA",
+                    "span": "0 days",
                     "type": "Marriage",
                 },
                 "mother": {
-                    "birth": {"date": "1957-01-31", "place": "", "type": "Birth"},
+                    "birth": {
+                        "age": "0 days",
+                        "date": "1957-01-31",
+                        "place": "",
+                        "type": "Birth",
+                    },
                     "death": {},
                     "handle": "JFWJQCRREDFKZLDKVD",
                     "name_given": "Elizabeth",

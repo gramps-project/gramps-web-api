@@ -21,7 +21,7 @@
 
 """Gramps utility functions."""
 
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
@@ -126,7 +126,9 @@ def get_event_profile_for_handle(
     return get_event_profile_for_object(db_handle, obj, base_event, label)
 
 
-def get_birth_profile(db_handle: DbReadBase, person: Person) -> Dict:
+def get_birth_profile(
+    db_handle: DbReadBase, person: Person
+) -> Tuple[Dict, Union[Event, None]]:
     """Return best available birth information for a person."""
     event = get_birth_or_fallback(db_handle, person)
     if event is None:
@@ -134,7 +136,9 @@ def get_birth_profile(db_handle: DbReadBase, person: Person) -> Dict:
     return get_event_profile_for_object(db_handle, event), event
 
 
-def get_death_profile(db_handle: DbReadBase, person: Person) -> Dict:
+def get_death_profile(
+    db_handle: DbReadBase, person: Person
+) -> Tuple[Dict, Union[Event, None]]:
     """Return best available death information for a person."""
     event = get_death_or_fallback(db_handle, person)
     if event is None:
@@ -142,7 +146,9 @@ def get_death_profile(db_handle: DbReadBase, person: Person) -> Dict:
     return get_event_profile_for_object(db_handle, event), event
 
 
-def get_marriage_profile(db_handle: DbReadBase, family: Family) -> Dict:
+def get_marriage_profile(
+    db_handle: DbReadBase, family: Family
+) -> Tuple[Dict, Union[Event, None]]:
     """Return best available marriage information for a couple."""
     event = get_marriage_or_fallback(db_handle, family)
     if event is None:
@@ -150,7 +156,9 @@ def get_marriage_profile(db_handle: DbReadBase, family: Family) -> Dict:
     return get_event_profile_for_object(db_handle, event), event
 
 
-def get_divorce_profile(db_handle: DbReadBase, family: Family) -> Dict:
+def get_divorce_profile(
+    db_handle: DbReadBase, family: Family
+) -> Tuple[Dict, Union[Event, None]]:
     """Return best available divorce information for a couple."""
     event = get_divorce_or_fallback(db_handle, family)
     if event is None:
@@ -162,9 +170,11 @@ def get_person_profile_for_object(
     db_handle: DbReadBase, person: Person, args: List
 ) -> Person:
     """Get person profile given a Person."""
+    options = []
     birth, birth_event = get_birth_profile(db_handle, person)
     death, death_event = get_death_profile(db_handle, person)
     if "all" in args or "age" in args:
+        options.append("age")
         if birth_event is not None:
             birth["age"] = "0 days"
             if death_event is not None:
@@ -181,27 +191,30 @@ def get_person_profile_for_object(
         "name_given": nd.display_given(person),
         "name_surname": person.primary_name.get_surname(),
     }
-    if "all" in args or "family" in args:
-        primary_parent_family_handle = person.get_main_parents_family_handle()
-        profile["primary_parent_family"] = get_family_profile_for_handle(
-            db_handle, primary_parent_family_handle, []
-        )
-        profile["other_parent_families"] = []
-        for handle in person.parent_family_list:
-            if handle != primary_parent_family_handle:
-                profile["other_parent_families"].append(
-                    get_family_profile_for_handle(db_handle, handle, [])
-                )
-        profile["families"] = [
-            get_family_profile_for_handle(db_handle, handle, [])
-            for handle in person.family_list
-        ]
+    if "all" in args or "span" in args:
+        options.append("span")
     if "all" in args or "events" in args:
+        options.append("events")
         if "age" not in args and "all" not in args:
             birth_event = None
         profile["events"] = [
             get_event_profile_for_handle(db_handle, event_ref.ref, birth_event, "age")
             for event_ref in person.event_ref_list
+        ]
+    if "all" in args or "families" in args:
+        primary_parent_family_handle = person.get_main_parents_family_handle()
+        profile["primary_parent_family"] = get_family_profile_for_handle(
+            db_handle, primary_parent_family_handle, options
+        )
+        profile["other_parent_families"] = []
+        for handle in person.parent_family_list:
+            if handle != primary_parent_family_handle:
+                profile["other_parent_families"].append(
+                    get_family_profile_for_handle(db_handle, handle, options)
+                )
+        profile["families"] = [
+            get_family_profile_for_handle(db_handle, handle, options)
+            for handle in person.family_list
         ]
     return profile
 
@@ -221,6 +234,7 @@ def get_family_profile_for_object(
     db_handle: DbReadBase, family: Family, args: List
 ) -> Family:
     """Get family profile given a Family."""
+    options = []
     marriage, marriage_event = get_marriage_profile(db_handle, family)
     divorce, divorce_event = get_divorce_profile(db_handle, family)
     if "all" in args or "span" in args:
@@ -233,22 +247,20 @@ def get_family_profile_for_object(
                     .strip("()")
                 )
     if "all" in args or "age" in args:
-        family_args = ["age"]
-    else:
-        family_args = []
+        options.append("age")
     profile = {
         "handle": family.handle,
         "father": get_person_profile_for_handle(
-            db_handle, family.father_handle, family_args
+            db_handle, family.father_handle, options
         ),
         "mother": get_person_profile_for_handle(
-            db_handle, family.mother_handle, family_args
+            db_handle, family.mother_handle, options
         ),
         "relationship": family.type,
         "marriage": marriage,
         "divorce": divorce,
         "children": [
-            get_person_profile_for_handle(db_handle, child_ref.ref, family_args)
+            get_person_profile_for_handle(db_handle, child_ref.ref, options)
             for child_ref in family.child_ref_list
         ],
     }
