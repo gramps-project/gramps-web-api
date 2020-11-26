@@ -84,9 +84,9 @@ class TestRelation(unittest.TestCase):
         )
         self.assertEqual(result.status_code, 422)
         result = self.client.get(
-            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?locale=1"
+            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?locale=de"
         )
-        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json["relationship_string"], "Stief-/Adoptivalttante")
 
 
 class TestRelations(unittest.TestCase):
@@ -143,4 +143,15 @@ class TestRelations(unittest.TestCase):
         )
         self.assertEqual(
             result.json[0]["relationship_string"], "second great stepgrandaunt"
+        )
+        # check locale parm working
+        result = self.client.get(
+            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?locale"
+        )
+        self.assertEqual(result.status_code, 422)
+        result = self.client.get(
+            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?locale=de"
+        )
+        self.assertEqual(
+            result.json[0]["relationship_string"], "Stief-/Adoptivalttante"
         )
