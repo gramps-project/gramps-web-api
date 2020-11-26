@@ -30,7 +30,7 @@ from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from webargs import fields, validate
 from webargs.flaskparser import use_args
 
-from ..util import get_dbstate
+from ..util import get_dbstate, get_locale_for_language
 from . import ProtectedResource, Resource
 from .emit import GrampsJSONEncoder
 from .filters import apply_filter
@@ -122,6 +122,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
+            "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
             "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
@@ -145,23 +146,25 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             if obj is None:
                 abort(404)
             return self.response(200, [self.full_object(obj, args)], args)
+
+        locale = get_locale_for_language(args["locale"], default=True)
+        query_method = self.db_handle.method("get_%s_handles", self.gramps_class_name)
+        if self.gramps_class_name in ["Event", "Repository", "Note"]:
+            handles = query_method()
+        else:
+            handles = query_method(sort_handles=True, locale=locale)
+
+        if "filter" in args or "rules" in args:
+            handles = apply_filter(
+                self.db_handle, args, self.gramps_class_name, handles
+            )
+
         query_method = self.db_handle.method(
             "get_%s_from_handle", self.gramps_class_name
         )
-        if "filter" in args or "rules" in args:
-            handle_list = apply_filter(self.db_handle, args, self.gramps_class_name)
-            return self.response(
-                200,
-                [
-                    self.full_object(query_method(handle), args)
-                    for handle in handle_list
-                ],
-                args,
-            )
-        iter_method = self.db_handle.method("iter_%s_handles", self.gramps_class_name)
         return self.response(
             200,
-            [self.full_object(query_method(handle), args) for handle in iter_method()],
+            [self.full_object(query_method(handle), args) for handle in handles],
             args,
         )
 

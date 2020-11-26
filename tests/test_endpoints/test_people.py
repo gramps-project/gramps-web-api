@@ -51,17 +51,17 @@ class TestPeople(unittest.TestCase):
         result = self.client.get("/api/people/")
         self.assertEqual(len(result.json), get_object_count("people"))
         # check first record is expected person
-        self.assertEqual(result.json[0]["gramps_id"], "I0552")
-        self.assertEqual(result.json[0]["primary_name"]["first_name"], "Martha")
+        self.assertEqual(result.json[0]["gramps_id"], "I2110")
+        self.assertEqual(result.json[0]["primary_name"]["first_name"], "محمد")
         self.assertEqual(
-            result.json[0]["primary_name"]["surname_list"][0]["surname"], "Nielsen"
+            result.json[0]["primary_name"]["surname_list"][0]["surname"], ""
         )
         # check last record is expected person
         last = len(result.json) - 1
-        self.assertEqual(result.json[last]["gramps_id"], "I2156")
-        self.assertEqual(result.json[last]["primary_name"]["first_name"], "蘭")
+        self.assertEqual(result.json[last]["gramps_id"], "I0247")
+        self.assertEqual(result.json[last]["primary_name"]["first_name"], "Allen")
         self.assertEqual(
-            result.json[last]["primary_name"]["surname_list"][0]["surname"], "賈"
+            result.json[last]["primary_name"]["surname_list"][0]["surname"], "鈴木"
         )
 
     def test_people_endpoint_422(self):
@@ -131,77 +131,139 @@ class TestPeople(unittest.TestCase):
         self.assertEqual(
             result.json[0]["profile"],
             {
-                "birth": {},
-                "death": {},
-                "events": [],
+                "birth": {
+                    "age": "0 days",
+                    "date": "570-04-19",
+                    "place": "",
+                    "type": "Birth",
+                },
+                "death": {
+                    "age": "62 years, 1 months, 19 days",
+                    "date": "632-06-08",
+                    "place": "",
+                    "type": "Death",
+                },
+                "events": [
+                    {
+                        "age": "0 days",
+                        "date": "570-04-19",
+                        "place": "",
+                        "type": "Birth",
+                    },
+                    {
+                        "age": "62 years, 1 months, 19 days",
+                        "date": "632-06-08",
+                        "place": "",
+                        "type": "Death",
+                    },
+                    {
+                        "age": "39 years, 8 months, 13 days",
+                        "date": "610",
+                        "place": "",
+                        "type": "Marriage",
+                    },
+                ],
                 "families": [
                     {
-                        "children": [
-                            {
-                                "birth": {
-                                    "age": "0 days",
-                                    "date": "after 1737-10-01",
-                                    "place": "Maryville, MO, USA",
-                                    "type": "Birth",
-                                },
-                                "death": {
-                                    "age": "less than 49 years, 7 months, 18 days",
-                                    "date": "1787-05-20",
-                                    "place": "Wooster, OH, USA",
-                                    "type": "Death",
-                                },
-                                "handle": "E04KQC637O9JLP5PNM",
-                                "name_given": "John",
-                                "name_surname": "Adkins",
-                                "sex": "M",
-                            }
-                        ],
+                        "children": [],
                         "divorce": {},
-                        "events": [
-                            {
-                                "date": "",
-                                "place": "",
-                                "span": "unknown",
-                                "type": "Marriage",
-                            }
-                        ],
+                        "events": [],
                         "father": {
                             "birth": {
                                 "age": "0 days",
-                                "date": "",
-                                "place": "Ketchikan, AK, USA",
+                                "date": "570-04-19",
+                                "place": "",
                                 "type": "Birth",
                             },
-                            "death": {},
-                            "handle": "JZ3KQCSRW7R368NLSH",
-                            "name_given": "Robert Sr.",
-                            "name_surname": "Adkins",
+                            "death": {
+                                "age": "62 years, 1 months, 19 days",
+                                "date": "632-06-08",
+                                "place": "",
+                                "type": "Death",
+                            },
+                            "handle": "cc8205d872f532ab14e",
+                            "name_given": "محمد",
+                            "name_surname": "",
                             "sex": "M",
                         },
-                        "handle": "TZ3KQCJ3PNQHI6S8VO",
-                        "marriage": {
-                            "date": "",
-                            "place": "",
-                            "span": "0 days",
-                            "type": "Marriage",
-                        },
+                        "handle": "cc8205d874433c12fd8",
+                        "marriage": {},
                         "mother": {
                             "birth": {},
                             "death": {},
-                            "handle": "004KQCGYT27EEPQHK",
-                            "name_given": "Martha",
-                            "name_surname": "Nielsen",
+                            "handle": "cc8205d87831c772e87",
+                            "name_given": "عائشة",
+                            "name_surname": "",
                             "sex": "F",
                         },
                         "relationship": "Married",
-                    }
+                    },
+                    {
+                        "children": [
+                            {
+                                "birth": {},
+                                "death": {},
+                                "handle": "cc8205d87fd529000ff",
+                                "name_given": "القاسم",
+                                "name_surname": "",
+                                "sex": "M",
+                            },
+                            {
+                                "birth": {},
+                                "death": {},
+                                "handle": "cc8205d883763f02abd",
+                                "name_given": "عبد الله",
+                                "name_surname": "",
+                                "sex": "M",
+                            },
+                            {
+                                "birth": {},
+                                "death": {},
+                                "handle": "cc8205d887376aacba2",
+                                "name_given": "أم كلثوم",
+                                "name_surname": "",
+                                "sex": "F",
+                            },
+                        ],
+                        "divorce": {},
+                        "events": [],
+                        "father": {
+                            "birth": {
+                                "age": "0 days",
+                                "date": "570-04-19",
+                                "place": "",
+                                "type": "Birth",
+                            },
+                            "death": {
+                                "age": "62 years, 1 months, 19 days",
+                                "date": "632-06-08",
+                                "place": "",
+                                "type": "Death",
+                            },
+                            "handle": "cc8205d872f532ab14e",
+                            "name_given": "محمد",
+                            "name_surname": "",
+                            "sex": "M",
+                        },
+                        "handle": "cc8205d87492b90b437",
+                        "marriage": {},
+                        "mother": {
+                            "birth": {},
+                            "death": {},
+                            "handle": "cc8205d87c20350420b",
+                            "name_given": "خديجة",
+                            "name_surname": "",
+                            "sex": "F",
+                        },
+                        "relationship": "Married",
+                    },
                 ],
-                "handle": "004KQCGYT27EEPQHK",
-                "name_given": "Martha",
-                "name_surname": "Nielsen",
+                "handle": "cc8205d872f532ab14e",
+                "name_given": "محمد",
+                "name_surname": "",
                 "other_parent_families": [],
                 "primary_parent_family": {},
-                "sex": "F",
+                "sex": "M",
             },
         )
 
