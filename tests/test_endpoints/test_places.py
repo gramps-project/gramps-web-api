@@ -50,14 +50,13 @@ class TestPlaces(unittest.TestCase):
         result = self.client.get("/api/places/")
         self.assertEqual(len(result.json), get_object_count("places"))
         # check first record is expected place
-        self.assertEqual(result.json[0]["gramps_id"], "P0852")
-        self.assertEqual(result.json[0]["handle"], "00BKQC7SA8C9NCGB0A")
-        self.assertEqual(result.json[0]["title"], "Deltona, FL")
+        self.assertEqual(result.json[0]["gramps_id"], "P0441")
+        self.assertEqual(result.json[0]["handle"], "dd445e5bfcc17bd1838")
         # check last record is expected place
         last = len(result.json) - 1
-        self.assertEqual(result.json[last]["gramps_id"], "P0441")
-        self.assertEqual(result.json[last]["handle"], "dd445e5bfcc17bd1838")
-        self.assertEqual(result.json[last]["title"], "")
+        self.assertEqual(result.json[last]["gramps_id"], "P0438")
+        self.assertEqual(result.json[last]["handle"], "d583a5b8b586fb992c8")
+        self.assertEqual(result.json[last]["title"], "Σιάτιστα")
 
     def test_places_endpoint_422(self):
         """Test response for an invalid parm."""

@@ -50,14 +50,14 @@ class TestSources(unittest.TestCase):
         result = self.client.get("/api/sources/")
         self.assertEqual(len(result.json), get_object_count("sources"))
         # check first record is expected source
-        self.assertEqual(result.json[0]["gramps_id"], "S0002")
-        self.assertEqual(result.json[0]["handle"], "VUBKMQTA2XZG1V6QP8")
-        self.assertEqual(result.json[0]["title"], "World of the Wierd")
+        self.assertEqual(result.json[0]["gramps_id"], "S0001")
+        self.assertEqual(result.json[0]["handle"], "c140d4ef77841431905")
+        self.assertEqual(result.json[0]["title"], "All possible citations")
         # check last record is expected source
         last = len(result.json) - 1
-        self.assertEqual(result.json[last]["gramps_id"], "S0001")
-        self.assertEqual(result.json[last]["handle"], "c140d4ef77841431905")
-        self.assertEqual(result.json[last]["title"], "All possible citations")
+        self.assertEqual(result.json[last]["gramps_id"], "S0002")
+        self.assertEqual(result.json[last]["handle"], "VUBKMQTA2XZG1V6QP8")
+        self.assertEqual(result.json[last]["title"], "World of the Wierd")
 
     def test_sources_endpoint_422(self):
         """Test response for an invalid parm."""

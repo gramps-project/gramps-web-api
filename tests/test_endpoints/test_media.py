@@ -50,14 +50,14 @@ class TestMedia(unittest.TestCase):
         result = self.client.get("/api/media/")
         self.assertEqual(len(result.json), get_object_count("media"))
         # check first record is expected media
-        self.assertEqual(result.json[0]["gramps_id"], "O0010")
-        self.assertEqual(result.json[0]["handle"], "238CGQ939HG18SS5MG")
-        self.assertEqual(result.json[0]["path"], "1897_expeditionsmannschaft_rio_a.jpg")
+        self.assertEqual(result.json[0]["gramps_id"], "O0000")
+        self.assertEqual(result.json[0]["handle"], "b39fe1cfc1305ac4a21")
+        self.assertEqual(result.json[0]["path"], "scanned_microfilm.png")
         # check last record is expected media
         last = len(result.json) - 1
-        self.assertEqual(result.json[last]["gramps_id"], "O0000")
-        self.assertEqual(result.json[last]["handle"], "b39fe1cfc1305ac4a21")
-        self.assertEqual(result.json[last]["path"], "scanned_microfilm.png")
+        self.assertEqual(result.json[last]["gramps_id"], "O0009")
+        self.assertEqual(result.json[last]["handle"], "78V2GQX2FKNSYQ3OHE")
+        self.assertEqual(result.json[last]["path"], "Gunnlaugur_Larusson_-_Yawn.jpg")
 
     def test_media_endpoint_422(self):
         """Test response for an invalid parm."""

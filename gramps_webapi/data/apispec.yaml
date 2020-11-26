@@ -286,6 +286,11 @@ paths:
             primary_parent_family | The primary parent family record
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -499,6 +504,11 @@ paths:
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -704,6 +714,11 @@ paths:
             place | The place record for the event
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -944,6 +959,11 @@ paths:
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1115,6 +1135,11 @@ paths:
             source | The source record cited from
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1286,6 +1311,11 @@ paths:
             reporef_list | The list of referenced repository records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1455,6 +1485,11 @@ paths:
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1623,6 +1658,11 @@ paths:
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1967,6 +2007,11 @@ paths:
             all | Returns all possible records listed below
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -2078,6 +2123,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
