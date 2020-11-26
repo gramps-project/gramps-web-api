@@ -140,4 +140,7 @@ class GrampsJSONEncoder(JSONEncoder):
         if isinstance(obj, DbBookmarks):
             return self.api_filter(obj)
 
-        return JSONEncoder.default(self, obj)
+        try:
+            return JSONEncoder.default(self, obj)
+        except TypeError:
+            return None
