@@ -183,6 +183,17 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a person, usually but not guaranteed to be unique."
+      - name: offset
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "The given number of items to skip over before starting to return results. By default none are skipped."
+      - name: limit
+        in: query
+        required: false
+        type: integer
+        description: "The maximum number of items to be returned. By default all are returned."
       - name: filter
         in: query
         required: false
@@ -403,6 +414,17 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a family, usually but not guaranteed to be unique."
+      - name: offset
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "The given number of items to skip over before starting to return results. By default none are skipped."
+      - name: limit
+        in: query
+        required: false
+        type: integer
+        description: "The maximum number of items to be returned. By default all are returned."
       - name: filter
         in: query
         required: false
@@ -619,6 +641,17 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for an event, usually but not guaranteed to be unique."
+      - name: offset
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "The given number of items to skip over before starting to return results. By default none are skipped."
+      - name: limit
+        in: query
+        required: false
+        type: integer
+        description: "The maximum number of items to be returned. By default all are returned."
       - name: filter
         in: query
         required: false
@@ -878,6 +911,17 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a place, usually but not guaranteed to be unique."
+      - name: offset
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "The given number of items to skip over before starting to return results. By default none are skipped."
+      - name: limit
+        in: query
+        required: false
+        type: integer
+        description: "The maximum number of items to be returned. By default all are returned."
       - name: filter
         in: query
         required: false
@@ -1054,6 +1098,17 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a citation, usually but not guaranteed to be unique."
+      - name: offset
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "The given number of items to skip over before starting to return results. By default none are skipped."
+      - name: limit
+        in: query
+        required: false
+        type: integer
+        description: "The maximum number of items to be returned. By default all are returned."
       - name: filter
         in: query
         required: false
@@ -1230,6 +1285,17 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a source, usually but not guaranteed to be unique."
+      - name: offset
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "The given number of items to skip over before starting to return results. By default none are skipped."
+      - name: limit
+        in: query
+        required: false
+        type: integer
+        description: "The maximum number of items to be returned. By default all are returned."
       - name: filter
         in: query
         required: false
@@ -1406,6 +1472,17 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a repository, usually but not guaranteed to be unique."
+      - name: offset
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "The given number of items to skip over before starting to return results. By default none are skipped."
+      - name: limit
+        in: query
+        required: false
+        type: integer
+        description: "The maximum number of items to be returned. By default all are returned."
       - name: filter
         in: query
         required: false
@@ -1578,6 +1655,17 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a media item, usually but not guaranteed to be unique."
+      - name: offset
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "The given number of items to skip over before starting to return results. By default none are skipped."
+      - name: limit
+        in: query
+        required: false
+        type: integer
+        description: "The maximum number of items to be returned. By default all are returned."
       - name: filter
         in: query
         required: false
@@ -1920,6 +2008,17 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a note, usually but not guaranteed to be unique."
+      - name: offset
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "The given number of items to skip over before starting to return results. By default none are skipped."
+      - name: limit
+        in: query
+        required: false
+        type: integer
+        description: "The maximum number of items to be returned. By default all are returned."
       - name: filter
         in: query
         required: false
@@ -2103,6 +2202,17 @@ paths:
       security:
         - Bearer: []
       parameters:
+      - name: offset
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "The given number of items to skip over before starting to return results. By default none are skipped."
+      - name: limit
+        in: query
+        required: false
+        type: integer
+        description: "The maximum number of items to be returned. By default all are returned."
       - name: strip
         in: query
         required: false

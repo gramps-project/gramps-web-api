@@ -132,6 +132,8 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "filter": fields.Str(validate=validate.Length(min=1)),
             "rules": fields.Str(validate=validate.Length(min=1)),
+            "offset": fields.Integer(missing=0, validate=validate.Range(min=0)),
+            "limit": fields.Integer(missing=0, validate=validate.Range(min=1)),
             "formats": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
@@ -158,6 +160,8 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             handles = apply_filter(
                 self.db_handle, args, self.gramps_class_name, handles
             )
+        if args["limit"] > 0:
+            handles = handles[args["offset"] : args["offset"] + args["limit"]]
 
         query_method = self.db_handle.method(
             "get_%s_from_handle", self.gramps_class_name
