@@ -21,7 +21,7 @@
 """Base for Gramps object API resources."""
 
 from abc import abstractmethod
-from typing import Dict
+from typing import Dict, List
 
 from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
@@ -34,6 +34,7 @@ from ..util import get_dbstate, get_locale_for_language
 from . import ProtectedResource, Resource
 from .emit import GrampsJSONEncoder
 from .filters import apply_filter
+from .sort import sort_objects
 from .util import get_backlinks, get_extended_attributes
 
 
@@ -57,6 +58,12 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
         if "extend" in args:
             obj.extended = get_extended_attributes(self.db_handle, obj, args)
         return obj
+
+    def sort_objects(self, objs: List[str], args: Dict, locale) -> List:
+        """Sort the list of objects as needed."""
+        return sort_objects(
+            self.db_handle, self.gramps_class_name, objs, args, locale=locale
+        )
 
     @property
     def db_handle(self) -> DbReadBase:
@@ -132,6 +139,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "filter": fields.Str(validate=validate.Length(min=1)),
             "rules": fields.Str(validate=validate.Length(min=1)),
+            "sort": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "offset": fields.Integer(missing=0, validate=validate.Range(min=0)),
             "limit": fields.Integer(missing=0, validate=validate.Range(min=1)),
             "formats": fields.DelimitedList(
@@ -160,6 +168,10 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             handles = apply_filter(
                 self.db_handle, args, self.gramps_class_name, handles
             )
+
+        if "sort" in args:
+            handles = self.sort_objects(handles, args["sort"], locale=locale)
+
         if args["limit"] > 0:
             handles = handles[args["offset"] : args["offset"] + args["limit"]]
 
