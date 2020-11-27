@@ -63,6 +63,18 @@ class TestSearch(unittest.TestCase):
             [("note", "b39fe2e143d1e599450"), ("source", "b39fe3f390e30bd2b99")],
         )
 
+    def test_search_endpoint_2(self):
+        result = self.client.get("/api/search/?q=microfilm")
+        # NB, JSON turns the tuples into lists, obviously!
+        self.assertEqual(
+            result.json,
+            [["note", "b39fe2e143d1e599450"], ["source", "b39fe3f390e30bd2b99"]],
+        )
+
     def test_search_3(self):
         handles = self.search.search("LoremIpsumDolorSitAmet")
         self.assertEqual(handles, [])
+
+    def test_search_endpoint_3(self):
+        result = self.client.get("/api/search/?q=LoremIpsumDolorSitAmet")
+        self.assertEqual(result.json, [])

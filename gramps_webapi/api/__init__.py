@@ -50,6 +50,7 @@ from .resources.places import PlaceResource, PlacesResource
 from .resources.relations import RelationResource, RelationsResource
 from .resources.reports import ReportFileResource, ReportResource, ReportsResource
 from .resources.repositories import RepositoriesResource, RepositoryResource
+from .resources.search import SearchResource
 from .resources.sources import SourceResource, SourcesResource
 from .resources.tags import TagResource, TagsResource
 from .resources.token import TokenRefreshResource, TokenResource
@@ -137,14 +138,10 @@ register_endpt(TranslationResource, "/translations/<string:language>", "translat
 register_endpt(TranslationsResource, "/translations/", "translations")
 # Relations
 register_endpt(
-    RelationResource,
-    "/relations/<string:handle1>/<string:handle2>",
-    "relation",
+    RelationResource, "/relations/<string:handle1>/<string:handle2>", "relation",
 )
 register_endpt(
-    RelationsResource,
-    "/relations/<string:handle1>/<string:handle2>/all",
-    "relations",
+    RelationsResource, "/relations/<string:handle1>/<string:handle2>/all", "relations",
 )
 # Reports
 register_endpt(ReportFileResource, "/reports/<string:report_id>/file", "report-file")
@@ -160,6 +157,8 @@ register_endpt(ExportersResource, "/exporters/", "exporters")
 register_endpt(MetadataResource, "/metadata/", "metadata")
 # User
 register_endpt(UserChangePasswordResource, "/user/password/change", "change_password")
+# Search
+register_endpt(SearchResource, "/search/", "search")
 
 # Media files
 @api_blueprint.route("/media/<string:handle>/file")
