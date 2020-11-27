@@ -29,6 +29,7 @@ from flask_jwt_extended import JWTManager
 
 from .api import api_blueprint
 from .api.resources.token import limiter
+from .api.search import SearchIndexer
 from .auth import SQLAuth
 from .config import DefaultConfig, DefaultConfigJWT
 from .const import API_PREFIX, ENV_CONFIG_FILE
@@ -65,6 +66,18 @@ def create_app(db_manager=None):
         if not app.config.get("USER_DB_URI"):
             raise ValueError("USER_DB_URI must be specified")
         app.config["AUTH_PROVIDER"] = SQLAuth(db_uri=app.config["USER_DB_URI"])
+
+    # build search index
+    app.config["SEARCH_INDEXER"] = SearchIndexer(app.config["SEARCH_INDEX_DIR"])
+    app.logger.info("Building search index ...")
+    db = app.config["DB_MANAGER"].get_db().db
+    try:
+        app.config["SEARCH_INDEXER"].reindex_full(db)
+    except:
+        app.logger.exception()
+    finally:
+        db.close()
+    app.logger.info("Done building search index.")
 
     # enable CORS for /api/... resources
     if app.config.get("CORS_ORIGINS"):
