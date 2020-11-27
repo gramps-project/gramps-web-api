@@ -42,7 +42,7 @@ from ..util import get_buffer_for_file, get_dbstate
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
-_EXTENSION_MAP = {".gvpdf": ".pdf", ".gspdf": ".pdf"}
+_EXTENSION_MAP = {".gvpdf": ".pdf", ".gspdf": ".pdf", ".dot": ".gv"}
 
 
 def get_report_profile(
@@ -171,42 +171,27 @@ def validate_options(report: Dict, report_options: Dict, allow_file: bool = Fals
 class ReportsResource(ProtectedResource, GrampsJSONEncoder):
     """Reports resource."""
 
-    @property
-    def db_handle(self) -> DbReadBase:
-        """Get the database instance."""
-        return get_dbstate().db
-
     @use_args({}, location="query")
     def get(self, args: Dict) -> Response:
         """Get all available report attributes."""
-        reports = get_reports(self.db_handle)
+        reports = get_reports(get_dbstate().db)
         return self.response(200, reports)
 
 
 class ReportResource(ProtectedResource, GrampsJSONEncoder):
     """Report resource."""
 
-    @property
-    def db_handle(self) -> DbReadBase:
-        """Get the database instance."""
-        return get_dbstate().db
-
     @use_args({}, location="query")
     def get(self, args: Dict, report_id: str) -> Response:
         """Get specific report attributes."""
-        reports = get_reports(self.db_handle, report_id=report_id)
+        reports = get_reports(get_dbstate().db, report_id=report_id)
         if reports == []:
             abort(404)
         return self.response(200, reports[0])
 
 
-class ReportRunnerResource(ProtectedResource, GrampsJSONEncoder):
-    """Report runner resource."""
-
-    @property
-    def db_handle(self) -> DbReadBase:
-        """Get the database instance."""
-        return get_dbstate().db
+class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
+    """Report file resource."""
 
     @use_args(
         {
@@ -225,6 +210,6 @@ class ReportRunnerResource(ProtectedResource, GrampsJSONEncoder):
         if "of" in report_options:
             abort(422)
 
-        file_name, file_type = run_report(self.db_handle, report_id, report_options)
+        file_name, file_type = run_report(get_dbstate().db, report_id, report_options)
         buffer = get_buffer_for_file(file_name)
         return send_file(buffer, mimetype=types_map[file_type])
