@@ -33,6 +33,11 @@ from .resources.base import Resource
 from .resources.bookmarks import BookmarkResource, BookmarksResource
 from .resources.citations import CitationResource, CitationsResource
 from .resources.events import EventResource, EventsResource
+from .resources.exporters import (
+    ExporterFileResource,
+    ExporterResource,
+    ExportersResource,
+)
 from .resources.families import FamiliesResource, FamilyResource
 from .resources.filters import FilterResource, FiltersResource, FiltersResources
 from .resources.media import MediaObjectResource, MediaObjectsResource
@@ -137,6 +142,12 @@ register_endpt(
     "/relations/<string:handle1>/<string:handle2>/all",
     "relations",
 )
+# Exporters
+register_endpt(
+    ExporterFileResource, "/exporters/<string:extension>/file", "exporter-file"
+)
+register_endpt(ExporterResource, "/exporters/<string:extension>", "exporter")
+register_endpt(ExportersResource, "/exporters/", "exporters")
 # Metadata
 register_endpt(MetadataResource, "/metadata/", "metadata")
 # User

@@ -20,9 +20,14 @@
 
 """Utility functions."""
 
+import io
+import os
+from typing import BinaryIO
 
-from flask import current_app, g
+from flask import abort, current_app, g
+from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.utils.file import expand_media_path
+from gramps.gen.utils.grampslocale import GrampsLocale
 
 from ..dbmanager import DbState
 
@@ -42,3 +47,24 @@ def get_media_base_dir():
     """Get the media base directory set in the database."""
     db = get_dbstate().db
     return expand_media_path(db.get_mediapath(), db)
+
+
+def get_locale_for_language(language_code: str):
+    """Get GrampsLocale set to specified language."""
+    catalog = GRAMPS_LOCALE.get_language_dict()
+    for language in catalog:
+        if catalog[language] == language_code:
+            return GrampsLocale(lang=language_code)
+    return None
+
+
+def get_buffer_for_file(filename: str, delete=True) -> BinaryIO:
+    """Return binary buffer with file contents."""
+    try:
+        with open(filename, "rb") as file_handle:
+            buffer = io.BytesIO(file_handle.read())
+    except FileNotFoundError:
+        abort(500)
+    if delete:
+        os.remove(filename)
+    return buffer

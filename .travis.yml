@@ -1,12 +1,23 @@
 language: python
-python:
-  - "3.5"
-  - "3.6"
-  - "3.7"
-  - "3.8"
+matrix:
+  include:
+  - name: "Python 3.5 on Xenial"
+    python: 3.5
+    dist: xenial
+  - name: "Python 3.6 on Bionic"
+    python: 3.6
+    dist: bionic
+  - name: "Python 3.7 on Bionic"
+    python: 3.7
+    dist: bionic
+  - name: "Python 3.8 on Bionic"
+    python: 3.8
+    dist: bionic      
+before_install:
+  - sudo apt-get -y install appstream pkg-config libcairo2-dev gir1.2-gtk-3.0 libgirepository1.0-dev
 install:
+  - pip install pycairo PyGObject pytest PyYAML jsonschema
   - python -m pip install git+https://github.com/gramps-project/gramps@master#egg=gramps
-  - pip install pytest PyYAML jsonschema
   - pip install .
 script:
   - pytest
