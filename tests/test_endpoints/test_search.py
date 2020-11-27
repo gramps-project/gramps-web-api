@@ -41,8 +41,8 @@ class TestSearch(unittest.TestCase):
     def test_search_1(self):
         handles = self.search.search("Abigail")
         self.assertEqual(
-            handles,
-            [
+            set(handles),
+            {
                 ("person", "1QTJQCP5QMT2X7YJDK"),
                 ("person", "APWKQCI6YXAXBLC33I"),
                 ("person", "H4UJQCQI05USCJ93RO"),
@@ -53,7 +53,7 @@ class TestSearch(unittest.TestCase):
                 ("event", "a5af0ec600f56496ec9"),
                 ("event", "a5af0ec602419320d6a"),
                 ("event", "a5af0ec60365264cf35"),
-            ],
+            },
         )
 
     def test_search_2(self):
