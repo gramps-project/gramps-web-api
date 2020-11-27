@@ -48,17 +48,16 @@ class SearchIndexer:
         self.index_dir.mkdir(exist_ok=True)
         self.query_parser = QueryParser("text", schema=self.SCHEMA)
 
-    @property
-    def index(self):
+    def index(self, overwrite=False):
         """Return the index; create if doesn't exist."""
         index_dir = str(self.index_dir)
-        if not index.exists_in(index_dir):
+        if overwrite or not index.exists_in(index_dir):
             return index.create_in(index_dir, self.SCHEMA)
         return index.open_dir(index_dir)
 
     def reindex_full(self, db_handle: DbReadBase):
         """Reindex the whole database."""
-        with self.index.writer() as writer:
+        with self.index(overwrite=True).writer() as writer:
             for class_name, handle, obj_string in iter_obj_strings(db_handle):
                 writer.add_document(
                     class_name=class_name.lower(), handle=handle, text=obj_string
@@ -68,7 +67,7 @@ class SearchIndexer:
         """Search the index."""
         handles = []
         parsed_query = self.query_parser.parse(query)
-        with self.index.searcher() as searcher:
+        with self.index().searcher() as searcher:
             results = searcher.search(parsed_query)
             handles = [(res["class_name"], res["handle"]) for res in results]
         # discard duplicate tuples but keep order

@@ -28,6 +28,16 @@ class TestSearch(unittest.TestCase):
         """Remove the temp directory."""
         shutil.rmtree(cls.index_dir)
 
+    def test_reindex(self):
+        # test if reindexing again leads to doubled results
+        handles = self.search.search("I0044")
+        self.assertEqual(handles, [("person", "GNUJQCL9MD64AM56OH")])
+        db = self.__class__.dbmgr.get_db().db
+        self.__class__.search.reindex_full(db)
+        db.close()
+        handles = self.search.search("I0044")
+        self.assertEqual(handles, [("person", "GNUJQCL9MD64AM56OH")])
+
     def test_search_1(self):
         handles = self.search.search("Abigail")
         self.assertEqual(
