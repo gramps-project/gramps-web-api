@@ -10,10 +10,16 @@ from . import ProtectedResource
 class SearchResource(ProtectedResource):
     """Fulltext search resource."""
 
-    @use_args({"q": fields.Str(required=True)}, location="query")
+    @use_args(
+        {
+            "query": fields.Str(required=True),
+            "page": fields.Int(missing=1, required=False),
+            "pagesize": fields.Int(missing=10, required=False),
+        },
+        location="query",
+    )
     def get(self, args):
         """Get search result."""
-        if not args["q"]:
-            abort(400)
-        result = current_app.config["SEARCH_INDEXER"].search(args["q"])
+        searcher = current_app.config["SEARCH_INDEXER"]
+        result = searcher.search(args["query"], args["page"], args["pagesize"])
         return jsonify(result)

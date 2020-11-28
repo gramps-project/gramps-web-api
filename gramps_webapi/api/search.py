@@ -8,7 +8,7 @@ from gramps.gen.db.base import DbReadBase
 from whoosh import index
 from whoosh.fields import ID, TEXT, Schema
 from whoosh.qparser import QueryParser
-from whoosh.searching import Hit
+from whoosh.searching import Hit, ResultsPage
 
 from ..const import PRIMARY_GRAMPS_OBJECTS
 from ..types import FilenameOrPath, Handle
@@ -79,9 +79,26 @@ class SearchIndexer:
             "score": hit.score,
         }
 
-    def search(self, query: str, extend: bool = False):
+    @staticmethod
+    def result_info(results: ResultsPage) -> Dict[str, Any]:
+        """Format search result info."""
+        return {
+            "runtime": results.results.runtime,
+            "total": results.total,
+            "pagecount": results.pagecount,
+            "pagenum": results.pagenum,
+            "pagesize": results.pagelen,
+            # whoosh returns an offset of -pagelen if there are no hits.
+            # lets return 0 instead.
+            "offset": max(0, results.offset),
+        }
+
+    def search(self, query: str, page: int, pagesize: int, extend: bool = False):
         """Search the index."""
         parsed_query = self.query_parser.parse(query)
         with self.index().searcher() as searcher:
-            results = searcher.search(parsed_query)
-            return [self.format_hit(hit) for hit in results]
+            results = searcher.search_page(parsed_query, page, pagesize)
+            return {
+                "info": self.result_info(results),
+                "hits": [self.format_hit(hit) for hit in results],
+            }
