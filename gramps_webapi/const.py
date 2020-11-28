@@ -20,7 +20,10 @@
 
 """Constants for the web API."""
 
+import shutil
+
 import gramps.gen.lib as lib
+from gramps.gen.plug import CATEGORY_DRAW, CATEGORY_GRAPHVIZ, CATEGORY_TEXT
 from pkg_resources import resource_filename
 
 from ._version import __version__ as VERSION
@@ -78,3 +81,22 @@ GRAMPS_NAMESPACES = {
 # MIME types
 MIME_PDF = "application/pdf"
 MIME_JPEG = "image/jpeg"
+
+# These determine the supported report categories and default formats
+# depending on whether needed dependencies are available.
+try:
+    import gi
+
+    REPORT_FILTERS = ["dot", "gvpdf"]
+    REPORT_DEFAULTS = {
+        CATEGORY_TEXT: "pdf",
+        CATEGORY_DRAW: "pdf",
+    }
+    if shutil.which("dot") is not None:
+        REPORT_FILTERS = []
+        REPORT_DEFAULTS[CATEGORY_GRAPHVIZ] = "dot"
+except ImportError:
+    REPORT_FILTERS = ["pdf", "ps", "gspdf", "gvpdf"]
+    REPORT_DEFAULTS = {
+        CATEGORY_TEXT: "rtf",
+    }
