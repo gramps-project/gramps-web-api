@@ -39,22 +39,11 @@ class TestSearch(unittest.TestCase):
         self.assertEqual(len(result["hits"]), 1)
 
     def test_search_1(self):
-        result = self.search.search("Abigail", page=1, pagesize=10)
+        result = self.search.search("Abigail", page=1, pagesize=2)
         hits = result["hits"]
         self.assertEqual(
             {(hit["object_type"], hit["handle"]) for hit in hits},
-            {
-                ("person", "1QTJQCP5QMT2X7YJDK"),
-                ("person", "APWKQCI6YXAXBLC33I"),
-                ("person", "H4UJQCQI05USCJ93RO"),
-                ("event", "a5af0ec3be8255006e4"),
-                ("event", "a5af0ec5165620023c2"),
-                ("event", "a5af0ec51752bb3933a"),
-                ("event", "a5af0ec51864cfd234f"),
-                ("event", "a5af0ec600f56496ec9"),
-                ("event", "a5af0ec602419320d6a"),
-                ("event", "a5af0ec60365264cf35"),
-            },
+            {("person", "1QTJQCP5QMT2X7YJDK"), ("person", "APWKQCI6YXAXBLC33I"),},
         )
 
     def test_search_endpoint_1(self):
