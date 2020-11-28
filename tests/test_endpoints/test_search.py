@@ -100,3 +100,10 @@ class TestSearch(unittest.TestCase):
         self.assertEqual(result.json["info"]["pagecount"], 0)
         self.assertEqual(result.json["info"]["pagenum"], 0)
         self.assertEqual(result.json["info"]["offset"], 0)
+
+    def test_object(self):
+        result = self.client.get("/api/search/?query=I0044")
+        self.assertEqual(len(result.json["hits"]), 1)
+        hit = result.json["hits"][0]
+        self.assertIn("object", hit)
+        self.assertEqual(hit["object"]["gramps_id"], "I0044")
