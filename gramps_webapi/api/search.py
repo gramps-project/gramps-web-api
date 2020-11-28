@@ -1,5 +1,6 @@
 """Full-text search utilities."""
 
+from collections import OrderedDict
 from pathlib import Path
 from typing import Generator, Tuple
 
@@ -19,7 +20,7 @@ def object_to_string(obj):
         if hasattr(child_obj, "get_text_data_list"):
             strings += child_obj.get_text_data_list()
     # discard duplicate strings but keep order
-    strings = dict.fromkeys(strings)
+    strings = OrderedDict.fromkeys(strings)
     return " ".join(strings)
 
 
@@ -73,5 +74,5 @@ class SearchIndexer:
             results = searcher.search(parsed_query)
             handles = [(res["class_name"], res["handle"]) for res in results]
         # discard duplicate tuples but keep order
-        handles = list(dict.fromkeys(handles))
+        handles = list(OrderedDict.fromkeys(handles))
         return handles
