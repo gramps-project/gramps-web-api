@@ -24,10 +24,11 @@
 from typing import Dict
 
 from flask import Response, abort
-from gramps.gen.const import GRAMPS_LOCALE
+from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Event, Span
+from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 from webargs.flaskparser import use_args
 
@@ -52,13 +53,15 @@ class EventResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Event"
 
-    def object_extend(self, obj: Event, args: Dict) -> Event:
+    def object_extend(
+        self, obj: Event, args: Dict, locale: GrampsLocale = glocale
+    ) -> Event:
         """Extend event attributes as needed."""
         db_handle = self.db_handle
         if "profile" in args:
             if "families" in args["profile"] or "events" in args["profile"]:
                 abort(422)
-            obj.profile = get_event_profile_for_object(db_handle, obj)
+            obj.profile = get_event_profile_for_object(db_handle, obj, locale=locale)
         if "extend" in args:
             obj.extended = get_extended_attributes(db_handle, obj, args)
             if "all" in args["extend"] or "place" in args["extend"]:
@@ -100,13 +103,7 @@ class EventSpanResource(ProtectedResource, GrampsJSONEncoder):
         except HandleError:
             abort(404)
 
-        if args["locale"] is not None:
-            locale = get_locale_for_language(args["locale"])
-            if locale is None:
-                abort(400)
-        else:
-            locale = GRAMPS_LOCALE
-
+        locale = get_locale_for_language(args["locale"], default=True)
         span = (
             Span(event1.date, event2.date)
             .format(precision=args["precision"], as_age=args["as_age"], dlocale=locale)
