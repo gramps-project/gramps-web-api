@@ -2,12 +2,13 @@
 
 from collections import OrderedDict
 from pathlib import Path
-from typing import Generator, Tuple
+from typing import Any, Dict, Generator, Tuple
 
 from gramps.gen.db.base import DbReadBase
 from whoosh import index
 from whoosh.fields import ID, TEXT, Schema
 from whoosh.qparser import QueryParser
+from whoosh.searching import Hit
 
 from ..const import PRIMARY_GRAMPS_OBJECTS
 from ..types import FilenameOrPath, Handle
@@ -42,7 +43,9 @@ class SearchIndexer:
     """Full-text search indexer."""
 
     SCHEMA = Schema(
-        class_name=ID(stored=True), handle=ID(stored=True), text=TEXT(stored=True)
+        class_name=ID(stored=True),
+        handle=ID(stored=True, unique=True),
+        text=TEXT(stored=True),
     )
 
     def __init__(self, index_dir=FilenameOrPath):
@@ -66,13 +69,14 @@ class SearchIndexer:
                     class_name=class_name.lower(), handle=handle, text=obj_string
                 )
 
+    @staticmethod
+    def format_hit(hit: Hit):
+        """Format a search hit."""
+        return (hit["class_name"], hit["handle"])
+
     def search(self, query: str, extend: bool = False):
         """Search the index."""
-        handles = []
         parsed_query = self.query_parser.parse(query)
         with self.index().searcher() as searcher:
             results = searcher.search(parsed_query)
-            handles = [(res["class_name"], res["handle"]) for res in results]
-        # discard duplicate tuples but keep order
-        handles = list(OrderedDict.fromkeys(handles))
-        return handles
+            return [self.format_hit(hit) for hit in results]
