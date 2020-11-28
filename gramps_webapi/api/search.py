@@ -40,7 +40,9 @@ def iter_obj_strings(
 class SearchIndexer:
     """Full-text search indexer."""
 
-    SCHEMA = Schema(class_name=ID(stored=True), handle=ID(stored=True), text=TEXT)
+    SCHEMA = Schema(
+        class_name=ID(stored=True), handle=ID(stored=True), text=TEXT(stored=True)
+    )
 
     def __init__(self, index_dir=FilenameOrPath):
         """Initialize given an index dir path."""
