@@ -70,9 +70,14 @@ class SearchIndexer:
                 )
 
     @staticmethod
-    def format_hit(hit: Hit):
+    def format_hit(hit: Hit) -> Dict[str, Any]:
         """Format a search hit."""
-        return (hit["class_name"], hit["handle"])
+        return {
+            "handle": hit["handle"],
+            "object_type": hit["class_name"],
+            "rank": hit.rank,
+            "score": hit.score,
+        }
 
     def search(self, query: str, extend: bool = False):
         """Search the index."""

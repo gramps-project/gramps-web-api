@@ -30,18 +30,18 @@ class TestSearch(unittest.TestCase):
 
     def test_reindex(self):
         # test if reindexing again leads to doubled results
-        handles = self.search.search("I0044")
-        self.assertEqual(handles, [("person", "GNUJQCL9MD64AM56OH")])
+        hits = self.search.search("I0044")
+        self.assertEqual(len(hits), 1)
         db = self.__class__.dbmgr.get_db().db
         self.__class__.search.reindex_full(db)
         db.close()
-        handles = self.search.search("I0044")
-        self.assertEqual(handles, [("person", "GNUJQCL9MD64AM56OH")])
+        hits = self.search.search("I0044")
+        self.assertEqual(len(hits), 1)
 
     def test_search_1(self):
-        handles = self.search.search("Abigail")
+        hits = self.search.search("Abigail")
         self.assertEqual(
-            set(handles),
+            set([(hit["object_type"], hit["handle"]) for hit in hits]),
             {
                 ("person", "1QTJQCP5QMT2X7YJDK"),
                 ("person", "APWKQCI6YXAXBLC33I"),
@@ -56,24 +56,16 @@ class TestSearch(unittest.TestCase):
             },
         )
 
-    def test_search_2(self):
-        handles = self.search.search("microfilm")
-        self.assertEqual(
-            handles,
-            [("note", "b39fe2e143d1e599450"), ("source", "b39fe3f390e30bd2b99")],
-        )
-
     def test_search_endpoint_2(self):
         result = self.client.get("/api/search/?q=microfilm")
-        # NB, JSON turns the tuples into lists, obviously!
+        hits = result.json
         self.assertEqual(
-            result.json,
-            [["note", "b39fe2e143d1e599450"], ["source", "b39fe3f390e30bd2b99"]],
+            [hit["handle"] for hit in hits],
+            ["b39fe2e143d1e599450", "b39fe3f390e30bd2b99"],
         )
-
-    def test_search_3(self):
-        handles = self.search.search("LoremIpsumDolorSitAmet")
-        self.assertEqual(handles, [])
+        self.assertEqual(hits[0]["object_type"], "note")
+        self.assertEqual(hits[0]["rank"], 0)
+        self.assertIsInstance(hits[0]["score"], float)
 
     def test_search_endpoint_3(self):
         result = self.client.get("/api/search/?q=LoremIpsumDolorSitAmet")
