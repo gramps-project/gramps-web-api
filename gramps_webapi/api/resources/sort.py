@@ -26,6 +26,7 @@ from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.display.name import displayer as _nd
 from gramps.gen.display.place import displayer as _pd
 from gramps.gen.lib import Date
+from gramps.gen.soundex import soundex
 from gramps.gen.utils.db import get_birth_or_fallback, get_death_or_fallback
 
 
@@ -80,8 +81,12 @@ class Sort:
     def by_person_sorted_name_key(self, handle):
         """Compare by displayed names."""
         obj = self.query_method(handle)
-        name = _nd.sorted(obj)
-        return self.locale.sort_key(name)
+        return self.locale.sort_key(_nd.sorted(obj))
+
+    def by_person_soundex_key(self, handle):
+        """Compare by soundex."""
+        obj = self.query_method(handle)
+        return soundex(obj.get_primary_name().get_surname())
 
     def by_person_birthdate_key(self, handle):
         """Compare by birth date, if equal sorts by name."""
@@ -112,13 +117,23 @@ class Sort:
         """Compare by family surname, if equal uses given and suffix."""
         obj = self.query_method(handle)
         if obj.father_handle is not None:
-            name = self.database.get_person_from_handle(obj.father_handle)
+            person = self.database.get_person_from_handle(obj.father_handle)
         elif obj.mother_handle is not None:
-            name = self.database.get_person_from_handle(obj.mother_handle)
+            person = self.database.get_person_from_handle(obj.mother_handle)
+        name = person.get_primary_name()
         fsn = name.get_surname()
         ffn = name.get_first_name()
         fsu = name.get_suffix()
         return self.locale.sort_key(fsn + ffn + fsu)
+
+    def by_family_soundex_key(self, handle):
+        """Compare by family soundex."""
+        obj = self.query_method(handle)
+        if obj.father_handle is not None:
+            person = self.database.get_person_from_handle(obj.father_handle)
+        elif obj.mother_handle is not None:
+            person = self.database.get_person_from_handle(obj.mother_handle)
+        return soundex(person.get_primary_name().get_surname())
 
     def by_family_type_key(self, handle):
         """Compare by relationship type."""
@@ -229,6 +244,7 @@ def sort_objects(db_handle, gramps_class_name, handles, args, locale=glocale):
             {
                 "surname": sort.by_person_surname_key,
                 "name": sort.by_person_sorted_name_key,
+                "soundex": sort.by_person_soundex_key,
                 "birth": sort.by_person_birthdate_key,
                 "death": sort.by_person_deathdate_key,
                 "gender": sort.by_person_gender_key,
@@ -236,7 +252,11 @@ def sort_objects(db_handle, gramps_class_name, handles, args, locale=glocale):
         )
     elif gramps_class_name == "Family":
         lookup.update(
-            {"name": sort.by_family_surname_key, "type": sort.by_family_type_key}
+            {
+                "name": sort.by_family_surname_key,
+                "type": sort.by_family_type_key,
+                "soundex": sort.by_family_soundex_key,
+            }
         )
     elif gramps_class_name == "Event":
         lookup.update(

@@ -35,7 +35,7 @@ from . import ProtectedResource, Resource
 from .emit import GrampsJSONEncoder
 from .filters import apply_filter
 from .sort import sort_objects
-from .util import get_backlinks, get_extended_attributes
+from .util import get_backlinks, get_extended_attributes, get_soundex
 
 
 class GrampsObjectResourceHelper(GrampsJSONEncoder):
@@ -50,6 +50,10 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
         """Get the full object with extended attributes and backlinks."""
         if args.get("backlinks"):
             obj.backlinks = get_backlinks(self.db_handle, obj.handle)
+        if args.get("soundex"):
+            if self.gramps_class_name not in ["Person", "Family"]:
+                abort(422)
+            obj.soundex = get_soundex(self.db_handle, obj, self.gramps_class_name)
         obj = self.object_extend(obj, args)
         return obj
 
@@ -106,6 +110,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
                 fields.Str(validate=validate.Length(min=1))
             ),
             "backlinks": fields.Boolean(missing=False),
+            "soundex": fields.Boolean(missing=False),
         },
         location="query",
     )
@@ -146,6 +151,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                 fields.Str(validate=validate.Length(min=1))
             ),
             "backlinks": fields.Boolean(missing=False),
+            "soundex": fields.Boolean(missing=False),
         },
         location="query",
     )

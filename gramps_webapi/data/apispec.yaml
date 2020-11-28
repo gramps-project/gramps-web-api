@@ -214,6 +214,7 @@ paths:
             gramps_id | The user assigned Gramps identifier for the person
             name | The sort name of the person
             private | Indicates whether the record is private or not
+            soundex | The soundex code for the surname of the person
             surname | The surname of the person, taking into consideration the given name and suffix for people who share the same surname
       - name: filter
         in: query
@@ -314,6 +315,12 @@ paths:
             primary_parent_family | The primary parent family record
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: soundex
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether to include the soundex code for the surname or not."
       - name: locale
         in: query
         required: false
@@ -459,6 +466,7 @@ paths:
             gramps_id | The user assigned Gramps identifier for the family
             private | Indicates whether the record is private or not
             name | The surname of the father or, if none present, the mother of the family taking into consideration the given name and suffix for families who share the same surname
+            soundex | The soundex code for the surname of the father or, if none present, the mother of the family
             type | The relationship type for the family
       - name: filter
         in: query
@@ -557,6 +565,12 @@ paths:
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: soundex
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether to include the soundex code for the surname or not."
       - name: locale
         in: query
         required: false
