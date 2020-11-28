@@ -30,6 +30,7 @@ from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Event, Family, Person, Place, Source, Span
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
+from gramps.gen.soundex import soundex
 from gramps.gen.utils.db import (
     get_birth_or_fallback,
     get_death_or_fallback,
@@ -362,3 +363,17 @@ def get_backlinks(db_handle: DbReadBase, handle: Handle) -> Dict[str, List[Handl
             backlinks[key] = []
         backlinks[key].append(target_handle)
     return backlinks
+
+
+def get_soundex(
+    db_handle: DbReadBase, obj: GrampsObject, gramps_class_name: str
+) -> str:
+    """Return soundex code."""
+    if gramps_class_name == "Family":
+        if obj.father_handle is not None:
+            person = db_handle.get_person_from_handle(obj.father_handle)
+        elif obj.mother_handle is not None:
+            person = db_handle.get_person_from_handle(obj.mother_handle)
+    else:
+        person = obj
+    return soundex(person.get_primary_name().get_surname())
