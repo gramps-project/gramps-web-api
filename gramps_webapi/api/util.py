@@ -22,7 +22,9 @@
 
 import io
 import os
-from typing import BinaryIO
+import smtplib
+from email.message import EmailMessage
+from typing import BinaryIO, Sequence
 
 from flask import abort, current_app, g
 from gramps.gen.const import GRAMPS_LOCALE
@@ -70,3 +72,14 @@ def get_buffer_for_file(filename: str, delete=True) -> BinaryIO:
     if delete:
         os.remove(filename)
     return buffer
+
+
+def send_email(subject: str, body: str, sender: str, recipients: Sequence[str]):
+    """Send an e-mail message."""
+    msg = EmailMessage()
+    msg.set_content(body)
+    msg["Subject"] = subject
+    msg["From"] = sender
+    msg["To"] = ", ".join(recipients)
+    with smtplib.SMTP("localhost") as smtp:
+        smtp.send_message(msg)

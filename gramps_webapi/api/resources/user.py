@@ -30,6 +30,7 @@ from webargs import fields
 from webargs.flaskparser import use_args
 
 from . import ProtectedResource, Resource
+from ..util import send_email
 
 
 limiter = Limiter(key_func=get_remote_address)
@@ -61,6 +62,12 @@ class UserChangePasswordResource(ProtectedResource):
 
 def handle_reset_token(username: str, email: str, token: str):
     """Handle the password reset token."""
+    send_email(
+        subject="Password reset",
+        body="{}, your token: {}".format(username, token),
+        sender="from@example.com",
+        recipients=[email],
+    )
 
 
 class UserTriggerResetPasswordResource(Resource):
@@ -78,6 +85,8 @@ class UserTriggerResetPasswordResource(Resource):
             # user does not exist!
             abort(404)
         email = details["email"]
+        if email is None:
+            abort(404)
         token = create_access_token(
             identity=args["username"],
             # the hash of the existing password is stored in the token in order
@@ -94,7 +103,7 @@ class UserResetPasswordResource(ProtectedResource):
     """Resource for resetting a user password."""
 
     @use_args(
-        {"new_password": fields.Str(required=True),}, location="json",
+        {"new_password": fields.Str(required=True)}, location="json",
     )
     def post(self, args):
         """Post new password."""

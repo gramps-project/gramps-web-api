@@ -20,6 +20,7 @@
 
 """Tests for the `gramps_webapi.api.resources.user` module."""
 
+import re
 import unittest
 from unittest.mock import patch
 
@@ -47,9 +48,13 @@ class TestUser(unittest.TestCase):
         self.client = self.app.test_client()
         sqlauth = self.app.config["AUTH_PROVIDER"]
         sqlauth.create_table()
-        sqlauth.add_user(name="user", password="123")
+        sqlauth.add_user(name="user", password="123", email="test@test.com")
+        self.assertTrue(self.app.testing)
+        self.ctx = self.app.test_request_context()
+        self.ctx.push()
 
     def tearDown(self):
+        self.ctx.pop()
         self.dbman.remove_database(self.name)
 
     def test_change_password_wrong_method(self):
@@ -118,18 +123,57 @@ class TestUser(unittest.TestCase):
 
     def test_reset_password_trigger_invalid_user(self):
         rv = self.client.post(
-            "/api/user/password/reset/trigger", json={"username": "doesn_exist"}
+            "/api/user/password/reset/trigger/", json={"username": "doesn_exist"}
         )
         assert rv.status_code == 404
 
     def test_reset_password_trigger_status(self):
-        rv = self.client.post(
-            "/api/user/password/reset/trigger", json={"username": "user"}
-        )
-        assert rv.status_code == 201
+        with patch("smtplib.SMTP") as mock_smtp:
+            rv = self.client.post(
+                "/api/user/password/reset/trigger/", json={"username": "user"}
+            )
+            assert rv.status_code == 201
 
-    def test_reset_password_trigger_token(self):
-        with self.app.test_request_context(
-            "/api/user/password/reset/trigger", json={"username": "user"}
-        ):
-            pass
+    def test_reset_password(self):
+        with patch("smtplib.SMTP") as mock_smtp:
+            rv = self.client.post(
+                "/api/user/password/reset/trigger/", json={"username": "user"}
+            )
+            context = mock_smtp.return_value.__enter__.return_value
+            context.send_message.assert_called()
+            name, args, kwargs = context.method_calls.pop(0)
+            msg = args[0]
+            # extract the token from the message body
+            body = msg.get_body().as_string().replace("=\n", "")
+            matches = re.findall(r".*token: ([^\s]+).*", body)
+            self.assertEqual(len(matches), 1)
+            token = matches[0]
+        # try without token!
+        rv = self.client.post(
+            "/api/user/password/reset/", json={"new_password": "789"},
+        )
+        self.assertEqual(rv.status_code, 401)
+        # now that should work
+        rv = self.client.post(
+            "/api/user/password/reset/",
+            headers={"Authorization": "Bearer {}".format(token)},
+            json={"new_password": "789"},
+        )
+        self.assertEqual(rv.status_code, 201)
+        # try again with the same token!
+        rv = self.client.post(
+            "/api/user/password/reset/",
+            headers={"Authorization": "Bearer {}".format(token)},
+            json={"new_password": "789"},
+        )
+        self.assertEqual(rv.status_code, 409)
+        # old password doesn't work anymore
+        rv = self.client.post(
+            "/api/login/", json={"username": "user", "password": "123"}
+        )
+        assert rv.status_code == 403
+        # new password works!
+        rv = self.client.post(
+            "/api/login/", json={"username": "user", "password": "789"}
+        )
+        assert rv.status_code == 200
