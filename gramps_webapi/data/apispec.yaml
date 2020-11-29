@@ -62,14 +62,14 @@ tags:
   description: Access to translation service.
 - name: relations
   description: Access to relationship calculator.
+- name: search
+  description: Access to search engine.
 - name: reports
   description: Access to report generating service.
 - name: exporters
   description: Access to family tree exporters.
 - name: metadata
   description: Access to tree and application metadata.
-- name: search
-  description: Search for objects
 
 ##############################################################################
 # Endpoint definitions
@@ -187,17 +187,18 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a person, usually but not guaranteed to be unique."
-      - name: offset
+      - name: page
         in: query
         required: false
         type: integer
         default: 0
-        description: "The given number of items to skip over before starting to return results. By default none are skipped."
-      - name: limit
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
         in: query
         required: false
         type: integer
-        description: "The maximum number of items to be returned. By default all are returned."
+        default: 20
+        description: "The number of items that constitute a page."
       - name: sort
         in: query
         required: false
@@ -270,6 +271,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       - name: profile
         in: query
         required: false
@@ -287,6 +293,12 @@ paths:
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns event list with name, date and location
             families | Returns family information with parents, children, and key relationship between parents
+      - name: soundex
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether to include the soundex code for the surname or not."
       - name: backlinks
         in: query
         required: false
@@ -315,17 +327,6 @@ paths:
             primary_parent_family | The primary parent family record
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
-      - name: soundex
-        in: query
-        required: false
-        type: boolean
-        default: false
-        description: "Indicates whether to include the soundex code for the surname or not."
-      - name: locale
-        in: query
-        required: false
-        type: string
-        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -442,17 +443,18 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a family, usually but not guaranteed to be unique."
-      - name: offset
+      - name: page
         in: query
         required: false
         type: integer
         default: 0
-        description: "The given number of items to skip over before starting to return results. By default none are skipped."
-      - name: limit
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
         in: query
         required: false
         type: integer
-        description: "The maximum number of items to be returned. By default all are returned."
+        default: 20
+        description: "The number of items that constitute a page."
       - name: sort
         in: query
         required: false
@@ -690,17 +692,18 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for an event, usually but not guaranteed to be unique."
-      - name: offset
+      - name: page
         in: query
         required: false
         type: integer
         default: 0
-        description: "The given number of items to skip over before starting to return results. By default none are skipped."
-      - name: limit
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
         in: query
         required: false
         type: integer
-        description: "The maximum number of items to be returned. By default all are returned."
+        default: 20
+        description: "The number of items that constitute a page."
       - name: sort
         in: query
         required: false
@@ -976,17 +979,18 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a place, usually but not guaranteed to be unique."
-      - name: offset
+      - name: page
         in: query
         required: false
         type: integer
         default: 0
-        description: "The given number of items to skip over before starting to return results. By default none are skipped."
-      - name: limit
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
         in: query
         required: false
         type: integer
-        description: "The maximum number of items to be returned. By default all are returned."
+        default: 20
+        description: "The number of items that constitute a page."
       - name: sort
         in: query
         required: false
@@ -1179,17 +1183,18 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a citation, usually but not guaranteed to be unique."
-      - name: offset
+      - name: page
         in: query
         required: false
         type: integer
         default: 0
-        description: "The given number of items to skip over before starting to return results. By default none are skipped."
-      - name: limit
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
         in: query
         required: false
         type: integer
-        description: "The maximum number of items to be returned. By default all are returned."
+        default: 20
+        description: "The number of items that constitute a page."
       - name: sort
         in: query
         required: false
@@ -1380,17 +1385,18 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a source, usually but not guaranteed to be unique."
-      - name: offset
+      - name: page
         in: query
         required: false
         type: integer
         default: 0
-        description: "The given number of items to skip over before starting to return results. By default none are skipped."
-      - name: limit
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
         in: query
         required: false
         type: integer
-        description: "The maximum number of items to be returned. By default all are returned."
+        default: 20
+        description: "The number of items that constitute a page."
       - name: sort
         in: query
         required: false
@@ -1583,12 +1589,18 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a repository, usually but not guaranteed to be unique."
-      - name: offset
+      - name: page
         in: query
         required: false
         type: integer
         default: 0
-        description: "The given number of items to skip over before starting to return results. By default none are skipped."
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "The number of items that constitute a page."
       - name: sort
         in: query
         required: false
@@ -1603,11 +1615,6 @@ paths:
             name | The name of the repository
             private | Indicates whether the record is private or not
             type | The type of repository
-      - name: limit
-        in: query
-        required: false
-        type: integer
-        description: "The maximum number of items to be returned. By default all are returned."
       - name: filter
         in: query
         required: false
@@ -1780,17 +1787,18 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a media item, usually but not guaranteed to be unique."
-      - name: offset
+      - name: page
         in: query
         required: false
         type: integer
         default: 0
-        description: "The given number of items to skip over before starting to return results. By default none are skipped."
-      - name: limit
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
         in: query
         required: false
         type: integer
-        description: "The maximum number of items to be returned. By default all are returned."
+        default: 20
+        description: "The number of items that constitute a page."
       - name: sort
         in: query
         required: false
@@ -2149,17 +2157,18 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a note, usually but not guaranteed to be unique."
-      - name: offset
+      - name: page
         in: query
         required: false
         type: integer
         default: 0
-        description: "The given number of items to skip over before starting to return results. By default none are skipped."
-      - name: limit
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
         in: query
         required: false
         type: integer
-        description: "The maximum number of items to be returned. By default all are returned."
+        default: 20
+        description: "The number of items that constitute a page."
       - name: sort
         in: query
         required: false
@@ -2357,17 +2366,18 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: offset
+      - name: page
         in: query
         required: false
         type: integer
         default: 0
-        description: "The given number of items to skip over before starting to return results. By default none are skipped."
-      - name: limit
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
         in: query
         required: false
         type: integer
-        description: "The maximum number of items to be returned. By default all are returned."
+        default: 20
+        description: "The number of items that constitute a page."
       - name: sort
         in: query
         required: false
@@ -3081,6 +3091,46 @@ paths:
           description: "Unauthorized: Missing authorization header."
 
 ##############################################################################
+# Endpoint - Search
+##############################################################################
+
+  /search:
+    get:
+      tags:
+      - search
+      summary: "Perform a full-text search on multiple objects."
+      operationId: getSearch
+      security:
+        - Bearer: []
+      parameters:
+      - name: query
+        in: query
+        required: true
+        type: string
+        description: "The search string."
+      - name: page
+        in: query
+        required: false
+        type: integer
+        default: 1
+        description: "The page number representing the subset of search results to be returned."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 10
+        description: "The number of search results that constitute a page."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/SearchResults"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity"
+
+##############################################################################
 # Endpoint - Reports
 ##############################################################################
 
@@ -3392,48 +3442,6 @@ paths:
             $ref: "#/definitions/Metadata"
         401:
           description: "Unauthorized: Missing authorization header."
-
-
-##############################################################################
-# Endpoint - Search
-##############################################################################
-
-  /search:
-    get:
-      tags:
-      - search
-      summary: "Perform a full-text search on multiple objects."
-      operationId: getSearch
-      security:
-        - Bearer: []
-      parameters:
-      - name: query
-        in: query
-        required: true
-        type: string
-        description: "The search string."
-        example: "Anderson"
-      - name: page
-        in: query
-        required: false
-        type: integer
-        default: 1
-        description: "The page number of the search results to return."
-      - name: pagesize
-        in: query
-        required: false
-        type: integer
-        default: 10
-        description: "The number search results to return per page."
-      responses:
-        200:
-          description: "OK: Successful operation."
-          schema:
-            $ref: "#/definitions/SearchResults"
-        401:
-          description: "Unauthorized: Missing authorization header."
-        422:
-          description: "Unprocessable Entity"
 
 
 ##############################################################################
@@ -6110,7 +6118,7 @@ definitions:
             type: integer
             example: 1
           offset:
-            description: "Offset of the first displayed serach hit."
+            description: "Offset of the first displayed search hit."
             type: integer
             example: 0
           runtime:

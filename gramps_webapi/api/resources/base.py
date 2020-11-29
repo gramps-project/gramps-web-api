@@ -94,23 +94,23 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
 
     @use_args(
         {
-            "strip": fields.Boolean(missing=False),
-            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "skipkeys": fields.DelimitedList(
+            "backlinks": fields.Boolean(missing=False),
+            "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
+            "formats": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
+            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
                     choices=["all", "self", "families", "events", "age", "span"]
                 ),
             ),
-            "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "formats": fields.DelimitedList(
+            "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
-            "backlinks": fields.Boolean(missing=False),
             "soundex": fields.Boolean(missing=False),
+            "strip": fields.Boolean(missing=False),
         },
         location="query",
     )
@@ -128,29 +128,29 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
 
     @use_args(
         {
+            "backlinks": fields.Boolean(missing=False),
+            "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
+            "filter": fields.Str(validate=validate.Length(min=1)),
+            "formats": fields.DelimitedList(
+                fields.Str(validate=validate.Length(min=1))
+            ),
             "gramps_id": fields.Str(validate=validate.Length(min=1)),
-            "strip": fields.Boolean(missing=False),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
+            "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
+            "strip": fields.Boolean(missing=False),
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
-            "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
+            "page": fields.Integer(missing=0, validate=validate.Range(min=1)),
+            "pagesize": fields.Integer(missing=20, validate=validate.Range(min=1)),
             "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
                     choices=["all", "self", "families", "events", "age", "span"]
                 ),
             ),
-            "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "filter": fields.Str(validate=validate.Length(min=1)),
             "rules": fields.Str(validate=validate.Length(min=1)),
             "sort": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "offset": fields.Integer(missing=0, validate=validate.Range(min=0)),
-            "limit": fields.Integer(missing=0, validate=validate.Range(min=1)),
-            "formats": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "backlinks": fields.Boolean(missing=False),
             "soundex": fields.Boolean(missing=False),
         },
         location="query",
@@ -178,8 +178,9 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         if "sort" in args:
             handles = self.sort_objects(handles, args["sort"], locale=locale)
 
-        if args["limit"] > 0:
-            handles = handles[args["offset"] : args["offset"] + args["limit"]]
+        if args["page"] > 0:
+            offset = (args["page"] - 1) * args["pagesize"]
+            handles = handles[offset : offset + args["pagesize"]]
 
         query_method = self.db_handle.method(
             "get_%s_from_handle", self.gramps_class_name
