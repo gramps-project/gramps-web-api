@@ -139,11 +139,13 @@ class TestPeople(unittest.TestCase):
                         "children": [
                             {
                                 "birth": {
+                                    "age": "0 days",
                                     "date": "after 1737-10-01",
                                     "place": "Maryville, MO, USA",
                                     "type": "Birth",
                                 },
                                 "death": {
+                                    "age": "less than 49 years, 7 months, 18 days",
                                     "date": "1787-05-20",
                                     "place": "Wooster, OH, USA",
                                     "type": "Death",
@@ -155,9 +157,17 @@ class TestPeople(unittest.TestCase):
                             }
                         ],
                         "divorce": {},
-                        "events": [{"date": "", "place": "", "type": "Marriage"}],
+                        "events": [
+                            {
+                                "date": "",
+                                "place": "",
+                                "span": "unknown",
+                                "type": "Marriage",
+                            }
+                        ],
                         "father": {
                             "birth": {
+                                "age": "0 days",
                                 "date": "",
                                 "place": "Ketchikan, AK, USA",
                                 "type": "Birth",
@@ -169,7 +179,12 @@ class TestPeople(unittest.TestCase):
                             "sex": "M",
                         },
                         "handle": "TZ3KQCJ3PNQHI6S8VO",
-                        "marriage": {"date": "", "place": "", "type": "Marriage"},
+                        "marriage": {
+                            "date": "",
+                            "place": "",
+                            "span": "0 days",
+                            "type": "Marriage",
+                        },
                         "mother": {
                             "birth": {},
                             "death": {},
@@ -299,27 +314,32 @@ class TestPeopleHandle(unittest.TestCase):
             result.json["profile"],
             {
                 "birth": {
+                    "age": "0 days",
                     "date": "1906-09-05",
                     "place": "Central City, Muhlenberg, KY, USA",
                     "type": "Birth",
                 },
                 "death": {
+                    "age": "86 years, 9 months, 1 days",
                     "date": "1993-06-06",
                     "place": "Sevierville, TN, USA",
                     "type": "Death",
                 },
                 "events": [
                     {
+                        "age": "0 days",
                         "date": "1906-09-05",
                         "place": "Central City, Muhlenberg, KY, USA",
                         "type": "Birth",
                     },
                     {
+                        "age": "86 years, 9 months, 1 days",
                         "date": "1993-06-06",
                         "place": "Sevierville, TN, USA",
                         "type": "Death",
                     },
                     {
+                        "age": "86 years, 9 months, 3 days",
                         "date": "1993-06-08",
                         "place": "Wenatchee, WA, USA",
                         "type": "Burial",
@@ -334,11 +354,13 @@ class TestPeopleHandle(unittest.TestCase):
                     "children": [
                         {
                             "birth": {
+                                "age": "0 days",
                                 "date": "1889-08-11",
                                 "place": "Panama City, Bay, FL, USA",
                                 "type": "Birth",
                             },
                             "death": {
+                                "age": "72 years, 1 days",
                                 "date": "1961-08-12",
                                 "place": "Butte, MT, USA",
                                 "type": "Death",
@@ -350,11 +372,13 @@ class TestPeopleHandle(unittest.TestCase):
                         },
                         {
                             "birth": {
+                                "age": "0 days",
                                 "date": "1892-09-25",
                                 "place": "New Castle, Henry, IN, USA",
                                 "type": "Birth",
                             },
                             "death": {
+                                "age": "78 years, 2 months, 22 days",
                                 "date": "1970-12-17",
                                 "place": "",
                                 "type": "Death",
@@ -366,11 +390,13 @@ class TestPeopleHandle(unittest.TestCase):
                         },
                         {
                             "birth": {
+                                "age": "0 days",
                                 "date": "1906-09-05",
                                 "place": "Central City, Muhlenberg, KY, USA",
                                 "type": "Birth",
                             },
                             "death": {
+                                "age": "86 years, 9 months, 1 days",
                                 "date": "1993-06-06",
                                 "place": "Sevierville, TN, USA",
                                 "type": "Death",
@@ -386,16 +412,19 @@ class TestPeopleHandle(unittest.TestCase):
                         {
                             "date": "1888-08-09",
                             "place": "Springfield, Sangamon, IL, USA",
+                            "span": "0 days",
                             "type": "Marriage",
                         }
                     ],
                     "father": {
                         "birth": {
+                            "age": "0 days",
                             "date": "1867-01-23",
                             "place": "Durango, La Plata, CO, USA",
                             "type": "Birth",
                         },
                         "death": {
+                            "age": "52 years, 1 months, 18 days",
                             "date": "1919-03-10",
                             "place": "Kokomo, Howard, IN, USA",
                             "type": "Death",
@@ -409,15 +438,18 @@ class TestPeopleHandle(unittest.TestCase):
                     "marriage": {
                         "date": "1888-08-09",
                         "place": "Springfield, Sangamon, IL, USA",
+                        "span": "0 days",
                         "type": "Marriage",
                     },
                     "mother": {
                         "birth": {
+                            "age": "0 days",
                             "date": "1869-07-08",
                             "place": "Oxnard, Ventura, CA, USA",
                             "type": "Birth",
                         },
                         "death": {
+                            "age": "72 years, 9 months, 13 days",
                             "date": "1942-04-21",
                             "place": "Kokomo, Howard, IN, USA",
                             "type": "Death",
