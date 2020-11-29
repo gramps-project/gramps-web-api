@@ -23,14 +23,15 @@
 import unittest
 from unittest.mock import patch
 
+from flask_jwt_extended import get_jwt_claims, get_jwt_identity
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.db import DbTxn
 from gramps.gen.dbstate import DbState
 from gramps.gen.lib import Person, Surname
+from tests.test_endpoints import get_test_client
 
 from gramps_webapi.app import create_app
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
-from tests.test_endpoints import get_test_client
 
 
 class TestUser(unittest.TestCase):
@@ -114,3 +115,21 @@ class TestUser(unittest.TestCase):
             json={"old_password": "123", "new_password": "456"},
         )
         assert rv.status_code == 403
+
+    def test_reset_password_trigger_invalid_user(self):
+        rv = self.client.post(
+            "/api/user/password/reset/trigger", json={"username": "doesn_exist"}
+        )
+        assert rv.status_code == 404
+
+    def test_reset_password_trigger_status(self):
+        rv = self.client.post(
+            "/api/user/password/reset/trigger", json={"username": "user"}
+        )
+        assert rv.status_code == 201
+
+    def test_reset_password_trigger_token(self):
+        with self.app.test_request_context(
+            "/api/user/password/reset/trigger", json={"username": "user"}
+        ):
+            pass

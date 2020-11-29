@@ -23,6 +23,7 @@
 import uuid
 from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
+from typing import Optional
 
 import sqlalchemy as sa
 from sqlalchemy.ext.declarative import declarative_base
@@ -97,17 +98,13 @@ class SQLAuth(AuthProvider):
     def get_guid(self, name: str) -> None:
         """Get the GUID of an existing user by username."""
         with self.session_scope() as session:
-            user_id = session.query(User.id).filter_by(name=name).scalar()
-            if user_id is None:
-                raise ValueError("User {} not found".format(name))
+            user_id = session.query(User.id).filter_by(name=name).one()
         return user_id
 
     def delete_user(self, name: str) -> None:
         """Delete an existing user."""
         with self.session_scope() as session:
-            user = session.query(User).filter_by(name=name).scalar()
-            if user is None:
-                raise ValueError("User {} not found".format(name))
+            user = session.query(User).filter_by(name=name).one()
             session.delete(user)
 
     def modify_user(
@@ -121,9 +118,7 @@ class SQLAuth(AuthProvider):
     ) -> None:
         """Modify an existing user."""
         with self.session_scope() as session:
-            user = session.query(User).filter_by(name=name).scalar()
-            if user is None:
-                raise ValueError("User {} not found".format(name))
+            user = session.query(User).filter_by(name=name).one()
             if name_new is not None:
                 user.name = name_new
             if password is not None:
@@ -141,6 +136,20 @@ class SQLAuth(AuthProvider):
             if user is None:
                 return False
             return verify_password(password=password, salt_hash=user.pwhash)
+
+    def get_pwhash(self, username: str) -> str:
+        """Return the current hashed password."""
+        with self.session_scope() as session:
+            user = session.query(User).filter_by(name=username).one()
+            return user.pwhash
+
+    def get_user_details(self, username: str) -> Optional[str]:
+        """Return details about a user."""
+        with self.session_scope() as session:
+            user = session.query(User).filter_by(name=username).scalar()
+            if user is None:
+                return None
+            return {"id": user.id, "email": user.email, "fullname": user.fullname}
 
 
 class User(Base):

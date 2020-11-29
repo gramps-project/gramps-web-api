@@ -20,6 +20,7 @@
 
 """Authentication endpoint blueprint."""
 
+
 from flask import abort, current_app
 from flask_jwt_extended import (
     create_access_token,

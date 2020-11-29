@@ -63,7 +63,11 @@ from .resources.types import (
     DefaultTypesResource,
     TypesResource,
 )
-from .resources.user import UserChangePasswordResource
+from .resources.user import (
+    UserChangePasswordResource,
+    UserResetPasswordResource,
+    UserTriggerResetPasswordResource,
+)
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
 
@@ -157,6 +161,12 @@ register_endpt(ExportersResource, "/exporters/", "exporters")
 register_endpt(MetadataResource, "/metadata/", "metadata")
 # User
 register_endpt(UserChangePasswordResource, "/user/password/change", "change_password")
+register_endpt(UserResetPasswordResource, "/user/password/reset", "reset_password")
+register_endpt(
+    UserTriggerResetPasswordResource,
+    "/user/password/reset/trigger",
+    "trigger_reset_password",
+)
 # Search
 register_endpt(SearchResource, "/search/", "search")
 
