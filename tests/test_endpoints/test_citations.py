@@ -49,6 +49,9 @@ class TestCitations(unittest.TestCase):
         # check expected number of citations found
         result = self.client.get("/api/citations/")
         self.assertEqual(len(result.json), get_object_count("citations"))
+        # checked number passed back in header as well
+        count = result.headers.pop("X-Total-Count")
+        self.assertEqual(count, str(get_object_count("citations")))
         # check first record is expected citation
         self.assertEqual(result.json[0]["gramps_id"], "C0000")
         self.assertEqual(result.json[0]["handle"], "c140d2362f25a92643b")

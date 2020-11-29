@@ -21,7 +21,7 @@
 """Gramps filter interface."""
 
 import json
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Optional, Set
 
 import gramps.gen.filters as filters
 from flask import Response, abort
@@ -133,7 +133,10 @@ def build_filter(filter_parms: Dict, namespace: str) -> GenericFilter:
 
 
 def apply_filter(
-    db_handle: DbReadBase, args: Dict, namespace: str, handles: List = None
+    db_handle: DbReadBase,
+    args: Dict,
+    namespace: str,
+    handles: Optional[List[Handle]] = None,
 ) -> List[Handle]:
     """Apply an existing or dynamically defined filter."""
     filters.reload_custom_filters()

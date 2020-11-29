@@ -161,7 +161,9 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             obj = self.get_object_from_gramps_id(args["gramps_id"])
             if obj is None:
                 abort(404)
-            return self.response(200, [self.full_object(obj, args)], args)
+            return self.response(
+                200, [self.full_object(obj, args)], args, total_items=1
+            )
 
         locale = get_locale_for_language(args["locale"], default=True)
         query_method = self.db_handle.method("get_%s_handles", self.gramps_class_name)
@@ -189,6 +191,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             200,
             [self.full_object(query_method(handle), args) for handle in handles],
             args,
+            total_items=len(handles),
         )
 
 

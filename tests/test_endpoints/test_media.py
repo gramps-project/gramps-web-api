@@ -49,6 +49,9 @@ class TestMedia(unittest.TestCase):
         # check expected number of media found
         result = self.client.get("/api/media/")
         self.assertEqual(len(result.json), get_object_count("media"))
+        # checked number passed back in header as well
+        count = result.headers.pop("X-Total-Count")
+        self.assertEqual(count, str(get_object_count("media")))
         # check first record is expected media
         self.assertEqual(result.json[0]["gramps_id"], "O0000")
         self.assertEqual(result.json[0]["handle"], "b39fe1cfc1305ac4a21")

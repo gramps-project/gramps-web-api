@@ -27,6 +27,7 @@ import gramps.gen.lib as lib
 from flask import Response
 from flask.json import JSONEncoder
 from gramps.gen.db import DbBookmarks
+from werkzeug.datastructures import Headers
 
 from ...const import PRIMARY_GRAMPS_OBJECTS
 
@@ -51,6 +52,7 @@ class GrampsJSONEncoder(JSONEncoder):
         status: int = 200,
         payload: Optional[Any] = None,
         args: Optional[Dict] = None,
+        total_items: int = -1,
     ) -> Response:
         """Prepare response."""
         if payload is None:
@@ -69,9 +71,15 @@ class GrampsJSONEncoder(JSONEncoder):
         else:
             self.filter_skip_keys = []
 
+        if total_items > -1:
+            headers = Headers()
+            headers.add("X-Total-Count", total_items)
+        else:
+            headers = None
         return Response(
-            response=self.encode(payload),
             status=status,
+            headers=headers,
+            response=self.encode(payload),
             mimetype="application/json",
         )
 

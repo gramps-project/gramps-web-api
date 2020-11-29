@@ -3118,13 +3118,15 @@ paths:
         in: query
         required: false
         type: integer
-        default: 10
+        default: 20
         description: "The number of search results that constitute a page."
       responses:
         200:
           description: "OK: Successful operation."
           schema:
-            $ref: "#/definitions/SearchResults"
+            type: array
+            items:
+              $ref: "#/definitions/SearchResult"
         401:
           description: "Unauthorized: Missing authorization header."
         422:
@@ -6095,53 +6097,20 @@ definitions:
 
 
 ##############################################################################
-# Model - SearchResults
+# Model - SearchResult
 ##############################################################################
 
-  SearchResults:
+  SearchResult:
     type: object
     properties:
-      info:
-        description: "General information about the search results."
+      handle:
+        type: string
+        example: "e9027bf39c27be945fab9df8124"
+      object:
         type: object
-        properties:
-          pagecount:
-            description: "Total number of pages in the search result."
-            type: integer
-            example: 2
-          pagesize:
-            description: "Page size of the search results."
-            type: integer
-            example: 2
-          pagenum:
-            description: "Number of currently displayed search result page."
-            type: integer
-            example: 1
-          offset:
-            description: "Offset of the first displayed search hit."
-            type: integer
-            example: 0
-          runtime:
-            description: "Run time of the index search in seconds."
-            type: number
-            example: 0.0010769180007628165
-          total:
-            type: integer
-            example: 2
-      hits:
-        description: "The list of search hits."
-        type: array
-        items:
-          type: object
-          properties:
-            handle:
-              type: string
-              example: "e9027bf39c27be945fab9df8124"
-            object:
-              type: object
-            object_type:
-              type: string
-              example: person
-            score:
-              type: number
-              example: 5.522300827719273
+      object_type:
+        type: string
+        example: person
+      score:
+        type: number
+        example: 5.522300827719273

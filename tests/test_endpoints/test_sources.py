@@ -49,6 +49,9 @@ class TestSources(unittest.TestCase):
         # check expected number of sources found
         result = self.client.get("/api/sources/")
         self.assertEqual(len(result.json), get_object_count("sources"))
+        # checked number passed back in header as well
+        count = result.headers.pop("X-Total-Count")
+        self.assertEqual(count, str(get_object_count("sources")))
         # check first record is expected source
         self.assertEqual(result.json[0]["gramps_id"], "S0001")
         self.assertEqual(result.json[0]["handle"], "c140d4ef77841431905")

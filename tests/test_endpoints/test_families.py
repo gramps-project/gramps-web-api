@@ -49,6 +49,9 @@ class TestFamilies(unittest.TestCase):
         # check expected number of families found
         result = self.client.get("/api/families/")
         self.assertEqual(len(result.json), get_object_count("families"))
+        # checked number passed back in header as well
+        count = result.headers.pop("X-Total-Count")
+        self.assertEqual(count, str(get_object_count("families")))
         # check first record is expected family
         self.assertEqual(result.json[0]["handle"], "cc82060505948b9e57f")
         self.assertEqual(result.json[0]["father_handle"], "cc82060504445ab6deb")

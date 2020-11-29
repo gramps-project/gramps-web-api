@@ -49,6 +49,9 @@ class TestPlaces(unittest.TestCase):
         # check expected number of places found
         result = self.client.get("/api/places/")
         self.assertEqual(len(result.json), get_object_count("places"))
+        # checked number passed back in header as well
+        count = result.headers.pop("X-Total-Count")
+        self.assertEqual(count, str(get_object_count("places")))
         # check first record is expected place
         self.assertEqual(result.json[0]["gramps_id"], "P0441")
         self.assertEqual(result.json[0]["handle"], "dd445e5bfcc17bd1838")

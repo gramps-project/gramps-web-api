@@ -99,26 +99,9 @@ class SearchIndexer:
             "score": hit.score,
         }
 
-    @staticmethod
-    def result_info(results: ResultsPage) -> Dict[str, Any]:
-        """Format search result info."""
-        return {
-            "runtime": results.results.runtime,
-            "total": results.total,
-            "pagecount": results.pagecount,
-            "pagenum": results.pagenum,
-            "pagesize": results.pagelen,
-            # whoosh returns an offset of -pagelen if there are no hits.
-            # lets return 0 instead.
-            "offset": max(0, results.offset),
-        }
-
     def search(self, query: str, page: int, pagesize: int, extend: bool = False):
         """Search the index."""
         parsed_query = self.query_parser.parse(query)
         with self.index().searcher() as searcher:
             results = searcher.search_page(parsed_query, page, pagesize)
-            return {
-                "info": self.result_info(results),
-                "hits": [self.format_hit(hit) for hit in results],
-            }
+            return results.total, [self.format_hit(hit) for hit in results]

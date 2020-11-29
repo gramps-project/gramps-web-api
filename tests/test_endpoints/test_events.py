@@ -49,6 +49,9 @@ class TestEvents(unittest.TestCase):
         # check expected number of events found
         result = self.client.get("/api/events/")
         self.assertEqual(len(result.json), get_object_count("events"))
+        # checked number passed back in header as well
+        count = result.headers.pop("X-Total-Count")
+        self.assertEqual(count, str(get_object_count("events")))
         # check first record is expected event
         self.assertEqual(result.json[0]["gramps_id"], "E0000")
         self.assertEqual(

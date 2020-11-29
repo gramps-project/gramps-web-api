@@ -50,6 +50,9 @@ class TestPeople(unittest.TestCase):
         # check expected number of people found
         result = self.client.get("/api/people/")
         self.assertEqual(len(result.json), get_object_count("people"))
+        # checked number passed back in header as well
+        count = result.headers.pop("X-Total-Count")
+        self.assertEqual(count, str(get_object_count("people")))
         # check first record is expected person
         self.assertEqual(result.json[0]["gramps_id"], "I2110")
         self.assertEqual(result.json[0]["primary_name"]["first_name"], "محمد")
