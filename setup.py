@@ -41,6 +41,7 @@ REQUIREMENTS = [
     "pdf2image",
     "Pillow",
     "bleach",
+    "whoosh",
 ]
 
 EXTRA_REQUIREMENTS = ["pycairo", "PyGObject"]

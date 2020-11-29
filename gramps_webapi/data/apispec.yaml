@@ -68,6 +68,8 @@ tags:
   description: Access to family tree exporters.
 - name: metadata
   description: Access to tree and application metadata.
+- name: search
+  description: Search for objects
 
 ##############################################################################
 # Endpoint definitions
@@ -166,7 +168,7 @@ paths:
           description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid token."
-    
+
 ##############################################################################
 # Endpoint - People
 ##############################################################################
@@ -466,7 +468,7 @@ paths:
             Object | Contents
             ------ | --------
             all | Returns all information below
-            age | Returns age at time of a personal event    
+            age | Returns age at time of a personal event
             self | Returns family information with parents, children, and key relationship between parents and is an implied default if events specified
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns family event list with name, date and location
@@ -552,7 +554,7 @@ paths:
             Object | Contents
             ------ | --------
             all | Returns all information below
-            age | Returns age at time of a personal event    
+            age | Returns age at time of a personal event
             self | Returns family information with parents, children, and key relationship between parents and is an implied default if events specified
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns family event list with name, date and location
@@ -846,7 +848,7 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Event not found."
-    
+
 ##############################################################################
 # Endpoint - Places
 ##############################################################################
@@ -1863,7 +1865,7 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Media item not found."
-    
+
 ##############################################################################
 # Endpoint - Notes
 ##############################################################################
@@ -2473,10 +2475,10 @@ paths:
               media:
                 $ref: "#/definitions/NamespaceFilters"
               notes:
-                $ref: "#/definitions/NamespaceFilters"                            
+                $ref: "#/definitions/NamespaceFilters"
         401:
           description: "Unauthorized: Missing authorization header."
-    
+
   /filters/{namespace}:
     get:
       tags:
@@ -2754,7 +2756,7 @@ paths:
         401:
           description: "Unauthorized: Missing authorization header."
 
-##############################################################################    
+##############################################################################
 # Endpoint - Reports
 ##############################################################################
 
@@ -2824,7 +2826,7 @@ paths:
           specific to a given report. A few reports do not have defaults for all options and require
           some be specified in order to run properly.
 
-    
+
           If no _off_ option for report output file format is provided then pdf will be used as a fallback.
           The _of_ option for output file is ignored by this endpoint as the report file is ephemeral.
       responses:
@@ -2874,7 +2876,7 @@ paths:
       responses:
         200:
           description: "OK: Successful operation."
-          schema:    
+          schema:
             $ref: "#/definitions/Exporter"
         401:
           description: "Unauthorized: Missing authorization header."
@@ -3041,7 +3043,7 @@ paths:
             type: file
         401:
           description: "Unauthorized: Missing authorization header."
-    
+
         404:
           description: "Not Found: Exporter not found."
         422:
@@ -3067,8 +3069,51 @@ paths:
         401:
           description: "Unauthorized: Missing authorization header."
 
-##############################################################################    
-# Model definitions    
+
+##############################################################################
+# Endpoint - Search
+##############################################################################
+
+  /search:
+    get:
+      tags:
+      - search
+      summary: "Perform a full-text search on multiple objects."
+      operationId: getSearch
+      security:
+        - Bearer: []
+      parameters:
+      - name: query
+        in: query
+        required: true
+        type: string
+        description: "The search string."
+        example: "Anderson"
+      - name: page
+        in: query
+        required: false
+        type: integer
+        default: 1
+        description: "The page number of the search results to return."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 10
+        description: "The number search results to return per page."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/SearchResults"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity"
+
+
+##############################################################################
+# Model definitions
 ##############################################################################
 
 definitions:
@@ -5108,7 +5153,7 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/FilterRuleDescription"
-    
+
 ##############################################################################
 # Model - Translations
 ##############################################################################
@@ -5219,7 +5264,7 @@ definitions:
         description: "Information about the currently active Gramps instance."
         type: object
         properties:
-          version: 
+          version:
             description: "The version of the Gramps code."
             type: string
             example: "5.1.3"
@@ -5267,12 +5312,12 @@ definitions:
         example:
           - Abbott
           - Adams
-          - Adkins 
+          - Adkins
 
 ##############################################################################
 # Model - ObjectCounts
 ##############################################################################
-    
+
   ObjectCounts:
     description: "Total numbers for primary object types in the database."
     type: object
@@ -5321,7 +5366,7 @@ definitions:
 ##############################################################################
 # Model - Researcher
 ##############################################################################
-    
+
   Researcher:
     description: "Information about the primary researcher of the data."
     type: object
@@ -5633,7 +5678,7 @@ definitions:
         type: string
         example: "exportxml"
 
-##############################################################################    
+##############################################################################
 # Model - Report
 ##############################################################################
 
@@ -5645,7 +5690,7 @@ definitions:
         type: array
         items:
           type: string
-        example: 
+        example:
           - "Donald N. Allingham"
       authors_email:
         description: "Email addresses for report authors."
@@ -5674,8 +5719,8 @@ definitions:
         description: "Dictionary containing all of the report options with their defaults."
         type: object
         additionalProperties: true
-        example: 
-          papero: 0        
+        example:
+          papero: 0
       options_help:
         description: "Dictionary containing help information for all of the report options."
         type: object
@@ -5716,3 +5761,55 @@ definitions:
         - "0\t"
         - "1\t"
 
+
+##############################################################################
+# Model - SearchResults
+##############################################################################
+
+  SearchResults:
+    type: object
+    properties:
+      info:
+        description: "General information about the search results."
+        type: object
+        properties:
+          pagecount:
+            description: "Total number of pages in the search result."
+            type: integer
+            example: 2
+          pagesize:
+            description: "Page size of the search results."
+            type: integer
+            example: 2
+          pagenum:
+            description: "Number of currently displayed search result page."
+            type: integer
+            example: 1
+          offset:
+            description: "Offset of the first displayed serach hit."
+            type: integer
+            example: 0
+          runtime:
+            description: "Run time of the index search in seconds."
+            type: number
+            example: 0.0010769180007628165
+          total:
+            type: integer
+            example: 2
+      hits:
+        description: "The list of search hits."
+        type: array
+        items:
+          type: object
+          properties:
+            handle:
+              type: string
+              example: "e9027bf39c27be945fab9df8124"
+            object:
+              type: object
+            object_type:
+              type: string
+              example: person
+            score:
+              type: number
+              example: 5.522300827719273

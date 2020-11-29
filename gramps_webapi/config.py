@@ -27,6 +27,7 @@ class DefaultConfig(object):
     """Default configuration object."""
 
     PROPAGATE_EXCEPTIONS = True
+    SEARCH_INDEX_DIR = "indexdir"
 
 
 class DefaultConfigJWT(object):
