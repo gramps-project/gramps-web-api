@@ -24,7 +24,7 @@ import inspect
 from typing import Any, Dict, Optional
 
 import gramps.gen.lib as lib
-from flask import Response
+from flask import Response, current_app
 from flask.json import JSONEncoder
 from gramps.gen.db import DbBookmarks
 from werkzeug.datastructures import Headers
@@ -151,4 +151,7 @@ class GrampsJSONEncoder(JSONEncoder):
         try:
             return JSONEncoder.default(self, obj)
         except TypeError:
+            current_app.logger.error(
+                "Unexpected object type: " + obj.__class__.__name__
+            )
             return None
