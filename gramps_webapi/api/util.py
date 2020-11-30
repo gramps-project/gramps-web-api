@@ -74,12 +74,23 @@ def get_buffer_for_file(filename: str, delete=True) -> BinaryIO:
     return buffer
 
 
-def send_email(subject: str, body: str, sender: str, recipients: Sequence[str]):
+def send_email(subject: str, body: str, sender: str, recipients: Sequence[str]) -> None:
     """Send an e-mail message."""
     msg = EmailMessage()
     msg.set_content(body)
     msg["Subject"] = subject
     msg["From"] = sender
     msg["To"] = ", ".join(recipients)
-    with smtplib.SMTP("localhost") as smtp:
+
+    host = current_app.config["EMAIL_HOST"]
+    port = current_app.config["EMAIL_PORT"]
+    user = current_app.config["EMAIL_HOST_USER"]
+    password = current_app.config["EMAIL_HOST_PASSWORD"]
+    use_tls = current_app.config["EMAIL_USE_TLS"]
+
+    with smtplib.SMTP(host=host, port=port) as smtp:
+        if use_tls:
+            smtp.starttls()
+        if user:
+            smtp.login(user, password)
         smtp.send_message(msg)
