@@ -22,7 +22,7 @@
 
 import datetime
 
-from flask import abort, current_app
+from flask import abort, current_app, render_template
 from flask_jwt_extended import create_access_token, get_jwt_claims, get_jwt_identity
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -110,7 +110,7 @@ class UserResetPasswordResource(ProtectedResource):
         auth_provider = current_app.config.get("AUTH_PROVIDER")
         if auth_provider is None:
             abort(405)
-        if len(args["new_password"]) == "":
+        if args["new_password"] == "":
             abort(400)
         claims = get_jwt_claims()
         username = get_jwt_identity()
@@ -121,3 +121,17 @@ class UserResetPasswordResource(ProtectedResource):
             abort(409)
         auth_provider.modify_user(name=username, password=args["new_password"])
         return "", 201
+
+    def get(self):
+        """Reset password form."""
+        auth_provider = current_app.config.get("AUTH_PROVIDER")
+        if auth_provider is None:
+            abort(405)
+        username = get_jwt_identity()
+        claims = get_jwt_claims()
+        # the old PW hash is stored in the reset JWT to check if the token has
+        # been used already
+        if claims["old_hash"] != auth_provider.get_pwhash(username):
+            # the one-time token has been used before!
+            return render_template("reset_password_error.html", username=username)
+        return render_template("reset_password.html", username=username)

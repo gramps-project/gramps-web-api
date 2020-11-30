@@ -153,6 +153,13 @@ class TestUser(unittest.TestCase):
             "/api/user/password/reset/", json={"new_password": "789"},
         )
         self.assertEqual(rv.status_code, 401)
+        # try empty PW!
+        rv = self.client.post(
+            "/api/user/password/reset/",
+            headers={"Authorization": "Bearer {}".format(token)},
+            json={"new_password": ""},
+        )
+        self.assertEqual(rv.status_code, 400)
         # now that should work
         rv = self.client.post(
             "/api/user/password/reset/",
