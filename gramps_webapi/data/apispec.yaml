@@ -231,6 +231,25 @@ paths:
           description: "Conflict: One-time token has already been used."
         422:
           description: "Unprocessable Entity: missing password."
+    get:
+      tags:
+      - authentication
+      summary: "Display the password reset form."
+      security:
+        - Bearer: []
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        type: string
+        description: "The one-time password reset token."
+      responses:
+        200:
+          description: "OK: Form or error message displayed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        405:
+          description: "Method Not Allowed: No authorization provider configured."
 
 
 ##############################################################################
