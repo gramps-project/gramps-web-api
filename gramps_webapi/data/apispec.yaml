@@ -197,6 +197,42 @@ paths:
         500:
           description: "Server Error, e.g. failed to send e-mail."
 
+
+  /user/password/reset:
+    post:
+      tags:
+      - authentication
+      summary: "Reset a user's password using a token from a reset e-mail."
+      operationId: resetUserPassword
+      security:
+        - Bearer: []
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        type: string
+        description: "The one-time password reset token."
+      - name: new_password
+        in: body
+        schema:
+          type: object
+          properties:
+            new_password:
+              description: "The user's new password."
+              type: string
+      responses:
+        201:
+          description: "OK: password successfully reset."
+        400:
+          description: "Bad Request: Empty password."
+        405:
+          description: "Method Not Allowed: No authorization provider configured."
+        409:
+          description: "Conflict: One-time token has already been used."
+        422:
+          description: "Unprocessable Entity: missing password."
+
+
 ##############################################################################
 # Endpoint - People
 ##############################################################################
