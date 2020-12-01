@@ -99,12 +99,16 @@ class SQLAuth(AuthProvider):
         """Get the GUID of an existing user by username."""
         with self.session_scope() as session:
             user_id = session.query(User.id).filter_by(name=name).scalar()
+            if user_id is None:
+                raise ValueError("User {} not found".format(name))
         return user_id
 
     def delete_user(self, name: str) -> None:
         """Delete an existing user."""
         with self.session_scope() as session:
             user = session.query(User).filter_by(name=name).scalar()
+            if user is None:
+                raise ValueError("User {} not found".format(name))
             session.delete(user)
 
     def modify_user(
