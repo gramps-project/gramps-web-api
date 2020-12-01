@@ -169,6 +169,34 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid token."
 
+
+  /user/password/reset/trigger:
+    post:
+      tags:
+      - authentication
+      summary: "Trigger a password reset e-mail."
+      operationId: triggerResetUserPassword
+      parameters:
+      - name: username
+        in: body
+        schema:
+          type: object
+          properties:
+            username:
+              description: "The username of the user whose password should be reset."
+              type: string
+      responses:
+        201:
+          description: "OK: e-mail successfully sent."
+        404:
+          description: "Not found: user does not exist or has no e-mail address."
+        422:
+          description: "Unprocessable Entity: missing username."
+        429:
+          description: "Too many Requests: repeat in 1 second."
+        500:
+          description: "Server Error, e.g. failed to send e-mail."
+
 ##############################################################################
 # Endpoint - People
 ##############################################################################
