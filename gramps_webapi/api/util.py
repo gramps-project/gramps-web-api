@@ -51,10 +51,11 @@ def get_media_base_dir():
 
 def get_locale_for_language(language: str, default: bool = False) -> GrampsLocale:
     """Get GrampsLocale set to specified language."""
-    catalog = GRAMPS_LOCALE.get_language_dict()
-    for entry in catalog:
-        if catalog[entry] == language:
-            return GrampsLocale(lang=language)
+    if language is not None:
+        catalog = GRAMPS_LOCALE.get_language_dict()
+        for entry in catalog:
+            if catalog[entry] == language:
+                return GrampsLocale(lang=language)
     if default:
         return GRAMPS_LOCALE
     return None

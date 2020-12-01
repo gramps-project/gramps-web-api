@@ -62,14 +62,14 @@ tags:
   description: Access to translation service.
 - name: relations
   description: Access to relationship calculator.
+- name: search
+  description: Access to search engine.
 - name: reports
   description: Access to report generating service.
 - name: exporters
   description: Access to family tree exporters.
 - name: metadata
   description: Access to tree and application metadata.
-- name: search
-  description: Search for objects
 
 ##############################################################################
 # Endpoint definitions
@@ -187,6 +187,36 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a person, usually but not guaranteed to be unique."
+      - name: page
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "The number of items that constitute a page."
+      - name: sort
+        in: query
+        required: false
+        type: string
+        description: >
+          A comma delimited list of keys to sort the result set by.  By default the sort is in ascending order, if the key name starts with a - sign then the sort will be in descending order.  For people the available keys are:
+
+            Key | Description
+            --- | -----------
+            birth | The birth date of the person
+            change | The time the record was last updated
+            death | The death date of the person
+            gender | The gender of the person
+            gramps_id | The user assigned Gramps identifier for the person
+            name | The sort name of the person
+            private | Indicates whether the record is private or not
+            soundex | The soundex code for the surname of the person
+            surname | The surname of the person, taking into consideration the given name and suffix for people who share the same surname
       - name: filter
         in: query
         required: false
@@ -241,6 +271,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       - name: profile
         in: query
         required: false
@@ -258,6 +293,12 @@ paths:
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns event list with name, date and location
             families | Returns family information with parents, children, and key relationship between parents
+      - name: soundex
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether to include the soundex code for the surname or not."
       - name: backlinks
         in: query
         required: false
@@ -402,6 +443,33 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a family, usually but not guaranteed to be unique."
+      - name: page
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "The number of items that constitute a page."
+      - name: sort
+        in: query
+        required: false
+        type: string
+        description: >
+          A comma delimited list of keys to sort the result set by.  By default the sort is in ascending order, if the key name starts with a - sign then the sort will be in descending order.  For families the available keys are:
+
+            Key | Description
+            --- | -----------
+            change | The time the record was last updated
+            gramps_id | The user assigned Gramps identifier for the family
+            private | Indicates whether the record is private or not
+            name | The surname of the father or, if none present, the mother of the family taking into consideration the given name and suffix for families who share the same surname
+            soundex | The soundex code for the surname of the father or, if none present, the mother of the family
+            type | The relationship type for the family
       - name: filter
         in: query
         required: false
@@ -499,6 +567,17 @@ paths:
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: soundex
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether to include the soundex code for the surname or not."
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -613,6 +692,34 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for an event, usually but not guaranteed to be unique."
+      - name: page
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "The number of items that constitute a page."
+      - name: sort
+        in: query
+        required: false
+        type: string
+        description: >
+          A comma delimited list of keys to sort the result set by.  By default the sort is in ascending order, if the key name starts with a - sign then the sort will be in descending order.  For events the available keys are:
+
+            Key | Description
+            --- | -----------
+            change | The time the record was last updated
+            date | The event date
+            description | The event description
+            gramps_id | The user assigned Gramps identifier for the event
+            place | The event place
+            private | Indicates whether the record is private or not
+            type | The event type
       - name: filter
         in: query
         required: false
@@ -704,6 +811,11 @@ paths:
             place | The place record for the event
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -867,6 +979,34 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a place, usually but not guaranteed to be unique."
+      - name: page
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "The number of items that constitute a page."
+      - name: sort
+        in: query
+        required: false
+        type: string
+        description: >
+          A comma delimited list of keys to sort the result set by.  By default the sort is in ascending order, if the key name starts with a - sign then the sort will be in descending order.  For places the available keys are:
+
+            Key | Description
+            --- | -----------
+            change | The time the record was last updated
+            gramps_id | The user assigned Gramps identifier for the place
+            latitude | The latitude for the place
+            longitude | The longitude for the place
+            private | Indicates whether the record is private or not
+            title | The title or name of the place
+            type | The place type
       - name: filter
         in: query
         required: false
@@ -944,6 +1084,11 @@ paths:
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1038,6 +1183,32 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a citation, usually but not guaranteed to be unique."
+      - name: page
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "The number of items that constitute a page."
+      - name: sort
+        in: query
+        required: false
+        type: string
+        description: >
+          A comma delimited list of keys to sort the result set by.  By default the sort is in ascending order, if the key name starts with a - sign then the sort will be in descending order.  For citations the available keys are:
+
+            Key | Description
+            --- | -----------
+            change | The time the record was last updated
+            confidence | The confidence level for the citation
+            date | The date of the citation
+            gramps_id | The user assigned Gramps identifier for the citation
+            private | Indicates whether the record is private or not
       - name: filter
         in: query
         required: false
@@ -1115,6 +1286,11 @@ paths:
             source | The source record cited from
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1209,6 +1385,34 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a source, usually but not guaranteed to be unique."
+      - name: page
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "The number of items that constitute a page."
+      - name: sort
+        in: query
+        required: false
+        type: string
+        description: >
+          A comma delimited list of keys to sort the result set by.  By default the sort is in ascending order, if the key name starts with a - sign then the sort will be in descending order.  For sources the available keys are:
+
+            Key | Description
+            --- | -----------
+            abbrev | The abbreviation for the source
+            author | The author of the source
+            change | The time the record was last updated
+            gramps_id | The user assigned Gramps identifier for the source
+            private | Indicates whether the record is private or not
+            pubinfo | The publication information for the source
+            title | The title of the source
       - name: filter
         in: query
         required: false
@@ -1286,6 +1490,11 @@ paths:
             reporef_list | The list of referenced repository records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1380,6 +1589,32 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a repository, usually but not guaranteed to be unique."
+      - name: page
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "The number of items that constitute a page."
+      - name: sort
+        in: query
+        required: false
+        type: string
+        description: >
+          A comma delimited list of keys to sort the result set by.  By default the sort is in ascending order, if the key name starts with a - sign then the sort will be in descending order.  For repositories the available keys are:
+
+            Key | Description
+            --- | -----------
+            change | The time the record was last updated
+            gramps_id | The user assigned Gramps identifier for the repository
+            name | The name of the repository
+            private | Indicates whether the record is private or not
+            type | The type of repository
       - name: filter
         in: query
         required: false
@@ -1455,6 +1690,11 @@ paths:
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1547,6 +1787,34 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a media item, usually but not guaranteed to be unique."
+      - name: page
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "The number of items that constitute a page."
+      - name: sort
+        in: query
+        required: false
+        type: string
+        description: >
+          A comma delimited list of keys to sort the result set by.  By default the sort is in ascending order, if the key name starts with a - sign then the sort will be in descending order.  For media the available keys are:
+
+            Key | Description
+            --- | -----------
+            change | The time the record was last updated
+            date | The date associated with the media item
+            gramps_id | The user assigned Gramps identifier for the media item
+            mime | The mime type of the media item
+            path | The path to the media item
+            private | Indicates whether the record is private or not
+            title | The title for the media item
       - name: filter
         in: query
         required: false
@@ -1623,6 +1891,11 @@ paths:
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1884,6 +2157,32 @@ paths:
         required: false
         type: string
         description: "An alternate user managed identifier for a note, usually but not guaranteed to be unique."
+      - name: page
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "The number of items that constitute a page."
+      - name: sort
+        in: query
+        required: false
+        type: string
+        description: >
+          A comma delimited list of keys to sort the result set by.  By default the sort is in ascending order, if the key name starts with a - sign then the sort will be in descending order.  For notes the available keys are:
+
+            Key | Description
+            --- | -----------
+            change | The time the record was last updated
+            gramps_id | The user assigned Gramps identifier for the note item
+            private | Indicates whether the record is private or not
+            text | The note text
+            type | The note type
       - name: filter
         in: query
         required: false
@@ -1967,6 +2266,11 @@ paths:
             all | Returns all possible records listed below
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -2062,6 +2366,31 @@ paths:
       security:
         - Bearer: []
       parameters:
+      - name: page
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "The number of items that constitute a page."
+      - name: sort
+        in: query
+        required: false
+        type: string
+        description: >
+          A comma delimited list of keys to sort the result set by.  By default the sort is in ascending order, if the key name starts with a - sign then the sort will be in descending order.  For notes the available keys are:
+
+            Key | Description
+            --- | -----------
+            change | The time the record was last updated
+            color | The color for the tag
+            name | The name of the tag
+            priority | The priority of the tag
       - name: strip
         in: query
         required: false
@@ -2078,6 +2407,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -2757,6 +3091,48 @@ paths:
           description: "Unauthorized: Missing authorization header."
 
 ##############################################################################
+# Endpoint - Search
+##############################################################################
+
+  /search:
+    get:
+      tags:
+      - search
+      summary: "Perform a full-text search on multiple objects."
+      operationId: getSearch
+      security:
+        - Bearer: []
+      parameters:
+      - name: query
+        in: query
+        required: true
+        type: string
+        description: "The search string."
+      - name: page
+        in: query
+        required: false
+        type: integer
+        default: 1
+        description: "The page number representing the subset of search results to be returned."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "The number of search results that constitute a page."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/SearchResult"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity"
+
+##############################################################################
 # Endpoint - Reports
 ##############################################################################
 
@@ -3068,48 +3444,6 @@ paths:
             $ref: "#/definitions/Metadata"
         401:
           description: "Unauthorized: Missing authorization header."
-
-
-##############################################################################
-# Endpoint - Search
-##############################################################################
-
-  /search:
-    get:
-      tags:
-      - search
-      summary: "Perform a full-text search on multiple objects."
-      operationId: getSearch
-      security:
-        - Bearer: []
-      parameters:
-      - name: query
-        in: query
-        required: true
-        type: string
-        description: "The search string."
-        example: "Anderson"
-      - name: page
-        in: query
-        required: false
-        type: integer
-        default: 1
-        description: "The page number of the search results to return."
-      - name: pagesize
-        in: query
-        required: false
-        type: integer
-        default: 10
-        description: "The number search results to return per page."
-      responses:
-        200:
-          description: "OK: Successful operation."
-          schema:
-            $ref: "#/definitions/SearchResults"
-        401:
-          description: "Unauthorized: Missing authorization header."
-        422:
-          description: "Unprocessable Entity"
 
 
 ##############################################################################
@@ -5763,53 +6097,20 @@ definitions:
 
 
 ##############################################################################
-# Model - SearchResults
+# Model - SearchResult
 ##############################################################################
 
-  SearchResults:
+  SearchResult:
     type: object
     properties:
-      info:
-        description: "General information about the search results."
+      handle:
+        type: string
+        example: "e9027bf39c27be945fab9df8124"
+      object:
         type: object
-        properties:
-          pagecount:
-            description: "Total number of pages in the search result."
-            type: integer
-            example: 2
-          pagesize:
-            description: "Page size of the search results."
-            type: integer
-            example: 2
-          pagenum:
-            description: "Number of currently displayed search result page."
-            type: integer
-            example: 1
-          offset:
-            description: "Offset of the first displayed serach hit."
-            type: integer
-            example: 0
-          runtime:
-            description: "Run time of the index search in seconds."
-            type: number
-            example: 0.0010769180007628165
-          total:
-            type: integer
-            example: 2
-      hits:
-        description: "The list of search hits."
-        type: array
-        items:
-          type: object
-          properties:
-            handle:
-              type: string
-              example: "e9027bf39c27be945fab9df8124"
-            object:
-              type: object
-            object_type:
-              type: string
-              example: person
-            score:
-              type: number
-              example: 5.522300827719273
+      object_type:
+        type: string
+        example: person
+      score:
+        type: number
+        example: 5.522300827719273

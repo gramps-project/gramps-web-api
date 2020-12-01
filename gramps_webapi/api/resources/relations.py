@@ -23,7 +23,6 @@
 from typing import Dict
 
 from flask import Response, abort
-from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.relationship import get_relationship_calculator
 from webargs import fields, validate
 from webargs.flaskparser import use_args
@@ -56,10 +55,7 @@ class RelationResource(ProtectedResource, GrampsJSONEncoder):
         if person2 == {}:
             abort(404)
 
-        locale = GRAMPS_LOCALE
-        if args["locale"] is not None:
-            locale = get_locale_for_language(args["locale"], default=True)
-
+        locale = get_locale_for_language(args["locale"], default=True)
         calc = get_relationship_calculator(reinit=True, clocale=locale)
         calc.set_depth(args["depth"])
 
@@ -95,10 +91,7 @@ class RelationsResource(ProtectedResource, GrampsJSONEncoder):
         if person2 == {}:
             abort(404)
 
-        locale = GRAMPS_LOCALE
-        if args["locale"] is not None:
-            locale = get_locale_for_language(args["locale"], default=True)
-
+        locale = get_locale_for_language(args["locale"], default=True)
         calc = get_relationship_calculator(reinit=True, clocale=locale)
         calc.set_depth(args["depth"])
 

@@ -49,15 +49,18 @@ class TestFamilies(unittest.TestCase):
         # check expected number of families found
         result = self.client.get("/api/families/")
         self.assertEqual(len(result.json), get_object_count("families"))
+        # checked number passed back in header as well
+        count = result.headers.pop("X-Total-Count")
+        self.assertEqual(count, str(get_object_count("families")))
         # check first record is expected family
-        self.assertEqual(result.json[0]["handle"], "03GKQCH37C1SL9C5B3")
-        self.assertEqual(result.json[0]["father_handle"], "B2GKQCPG5WOVS9B4UL")
-        self.assertEqual(result.json[0]["mother_handle"], "83GKQCS0LVSVRX99KO")
+        self.assertEqual(result.json[0]["handle"], "cc82060505948b9e57f")
+        self.assertEqual(result.json[0]["father_handle"], "cc82060504445ab6deb")
+        self.assertEqual(result.json[0]["mother_handle"], "cc8206050980ea622d0")
         # check last record is expected family
         last = len(result.json) - 1
-        self.assertEqual(result.json[last]["handle"], "d64cc45259c01f324b4")
-        self.assertEqual(result.json[last]["father_handle"], "d64cc45258f454e7dac")
-        self.assertEqual(result.json[last]["mother_handle"], "d64cc452655308a46f8")
+        self.assertEqual(result.json[last]["handle"], "WYAKQC3ELT2539P9W2")
+        self.assertEqual(result.json[last]["father_handle"], "B5QKQCZM5CDWEV4SP4")
+        self.assertEqual(result.json[last]["mother_handle"], "LYAKQCT2QKFQUVU4AF")
 
     def test_families_endpoint_422(self):
         """Test response for an invalid parm."""
@@ -135,62 +138,45 @@ class TestFamilies(unittest.TestCase):
                     {
                         "birth": {
                             "age": "0 days",
-                            "date": "",
-                            "place": "Gadsden, Etowah, AL, USA",
+                            "date": "203 (Islamic)",
+                            "place": "",
                             "type": "Birth",
                         },
                         "death": {},
-                        "handle": "S3GKQCSAUG5LKNW2AK",
-                        "name_given": "Sarah",
-                        "name_surname": "Reed",
-                        "sex": "F",
+                        "handle": "cc82060516c6c141500",
+                        "name_given": "صالح",
+                        "name_surname": "",
+                        "sex": "M",
                     }
                 ],
                 "divorce": {},
-                "events": [
-                    {
-                        "date": "1879-07-25",
-                        "place": "Greensboro, NC, USA",
-                        "span": "0 days",
-                        "type": "Marriage",
-                    }
-                ],
+                "events": [],
                 "father": {
                     "birth": {
                         "age": "0 days",
-                        "date": "1847-06-28",
-                        "place": "El Campo, Wharton, TX, USA",
+                        "date": "164-03-00 (Islamic)",
+                        "place": "",
                         "type": "Birth",
                     },
                     "death": {
-                        "age": "44 years, 8 months, 7 days",
-                        "date": "1892-03-05",
-                        "place": "Plymouth, Marshall, IN, USA",
+                        "age": "77 years, 11 days",
+                        "date": "241-03-12 (Islamic)",
+                        "place": "",
                         "type": "Death",
                     },
-                    "handle": "B2GKQCPG5WOVS9B4UL",
-                    "name_given": "Edward",
-                    "name_surname": "Reed",
+                    "handle": "cc82060504445ab6deb",
+                    "name_given": "أحمد",
+                    "name_surname": "",
                     "sex": "M",
                 },
-                "handle": "03GKQCH37C1SL9C5B3",
-                "marriage": {
-                    "date": "1879-07-25",
-                    "place": "Greensboro, NC, USA",
-                    "span": "0 days",
-                    "type": "Marriage",
-                },
+                "handle": "cc82060505948b9e57f",
+                "marriage": {},
                 "mother": {
-                    "birth": {
-                        "age": "0 days",
-                        "date": "",
-                        "place": "Jacksonville, NC, USA",
-                        "type": "Birth",
-                    },
-                    "death": {},
-                    "handle": "83GKQCS0LVSVRX99KO",
-                    "name_given": "Ellen",
-                    "name_surname": "Reed",
+                    "birth": {},
+                    "death": {"date": "234 (Islamic)", "place": "", "type": "Death"},
+                    "handle": "cc8206050980ea622d0",
+                    "name_given": "العباسة",
+                    "name_surname": "الفضل",
                     "sex": "F",
                 },
                 "relationship": "Married",

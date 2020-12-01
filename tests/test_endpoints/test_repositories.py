@@ -49,6 +49,9 @@ class TestRepositories(unittest.TestCase):
         # check expected number of repositories found
         result = self.client.get("/api/repositories/")
         self.assertEqual(len(result.json), get_object_count("repositories"))
+        # checked number passed back in header as well
+        count = result.headers.pop("X-Total-Count")
+        self.assertEqual(count, str(get_object_count("repositories")))
         # check first record is expected repository
         self.assertEqual(result.json[0]["gramps_id"], "R0002")
         self.assertEqual(result.json[0]["handle"], "a701e99f93e5434f6f3")

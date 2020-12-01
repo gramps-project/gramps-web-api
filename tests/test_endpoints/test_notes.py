@@ -51,6 +51,9 @@ class TestNotes(unittest.TestCase):
         # check expected number of notes found
         result = self.client.get("/api/notes/")
         self.assertEqual(len(result.json), get_object_count("notes"))
+        # checked number passed back in header as well
+        count = result.headers.pop("X-Total-Count")
+        self.assertEqual(count, str(get_object_count("notes")))
         # check first record is expected note
         self.assertEqual(result.json[0]["gramps_id"], "N0001")
         self.assertEqual(result.json[0]["handle"], "ac380498bac48eedee8")

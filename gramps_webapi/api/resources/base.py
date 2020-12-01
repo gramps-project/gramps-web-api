@@ -21,7 +21,7 @@
 """Base for Gramps object API resources."""
 
 from abc import abstractmethod
-from typing import Dict
+from typing import Dict, List
 
 from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
@@ -30,11 +30,12 @@ from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from webargs import fields, validate
 from webargs.flaskparser import use_args
 
-from ..util import get_dbstate
+from ..util import get_dbstate, get_locale_for_language
 from . import ProtectedResource, Resource
 from .emit import GrampsJSONEncoder
 from .filters import apply_filter
-from .util import get_backlinks, get_extended_attributes
+from .sort import sort_objects
+from .util import get_backlinks, get_extended_attributes, get_soundex
 
 
 class GrampsObjectResourceHelper(GrampsJSONEncoder):
@@ -49,6 +50,10 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
         """Get the full object with extended attributes and backlinks."""
         if args.get("backlinks"):
             obj.backlinks = get_backlinks(self.db_handle, obj.handle)
+        if args.get("soundex"):
+            if self.gramps_class_name not in ["Person", "Family"]:
+                abort(422)
+            obj.soundex = get_soundex(self.db_handle, obj, self.gramps_class_name)
         obj = self.object_extend(obj, args)
         return obj
 
@@ -57,6 +62,12 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
         if "extend" in args:
             obj.extended = get_extended_attributes(self.db_handle, obj, args)
         return obj
+
+    def sort_objects(self, objs: List[str], args: Dict, locale) -> List:
+        """Sort the list of objects as needed."""
+        return sort_objects(
+            self.db_handle, self.gramps_class_name, objs, args, locale=locale
+        )
 
     @property
     def db_handle(self) -> DbReadBase:
@@ -83,22 +94,23 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
 
     @use_args(
         {
-            "strip": fields.Boolean(missing=False),
-            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "skipkeys": fields.DelimitedList(
+            "backlinks": fields.Boolean(missing=False),
+            "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
+            "formats": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
+            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
                     choices=["all", "self", "families", "events", "age", "span"]
                 ),
             ),
-            "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "formats": fields.DelimitedList(
+            "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
-            "backlinks": fields.Boolean(missing=False),
+            "soundex": fields.Boolean(missing=False),
+            "strip": fields.Boolean(missing=False),
         },
         location="query",
     )
@@ -116,25 +128,30 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
 
     @use_args(
         {
+            "backlinks": fields.Boolean(missing=False),
+            "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
+            "filter": fields.Str(validate=validate.Length(min=1)),
+            "formats": fields.DelimitedList(
+                fields.Str(validate=validate.Length(min=1))
+            ),
             "gramps_id": fields.Str(validate=validate.Length(min=1)),
-            "strip": fields.Boolean(missing=False),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
+            "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
+            "strip": fields.Boolean(missing=False),
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
+            "page": fields.Integer(missing=0, validate=validate.Range(min=1)),
+            "pagesize": fields.Integer(missing=20, validate=validate.Range(min=1)),
             "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
                     choices=["all", "self", "families", "events", "age", "span"]
                 ),
             ),
-            "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "filter": fields.Str(validate=validate.Length(min=1)),
             "rules": fields.Str(validate=validate.Length(min=1)),
-            "formats": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "backlinks": fields.Boolean(missing=False),
+            "sort": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
+            "soundex": fields.Boolean(missing=False),
         },
         location="query",
     )
@@ -144,25 +161,37 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             obj = self.get_object_from_gramps_id(args["gramps_id"])
             if obj is None:
                 abort(404)
-            return self.response(200, [self.full_object(obj, args)], args)
+            return self.response(
+                200, [self.full_object(obj, args)], args, total_items=1
+            )
+
+        locale = get_locale_for_language(args["locale"], default=True)
+        query_method = self.db_handle.method("get_%s_handles", self.gramps_class_name)
+        if self.gramps_class_name in ["Event", "Repository", "Note"]:
+            handles = query_method()
+        else:
+            handles = query_method(sort_handles=True, locale=locale)
+
+        if "filter" in args or "rules" in args:
+            handles = apply_filter(
+                self.db_handle, args, self.gramps_class_name, handles
+            )
+
+        if "sort" in args:
+            handles = self.sort_objects(handles, args["sort"], locale=locale)
+
+        if args["page"] > 0:
+            offset = (args["page"] - 1) * args["pagesize"]
+            handles = handles[offset : offset + args["pagesize"]]
+
         query_method = self.db_handle.method(
             "get_%s_from_handle", self.gramps_class_name
         )
-        if "filter" in args or "rules" in args:
-            handle_list = apply_filter(self.db_handle, args, self.gramps_class_name)
-            return self.response(
-                200,
-                [
-                    self.full_object(query_method(handle), args)
-                    for handle in handle_list
-                ],
-                args,
-            )
-        iter_method = self.db_handle.method("iter_%s_handles", self.gramps_class_name)
         return self.response(
             200,
-            [self.full_object(query_method(handle), args) for handle in iter_method()],
+            [self.full_object(query_method(handle), args) for handle in handles],
             args,
+            total_items=len(handles),
         )
 
 

@@ -20,6 +20,8 @@
 
 """Full-text search endpoint."""
 
+from typing import Dict
+
 from flask import current_app
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
@@ -48,17 +50,17 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
         {
             "query": fields.Str(required=True),
             "page": fields.Int(missing=1, required=False),
-            "pagesize": fields.Int(missing=10, required=False),
+            "pagesize": fields.Int(missing=20, required=False),
         },
         location="query",
     )
-    def get(self, args):
+    def get(self, args: Dict):
         """Get search result."""
         searcher = current_app.config["SEARCH_INDEXER"]
-        result = searcher.search(args["query"], args["page"], args["pagesize"])
-        if "hits" in result:
-            for hit in result["hits"]:
+        total, hits = searcher.search(args["query"], args["page"], args["pagesize"])
+        if hits:
+            for hit in hits:
                 hit["object"] = self.get_object_from_handle(
                     handle=hit["handle"], class_name=hit["object_type"]
                 )
-        return self.response(200, payload=result)
+        return self.response(200, payload=hits, total_items=total)

@@ -40,6 +40,9 @@ class TestTags(unittest.TestCase):
         # check expected number of tags found
         result = self.client.get("/api/tags/")
         self.assertEqual(len(result.json), get_object_count("tags"))
+        # checked number passed back in header as well
+        count = result.headers.pop("X-Total-Count")
+        self.assertEqual(count, str(get_object_count("tags")))
         # check first record is expected tag
         self.assertEqual(result.json[0]["name"], "complete")
         # check last record is expected tag

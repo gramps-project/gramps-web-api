@@ -49,15 +49,18 @@ class TestCitations(unittest.TestCase):
         # check expected number of citations found
         result = self.client.get("/api/citations/")
         self.assertEqual(len(result.json), get_object_count("citations"))
+        # checked number passed back in header as well
+        count = result.headers.pop("X-Total-Count")
+        self.assertEqual(count, str(get_object_count("citations")))
         # check first record is expected citation
         self.assertEqual(result.json[0]["gramps_id"], "C0000")
         self.assertEqual(result.json[0]["handle"], "c140d2362f25a92643b")
         self.assertEqual(result.json[0]["source_handle"], "b39fe3f390e30bd2b99")
         # check last record is expected citation
         last = len(result.json) - 1
-        self.assertEqual(result.json[last]["gramps_id"], "C2853")
-        self.assertEqual(result.json[last]["handle"], "c140e0925ac0adcf8c4")
-        self.assertEqual(result.json[last]["source_handle"], "c140d4ef77841431905")
+        self.assertEqual(result.json[last]["gramps_id"], "C2324")
+        self.assertEqual(result.json[last]["handle"], "c140d28761775ca12ba")
+        self.assertEqual(result.json[last]["source_handle"], "VUBKMQTA2XZG1V6QP8")
 
     def test_citations_endpoint_422(self):
         """Test response for an invalid parm."""
