@@ -62,9 +62,19 @@ class UserChangePasswordResource(ProtectedResource):
 
 def handle_reset_token(username: str, email: str, token: str):
     """Handle the password reset token."""
+    base_url = current_app.config["BASE_URL"]
     send_email(
-        subject="Password reset",
-        body="{}, your token: {}".format(username, token),
+        subject="Reset your Gramps password",
+        body="""You are receiving this e-mail because you (or someone else) have requested the reset of the password for your account.
+
+Please click on the following link, or paste this into your browser to complete the process:
+
+{}/api/user/password/reset?jwt={}
+
+If you did not request this, please ignore this e-mail and your password will remain unchanged.
+""".format(
+            base_url, token
+        ),
         to=[email],
     )
 

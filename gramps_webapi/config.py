@@ -34,6 +34,7 @@ class DefaultConfig(object):
     EMAIL_HOST_PASSWORD = ""
     EMAIL_USE_TLS = False
     DEFAULT_FROM_EMAIL = ""
+    BASE_URL = "http://localhost/"
 
 
 class DefaultConfigJWT(object):
