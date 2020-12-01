@@ -65,8 +65,7 @@ def handle_reset_token(username: str, email: str, token: str):
     send_email(
         subject="Password reset",
         body="{}, your token: {}".format(username, token),
-        sender="from@example.com",
-        recipients=[email],
+        to=[email],
     )
 
 
@@ -95,7 +94,10 @@ class UserTriggerResetPasswordResource(Resource):
             # password reset has to be triggered within 24h
             expires_delta=datetime.timedelta(days=1),
         )
-        handle_reset_token(username=args["username"], email=email, token=token)
+        try:
+            handle_reset_token(username=args["username"], email=email, token=token)
+        except ValueError:
+            abort(500)
         return "", 201
 
 
