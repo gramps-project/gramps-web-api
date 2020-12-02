@@ -22,6 +22,7 @@
 
 import re
 import unittest
+from quopri import decodestring
 from unittest.mock import patch
 
 from flask_jwt_extended import get_jwt_claims, get_jwt_identity
@@ -48,7 +49,7 @@ class TestUser(unittest.TestCase):
         self.client = self.app.test_client()
         sqlauth = self.app.config["AUTH_PROVIDER"]
         sqlauth.create_table()
-        sqlauth.add_user(name="user", password="123", email="test@test.com")
+        sqlauth.add_user(name="user", password="123", email="test@example.com")
         self.assertTrue(self.app.testing)
         self.ctx = self.app.test_request_context()
         self.ctx.push()
@@ -139,13 +140,13 @@ class TestUser(unittest.TestCase):
             rv = self.client.post(
                 "/api/user/password/reset/trigger/", json={"username": "user"}
             )
-            context = mock_smtp.return_value.__enter__.return_value
+            context = mock_smtp.return_value
             context.send_message.assert_called()
             name, args, kwargs = context.method_calls.pop(0)
             msg = args[0]
             # extract the token from the message body
-            body = msg.get_body().as_string().replace("=\n", "")
-            matches = re.findall(r".*token: ([^\s]+).*", body)
+            body = msg.get_body().get_payload().replace("=\n", "")
+            matches = re.findall(r".*jwt=3D([^\s]+).*", body)
             self.assertEqual(len(matches), 1)
             token = matches[0]
         # try without token!
