@@ -23,8 +23,8 @@
 
 from flask import abort
 from gramps.gen.const import GRAMPS_LOCALE as glocale
-from gramps.gen.display.name import displayer as _nd
-from gramps.gen.display.place import displayer as _pd
+from gramps.gen.display.name import NameDisplay
+from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.lib import Date
 from gramps.gen.soundex import soundex
 from gramps.gen.utils.db import get_birth_or_fallback, get_death_or_fallback
@@ -37,6 +37,8 @@ class Sort:
         """Initialize sort class."""
         self.database = database
         self.locale = locale
+        self.name_display = NameDisplay(xlocale=self.locale)
+        self.place_display = PlaceDisplay()
         self.namespace = namespace
         self.query_method = self.database.method("get_%s_from_handle", self.namespace)
 
@@ -81,7 +83,7 @@ class Sort:
     def by_person_sorted_name_key(self, handle):
         """Compare by displayed names."""
         obj = self.query_method(handle)
-        return self.locale.sort_key(_nd.sorted(obj))
+        return self.locale.sort_key(self.name_display.sorted(obj))
 
     def by_person_soundex_key(self, handle):
         """Compare by soundex."""
@@ -143,7 +145,9 @@ class Sort:
     def by_event_place_key(self, handle):
         """Compare by event place."""
         obj = self.query_method(handle)
-        return self.locale.sort_key(_pd.display_event(self.database, obj))
+        return self.locale.sort_key(
+            self.place_display.display_event(self.database, obj)
+        )
 
     def by_event_description_key(self, handle):
         """Compare by event description."""
@@ -153,7 +157,7 @@ class Sort:
     def by_place_title_key(self, handle):
         """Compare by place title."""
         obj = self.query_method(handle)
-        return self.locale.sort_key(_pd.display(self.database, obj))
+        return self.locale.sort_key(self.place_display.display(self.database, obj))
 
     def by_place_latitude_key(self, handle):
         """Compare by place latitude."""

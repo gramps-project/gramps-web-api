@@ -23,7 +23,9 @@
 
 from typing import Dict
 
+from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.lib import Citation
+from gramps.gen.utils.grampslocale import GrampsLocale
 
 from .base import (
     GrampsObjectProtectedResource,
@@ -38,7 +40,9 @@ class CitationResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Citation"
 
-    def object_extend(self, obj: Citation, args: Dict) -> Citation:
+    def object_extend(
+        self, obj: Citation, args: Dict, locale: GrampsLocale = glocale
+    ) -> Citation:
         """Extend citation attributes as needed."""
         if "extend" in args:
             db_handle = self.db_handle

@@ -275,24 +275,7 @@ paths:
         in: query
         required: false
         type: string
-        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
-      - name: profile
-        in: query
-        required: false
-        type: string
-        description: >
-          Enables the return of summarized information about the person and their familial relationships in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
-
-
-          Accepts a comma delimited list of possible objects to be provided. For people the possible objects are:
-            Object | Contents
-            ------ | --------
-            all | Returns all information below
-            age | Returns age at time of a personal event
-            self | Returns name, sex, birth and death information and is an implied default when events or families specified
-            span | Returns elapsed time span from union that formed the family and familial events
-            events | Returns event list with name, date and location
-            families | Returns family information with parents, children, and key relationship between parents
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
       - name: soundex
         in: query
         required: false
@@ -327,6 +310,23 @@ paths:
             primary_parent_family | The primary parent family record
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: profile
+        in: query
+        required: false
+        type: string
+        description: >
+          Enables the return of summarized information about the person and their familial relationships in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided. For people the possible objects are:
+            Object | Contents
+            ------ | --------
+            all | Returns all information below
+            age | Returns age at time of a personal event
+            self | Returns name, sex, birth and death information and is an implied default when events or families specified
+            span | Returns elapsed time span from union that formed the family and familial events
+            events | Returns event list with name, date and location
+            families | Returns family information with parents, children, and key relationship between parents
       responses:
         200:
           description: "OK: Successful operation."
@@ -370,23 +370,17 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
-      - name: profile
+      - name: locale
         in: query
         required: false
         type: string
-        description: >
-          Enables the return of summarized information about the person and their familial relationships in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
-
-
-          Accepts a comma delimited list of possible objects to be provided. For people the possible objects are:
-            Object | Contents
-            ------ | --------
-            all | Returns all information below
-            age | Returns age at time of a personal event
-            self | Returns name, sex, birth and death information and is an implied default when events or families specified
-            span | Returns elapsed time span from union that formed the family and familial events
-            events | Returns event list with name, date and location
-            families | Returns family information with parents, children, and key relationship between parents
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
+      - name: soundex
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether to include the soundex code for the surname or not."
       - name: backlinks
         in: query
         required: false
@@ -415,6 +409,23 @@ paths:
             primary_parent_family | The primary parent family record
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: profile
+        in: query
+        required: false
+        type: string
+        description: >
+          Enables the return of summarized information about the person and their familial relationships in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided. For people the possible objects are:
+            Object | Contents
+            ------ | --------
+            all | Returns all information below
+            age | Returns age at time of a personal event
+            self | Returns name, sex, birth and death information and is an implied default when events or families specified
+            span | Returns elapsed time span from union that formed the family and familial events
+            events | Returns event list with name, date and location
+            families | Returns family information with parents, children, and key relationship between parents
       responses:
         200:
           description: "OK: Successful operation."
@@ -524,22 +535,17 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
-      - name: profile
+      - name: locale
         in: query
         required: false
         type: string
-        description: >
-          Enables the return of summarized information about the family in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
-
-
-          Accepts a comma delimited list of possible objects to be provided. For families the possible objects are:
-            Object | Contents
-            ------ | --------
-            all | Returns all information below
-            age | Returns age at time of a personal event
-            self | Returns family information with parents, children, and key relationship between parents and is an implied default if events specified
-            span | Returns elapsed time span from union that formed the family and familial events
-            events | Returns family event list with name, date and location
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
+      - name: soundex
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether to include the soundex code for the surname or not."
       - name: backlinks
         in: query
         required: false
@@ -567,17 +573,22 @@ paths:
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
-      - name: soundex
-        in: query
-        required: false
-        type: boolean
-        default: false
-        description: "Indicates whether to include the soundex code for the surname or not."
-      - name: locale
+      - name: profile
         in: query
         required: false
         type: string
-        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
+        description: >
+          Enables the return of summarized information about the family in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided. For families the possible objects are:
+            Object | Contents
+            ------ | --------
+            all | Returns all information below
+            age | Returns age at time of a personal event    
+            self | Returns family information with parents, children, and key relationship between parents and is an implied default if events specified
+            span | Returns elapsed time span from union that formed the family and familial events
+            events | Returns family event list with name, date and location
       responses:
         200:
           description: "OK: Successful operation."
@@ -621,22 +632,17 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
-      - name: profile
+      - name: locale
         in: query
         required: false
         type: string
-        description: >
-          Enables the return of summarized information about the family in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
-
-
-          Accepts a comma delimited list of possible objects to be provided. For a family the possible objects are:
-            Object | Contents
-            ------ | --------
-            all | Returns all information below
-            age | Returns age at time of a personal event
-            self | Returns family information with parents, children, and key relationship between parents and is an implied default if events specified
-            span | Returns elapsed time span from union that formed the family and familial events
-            events | Returns family event list with name, date and location
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
+      - name: soundex
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether to include the soundex code for the surname or not."
       - name: backlinks
         in: query
         required: false
@@ -664,6 +670,22 @@ paths:
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: profile
+        in: query
+        required: false
+        type: string
+        description: >
+          Enables the return of summarized information about the family in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided. For a family the possible objects are:
+            Object | Contents
+            ------ | --------
+            all | Returns all information below
+            age | Returns age at time of a personal event    
+            self | Returns family information with parents, children, and key relationship between parents and is an implied default if events specified
+            span | Returns elapsed time span from union that formed the family and familial events
+            events | Returns family event list with name, date and location
       responses:
         200:
           description: "OK: Successful operation."
@@ -774,19 +796,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
-      - name: profile
+      - name: locale
         in: query
         required: false
         type: string
-        description: >
-          Enables the return of summarized information about the event in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
-
-
-          Accepts a comma delimited list of possible objects to be provided. For events the possible objects are:
-            Object | Contents
-            ------ | --------
-            all | Returns all information below
-            events | Returns event name, date and location
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
       - name: backlinks
         in: query
         required: false
@@ -811,11 +825,19 @@ paths:
             place | The place record for the event
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
-      - name: locale
+      - name: profile
         in: query
         required: false
         type: string
-        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
+        description: >
+          Enables the return of summarized information about the event in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided. For events the possible objects are:
+            Object | Contents
+            ------ | --------
+            all | Returns all information below
+            events | Returns event name, date and location
       responses:
         200:
           description: "OK: Successful operation."
@@ -859,19 +881,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
-      - name: profile
+      - name: locale
         in: query
         required: false
         type: string
-        description: >
-          Enables the return of summarized information about the event in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
-
-
-          Accepts a comma delimited list of possible objects to be provided. For an event the possible objects are:
-            Object | Contents
-            ------ | --------
-            all | Returns all information below
-            events | Returns event name, date and location
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
       - name: backlinks
         in: query
         required: false
@@ -896,6 +910,19 @@ paths:
             place | The place record for the event
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: profile
+        in: query
+        required: false
+        type: string
+        description: >
+          Enables the return of summarized information about the event in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided. For an event the possible objects are:
+            Object | Contents
+            ------ | --------
+            all | Returns all information below
+            events | Returns event name, date and location
       responses:
         200:
           description: "OK: Successful operation."
@@ -925,17 +952,17 @@ paths:
         required: true
         type: string
         description: "The unique identifier for the second event."
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
       - name: as_age
         in: query
         required: false
         type: boolean
         default: true
         description: "Indicates whether to return result as an age or not."
-      - name: locale
-        in: query
-        required: false
-        type: string
-        description: "Specifies the locale for the translated string if one other than the current default is desired. Should be a valid language code from the available list of translations."
       - name: precision
         in: query
         required: false
@@ -1061,6 +1088,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
       - name: backlinks
         in: query
         required: false
@@ -1084,11 +1116,6 @@ paths:
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
-      - name: locale
-        in: query
-        required: false
-        type: string
-        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1263,6 +1290,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
       - name: backlinks
         in: query
         required: false
@@ -1286,11 +1318,6 @@ paths:
             source | The source record cited from
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
-      - name: locale
-        in: query
-        required: false
-        type: string
-        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1467,6 +1494,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
       - name: backlinks
         in: query
         required: false
@@ -1490,11 +1522,6 @@ paths:
             reporef_list | The list of referenced repository records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
-      - name: locale
-        in: query
-        required: false
-        type: string
-        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1669,6 +1696,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific keys to omit from a response, keeping all others."
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
       - name: backlinks
         in: query
         required: false
@@ -1690,11 +1722,6 @@ paths:
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
-      - name: locale
-        in: query
-        required: false
-        type: string
-        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -1869,6 +1896,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
       - name: backlinks
         in: query
         required: false
@@ -1891,11 +1923,6 @@ paths:
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
-      - name: locale
-        in: query
-        required: false
-        type: string
-        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -2246,6 +2273,11 @@ paths:
         required: false
         type: string
         description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
       - name: backlinks
         in: query
         required: false
@@ -2266,11 +2298,6 @@ paths:
             all | Returns all possible records listed below
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
-      - name: locale
-        in: query
-        required: false
-        type: string
-        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."
@@ -2411,7 +2438,7 @@ paths:
         in: query
         required: false
         type: string
-        description: "Specifies the locale for translated strings if one other than the current default is desired. Should be a valid language code from the available list of translations."
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
       responses:
         200:
           description: "OK: Successful operation."

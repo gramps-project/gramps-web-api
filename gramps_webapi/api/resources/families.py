@@ -24,7 +24,9 @@
 from typing import Dict
 
 from flask import abort
+from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.lib import Family
+from gramps.gen.utils.grampslocale import GrampsLocale
 
 from .base import (
     GrampsObjectProtectedResource,
@@ -43,11 +45,15 @@ class FamilyResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Family"
 
-    def object_extend(self, obj: Family, args: Dict) -> Family:
+    def object_extend(
+        self, obj: Family, args: Dict, locale: GrampsLocale = glocale
+    ) -> Family:
         """Extend family attributes as needed."""
         db_handle = self.db_handle
         if "profile" in args:
-            obj.profile = get_family_profile_for_object(db_handle, obj, args["profile"])
+            obj.profile = get_family_profile_for_object(
+                db_handle, obj, args["profile"], locale=locale
+            )
         if "extend" in args:
             obj.extended = get_extended_attributes(db_handle, obj, args)
             if "all" in args["extend"] or "father_handle" in args["extend"]:
