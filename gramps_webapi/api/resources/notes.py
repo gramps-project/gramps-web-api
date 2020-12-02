@@ -23,7 +23,9 @@
 
 from typing import Dict
 
+from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.lib import Note
+from gramps.gen.utils.grampslocale import GrampsLocale
 
 from ..html import get_note_html
 from .base import (
@@ -42,7 +44,9 @@ class NoteResourceHelper(GrampsObjectResourceHelper):
     # supported formatted note formats (all lowercase!)
     FORMATS_SUPPORTED = ["html"]
 
-    def object_extend(self, obj: Note, args: Dict) -> Note:
+    def object_extend(
+        self, obj: Note, args: Dict, locale: GrampsLocale = glocale
+    ) -> Note:
         """Extend note attributes as needed."""
         if "formats" in args:
             formats_allowed = [

@@ -23,7 +23,9 @@
 
 from typing import Dict
 
+from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.lib import Person
+from gramps.gen.utils.grampslocale import GrampsLocale
 
 from .base import (
     GrampsObjectProtectedResource,
@@ -42,11 +44,15 @@ class PersonResourceHelper(GrampsObjectResourceHelper):
 
     gramps_class_name = "Person"
 
-    def object_extend(self, obj: Person, args: Dict) -> Person:
+    def object_extend(
+        self, obj: Person, args: Dict, locale: GrampsLocale = glocale
+    ) -> Person:
         """Extend person attributes as needed."""
         db_handle = self.db_handle
         if "profile" in args:
-            obj.profile = get_person_profile_for_object(db_handle, obj, args["profile"])
+            obj.profile = get_person_profile_for_object(
+                db_handle, obj, args["profile"], locale=locale
+            )
         if "extend" in args:
             obj.extended = get_extended_attributes(db_handle, obj, args)
             if "all" in args["extend"] or "families" in args["extend"]:

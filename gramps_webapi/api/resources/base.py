@@ -24,9 +24,11 @@ from abc import abstractmethod
 from typing import Dict, List
 
 from flask import Response, abort
+from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
+from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 from webargs.flaskparser import use_args
 
@@ -46,7 +48,9 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
     def gramps_class_name(self):
         """To be set on child classes."""
 
-    def full_object(self, obj: GrampsObject, args: Dict) -> GrampsObject:
+    def full_object(
+        self, obj: GrampsObject, args: Dict, locale: GrampsLocale = glocale
+    ) -> GrampsObject:
         """Get the full object with extended attributes and backlinks."""
         if args.get("backlinks"):
             obj.backlinks = get_backlinks(self.db_handle, obj.handle)
@@ -54,16 +58,20 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
             if self.gramps_class_name not in ["Person", "Family"]:
                 abort(422)
             obj.soundex = get_soundex(self.db_handle, obj, self.gramps_class_name)
-        obj = self.object_extend(obj, args)
+        obj = self.object_extend(obj, args, locale=locale)
         return obj
 
-    def object_extend(self, obj: GrampsObject, args: Dict) -> GrampsObject:
+    def object_extend(
+        self, obj: GrampsObject, args: Dict, locale: GrampsLocale = glocale
+    ) -> GrampsObject:
         """Extend the base object attributes as needed."""
         if "extend" in args:
             obj.extended = get_extended_attributes(self.db_handle, obj, args)
         return obj
 
-    def sort_objects(self, objs: List[str], args: Dict, locale) -> List:
+    def sort_objects(
+        self, objs: List[str], args: Dict, locale: GrampsLocale = glocale
+    ) -> List:
         """Sort the list of objects as needed."""
         return sort_objects(
             self.db_handle, self.gramps_class_name, objs, args, locale=locale
@@ -100,6 +108,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
                 fields.Str(validate=validate.Length(min=1))
             ),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
+            "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
             "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
@@ -120,7 +129,8 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             obj = self.get_object_from_handle(handle)
         except HandleError:
             abort(404)
-        return self.response(200, self.full_object(obj, args), args)
+        locale = get_locale_for_language(args["locale"], default=True)
+        return self.response(200, self.full_object(obj, args, locale=locale), args)
 
 
 class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
@@ -137,10 +147,6 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             "gramps_id": fields.Str(validate=validate.Length(min=1)),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
-            "strip": fields.Boolean(missing=False),
-            "skipkeys": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
             "page": fields.Integer(missing=0, validate=validate.Range(min=1)),
             "pagesize": fields.Integer(missing=20, validate=validate.Range(min=1)),
             "profile": fields.DelimitedList(
@@ -150,22 +156,26 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                 ),
             ),
             "rules": fields.Str(validate=validate.Length(min=1)),
+            "skipkeys": fields.DelimitedList(
+                fields.Str(validate=validate.Length(min=1))
+            ),
             "sort": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "soundex": fields.Boolean(missing=False),
+            "strip": fields.Boolean(missing=False),
         },
         location="query",
     )
     def get(self, args: Dict) -> Response:
         """Get all objects."""
+        locale = get_locale_for_language(args["locale"], default=True)
         if "gramps_id" in args:
             obj = self.get_object_from_gramps_id(args["gramps_id"])
             if obj is None:
                 abort(404)
             return self.response(
-                200, [self.full_object(obj, args)], args, total_items=1
+                200, [self.full_object(obj, args, locale=locale)], args, total_items=1
             )
 
-        locale = get_locale_for_language(args["locale"], default=True)
         query_method = self.db_handle.method("get_%s_handles", self.gramps_class_name)
         if self.gramps_class_name in ["Event", "Repository", "Note"]:
             handles = query_method()
@@ -189,7 +199,10 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         )
         return self.response(
             200,
-            [self.full_object(query_method(handle), args) for handle in handles],
+            [
+                self.full_object(query_method(handle), args, locale=locale)
+                for handle in handles
+            ],
             args,
             total_items=len(handles),
         )
