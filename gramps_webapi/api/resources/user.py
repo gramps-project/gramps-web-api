@@ -62,7 +62,7 @@ class UserChangePasswordResource(ProtectedResource):
 
 def handle_reset_token(username: str, email: str, token: str):
     """Handle the password reset token."""
-    base_url = current_app.config["BASE_URL"]
+    base_url = current_app.config["BASE_URL"].rstrip("/")
     send_email(
         subject="Reset your Gramps password",
         body="""You are receiving this e-mail because you (or someone else) have requested the reset of the password for your account.
@@ -101,8 +101,8 @@ class UserTriggerResetPasswordResource(Resource):
             # the hash of the existing password is stored in the token in order
             # to make sure the rest token can only be used once
             user_claims={"old_hash": auth_provider.get_pwhash(args["username"])},
-            # password reset has to be triggered within 24h
-            expires_delta=datetime.timedelta(days=1),
+            # password reset has to be triggered within 1h
+            expires_delta=datetime.timedelta(hours=1),
         )
         try:
             handle_reset_token(username=args["username"], email=email, token=token)
