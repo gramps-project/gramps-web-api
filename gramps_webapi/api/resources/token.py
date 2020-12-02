@@ -20,6 +20,7 @@
 
 """Authentication endpoint blueprint."""
 
+from typing import Iterable
 
 from flask import abort, current_app
 from flask_jwt_extended import (
@@ -35,6 +36,22 @@ from webargs.flaskparser import use_args
 from . import RefreshProtectedResource, Resource
 
 limiter = Limiter(key_func=get_remote_address)
+
+
+def get_tokens(
+    username: str, permissions: Iterable[str], include_refresh: bool = False
+):
+    """Create access token (and refresh token if desired)."""
+    access_token = create_access_token(
+        identity=username, user_claims={"permissions": list(permissions)}
+    )
+    if not include_refresh:
+        return {"access_token": access_token}
+    refresh_token = create_refresh_token(identity=username)
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+    }
 
 
 class TokenResource(Resource):
@@ -53,20 +70,15 @@ class TokenResource(Resource):
             abort(401)
         if not auth_provider.authorized(args.get("username"), args.get("password")):
             abort(403)
-        return self.get_tokens(args["username"])
+        permissions = auth_provider.get_permissions(args["username"])
+        return get_tokens(
+            username=args["username"], permissions=permissions, include_refresh=True
+        )
 
     @staticmethod
     def get_dummy_tokens():
         """Return dummy access and refresh token."""
         return {"access_token": 1, "refresh_token": 1}
-
-    @staticmethod
-    def get_tokens(username: str):
-        """Create an access and refresh token."""
-        return {
-            "access_token": create_access_token(identity=username),
-            "refresh_token": create_refresh_token(identity=username),
-        }
 
 
 class TokenRefreshResource(RefreshProtectedResource):
@@ -79,14 +91,12 @@ class TokenRefreshResource(RefreshProtectedResource):
         if auth_provider is None:
             return self.get_dummy_token()
         username = get_jwt_identity()
-        return self.get_token(username)
+        permissions = auth_provider.get_permissions(username)
+        return get_tokens(
+            username=username, permissions=permissions, include_refresh=False
+        )
 
     @staticmethod
     def get_dummy_token():
         """Return dummy access token."""
         return {"access_token": 1}
-
-    @staticmethod
-    def get_token(username: str):
-        """Create an access token."""
-        return {"access_token": create_access_token(identity=username)}

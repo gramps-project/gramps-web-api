@@ -21,9 +21,11 @@
 """API resource endpoints."""
 
 from functools import wraps
+from typing import Iterable
 
-from flask import current_app
+from flask import abort, current_app
 from flask_jwt_extended import (
+    get_jwt_claims,
     verify_jwt_in_request,
     verify_jwt_refresh_token_in_request,
 )
@@ -51,3 +53,22 @@ def jwt_refresh_token_required_ifauth(func):
         return func(*args, **kwargs)
 
     return wrapper
+
+
+def has_permissions(scope: Iterable[str]) -> bool:
+    """Check a set of permissions and return False if any are missing."""
+    if current_app.config.get("DISABLE_AUTH"):
+        return True
+    claims = get_jwt_claims()
+    user_permissions = set(claims.get("permissions", []))
+    required_persmissions = set(scope)
+    missing_permissions = required_persmissions - user_permissions
+    if missing_permissions:
+        return False
+    return True
+
+
+def require_permissions(scope: Iterable[str]) -> None:
+    """Require a set of permissions or fail with a 403."""
+    if not has_permissions(scope):
+        abort(403)
