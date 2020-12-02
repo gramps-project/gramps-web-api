@@ -26,13 +26,12 @@ from typing import BinaryIO
 
 from flask import abort, current_app, g
 from gramps.gen.const import GRAMPS_LOCALE
+from gramps.gen.db.base import DbReadBase
 from gramps.gen.utils.file import expand_media_path
 from gramps.gen.utils.grampslocale import GrampsLocale
 
-from ..dbmanager import DbState
 
-
-def get_dbstate() -> DbState:
+def get_db_handle() -> DbReadBase:
     """Open the database and get the current state.
 
     Called before every request.
@@ -40,12 +39,12 @@ def get_dbstate() -> DbState:
     dbmgr = current_app.config["DB_MANAGER"]
     if "dbstate" not in g:
         g.dbstate = dbmgr.get_db()
-    return g.dbstate
+    return g.dbstate.db
 
 
 def get_media_base_dir():
     """Get the media base directory set in the database."""
-    db = get_dbstate().db
+    db = get_db_handle()
     return expand_media_path(db.get_mediapath(), db)
 
 

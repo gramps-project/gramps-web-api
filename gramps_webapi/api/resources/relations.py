@@ -28,7 +28,7 @@ from webargs import fields, validate
 from webargs.flaskparser import use_args
 
 from ...types import Handle
-from ..util import get_dbstate, get_locale_for_language
+from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .util import get_person_by_handle
@@ -46,7 +46,7 @@ class RelationResource(ProtectedResource, GrampsJSONEncoder):
     )
     def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:
         """Get the most direct relationship between two people."""
-        db_handle = get_dbstate().db
+        db_handle = get_db_handle()
         person1 = get_person_by_handle(db_handle, handle1)
         if person1 == {}:
             abort(404)
@@ -82,7 +82,7 @@ class RelationsResource(ProtectedResource, GrampsJSONEncoder):
     )
     def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:
         """Get all possible relationships between two people."""
-        db_handle = get_dbstate().db
+        db_handle = get_db_handle()
         person1 = get_person_by_handle(db_handle, handle1)
         if person1 == {}:
             abort(404)

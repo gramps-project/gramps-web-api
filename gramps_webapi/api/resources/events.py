@@ -32,7 +32,7 @@ from webargs import fields, validate
 from webargs.flaskparser import use_args
 
 from ...types import Handle
-from ..util import get_dbstate, get_locale_for_language
+from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .base import (
     GrampsObjectProtectedResource,
@@ -80,7 +80,7 @@ class EventSpanResource(ProtectedResource, GrampsJSONEncoder):
     @property
     def db_handle(self) -> DbReadBase:
         """Get the database instance."""
-        return get_dbstate().db
+        return get_db_handle()
 
     @use_args(
         {

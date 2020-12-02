@@ -25,12 +25,13 @@ from flask import Response
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.const import ENV, GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
+from gramps.gen.dbstate import DbState
 from gramps.gen.utils.grampslocale import INCOMPLETE_TRANSLATIONS
 from pkg_resources import resource_filename
 
 from gramps_webapi.const import VERSION
 
-from ..util import get_dbstate
+from ..util import get_db_handle
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -41,7 +42,7 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
     @property
     def db_handle(self) -> DbReadBase:
         """Get the database instance."""
-        return get_dbstate().db
+        return get_db_handle()
 
     def get(self) -> Response:
         """Get active database and application related metadata information."""
@@ -54,9 +55,8 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
         db_handle = self.db_handle
         db_name = db_handle.get_dbname()
         db_type = "Unknown"
-        db_summary = CLIDbManager(get_dbstate()).family_tree_summary(
-            database_names=[db_name]
-        )
+        dbstate = DbState()
+        db_summary = CLIDbManager(dbstate).family_tree_summary(database_names=[db_name])
         if len(db_summary) == 1:
             db_key = GRAMPS_LOCALE.translation.sgettext("Database")
             for key in db_summary[0]:
@@ -69,19 +69,10 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
             schema = yaml.safe_load(file_handle)
 
         result = {
-            "database": {
-                "id": db_handle.get_dbid(),
-                "name": db_name,
-                "type": db_type,
-            },
+            "database": {"id": db_handle.get_dbid(), "name": db_name, "type": db_type,},
             "default_person": db_handle.get_default_handle(),
-            "gramps": {
-                "version": ENV["VERSION"],
-            },
-            "gramps_webapi": {
-                "schema": schema["info"]["version"],
-                "version": VERSION,
-            },
+            "gramps": {"version": ENV["VERSION"],},
+            "gramps_webapi": {"schema": schema["info"]["version"], "version": VERSION,},
             "locale": {
                 "lang": GRAMPS_LOCALE.lang,
                 "language": GRAMPS_LOCALE.language[0],
