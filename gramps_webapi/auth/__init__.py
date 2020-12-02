@@ -1,4 +1,3 @@
-#
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
 # Copyright (C) 2020      David Straub
@@ -23,29 +22,25 @@
 import uuid
 from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
+<<<<<<< HEAD:gramps_webapi/auth.py
 from typing import Any, Dict, Optional
+=======
+from typing import Set
+>>>>>>> Move stuff into auth module, add auth constants:gramps_webapi/auth/__init__.py
 
 import sqlalchemy as sa
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-from .util.passwords import hash_password, verify_password
-from .util.sql_guid import GUID
-
-
-class AuthProvider(metaclass=ABCMeta):
-    """Base class for authentication providers."""
-
-    @abstractmethod
-    def authorized(self, username: str, password: str) -> bool:
-        """Return true if the username is authorized."""
-        return False
+from .const import PERMISSIONS
+from .passwords import hash_password, verify_password
+from .sql_guid import GUID
 
 
 Base = declarative_base()
 
 
-class SQLAuth(AuthProvider):
+class SQLAuth:
     """SQL Alchemy user database."""
 
     def __init__(self, db_uri, logging=False):
@@ -135,7 +130,7 @@ class SQLAuth(AuthProvider):
                 user.role = role
 
     def authorized(self, username: str, password: str) -> bool:
-        """Return true if the username is authorized."""
+        """Return true if the user can be authenticated."""
         with self.session_scope() as session:
             user = session.query(User).filter_by(name=username).scalar()
             if user is None:
@@ -156,6 +151,12 @@ class SQLAuth(AuthProvider):
                 return None
             return {"id": user.id, "email": user.email, "fullname": user.fullname}
 
+    def get_permissions(self, username: str) -> Set[str]:
+        """Get the permissions of a given user."""
+        with self.session_scope() as session:
+            user = session.query(User).filter_by(name=username).one()
+            return PERMISSIONS[user.role]
+
 
 class User(Base):
     """User table class for sqlalchemy."""
@@ -170,5 +171,5 @@ class User(Base):
     role = sa.Column(sa.Integer, default=0)
 
     def __repr__(self):
-        """String representation of instance."""
+        """Return string representation of instance."""
         return "<User(name='%s', fullname='%s')>" % (self.name, self.fullname)
