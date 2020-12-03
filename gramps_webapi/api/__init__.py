@@ -170,10 +170,13 @@ def download_file(handle):
     return handler.send_file()
 
 
-# Media files
+# Thumbnails
 @api_blueprint.route("/media/<string:handle>/thumbnail/<int:size>")
 @jwt_required_ifauth
-@use_args({"square": fields.Boolean(missing=False)}, location="query")
+@use_args(
+    {"square": fields.Boolean(missing=False), "jwt": fields.String(required=False)},
+    location="query",
+)
 def get_thumbnail(args, handle, size):
     """Get a file's thumbnail."""
     base_dir = current_app.config.get("MEDIA_BASE_DIR")
@@ -185,7 +188,10 @@ def get_thumbnail(args, handle, size):
     "/media/<string:handle>/cropped/<int:x1>/<int:y1>/<int:x2>/<int:y2>"
 )
 @jwt_required_ifauth
-@use_args({"square": fields.Boolean(missing=False)}, location="query")
+@use_args(
+    {"square": fields.Boolean(missing=False), "jwt": fields.String(required=False)},
+    location="query",
+)
 def get_cropped(args, handle: str, x1: int, y1: int, x2: int, y2: int):
     """Get the thumbnail of a cropped file."""
     base_dir = current_app.config.get("MEDIA_BASE_DIR")
@@ -197,7 +203,10 @@ def get_cropped(args, handle: str, x1: int, y1: int, x2: int, y2: int):
     "/media/<string:handle>/cropped/<int:x1>/<int:y1>/<int:x2>/<int:y2>/thumbnail/<int:size>"
 )
 @jwt_required_ifauth
-@use_args({"square": fields.Boolean(missing=False)}, location="query")
+@use_args(
+    {"square": fields.Boolean(missing=False), "jwt": fields.String(required=False)},
+    location="query",
+)
 def get_thumbnail_cropped(
     args, handle: str, x1: int, y1: int, x2: int, y2: int, size: int
 ):
