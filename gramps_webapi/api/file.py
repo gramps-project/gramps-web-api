@@ -29,7 +29,7 @@ from gramps.gen.lib import Media
 from gramps_webapi.const import MIME_JPEG
 
 from .image import ThumbnailHandler
-from .util import get_dbstate, get_media_base_dir
+from .util import get_db_handle, get_media_base_dir
 
 
 class FileHandler:
@@ -45,8 +45,8 @@ class FileHandler:
 
     def _get_media_object(self) -> Media:
         """Get the media object from the database."""
-        dbstate = get_dbstate()
-        return dbstate.db.get_media_from_handle(self.handle)
+        db_handle = get_db_handle()
+        return db_handle.get_media_from_handle(self.handle)
 
     def send_file(self):
         """Send media file to client."""

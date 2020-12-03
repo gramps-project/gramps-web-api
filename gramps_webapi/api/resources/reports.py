@@ -38,7 +38,7 @@ from webargs import fields, validate
 from webargs.flaskparser import use_args
 
 from ...const import REPORT_DEFAULTS, REPORT_FILTERS
-from ..util import get_buffer_for_file, get_dbstate
+from ..util import get_buffer_for_file, get_db_handle
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -174,7 +174,7 @@ class ReportsResource(ProtectedResource, GrampsJSONEncoder):
     @use_args({}, location="query")
     def get(self, args: Dict) -> Response:
         """Get all available report attributes."""
-        reports = get_reports(get_dbstate().db)
+        reports = get_reports(get_db_handle())
         return self.response(200, reports)
 
 
@@ -184,7 +184,7 @@ class ReportResource(ProtectedResource, GrampsJSONEncoder):
     @use_args({}, location="query")
     def get(self, args: Dict, report_id: str) -> Response:
         """Get specific report attributes."""
-        reports = get_reports(get_dbstate().db, report_id=report_id)
+        reports = get_reports(get_db_handle(), report_id=report_id)
         if reports == []:
             abort(404)
         return self.response(200, reports[0])
@@ -194,10 +194,7 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
     """Report file resource."""
 
     @use_args(
-        {
-            "options": fields.Str(validate=validate.Length(min=1)),
-        },
-        location="query",
+        {"options": fields.Str(validate=validate.Length(min=1)),}, location="query",
     )
     def get(self, args: Dict, report_id: str) -> Response:
         """Get specific report attributes."""
@@ -210,6 +207,6 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
         if "of" in report_options:
             abort(422)
 
-        file_name, file_type = run_report(get_dbstate().db, report_id, report_options)
+        file_name, file_type = run_report(get_db_handle(), report_id, report_options)
         buffer = get_buffer_for_file(file_name)
         return send_file(buffer, mimetype=types_map[file_type])

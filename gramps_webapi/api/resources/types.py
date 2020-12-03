@@ -41,7 +41,7 @@ from gramps.gen.lib.urltype import UrlType
 from webargs import fields
 from webargs.flaskparser import use_args
 
-from ..util import get_dbstate
+from ..util import get_db_handle
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -162,10 +162,7 @@ class DefaultTypesResource(ProtectedResource, GrampsJSONEncoder):
     """Default types resource."""
 
     @use_args(
-        {
-            "locale": fields.Boolean(missing=False),
-        },
-        location="query",
+        {"locale": fields.Boolean(missing=False),}, location="query",
     )
     def get(self, args: Dict) -> Response:
         """Return a list of available default types."""
@@ -179,10 +176,7 @@ class DefaultTypeResource(ProtectedResource, GrampsJSONEncoder):
     """Default type resource."""
 
     @use_args(
-        {
-            "locale": fields.Boolean(missing=False),
-        },
-        location="query",
+        {"locale": fields.Boolean(missing=False),}, location="query",
     )
     def get(self, args: Dict, datatype: str) -> Response:
         """Return a list of values for a default type."""
@@ -213,7 +207,7 @@ class CustomTypesResource(ProtectedResource, GrampsJSONEncoder):
     @property
     def db_handle(self) -> DbReadBase:
         """Get the database instance."""
-        return get_dbstate().db
+        return get_db_handle()
 
     def get(self) -> Response:
         """Return a list of available custom types."""
@@ -229,7 +223,7 @@ class CustomTypeResource(ProtectedResource, GrampsJSONEncoder):
     @property
     def db_handle(self) -> DbReadBase:
         """Get the database instance."""
-        return get_dbstate().db
+        return get_db_handle()
 
     def get(self, datatype: str) -> Response:
         """Return list of values for the custom type."""
@@ -245,13 +239,10 @@ class TypesResource(ProtectedResource, GrampsJSONEncoder):
     @property
     def db_handle(self) -> DbReadBase:
         """Get the database instance."""
-        return get_dbstate().db
+        return get_db_handle()
 
     @use_args(
-        {
-            "locale": fields.Boolean(missing=False),
-        },
-        location="query",
+        {"locale": fields.Boolean(missing=False),}, location="query",
     )
     def get(self, args: Dict) -> Response:
         """Return list of values for the custom type."""

@@ -28,7 +28,7 @@ from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from webargs import fields
 from webargs.flaskparser import use_args
 
-from ..util import get_dbstate
+from ..util import get_db_handle
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -39,7 +39,7 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
     @property
     def db_handle(self) -> DbReadBase:
         """Get the database instance."""
-        return get_dbstate().db
+        return get_db_handle()
 
     def get_object_from_handle(self, handle: str, class_name: str) -> GrampsObject:
         """Get the object given a Gramps handle."""

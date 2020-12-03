@@ -49,7 +49,7 @@ from gramps.gen.utils.resourcepath import ResourcePath
 from webargs import fields, validate
 from webargs.flaskparser import use_args
 
-from ..util import get_buffer_for_file, get_dbstate, get_locale_for_language
+from ..util import get_buffer_for_file, get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -158,7 +158,7 @@ class ExportersResource(ProtectedResource, GrampsJSONEncoder):
     @use_args({}, location="query")
     def get(self, args: Dict) -> Response:
         """Get all available exporter attributes."""
-        db_handle = get_dbstate().db
+        db_handle = get_db_handle()
         return self.response(200, get_exporters())
 
 
@@ -168,7 +168,7 @@ class ExporterResource(ProtectedResource, GrampsJSONEncoder):
     @use_args({}, location="query")
     def get(self, args: Dict, extension: str) -> Response:
         """Get specific report attributes."""
-        db_handle = get_dbstate().db
+        db_handle = get_db_handle()
         exporters = get_exporters(extension)
         if exporters == []:
             abort(404)
@@ -218,7 +218,7 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
     )
     def get(self, args: Dict, extension: str) -> Response:
         """Get export file."""
-        db_handle = get_dbstate().db
+        db_handle = get_db_handle()
         exporters = get_exporters(extension)
         if exporters == []:
             abort(404)

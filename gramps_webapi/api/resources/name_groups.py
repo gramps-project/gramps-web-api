@@ -23,7 +23,7 @@
 from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
 
-from ..util import get_dbstate
+from ..util import get_db_handle
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -34,7 +34,7 @@ class NameGroupsResource(ProtectedResource, GrampsJSONEncoder):
     @property
     def db_handle(self) -> DbReadBase:
         """Get the database instance."""
-        return get_dbstate().db
+        return get_db_handle()
 
     def get(self, surname: str = None) -> Response:
         """Get list of name group mappings."""

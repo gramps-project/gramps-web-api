@@ -32,7 +32,7 @@ from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 from webargs.flaskparser import use_args
 
-from ..util import get_dbstate, get_locale_for_language
+from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource, Resource
 from .emit import GrampsJSONEncoder
 from .filters import apply_filter
@@ -80,7 +80,7 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
     @property
     def db_handle(self) -> DbReadBase:
         """Get the database instance."""
-        return get_dbstate().db
+        return get_db_handle()
 
     def get_object_from_gramps_id(self, gramps_id: str) -> GrampsObject:
         """Get the object given a Gramps ID."""
