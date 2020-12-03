@@ -20,12 +20,20 @@
 
 """User administration resources."""
 
-from flask import abort, current_app
-from flask_jwt_extended import get_jwt_identity
+import datetime
+
+from flask import abort, current_app, render_template
+from flask_jwt_extended import create_access_token, get_jwt_claims, get_jwt_identity
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from webargs import fields
 from webargs.flaskparser import use_args
 
-from . import ProtectedResource
+from . import ProtectedResource, Resource
+from ..util import send_email
+
+
+limiter = Limiter(key_func=get_remote_address)
 
 
 class UserChangePasswordResource(ProtectedResource):
@@ -50,3 +58,92 @@ class UserChangePasswordResource(ProtectedResource):
             abort(403)
         auth_provider.modify_user(name=username, password=args["new_password"])
         return "", 201
+
+
+def handle_reset_token(username: str, email: str, token: str):
+    """Handle the password reset token."""
+    base_url = current_app.config["BASE_URL"].rstrip("/")
+    send_email(
+        subject="Reset your Gramps password",
+        body="""You are receiving this e-mail because you (or someone else) have requested the reset of the password for your account.
+
+Please click on the following link, or paste this into your browser to complete the process:
+
+{}/api/user/password/reset?jwt={}
+
+If you did not request this, please ignore this e-mail and your password will remain unchanged.
+""".format(
+            base_url, token
+        ),
+        to=[email],
+    )
+
+
+class UserTriggerResetPasswordResource(Resource):
+    """Resource for obtaining a one-time JWT for password reset."""
+
+    @limiter.limit("1/second")
+    @use_args(
+        {"username": fields.Str(required=True)}, location="json",
+    )
+    def post(self, args):
+        """Post username to initiate the password reset."""
+        auth_provider = current_app.config.get("AUTH_PROVIDER")
+        details = auth_provider.get_user_details(args["username"])
+        if details is None:
+            # user does not exist!
+            abort(404)
+        email = details["email"]
+        if email is None:
+            abort(404)
+        token = create_access_token(
+            identity=args["username"],
+            # the hash of the existing password is stored in the token in order
+            # to make sure the rest token can only be used once
+            user_claims={"old_hash": auth_provider.get_pwhash(args["username"])},
+            # password reset has to be triggered within 1h
+            expires_delta=datetime.timedelta(hours=1),
+        )
+        try:
+            handle_reset_token(username=args["username"], email=email, token=token)
+        except ValueError:
+            abort(500)
+        return "", 201
+
+
+class UserResetPasswordResource(ProtectedResource):
+    """Resource for resetting a user password."""
+
+    @use_args(
+        {"new_password": fields.Str(required=True)}, location="json",
+    )
+    def post(self, args):
+        """Post new password."""
+        auth_provider = current_app.config.get("AUTH_PROVIDER")
+        if auth_provider is None:
+            abort(405)
+        if args["new_password"] == "":
+            abort(400)
+        claims = get_jwt_claims()
+        username = get_jwt_identity()
+        # the old PW hash is stored in the reset JWT to check if the token has
+        # been used already
+        if claims["old_hash"] != auth_provider.get_pwhash(username):
+            # the one-time token has been used before!
+            abort(409)
+        auth_provider.modify_user(name=username, password=args["new_password"])
+        return "", 201
+
+    def get(self):
+        """Reset password form."""
+        auth_provider = current_app.config.get("AUTH_PROVIDER")
+        if auth_provider is None:
+            abort(405)
+        username = get_jwt_identity()
+        claims = get_jwt_claims()
+        # the old PW hash is stored in the reset JWT to check if the token has
+        # been used already
+        if claims["old_hash"] != auth_provider.get_pwhash(username):
+            # the one-time token has been used before!
+            return render_template("reset_password_error.html", username=username)
+        return render_template("reset_password.html", username=username)

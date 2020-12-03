@@ -23,6 +23,7 @@
 import uuid
 from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
+from typing import Any, Dict, Optional
 
 import sqlalchemy as sa
 from sqlalchemy.ext.declarative import declarative_base
@@ -121,16 +122,15 @@ class SQLAuth(AuthProvider):
     ) -> None:
         """Modify an existing user."""
         with self.session_scope() as session:
-            user = session.query(User).filter_by(name=name).scalar()
-            if user is None:
-                raise ValueError("User {} not found".format(name))
+            user = session.query(User).filter_by(name=name).one()
             if name_new is not None:
                 user.name = name_new
             if password is not None:
                 user.pwhash = hash_password(password)
             if fullname is not None:
                 user.fullname = fullname
-            user.email = email  # also for None since nullable
+            if email is not None:
+                user.email = email
             if role is not None:
                 user.role = role
 
@@ -141,6 +141,20 @@ class SQLAuth(AuthProvider):
             if user is None:
                 return False
             return verify_password(password=password, salt_hash=user.pwhash)
+
+    def get_pwhash(self, username: str) -> str:
+        """Return the current hashed password."""
+        with self.session_scope() as session:
+            user = session.query(User).filter_by(name=username).one()
+            return user.pwhash
+
+    def get_user_details(self, username: str) -> Optional[Dict[str, Any]]:
+        """Return details about a user."""
+        with self.session_scope() as session:
+            user = session.query(User).filter_by(name=username).scalar()
+            if user is None:
+                return None
+            return {"id": user.id, "email": user.email, "fullname": user.fullname}
 
 
 class User(Base):

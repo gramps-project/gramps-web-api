@@ -28,6 +28,13 @@ class DefaultConfig(object):
 
     PROPAGATE_EXCEPTIONS = True
     SEARCH_INDEX_DIR = "indexdir"
+    EMAIL_HOST = "localhost"
+    EMAIL_PORT = 0
+    EMAIL_HOST_USER = ""
+    EMAIL_HOST_PASSWORD = ""
+    EMAIL_USE_TLS = False
+    DEFAULT_FROM_EMAIL = ""
+    BASE_URL = "http://localhost/"
 
 
 class DefaultConfigJWT(object):

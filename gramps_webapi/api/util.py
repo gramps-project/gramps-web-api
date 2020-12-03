@@ -22,7 +22,10 @@
 
 import io
 import os
-from typing import BinaryIO
+import smtplib
+import socket
+from email.message import EmailMessage
+from typing import BinaryIO, Optional, Sequence
 
 from flask import abort, current_app, g
 from gramps.gen.const import GRAMPS_LOCALE
@@ -70,3 +73,40 @@ def get_buffer_for_file(filename: str, delete=True) -> BinaryIO:
     if delete:
         os.remove(filename)
     return buffer
+
+
+def send_email(
+    subject: str, body: str, to: Sequence[str], from_email: Optional[str] = None
+) -> None:
+    """Send an e-mail message."""
+    msg = EmailMessage()
+    msg.set_content(body)
+    msg["Subject"] = subject
+    if not from_email:
+        from_email = current_app.config["DEFAULT_FROM_EMAIL"]
+    msg["From"] = from_email
+    msg["To"] = ", ".join(to)
+
+    host = current_app.config["EMAIL_HOST"]
+    port = current_app.config["EMAIL_PORT"]
+    user = current_app.config["EMAIL_HOST_USER"]
+    password = current_app.config["EMAIL_HOST_PASSWORD"]
+    use_tls = current_app.config["EMAIL_USE_TLS"]
+    try:
+        if use_tls:
+            smtp = smtplib.SMTP_SSL(host=host, port=port, timeout=10)
+        else:
+            smtp = smtplib.SMTP(host=host, port=port, timeout=10)
+        if user:
+            smtp.login(user, password)
+        smtp.send_message(msg)
+        smtp.quit()
+    except ConnectionRefusedError:
+        current_app.logger.error("Connection to SMTP server refused.")
+        raise ValueError("Connection was refused.")
+    except socket.timeout:
+        current_app.logger.error("SMTP connection attempt timed out.")
+        raise ValueError("Connection attempt timed out.")
+    except OSError:
+        current_app.logger.error("Error while trying to send e-mail.")
+        raise ValueError("Error while trying to send e-mail.")
