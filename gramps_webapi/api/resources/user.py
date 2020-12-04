@@ -29,9 +29,10 @@ from flask_limiter.util import get_remote_address
 from webargs import fields
 from webargs.flaskparser import use_args
 
-from . import ProtectedResource, Resource
+from ...auth.const import PERM_EDIT_OWN_USER
+from ..auth import require_permissions
 from ..util import send_email
-
+from . import ProtectedResource, Resource
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -48,6 +49,7 @@ class UserChangePasswordResource(ProtectedResource):
     )
     def post(self, args):
         """Post new password."""
+        require_permissions([PERM_EDIT_OWN_USER])
         auth_provider = current_app.config.get("AUTH_PROVIDER")
         if auth_provider is None:
             abort(405)

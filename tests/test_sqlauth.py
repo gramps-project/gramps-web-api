@@ -23,6 +23,12 @@ import unittest
 from sqlalchemy.exc import IntegrityError
 
 from gramps_webapi.auth import SQLAuth, User
+from gramps_webapi.auth.const import (
+    PERM_DEL_USER,
+    PERM_EDIT_OWN_USER,
+    ROLE_OWNER,
+    ROLE_GUEST,
+)
 
 
 class TestSQLAuth(unittest.TestCase):
@@ -85,3 +91,13 @@ class TestSQLAuth(unittest.TestCase):
         self.assertFalse(sqlauth.authorized("test_user", "123"))
         self.assertTrue(sqlauth.authorized("test_user", "1234"))
         self.assertFalse(sqlauth.authorized("not_exist", "1234"))
+
+    def test_permissions(self):
+        sqlauth = SQLAuth("sqlite://", logging=False)
+        sqlauth.create_table()
+        sqlauth.add_user("test_owner", "123", role=ROLE_OWNER)
+        sqlauth.add_user("test_guest", "123", role=ROLE_GUEST)
+        self.assertIn(PERM_DEL_USER, sqlauth.get_permissions("test_owner"))
+        self.assertNotIn(PERM_DEL_USER, sqlauth.get_permissions("test_guest"))
+        self.assertIn(PERM_EDIT_OWN_USER, sqlauth.get_permissions("test_owner"))
+        self.assertIn(PERM_EDIT_OWN_USER, sqlauth.get_permissions("test_guest"))

@@ -30,18 +30,56 @@ from typing import BinaryIO, Optional, Sequence
 from flask import abort, current_app, g
 from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
+from gramps.gen.proxy import PrivateProxyDb
 from gramps.gen.utils.file import expand_media_path
 from gramps.gen.utils.grampslocale import GrampsLocale
 
+from ..auth.const import PERM_VIEW_PRIVATE
+from .auth import has_permissions
+
+
+class ModifiedPrivateProxyDb(PrivateProxyDb):
+    """PrivateProxyDb with additional methods."""
+
+    def __init__(self, *args, **kwargs):
+        """Initialize self."""
+        super().__init__(*args, **kwargs)
+        self.name_formats = self.db.name_formats
+
+    def get_dbname(self):
+        """Get the name of the database."""
+        return self.db.get_dbname()
+
+    def get_summary(self):
+        """Return dictionary of summary item."""
+        return self.db.get_summary()
+
+    def get_surname_list(self):
+        """Return the list of locale-sorted surnames contained in the database."""
+        return self.db.get_surname_list()
+
+    def get_place_types(self):
+        """Return custom place types assocated with places in the database."""
+        return self.db.get_place_types()
+
 
 def get_db_handle() -> DbReadBase:
-    """Open the database and get the current state.
+    """Open the database and get the current instance.
 
     Called before every request.
+
+    If a user is not authorized to view private records,
+    returns a proxy DB instance.
     """
-    dbmgr = current_app.config["DB_MANAGER"]
     if "dbstate" not in g:
+        # cache the DbState instance for the duration of
+        # the request
+        dbmgr = current_app.config["DB_MANAGER"]
         g.dbstate = dbmgr.get_db()
+    if not has_permissions({PERM_VIEW_PRIVATE}):
+        # if we're not authorized to view private records,
+        # return a proxy DB instead of the real one
+        return ModifiedPrivateProxyDb(g.dbstate.db)
     return g.dbstate.db
 
 

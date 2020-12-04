@@ -22,7 +22,7 @@
 
 import unittest
 
-from gramps_webapi.util.passwords import hash_password, verify_password
+from gramps_webapi.auth.passwords import hash_password, verify_password
 
 
 class TestSQLAuth(unittest.TestCase):

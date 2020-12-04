@@ -29,10 +29,11 @@ from gramps.gen.dbstate import DbState
 from gramps.gen.lib import Person, Surname
 
 from gramps_webapi.app import create_app
+from gramps_webapi.auth.const import ROLE_OWNER, ROLE_GUEST
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
 
-def _add_person(gender, first_name, surname, trans, db):
+def _add_person(gender, first_name, surname, trans, db, private=False):
     person = Person()
     person.gender = gender
     _name = person.primary_name
@@ -41,6 +42,8 @@ def _add_person(gender, first_name, surname, trans, db):
     surname1.surname = surname
     _name.set_surname_list([surname1])
     person.gramps_id = "person001"
+    if private:
+        person.private = True
     db.add_person(person, trans)
 
 
@@ -56,12 +59,14 @@ class TestPerson(unittest.TestCase):
         cls.client = cls.app.test_client()
         sqlauth = cls.app.config["AUTH_PROVIDER"]
         sqlauth.create_table()
-        sqlauth.add_user(name="user", password="123")
-
-    def setUp(self):
-        dbstate = self.app.config["DB_MANAGER"].get_db(force_unlock=True)
+        sqlauth.add_user(name="user", password="123", role=ROLE_GUEST)
+        sqlauth.add_user(name="admin", password="123", role=ROLE_OWNER)
+        dbstate = cls.app.config["DB_MANAGER"].get_db(force_unlock=True)
         with DbTxn("Add test objects", dbstate.db) as trans:
             _add_person(Person.MALE, "John", "Allen", trans, dbstate.db)
+            _add_person(
+                Person.FEMALE, "Jane", "Secret", trans, dbstate.db, private=True
+            )
         dbstate.db.close()
 
     @classmethod
@@ -105,6 +110,24 @@ class TestPerson(unittest.TestCase):
         assert rv.json["birth_ref_index"] == -1
         assert rv.json["death_ref_index"] == -1
 
+    def test_person_endpoint_privacy(self):
+        rv = self.client.post(
+            "/api/login/", json={"username": "user", "password": "123"}
+        )
+        token_user = rv.json["access_token"]
+        rv = self.client.post(
+            "/api/login/", json={"username": "admin", "password": "123"}
+        )
+        token_admin = rv.json["access_token"]
+        rv = self.client.get(
+            "/api/people/", headers={"Authorization": "Bearer {}".format(token_user)},
+        )
+        assert len(rv.json) == 1
+        rv = self.client.get(
+            "/api/people/", headers={"Authorization": "Bearer {}".format(token_admin)},
+        )
+        assert len(rv.json) == 2
+
     def test_token_endpoint(self):
         rv = self.client.post("/api/login/", json={})
         # no username or password provided
@@ -115,7 +138,7 @@ class TestPerson(unittest.TestCase):
         # wrong pw
         assert rv.status_code == 403
         rv = self.client.post(
-            "/api/login/", json={"username": "admin", "password": "123"}
+            "/api/login/", json={"username": "unknown", "password": "123"}
         )
         # wrong user
         assert rv.status_code == 403
