@@ -25,12 +25,18 @@ from typing import Dict
 from flask import current_app
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
-from webargs import fields
+from gramps.gen.utils.grampslocale import GrampsLocale
+from webargs import fields, validate
 from webargs.flaskparser import use_args
 
-from ..util import get_db_handle
+from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .util import (
+    get_event_profile_for_object,
+    get_family_profile_for_object,
+    get_person_profile_for_object,
+)
 
 
 class SearchResource(GrampsJSONEncoder, ProtectedResource):
@@ -41,16 +47,40 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
         """Get the database instance."""
         return get_db_handle()
 
-    def get_object_from_handle(self, handle: str, class_name: str) -> GrampsObject:
+    def get_object_from_handle(
+        self, handle: str, class_name: str, args: Dict, locale: GrampsLocale
+    ) -> GrampsObject:
         """Get the object given a Gramps handle."""
         query_method = self.db_handle.method("get_%s_from_handle", class_name)
-        return query_method(handle)
+        obj = query_method(handle)
+        if "profile" in args:
+            if class_name == "person":
+                obj.profile = get_person_profile_for_object(
+                    self.db_handle, obj, args["profile"], locale=locale
+                )
+            elif class_name == "family":
+                obj.profile = get_family_profile_for_object(
+                    self.db_handle, obj, args["profile"], locale=locale
+                )
+            elif class_name == "event":
+                obj.profile = get_event_profile_for_object(
+                    self.db_handle, obj, locale=locale
+                )
+        return obj
 
     @use_args(
         {
-            "query": fields.Str(required=True),
+            "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
+            "query": fields.Str(required=True, validate=validate.Length(min=1)),
             "page": fields.Int(missing=1, required=False),
             "pagesize": fields.Int(missing=20, required=False),
+            "profile": fields.DelimitedList(
+                fields.Str(validate=validate.Length(min=1)),
+                validate=validate.ContainsOnly(
+                    choices=["all", "self", "families", "events", "age", "span"]
+                ),
+            ),
+            "strip": fields.Boolean(missing=False),
         },
         location="query",
     )
@@ -59,8 +89,12 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
         searcher = current_app.config["SEARCH_INDEXER"]
         total, hits = searcher.search(args["query"], args["page"], args["pagesize"])
         if hits:
+            locale = get_locale_for_language(args["locale"], default=True)
             for hit in hits:
                 hit["object"] = self.get_object_from_handle(
-                    handle=hit["handle"], class_name=hit["object_type"]
+                    handle=hit["handle"],
+                    class_name=hit["object_type"],
+                    args=args,
+                    locale=locale,
                 )
-        return self.response(200, payload=hits, total_items=total)
+        return self.response(200, payload=hits, args=args, total_items=total)

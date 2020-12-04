@@ -3230,6 +3230,34 @@ paths:
         type: integer
         default: 20
         description: "The number of search results that constitute a page."
+      - name: strip
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether keys with empty values should be stripped out of primary objects in the response or not."
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
+      - name: profile
+        in: query
+        required: false
+        type: string
+        description: >
+          Enables the return of summarized information about a person, family, or event in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided which may vary by type. A list of all possible objects is:
+            Object | Contents
+            ------ | --------
+            all | Returns all information below
+            age | Returns age at time of a personal event
+            self | Returns name, sex, birth and death information and is an implied default when events or families specified
+            span | Returns elapsed time span from union that formed the family and familial events
+            events | Returns event list with name, date and location
+            families | Returns family information with parents, children, and key relationship between parents
       responses:
         200:
           description: "OK: Successful operation."
