@@ -22,11 +22,7 @@
 import uuid
 from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
-<<<<<<< HEAD:gramps_webapi/auth.py
-from typing import Any, Dict, Optional
-=======
-from typing import Set
->>>>>>> Move stuff into auth module, add auth constants:gramps_webapi/auth/__init__.py
+from typing import Any, Dict, Optional, Set
 
 import sqlalchemy as sa
 from sqlalchemy.ext.declarative import declarative_base
@@ -35,7 +31,6 @@ from sqlalchemy.orm import sessionmaker
 from .const import PERMISSIONS
 from .passwords import hash_password, verify_password
 from .sql_guid import GUID
-
 
 Base = declarative_base()
 
