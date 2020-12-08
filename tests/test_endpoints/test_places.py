@@ -173,17 +173,13 @@ class TestPlacesHandle(unittest.TestCase):
     def test_places_handle_endpoint_keys(self):
         """Test response for keys parm."""
         run_test_endpoint_keys(
-            self,
-            "/api/places/09UJQCF3TNGH9GU0P1",
-            ["handle", "lat", "long"],
+            self, "/api/places/09UJQCF3TNGH9GU0P1", ["handle", "lat", "long"],
         )
 
     def test_places_handle_endpoint_skipkeys(self):
         """Test response for skipkeys parm."""
         run_test_endpoint_skipkeys(
-            self,
-            "/api/places/09UJQCF3TNGH9GU0P1",
-            ["handle", "media_list", "private"],
+            self, "/api/places/09UJQCF3TNGH9GU0P1", ["handle", "media_list", "private"],
         )
 
     def test_places_handle_endpoint_extend(self):
@@ -206,3 +202,36 @@ class TestPlacesHandle(unittest.TestCase):
             schema=API_SCHEMA["definitions"]["Place"],
             resolver=resolver,
         )
+
+    def test_places_profile(self):
+        result = self.client.get("/api/places/08TJQCCFIX31BXPNXN?profile=all&locale=it")
+        self.assertEqual(
+            result.json["profile"],
+            {
+                "alternative_names": [],
+                "gramps_id": "P0860",
+                "name": "Gainesville",
+                "parent_places": [
+                    {
+                        "alternative_names": [],
+                        "gramps_id": "P0194",
+                        "name": "Llano",
+                        "type": "Contea",
+                    },
+                    {
+                        "alternative_names": [],
+                        "gramps_id": "P0010",
+                        "name": "TX",
+                        "type": "Stato (federato)",
+                    },
+                    {
+                        "alternative_names": [],
+                        "gramps_id": "P0957",
+                        "name": "USA",
+                        "type": "Nazione",
+                    },
+                ],
+                "type": "Città",
+            },
+        )
+
