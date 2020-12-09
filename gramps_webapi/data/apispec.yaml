@@ -385,10 +385,10 @@ paths:
             all | Returns all possible records listed below
             citation_list | The list of citation records
             event_ref_list | The list of referenced event records
-            families | The list of family records
+            family_list | The list of family records
             media_list | The list of referenced media items
             note_list | The list of note records
-            parent_families | The list of parent family records
+            parent_family_list | The list of parent family records
             person_ref_list | The list of referenced person records
             primary_parent_family | The primary parent family record
             tag_list | The list of tags
@@ -417,10 +417,14 @@ paths:
             type: array
             items:
               $ref: "#/definitions/Person"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: No people found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /people/{handle}:
     get:
@@ -484,10 +488,10 @@ paths:
             all | Returns all possible records listed below
             citation_list | The list of citation records
             event_ref_list | The list of referenced event records
-            families | The list of family records
+            family_list | The list of family records
             media_list | The list of referenced media items
             note_list | The list of note records
-            parent_families | The list of parent family records
+            parent_family_list | The list of parent family records
             person_ref_list | The list of referenced person records
             primary_parent_family | The primary parent family record
             tag_list | The list of tags
@@ -518,7 +522,10 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Person not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+    
 ##############################################################################
 # Endpoint - Families
 ##############################################################################
@@ -561,8 +568,8 @@ paths:
             change | The time the record was last updated
             gramps_id | The user assigned Gramps identifier for the family
             private | Indicates whether the record is private or not
-            name | The surname of the father or, if none present, the mother of the family taking into consideration the given name and suffix for families who share the same surname
             soundex | The soundex code for the surname of the father or, if none present, the mother of the family
+            surname | The surname of the father or, if none present, the mother of the family taking into consideration the given name and suffix for families who share the same surname
             type | The relationship type for the family
       - name: filter
         in: query
@@ -650,9 +657,9 @@ paths:
             child_ref_list | The list of referenced children records
             citation_list | The list of citation records
             event_ref_list | The list of referenced event records
-            father | The person record of the father
+            father_handle | The person record of the father
             media_list | The list of referenced media items
-            mother | The person record of the mother
+            mother_handle | The person record of the mother
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
@@ -679,10 +686,14 @@ paths:
             type: array
             items:
               $ref: "#/definitions/Family"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: No families found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /families/{handle}:
     get:
@@ -747,9 +758,9 @@ paths:
             child_ref_list | The list of referenced children records
             citation_list | The list of citation records
             event_ref_list | The list of referenced event records
-            father | The person record of the father
+            father_handle | The person record of the father
             media_list | The list of referenced media items
-            mother | The person record of the mother
+            mother_handle | The person record of the mother
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
@@ -778,6 +789,8 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Family not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 ##############################################################################
 # Endpoint - Events
@@ -928,10 +941,14 @@ paths:
             type: array
             items:
               $ref: "#/definitions/Event"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: No events found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /events/{handle}:
     get:
@@ -1015,6 +1032,8 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Event not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /events/{handle1}/span/{handle2}:
     get:
@@ -1070,6 +1089,8 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Event not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 ##############################################################################
 # Endpoint - Places
@@ -1218,10 +1239,14 @@ paths:
             type: array
             items:
               $ref: "#/definitions/Place"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: No places found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /places/{handle}:
     get:
@@ -1298,6 +1323,8 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Place not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 ##############################################################################
 # Endpoint - Citations
@@ -1422,7 +1449,7 @@ paths:
             all | Returns all possible records listed below
             media_list | The list of referenced media items
             note_list | The list of note records
-            source | The source record cited from
+            source_handle | The source record cited from
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
       - name: profile
@@ -1444,10 +1471,14 @@ paths:
             type: array
             items:
               $ref: "#/definitions/Citation"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: No citations found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /citations/{handle}:
     get:
@@ -1500,7 +1531,7 @@ paths:
             all | Returns all possible records listed below
             media_list | The list of referenced media items
             note_list | The list of note records
-            source | The source record cited from
+            source_handle | The source record cited from
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
       - name: profile
@@ -1524,6 +1555,8 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Citation not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 ##############################################################################
 # Endpoint - Sources
@@ -1660,10 +1693,14 @@ paths:
             type: array
             items:
               $ref: "#/definitions/Source"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: No sources found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /sources/{handle}:
     get:
@@ -1728,6 +1765,8 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Source not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 ##############################################################################
 # Endpoint - Repositories
@@ -1860,10 +1899,14 @@ paths:
             type: array
             items:
               $ref: "#/definitions/Repository"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: No repositories found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /repositories/{handle}:
     get:
@@ -1926,6 +1969,8 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Repository not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 ##############################################################################
 # Endpoint - Media
@@ -2073,10 +2118,14 @@ paths:
             type: array
             items:
               $ref: "#/definitions/Media"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: No media items found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /media/{handle}:
     get:
@@ -2152,6 +2201,8 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Media item not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /media/{handle}/file:
     get:
@@ -2460,10 +2511,14 @@ paths:
             type: array
             items:
               $ref: "#/definitions/Note"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: No notes found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /notes/{handle}:
     get:
@@ -2534,6 +2589,8 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Note not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 ##############################################################################
 # Endpoint - Tags
@@ -2601,10 +2658,15 @@ paths:
             type: array
             items:
               $ref: "#/definitions/Tag"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: No tags found."
+
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /tags/{handle}:
     get:
@@ -2646,6 +2708,8 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Tag not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 ##############################################################################
 # Endpoint - Types
@@ -2669,15 +2733,11 @@ paths:
         200:
           description: "OK: Successful operation."
           schema:
-            description: "All default and custom Gramps record types."
-            type: object
-            properties:
-              custom:
-                $ref: "#/definitions/CustomTypes"
-              default:
-                $ref: "#/definitions/DefaultTypes"
+            $ref: "#/definitions/Types"
         401:
           description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /types/default:
     get:
@@ -2700,8 +2760,10 @@ paths:
             $ref: "#/definitions/DefaultTypes"
         401:
           description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
-  /types/default/{type}:
+  /types/default/{datatype}:
     get:
       tags:
       - types
@@ -2710,7 +2772,7 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: type
+      - name: datatype
         in: path
         required: true
         type: string
@@ -2736,8 +2798,10 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Gramps default record type not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
-  /types/default/{type}/map:
+  /types/default/{datatype}/map:
     get:
       tags:
       - types
@@ -2746,7 +2810,7 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: type
+      - name: datatype
         in: path
         required: true
         type: string
@@ -2760,6 +2824,8 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Gramps default record type not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /types/custom:
     get:
@@ -2782,8 +2848,10 @@ paths:
             $ref: "#/definitions/CustomTypes"
         401:
           description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
-  /types/custom/{type}:
+  /types/custom/{datatype}:
     get:
       tags:
       - types
@@ -2792,7 +2860,7 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: type
+      - name: datatype
         in: path
         required: true
         type: string
@@ -2816,6 +2884,8 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Gramps custom record type not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 ##############################################################################
 # Endpoint - NameFormats
@@ -2880,6 +2950,8 @@ paths:
           description: "OK: Successful operation."
           schema:
             $ref: "#/definitions/NameGroupMapping"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
 
@@ -2907,8 +2979,12 @@ paths:
           description: "OK: Successful operation."
           schema:
             $ref: "#/definitions/NameGroupMapping"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Missing surname."
 
 ##############################################################################
 # Endpoint - Bookmarks
@@ -3189,8 +3265,14 @@ paths:
             type: array
             items:
               $ref: "#/definitions/Translation"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Language code was not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 ##############################################################################
 # Endpoint - Relations
@@ -3233,6 +3315,10 @@ paths:
             $ref: "#/definitions/Relationship"
         401:
           description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: One of the handles was not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /relations/{handle1}/{handle2}/all:
     get:
@@ -3271,6 +3357,10 @@ paths:
             $ref: "#/definitions/Relationships"
         401:
           description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: One of the handles was not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 ##############################################################################
 # Endpoint - Search
@@ -3340,7 +3430,7 @@ paths:
         401:
           description: "Unauthorized: Missing authorization header."
         422:
-          description: "Unprocessable Entity"
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 ##############################################################################
 # Endpoint - Reports
@@ -3363,6 +3453,8 @@ paths:
               $ref: "#/definitions/Report"
         401:
           description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /reports/{report_id}:
     get:
@@ -3385,6 +3477,10 @@ paths:
             $ref: "#/definitions/Report"
         401:
           description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Report id not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /reports/{report_id}/file:
     get:
@@ -3414,14 +3510,20 @@ paths:
 
 
           If no _off_ option for report output file format is provided then pdf will be used as a fallback.
-          The _of_ option for output file is ignored by this endpoint as the report file is ephemeral.
+          The _of_ option for output file is rejected by this endpoint as the report file is ephemeral.
       responses:
         200:
           description: "OK: Successful operation."
           schema:
             type: file
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Report id not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 ##############################################################################
 # Endpoint - Exporters
@@ -3444,6 +3546,8 @@ paths:
               $ref: "#/definitions/Exporter"
         401:
           description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /exporters/{extension}:
     get:
@@ -3468,6 +3572,8 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Exporter not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /exporters/{extension}/file:
     get:
@@ -3633,7 +3739,7 @@ paths:
         404:
           description: "Not Found: Exporter not found."
         422:
-          description: "Unprocessable Entity"
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 ##############################################################################
 # Endpoint - Metadata
@@ -4336,6 +4442,10 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/EventProfile"
+      family_surname:
+        description: "The surname of the father, or if none present, the mother in the family."
+        type: string
+        example: "Garner von Zieliński"
       father:
         description: "The person profile for the father of the family."
         type: object
@@ -6144,6 +6254,21 @@ definitions:
         type: string
         example: Fernandez
 
+    
+##############################################################################
+# Model - Types
+##############################################################################
+
+  Types:
+    type: object
+    properties:
+      custom:
+        type: object
+        $ref: "#/definitions/CustomTypes"
+      default:
+        type: object
+        $ref: "#/definitions/DefaultTypes"
+            
 ##############################################################################
 # Model - DefaultTypes
 ##############################################################################

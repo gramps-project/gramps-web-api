@@ -22,10 +22,20 @@
 
 import unittest
 
-from . import get_test_client
+from . import BASE_URL, get_test_client
+from .checks import (
+    check_conforms_to_schema,
+    check_invalid_semantics,
+    check_invalid_syntax,
+    check_requires_token,
+    check_resource_missing,
+    check_success,
+)
+
+TEST_URL = BASE_URL + "/relations/"
 
 
-class TestRelation(unittest.TestCase):
+class TestRelations(unittest.TestCase):
     """Test cases for the /api/relations/{handle1}/{handle2} endpoint."""
 
     @classmethod
@@ -33,22 +43,15 @@ class TestRelation(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_relations_endpoint_404(self):
-        """Test response for missing or bad handles."""
-        # check various handle issues
-        result = self.client.get("/api/relations/9BXKQC1PVLPYFMD6IX")
-        self.assertEqual(result.status_code, 404)
-        result = self.client.get("/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR1")
-        self.assertEqual(result.status_code, 404)
-        result = self.client.get("/api/relations/9BXKQC1PVLPYFMD6I/ORFKQC4KLWEGTGR19L")
-        self.assertEqual(result.status_code, 404)
+    def test_get_relations_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L")
 
-    def test_relations_endpoint(self):
-        """Test response for valid request."""
-        # check expected response which also confirms response schema
-        result = self.client.get("/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L")
+    def test_get_relations_expected_result(self):
+        """Test request produces expected result."""
+        rv = check_success(self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L")
         self.assertEqual(
-            result.json,
+            rv,
             {
                 "distance_common_origin": 5,
                 "distance_common_other": 1,
@@ -56,40 +59,56 @@ class TestRelation(unittest.TestCase):
             },
         )
 
-    def test_relations_endpoint_parms(self):
-        """Test responses for query parms."""
-        # check bad or invalid query parm
-        result = self.client.get(
-            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?junk=1"
+    def test_get_relations_missing_content(self):
+        """Test response for missing content."""
+        check_resource_missing(self, TEST_URL + "9BXKQC1PVLPYFMD6IX")
+        check_resource_missing(self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR1")
+        check_resource_missing(self, TEST_URL + "9BXKQC1PVLPYFMD6I/ORFKQC4KLWEGTGR19L")
+
+    def test_get_relations_validate_semantics(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?junk=1"
         )
-        self.assertEqual(result.status_code, 422)
-        # check depth parm working as expected
-        result = self.client.get(
-            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?depth"
+
+    def test_get_relations_parameter_depth_validate_semantics(self):
+        """Test invalid depth parameter and values."""
+        check_invalid_semantics(
+            self,
+            TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?depth",
+            check="number",
         )
-        self.assertEqual(result.status_code, 422)
-        result = self.client.get(
-            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?depth=5"
+
+    def test_get_relations_parameter_depth_expected_result(self):
+        """Test depth parameter working as expected."""
+        rv = check_success(
+            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?depth=5"
         )
-        self.assertEqual(result.json["relationship_string"], "")
-        result = self.client.get(
-            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?depth=6"
+        self.assertEqual(rv["relationship_string"], "")
+        rv = check_success(
+            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?depth=6"
         )
-        self.assertEqual(
-            result.json["relationship_string"], "second great stepgrandaunt"
+        self.assertEqual(rv["relationship_string"], "second great stepgrandaunt")
+
+    def test_get_relations_parameter_locale_validate_semantics(self):
+        """Test invalid locale parameter and values."""
+        check_invalid_semantics(
+            self,
+            TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?locale",
+            check="base",
         )
-        # check locale parm working
-        result = self.client.get(
-            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?locale"
+
+    def test_get_relations_parameter_locale_expected_result(self):
+        """Test locale parameter working as expected."""
+        rv = check_success(self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L")
+        self.assertEqual(rv["relationship_string"], "second great stepgrandaunt")
+        rv = check_success(
+            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?locale=de"
         )
-        self.assertEqual(result.status_code, 422)
-        result = self.client.get(
-            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?locale=de"
-        )
-        self.assertEqual(result.json["relationship_string"], "Stief-/Adoptivalttante")
+        self.assertEqual(rv["relationship_string"], "Stief-/Adoptivalttante")
 
 
-class TestRelations(unittest.TestCase):
+class TestRelationsAll(unittest.TestCase):
     """Test cases for the /api/relations/{handle1}/{handle2}/all endpoint."""
 
     @classmethod
@@ -97,61 +116,66 @@ class TestRelations(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_relations_all_endpoint_404(self):
-        """Test response for missing or bad handles."""
-        # check various handle issues
-        result = self.client.get("/api/relations/9BXKQC1PVLPYFMD6IX/all")
-        self.assertEqual(result.status_code, 404)
-        result = self.client.get(
-            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR1/all"
+    def test_get_relations_all_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(
+            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all"
         )
-        self.assertEqual(result.status_code, 404)
-        result = self.client.get(
-            "/api/relations/9BXKQC1PVLPYFMD6I/ORFKQC4KLWEGTGR19L/all"
-        )
-        self.assertEqual(result.status_code, 404)
 
-    def test_relations_all_endpoint(self):
+    def test_get_relations_all_expected_result(self):
         """Test response for valid request."""
-        # check expected response which also confirms response schema
-        result = self.client.get(
-            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all"
+        rv = check_success(self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all")
+        self.assertIn("common_ancestors", rv[0])
+        self.assertEqual(rv[0]["relationship_string"], "second great stepgrandaunt")
+
+    def test_get_relations_all_missing_content(self):
+        """Test response for missing content."""
+        check_resource_missing(self, TEST_URL + "9BXKQC1PVLPYFMD6IX/all")
+        check_resource_missing(
+            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR1/all"
         )
-        self.assertIn("common_ancestors", result.json[0])
-        self.assertEqual(
-            result.json[0]["relationship_string"], "second great stepgrandaunt"
+        check_resource_missing(
+            self, TEST_URL + "9BXKQC1PVLPYFMD6I/ORFKQC4KLWEGTGR19L/all"
         )
 
-    def test_relations_all_endpoint_parms(self):
-        """Test responses for query parms."""
-        # check bad or invalid query parm
-        result = self.client.get(
-            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?junk=1"
+    def test_get_relations_all_validate_semantics(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?junk=1"
         )
-        self.assertEqual(result.status_code, 422)
-        # check depth parm working as expected
-        result = self.client.get(
-            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?depth"
+
+    def test_get_relations_all_parameter_depth_validate_semantics(self):
+        """Test invalid depth parameter and values."""
+        check_invalid_semantics(
+            self,
+            TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?depth",
+            check="number",
         )
-        self.assertEqual(result.status_code, 422)
-        result = self.client.get(
-            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?depth=5"
+
+    def test_get_relations_all_parameter_depth_expected_result(self):
+        """Test depth parameter working as expected."""
+        rv = check_success(
+            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?depth=5"
         )
-        self.assertEqual(result.json, [{}])
-        result = self.client.get(
-            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?depth=6"
+        self.assertEqual(rv, [{}])
+        rv = check_success(
+            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?depth=6"
         )
-        self.assertEqual(
-            result.json[0]["relationship_string"], "second great stepgrandaunt"
+        self.assertEqual(rv[0]["relationship_string"], "second great stepgrandaunt")
+
+    def test_get_relations_all_parameter_locale_validate_semantics(self):
+        """Test invalid locale parameter and values."""
+        check_invalid_semantics(
+            self,
+            TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?locale",
+            check="base",
         )
-        # check locale parm working
-        result = self.client.get(
-            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?locale"
+
+    def test_get_relations_all_parameter_locale_expected_result(self):
+        """Test locale parameter working as expected."""
+        rv = check_success(self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all")
+        self.assertEqual(rv[0]["relationship_string"], "second great stepgrandaunt")
+        rv = check_success(
+            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?locale=de"
         )
-        self.assertEqual(result.status_code, 422)
-        result = self.client.get(
-            "/api/relations/9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?locale=de"
-        )
-        self.assertEqual(
-            result.json[0]["relationship_string"], "Stief-/Adoptivalttante"
-        )
+        self.assertEqual(rv[0]["relationship_string"], "Stief-/Adoptivalttante")

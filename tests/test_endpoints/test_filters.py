@@ -22,11 +22,31 @@
 
 import unittest
 
-from jsonschema import RefResolver, validate
+from jsonschema import validate
 
 from gramps_webapi.const import GRAMPS_NAMESPACES
-from tests.test_endpoints import API_SCHEMA, get_test_client
-from tests.test_endpoints.runners import run_test_filters_endpoint_namespace
+
+from . import API_RESOLVER, API_SCHEMA, BASE_URL, get_test_client
+from .checks import (
+    check_boolean_parameter,
+    check_conforms_to_schema,
+    check_filter_create_update_delete,
+    check_invalid_semantics,
+    check_invalid_syntax,
+    check_keys_parameter,
+    check_paging_parameters,
+    check_requires_token,
+    check_resource_missing,
+    check_single_extend_parameter,
+    check_skipkeys_parameter,
+    check_sort_parameter,
+    check_strip_parameter,
+    check_success,
+    check_totals,
+)
+from .util import fetch_token
+
+TEST_URL = BASE_URL + "/filters/"
 
 
 class TestAllFilters(unittest.TestCase):
@@ -37,75 +57,122 @@ class TestAllFilters(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_filters_endpoint_schema(self):
-        """Test against the filters schema."""
-        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
-        result = self.client.get("/api/filters/")
+    def test_get_filters_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL)
+
+    def test_get_filters_conforms_to_schema(self):
+        """Test conforms to schema."""
+        rv = check_success(self, TEST_URL)
         for namespace in GRAMPS_NAMESPACES:
-            # check present in response
-            self.assertIn(namespace, result.json)
-            # check against schema
+            self.assertIn(namespace, rv)
             validate(
-                instance=result.json[namespace],
+                instance=rv[namespace],
                 schema=API_SCHEMA["definitions"]["NamespaceFilters"],
-                resolver=resolver,
+                resolver=API_RESOLVER,
             )
+
+    def test_get_filters_validate_sematics(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(self, TEST_URL + "?test")
 
 
 class TestFilters(unittest.TestCase):
-    """Test cases for the /api/filters/{namespace} endpoint."""
+    """General test cases for the /api/filters/{namespace} endpoints."""
+
+    """
+    These are safe to run in parallel, the create/update/delete ones
+    must be serialized for now and are in separate test classes.
+    """
 
     @classmethod
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_filters_endpoint_404(self):
-        """Test response for unsupported namespace."""
-        # check 404 returned for non-existent namespace
-        result = self.client.get("/api/filters/nothing")
-        self.assertEqual(result.status_code, 404)
+    def test_get_filters_namespace_requires_token(self):
+        """Test authorization required."""
+        rv = check_success(self, TEST_URL)
+        for namespace in rv:
+            check_requires_token(self, TEST_URL + namespace)
 
-    def test_filters_endpoint_schema(self):
-        """Test all namespaces against the filters schema."""
+    def test_get_filters_namespace_missing_content(self):
+        """Test response for missing resource."""
+        check_resource_missing(self, TEST_URL + "nothing")
+
+    def test_get_filters_namespace_validate_sematics(self):
+        """Test invalid parameters and values."""
         for namespace in GRAMPS_NAMESPACES:
-            result = self.client.get("/api/filters/" + namespace)
-            # check no custom filters present yet
-            self.assertEqual(result.json["filters"], [])
-            # check rules were returned
-            self.assertIn("rules", result.json)
-            # check all rule records found conform to expected schema
-            resolver = RefResolver(
-                base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA}
-            )
-            for rule in result.json["rules"]:
+            check_invalid_semantics(self, TEST_URL + namespace + "?test")
+
+    def test_get_filters_namespace_custom_filters_empty(self):
+        """Test all namespaces have no custom filters yet."""
+        for namespace in GRAMPS_NAMESPACES:
+            rv = check_success(self, TEST_URL + namespace)
+            self.assertEqual(rv["filters"], [])
+            self.assertIn("rules", rv)
+
+    def test_get_filters_namespace_rules_conform_to_schema(self):
+        """Test all namespace rule sets conform to schema."""
+        for namespace in GRAMPS_NAMESPACES:
+            rv = check_success(self, TEST_URL + namespace)
+            for rule in rv["rules"]:
                 validate(
                     instance=rule,
                     schema=API_SCHEMA["definitions"]["FilterRuleDescription"],
-                    resolver=resolver,
+                    resolver=API_RESOLVER,
                 )
+
+    def test_get_filters_namespace_rules_validate_semantics(self):
+        """Test invalid rule parameter for each namespace."""
+        for namespace in GRAMPS_NAMESPACES:
+            check_invalid_semantics(self, TEST_URL + namespace + "?rules", check="base")
+
+    def test_get_filters_namespace_rule_missing_content(self):
+        """Test response for missing rule content."""
+        for namespace in GRAMPS_NAMESPACES:
+            check_resource_missing(
+                self, TEST_URL + namespace + "?rules=ReallyNotARealRule"
+            )
+
+    def test_get_filters_namespace_rule_expected_result(self):
+        """Test that rule parameter returns expected result."""
+        for namespace in GRAMPS_NAMESPACES:
+            rv = check_success(self, TEST_URL + namespace + "?rules=HasTag")
+            self.assertEqual(len(rv["rules"]), 1)
+            self.assertEqual(rv["rules"][0]["rule"], "HasTag")
+
+    def test_get_filters_namespace_filters_validate_semantics(self):
+        """Test invalid rule parameter for each namespace."""
+        for namespace in GRAMPS_NAMESPACES:
+            check_invalid_semantics(
+                self, TEST_URL + namespace + "?filters", check="base"
+            )
+
+    def test_get_filters_namespace_filters_missing_content(self):
+        """Test response for missing filters content."""
+        for namespace in GRAMPS_NAMESPACES:
+            check_resource_missing(
+                self, TEST_URL + namespace + "?filters=ReallyNotARealFilter"
+            )
+            check_resource_missing(self, TEST_URL + namespace + "/ReallyNotARealFilter")
 
 
 class TestFiltersPeople(unittest.TestCase):
-    """Test cases for the /api/filters/people endpoint."""
+    """Specific test cases for the /api/filters/people endpoint."""
 
     @classmethod
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_filters_endpoint_people_filter(self):
-        """Test creation and application of a people filter."""
-        payload = {
-            "comment": "Test person filter",
-            "name": 123,
-            "rules": [{"name": "IsMale"}, {"name": "MultipleMarriages"}],
-        }
-        run_test_filters_endpoint_namespace(self, "people", payload)
+    def test_filter_create_update_delete(self):
+        """Test creation, application, update, and deletion of filter."""
+        check_filter_create_update_delete(self, BASE_URL, TEST_URL, "people")
 
 
 class TestFiltersFamilies(unittest.TestCase):
-    """Test cases for the /api/filters/families endpoint."""
+    """Specific test cases for the /api/filters/families endpoint."""
 
     @classmethod
     def setUpClass(cls):
@@ -114,19 +181,11 @@ class TestFiltersFamilies(unittest.TestCase):
 
     def test_filters_endpoint_families_filter(self):
         """Test creation and application of a families filter."""
-        payload = {
-            "comment": "Test family filter",
-            "name": 123,
-            "rules": [
-                {"name": "HasRelType", "values": ["Married"]},
-                {"name": "IsBookmarked"},
-            ],
-        }
-        run_test_filters_endpoint_namespace(self, "families", payload)
+        check_filter_create_update_delete(self, BASE_URL, TEST_URL, "families")
 
 
 class TestFiltersEvents(unittest.TestCase):
-    """Test cases for the /api/filters/events endpoint."""
+    """Specific test cases for the /api/filters/events endpoint."""
 
     @classmethod
     def setUpClass(cls):
@@ -135,16 +194,11 @@ class TestFiltersEvents(unittest.TestCase):
 
     def test_filters_endpoint_events_filter(self):
         """Test creation and application of an events filter."""
-        payload = {
-            "comment": "Test event filter",
-            "name": 123,
-            "rules": [{"name": "HasType", "values": ["Death"]}, {"name": "HasNote"}],
-        }
-        run_test_filters_endpoint_namespace(self, "events", payload)
+        check_filter_create_update_delete(self, BASE_URL, TEST_URL, "events")
 
 
 class TestFiltersPlaces(unittest.TestCase):
-    """Test cases for the /api/filters/places endpoint."""
+    """Specific test cases for the /api/filters/places endpoint."""
 
     @classmethod
     def setUpClass(cls):
@@ -153,16 +207,11 @@ class TestFiltersPlaces(unittest.TestCase):
 
     def test_filters_endpoint_places_filter(self):
         """Test creation and application of a places filter."""
-        payload = {
-            "comment": "Test place filter",
-            "name": 123,
-            "rules": [{"name": "HasNoLatOrLon"}],
-        }
-        run_test_filters_endpoint_namespace(self, "places", payload)
+        check_filter_create_update_delete(self, BASE_URL, TEST_URL, "places")
 
 
 class TestFiltersCitations(unittest.TestCase):
-    """Test cases for the /api/filters/citations endpoint."""
+    """Specific test cases for the /api/filters/citations endpoint."""
 
     @classmethod
     def setUpClass(cls):
@@ -171,19 +220,11 @@ class TestFiltersCitations(unittest.TestCase):
 
     def test_filters_endpoint_citations_filter(self):
         """Test creation and application of a citations filter."""
-        payload = {
-            "comment": "Test citation filter",
-            "name": 123,
-            "rules": [
-                {"name": "MatchesPageSubstringOf", "values": ["Page"]},
-                {"name": "HasNote"},
-            ],
-        }
-        run_test_filters_endpoint_namespace(self, "citations", payload)
+        check_filter_create_update_delete(self, BASE_URL, TEST_URL, "citations")
 
 
 class TestFiltersSources(unittest.TestCase):
-    """Test cases for the /api/filters/sources endpoint."""
+    """Specific test cases for the /api/filters/sources endpoint."""
 
     @classmethod
     def setUpClass(cls):
@@ -192,19 +233,11 @@ class TestFiltersSources(unittest.TestCase):
 
     def test_filters_endpoint_sources_filter(self):
         """Test creation and application of a sources filter."""
-        payload = {
-            "comment": "Test source filter",
-            "name": 123,
-            "rules": [
-                {"name": "MatchesTitleSubstringOf", "values": ["Church"]},
-                {"name": "HasNote"},
-            ],
-        }
-        run_test_filters_endpoint_namespace(self, "sources", payload)
+        check_filter_create_update_delete(self, BASE_URL, TEST_URL, "sources")
 
 
 class TestFiltersRepositories(unittest.TestCase):
-    """Test cases for the /api/filters/repositories endpoint."""
+    """Specific test cases for the /api/filters/repositories endpoint."""
 
     @classmethod
     def setUpClass(cls):
@@ -213,16 +246,11 @@ class TestFiltersRepositories(unittest.TestCase):
 
     def test_filters_endpoint_repositories_filter(self):
         """Test creation and application of a repositories filter."""
-        payload = {
-            "comment": "Test repository filter",
-            "name": 123,
-            "rules": [{"name": "MatchesNameSubstringOf", "values": ["Library"]}],
-        }
-        run_test_filters_endpoint_namespace(self, "repositories", payload)
+        check_filter_create_update_delete(self, BASE_URL, TEST_URL, "repositories")
 
 
 class TestFiltersMedia(unittest.TestCase):
-    """Test cases for the /api/filters/media endpoint."""
+    """Specific test cases for the /api/filters/media endpoint."""
 
     @classmethod
     def setUpClass(cls):
@@ -231,16 +259,11 @@ class TestFiltersMedia(unittest.TestCase):
 
     def test_filters_endpoint_media_filter(self):
         """Test creation and application of a media filter."""
-        payload = {
-            "comment": "Test media filter",
-            "name": 123,
-            "rules": [{"name": "HasTag", "values": ["ToDo"]}],
-        }
-        run_test_filters_endpoint_namespace(self, "media", payload)
+        check_filter_create_update_delete(self, BASE_URL, TEST_URL, "media")
 
 
 class TestFiltersNotes(unittest.TestCase):
-    """Test cases for the /api/filters/notes endpoint."""
+    """Specific test cases for the /api/filters/notes endpoint."""
 
     @classmethod
     def setUpClass(cls):
@@ -249,9 +272,4 @@ class TestFiltersNotes(unittest.TestCase):
 
     def test_filters_endpoint_notes_filter(self):
         """Test creation and application of a notes filter."""
-        payload = {
-            "comment": "Test notes filter",
-            "name": 123,
-            "rules": [{"name": "HasType", "values": ["Person Note"]}],
-        }
-        run_test_filters_endpoint_namespace(self, "notes", payload)
+        check_filter_create_update_delete(self, BASE_URL, TEST_URL, "notes")

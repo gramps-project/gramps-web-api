@@ -55,12 +55,12 @@ class PersonResourceHelper(GrampsObjectResourceHelper):
             )
         if "extend" in args:
             obj.extended = get_extended_attributes(db_handle, obj, args)
-            if "all" in args["extend"] or "families" in args["extend"]:
+            if "all" in args["extend"] or "family_list" in args["extend"]:
                 obj.extended["families"] = [
                     get_family_by_handle(db_handle, handle)
                     for handle in obj.family_list
                 ]
-            if "all" in args["extend"] or "parent_families" in args["extend"]:
+            if "all" in args["extend"] or "parent_family_list" in args["extend"]:
                 obj.extended["parent_families"] = [
                     get_family_by_handle(db_handle, handle)
                     for handle in obj.parent_family_list

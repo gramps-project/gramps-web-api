@@ -22,9 +22,17 @@
 
 import unittest
 
-from jsonschema import RefResolver, validate
+from . import BASE_URL, get_test_client
+from .checks import (
+    check_conforms_to_schema,
+    check_invalid_semantics,
+    check_invalid_syntax,
+    check_requires_token,
+    check_resource_missing,
+    check_success,
+)
 
-from . import API_SCHEMA, get_test_client
+TEST_URL = BASE_URL + "/types/"
 
 
 class TestTypes(unittest.TestCase):
@@ -35,23 +43,17 @@ class TestTypes(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_types_endpoint(self):
-        """Test response for types listing."""
-        # check expected number of type classes found
-        result = self.client.get("/api/types/")
-        self.assertEqual(len(result.json), 2)
-        # check response conforms to schema
-        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
-        validate(
-            instance=result.json["default"],
-            schema=API_SCHEMA["definitions"]["DefaultTypes"],
-            resolver=resolver,
-        )
-        validate(
-            instance=result.json["custom"],
-            schema=API_SCHEMA["definitions"]["CustomTypes"],
-            resolver=resolver,
-        )
+    def test_get_types_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL)
+
+    def test_get_types_conforms_to_schema(self):
+        """Test conforms to schema."""
+        check_conforms_to_schema(self, TEST_URL, "Types")
+
+    def test_get_types_invalid_semantics(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(self, TEST_URL + "?test=1")
 
 
 class TestDefaultTypes(unittest.TestCase):
@@ -62,43 +64,62 @@ class TestDefaultTypes(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_default_types_endpoint(self):
-        """Test response for default types listing."""
-        # check expected number of record types found
-        result = self.client.get("/api/types/default/")
-        self.assertGreaterEqual(len(result.json), 14)
-        # check response conforms to schema
-        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
-        validate(
-            instance=result.json,
-            schema=API_SCHEMA["definitions"]["DefaultTypes"],
-            resolver=resolver,
-        )
+    def test_get_types_default_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL + "default/")
 
-    def test_default_types_type_endpoint(self):
+    def test_get_types_default_conforms_to_schema(self):
+        """Test conforms to schema."""
+        check_conforms_to_schema(self, TEST_URL + "default/", "DefaultTypes")
+
+    def test_get_types_default_invalid_semantics(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(self, TEST_URL + "default/?test=1")
+
+    def test_get_types_default_type_requires_token(self):
+        """Test authorization required."""
+        type_list = check_success(self, TEST_URL + "default/")
+        for item in type_list:
+            check_requires_token(self, TEST_URL + "default/" + item)
+
+    def test_get_types_default_type_invalid_semantics(self):
+        """Test invalid parameters and values."""
+        type_list = check_success(self, TEST_URL + "default/")
+        for item in type_list:
+            check_invalid_semantics(self, TEST_URL + "default/" + item + "?test=1")
+
+    def test_get_types_default_type_missing_content(self):
+        """Test response for missing content."""
+        check_resource_missing(self, TEST_URL + "default/junk")
+
+    def test_get_types_default_type_expected_result(self):
         """Test response for default types type listing."""
-        # check valid response for each type in listing
-        type_list = self.client.get("/api/types/default/")
-        for item in type_list.json:
-            result = self.client.get("/api/types/default/" + item)
-            self.assertEqual(result.status_code, 200)
-        # check 404 for invalid type
-        result = self.client.get("/api/types/default/junk")
-        self.assertEqual(result.status_code, 404)
+        type_list = check_success(self, TEST_URL + "default/")
+        for item in type_list:
+            check_success(self, TEST_URL + "default/" + item)
 
-    def test_default_types_type_map_endpoint(self):
+    def test_get_types_default_type_map_requires_token(self):
+        """Test authorization required."""
+        type_list = check_success(self, TEST_URL + "default/")
+        for item in type_list:
+            check_requires_token(self, TEST_URL + "default/" + item + "/map")
+
+    def test_get_types_default_type_map_invalid_semantics(self):
+        """Test invalid parameters and values."""
+        type_list = check_success(self, TEST_URL + "default/")
+        for item in type_list:
+            check_invalid_semantics(self, TEST_URL + "default/" + item + "?test=1")
+
+    def test_get_types_default_type_map_missing_content(self):
+        """Test response for missing content."""
+        check_resource_missing(self, TEST_URL + "default/junk/map")
+        check_resource_missing(self, TEST_URL + "default/event_types/junk")
+
+    def test_get_types_default_type_map_expected_result(self):
         """Test response for default types type map listing."""
-        # check valid response for each type in listing
-        type_list = self.client.get("/api/types/default/")
-        for item in type_list.json:
-            result = self.client.get("/api/types/default/" + item + "/map")
-            self.assertEqual(result.status_code, 200)
-            self.assertIsInstance(result.json, type({}))
-        # check 404 for invalid path
-        result = self.client.get("/api/types/default/junk/map")
-        self.assertEqual(result.status_code, 404)
-        result = self.client.get("/api/types/default/event_type/junk")
-        self.assertEqual(result.status_code, 404)
+        type_list = check_success(self, TEST_URL + "default/")
+        for item in type_list:
+            check_success(self, TEST_URL + "default/" + item + "/map")
 
 
 class TestCustomTypes(unittest.TestCase):
@@ -109,26 +130,36 @@ class TestCustomTypes(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_custom_types_endpoint(self):
-        """Test response for custom types listing."""
-        # check expected number of types found
-        result = self.client.get("/api/types/custom/")
-        self.assertGreaterEqual(len(result.json), 16)
-        # check response conforms to schema
-        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
-        validate(
-            instance=result.json,
-            schema=API_SCHEMA["definitions"]["CustomTypes"],
-            resolver=resolver,
-        )
+    def test_get_types_custom_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL + "custom/")
 
-    def test_custom_types_type_endpoint(self):
-        """Test response for custom types type listing."""
-        # check valid response for each type in listing
-        type_list = self.client.get("/api/types/custom/")
-        for item in type_list.json:
-            result = self.client.get("/api/types/custom/" + item)
-            self.assertEqual(result.status_code, 200)
-        # check 404 for invalid type
-        result = self.client.get("/api/types/custom/junk")
-        self.assertEqual(result.status_code, 404)
+    def test_get_types_custom_conforms_to_schema(self):
+        """Test conforms to schema."""
+        check_conforms_to_schema(self, TEST_URL + "custom/", "CustomTypes")
+
+    def test_get_types_custom_invalid_semantics(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(self, TEST_URL + "custom/?test=1")
+
+    def test_get_types_custom_type_requires_token(self):
+        """Test authorization required."""
+        type_list = check_success(self, TEST_URL + "custom/")
+        for item in type_list:
+            check_requires_token(self, TEST_URL + "custom/" + item)
+
+    def test_get_types_custom_type_invalid_semantics(self):
+        """Test invalid parameters and values."""
+        type_list = check_success(self, TEST_URL + "custom/")
+        for item in type_list:
+            check_invalid_semantics(self, TEST_URL + "custom/" + item + "?test=1")
+
+    def test_get_types_custom_type_missing_content(self):
+        """Test response for missing content."""
+        check_resource_missing(self, TEST_URL + "custom/junk")
+
+    def test_get_types_custom_type_expected_result(self):
+        """Test response for default types type listing."""
+        type_list = check_success(self, TEST_URL + "custom/")
+        for item in type_list:
+            check_success(self, TEST_URL + "custom/" + item)

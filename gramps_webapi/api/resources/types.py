@@ -162,7 +162,10 @@ class DefaultTypesResource(ProtectedResource, GrampsJSONEncoder):
     """Default types resource."""
 
     @use_args(
-        {"locale": fields.Boolean(missing=False),}, location="query",
+        {
+            "locale": fields.Boolean(missing=False),
+        },
+        location="query",
     )
     def get(self, args: Dict) -> Response:
         """Return a list of available default types."""
@@ -176,7 +179,10 @@ class DefaultTypeResource(ProtectedResource, GrampsJSONEncoder):
     """Default type resource."""
 
     @use_args(
-        {"locale": fields.Boolean(missing=False),}, location="query",
+        {
+            "locale": fields.Boolean(missing=False),
+        },
+        location="query",
     )
     def get(self, args: Dict, datatype: str) -> Response:
         """Return a list of values for a default type."""
@@ -189,7 +195,11 @@ class DefaultTypeResource(ProtectedResource, GrampsJSONEncoder):
 class DefaultTypeMapResource(ProtectedResource, GrampsJSONEncoder):
     """Default type resource."""
 
-    def get(self, datatype: str) -> Response:
+    @use_args(
+        {},
+        location="query",
+    )
+    def get(self, args: Dict, datatype: str) -> Response:
         """Return the map for a default type."""
         if datatype in _DEFAULT_TYPE_CLASSES:
             types = _DEFAULT_TYPE_CLASSES[datatype]
@@ -204,30 +214,28 @@ class DefaultTypeMapResource(ProtectedResource, GrampsJSONEncoder):
 class CustomTypesResource(ProtectedResource, GrampsJSONEncoder):
     """Custom types resource."""
 
-    @property
-    def db_handle(self) -> DbReadBase:
-        """Get the database instance."""
-        return get_db_handle()
-
-    def get(self) -> Response:
+    @use_args(
+        {},
+        location="query",
+    )
+    def get(self, args: Dict) -> Response:
         """Return a list of available custom types."""
         result = {}
         for datatype in _CUSTOM_RECORD_TYPES:
-            result.update({datatype: get_custom_types(self.db_handle, datatype)})
+            result.update({datatype: get_custom_types(get_db_handle(), datatype)})
         return self.response(200, result)
 
 
 class CustomTypeResource(ProtectedResource, GrampsJSONEncoder):
     """Custom type resource."""
 
-    @property
-    def db_handle(self) -> DbReadBase:
-        """Get the database instance."""
-        return get_db_handle()
-
-    def get(self, datatype: str) -> Response:
+    @use_args(
+        {},
+        location="query",
+    )
+    def get(self, args: Dict, datatype: str) -> Response:
         """Return list of values for the custom type."""
-        result = get_custom_types(self.db_handle, datatype)
+        result = get_custom_types(get_db_handle(), datatype)
         if result is None:
             abort(404)
         return self.response(200, result)
@@ -236,19 +244,17 @@ class CustomTypeResource(ProtectedResource, GrampsJSONEncoder):
 class TypesResource(ProtectedResource, GrampsJSONEncoder):
     """Types resource."""
 
-    @property
-    def db_handle(self) -> DbReadBase:
-        """Get the database instance."""
-        return get_db_handle()
-
     @use_args(
-        {"locale": fields.Boolean(missing=False),}, location="query",
+        {
+            "locale": fields.Boolean(missing=False),
+        },
+        location="query",
     )
     def get(self, args: Dict) -> Response:
         """Return list of values for the custom type."""
         custom = {}
         for datatype in _CUSTOM_RECORD_TYPES:
-            custom.update({datatype: get_custom_types(self.db_handle, datatype)})
+            custom.update({datatype: get_custom_types(get_db_handle(), datatype)})
         default = {}
         for datatype in _DEFAULT_RECORD_TYPES:
             default.update({datatype: get_default_types(datatype, args["locale"])})

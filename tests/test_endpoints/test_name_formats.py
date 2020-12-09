@@ -22,9 +22,15 @@
 
 import unittest
 
-from jsonschema import RefResolver, validate
+from . import BASE_URL, get_test_client
+from .checks import (
+    check_conforms_to_schema,
+    check_invalid_semantics,
+    check_requires_token,
+    check_success,
+)
 
-from . import API_SCHEMA, get_test_client
+TEST_URL = BASE_URL + "/name-formats/"
 
 
 class TestNameFormats(unittest.TestCase):
@@ -35,14 +41,10 @@ class TestNameFormats(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_name_formats_endpoint_schema(self):
-        """Test name formats against the name format schema."""
-        # check record conforms to expected schema
-        result = self.client.get("/api/name-formats/")
-        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
-        for name_format in result.json:
-            validate(
-                instance=name_format,
-                schema=API_SCHEMA["definitions"]["NameFormat"],
-                resolver=resolver,
-            )
+    def test_get_name_formats_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL)
+
+    def test_get_name_formats_conforms_to_schema(self):
+        """Test conformity to schema."""
+        check_conforms_to_schema(self, TEST_URL, "NameFormat")

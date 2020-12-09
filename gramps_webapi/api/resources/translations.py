@@ -22,7 +22,7 @@
 """Translate API Resource."""
 
 import json
-from typing import Dict
+from typing import Dict, Union
 
 from flask import Response, abort
 from gramps.gen.const import GRAMPS_LOCALE
@@ -67,7 +67,11 @@ class TranslationResource(ProtectedResource, GrampsJSONEncoder):
 class TranslationsResource(ProtectedResource, GrampsJSONEncoder):
     """Translations resource."""
 
-    def get(self) -> Response:
+    @use_args(
+        {},
+        location="query",
+    )
+    def get(self, args: Union[Dict, None] = None) -> Response:
         """Get available translations."""
         catalog = GRAMPS_LOCALE.get_language_dict()
         return self.response(200, {catalog[entry]: entry for entry in catalog})

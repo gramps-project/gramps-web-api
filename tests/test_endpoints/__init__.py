@@ -28,12 +28,22 @@ from unittest.mock import patch
 
 import gramps.gen.const
 import yaml
+from jsonschema import RefResolver
 from pkg_resources import resource_filename
 
 import gramps_webapi.app
 from gramps_webapi.app import create_app
-from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EXAMPLE_GRAMPS_CONFIG
+from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EXAMPLE_GRAMPS_AUTH_CONFIG
 from tests import TEST_GRAMPSHOME, ExampleDbSQLite
+
+with open(resource_filename("gramps_webapi", "data/apispec.yaml")) as file_handle:
+    API_SCHEMA = yaml.safe_load(file_handle)
+
+API_RESOLVER = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
+
+BASE_URL = "/api"
+TEST_USER = "user"
+TEST_PASSWORD = "123"
 
 
 def get_object_count(gramps_object):
@@ -51,10 +61,13 @@ def setUpModule():
     global TEST_CLIENT, TEST_OBJECT_COUNTS
 
     test_db = ExampleDbSQLite()
-    with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EXAMPLE_GRAMPS_CONFIG}):
+    with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EXAMPLE_GRAMPS_AUTH_CONFIG}):
         test_app = create_app(db_manager=test_db)
     test_app.config["TESTING"] = True
     TEST_CLIENT = test_app.test_client()
+    sqlauth = test_app.config["AUTH_PROVIDER"]
+    sqlauth.create_table()
+    sqlauth.add_user(name=TEST_USER, password=TEST_PASSWORD)
 
     db_state = test_app.config["DB_MANAGER"].get_db()
     TEST_OBJECT_COUNTS = {
@@ -76,7 +89,3 @@ def tearDownModule():
     """Test module tear down."""
     if TEST_GRAMPSHOME and os.path.isdir(TEST_GRAMPSHOME):
         shutil.rmtree(TEST_GRAMPSHOME)
-
-
-with open(resource_filename("gramps_webapi", "data/apispec.yaml")) as file_handle:
-    API_SCHEMA = yaml.safe_load(file_handle)

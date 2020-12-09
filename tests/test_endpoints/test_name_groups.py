@@ -22,9 +22,18 @@
 
 import unittest
 
-from jsonschema import RefResolver, validate
+from . import BASE_URL, get_test_client
+from .checks import (
+    check_conforms_to_schema,
+    check_invalid_semantics,
+    check_invalid_syntax,
+    check_requires_token,
+    check_resource_missing,
+    check_success,
+)
+from .util import fetch_token
 
-from . import API_SCHEMA, get_test_client
+TEST_URL = BASE_URL + "/name-groups/"
 
 
 class TestNameGroups(unittest.TestCase):
@@ -35,36 +44,60 @@ class TestNameGroups(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_name_groups_endpoint(self):
-        """Test name groups."""
-        # check response returned for name groups listing
-        result = self.client.get("/api/name-groups/")
-        self.assertEqual(result.json[0], {"surname": "Fernández", "group": "Fernandez"})
-        # check response returned for specific surname
-        result = self.client.get("/api/name-groups/Fernández")
-        self.assertEqual(result.json, {"surname": "Fernández", "group": "Fernandez"})
-        # check response setting incomplete new group mapping
-        result = self.client.post("/api/name-groups/Stephen")
-        self.assertEqual(result.status_code, 400)
-        result = self.client.post("/api/name-groups/Stephen/")
-        self.assertEqual(result.status_code, 404)
-        # check response setting new group mapping
-        result = self.client.post("/api/name-groups/Stephen/Steven")
-        self.assertEqual(result.status_code, 201)
-        # check response returned for surname group mapping just created
-        result = self.client.get("/api/name-groups/Stephen")
-        self.assertEqual(result.json, {"surname": "Stephen", "group": "Steven"})
-        result = self.client.get("/api/name-groups/Steven")
-        self.assertEqual(result.json, {"surname": "Steven", "group": "Steven"})
+    def test_get_name_groups_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL)
 
-    def test_name_groups_endpoint_schema(self):
-        """Test name groups against the name group schema."""
-        # check record conforms to expected schema
-        result = self.client.get("/api/name-groups/")
-        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
-        for group in result.json:
-            validate(
-                instance=group,
-                schema=API_SCHEMA["definitions"]["NameGroupMapping"],
-                resolver=resolver,
-            )
+    def test_get_name_groups_conforms_to_schema(self):
+        """Test conformity to schema."""
+        check_conforms_to_schema(self, TEST_URL, "NameGroupMapping")
+
+
+class TestNameGroupsSurname(unittest.TestCase):
+    """Test cases for the /api/name-groups/{surname} endpoint."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_get_name_groups_surname_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL + "Fernández")
+
+    def test_get_name_groups_surname_expected_result(self):
+        """Test response querying surname."""
+        rv = check_success(self, TEST_URL + "Fernández")
+        self.assertEqual(rv, {"surname": "Fernández", "group": "Fernandez"})
+
+
+class TestNameGroupsSurname(unittest.TestCase):
+    """Test cases for the /api/name-groups/{surname}/{group} endpoint."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_post_name_groups_surname_requires_token(self):
+        """Test authorization required."""
+        rv = self.client.post(TEST_URL + "Stephen/Steven")
+        self.assertEqual(rv.status_code, 401)
+
+    def test_post_name_groups_surname_bad_mapping(self):
+        """Test adding a incomplete mapping."""
+        token, headers = fetch_token(self.client)
+        rv = self.client.post(TEST_URL + "Stephen", headers=headers)
+        self.assertEqual(rv.status_code, 400)
+        rv = self.client.post(TEST_URL + "Stephen/", headers=headers)
+        self.assertEqual(rv.status_code, 404)
+
+    def test_post_name_groups_surname_add_mapping(self):
+        """Test adding a mapping."""
+        token, headers = fetch_token(self.client)
+        rv = self.client.post(TEST_URL + "Stephen/Steven", headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        rv = check_success(self, TEST_URL + "Stephen")
+        self.assertEqual(rv, {"surname": "Stephen", "group": "Steven"})
+        rv = check_success(self, TEST_URL + "Steven")
+        self.assertEqual(rv, {"surname": "Steven", "group": "Steven"})
