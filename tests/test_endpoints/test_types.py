@@ -26,7 +26,6 @@ from . import BASE_URL, get_test_client
 from .checks import (
     check_conforms_to_schema,
     check_invalid_semantics,
-    check_invalid_syntax,
     check_requires_token,
     check_resource_missing,
     check_success,

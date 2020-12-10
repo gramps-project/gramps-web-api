@@ -368,8 +368,10 @@ class TestSources(unittest.TestCase):
 
     def test_get_sources_parameter_backlinks_expected_result(self):
         """Test backlinks expected result."""
-        rv = check_success(self, TEST_URL + "?page=1&keys=backlinks&backlinks=1")
-        self.assertIn("c140dbd7ebf51d0d4de", rv[0]["backlinks"]["citation"])
+        rv = check_success(
+            self, TEST_URL + "?gramps_id=S0000&keys=backlinks&backlinks=1"
+        )
+        self.assertIn("c140d2362f25a92643b", rv[0]["backlinks"]["citation"])
 
 
 class TestSourcesHandle(unittest.TestCase):

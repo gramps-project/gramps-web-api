@@ -27,12 +27,10 @@ from .checks import (
     check_boolean_parameter,
     check_conforms_to_schema,
     check_invalid_semantics,
-    check_invalid_syntax,
     check_keys_parameter,
     check_paging_parameters,
     check_requires_token,
     check_resource_missing,
-    check_single_extend_parameter,
     check_skipkeys_parameter,
     check_sort_parameter,
     check_strip_parameter,
@@ -137,11 +135,15 @@ class TestTags(unittest.TestCase):
 
     def test_get_tags_parameter_sort_name_ascending_expected_result(self):
         """Test sort parameter name ascending result."""
-        check_sort_parameter(self, TEST_URL, "name")
+        rv = check_success(self, TEST_URL + "?sort=name&keys=name")
+        self.assertEqual(rv[0]["name"], "complete")
+        self.assertEqual(rv[-1]["name"], "ToDo")
 
     def test_get_tags_parameter_sort_name_descending_expected_result(self):
         """Test sort parameter name descending result."""
-        check_sort_parameter(self, TEST_URL, "name", direction="-")
+        rv = check_success(self, TEST_URL + "?sort=-name&keys=name")
+        self.assertEqual(rv[0]["name"], "ToDo")
+        self.assertEqual(rv[-1]["name"], "complete")
 
     def test_get_tags_parameter_sort_color_ascending_expected_result(self):
         """Test sort parameter color ascending result."""

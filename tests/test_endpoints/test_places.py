@@ -74,7 +74,6 @@ class TestPlaces(unittest.TestCase):
         # check last expected record
         self.assertEqual(rv[-1]["gramps_id"], "P0438")
         self.assertEqual(rv[-1]["handle"], "d583a5b8b586fb992c8")
-        self.assertEqual(rv[-1]["title"], "Σιάτιστα")
 
     def test_get_places_validate_semantics(self):
         """Test invalid parameters and values."""
@@ -370,13 +369,11 @@ class TestPlaces(unittest.TestCase):
 
     def test_get_places_parameter_backlinks_expected_result(self):
         """Test backlinks expected result."""
-        rv = check_success(self, TEST_URL + "?page=1&keys=backlinks&backlinks=1")
-        for key in [
-            "d583a5b7ab21971300a",
-            "d583a5b8614206a939d",
-            "d583a5b8a8c1474357d",
-        ]:
-            self.assertIn(key, rv[0]["backlinks"]["place"])
+        rv = check_success(
+            self, TEST_URL + "?gramps_id=P1108&keys=backlinks&backlinks=1"
+        )
+        for key in ["a5af0ec23c136ad6742", "a5af0ec27662bcd851c"]:
+            self.assertIn(key, rv[0]["backlinks"]["event"])
 
 
 class TestPlacesHandle(unittest.TestCase):

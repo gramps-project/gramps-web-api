@@ -20,33 +20,32 @@
 
 """Check functions for performing specific unit tests."""
 
-import unittest
-from typing import Dict, List
-
 from jsonschema import validate
 
+from gramps_webapi.auth.const import ROLE_OWNER
+
 from . import API_RESOLVER, API_SCHEMA
-from .util import check_keys_stripped, fetch_token
+from .util import check_keys_stripped, fetch_header
 
 
-def check_success(test, url, full=False):
+def check_success(test, url, full=False, role=ROLE_OWNER):
     """Test that result returned successfully."""
-    token, headers = fetch_token(test.client)
-    rv = test.client.get(url, headers=headers)
+    header = fetch_header(test.client, role=role)
+    rv = test.client.get(url, headers=header)
     test.assertEqual(rv.status_code, 200)
     if not full:
         return rv.json
     return rv
 
 
-def check_invalid_syntax(test, url):
+def check_invalid_syntax(test, url, role=ROLE_OWNER):
     """Test that invalid syntax is handled properly."""
-    token, headers = fetch_token(test.client)
-    rv = test.client.get(url, headers=headers)
+    header = fetch_header(test.client, role=role)
+    rv = test.client.get(url, headers=header)
     test.assertEqual(rv.status_code, 400)
 
 
-def check_invalid_semantics(test, url, check="none"):
+def check_invalid_semantics(test, url, check="none", role=ROLE_OWNER):
     """Test that invalid parameters and values are handled properly."""
     check_list = {
         "none": [""],
@@ -56,33 +55,33 @@ def check_invalid_semantics(test, url, check="none"):
         "integer": ["=", "=LoremIpsumDolorSitAmet"],
         "list": ["=", "=LoremIpsumDolorSitAmet"],
     }
-    token, headers = fetch_token(test.client)
+    header = fetch_header(test.client, role=role)
     for item in check_list[check]:
-        rv = test.client.get("{}{}".format(url, item), headers=headers)
+        rv = test.client.get("{}{}".format(url, item), headers=header)
         test.assertEqual(rv.status_code, 422)
 
 
-def check_resource_missing(test, url):
+def check_resource_missing(test, url, role=ROLE_OWNER):
     """Test that missing resources are handled properly."""
-    token, headers = fetch_token(test.client)
-    rv = test.client.get(url, headers=headers)
+    header = fetch_header(test.client, role=role)
+    rv = test.client.get(url, headers=header)
     test.assertEqual(rv.status_code, 404)
 
 
-def check_requires_token(test, url):
+def check_requires_token(test, url, role=ROLE_OWNER):
     """Test that authorization is required."""
     rv = test.client.get(url)
     test.assertEqual(rv.status_code, 401)
-    token, headers = fetch_token(test.client)
-    rv = test.client.get(url, headers=headers)
+    header = fetch_header(test.client, role=role)
+    rv = test.client.get(url, headers=header)
     test.assertEqual(rv.status_code, 200)
     return rv.json
 
 
-def check_conforms_to_schema(test, url, name):
+def check_conforms_to_schema(test, url, name, role=ROLE_OWNER):
     """Test that result set conforms to expected schema."""
-    token, headers = fetch_token(test.client)
-    rv = test.client.get(url, headers=headers)
+    header = fetch_header(test.client, role=role)
+    rv = test.client.get(url, headers=header)
     test.assertEqual(rv.status_code, 200)
     if isinstance(rv.json, type([])):
         for item in rv.json:
@@ -100,10 +99,10 @@ def check_conforms_to_schema(test, url, name):
     return rv.json
 
 
-def check_totals(test, url, total):
+def check_totals(test, url, total, role=ROLE_OWNER):
     """Test that result set contains the expected number of objects."""
-    token, headers = fetch_token(test.client)
-    rv = test.client.get(url, headers=headers)
+    header = fetch_header(test.client, role=role)
+    rv = test.client.get(url, headers=header)
     test.assertEqual(rv.status_code, 200)
     test.assertIsInstance(rv.json, type([]))
     test.assertEqual(len(rv.json), total)
@@ -112,11 +111,11 @@ def check_totals(test, url, total):
     return rv.json
 
 
-def check_strip_parameter(test, url, join="?"):
+def check_strip_parameter(test, url, join="?", role=ROLE_OWNER):
     """Test that strip parameter produces expected result."""
-    token, headers = fetch_token(test.client)
-    baseline = test.client.get(url, headers=headers)
-    rv = test.client.get("{}{}strip=1".format(url, join), headers=headers)
+    header = fetch_header(test.client, role=role)
+    baseline = test.client.get(url, headers=header)
+    rv = test.client.get("{}{}strip=1".format(url, join), headers=header)
     test.assertEqual(rv.status_code, 200)
     if isinstance(rv.json, type([])):
         for item in baseline.json:
@@ -126,12 +125,12 @@ def check_strip_parameter(test, url, join="?"):
     return rv.json
 
 
-def check_keys_parameter(test, url, keys, join="?"):
+def check_keys_parameter(test, url, keys, join="?", role=ROLE_OWNER):
     """Test that keys parameter produces expected result."""
-    token, headers = fetch_token(test.client)
+    header = fetch_header(test.client, role=role)
     for key in keys:
         size = len(key.split(","))
-        rv = test.client.get("{}{}keys={}".format(url, join, key), headers=headers)
+        rv = test.client.get("{}{}keys={}".format(url, join, key), headers=header)
         test.assertEqual(rv.status_code, 200)
         if isinstance(rv.json, type([])):
             for item in rv.json:
@@ -145,17 +144,17 @@ def check_keys_parameter(test, url, keys, join="?"):
     return rv.json
 
 
-def check_skipkeys_parameter(test, url, keys, join="?"):
+def check_skipkeys_parameter(test, url, keys, join="?", role=ROLE_OWNER):
     """Test that skipkeys parameter produces expected result."""
-    token, headers = fetch_token(test.client)
-    rv = test.client.get(url, headers=headers)
+    header = fetch_header(test.client, role=role)
+    rv = test.client.get(url, headers=header)
     test.assertEqual(rv.status_code, 200)
     key_count = len(rv.json)
     if isinstance(rv.json, type([])):
         key_count = len(rv.json[0])
     for key in keys:
         size = key_count - len(key.split(","))
-        rv = test.client.get("{}{}skipkeys={}".format(url, join, key), headers=headers)
+        rv = test.client.get("{}{}skipkeys={}".format(url, join, key), headers=header)
         test.assertEqual(rv.status_code, 200)
         if isinstance(rv.json, type([])):
             for item in rv.json:
@@ -169,25 +168,25 @@ def check_skipkeys_parameter(test, url, keys, join="?"):
     return rv.json
 
 
-def check_paging_parameters(test, url, size, join="?"):
+def check_paging_parameters(test, url, size, join="?", role=ROLE_OWNER):
     """Test that page and pagesize parameters produce expected result."""
-    token, headers = fetch_token(test.client)
+    header = fetch_header(test.client, role=role)
     rv = test.client.get(
-        "{}{}page=1&pagesize={}".format(url, join, size), headers=headers
+        "{}{}page=1&pagesize={}".format(url, join, size), headers=header
     )
     test.assertEqual(rv.status_code, 200)
     test.assertIsInstance(rv.json, type([]))
     test.assertEqual(len(rv.json), size)
     first = rv.json[0]
     rv = test.client.get(
-        "{}{}page=2&pagesize={}".format(url, join, size), headers=headers
+        "{}{}page=2&pagesize={}".format(url, join, size), headers=header
     )
     test.assertEqual(rv.status_code, 200)
     test.assertIsInstance(rv.json, type([]))
     test.assertEqual(len(rv.json), size)
     last = rv.json[-1]
     rv = test.client.get(
-        "{}{}page=1&pagesize={}".format(url, join, size * 2), headers=headers
+        "{}{}page=1&pagesize={}".format(url, join, size * 2), headers=header
     )
     test.assertEqual(rv.status_code, 200)
     test.assertIsInstance(rv.json, type([]))
@@ -197,15 +196,23 @@ def check_paging_parameters(test, url, size, join="?"):
     return rv.json
 
 
-def check_sort_parameter(test, url, sort_key, value_key=None, direction="+", join="?"):
+def check_sort_parameter(
+    test,
+    url,
+    sort_key,
+    value_key=None,
+    direction="+",
+    join="?",
+    role=ROLE_OWNER,
+):
     """Test that sort parameter produces expected result."""
-    token, headers = fetch_token(test.client)
+    header = fetch_header(test.client, role=role)
     item_key = sort_key
     if value_key is not None:
         item_key = value_key
     rv = test.client.get(
         "{}{}keys={}&sort={}{}".format(url, join, item_key, direction, sort_key),
-        headers=headers,
+        headers=header,
     )
     test.assertEqual(rv.status_code, 200)
     test.assertIsInstance(rv.json, type([]))
@@ -223,7 +230,13 @@ def check_sort_parameter(test, url, sort_key, value_key=None, direction="+", joi
 
 
 def check_single_extend_parameter(
-    test, url, key, extended_key, join="?", reference=False
+    test,
+    url,
+    key,
+    extended_key,
+    join="?",
+    reference=False,
+    role=ROLE_OWNER,
 ):
     """Test that extend parameter produces expected result for a single key."""
 
@@ -245,9 +258,9 @@ def check_single_extend_parameter(
         else:
             test.assertEqual(item["extended"][extended_key]["handle"], item[key])
 
-    token, headers = fetch_token(test.client)
+    header = fetch_header(test.client, role=role)
     rv = test.client.get(
-        "{}{}extend={}&keys={},extended".format(url, join, key, key), headers=headers
+        "{}{}extend={}&keys={},extended".format(url, join, key, key), headers=header
     )
     test.assertEqual(rv.status_code, 200)
     if isinstance(rv.json, type([])):
@@ -258,17 +271,17 @@ def check_single_extend_parameter(
     return rv.json
 
 
-def check_boolean_parameter(test, url, variable, join="?"):
+def check_boolean_parameter(test, url, variable, join="?", role=ROLE_OWNER):
     """Test that variable boolean parameter produces expected result."""
-    token, headers = fetch_token(test.client)
-    rv = test.client.get("{}{}{}=0".format(url, join, variable), headers=headers)
+    header = fetch_header(test.client, role=role)
+    rv = test.client.get("{}{}{}=0".format(url, join, variable), headers=header)
     test.assertEqual(rv.status_code, 200)
     if isinstance(rv.json, type([])):
         for item in rv.json:
             test.assertNotIn(variable, item)
     else:
         test.assertNotIn(variable, rv.json)
-    rv = test.client.get("{}{}{}=1".format(url, join, variable), headers=headers)
+    rv = test.client.get("{}{}{}=1".format(url, join, variable), headers=header)
     test.assertEqual(rv.status_code, 200)
     if isinstance(rv.json, type([])):
         for item in rv.json:
@@ -291,17 +304,17 @@ def check_filter_create_update_delete(test, base_url, test_url, namespace):
     test.assertEqual(rv.status_code, 401)
 
     # check response for invalid create due to bad schema
-    token, headers = fetch_token(test.client)
-    rv = test.client.post(url, json=payload, headers=headers)
+    header = fetch_header(test.client)
+    rv = test.client.post(url, json=payload, headers=header)
     test.assertEqual(rv.status_code, 422)
 
     # check response for valid create
     payload["name"] = namespace.title() + "TestFilter"
-    rv = test.client.post(url, json=payload, headers=headers)
+    rv = test.client.post(url, json=payload, headers=header)
     test.assertEqual(rv.status_code, 201)
 
     # check response if filter already exists
-    rv = test.client.post(url, json=payload, headers=headers)
+    rv = test.client.post(url, json=payload, headers=header)
     test.assertEqual(rv.status_code, 422)
 
     # check can fetch the filter using query parm
@@ -317,8 +330,8 @@ def check_filter_create_update_delete(test, base_url, test_url, namespace):
     check_success(test, base_url + "/" + namespace + "/?filter=" + payload["name"])
 
     # check response for put to bad endpoint
-    token, headers = fetch_token(test.client)
-    rv = test.client.put(url + "bad", json=payload, headers=headers)
+    header = fetch_header(test.client)
+    rv = test.client.put(url + "bad", json=payload, headers=header)
     test.assertEqual(rv.status_code, 404)
 
     # check authorization required to put to endpoint
@@ -327,19 +340,19 @@ def check_filter_create_update_delete(test, base_url, test_url, namespace):
 
     # check response for update for filter that does not exist
     payload["name"] = payload["name"] + "Missing"
-    rv = test.client.put(url, json=payload, headers=headers)
+    rv = test.client.put(url, json=payload, headers=header)
     test.assertEqual(rv.status_code, 404)
 
     # check response for invalid update schema
     payload["name"] = namespace.title() + "TestFilter"
     payload["function"] = "junk"
-    rv = test.client.put(url, json=payload, headers=headers)
+    rv = test.client.put(url, json=payload, headers=header)
     test.assertEqual(rv.status_code, 422)
 
     # check response for valid update
     payload["function"] = "and"
     payload["comment"] = "Update works"
-    rv = test.client.put(url, json=payload, headers=headers)
+    rv = test.client.put(url, json=payload, headers=header)
     test.assertEqual(rv.status_code, 200)
 
     # check filter was actually updated
@@ -351,9 +364,9 @@ def check_filter_create_update_delete(test, base_url, test_url, namespace):
     test.assertEqual(rv.status_code, 401)
 
     # check authorized delete success
-    token, headers = fetch_token(test.client)
-    rv = test.client.delete(url + "/" + payload["name"], headers=headers)
+    header = fetch_header(test.client)
+    rv = test.client.delete(url + "/" + payload["name"], headers=header)
     test.assertEqual(rv.status_code, 200)
 
     # check filter was actually deleted
-    rv = check_resource_missing(test, url + "?filters=" + payload["name"])
+    check_resource_missing(test, url + "?filters=" + payload["name"])

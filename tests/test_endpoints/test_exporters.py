@@ -25,22 +25,13 @@ from mimetypes import types_map
 
 from . import BASE_URL, get_test_client
 from .checks import (
-    check_boolean_parameter,
     check_conforms_to_schema,
     check_invalid_semantics,
-    check_invalid_syntax,
-    check_keys_parameter,
-    check_paging_parameters,
     check_requires_token,
     check_resource_missing,
-    check_single_extend_parameter,
-    check_skipkeys_parameter,
-    check_sort_parameter,
-    check_strip_parameter,
     check_success,
-    check_totals,
 )
-from .util import fetch_token
+from .util import fetch_header
 
 TEST_URL = BASE_URL + "/exporters/"
 
@@ -59,18 +50,7 @@ class TestExporters(unittest.TestCase):
 
     def test_get_exporters_conforms_to_schema(self):
         """Test conformity to schema."""
-        #        token, headers = fetch_token(self.client)
         check_conforms_to_schema(self, TEST_URL, "Exporter")
-
-    #        self.assertEqual(rv.status_code, 200)
-    #        self.assertIsInstance(rv.json, type([]))
-    #        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
-    #        for report in rv.json:
-    #            validate(
-    #                instance=report,
-    #                schema=API_SCHEMA["definitions"]["Exporter"],
-    #                resolver=API_RESOLVER,
-    #            )
 
     def test_get_exporters_validate_semantics(self):
         """Test invalid parameters and values."""
@@ -137,20 +117,24 @@ class TestExportersExtensionFile(unittest.TestCase):
     def test_get_exporters_extension_file_parameter_compress_expected_result(self):
         """Test compress parameter."""
         rv = check_success(self, TEST_URL + "gramps/file?compress=0", full=True)
-        self.assertIn('<?xml version="1.0" encoding="UTF-8"?>', str(rv.data))
+        self.assertIn(b'<?xml version="1.0" encoding="UTF-8"?>', rv.data)
         rv = check_success(self, TEST_URL + "gramps/file?compress=1", full=True)
-        self.assertNotIn('<?xml version="1.0" encoding="UTF-8"?>', str(rv.data))
+        self.assertNotIn(b'<?xml version="1.0" encoding="UTF-8"?>', rv.data)
 
     def test_get_exporters_extension_file_parameter_private_validate_semantics(self):
         """Test invalid private parameter and values."""
-        check_invalid_semantics(self, TEST_URL + "ged/file?private", check="boolean")
+        check_invalid_semantics(self, TEST_URL + "gramps/file?private", check="boolean")
 
     def test_get_exporters_extension_file_parameter_private_expected_result(self):
         """Test private parameter."""
-        rv = check_success(self, TEST_URL + "ged/file?private=0", full=True)
-        self.assertIn("1 SSN 123-456-7890", str(rv.data))
-        rv = check_success(self, TEST_URL + "ged/file?private=1", full=True)
-        self.assertNotIn("1 SSN 123-456-7890", str(rv.data))
+        rv = check_success(
+            self, TEST_URL + "gramps/file?compress=0&private=0", full=True
+        )
+        self.assertIn(b"123-456-7890", rv.data)
+        rv = check_success(
+            self, TEST_URL + "gramps/file?compress=0&private=1", full=True
+        )
+        self.assertNotIn(b"123-456-7890", rv.data)
 
     def test_get_exporters_extension_file_parameter_living_validate_semantics(self):
         """Test invalid living parameter with bad filter."""
@@ -167,13 +151,13 @@ class TestExportersExtensionFile(unittest.TestCase):
             TEST_URL + "gramps/file?compress=0&living=ExcludeAll&current_year=1912",
             full=True,
         )
-        self.assertIn('<person handle="_GNUJQCL9MD64AM56OH"', str(rv.data))
+        self.assertIn(b'<person handle="_GNUJQCL9MD64AM56OH"', rv.data)
         rv = check_success(
             self,
             TEST_URL + "gramps/file?compress=0&living=ExcludeAll&current_year=1911",
             full=True,
         )
-        self.assertNotIn('<person handle="_GNUJQCL9MD64AM56OH"', str(rv.data))
+        self.assertNotIn(b'<person handle="_GNUJQCL9MD64AM56OH"', rv.data)
 
     def test_get_exporters_extension_file_parameter_living_exclude_all_after_death(
         self,
@@ -186,7 +170,7 @@ class TestExportersExtensionFile(unittest.TestCase):
             + "&current_year=1914&years_after_death=5",
             full=True,
         )
-        self.assertNotIn('<person handle="_GNUJQCL9MD64AM56OH"', str(rv.data))
+        self.assertNotIn(b'<person handle="_GNUJQCL9MD64AM56OH"', rv.data)
 
     def test_get_exporters_extension_file_parameter_living_exclude_all_bad_options(
         self,
@@ -222,8 +206,8 @@ class TestExportersExtensionFile(unittest.TestCase):
             + "&current_year=1914&years_after_death=5",
             full=True,
         )
-        self.assertIn("<first>[Living]</first>", str(rv.data))
-        self.assertNotIn("<surname>[Living]</surname>", str(rv.data))
+        self.assertIn(b"<first>[Living]</first>", rv.data)
+        self.assertNotIn(b"<surname>[Living]</surname>", rv.data)
 
     def test_get_exporters_extension_file_parameter_living_replace_complete_name(self):
         """Test living parameter with replace complete name filter."""
@@ -234,8 +218,8 @@ class TestExportersExtensionFile(unittest.TestCase):
             + "&current_year=1914&years_after_death=5",
             full=True,
         )
-        self.assertIn("<first>[Living]</first>", str(rv.data))
-        self.assertIn("<surname>[Living]</surname>", str(rv.data))
+        self.assertIn(b"<first>[Living]</first>", rv.data)
+        self.assertIn(b"<surname>[Living]</surname>", rv.data)
 
     def test_get_exporters_extension_file_parameter_person_validate_semantics(self):
         """Test invalid person parameter and values."""
@@ -268,14 +252,16 @@ class TestExportersExtensionFile(unittest.TestCase):
             TEST_URL + "gramps/file?person=DescendantFamilies&gramps_id=I0044",
         )
 
-    def test_get_exporters_extension_file_parameter_person_descendant_families(self):
+    def test_get_exporters_extension_file_parameter_person_ancestor_families(self):
         """Test person parameter ancestors filter."""
         check_success(
             self,
             TEST_URL + "gramps/file?person=Ancestors&gramps_id=I0044",
         )
 
-    def test_get_exporters_extension_file_parameter_person_descendant_families(self):
+    def test_get_exporters_extension_file_parameter_person_common_ancestor_families(
+        self,
+    ):
         """Test person parameter common ancestors filter."""
         check_success(
             self,
@@ -284,14 +270,14 @@ class TestExportersExtensionFile(unittest.TestCase):
 
     def test_get_exporters_extension_file_parameter_person_custom_filter(self):
         """Test person parameter custom filter."""
-        token, headers = fetch_token(self.client)
+        header = fetch_header(self.client)
         payload = {
             "comment": "Test person export custom filter",
             "name": "PersonExportCustomFilter",
             "rules": [{"name": "IsMale"}],
         }
         rv = self.client.post(
-            BASE_URL + "/filters/people", json=payload, headers=headers
+            BASE_URL + "/filters/people", json=payload, headers=header
         )
         self.assertEqual(rv.status_code, 201)
         rv = check_success(self, BASE_URL + "/filters/people/PersonExportCustomFilter")
@@ -302,10 +288,10 @@ class TestExportersExtensionFile(unittest.TestCase):
             + "&gramps_id=I0044",
             full=True,
         )
-        self.assertNotIn("02NKQC5GOZFLSUSMW3", str(rv.data))
-        token, headers = fetch_token(self.client)
+        self.assertNotIn(b"02NKQC5GOZFLSUSMW3", rv.data)
+        header = fetch_header(self.client)
         rv = self.client.delete(
-            BASE_URL + "/filters/people/PersonExportCustomFilter", headers=headers
+            BASE_URL + "/filters/people/PersonExportCustomFilter", headers=header
         )
         self.assertEqual(rv.status_code, 200)
 
@@ -318,14 +304,14 @@ class TestExportersExtensionFile(unittest.TestCase):
 
     def test_get_exporters_extension_file_parameter_event_custom_filter(self):
         """Test event parameter custom filter."""
-        token, headers = fetch_token(self.client)
+        header = fetch_header(self.client)
         payload = {
             "comment": "Test event export custom filter",
             "name": "EventExportCustomFilter",
             "rules": [{"name": "HasType", "values": ["Death"]}],
         }
         rv = self.client.post(
-            BASE_URL + "/filters/events", json=payload, headers=headers
+            BASE_URL + "/filters/events", json=payload, headers=header
         )
         self.assertEqual(rv.status_code, 201)
         rv = check_success(self, BASE_URL + "/filters/events/EventExportCustomFilter")
@@ -334,10 +320,10 @@ class TestExportersExtensionFile(unittest.TestCase):
             TEST_URL + "gramps/file?compress=0&event=EventExportCustomFilter",
             full=True,
         )
-        self.assertNotIn("a5af0eb698f29568502", str(rv.data))
-        token, headers = fetch_token(self.client)
+        self.assertNotIn(b"a5af0eb698f29568502", rv.data)
+        header = fetch_header(self.client)
         rv = self.client.delete(
-            BASE_URL + "/filters/events/EventExportCustomFilter", headers=headers
+            BASE_URL + "/filters/events/EventExportCustomFilter", headers=header
         )
         self.assertEqual(rv.status_code, 200)
 
@@ -349,15 +335,13 @@ class TestExportersExtensionFile(unittest.TestCase):
 
     def test_get_exporters_extension_file_parameter_note_custom_filter(self):
         """Test note parameter custom filter."""
-        token, headers = fetch_token(self.client)
+        header = fetch_header(self.client)
         payload = {
             "comment": "Test note export custom filter",
             "name": "NoteExportCustomFilter",
             "rules": [{"name": "HasType", "values": ["Person Note"]}],
         }
-        rv = self.client.post(
-            BASE_URL + "/filters/notes", json=payload, headers=headers
-        )
+        rv = self.client.post(BASE_URL + "/filters/notes", json=payload, headers=header)
         self.assertEqual(rv.status_code, 201)
         rv = check_success(self, BASE_URL + "/filters/notes/NoteExportCustomFilter")
         rv = check_success(
@@ -365,10 +349,10 @@ class TestExportersExtensionFile(unittest.TestCase):
             TEST_URL + "gramps/file?compress=0&note=NoteExportCustomFilter",
             full=True,
         )
-        self.assertNotIn("ac380498bac48eedee8", str(rv.data))
-        token, headers = fetch_token(self.client)
+        self.assertNotIn(b"ac380498bac48eedee8", rv.data)
+        header = fetch_header(self.client)
         rv = self.client.delete(
-            BASE_URL + "/filters/notes/NoteExportCustomFilter", headers=headers
+            BASE_URL + "/filters/notes/NoteExportCustomFilter", headers=header
         )
         self.assertEqual(rv.status_code, 200)
 
@@ -383,9 +367,9 @@ class TestExportersExtensionFile(unittest.TestCase):
     def test_get_exporters_extension_file_parameter_reference_expected_result(self):
         """Test reference parameter."""
         rv = check_success(self, TEST_URL + "ged/file?reference=0", full=True)
-        self.assertIn("1 CONT Test link source: World of the Wierd", str(rv.data))
+        self.assertIn(b"1 CONT Test link source: World of the Wierd", rv.data)
         rv = check_success(self, TEST_URL + "ged/file?reference=1", full=True)
-        self.assertNotIn("1 CONT Test link source: World of the Wierd", str(rv.data))
+        self.assertNotIn(b"1 CONT Test link source: World of the Wierd", rv.data)
 
     def test_get_exporters_extension_file_parameter_sequence_validate_semantics(self):
         """Test invalid sequence parameters and values."""
@@ -409,12 +393,10 @@ class TestExportersExtensionFile(unittest.TestCase):
     def test_get_exporters_extension_file_csv_expected_result(self):
         """Test csv parameter file options defaults all enabled."""
         rv = check_success(self, TEST_URL + "csv/file", full=True)
-        self.assertIn('[P0000],"OH, USA",OH,State,,,,[P0957],', str(rv.data))
-        self.assertIn(
-            "[I2005],Allen,Joseph,,,,,male,1692-05-17,,,,,,,,,,,,", str(rv.data)
-        )
-        self.assertIn("[F0001],[I0005],[I0006],1974-08-10,[P1385],,", str(rv.data))
-        self.assertIn("[F0001],[I0004]", str(rv.data))
+        self.assertIn(b'[P0000],"OH, USA",OH,State,,,,[P0957],', rv.data)
+        self.assertIn(b"[I2005],Allen,Joseph,,,,,male,1692-05-17,,,,,,,,,,,,", rv.data)
+        self.assertIn(b"[F0001],[I0005],[I0006],1974-08-10,[P1385],,", rv.data)
+        self.assertIn(b"[F0001],[I0004]", rv.data)
 
     def test_get_exporters_extension_file_csv_parameter_include_places_validate_semantics(
         self,
@@ -429,16 +411,14 @@ class TestExportersExtensionFile(unittest.TestCase):
     ):
         """Test csv parameter file options with places disabled."""
         rv = check_success(self, TEST_URL + "csv/file?include_places=0", full=True)
-        self.assertNotIn('[P0000],"OH, USA",OH,State,,,,[P0957],', str(rv.data))
+        self.assertNotIn(b'[P0000],"OH, USA",OH,State,,,,[P0957],', rv.data)
+        self.assertIn(b"[I2005],Allen,Joseph,,,,,male,1692-05-17,,,,,,,,,,,,", rv.data)
+        self.assertNotIn(b"[F0001],[I0005],[I0006],1974-08-10,[P1385],,", rv.data)
         self.assertIn(
-            "[I2005],Allen,Joseph,,,,,male,1692-05-17,,,,,,,,,,,,", str(rv.data)
+            b'[F0001],[I0005],[I0006],1974-08-10,"Worthington, MN, USA",,',
+            rv.data,
         )
-        self.assertNotIn("[F0001],[I0005],[I0006],1974-08-10,[P1385],,", str(rv.data))
-        self.assertIn(
-            '[F0001],[I0005],[I0006],1974-08-10,"Worthington, MN, USA",,',
-            str(rv.data),
-        )
-        self.assertIn("[F0001],[I0004]", str(rv.data))
+        self.assertIn(b"[F0001],[I0004]", rv.data)
 
     def test_get_exporters_extension_file_csv_parameter_include_children_validate_semantics(
         self,
@@ -453,12 +433,10 @@ class TestExportersExtensionFile(unittest.TestCase):
     ):
         """Test csv parameter file options with children disabled."""
         rv = check_success(self, TEST_URL + "csv/file?include_children=0", full=True)
-        self.assertIn('[P0000],"OH, USA",OH,State,,,,[P0957],', str(rv.data))
-        self.assertIn(
-            "[I2005],Allen,Joseph,,,,,male,1692-05-17,,,,,,,,,,,,", str(rv.data)
-        )
-        self.assertIn("[F0001],[I0005],[I0006],1974-08-10,[P1385],,", str(rv.data))
-        self.assertNotIn("[F0001],[I0004]", str(rv.data))
+        self.assertIn(b'[P0000],"OH, USA",OH,State,,,,[P0957],', rv.data)
+        self.assertIn(b"[I2005],Allen,Joseph,,,,,male,1692-05-17,,,,,,,,,,,,", rv.data)
+        self.assertIn(b"[F0001],[I0005],[I0006],1974-08-10,[P1385],,", rv.data)
+        self.assertNotIn(b"[F0001],[I0004]", rv.data)
 
     def test_get_exporters_extension_file_csv_parameter_include_marriages_validate_sematics(
         self,
@@ -473,12 +451,10 @@ class TestExportersExtensionFile(unittest.TestCase):
     ):
         """Test csv parameter file options with marriages disabled."""
         rv = check_success(self, TEST_URL + "csv/file?include_marriages=0", full=True)
-        self.assertIn('[P0000],"OH, USA",OH,State,,,,[P0957],', str(rv.data))
-        self.assertIn(
-            "[I2005],Allen,Joseph,,,,,male,1692-05-17,,,,,,,,,,,,", str(rv.data)
-        )
-        self.assertNotIn("[F0001],[I0005],[I0006],1974-08-10,[P1385],,", str(rv.data))
-        self.assertIn("[F0001],[I0004]", str(rv.data))
+        self.assertIn(b'[P0000],"OH, USA",OH,State,,,,[P0957],', rv.data)
+        self.assertIn(b"[I2005],Allen,Joseph,,,,,male,1692-05-17,,,,,,,,,,,,", rv.data)
+        self.assertNotIn(b"[F0001],[I0005],[I0006],1974-08-10,[P1385],,", rv.data)
+        self.assertIn(b"[F0001],[I0004]", rv.data)
 
     def test_get_exporters_extension_file_csv_parameter_include_individuals_validate_semantics(
         self,
@@ -493,21 +469,21 @@ class TestExportersExtensionFile(unittest.TestCase):
     ):
         """Test csv parameter file options with individuals disabled."""
         rv = check_success(self, TEST_URL + "csv/file?include_individuals=0", full=True)
-        self.assertIn('[P0000],"OH, USA",OH,State,,,,[P0957],', str(rv.data))
+        self.assertIn(b'[P0000],"OH, USA",OH,State,,,,[P0957],', rv.data)
         self.assertNotIn(
-            "[I2005],Allen,Joseph,,,,,male,1692-05-17,,,,,,,,,,,,", str(rv.data)
+            b"[I2005],Allen,Joseph,,,,,male,1692-05-17,,,,,,,,,,,,", rv.data
         )
-        self.assertIn("[F0001],[I0005],[I0006],1974-08-10,[P1385],,", str(rv.data))
-        self.assertIn("[F0001],[I0004]", str(rv.data))
+        self.assertIn(b"[F0001],[I0005],[I0006],1974-08-10,[P1385],,", rv.data)
+        self.assertIn(b"[F0001],[I0004]", rv.data)
 
     def test_get_exporters_extension_file_one_of_each(self):
         """Test one of each available exporter."""
         bad_exporters = []
         rv_set = check_success(self, TEST_URL)
-        token, headers = fetch_token(self.client)
+        header = fetch_header(self.client)
         for exporter in rv_set:
             rv = self.client.get(
-                self, TEST_URL + exporter["extension"] + "/file", headers=headers
+                TEST_URL + exporter["extension"] + "/file", headers=header
             )
             if rv.status_code != 200:
                 bad_exporters.append(exporter)

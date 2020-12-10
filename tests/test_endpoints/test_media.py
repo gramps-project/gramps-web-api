@@ -71,11 +71,9 @@ class TestMedia(unittest.TestCase):
         # check first expected record
         self.assertEqual(rv[0]["gramps_id"], "O0000")
         self.assertEqual(rv[0]["handle"], "b39fe1cfc1305ac4a21")
-        self.assertEqual(rv[0]["path"], "scanned_microfilm.png")
         # check last expected record
         self.assertEqual(rv[-1]["gramps_id"], "O0009")
         self.assertEqual(rv[-1]["handle"], "78V2GQX2FKNSYQ3OHE")
-        self.assertEqual(rv[-1]["path"], "Gunnlaugur_Larusson_-_Yawn.jpg")
 
     def test_get_media_validate_semantics(self):
         """Test invalid parameters and values."""
@@ -346,9 +344,10 @@ class TestMedia(unittest.TestCase):
 
     def test_get_media_parameter_backlinks_expected_result(self):
         """Test backlinks expected result."""
-        rv = check_success(self, TEST_URL + "?page=1&keys=backlinks&backlinks=1")
-        self.assertIn("a5af0ecb107303354a0", rv[0]["backlinks"]["event"])
-        self.assertIn("b39fe3f390e30bd2b99", rv[0]["backlinks"]["source"])
+        rv = check_success(
+            self, TEST_URL + "?gramps_id=O0006&keys=backlinks&backlinks=1"
+        )
+        self.assertIn("9OUJQCBOHW9UEK9CNV", rv[0]["backlinks"]["family"])
 
 
 class TestMediaHandle(unittest.TestCase):

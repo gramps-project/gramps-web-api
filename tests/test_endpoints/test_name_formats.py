@@ -23,12 +23,7 @@
 import unittest
 
 from . import BASE_URL, get_test_client
-from .checks import (
-    check_conforms_to_schema,
-    check_invalid_semantics,
-    check_requires_token,
-    check_success,
-)
+from .checks import check_conforms_to_schema, check_requires_token
 
 TEST_URL = BASE_URL + "/name-formats/"
 

@@ -20,16 +20,21 @@
 
 """Test utility functions."""
 
-from . import TEST_PASSWORD, TEST_USER
+from gramps_webapi.auth.const import ROLE_OWNER
+
+from . import TEST_USERS
 
 
-def fetch_token(test):
-    """Return token and authorization header."""
-    result = test.post(
-        "/api/login/", json={"username": TEST_USER, "password": TEST_PASSWORD}
+def fetch_header(test, role=ROLE_OWNER):
+    """Return authorization header with valid token."""
+    rv = test.post(
+        "/api/login/",
+        json={
+            "username": TEST_USERS[role]["name"],
+            "password": TEST_USERS[role]["password"],
+        },
     )
-    token = result.json["access_token"]
-    return token, {"Authorization": "Bearer {}".format(token)}
+    return {"Authorization": "Bearer {}".format(rv.json["access_token"])}
 
 
 def check_keys_stripped(test, object1, object2):

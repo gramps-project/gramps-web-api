@@ -23,15 +23,8 @@
 import unittest
 
 from . import BASE_URL, get_test_client
-from .checks import (
-    check_conforms_to_schema,
-    check_invalid_semantics,
-    check_invalid_syntax,
-    check_requires_token,
-    check_resource_missing,
-    check_success,
-)
-from .util import fetch_token
+from .checks import check_conforms_to_schema, check_requires_token, check_success
+from .util import fetch_header
 
 TEST_URL = BASE_URL + "/name-groups/"
 
@@ -71,7 +64,7 @@ class TestNameGroupsSurname(unittest.TestCase):
         self.assertEqual(rv, {"surname": "Fernández", "group": "Fernandez"})
 
 
-class TestNameGroupsSurname(unittest.TestCase):
+class TestNameGroupsSurnameGroup(unittest.TestCase):
     """Test cases for the /api/name-groups/{surname}/{group} endpoint."""
 
     @classmethod
@@ -86,16 +79,16 @@ class TestNameGroupsSurname(unittest.TestCase):
 
     def test_post_name_groups_surname_bad_mapping(self):
         """Test adding a incomplete mapping."""
-        token, headers = fetch_token(self.client)
-        rv = self.client.post(TEST_URL + "Stephen", headers=headers)
+        header = fetch_header(self.client)
+        rv = self.client.post(TEST_URL + "Stephen", headers=header)
         self.assertEqual(rv.status_code, 400)
-        rv = self.client.post(TEST_URL + "Stephen/", headers=headers)
+        rv = self.client.post(TEST_URL + "Stephen/", headers=header)
         self.assertEqual(rv.status_code, 404)
 
     def test_post_name_groups_surname_add_mapping(self):
         """Test adding a mapping."""
-        token, headers = fetch_token(self.client)
-        rv = self.client.post(TEST_URL + "Stephen/Steven", headers=headers)
+        header = fetch_header(self.client)
+        rv = self.client.post(TEST_URL + "Stephen/Steven", headers=header)
         self.assertEqual(rv.status_code, 201)
         rv = check_success(self, TEST_URL + "Stephen")
         self.assertEqual(rv, {"surname": "Stephen", "group": "Steven"})

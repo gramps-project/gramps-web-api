@@ -33,6 +33,7 @@ from pkg_resources import resource_filename
 
 import gramps_webapi.app
 from gramps_webapi.app import create_app
+from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_GUEST, ROLE_MEMBER, ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EXAMPLE_GRAMPS_AUTH_CONFIG
 from tests import TEST_GRAMPSHOME, ExampleDbSQLite
 
@@ -42,8 +43,13 @@ with open(resource_filename("gramps_webapi", "data/apispec.yaml")) as file_handl
 API_RESOLVER = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
 
 BASE_URL = "/api"
-TEST_USER = "user"
-TEST_PASSWORD = "123"
+
+TEST_USERS = {
+    ROLE_OWNER: {"name": "owner", "password": "123"},
+    ROLE_EDITOR: {"name": "editor", "password": "abc"},
+    ROLE_MEMBER: {"name": "member", "password": "456"},
+    ROLE_GUEST: {"name": "guest", "password": "def"},
+}
 
 
 def get_object_count(gramps_object):
@@ -67,7 +73,12 @@ def setUpModule():
     TEST_CLIENT = test_app.test_client()
     sqlauth = test_app.config["AUTH_PROVIDER"]
     sqlauth.create_table()
-    sqlauth.add_user(name=TEST_USER, password=TEST_PASSWORD)
+    for role in TEST_USERS:
+        sqlauth.add_user(
+            name=TEST_USERS[role]["name"],
+            password=TEST_USERS[role]["password"],
+            role=role,
+        )
 
     db_state = test_app.config["DB_MANAGER"].get_db()
     TEST_OBJECT_COUNTS = {

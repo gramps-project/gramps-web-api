@@ -34,7 +34,7 @@ from .checks import (
     check_resource_missing,
     check_success,
 )
-from .util import fetch_token
+from .util import fetch_header
 
 TEST_URL = BASE_URL + "/reports/"
 
@@ -196,11 +196,11 @@ class TestReportsReportIdFile(unittest.TestCase):
         }
         rv_set = check_success(self, TEST_URL)
         bad_reports = []
-        token, headers = fetch_token(self.client)
+        header = fetch_header(self.client)
         for report in rv_set:
             options = test_options.get(report["id"]) or ""
             rv = self.client.get(
-                TEST_URL + report["id"] + "/file" + options, headers=headers
+                TEST_URL + report["id"] + "/file" + options, headers=header
             )
             if rv.status_code != 200:
                 bad_reports.append(report["id"])

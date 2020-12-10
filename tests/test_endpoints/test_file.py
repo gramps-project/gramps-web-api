@@ -28,12 +28,7 @@ from PIL import Image
 from gramps_webapi.const import MIME_JPEG
 
 from . import BASE_URL, get_test_client
-from .checks import (
-    check_invalid_semantics,
-    check_requires_token,
-    check_resource_missing,
-    check_success,
-)
+from .checks import check_requires_token, check_success
 
 TEST_URL = BASE_URL + "/media/"
 

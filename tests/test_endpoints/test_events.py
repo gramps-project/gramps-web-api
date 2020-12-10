@@ -603,3 +603,67 @@ class TestEventsHandle(unittest.TestCase):
         self.assertIn("backlinks", rv["extended"])
         for obj in rv["extended"]["backlinks"]["person"]:
             self.assertIn(obj["handle"], ["H4EKQCFV3436HSKY2D"])
+
+
+class TestEventsHandleSpan(unittest.TestCase):
+    """Test cases for the /api/events/{handle1}/span/{handle2} endpoint for a specific event."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_get_events_handle_span_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(
+            self, TEST_URL + "a5af0eb6ce0378db417/span/a5af0ecb107303354a0"
+        )
+
+    def test_get_events_handle_span_missing_content(self):
+        """Test response for missing content."""
+        check_resource_missing(
+            self, TEST_URL + "a5af0eb6ce0378db417/span/a5af0ecb10730335400"
+        )
+
+    def test_get_events_handle_span_expected_result(self):
+        """Test response for a specific event."""
+        rv = check_success(
+            self, TEST_URL + "a5af0eb6ce0378db417/span/a5af0ecb107303354a0"
+        )
+        self.assertEqual(rv["span"], "663 years, 5 months")
+
+    def test_get_events_handle_span_validate_semantics(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "a5af0eb6ce0378db417/span/a5af0ecb107303354a0?junk_parm=1"
+        )
+
+    def test_get_events_handle_span_validate_semantics_precision(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(
+            self,
+            TEST_URL + "a5af0eb6ce0378db417/span/a5af0ecb107303354a0?precision",
+            check="number",
+        )
+
+    def test_get_events_handle_span_expected_result_precision(self):
+        """Test precision parameter expected response."""
+        rv = check_success(
+            self, TEST_URL + "a5af0eb6ce0378db417/span/a5af0ecb107303354a0?precision=1"
+        )
+        self.assertEqual(rv["span"], "663 years")
+
+    def test_get_events_handle_span_validate_semantics_locale(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(
+            self,
+            TEST_URL + "a5af0eb6ce0378db417/span/a5af0ecb107303354a0?locale",
+            check="base",
+        )
+
+    def test_get_events_handle_span_expected_result_locale(self):
+        """Test locale parameter expected response."""
+        rv = check_success(
+            self, TEST_URL + "a5af0eb6ce0378db417/span/a5af0ecb107303354a0?locale=de"
+        )
+        self.assertEqual(rv["span"], "663 Jahre, 5 Monate")

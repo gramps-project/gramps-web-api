@@ -28,23 +28,12 @@ from gramps_webapi.const import GRAMPS_NAMESPACES
 
 from . import API_RESOLVER, API_SCHEMA, BASE_URL, get_test_client
 from .checks import (
-    check_boolean_parameter,
-    check_conforms_to_schema,
     check_filter_create_update_delete,
     check_invalid_semantics,
-    check_invalid_syntax,
-    check_keys_parameter,
-    check_paging_parameters,
     check_requires_token,
     check_resource_missing,
-    check_single_extend_parameter,
-    check_skipkeys_parameter,
-    check_sort_parameter,
-    check_strip_parameter,
     check_success,
-    check_totals,
 )
-from .util import fetch_token
 
 TEST_URL = BASE_URL + "/filters/"
 
@@ -80,10 +69,8 @@ class TestAllFilters(unittest.TestCase):
 class TestFilters(unittest.TestCase):
     """General test cases for the /api/filters/{namespace} endpoints."""
 
-    """
-    These are safe to run in parallel, the create/update/delete ones
-    must be serialized for now and are in separate test classes.
-    """
+    #    These are safe to run in parallel, the create/update/delete ones
+    #    must be serialized for now and are in separate test classes.
 
     @classmethod
     def setUpClass(cls):
