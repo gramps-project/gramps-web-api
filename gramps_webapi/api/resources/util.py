@@ -198,7 +198,7 @@ def get_place_profile_for_object(
         "type": _format_place_type(place.get_type(), locale=locale),
         "name": place.get_name().value,
         "alternate_names": [
-            place_name.value for place_name in place.get_alternate_names()
+            place_name.value for place_name in place.get_alternative_names()
         ],
         "lat": float(latitude) if (latitude and longitude) else None,
         "long": float(longitude) if (latitude and longitude) else None,
