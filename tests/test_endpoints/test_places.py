@@ -208,14 +208,14 @@ class TestPlacesHandle(unittest.TestCase):
         self.assertEqual(
             result.json["profile"],
             {
-                "alternative_names": [],
+                "alternate_names": [],
                 "gramps_id": "P0860",
                 "lat": 33.6259414,
                 "long": -97.1333453,
                 "name": "Gainesville",
                 "parent_places": [
                     {
-                        "alternative_names": [],
+                        "alternate_names": [],
                         "gramps_id": "P0194",
                         "lat": None,
                         "long": None,
@@ -223,7 +223,7 @@ class TestPlacesHandle(unittest.TestCase):
                         "type": "Contea",
                     },
                     {
-                        "alternative_names": [],
+                        "alternate_names": [],
                         "gramps_id": "P0010",
                         "lat": None,
                         "long": None,
@@ -231,7 +231,7 @@ class TestPlacesHandle(unittest.TestCase):
                         "type": "Stato (federato)",
                     },
                     {
-                        "alternative_names": [],
+                        "alternate_names": [],
                         "gramps_id": "P0957",
                         "lat": None,
                         "long": None,
