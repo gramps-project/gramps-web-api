@@ -173,17 +173,13 @@ class TestPlacesHandle(unittest.TestCase):
     def test_places_handle_endpoint_keys(self):
         """Test response for keys parm."""
         run_test_endpoint_keys(
-            self,
-            "/api/places/09UJQCF3TNGH9GU0P1",
-            ["handle", "lat", "long"],
+            self, "/api/places/09UJQCF3TNGH9GU0P1", ["handle", "lat", "long"],
         )
 
     def test_places_handle_endpoint_skipkeys(self):
         """Test response for skipkeys parm."""
         run_test_endpoint_skipkeys(
-            self,
-            "/api/places/09UJQCF3TNGH9GU0P1",
-            ["handle", "media_list", "private"],
+            self, "/api/places/09UJQCF3TNGH9GU0P1", ["handle", "media_list", "private"],
         )
 
     def test_places_handle_endpoint_extend(self):
@@ -206,3 +202,44 @@ class TestPlacesHandle(unittest.TestCase):
             schema=API_SCHEMA["definitions"]["Place"],
             resolver=resolver,
         )
+
+    def test_places_profile(self):
+        result = self.client.get("/api/places/08TJQCCFIX31BXPNXN?profile=all&locale=it")
+        self.assertEqual(
+            result.json["profile"],
+            {
+                "alternate_names": [],
+                "gramps_id": "P0860",
+                "lat": 33.6259414,
+                "long": -97.1333453,
+                "name": "Gainesville",
+                "parent_places": [
+                    {
+                        "alternate_names": [],
+                        "gramps_id": "P0194",
+                        "lat": None,
+                        "long": None,
+                        "name": "Llano",
+                        "type": "Contea",
+                    },
+                    {
+                        "alternate_names": [],
+                        "gramps_id": "P0010",
+                        "lat": None,
+                        "long": None,
+                        "name": "TX",
+                        "type": "Stato (federato)",
+                    },
+                    {
+                        "alternate_names": [],
+                        "gramps_id": "P0957",
+                        "lat": None,
+                        "long": None,
+                        "name": "USA",
+                        "type": "Nazione",
+                    },
+                ],
+                "type": "Città",
+            },
+        )
+

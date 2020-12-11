@@ -21,17 +21,35 @@
 
 """Place API resource."""
 
+from typing import Dict
+
+from gramps.gen.const import GRAMPS_LOCALE as glocale
+from gramps.gen.lib import Place
+from gramps.gen.utils.grampslocale import GrampsLocale
+
 from .base import (
     GrampsObjectProtectedResource,
     GrampsObjectResourceHelper,
     GrampsObjectsProtectedResource,
 )
+from .util import get_place_profile_for_object
 
 
 class PlaceResourceHelper(GrampsObjectResourceHelper):
     """Place resource helper."""
 
     gramps_class_name = "Place"
+
+    def object_extend(
+        self, obj: Place, args: Dict, locale: GrampsLocale = glocale
+    ) -> Place:
+        """Extend place attributes as needed."""
+        db_handle = self.db_handle
+        if "profile" in args:
+            obj.profile = get_place_profile_for_object(
+                db_handle=db_handle, place=obj, locale=locale
+            )
+        return obj
 
 
 class PlaceResource(GrampsObjectProtectedResource, PlaceResourceHelper):

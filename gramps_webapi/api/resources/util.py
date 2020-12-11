@@ -20,15 +20,14 @@
 #
 
 """Gramps utility functions."""
-
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.display.name import NameDisplay
 from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
-from gramps.gen.lib import Event, Family, Person, Place, Source, Span
+from gramps.gen.lib import Event, Family, Person, Place, PlaceType, Source, Span
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.soundex import soundex
 from gramps.gen.utils.db import (
@@ -38,6 +37,7 @@ from gramps.gen.utils.db import (
     get_marriage_or_fallback,
 )
 from gramps.gen.utils.grampslocale import GrampsLocale
+from gramps.gen.utils.place import conv_lat_lon
 
 from ...const import SEX_FEMALE, SEX_MALE, SEX_UNKNOWN
 from ...types import Handle
@@ -176,6 +176,57 @@ def get_divorce_profile(
     if event is None:
         return {}, None
     return get_event_profile_for_object(db_handle, event, locale=locale), event
+
+
+def _format_place_type(
+    place_type: PlaceType, locale: GrampsLocale = glocale
+) -> Dict[str, Any]:
+    """Format a place type."""
+    return locale.translation.sgettext(place_type.xml_str())
+
+
+def get_place_profile_for_object(
+    db_handle: DbReadBase,
+    place: Place,
+    locale: GrampsLocale = glocale,
+    parent_places: bool = True,
+) -> Dict[str, Any]:
+    """Get place profile given a Place."""
+    latitude, longitude = conv_lat_lon(place.lat, place.long, format="D.D8")
+    profile = {
+        "gramps_id": place.gramps_id,
+        "type": _format_place_type(place.get_type(), locale=locale),
+        "name": place.get_name().value,
+        "alternate_names": [
+            place_name.value for place_name in place.get_alternate_names()
+        ],
+        "lat": float(latitude) if (latitude and longitude) else None,
+        "long": float(longitude) if (latitude and longitude) else None,
+    }
+    if parent_places:
+        parent_places_handles = []
+        _place = place
+        handle = None
+        while True:
+            for placeref in _place.get_placeref_list():
+                handle = placeref.ref
+                break
+            if handle is None or handle in parent_places_handles:
+                break
+            _place = db_handle.get_place_from_handle(handle)
+            if _place is None:
+                break
+            parent_places_handles.append(handle)
+        profile["parent_places"] = [
+            get_place_profile_for_object(
+                db_handle=db_handle,
+                place=db_handle.get_place_from_handle(parent_place),
+                locale=locale,
+                parent_places=False,
+            )
+            for parent_place in parent_places_handles
+        ]
+    return profile
 
 
 def get_person_profile_for_object(
