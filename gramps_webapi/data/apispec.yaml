@@ -668,7 +668,7 @@ paths:
             Object | Contents
             ------ | --------
             all | Returns all information below
-            age | Returns age at time of a personal event    
+            age | Returns age at time of a personal event
             self | Returns family information with parents, children, and key relationship between parents and is an implied default if events specified
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns family event list with name, date and location
@@ -765,7 +765,7 @@ paths:
             Object | Contents
             ------ | --------
             all | Returns all information below
-            age | Returns age at time of a personal event    
+            age | Returns age at time of a personal event
             self | Returns family information with parents, children, and key relationship between parents and is an implied default if events specified
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns family event list with name, date and location
@@ -1199,6 +1199,18 @@ paths:
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: profile
+        in: query
+        required: false
+        type: string
+        description: >
+          Enables the return of summarized information about the place in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided. For events the possible objects are:
+            Object | Contents
+            ------ | --------
+            all | Returns all information
       responses:
         200:
           description: "OK: Successful operation."
@@ -4646,6 +4658,11 @@ definitions:
         description: "Private object indicator."
         type: boolean
         example: false
+      profile:
+        description: "An optional summary of the parent places and geo coordinates."
+        type: object
+        items:
+          $ref: "#/definitions/PlaceProfile"
       tag_list:
         description: "A list of handles to tags associated with the place."
         type: array
@@ -4735,6 +4752,45 @@ definitions:
         description: "Handle of the referenced place."
         type: string
         example: "c965872719e5db6bfe5fc47b033"
+
+
+##############################################################################
+# Model - PlaceProfile
+##############################################################################
+
+  PlaceProfile:
+    type: object
+    properties:
+      alternate_names:
+        description: "Alternative names of the place."
+        type: array
+        items:
+          type: string
+        example:
+          - "Gainesville, FA"
+      gramps_id:
+        description: "The place's Gramps ID."
+        type: string
+        example: P0001
+      lat:
+        description: "The geographic latitude as a float."
+        type: number
+        example: 33.6259414
+      long:
+        description: "The geographic longitude as a float."
+        type: number
+        example: -97.1333453
+      name:
+        description: "The place title."
+        type: string
+        example: Gainesville
+      parent_places:
+        description: "A list of parent places."
+        type: array
+        items:
+          $ref: "#/definitions/PlaceProfile"
+
+
 
 ##############################################################################
 # Model - Address
