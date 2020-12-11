@@ -198,6 +198,7 @@ def get_person_profile_for_object(
                 )
     profile = {
         "handle": person.handle,
+        "gramps_id": person.gramps_id,
         "sex": get_sex_profile(person),
         "birth": birth,
         "death": death,
@@ -271,6 +272,7 @@ def get_family_profile_for_object(
         options.append("age")
     profile = {
         "handle": family.handle,
+        "gramps_id": family.gramps_id,
         "father": get_person_profile_for_handle(
             db_handle, family.father_handle, options, locale=locale
         ),

@@ -668,7 +668,7 @@ paths:
             Object | Contents
             ------ | --------
             all | Returns all information below
-            age | Returns age at time of a personal event    
+            age | Returns age at time of a personal event
             self | Returns family information with parents, children, and key relationship between parents and is an implied default if events specified
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns family event list with name, date and location
@@ -765,7 +765,7 @@ paths:
             Object | Contents
             ------ | --------
             all | Returns all information below
-            age | Returns age at time of a personal event    
+            age | Returns age at time of a personal event
             self | Returns family information with parents, children, and key relationship between parents and is an implied default if events specified
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns family event list with name, date and location
@@ -4022,6 +4022,10 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/FamilyProfile"
+      gramps_id:
+        description: "An alternate user managed identifier for the person, usually but not guaranteed to be unique."
+        type: string
+        example: "P0001"
       handle:
         description: "The unique identifier for a person."
         type: string
@@ -4265,6 +4269,10 @@ definitions:
         type: object
         items:
           $ref: "#/definitions/PersonProfile"
+      gramps_id:
+        description: "An alternate user managed identifier for the family, usually but not guaranteed to be unique."
+        type: string
+        example: "F0001"
       handle:
         description: "The unique identifier for a family."
         type: string
