@@ -37,6 +37,7 @@ from gramps.gen.utils.db import (
     get_marriage_or_fallback,
 )
 from gramps.gen.utils.grampslocale import GrampsLocale
+from gramps.gen.utils.place import conv_lat_lon
 
 from ...const import SEX_FEMALE, SEX_MALE, SEX_UNKNOWN
 from ...types import Handle
@@ -191,6 +192,7 @@ def get_place_profile_for_object(
     parent_places: bool = True,
 ) -> Dict[str, Any]:
     """Get place profile given a Place."""
+    latitude, longitude = conv_lat_lon(place.lat, place.long, format="D.D8")
     profile = {
         "gramps_id": place.gramps_id,
         "type": _format_place_type(place.get_type(), locale=locale),
@@ -198,6 +200,8 @@ def get_place_profile_for_object(
         "alternative_names": [
             place_name.value for place_name in place.get_alternative_names()
         ],
+        "lat": float(latitude) if (latitude and longitude) else None,
+        "long": float(longitude) if (latitude and longitude) else None,
     }
     if parent_places:
         parent_places_handles = []

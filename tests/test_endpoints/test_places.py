@@ -210,23 +210,31 @@ class TestPlacesHandle(unittest.TestCase):
             {
                 "alternative_names": [],
                 "gramps_id": "P0860",
+                "lat": 33.6259414,
+                "long": -97.1333453,
                 "name": "Gainesville",
                 "parent_places": [
                     {
                         "alternative_names": [],
                         "gramps_id": "P0194",
+                        "lat": None,
+                        "long": None,
                         "name": "Llano",
                         "type": "Contea",
                     },
                     {
                         "alternative_names": [],
                         "gramps_id": "P0010",
+                        "lat": None,
+                        "long": None,
                         "name": "TX",
                         "type": "Stato (federato)",
                     },
                     {
                         "alternative_names": [],
                         "gramps_id": "P0957",
+                        "lat": None,
+                        "long": None,
                         "name": "USA",
                         "type": "Nazione",
                     },
