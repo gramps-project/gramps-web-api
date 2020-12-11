@@ -402,95 +402,95 @@ class TestPlacesHandle(unittest.TestCase):
 
     def test_get_places_handle_expected_result(self):
         """Test response for a specific event."""
-        rv = check_success(self, TEST_URL + "09UJQCF3TNGH9GU0P1")
-        self.assertEqual(rv["gramps_id"], "P0863")
+        rv = check_success(self, TEST_URL + "YNUJQC8YM5EGRG868J")
+        self.assertEqual(rv["gramps_id"], "P1678")
 
     def test_get_places_handle_validate_semantics(self):
         """Test invalid parameters and values."""
-        check_invalid_semantics(self, TEST_URL + "09UJQCF3TNGH9GU0P1?junk_parm=1")
+        check_invalid_semantics(self, TEST_URL + "YNUJQC8YM5EGRG868J?junk_parm=1")
 
     def test_get_places_handle_parameter_strip_validate_semantics(self):
         """Test invalid strip parameter and values."""
-        check_invalid_semantics(self, TEST_URL + "09UJQCF3TNGH9GU0P1?strip")
+        check_invalid_semantics(self, TEST_URL + "YNUJQC8YM5EGRG868J?strip")
 
     def test_get_places_handle_parameter_strip_expected_result(self):
         """Test strip parameter produces expected result."""
-        check_strip_parameter(self, TEST_URL + "09UJQCF3TNGH9GU0P1")
+        check_strip_parameter(self, TEST_URL + "YNUJQC8YM5EGRG868J")
 
     def test_get_places_handle_parameter_keys_validate_semantics(self):
         """Test invalid keys parameter and values."""
         check_invalid_semantics(
-            self, TEST_URL + "09UJQCF3TNGH9GU0P1?keys", check="base"
+            self, TEST_URL + "YNUJQC8YM5EGRG868J?keys", check="base"
         )
 
     def test_get_places_handle_parameter_keys_expected_result_single_key(self):
         """Test keys parameter for some single keys produces expected result."""
         check_keys_parameter(
-            self, TEST_URL + "09UJQCF3TNGH9GU0P1", ["alt_loc", "handle", "urls"]
+            self, TEST_URL + "YNUJQC8YM5EGRG868J", ["alt_loc", "handle", "urls"]
         )
 
     def test_get_places_handle_parameter_keys_expected_result_multiple_keys(self):
         """Test keys parameter for multiple keys produces expected result."""
         check_keys_parameter(
             self,
-            TEST_URL + "09UJQCF3TNGH9GU0P1",
+            TEST_URL + "YNUJQC8YM5EGRG868J",
             [",".join(["alt_loc", "handle", "urls"])],
         )
 
     def test_get_places_handle_parameter_skipkeys_validate_semantics(self):
         """Test invalid skipkeys parameter and values."""
         check_invalid_semantics(
-            self, TEST_URL + "09UJQCF3TNGH9GU0P1?skipkeys", check="base"
+            self, TEST_URL + "YNUJQC8YM5EGRG868J?skipkeys", check="base"
         )
 
     def test_get_places_handle_parameter_skipkeys_expected_result_single_key(self):
         """Test skipkeys parameter for some single keys produces expected result."""
         check_skipkeys_parameter(
-            self, TEST_URL + "09UJQCF3TNGH9GU0P1", ["alt_loc", "handle", "urls"]
+            self, TEST_URL + "YNUJQC8YM5EGRG868J", ["alt_loc", "handle", "urls"]
         )
 
     def test_get_places_handle_parameter_skipkeys_expected_result_multiple_keys(self):
         """Test skipkeys parameter for multiple keys produces expected result."""
         check_skipkeys_parameter(
             self,
-            TEST_URL + "09UJQCF3TNGH9GU0P1",
+            TEST_URL + "YNUJQC8YM5EGRG868J",
             [",".join(["alt_loc", "handle", "urls"])],
         )
 
     def test_get_places_handle_parameter_extend_validate_semantics(self):
         """Test invalid extend parameter and values."""
         check_invalid_semantics(
-            self, TEST_URL + "09UJQCF3TNGH9GU0P1?extend", check="list"
+            self, TEST_URL + "YNUJQC8YM5EGRG868J?extend", check="list"
         )
 
     def test_get_places_handle_parameter_extend_expected_result_citation_list(self):
         """Test extend citation_list result."""
         check_single_extend_parameter(
-            self, TEST_URL + "09UJQCF3TNGH9GU0P1", "citation_list", "citations"
+            self, TEST_URL + "YNUJQC8YM5EGRG868J", "citation_list", "citations"
         )
 
     def test_get_places_handle_parameter_extend_expected_result_media_list(self):
         """Test extend media_list result."""
         check_single_extend_parameter(
-            self, TEST_URL + "09UJQCF3TNGH9GU0P1", "media_list", "media", reference=True
+            self, TEST_URL + "YNUJQC8YM5EGRG868J", "media_list", "media", reference=True
         )
 
     def test_get_places_handle_parameter_extend_expected_result_notes(self):
         """Test extend notes result."""
         check_single_extend_parameter(
-            self, TEST_URL + "09UJQCF3TNGH9GU0P1", "note_list", "notes"
+            self, TEST_URL + "YNUJQC8YM5EGRG868J", "note_list", "notes"
         )
 
     def test_get_places_handle_parameter_extend_expected_result_tag_list(self):
         """Test extend tag_list result."""
         check_single_extend_parameter(
-            self, TEST_URL + "09UJQCF3TNGH9GU0P1", "tag_list", "tags"
+            self, TEST_URL + "YNUJQC8YM5EGRG868J", "tag_list", "tags"
         )
 
     def test_get_places_handle_parameter_extend_expected_result_all(self):
         """Test extend all result."""
         rv = check_success(
-            self, TEST_URL + "09UJQCF3TNGH9GU0P1?extend=all&keys=extended"
+            self, TEST_URL + "YNUJQC8YM5EGRG868J?extend=all&keys=extended"
         )
         self.assertEqual(len(rv["extended"]), 4)
         for key in ["citations", "media", "notes", "tags"]:
@@ -501,7 +501,7 @@ class TestPlacesHandle(unittest.TestCase):
         rv = check_success(
             self,
             TEST_URL
-            + "09UJQCF3TNGH9GU0P1?extend=note_list,tag_list&keys=note_list,tag_list,extended",
+            + "YNUJQC8YM5EGRG868J?extend=note_list,tag_list&keys=note_list,tag_list,extended",
         )
         self.assertEqual(len(rv["extended"]), 2)
         self.assertIn("notes", rv["extended"])
@@ -551,7 +551,7 @@ class TestPlacesHandle(unittest.TestCase):
     def test_get_places_handle_parameter_backlinks_validate_semantics(self):
         """Test invalid backlinks parameter and values."""
         check_invalid_semantics(
-            self, TEST_URL + "09UJQCF3TNGH9GU0P1?backlinks", check="boolean"
+            self, TEST_URL + "YNUJQC8YM5EGRG868J?backlinks", check="boolean"
         )
 
     def test_get_places_handle_parameter_backlinks_expected_result(self):
