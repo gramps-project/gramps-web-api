@@ -27,8 +27,8 @@ from gramps.gen.db.base import DbReadBase
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
-from webargs.flaskparser import use_args
 
+from .. import use_args
 from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
@@ -97,4 +97,4 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
                     args=args,
                     locale=locale,
                 )
-        return self.response(200, payload=hits, args=args, total_items=total)
+        return self.response(200, payload=hits or [], args=args, total_items=total)

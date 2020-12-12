@@ -24,7 +24,7 @@ from typing import Type
 
 from flask import Blueprint, current_app
 from webargs import fields, validate
-from webargs.flaskparser import use_args
+from webargs.flaskparser import FlaskParser
 
 from ..const import API_PREFIX
 from .auth import jwt_required_ifauth
@@ -68,6 +68,16 @@ from .resources.user import (
     UserResetPasswordResource,
     UserTriggerResetPasswordResource,
 )
+
+
+class Parser(FlaskParser):
+    # raise in case of unknown query arguments
+    DEFAULT_UNKNOWN_BY_LOCATION = {"query": RAISE}
+
+
+parser = Parser()
+use_args = parser.use_args
+
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
 

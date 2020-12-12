@@ -39,8 +39,8 @@ from gramps.gen.lib.srcattrtype import SrcAttributeType
 from gramps.gen.lib.srcmediatype import SourceMediaType
 from gramps.gen.lib.urltype import UrlType
 from webargs import fields
-from webargs.flaskparser import use_args
 
+from .. import use_args
 from ..util import get_db_handle
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder

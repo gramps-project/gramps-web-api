@@ -29,8 +29,8 @@ from gramps.gen.db.base import DbReadBase
 from gramps.gen.filters import GenericFilter
 from marshmallow import Schema
 from webargs import ValidationError, fields, validate
-from webargs.flaskparser import use_args
 
+from .. import use_args
 from ...const import GRAMPS_NAMESPACES
 from ...types import Handle
 from . import ProtectedResource
@@ -193,8 +193,7 @@ class FiltersResources(ProtectedResource, GrampsJSONEncoder):
     """Filters resources."""
 
     @use_args(
-        {},
-        location="query",
+        {}, location="query",
     )
     def get(self, args: Dict[str, str]) -> Response:
         """Get available custom filters and rules."""
@@ -288,10 +287,7 @@ class FilterResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, filter_list[0])
 
     @use_args(
-        {
-            "force": fields.Str(validate=validate.Length(equal=0)),
-        },
-        location="query",
+        {"force": fields.Str(validate=validate.Length(equal=0)),}, location="query",
     )
     def delete(self, args: Dict, namespace: str, name: str) -> Response:
         """Delete a custom filter."""

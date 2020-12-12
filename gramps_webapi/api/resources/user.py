@@ -27,9 +27,9 @@ from flask_jwt_extended import create_access_token, get_jwt_claims, get_jwt_iden
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from webargs import fields
-from webargs.flaskparser import use_args
 
 from ...auth.const import PERM_EDIT_OWN_USER
+from .. import use_args
 from ..auth import require_permissions
 from ..util import send_email
 from . import ProtectedResource, Resource

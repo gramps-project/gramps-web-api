@@ -25,9 +25,9 @@ from typing import Dict
 from flask import Response, abort
 from gramps.gen.relationship import get_relationship_calculator
 from webargs import fields, validate
-from webargs.flaskparser import use_args
 
 from ...types import Handle
+from .. import use_args
 from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder

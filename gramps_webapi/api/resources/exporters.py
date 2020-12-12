@@ -47,8 +47,8 @@ from gramps.gen.proxy import (
 from gramps.gen.user import User
 from gramps.gen.utils.resourcepath import ResourcePath
 from webargs import fields, validate
-from webargs.flaskparser import use_args
 
+from .. import use_args
 from ..util import get_buffer_for_file, get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
