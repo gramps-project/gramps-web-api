@@ -40,7 +40,7 @@ from gramps.gen.lib.srcmediatype import SourceMediaType
 from gramps.gen.lib.urltype import UrlType
 from webargs import fields
 
-from .. import use_args
+from ..util import use_args
 from ..util import get_db_handle
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder

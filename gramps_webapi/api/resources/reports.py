@@ -37,7 +37,7 @@ from gramps.gen.utils.resourcepath import ResourcePath
 from webargs import fields, validate
 
 from ...const import REPORT_DEFAULTS, REPORT_FILTERS
-from .. import use_args
+from ..util import use_args
 from ..util import get_buffer_for_file, get_db_handle
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder

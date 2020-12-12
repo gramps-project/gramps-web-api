@@ -29,10 +29,9 @@ from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.utils.grampslocale import GrampsLocale
-from marshmallow import RAISE
 from webargs import fields, validate
 
-from .. import use_args
+from ..util import use_args
 from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource, Resource
 from .emit import GrampsJSONEncoder

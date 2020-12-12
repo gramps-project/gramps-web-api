@@ -29,7 +29,7 @@ from flask_limiter.util import get_remote_address
 from webargs import fields
 
 from ...auth.const import PERM_EDIT_OWN_USER
-from .. import use_args
+from ..util import use_args
 from ..auth import require_permissions
 from ..util import send_email
 from . import ProtectedResource, Resource

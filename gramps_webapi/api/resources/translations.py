@@ -29,7 +29,7 @@ from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields
 
-from .. import use_args
+from ..util import use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 

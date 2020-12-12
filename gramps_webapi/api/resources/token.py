@@ -32,7 +32,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from webargs import fields
 
-from .. import use_args
+from ..util import use_args
 from . import RefreshProtectedResource, Resource
 
 limiter = Limiter(key_func=get_remote_address)

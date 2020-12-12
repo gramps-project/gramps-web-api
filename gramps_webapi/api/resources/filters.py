@@ -30,7 +30,7 @@ from gramps.gen.filters import GenericFilter
 from marshmallow import Schema
 from webargs import ValidationError, fields, validate
 
-from .. import use_args
+from ..util import use_args
 from ...const import GRAMPS_NAMESPACES
 from ...types import Handle
 from . import ProtectedResource

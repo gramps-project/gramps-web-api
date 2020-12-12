@@ -32,7 +32,7 @@ from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 
 from ...types import Handle
-from .. import use_args
+from ..util import use_args
 from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .base import (

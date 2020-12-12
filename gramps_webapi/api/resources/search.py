@@ -28,7 +28,7 @@ from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 
-from .. import use_args
+from ..util import use_args
 from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
