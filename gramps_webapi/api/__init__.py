@@ -24,7 +24,6 @@ from typing import Type
 
 from flask import Blueprint, current_app
 from webargs import fields, validate
-from webargs.flaskparser import use_args
 
 from ..const import API_PREFIX
 from .auth import jwt_required_ifauth
@@ -68,6 +67,7 @@ from .resources.user import (
     UserResetPasswordResource,
     UserTriggerResetPasswordResource,
 )
+from .util import use_args
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
 

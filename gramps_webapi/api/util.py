@@ -33,9 +33,20 @@ from gramps.gen.db.base import DbReadBase
 from gramps.gen.proxy import PrivateProxyDb
 from gramps.gen.utils.file import expand_media_path
 from gramps.gen.utils.grampslocale import GrampsLocale
+from marshmallow import RAISE
+from webargs.flaskparser import FlaskParser
 
 from ..auth.const import PERM_VIEW_PRIVATE
 from .auth import has_permissions
+
+
+class Parser(FlaskParser):
+    # raise in case of unknown query arguments
+    DEFAULT_UNKNOWN_BY_LOCATION = {"query": RAISE}
+
+
+parser = Parser()
+use_args = parser.use_args
 
 
 class ModifiedPrivateProxyDb(PrivateProxyDb):

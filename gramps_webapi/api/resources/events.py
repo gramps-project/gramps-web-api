@@ -30,9 +30,9 @@ from gramps.gen.errors import HandleError
 from gramps.gen.lib import Event, Span
 from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
-from webargs.flaskparser import use_args
 
 from ...types import Handle
+from ..util import use_args
 from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .base import (

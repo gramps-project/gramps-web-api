@@ -35,9 +35,9 @@ from gramps.gen.filters import reload_custom_filters
 from gramps.gen.plug import BasePluginManager
 from gramps.gen.utils.resourcepath import ResourcePath
 from webargs import fields, validate
-from webargs.flaskparser import use_args
 
 from ...const import REPORT_DEFAULTS, REPORT_FILTERS
+from ..util import use_args
 from ..util import get_buffer_for_file, get_db_handle
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder

@@ -28,8 +28,8 @@ from flask import Response, abort
 from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields
-from webargs.flaskparser import use_args
 
+from ..util import use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -38,8 +38,7 @@ class TranslationResource(ProtectedResource, GrampsJSONEncoder):
     """Translation resource."""
 
     @use_args(
-        {"strings": fields.Str(required=True)},
-        location="query",
+        {"strings": fields.Str(required=True)}, location="query",
     )
     def get(self, args: Dict, language: str) -> Response:
         """Get translation."""
