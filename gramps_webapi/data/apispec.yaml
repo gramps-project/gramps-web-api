@@ -1277,6 +1277,18 @@ paths:
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: profile
+        in: query
+        required: false
+        type: string
+        description: >
+          Enables the return of summarized information about the place in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided. For places the possible objects are:
+            Object | Contents
+            ------ | --------
+            all | Returns all information
       responses:
         200:
           description: "OK: Successful operation."
@@ -1413,6 +1425,18 @@ paths:
             source | The source record cited from
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: profile
+        in: query
+        required: false
+        type: string
+        description: >
+          Enables the return of summarized information about the citation in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided. For events the possible objects are:
+            Object | Contents
+            ------ | --------
+            all | Returns all information
       responses:
         200:
           description: "OK: Successful operation."
@@ -1479,6 +1503,18 @@ paths:
             source | The source record cited from
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: profile
+        in: query
+        required: false
+        type: string
+        description: >
+          Enables the return of summarized information about the citation in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided. For events the possible objects are:
+            Object | Contents
+            ------ | --------
+            all | Returns all information
       responses:
         200:
           description: "OK: Successful operation."
@@ -2018,6 +2054,18 @@ paths:
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: profile
+        in: query
+        required: false
+        type: string
+        description: >
+          Enables the return of summarized information about the media in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided. For events the possible objects are:
+            Object | Contents
+            ------ | --------
+            all | Returns all information
       responses:
         200:
           description: "OK: Successful operation."
@@ -2083,6 +2131,18 @@ paths:
             note_list | The list of note records
             tag_list | The list of tags
             backlinks | The lists of backlinks per object type
+      - name: profile
+        in: query
+        required: false
+        type: string
+        description: >
+          Enables the return of summarized information about the media in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
+
+
+          Accepts a comma delimited list of possible objects to be provided. For events the possible objects are:
+            Object | Contents
+            ------ | --------
+            all | Returns all information
       responses:
         200:
           description: "OK: Successful operation."
@@ -4973,6 +5033,11 @@ definitions:
         description: "Private object indicator."
         type: boolean
         example: false
+      profile:
+        description: "An optional summary of the citation date and source information."
+        type: object
+        items:
+          $ref: "#/definitions/CitationProfile"
       source_handle:
         description: "The handle to the source record being cited from."
         type: string
@@ -5018,6 +5083,30 @@ definitions:
         items:
           $ref: "#/definitions/BacklinksExtended"
 
+##############################################################################
+# Model - CitationProfile
+##############################################################################
+       
+  CitationProfile:
+    type: object
+    properties:
+      date:
+        description: "Date of the citation."
+        type: string
+        example: "1990-03-05"
+      page:
+        description: "Page cited from."
+        type: string
+        example: "Page 11 2/3."
+      gramps_id:
+        description: "An alternate user managed identifier for the citation, usually but not guaranteed to be unique."
+        type: string
+        example: "C0973"
+      source:
+        type: object
+        items:
+          $ref: "#/definitions/SourceProfile"
+    
 ##############################################################################
 # Model - Source
 ##############################################################################
@@ -5132,6 +5221,30 @@ definitions:
         type: object
         items:
           $ref: "#/definitions/BacklinksExtended"
+
+##############################################################################
+# Model - SourceProfile
+##############################################################################
+           
+  SourceProfile:
+    type: object
+    properties:
+      author:
+        description: "The author of the source."
+        type: string
+        example: "Priests of Great Falls Church 1850 - 1867"
+      pubinfo:
+        description: "Publication information."
+        type: string
+        example: "Microfilm Public Library Great Falls"
+      title:
+        description: "Title for the source."
+        type: string
+        example: "Baptize registry 1850 - 1867 Great Falls Church"
+      gramps_id:
+        description: "An alternate user managed identifier for the source, usually but not guaranteed to be unique."
+        type: string
+        example: "S0002"
 
 ##############################################################################
 # Model - Repository
@@ -5332,6 +5445,11 @@ definitions:
         description: "Private object indicator."
         type: boolean
         example: false
+      profile:
+        description: "An optional summary of media information."
+        type: object
+        items:
+          $ref: "#/definitions/MediaProfile"
       tag_list:
         description: "A list of handles to tags associated with the media object."
         type: array
@@ -5411,6 +5529,22 @@ definitions:
         type: string
         example: "B1AUFQV7H8R9NR4SZM"
 
+##############################################################################
+# Model - MediaProfile
+##############################################################################
+       
+  MediaProfile:
+    type: object
+    properties:
+      date:
+        description: "Date of media."
+        type: string
+        example: "1897"
+      gramps_id:
+        description: "An alternate user managed identifier for the media, usually but not guaranteed to be unique."
+        type: string
+        example: "O0010"
+        
 ##############################################################################
 # Model - Note
 ##############################################################################

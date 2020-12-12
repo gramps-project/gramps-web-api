@@ -73,6 +73,10 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
         """Return custom place types assocated with places in the database."""
         return self.db.get_place_types()
 
+    def set_name_group_mapping(self, name, group):
+        """Set a name group mapping."""
+        return self.db.set_name_group_mapping(name, group)
+
 
 def get_db_handle() -> DbReadBase:
     """Open the database and get the current instance.
