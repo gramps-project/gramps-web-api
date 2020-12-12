@@ -32,7 +32,7 @@ from .base import (
     GrampsObjectResourceHelper,
     GrampsObjectsProtectedResource,
 )
-from .util import get_place_profile_for_object
+from .util import get_extended_attributes, get_place_profile_for_object
 
 
 class PlaceResourceHelper(GrampsObjectResourceHelper):
@@ -49,6 +49,8 @@ class PlaceResourceHelper(GrampsObjectResourceHelper):
             obj.profile = get_place_profile_for_object(
                 db_handle=db_handle, place=obj, locale=locale
             )
+        if "extend" in args:
+            obj.extended = get_extended_attributes(db_handle, obj, args)
         return obj
 
 

@@ -173,13 +173,17 @@ class TestPlacesHandle(unittest.TestCase):
     def test_places_handle_endpoint_keys(self):
         """Test response for keys parm."""
         run_test_endpoint_keys(
-            self, "/api/places/09UJQCF3TNGH9GU0P1", ["handle", "lat", "long"],
+            self,
+            "/api/places/09UJQCF3TNGH9GU0P1",
+            ["handle", "lat", "long"],
         )
 
     def test_places_handle_endpoint_skipkeys(self):
         """Test response for skipkeys parm."""
         run_test_endpoint_skipkeys(
-            self, "/api/places/09UJQCF3TNGH9GU0P1", ["handle", "media_list", "private"],
+            self,
+            "/api/places/09UJQCF3TNGH9GU0P1",
+            ["handle", "media_list", "private"],
         )
 
     def test_places_handle_endpoint_extend(self):
@@ -190,7 +194,7 @@ class TestPlacesHandle(unittest.TestCase):
             {"arg": "note_list", "key": "notes", "type": List},
             {"arg": "tag_list", "key": "tags", "type": List},
         ]
-        run_test_endpoint_extend(self, "/api/places/09UJQCF3TNGH9GU0P1", driver)
+        run_test_endpoint_extend(self, "/api/places/YNUJQC8YM5EGRG868J", driver)
 
     def test_places_handle_endpoint_schema(self):
         """Test the place schema with extensions."""
@@ -242,4 +246,3 @@ class TestPlacesHandle(unittest.TestCase):
                 "type": "Città",
             },
         )
-
