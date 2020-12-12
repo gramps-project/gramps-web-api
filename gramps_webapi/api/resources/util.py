@@ -27,7 +27,17 @@ from gramps.gen.db.base import DbReadBase
 from gramps.gen.display.name import NameDisplay
 from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
-from gramps.gen.lib import Event, Family, Person, Place, PlaceType, Source, Span
+from gramps.gen.lib import (
+    Citation,
+    Event,
+    Family,
+    Media,
+    Person,
+    Place,
+    PlaceType,
+    Source,
+    Span,
+)
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.soundex import soundex
 from gramps.gen.utils.db import (
@@ -365,6 +375,37 @@ def get_family_profile_for_handle(
     except HandleError:
         return {}
     return get_family_profile_for_object(db_handle, obj, args, locale=locale)
+
+
+def get_citation_profile_for_object(
+    db_handle: DbReadBase,
+    citation: Citation,
+    args: List,
+    locale: GrampsLocale = glocale,
+) -> Citation:
+    """Get citation profile given a Citation."""
+    source = db_handle.get_source_from_handle(citation.source_handle)
+    return {
+        "source": {
+            "author": source.author,
+            "title": source.title,
+            "pubinfo": source.pubinfo,
+            "gramps_id": source.gramps_id,
+        },
+        "gramps_id": citation.gramps_id,
+        "date": locale.date_displayer.display(citation.date),
+        "page": citation.page,
+    }
+
+
+def get_media_profile_for_object(
+    db_handle: DbReadBase, media: Media, args: List, locale: GrampsLocale = glocale
+) -> Media:
+    """Get media profile given Media."""
+    return {
+        "gramps_id": media.gramps_id,
+        "date": locale.date_displayer.display(media.date),
+    }
 
 
 def get_extended_attributes(

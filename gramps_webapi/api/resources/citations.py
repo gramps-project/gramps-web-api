@@ -32,7 +32,11 @@ from .base import (
     GrampsObjectResourceHelper,
     GrampsObjectsProtectedResource,
 )
-from .util import get_extended_attributes, get_source_by_handle
+from .util import (
+    get_citation_profile_for_object,
+    get_extended_attributes,
+    get_source_by_handle,
+)
 
 
 class CitationResourceHelper(GrampsObjectResourceHelper):
@@ -44,12 +48,15 @@ class CitationResourceHelper(GrampsObjectResourceHelper):
         self, obj: Citation, args: Dict, locale: GrampsLocale = glocale
     ) -> Citation:
         """Extend citation attributes as needed."""
+        if "profile" in args:
+            obj.profile = get_citation_profile_for_object(
+                self.db_handle, obj, args["profile"]
+            )
         if "extend" in args:
-            db_handle = self.db_handle
-            obj.extended = get_extended_attributes(db_handle, obj, args)
+            obj.extended = get_extended_attributes(self.db_handle, obj, args)
             if "all" in args["extend"] or "source_handle" in args["extend"]:
                 obj.extended["source"] = get_source_by_handle(
-                    db_handle, obj.source_handle, args
+                    self.db_handle, obj.source_handle, args
                 )
         return obj
 

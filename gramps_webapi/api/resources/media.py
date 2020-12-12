@@ -21,17 +21,36 @@
 
 """Media API resource."""
 
+from typing import Dict
+
+from gramps.gen.const import GRAMPS_LOCALE as glocale
+from gramps.gen.lib import Media
+from gramps.gen.utils.grampslocale import GrampsLocale
+
 from .base import (
     GrampsObjectProtectedResource,
     GrampsObjectResourceHelper,
     GrampsObjectsProtectedResource,
 )
+from .util import get_extended_attributes, get_media_profile_for_object
 
 
 class MediaObjectResourceHelper(GrampsObjectResourceHelper):
     """Media resource helper."""
 
     gramps_class_name = "Media"
+
+    def object_extend(
+        self, obj: Media, args: Dict, locale: GrampsLocale = glocale
+    ) -> Media:
+        """Extend media attributes as needed."""
+        if "profile" in args:
+            obj.profile = get_media_profile_for_object(
+                self.db_handle, obj, args["profile"]
+            )
+        if "extend" in args:
+            obj.extended = get_extended_attributes(self.db_handle, obj, args)
+        return obj
 
 
 class MediaObjectResource(GrampsObjectProtectedResource, MediaObjectResourceHelper):
