@@ -24,9 +24,8 @@ from typing import Dict, List, Optional, Union
 
 from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
-from webargs.flaskparser import use_args
 
-from ..util import get_db_handle
+from ..util import get_db_handle, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
