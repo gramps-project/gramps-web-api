@@ -29,8 +29,9 @@ from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.utils.grampslocale import GrampsLocale
+from marshmallow import RAISE
 from webargs import fields, validate
-from webargs.flaskparser import use_args
+from webargs.flaskparser import FlaskParser
 
 from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource, Resource
@@ -38,6 +39,13 @@ from .emit import GrampsJSONEncoder
 from .filters import apply_filter
 from .sort import sort_objects
 from .util import get_backlinks, get_extended_attributes, get_soundex
+
+
+class Parser(FlaskParser):
+    DEFAULT_UNKNOWN_BY_LOCATION = {"query": RAISE}
+
+
+PARSER = Parser()
 
 
 class GrampsObjectResourceHelper(GrampsJSONEncoder):
@@ -100,7 +108,7 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
 class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
     """Resource for a single object."""
 
-    @use_args(
+    @PARSER.use_args(
         {
             "backlinks": fields.Boolean(missing=False),
             "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
@@ -136,7 +144,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
 class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
     """Resource for multiple objects."""
 
-    @use_args(
+    @PARSER.use_args(
         {
             "backlinks": fields.Boolean(missing=False),
             "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
