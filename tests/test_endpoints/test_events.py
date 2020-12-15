@@ -582,7 +582,32 @@ class TestEventsHandle(unittest.TestCase):
         rv = check_success(self, TEST_URL + "a5af0eb6dd140de132c?profile=all")
         self.assertEqual(
             rv["profile"],
-            {"date": "1250", "place": "Atchison, Atchison, KS, USA", "type": "Birth",},
+            {
+                "date": "1250",
+                "place": "Atchison, Atchison, KS, USA",
+                "type": "Birth",
+                "participants": {
+                    "families": [],
+                    "people": [
+                        {
+                            "person": {
+                                "birth": {
+                                    "date": "1250",
+                                    "place": "Atchison, Atchison, KS, USA",
+                                    "type": "Birth",
+                                },
+                                "death": {"date": "1316", "place": "", "type": "Death"},
+                                "gramps_id": "I1020",
+                                "handle": "H4EKQCFV3436HSKY2D",
+                                "name_given": "Ralph",
+                                "name_surname": "Knudsen",
+                                "sex": "M",
+                            },
+                            "role": "Primary",
+                        }
+                    ],
+                },
+            },
         )
 
     def test_get_events_handle_parameter_profile_expected_result_with_locale(self):
@@ -590,7 +615,32 @@ class TestEventsHandle(unittest.TestCase):
         rv = check_success(self, TEST_URL + "a5af0eb6dd140de132c?profile=all&locale=de")
         self.assertEqual(
             rv["profile"],
-            {"date": "1250", "place": "Atchison, Atchison, KS, USA", "type": "Geburt",},
+            {
+                "date": "1250",
+                "place": "Atchison, Atchison, KS, USA",
+                "type": "Geburt",
+                "participants": {
+                    "families": [],
+                    "people": [
+                        {
+                            "person": {
+                                "birth": {
+                                    "date": "1250",
+                                    "place": "Atchison, Atchison, KS, USA",
+                                    "type": "Geburt",
+                                },
+                                "death": {"date": "1316", "place": "", "type": "Tod"},
+                                "gramps_id": "I1020",
+                                "handle": "H4EKQCFV3436HSKY2D",
+                                "name_given": "Ralph",
+                                "name_surname": "Knudsen",
+                                "sex": "M",
+                            },
+                            "role": "Primär",
+                        }
+                    ],
+                },
+            },
         )
 
     def test_get_events_handle_parameter_backlinks_validate_semantics(self):
