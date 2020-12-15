@@ -50,6 +50,7 @@ class TestEvents(unittest.TestCase):
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
+        cls.maxDiff = None
 
     def test_get_events_requires_token(self):
         """Test authorization required."""
@@ -384,7 +385,28 @@ class TestEvents(unittest.TestCase):
             {
                 "date": "1987-08-29",
                 "place": "Gainesville, Llano, TX, USA",
-                "type": "Birth",
+                "type": "Geburt",
+                "participants": {
+                    "families": [],
+                    "people": [
+                        {
+                            "person": {
+                                "birth": {
+                                    "date": "1987-08-29",
+                                    "place": "Gainesville, Llano, TX, USA",
+                                    "type": "Geburt",
+                                },
+                                "death": {},
+                                "gramps_id": "I0001",
+                                "handle": "66TJQC6CC7ZWL9YZ64",
+                                "name_given": "Sarah Suzanne",
+                                "name_surname": "Warner",
+                                "sex": "F",
+                            },
+                            "role": "Primär",
+                        }
+                    ],
+                },
             },
         )
 
@@ -560,11 +582,7 @@ class TestEventsHandle(unittest.TestCase):
         rv = check_success(self, TEST_URL + "a5af0eb6dd140de132c?profile=all")
         self.assertEqual(
             rv["profile"],
-            {
-                "date": "1250",
-                "place": "Atchison, Atchison, KS, USA",
-                "type": "Birth",
-            },
+            {"date": "1250", "place": "Atchison, Atchison, KS, USA", "type": "Birth",},
         )
 
     def test_get_events_handle_parameter_profile_expected_result_with_locale(self):
@@ -572,11 +590,7 @@ class TestEventsHandle(unittest.TestCase):
         rv = check_success(self, TEST_URL + "a5af0eb6dd140de132c?profile=all&locale=de")
         self.assertEqual(
             rv["profile"],
-            {
-                "date": "1250",
-                "place": "Atchison, Atchison, KS, USA",
-                "type": "Geburt",
-            },
+            {"date": "1250", "place": "Atchison, Atchison, KS, USA", "type": "Geburt",},
         )
 
     def test_get_events_handle_parameter_backlinks_validate_semantics(self):

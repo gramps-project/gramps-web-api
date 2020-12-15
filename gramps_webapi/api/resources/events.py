@@ -61,7 +61,9 @@ class EventResourceHelper(GrampsObjectResourceHelper):
         if "profile" in args:
             if "families" in args["profile"] or "events" in args["profile"]:
                 abort(422)
-            obj.profile = get_event_profile_for_object(db_handle, obj, locale=locale)
+            obj.profile = get_event_profile_for_object(
+                db_handle, obj, args["profile"], locale=locale
+            )
         if "extend" in args:
             obj.extended = get_extended_attributes(db_handle, obj, args)
             if "all" in args["extend"] or "place" in args["extend"]:
