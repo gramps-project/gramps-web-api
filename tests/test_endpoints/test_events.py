@@ -385,7 +385,7 @@ class TestEvents(unittest.TestCase):
             {
                 "date": "1987-08-29",
                 "place": "Gainesville, Llano, TX, USA",
-                "type": "Geburt",
+                "type": "Birth",
                 "participants": {
                     "families": [],
                     "people": [
@@ -394,7 +394,7 @@ class TestEvents(unittest.TestCase):
                                 "birth": {
                                     "date": "1987-08-29",
                                     "place": "Gainesville, Llano, TX, USA",
-                                    "type": "Geburt",
+                                    "type": "Birth",
                                 },
                                 "death": {},
                                 "gramps_id": "I0001",
@@ -403,7 +403,7 @@ class TestEvents(unittest.TestCase):
                                 "name_surname": "Warner",
                                 "sex": "F",
                             },
-                            "role": "Primär",
+                            "role": "Primary",
                         }
                     ],
                 },
