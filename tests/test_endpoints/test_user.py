@@ -22,18 +22,13 @@
 
 import re
 import unittest
-from quopri import decodestring
 from unittest.mock import patch
 
-from flask_jwt_extended import get_jwt_claims, get_jwt_identity
 from gramps.cli.clidbman import CLIDbManager
-from gramps.gen.db import DbTxn
 from gramps.gen.dbstate import DbState
-from gramps.gen.lib import Person, Surname
 
 from gramps_webapi.app import create_app
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
-from tests.test_endpoints import get_test_client
 
 from . import BASE_URL
 
@@ -163,7 +158,7 @@ class TestUser(unittest.TestCase):
             headers={"Authorization": "Bearer {}".format(token)},
             json={"new_password": ""},
         )
-        self.assertEqual(rv.status_code, 422)
+        self.assertEqual(rv.status_code, 400)
         # now that should work
         rv = self.client.post(
             BASE_URL + "/user/password/reset/",
