@@ -21,19 +21,26 @@
 """Tests for the /api/events endpoints using example_gramps."""
 
 import unittest
-from typing import Dict, List
 
-from jsonschema import RefResolver, validate
-
-from tests.test_endpoints import API_SCHEMA, get_object_count, get_test_client
-from tests.test_endpoints.runners import (
-    run_test_endpoint_extend,
-    run_test_endpoint_gramps_id,
-    run_test_endpoint_keys,
-    run_test_endpoint_rules,
-    run_test_endpoint_skipkeys,
-    run_test_endpoint_strip,
+from . import BASE_URL, get_object_count, get_test_client
+from .checks import (
+    check_boolean_parameter,
+    check_conforms_to_schema,
+    check_invalid_semantics,
+    check_invalid_syntax,
+    check_keys_parameter,
+    check_paging_parameters,
+    check_requires_token,
+    check_resource_missing,
+    check_single_extend_parameter,
+    check_skipkeys_parameter,
+    check_sort_parameter,
+    check_strip_parameter,
+    check_success,
+    check_totals,
 )
+
+TEST_URL = BASE_URL + "/events/"
 
 
 class TestEvents(unittest.TestCase):
@@ -44,94 +51,336 @@ class TestEvents(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_events_endpoint(self):
-        """Test reponse for events."""
-        # check expected number of events found
-        result = self.client.get("/api/events/")
-        self.assertEqual(len(result.json), get_object_count("events"))
-        # checked number passed back in header as well
-        count = result.headers.pop("X-Total-Count")
-        self.assertEqual(count, str(get_object_count("events")))
-        # check first record is expected event
-        self.assertEqual(result.json[0]["gramps_id"], "E0000")
-        self.assertEqual(
-            result.json[0]["description"], "Birth of Warner, Sarah Suzanne"
-        )
-        self.assertEqual(result.json[0]["place"], "08TJQCCFIX31BXPNXN")
-        # check last record is expected event
-        last = len(result.json) - 1
-        self.assertEqual(result.json[last]["gramps_id"], "E3431")
-        self.assertEqual(result.json[last]["description"], "")
-        self.assertEqual(result.json[last]["place"], "")
+    def test_get_events_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL)
 
-    def test_events_endpoint_422(self):
-        """Test response for an invalid parm."""
-        # check 422 returned for bad parm
-        result = self.client.get("/api/events/?junk_parm=1")
-        self.assertEqual(result.status_code, 422)
-
-    def test_events_endpoint_gramps_id(self):
-        """Test response for gramps_id parm."""
-        driver = {
-            "gramps_id": "E0523",
-            "handle": "a5af0ebb51337f15e61",
-            "place": "PH0KQCXU2AQ7P3TFHB",
-        }
-        run_test_endpoint_gramps_id(self, "/api/events/", driver)
-
-    def test_events_endpoint_strip(self):
-        """Test response for strip parm."""
-        run_test_endpoint_strip(self, "/api/events/")
-
-    def test_events_endpoint_keys(self):
-        """Test response for keys parm."""
-        run_test_endpoint_keys(self, "/api/events/", ["handle", "description", "place"])
-
-    def test_events_endpoint_skipkeys(self):
-        """Test response for skipkeys parm."""
-        run_test_endpoint_skipkeys(
-            self, "/api/events/", ["change", "description", "tag_list"]
+    def test_get_events_conforms_to_schema(self):
+        """Test conforms to schema."""
+        check_conforms_to_schema(
+            self, TEST_URL + "?extend=all&profile=all&backlinks=1", "Event"
         )
 
-    def test_events_endpoint_rules(self):
-        """Test some responses for the rules parm."""
-        driver = {
-            400: ['{"rules"[{"name":"HasType","values":["Marriage"]}]}'],
-            422: [
-                '{"some":"where","rules":[{"name":"HasType","values":["Marriage"]}]}',
-                '{"function":"none","rules":[{"name":"HasType",'
-                + '"values":["Marriage"]}]}',
-            ],
-            404: ['{"rules":[{"name":"PigsInSpace"}]}'],
-            200: [
-                '{"rules":[{"name":"HasType","values":["Marriage"]}]}',
-                '{"rules":[{"name":"HasType","values":["Death"]},{"name":"HasNote"}]}',
-                '{"function":"or","rules":[{"name":"HasType","values":["Death"]},'
-                + '{"name":"HasNote"}]}',
-                '{"function":"xor","rules":[{"name":"HasType","values":["Death"]},'
-                + '{"name":"HasNote"}]}',
-                '{"function":"one","rules":[{"name":"HasType","values":["Death"]},'
-                + '{"name":"HasNote"}]}',
-                '{"invert":true,"rules":[{"name":"HasType","values":["Married"]}]}',
-            ],
-        }
-        run_test_endpoint_rules(self, "/api/events/", driver)
+    def test_get_events_expected_results_total(self):
+        """Test expected number of results returned."""
+        check_totals(self, TEST_URL + "?keys=handle", get_object_count("events"))
 
-    def test_events_endpoint_profile(self):
-        """Test response for profile parm."""
-        # check 422 returned if missing or bad argument
-        result = self.client.get("/api/events/?profile")
-        self.assertEqual(result.status_code, 422)
-        result = self.client.get("/api/events/?profile=3")
-        self.assertEqual(result.status_code, 422)
-        result = self.client.get("/api/events/?profile=alpha")
-        self.assertEqual(result.status_code, 422)
-        # check expected number of events found
-        result = self.client.get("/api/events/?profile=all")
-        self.assertEqual(len(result.json), get_object_count("events"))
-        # check all expected profile attributes present for first event
+    def test_get_events_expected_results(self):
+        """Test some expected results returned."""
+        rv = check_success(self, TEST_URL)
+        # check first expected record
+        self.assertEqual(rv[0]["gramps_id"], "E0000")
+        self.assertEqual(rv[0]["description"], "Birth of Warner, Sarah Suzanne")
+        self.assertEqual(rv[0]["place"], "08TJQCCFIX31BXPNXN")
+        # check last expected record
+        self.assertEqual(rv[-1]["gramps_id"], "E3431")
+        self.assertEqual(rv[-1]["description"], "")
+        self.assertEqual(rv[-1]["place"], "")
+
+    def test_get_events_validate_semantics(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(self, TEST_URL + "?junk_parm=1")
+
+    def test_get_events_parameter_gramps_id_validate_semantics(self):
+        """Test invalid gramps_id parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?gramps_id", check="base")
+
+    def test_get_events_parameter_gramps_id_missing_content(self):
+        """Test response for missing gramps_id object."""
+        check_resource_missing(self, TEST_URL + "?gramps_id=does_not_exist")
+
+    def test_get_events_parameter_gramps_id_expected_result(self):
+        """Test gramps_id parameter returns expected result."""
+        rv = check_success(self, TEST_URL + "?gramps_id=E0523")
+        self.assertEqual(len(rv), 1)
+        self.assertEqual(rv[0]["handle"], "a5af0ebb51337f15e61")
+
+    def test_get_events_parameter_strip_validate_semantics(self):
+        """Test invalid strip parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?strip", check="boolean")
+
+    def test_get_events_parameter_strip_expected_result(self):
+        """Test strip parameter produces expected result."""
+        check_strip_parameter(self, TEST_URL)
+
+    def test_get_events_parameter_keys_validate_semantics(self):
+        """Test invalid keys parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?keys", check="base")
+
+    def test_get_events_parameter_keys_expected_result_single_key(self):
+        """Test keys parameter for some single keys produces expected result."""
+        check_keys_parameter(self, TEST_URL, ["attribute_list", "handle", "type"])
+
+    def test_get_events_parameter_keys_expected_result_multiple_keys(self):
+        """Test keys parameter for multiple keys produces expected result."""
+        check_keys_parameter(
+            self, TEST_URL, [",".join(["attribute_list", "handle", "type"])]
+        )
+
+    def test_get_events_parameter_skipkeys_validate_semantics(self):
+        """Test invalid skipkeys parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?skipkeys", check="base")
+
+    def test_get_events_parameter_skipkeys_expected_result_single_key(self):
+        """Test skipkeys parameter for some single keys produces expected result."""
+        check_skipkeys_parameter(self, TEST_URL, ["attribute_list", "handle", "type"])
+
+    def test_get_events_parameter_skipkeys_expected_result_multiple_keys(self):
+        """Test skipkeys parameter for multiple keys produces expected result."""
+        check_skipkeys_parameter(
+            self, TEST_URL, [",".join(["attribute_list", "handle", "type"])]
+        )
+
+    def test_get_events_parameter_page_validate_semantics(self):
+        """Test invalid page parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?page", check="number")
+
+    def test_get_events_parameter_pagesize_validate_semantics(self):
+        """Test invalid pagesize parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?pagesize", check="number")
+
+    def test_get_events_parameter_page_pagesize_expected_result(self):
+        """Test page and pagesize parameters produce expected result."""
+        check_paging_parameters(self, TEST_URL + "?keys=handle", 4, join="&")
+
+    def test_get_events_parameter_sort_validate_semantics(self):
+        """Test invalid sort parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?sort", check="list")
+
+    def test_get_events_parameter_sort_change_ascending_expected_result(self):
+        """Test sort parameter change ascending result."""
+        check_sort_parameter(self, TEST_URL, "change")
+
+    def test_get_events_parameter_sort_change_descending_expected_result(self):
+        """Test sort parameter change descending result."""
+        check_sort_parameter(self, TEST_URL, "change", direction="-")
+
+    def test_get_events_parameter_sort_date_ascending_expected_result(self):
+        """Test sort parameter date ascending result."""
+        rv = check_success(self, TEST_URL + "?keys=profile&profile=self&sort=+date")
+        self.assertEqual(rv[0]["profile"]["date"], "")
+        self.assertEqual(rv[-1]["profile"]["date"], "2006-01-11")
+
+    def test_get_events_parameter_sort_date_descending_expected_result(self):
+        """Test sort parameter date descending result."""
+        rv = check_success(self, TEST_URL + "?keys=profile&profile=self&sort=-date")
+        self.assertEqual(rv[0]["profile"]["date"], "2006-01-11")
+        self.assertEqual(rv[-1]["profile"]["date"], "")
+
+    def test_get_events_parameter_sort_gramps_id_ascending_expected_result(self):
+        """Test sort parameter gramps_id ascending result."""
+        rv = check_sort_parameter(self, TEST_URL, "gramps_id")
+        self.assertEqual(rv[0]["gramps_id"], "E0000")
+        self.assertEqual(rv[-1]["gramps_id"], "E3431")
+
+    def test_get_events_parameter_sort_gramps_id_descending_expected_result(self):
+        """Test sort parameter gramps_id descending result."""
+        rv = check_sort_parameter(self, TEST_URL, "gramps_id", direction="-")
+        self.assertEqual(rv[0]["gramps_id"], "E3431")
+        self.assertEqual(rv[-1]["gramps_id"], "E0000")
+
+    def test_get_events_parameter_sort_place_ascending_expected_result(self):
+        """Test sort parameter place ascending result."""
+        rv = check_success(self, TEST_URL + "?keys=profile&profile=self&sort=+place")
+        self.assertEqual(rv[0]["profile"]["place"], "")
+        self.assertEqual(rv[-1]["profile"]["place"], "Σιάτιστα, Greece")
+
+    def test_get_events_parameter_sort_place_descending_expected_result(self):
+        """Test sort parameter place descending result."""
+        rv = check_success(self, TEST_URL + "?keys=profile&profile=self&sort=-place")
+        self.assertEqual(rv[0]["profile"]["place"], "Σιάτιστα, Greece")
+        self.assertEqual(rv[-1]["profile"]["place"], "")
+
+    def test_get_events_parameter_sort_private_ascending_expected_result(self):
+        """Test sort parameter private ascending result."""
+        check_sort_parameter(self, TEST_URL, "private")
+
+    def test_get_events_parameter_sort_private_descending_expected_result(self):
+        """Test sort parameter private descending result."""
+        check_sort_parameter(self, TEST_URL, "private", direction="-")
+
+    def test_get_events_parameter_sort_type_ascending_expected_result(self):
+        """Test sort parameter type ascending result."""
+        check_sort_parameter(self, TEST_URL, "type")
+
+    def test_get_events_parameter_sort_type_descending_expected_result(self):
+        """Test sort parameter type descending result."""
+        check_sort_parameter(self, TEST_URL, "type", direction="-")
+
+    def test_get_events_parameter_sort_type_ascending_expected_result_with_locale(self):
+        """Test sort parameter type ascending result using different locale."""
+        rv = check_success(
+            self, TEST_URL + "?keys=profile&profile=self&sort=+type&locale=de"
+        )
+        self.assertEqual(rv[0]["profile"]["type"], "Beerdigung")
+        self.assertEqual(rv[-1]["profile"]["type"], "Tod")
+
+    def test_get_events_parameter_sort_type_descending_expected_result_with_locale(
+        self,
+    ):
+        """Test sort parameter type descending result using different locale."""
+        rv = check_success(
+            self, TEST_URL + "?keys=profile&profile=self&sort=-type&locale=de"
+        )
+        self.assertEqual(rv[0]["profile"]["type"], "Tod")
+        self.assertEqual(rv[-1]["profile"]["type"], "Beerdigung")
+
+    def test_get_events_parameter_filter_validate_semantics(self):
+        """Test invalid rules parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?filter", check="base")
+
+    def test_get_events_parameter_filter_missing_content(self):
+        """Test response when missing the filter."""
+        check_resource_missing(self, TEST_URL + "?filter=ReallyNotARealFilterYouSee")
+
+    def test_get_events_parameter_rules_validate_syntax(self):
+        """Test invalid rules syntax."""
+        check_invalid_syntax(
+            self,
+            TEST_URL + '?rules={"rules"[{"name":"HasType","values":["Marriage"]}]}',
+        )
+
+    def test_get_events_parameter_rules_validate_semantics(self):
+        """Test invalid rules parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?rules", check="base")
+        check_invalid_semantics(
+            self,
+            TEST_URL
+            + '?rules={"some":"where","rules":[{"name":"HasType","values":["Marriage"]}]}',
+        )
+        check_invalid_semantics(
+            self,
+            TEST_URL
+            + '?rules={"function":"none","rules":[{"name":"HasType","values":["Marriage"]}]}',
+        )
+
+    def test_get_events_parameter_rules_missing_content(self):
+        """Test rules parameter missing request content."""
+        check_resource_missing(self, TEST_URL + '?rules={"rules":[{"name":"Rohan"}]}')
+
+    def test_get_events_parameter_rules_expected_response_single_rule(self):
+        """Test rules parameter expected response for a single rule."""
+        rv = check_success(
+            self,
+            TEST_URL
+            + '?keys=type&rules={"rules":[{"name":"HasType","values":["Marriage"]}]}',
+        )
+        for item in rv:
+            self.assertEqual(item["type"], "Marriage")
+
+    def test_get_events_parameter_rules_expected_response_multiple_rules(self):
+        """Test rules parameter expected response for multiple rules."""
+        rv = check_success(
+            self,
+            TEST_URL
+            + '?rules={"rules":[{"name":"HasType","values":["Death"]},{"name":"HasNote"}]}',
+        )
+        self.assertEqual(len(rv), 1)
+        self.assertEqual(rv[0]["type"], "Death")
+        self.assertEqual(rv[0]["note_list"][0], "b39feeac1a202b44e76")
+
+    def test_get_events_parameter_rules_expected_response_or_function(self):
+        """Test rules parameter expected response for or function."""
+        rv = check_success(
+            self,
+            TEST_URL
+            + '?keys=handle&rules={"function":"or","rules":[{"name":"HasType","values":["Death"]},{"name":"HasNote"}]}',
+        )
+        self.assertEqual(len(rv), 657)
+
+    def test_get_events_parameter_rules_expected_response_xor_function(self):
+        """Test rules parameter expected response for xor function."""
+        rv = check_success(
+            self,
+            TEST_URL
+            + '?keys=handle&rules={"function":"xor","rules":[{"name":"HasType","values":["Death"]},{"name":"HasNote"}]}',
+        )
+        self.assertEqual(len(rv), 656)
+
+    def test_get_events_parameter_rules_expected_response_one_function(self):
+        """Test rules parameter expected response for one function."""
+        rv = check_success(
+            self,
+            TEST_URL
+            + '?keys=handle&rules={"function":"one","rules":[{"name":"HasType","values":["Death"]},{"name":"HasNote"}]}',
+        )
+        self.assertEqual(len(rv), 656)
+
+    def test_get_events_parameter_rules_expected_response_invert(self):
+        """Test rules parameter expected response for invert option."""
+        rv = check_success(
+            self,
+            TEST_URL
+            + '?keys=handle&rules={"invert":true,"rules":[{"name":"HasType","values":["Married"]}]}',
+        )
+        self.assertEqual(len(rv), 3432)
+
+    def test_get_events_parameter_extend_validate_semantics(self):
+        """Test invalid extend parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?extend", check="list")
+
+    def test_get_events_parameter_extend_expected_result_citation_list(self):
+        """Test extend citation_list result."""
+        check_single_extend_parameter(
+            self, TEST_URL + "?gramps_id=E0341", "citation_list", "citations", join="&"
+        )
+
+    def test_get_events_parameter_extend_expected_result_media_list(self):
+        """Test extend media_list result."""
+        check_single_extend_parameter(
+            self,
+            TEST_URL + "?gramps_id=E0341",
+            "media_list",
+            "media",
+            join="&",
+            reference=True,
+        )
+
+    def test_get_events_parameter_extend_expected_result_notes(self):
+        """Test extend notes result."""
+        check_single_extend_parameter(
+            self, TEST_URL + "?gramps_id=E0341", "note_list", "notes", join="&"
+        )
+
+    def test_get_events_parameter_extend_expected_result_place(self):
+        """Test extend place result."""
+        check_single_extend_parameter(
+            self, TEST_URL + "?gramps_id=E0341", "place", "place", join="&"
+        )
+
+    def test_get_events_parameter_extend_expected_result_tag_list(self):
+        """Test extend tag_list result."""
+        check_single_extend_parameter(
+            self, TEST_URL + "?gramps_id=E0341", "tag_list", "tags", join="&"
+        )
+
+    def test_get_events_parameter_extend_expected_result_all(self):
+        """Test extend all result."""
+        rv = check_success(self, TEST_URL + "?gramps_id=E0341&extend=all&keys=extended")
+        self.assertEqual(len(rv[0]["extended"]), 5)
+        for key in ["citations", "media", "notes", "place", "tags"]:
+            self.assertIn(key, rv[0]["extended"])
+
+    def test_get_events_parameter_extend_expected_result_multiple_keys(self):
+        """Test extend result for multiple keys."""
+        rv = check_success(
+            self,
+            TEST_URL
+            + "?gramps_id=E0341&extend=note_list,tag_list&keys=note_list,tag_list,extended",
+        )
+        self.assertEqual(len(rv[0]["extended"]), 2)
+        self.assertIn("notes", rv[0]["extended"])
+        self.assertIn("tags", rv[0]["extended"])
+
+    def test_get_events_parameter_profile_validate_semantics(self):
+        """Test invalid profile parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?profile", check="list")
+
+    def test_get_events_parameter_profile_expected_result(self):
+        """Test expected response."""
+        rv = check_success(self, TEST_URL + "?page=1&keys=profile&profile=all")
         self.assertEqual(
-            result.json[0]["profile"],
+            rv[0]["profile"],
             {
                 "date": "1987-08-29",
                 "place": "Gainesville, Llano, TX, USA",
@@ -139,30 +388,21 @@ class TestEvents(unittest.TestCase):
             },
         )
 
-    def test_events_endpoint_extend(self):
-        """Test response for extend parm."""
-        driver = [
-            {"arg": "citation_list", "key": "citations", "type": List},
-            {"arg": "media_list", "key": "media", "type": List},
-            {"arg": "note_list", "key": "notes", "type": List},
-            {"arg": "place", "key": "place", "type": Dict},
-            {"arg": "tag_list", "key": "tags", "type": List},
-        ]
-        run_test_endpoint_extend(self, "/api/events/", driver, ["E0341"])
+    def test_get_events_parameter_profile_expected_result_with_locale(self):
+        """Test expected profile response for a locale."""
+        rv = check_success(
+            self, TEST_URL + "?page=1&keys=profile&profile=all&locale=de"
+        )
+        self.assertEqual(rv[0]["profile"]["type"], "Geburt")
 
-    def test_events_endpoint_schema(self):
-        """Test all events against the event schema."""
-        result = self.client.get("/api/events/?extend=all&profile=all")
-        # check expected number of events found
-        self.assertEqual(len(result.json), get_object_count("events"))
-        # check all records found conform to expected schema
-        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
-        for event in result.json:
-            validate(
-                instance=event,
-                schema=API_SCHEMA["definitions"]["Event"],
-                resolver=resolver,
-            )
+    def test_get_events_parameter_backlinks_validate_semantics(self):
+        """Test invalid backlinks parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?backlinks", check="boolean")
+
+    def test_get_events_parameter_backlinks_expected_result(self):
+        """Test backlinks expected result."""
+        rv = check_boolean_parameter(self, TEST_URL + "?page=1", "backlinks", join="&")
+        self.assertIn("66TJQC6CC7ZWL9YZ64", rv[0]["backlinks"]["person"])
 
 
 class TestEventsHandle(unittest.TestCase):
@@ -173,58 +413,153 @@ class TestEventsHandle(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_events_handle_endpoint_404(self):
-        """Test response for a bad handle."""
-        # check 404 returned for non-existent event
-        result = self.client.get("/api/events/does_not_exist")
-        self.assertEqual(result.status_code, 404)
+    def test_get_events_handle_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL + "a5af0eb6dd140de132c")
 
-    def test_events_handle_endpoint(self):
-        """Test response for specific event."""
-        # check expected event returned
-        result = self.client.get("/api/events/a5af0eb6dd140de132c")
-        self.assertEqual(result.json["gramps_id"], "E0043")
-        self.assertEqual(result.json["place"], "P4EKQC5TG9HPIOXHN2")
-
-    def test_events_handle_endpoint_422(self):
-        """Test response for an invalid parm."""
-        # check 422 returned for bad parm
-        result = self.client.get("/api/events/a5af0eb6dd140de132c?junk_parm=1")
-        self.assertEqual(result.status_code, 422)
-
-    def test_events_handle_endpoint_strip(self):
-        """Test response for strip parm."""
-        run_test_endpoint_strip(self, "/api/events/a5af0eb6dd140de132c")
-
-    def test_events_handle_endpoint_keys(self):
-        """Test response for keys parm."""
-        run_test_endpoint_keys(
+    def test_get_events_handle_conforms_to_schema(self):
+        """Test conforms to schema."""
+        check_conforms_to_schema(
             self,
-            "/api/events/a5af0eb6dd140de132c",
-            ["handle", "description", "type"],
+            TEST_URL + "a5af0eb6dd140de132c?extend=all&profile=all&backlinks=1",
+            "Event",
         )
 
-    def test_events_handle_endpoint_skipkeys(self):
-        """Test response for skipkeys parm."""
-        run_test_endpoint_skipkeys(
-            self,
-            "/api/events/a5af0eb6dd140de132c",
-            ["handle", "media_list", "private"],
+    def test_get_events_handle_missing_content(self):
+        """Test response for missing content."""
+        check_resource_missing(self, TEST_URL + "does_not_exist")
+
+    def test_get_events_handle_expected_result(self):
+        """Test response for a specific event."""
+        rv = check_success(self, TEST_URL + "a5af0eb6dd140de132c")
+        self.assertEqual(rv["gramps_id"], "E0043")
+        self.assertEqual(rv["place"], "P4EKQC5TG9HPIOXHN2")
+
+    def test_get_events_handle_validate_semantics(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(self, TEST_URL + "a5af0eb6dd140de132c?junk_parm=1")
+
+    def test_get_events_handle_parameter_strip_validate_semantics(self):
+        """Test invalid strip parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "a5af0eb6dd140de132c?strip", check="boolean"
         )
 
-    def test_events_handle_endpoint_profile(self):
-        """Test response for profile parm."""
-        # check 422 returned if passed missing or bad argument
-        result = self.client.get("/api/events/a5af0eb6dd140de132c?profile")
-        self.assertEqual(result.status_code, 422)
-        result = self.client.get("/api/events/a5af0eb6dd140de132c?profile=3")
-        self.assertEqual(result.status_code, 422)
-        result = self.client.get("/api/events/a5af0eb6dd140de132c?profile=omega")
-        self.assertEqual(result.status_code, 422)
-        # check some key expected profile attributes present
-        result = self.client.get("/api/events/a5af0eb6dd140de132c?profile=all")
+    def test_get_events_handle_parameter_strip_expected_result(self):
+        """Test strip parameter produces expected result."""
+        check_strip_parameter(self, TEST_URL + "a5af0eb6dd140de132c")
+
+    def test_get_events_handle_parameter_keys_validate_semantics(self):
+        """Test invalid keys parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "a5af0eb6dd140de132c?keys", check="base"
+        )
+
+    def test_get_events_handle_parameter_keys_expected_result_single_key(self):
+        """Test keys parameter for some single keys produces expected result."""
+        check_keys_parameter(
+            self, TEST_URL + "a5af0eb6dd140de132c", ["attribute_list", "handle", "type"]
+        )
+
+    def test_get_events_handle_parameter_keys_expected_result_multiple_keys(self):
+        """Test keys parameter for multiple keys produces expected result."""
+        check_keys_parameter(
+            self,
+            TEST_URL + "a5af0eb6dd140de132c",
+            [",".join(["attribute_list", "handle", "type"])],
+        )
+
+    def test_get_events_handle_parameter_skipkeys_validate_semantics(self):
+        """Test invalid skipkeys parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "a5af0eb6dd140de132c?skipkeys", check="base"
+        )
+
+    def test_get_events_handle_parameter_skipkeys_expected_result_single_key(self):
+        """Test skipkeys parameter for some single keys produces expected result."""
+        check_skipkeys_parameter(
+            self, TEST_URL + "a5af0eb6dd140de132c", ["attribute_list", "handle", "type"]
+        )
+
+    def test_get_events_handle_parameter_skipkeys_expected_result_multiple_keys(self):
+        """Test skipkeys parameter for multiple keys produces expected result."""
+        check_skipkeys_parameter(
+            self,
+            TEST_URL + "a5af0eb6dd140de132c",
+            [",".join(["attribute_list", "handle", "type"])],
+        )
+
+    def test_get_events_handle_parameter_extend_validate_semantics(self):
+        """Test invalid extend parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "a5af0eb6dd140de132c?extend", check="list"
+        )
+
+    def test_get_events_handle_parameter_extend_expected_result_citation_list(self):
+        """Test extend citation_list result."""
+        check_single_extend_parameter(
+            self, TEST_URL + "a5af0eb6dd140de132c", "citation_list", "citations"
+        )
+
+    def test_get_events_handle_parameter_extend_expected_result_media_list(self):
+        """Test extend media_list result."""
+        check_single_extend_parameter(
+            self,
+            TEST_URL + "a5af0eb6dd140de132c",
+            "media_list",
+            "media",
+            reference=True,
+        )
+
+    def test_get_events_handle_parameter_extend_expected_result_notes(self):
+        """Test extend notes result."""
+        check_single_extend_parameter(
+            self, TEST_URL + "a5af0eb6dd140de132c", "note_list", "notes"
+        )
+
+    def test_get_events_handle_parameter_extend_expected_result_place(self):
+        """Test extend place result."""
+        check_single_extend_parameter(
+            self, TEST_URL + "a5af0eb6dd140de132c", "place", "place"
+        )
+
+    def test_get_events_handle_parameter_extend_expected_result_tag_list(self):
+        """Test extend tag_list result."""
+        check_single_extend_parameter(
+            self, TEST_URL + "a5af0eb6dd140de132c", "tag_list", "tags"
+        )
+
+    def test_get_events_handle_parameter_extend_expected_result_all(self):
+        """Test extend all result."""
+        rv = check_success(
+            self, TEST_URL + "a5af0eb6dd140de132c?extend=all&keys=extended"
+        )
+        self.assertEqual(len(rv["extended"]), 5)
+        for key in ["citations", "media", "notes", "place", "tags"]:
+            self.assertIn(key, rv["extended"])
+
+    def test_get_events_handle_parameter_extend_expected_result_multiple_keys(self):
+        """Test extend result for multiple keys."""
+        rv = check_success(
+            self,
+            TEST_URL
+            + "a5af0eb6dd140de132c?extend=note_list,tag_list&keys=note_list,tag_list,extended",
+        )
+        self.assertEqual(len(rv["extended"]), 2)
+        self.assertIn("notes", rv["extended"])
+        self.assertIn("tags", rv["extended"])
+
+    def test_get_events_handle_parameter_profile_validate_semantics(self):
+        """Test invalid profile parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "a5af0eb6dd140de132c?profile", check="list"
+        )
+
+    def test_get_events_handle_parameter_profile_expected_result(self):
+        """Test response as expected."""
+        rv = check_success(self, TEST_URL + "a5af0eb6dd140de132c?profile=all")
         self.assertEqual(
-            result.json["profile"],
+            rv["profile"],
             {
                 "date": "1250",
                 "place": "Atchison, Atchison, KS, USA",
@@ -232,26 +567,103 @@ class TestEventsHandle(unittest.TestCase):
             },
         )
 
-    def test_events_handle_endpoint_extend(self):
-        """Test response for extend parm."""
-        driver = [
-            {"arg": "citation_list", "key": "citations", "type": List},
-            {"arg": "media_list", "key": "media", "type": List},
-            {"arg": "note_list", "key": "notes", "type": List},
-            {"arg": "place", "key": "place", "type": Dict},
-            {"arg": "tag_list", "key": "tags", "type": List},
-        ]
-        run_test_endpoint_extend(self, "/api/events/a5af0eb6dd140de132c", driver)
+    def test_get_events_handle_parameter_profile_expected_result_with_locale(self):
+        """Test response as expected."""
+        rv = check_success(self, TEST_URL + "a5af0eb6dd140de132c?profile=all&locale=de")
+        self.assertEqual(
+            rv["profile"],
+            {
+                "date": "1250",
+                "place": "Atchison, Atchison, KS, USA",
+                "type": "Geburt",
+            },
+        )
 
-    def test_event_handle_endpoint_schema(self):
-        """Test the event schema with extensions."""
-        # check event record conforms to expected schema
-        result = self.client.get(
-            "/api/events/a5af0eb6dd140de132c?extend=all&profile=all"
+    def test_get_events_handle_parameter_backlinks_validate_semantics(self):
+        """Test invalid backlinks parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "a5af0eb6dd140de132c?backlinks", check="boolean"
         )
-        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
-        validate(
-            instance=result.json,
-            schema=API_SCHEMA["definitions"]["Event"],
-            resolver=resolver,
+
+    def test_get_events_handle_parameter_backlinks_expected_result(self):
+        """Test backlinks expected result."""
+        rv = check_boolean_parameter(
+            self, TEST_URL + "a5af0eb6dd140de132c", "backlinks"
         )
+        for key in ["H4EKQCFV3436HSKY2D"]:
+            self.assertIn(key, rv["backlinks"]["person"])
+
+    def test_get_events_handle_parameter_backlinks_expected_results_extended(self):
+        """Test backlinks extended result."""
+        rv = check_success(
+            self, TEST_URL + "a5af0eb6dd140de132c?backlinks=1&extend=backlinks"
+        )
+        self.assertIn("backlinks", rv)
+        self.assertIn("extended", rv)
+        self.assertIn("backlinks", rv["extended"])
+        for obj in rv["extended"]["backlinks"]["person"]:
+            self.assertIn(obj["handle"], ["H4EKQCFV3436HSKY2D"])
+
+
+class TestEventsHandleSpan(unittest.TestCase):
+    """Test cases for the /api/events/{handle1}/span/{handle2} endpoint for a specific event."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_get_events_handle_span_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(
+            self, TEST_URL + "a5af0eb6ce0378db417/span/a5af0ecb107303354a0"
+        )
+
+    def test_get_events_handle_span_missing_content(self):
+        """Test response for missing content."""
+        check_resource_missing(
+            self, TEST_URL + "a5af0eb6ce0378db417/span/a5af0ecb10730335400"
+        )
+
+    def test_get_events_handle_span_expected_result(self):
+        """Test response for a specific event."""
+        rv = check_success(
+            self, TEST_URL + "a5af0eb6ce0378db417/span/a5af0ecb107303354a0"
+        )
+        self.assertEqual(rv["span"], "663 years, 5 months")
+
+    def test_get_events_handle_span_validate_semantics(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "a5af0eb6ce0378db417/span/a5af0ecb107303354a0?junk_parm=1"
+        )
+
+    def test_get_events_handle_span_validate_semantics_precision(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(
+            self,
+            TEST_URL + "a5af0eb6ce0378db417/span/a5af0ecb107303354a0?precision",
+            check="number",
+        )
+
+    def test_get_events_handle_span_expected_result_precision(self):
+        """Test precision parameter expected response."""
+        rv = check_success(
+            self, TEST_URL + "a5af0eb6ce0378db417/span/a5af0ecb107303354a0?precision=1"
+        )
+        self.assertEqual(rv["span"], "663 years")
+
+    def test_get_events_handle_span_validate_semantics_locale(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(
+            self,
+            TEST_URL + "a5af0eb6ce0378db417/span/a5af0ecb107303354a0?locale",
+            check="base",
+        )
+
+    def test_get_events_handle_span_expected_result_locale(self):
+        """Test locale parameter expected response."""
+        rv = check_success(
+            self, TEST_URL + "a5af0eb6ce0378db417/span/a5af0ecb107303354a0?locale=de"
+        )
+        self.assertEqual(rv["span"], "663 Jahre, 5 Monate")

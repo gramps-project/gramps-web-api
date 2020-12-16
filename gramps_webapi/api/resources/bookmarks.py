@@ -20,12 +20,12 @@
 
 """Bookmark API resource."""
 
-from typing import List, Optional
+from typing import Dict, List, Optional, Union
 
 from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
 
-from ..util import get_db_handle
+from ..util import get_db_handle, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -76,7 +76,8 @@ class BookmarkResource(ProtectedResource, GrampsJSONEncoder):
         """Get the database instance."""
         return get_db_handle()
 
-    def get(self, namespace: str) -> Response:
+    @use_args({}, location="query")
+    def get(self, args: Dict, namespace: str) -> Response:
         """Get list of bookmarks by namespace."""
         return self.response(200, get_bookmarks(self.db_handle, namespace))
 
@@ -89,7 +90,8 @@ class BookmarksResource(ProtectedResource, GrampsJSONEncoder):
         """Get the database instance."""
         return get_db_handle()
 
-    def get(self) -> Response:
+    @use_args({}, location="query")
+    def get(self, args: Dict) -> Response:
         """Get the list of bookmark types."""
         result = {}
         for bookmark in _BOOKMARK_TYPES:

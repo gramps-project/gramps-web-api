@@ -103,7 +103,30 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
     @use_args(
         {
             "backlinks": fields.Boolean(missing=False),
-            "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
+            "extend": fields.DelimitedList(
+                fields.Str(validate=validate.Length(min=1)),
+                validate=validate.ContainsOnly(
+                    choices=[
+                        "all",
+                        "citation_list",
+                        "event_ref_list",
+                        "family_list",
+                        "note_list",
+                        "parent_family_list",
+                        "person_ref_list",
+                        "primary_parent_family",
+                        "place",
+                        "source_handle",
+                        "father_handle",
+                        "mother_handle",
+                        "media_list",
+                        "reporef_list",
+                        "tag_list",
+                        "backlinks",
+                        "child_ref_list",
+                    ]
+                ),
+            ),
             "formats": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
@@ -139,7 +162,30 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
     @use_args(
         {
             "backlinks": fields.Boolean(missing=False),
-            "extend": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
+            "extend": fields.DelimitedList(
+                fields.Str(validate=validate.Length(min=1)),
+                validate=validate.ContainsOnly(
+                    choices=[
+                        "all",
+                        "citation_list",
+                        "event_ref_list",
+                        "family_list",
+                        "note_list",
+                        "parent_family_list",
+                        "person_ref_list",
+                        "primary_parent_family",
+                        "place",
+                        "source_handle",
+                        "father_handle",
+                        "mother_handle",
+                        "media_list",
+                        "reporef_list",
+                        "tag_list",
+                        "backlinks",
+                        "child_ref_list",
+                    ]
+                ),
+            ),
             "filter": fields.Str(validate=validate.Length(min=1)),
             "formats": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))

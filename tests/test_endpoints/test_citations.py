@@ -21,19 +21,26 @@
 """Tests for the /api/citations endpoints using example_gramps."""
 
 import unittest
-from typing import Dict, List
 
-from jsonschema import RefResolver, validate
-
-from tests.test_endpoints import API_SCHEMA, get_object_count, get_test_client
-from tests.test_endpoints.runners import (
-    run_test_endpoint_extend,
-    run_test_endpoint_gramps_id,
-    run_test_endpoint_keys,
-    run_test_endpoint_rules,
-    run_test_endpoint_skipkeys,
-    run_test_endpoint_strip,
+from . import BASE_URL, get_object_count, get_test_client
+from .checks import (
+    check_boolean_parameter,
+    check_conforms_to_schema,
+    check_invalid_semantics,
+    check_invalid_syntax,
+    check_keys_parameter,
+    check_paging_parameters,
+    check_requires_token,
+    check_resource_missing,
+    check_single_extend_parameter,
+    check_skipkeys_parameter,
+    check_sort_parameter,
+    check_strip_parameter,
+    check_success,
+    check_totals,
 )
+
+TEST_URL = BASE_URL + "/citations/"
 
 
 class TestCitations(unittest.TestCase):
@@ -44,102 +51,290 @@ class TestCitations(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_citations_endpoint(self):
-        """Test reponse for citations."""
-        # check expected number of citations found
-        result = self.client.get("/api/citations/")
-        self.assertEqual(len(result.json), get_object_count("citations"))
-        # checked number passed back in header as well
-        count = result.headers.pop("X-Total-Count")
-        self.assertEqual(count, str(get_object_count("citations")))
-        # check first record is expected citation
-        self.assertEqual(result.json[0]["gramps_id"], "C0000")
-        self.assertEqual(result.json[0]["handle"], "c140d2362f25a92643b")
-        self.assertEqual(result.json[0]["source_handle"], "b39fe3f390e30bd2b99")
-        # check last record is expected citation
-        last = len(result.json) - 1
-        self.assertEqual(result.json[last]["gramps_id"], "C2324")
-        self.assertEqual(result.json[last]["handle"], "c140d28761775ca12ba")
-        self.assertEqual(result.json[last]["source_handle"], "VUBKMQTA2XZG1V6QP8")
+    def test_get_citations_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL)
 
-    def test_citations_endpoint_422(self):
-        """Test response for an invalid parm."""
-        # check 422 returned for bad parm
-        result = self.client.get("/api/citations/?junk_parm=1")
-        self.assertEqual(result.status_code, 422)
-
-    def test_citations_endpoint_gramps_id(self):
-        """Test response for gramps_id parm."""
-        driver = {
-            "gramps_id": "C2849",
-            "handle": "c140dde678c5c4f4537",
-            "source_handle": "c140d4ef77841431905",
-        }
-        run_test_endpoint_gramps_id(self, "/api/citations/", driver)
-
-    def test_citations_endpoint_strip(self):
-        """Test response for strip parm."""
-        run_test_endpoint_strip(self, "/api/citations/")
-
-    def test_citations_endpoint_keys(self):
-        """Test response for keys parm."""
-        run_test_endpoint_keys(
-            self, "/api/citations/", ["confidence", "handle", "page"]
+    def test_get_citations_conforms_to_schema(self):
+        """Test conforms to schema."""
+        check_conforms_to_schema(
+            self, TEST_URL + "?extend=all&profile=all&backlinks=1", "Citation"
         )
 
-    def test_citations_endpoint_skipkeys(self):
-        """Test response for skipkeys parm."""
-        run_test_endpoint_skipkeys(
-            self, "/api/citations/", ["change", "media_list", "tag_list"]
+    def test_get_citations_expected_results_total(self):
+        """Test expected number of results returned."""
+        check_totals(self, TEST_URL + "?keys=handle", get_object_count("citations"))
+
+    def test_get_citations_expected_results(self):
+        """Test some expected results returned."""
+        rv = check_success(self, TEST_URL)
+        # check first expected record
+        self.assertEqual(rv[0]["gramps_id"], "C0000")
+        self.assertEqual(rv[0]["handle"], "c140d2362f25a92643b")
+        self.assertEqual(rv[0]["source_handle"], "b39fe3f390e30bd2b99")
+        # check last expected record
+        self.assertEqual(rv[-1]["gramps_id"], "C2324")
+        self.assertEqual(rv[-1]["handle"], "c140d28761775ca12ba")
+        self.assertEqual(rv[-1]["source_handle"], "VUBKMQTA2XZG1V6QP8")
+
+    def test_get_citations_validate_semantics(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(self, TEST_URL + "?junk_parm=1")
+
+    def test_get_citations_parameter_gramps_id_validate_semantics(self):
+        """Test invalid gramps_id parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?gramps_id", check="base")
+
+    def test_get_citations_parameter_gramps_id_missing_content(self):
+        """Test response for missing gramps_id object."""
+        check_resource_missing(self, TEST_URL + "?gramps_id=does_not_exist")
+
+    def test_get_citations_parameter_gramps_id_expected_result(self):
+        """Test gramps_id parameter returns expected result."""
+        rv = check_success(self, TEST_URL + "?gramps_id=C2849")
+        self.assertEqual(len(rv), 1)
+        self.assertEqual(rv[0]["handle"], "c140dde678c5c4f4537")
+        self.assertEqual(rv[0]["source_handle"], "c140d4ef77841431905")
+
+    def test_get_citations_parameter_strip_validate_semantics(self):
+        """Test invalid strip parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?strip", check="boolean")
+
+    def test_get_citations_parameter_strip_expected_result(self):
+        """Test strip parameter produces expected result."""
+        check_strip_parameter(self, TEST_URL)
+
+    def test_get_citations_parameter_keys_validate_semantics(self):
+        """Test invalid keys parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?keys", check="base")
+
+    def test_get_citations_parameter_keys_expected_result_single_key(self):
+        """Test keys parameter for some single keys produces expected result."""
+        check_keys_parameter(self, TEST_URL, ["attribute_list", "handle", "tag_list"])
+
+    def test_get_citations_parameter_keys_expected_result_multiple_keys(self):
+        """Test keys parameter for multiple keys produces expected result."""
+        check_keys_parameter(
+            self, TEST_URL, [",".join(["attribute_list", "handle", "tag_list"])]
         )
 
-    def test_citations_endpoint_rules(self):
-        """Test some responses for the rules parm."""
-        driver = {
-            400: ['{"rules"[{"name":"HasNote"}]}'],
-            422: [
-                '{"some":"where","rules":[{"name":"HasNote"}]}',
-                '{"function":"none","rules":[{"name":"HasNote"}]}',
-            ],
-            404: ['{"rules":[{"name":"PigsInSpace"}]}'],
-            200: [
-                '{"rules":[{"name":"HasNote"}]}',
-                '{"rules":[{"name":"MatchesPageSubstringOf","values":["Page"]},'
-                + '{"name":"HasNote"}]}',
-                '{"function":"or","rules":[{"name":"MatchesPageSubstringOf",'
-                + '"values":["Page"]},{"name":"HasNote"}]}',
-                '{"function":"xor","rules":[{"name":"MatchesPageSubstringOf",'
-                + '"values":["Page"]},{"name":"HasNote"}]}',
-                '{"function":"one","rules":[{"name":"MatchesPageSubstringOf",'
-                + '"values":["Page"]},{"name":"HasNote"}]}',
-                '{"invert":true,"rules":[{"name":"HasNote"}]}',
-            ],
-        }
-        run_test_endpoint_rules(self, "/api/citations/", driver)
+    def test_get_citations_parameter_skipkeys_validate_semantics(self):
+        """Test invalid skipkeys parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?skipkeys", check="base")
 
-    def test_citations_endpoint_extend(self):
-        """Test response for extend parm."""
-        driver = [
-            {"arg": "media_list", "key": "media", "type": List},
-            {"arg": "note_list", "key": "notes", "type": List},
-            {"arg": "source_handle", "key": "source", "type": Dict},
-            {"arg": "tag_list", "key": "tags", "type": List},
-        ]
-        run_test_endpoint_extend(self, "/api/citations/", driver, ["C2849"])
+    def test_get_citations_parameter_skipkeys_expected_result_single_key(self):
+        """Test skipkeys parameter for some single keys produces expected result."""
+        check_skipkeys_parameter(
+            self, TEST_URL, ["attribute_list", "handle", "tag_list"]
+        )
 
-    def test_citations_endpoint_schema(self):
-        """Test all citations against the citation schema."""
-        result = self.client.get("/api/citations/?extend=all")
-        # check expected number of citations found
-        self.assertEqual(len(result.json), get_object_count("citations"))
-        # check all records found conform to expected schema
-        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
-        for citation in result.json:
-            validate(
-                instance=citation,
-                schema=API_SCHEMA["definitions"]["Citation"],
-                resolver=resolver,
-            )
+    def test_get_citations_parameter_skipkeys_expected_result_multiple_keys(self):
+        """Test skipkeys parameter for multiple keys produces expected result."""
+        check_skipkeys_parameter(
+            self, TEST_URL, [",".join(["attribute_list", "handle", "tag_list"])]
+        )
+
+    def test_get_citations_parameter_page_validate_semantics(self):
+        """Test invalid page parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?page", check="number")
+
+    def test_get_citations_parameter_pagesize_validate_semantics(self):
+        """Test invalid pagesize parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?pagesize", check="number")
+
+    def test_get_citations_parameter_page_pagesize_expected_result(self):
+        """Test page and pagesize parameters produce expected result."""
+        check_paging_parameters(self, TEST_URL + "?keys=handle", 4, join="&")
+
+    def test_get_citations_parameter_sort_validate_semantics(self):
+        """Test invalid sort parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?sort", check="list")
+
+    def test_get_citations_parameter_sort_change_ascending_expected_result(self):
+        """Test sort parameter change ascending result."""
+        check_sort_parameter(self, TEST_URL, "change")
+
+    def test_get_citations_parameter_sort_change_descending_expected_result(self):
+        """Test sort parameter change descending result."""
+        check_sort_parameter(self, TEST_URL, "change", direction="-")
+
+    def test_get_citations_parameter_sort_confidence_ascending_expected_result(self):
+        """Test sort parameter confidence ascending result."""
+        check_sort_parameter(self, TEST_URL, "confidence")
+
+    def test_get_citations_parameter_sort_confidence_descending_expected_result(self):
+        """Test sort parameter confidence descending result."""
+        check_sort_parameter(self, TEST_URL, "confidence", direction="-")
+
+    def test_get_citations_parameter_sort_date_ascending_expected_result(self):
+        """Test sort parameter date ascending result."""
+        rv = check_success(self, TEST_URL + "?keys=date&sort=+date")
+        self.assertEqual(rv[0]["date"]["sortval"], 0)
+        self.assertEqual(rv[-1]["date"]["sortval"], 2447956)
+
+    def test_get_citations_parameter_sort_date_descending_expected_result(self):
+        """Test sort parameter date descending result."""
+        rv = check_success(self, TEST_URL + "?keys=date&profile=self&sort=-date")
+        self.assertEqual(rv[0]["date"]["sortval"], 2447956)
+        self.assertEqual(rv[-1]["date"]["sortval"], 0)
+
+    def test_get_citations_parameter_sort_gramps_id_ascending_expected_result(self):
+        """Test sort parameter gramps_id ascending result."""
+        rv = check_sort_parameter(self, TEST_URL, "gramps_id")
+        self.assertEqual(rv[0]["gramps_id"], "C0000")
+        self.assertEqual(rv[-1]["gramps_id"], "C2853")
+
+    def test_get_citations_parameter_sort_gramps_id_descending_expected_result(self):
+        """Test sort parameter gramps_id descending result."""
+        rv = check_sort_parameter(self, TEST_URL, "gramps_id", direction="-")
+        self.assertEqual(rv[0]["gramps_id"], "C2853")
+        self.assertEqual(rv[-1]["gramps_id"], "C0000")
+
+    def test_get_citations_parameter_sort_private_ascending_expected_result(self):
+        """Test sort parameter private ascending result."""
+        check_sort_parameter(self, TEST_URL, "private")
+
+    def test_get_citations_parameter_sort_private_descending_expected_result(self):
+        """Test sort parameter private descending result."""
+        check_sort_parameter(self, TEST_URL, "private", direction="-")
+
+    def test_get_citations_parameter_filter_validate_semantics(self):
+        """Test invalid rules parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?filter", check="base")
+
+    def test_get_citations_parameter_filter_missing_content(self):
+        """Test response when missing the filter."""
+        check_resource_missing(self, TEST_URL + "?filter=ReallyNotARealFilterYouSee")
+
+    def test_get_citations_parameter_rules_validate_syntax(self):
+        """Test invalid rules syntax."""
+        check_invalid_syntax(self, TEST_URL + '?rules={"rules"[{"name":"HasNote"}]}')
+
+    def test_get_citations_parameter_rules_validate_semantics(self):
+        """Test invalid rules parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?rules", check="base")
+        check_invalid_semantics(
+            self, TEST_URL + '?rules={"some":"where","rules":[{"name":"HasNote"}]}'
+        )
+        check_invalid_semantics(
+            self, TEST_URL + '?rules={"function":"none","rules":[{"name":"HasNote"}]}'
+        )
+
+    def test_get_citations_parameter_rules_missing_content(self):
+        """Test rules parameter missing request content."""
+        check_resource_missing(self, TEST_URL + '?rules={"rules":[{"name":"Gondor"}]}')
+
+    def test_get_citations_parameter_rules_expected_response_single_rule(self):
+        """Test rules parameter expected response for a single rule."""
+        rv = check_success(self, TEST_URL + '?rules={"rules":[{"name":"HasNote"}]}')
+        for key in ["ac380498bc46102e1e8", "ae13613d581506d040892f88a21"]:
+            self.assertIn(key, rv[0]["note_list"])
+
+    def test_get_citations_parameter_rules_expected_response_multiple_rules(self):
+        """Test rules parameter expected response for multiple rules."""
+        rv = check_success(
+            self,
+            TEST_URL
+            + '?rules={"rules":[{"name":"HasNote"},{"name":"HasCitation","values":["", "", 2]}]}',
+        )
+        for key in ["ac380498bc46102e1e8", "ae13613d581506d040892f88a21"]:
+            self.assertIn(key, rv[0]["note_list"])
+
+    def test_get_citations_parameter_rules_expected_response_or_function(self):
+        """Test rules parameter expected response for or function."""
+        rv = check_success(
+            self,
+            TEST_URL
+            + '?keys=handle&rules={"function":"or","rules":[{"name":"HasNote"},{"name":"HasCitation","values":["", "", 2]}]}',
+        )
+        self.assertEqual(len(rv), 2854)
+
+    def test_get_citations_parameter_rules_expected_response_xor_function(self):
+        """Test rules parameter expected response for xor function."""
+        rv = check_success(
+            self,
+            TEST_URL
+            + '?keys=handle&rules={"function":"xor","rules":[{"name":"HasNote"},{"name":"HasCitation","values":["", "", 2]}]}',
+        )
+        self.assertEqual(len(rv), 2853)
+
+    def test_get_citations_parameter_rules_expected_response_one_function(self):
+        """Test rules parameter expected response for one function."""
+        rv = check_success(
+            self,
+            TEST_URL
+            + '?keys=handle&rules={"function":"one","rules":[{"name":"HasNote"},{"name":"HasCitation","values":["", "", 2]}]}',
+        )
+        self.assertEqual(len(rv), 2853)
+
+    def test_get_citations_parameter_rules_expected_response_invert(self):
+        """Test rules parameter expected response for invert option."""
+        rv = check_success(
+            self,
+            TEST_URL
+            + '?keys=handle&rules={"invert":true,"rules":[{"name":"HasCitation","values":["", "", 3]}]}',
+        )
+        self.assertEqual(len(rv), 2851)
+
+    def test_get_citations_parameter_extend_validate_semantics(self):
+        """Test invalid extend parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?extend", check="list")
+
+    def test_get_citations_parameter_extend_expected_result_media_list(self):
+        """Test extend media_list result."""
+        check_single_extend_parameter(
+            self,
+            TEST_URL + "?gramps_id=C2849",
+            "media_list",
+            "media",
+            join="&",
+            reference=True,
+        )
+
+    def test_get_citations_parameter_extend_expected_result_notes(self):
+        """Test extend notes result."""
+        check_single_extend_parameter(
+            self, TEST_URL + "?gramps_id=C2849", "note_list", "notes", join="&"
+        )
+
+    def test_get_citations_parameter_extend_expected_result_source_handle(self):
+        """Test extend source_handle result."""
+        check_single_extend_parameter(
+            self, TEST_URL + "?gramps_id=C2849", "source_handle", "source", join="&"
+        )
+
+    def test_get_citations_parameter_extend_expected_result_tag_list(self):
+        """Test extend tag_list result."""
+        check_single_extend_parameter(
+            self, TEST_URL + "?gramps_id=C2849", "tag_list", "tags", join="&"
+        )
+
+    def test_get_citations_parameter_extend_expected_result_all(self):
+        """Test extend all result."""
+        rv = check_success(self, TEST_URL + "?gramps_id=C2849&extend=all&keys=extended")
+        self.assertEqual(len(rv[0]["extended"]), 4)
+        for key in ["media", "notes", "source", "tags"]:
+            self.assertIn(key, rv[0]["extended"])
+
+    def test_get_citations_parameter_extend_expected_result_multiple_keys(self):
+        """Test extend result for multiple keys."""
+        rv = check_success(
+            self,
+            TEST_URL
+            + "?gramps_id=C2849&extend=note_list,tag_list&keys=note_list,tag_list,extended",
+        )
+        self.assertEqual(len(rv[0]["extended"]), 2)
+        self.assertIn("notes", rv[0]["extended"])
+        self.assertIn("tags", rv[0]["extended"])
+
+    def test_get_citations_parameter_backlinks_validate_semantics(self):
+        """Test invalid backlinks parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?backlinks", check="boolean")
+
+    def test_get_citations_parameter_backlinks_expected_result(self):
+        """Test backlinks expected result."""
+        rv = check_success(self, TEST_URL + "?page=1&keys=backlinks&backlinks=1")
+        self.assertIn("a5af0ecb107303354a0", rv[0]["backlinks"]["event"])
 
 
 class TestCitationsHandle(unittest.TestCase):
@@ -150,62 +345,163 @@ class TestCitationsHandle(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_citations_handle_endpoint_404(self):
-        """Test response for a bad handle."""
-        # check 404 returned for non-existent citation
-        result = self.client.get("/api/citations/does_not_exist")
-        self.assertEqual(result.status_code, 404)
+    def test_get_citations_handle_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL + "c140db880395cadf318")
 
-    def test_citations_handle_endpoint(self):
-        """Test response for specific citation."""
-        # check expected citation returned
-        result = self.client.get("/api/citations/c140db880395cadf318")
-        self.assertEqual(result.json["gramps_id"], "C2844")
-        self.assertEqual(result.json["source_handle"], "c140d4ef77841431905")
-
-    def test_citations_handle_endpoint_422(self):
-        """Test response for an invalid parm."""
-        # check 422 returned for bad parm
-        result = self.client.get("/api/citations/c140db880395cadf318?junk_parm=1")
-        self.assertEqual(result.status_code, 422)
-
-    def test_citations_handle_endpoint_strip(self):
-        """Test response for strip parm."""
-        run_test_endpoint_strip(self, "/api/citations/c140db880395cadf318")
-
-    def test_citations_handle_endpoint_keys(self):
-        """Test response for keys parm."""
-        run_test_endpoint_keys(
+    def test_get_citations_handle_conforms_to_schema(self):
+        """Test conforms to schema."""
+        check_conforms_to_schema(
             self,
-            "/api/citations/c140db880395cadf318",
-            ["handle", "page", "private"],
+            TEST_URL + "c140db880395cadf318?extend=all&profile=all&backlinks=1",
+            "Citation",
         )
 
-    def test_citations_handle_endpoint_skipkeys(self):
-        """Test response for skipkeys parm."""
-        run_test_endpoint_skipkeys(
+    def test_get_citations_handle_missing_content(self):
+        """Test response for missing content."""
+        check_resource_missing(self, TEST_URL + "does_not_exist")
+
+    def test_get_citations_handle_expected_result(self):
+        """Test response for a specific event."""
+        rv = check_success(self, TEST_URL + "c140db880395cadf318")
+        self.assertEqual(rv["gramps_id"], "C2844")
+        self.assertEqual(rv["source_handle"], "c140d4ef77841431905")
+
+    def test_get_citations_handle_validate_semantics(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(self, TEST_URL + "c140db880395cadf318?junk_parm=1")
+
+    def test_get_citations_handle_parameter_strip_validate_semantics(self):
+        """Test invalid strip parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "c140db880395cadf318?strip", check="boolean"
+        )
+
+    def test_get_citations_handle_parameter_strip_expected_result(self):
+        """Test strip parameter produces expected result."""
+        check_strip_parameter(self, TEST_URL + "c140db880395cadf318")
+
+    def test_get_citations_handle_parameter_keys_validate_semantics(self):
+        """Test invalid keys parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "c140db880395cadf318?keys", check="base"
+        )
+
+    def test_get_citations_handle_parameter_keys_expected_result_single_key(self):
+        """Test keys parameter for some single keys produces expected result."""
+        check_keys_parameter(
             self,
-            "/api/citations/c140db880395cadf318",
-            ["handle", "media_list", "tag_list"],
+            TEST_URL + "c140db880395cadf318",
+            ["attribute_list", "handle", "tag_list"],
         )
 
-    def test_citations_handle_endpoint_extend(self):
-        """Test response for extend parm."""
-        driver = [
-            {"arg": "media_list", "key": "media", "type": List},
-            {"arg": "note_list", "key": "notes", "type": List},
-            {"arg": "source_handle", "key": "source", "type": Dict},
-            {"arg": "tag_list", "key": "tags", "type": List},
-        ]
-        run_test_endpoint_extend(self, "/api/citations/c140db880395cadf318", driver)
-
-    def test_citations_handle_endpoint_schema(self):
-        """Test the citation schema with extensions."""
-        # check citation record conforms to expected schema
-        result = self.client.get("/api/citations/c140db880395cadf318?extend=all")
-        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
-        validate(
-            instance=result.json,
-            schema=API_SCHEMA["definitions"]["Citation"],
-            resolver=resolver,
+    def test_get_citations_handle_parameter_keys_expected_result_multiple_keys(self):
+        """Test keys parameter for multiple keys produces expected result."""
+        check_keys_parameter(
+            self,
+            TEST_URL + "c140db880395cadf318",
+            [",".join(["attribute_list", "handle", "tag_list"])],
         )
+
+    def test_get_citations_handle_parameter_skipkeys_validate_semantics(self):
+        """Test invalid skipkeys parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "c140db880395cadf318?skipkeys", check="base"
+        )
+
+    def test_get_citations_handle_parameter_skipkeys_expected_result_single_key(self):
+        """Test skipkeys parameter for some single keys produces expected result."""
+        check_skipkeys_parameter(
+            self,
+            TEST_URL + "c140db880395cadf318",
+            ["attribute_list", "handle", "tag_list"],
+        )
+
+    def test_get_citations_handle_parameter_skipkeys_expected_result_multiple_keys(
+        self,
+    ):
+        """Test skipkeys parameter for multiple keys produces expected result."""
+        check_skipkeys_parameter(
+            self,
+            TEST_URL + "c140db880395cadf318",
+            [",".join(["attribute_list", "handle", "tag_list"])],
+        )
+
+    def test_get_citations_handle_parameter_extend_validate_semantics(self):
+        """Test invalid extend parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "c140db880395cadf318?extend", check="list"
+        )
+
+    def test_get_citations_handle_parameter_extend_expected_result_media_list(self):
+        """Test extend media_list result."""
+        check_single_extend_parameter(
+            self,
+            TEST_URL + "c140db880395cadf318",
+            "media_list",
+            "media",
+            reference=True,
+        )
+
+    def test_get_citations_handle_parameter_extend_expected_result_notes(self):
+        """Test extend notes result."""
+        check_single_extend_parameter(
+            self, TEST_URL + "c140db880395cadf318", "note_list", "notes"
+        )
+
+    def test_get_citations_handle_parameter_extend_expected_result_source_handle(self):
+        """Test extend source_handle result."""
+        check_single_extend_parameter(
+            self, TEST_URL + "c140db880395cadf318", "source_handle", "source"
+        )
+
+    def test_get_citations_handle_parameter_extend_expected_result_tag_list(self):
+        """Test extend tag_list result."""
+        check_single_extend_parameter(
+            self, TEST_URL + "c140db880395cadf318", "tag_list", "tags"
+        )
+
+    def test_get_citations_handle_parameter_extend_expected_result_all(self):
+        """Test extend all result."""
+        rv = check_success(
+            self, TEST_URL + "c140db880395cadf318?extend=all&keys=extended"
+        )
+        self.assertEqual(len(rv["extended"]), 4)
+        for key in ["media", "notes", "source", "tags"]:
+            self.assertIn(key, rv["extended"])
+
+    def test_get_citations_handle_parameter_extend_expected_result_multiple_keys(self):
+        """Test extend result for multiple keys."""
+        rv = check_success(
+            self,
+            TEST_URL
+            + "c140db880395cadf318?extend=note_list,tag_list&keys=note_list,tag_list,extended",
+        )
+        self.assertEqual(len(rv["extended"]), 2)
+        self.assertIn("notes", rv["extended"])
+        self.assertIn("tags", rv["extended"])
+
+    def test_get_citations_handle_parameter_backlinks_validate_semantics(self):
+        """Test invalid backlinks parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "c140db880395cadf318?backlinks", check="boolean"
+        )
+
+    def test_get_citations_handle_parameter_backlinks_expected_result(self):
+        """Test backlinks expected result."""
+        rv = check_boolean_parameter(
+            self, TEST_URL + "c140db880395cadf318", "backlinks"
+        )
+        for key in ["a5af0ecb107303354a0"]:
+            self.assertIn(key, rv["backlinks"]["event"])
+
+    def test_get_citations_handle_parameter_backlinks_expected_results_extended(self):
+        """Test backlinks extended result."""
+        rv = check_success(
+            self, TEST_URL + "c140db880395cadf318?backlinks=1&extend=backlinks"
+        )
+        self.assertIn("backlinks", rv)
+        self.assertIn("extended", rv)
+        self.assertIn("backlinks", rv["extended"])
+        for obj in rv["extended"]["backlinks"]["event"]:
+            self.assertIn(obj["handle"], ["a5af0ecb107303354a0"])

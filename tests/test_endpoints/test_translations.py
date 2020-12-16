@@ -23,9 +23,17 @@
 
 import unittest
 
-from jsonschema import RefResolver, validate
+from . import BASE_URL, get_test_client
+from .checks import (
+    check_conforms_to_schema,
+    check_invalid_semantics,
+    check_invalid_syntax,
+    check_requires_token,
+    check_resource_missing,
+    check_success,
+)
 
-from tests.test_endpoints import API_SCHEMA, get_test_client
+TEST_URL = BASE_URL + "/translations/"
 
 
 class TestTranslations(unittest.TestCase):
@@ -36,18 +44,25 @@ class TestTranslations(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_translations_endpoint_schema(self):
-        """Test all translations against the translation schema."""
-        result = self.client.get("/api/translations/")
-        # check some minimum number of expected translations found
-        self.assertGreaterEqual(len(result.json), 39)
-        # check all records found conform to expected schema
-        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
-        validate(
-            instance=result.json,
-            schema=API_SCHEMA["definitions"]["Translations"],
-            resolver=resolver,
-        )
+    def test_get_translations_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL)
+
+    def test_get_translations_validate_semantics(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(self, TEST_URL + "?junk")
+
+    def test_get_translations_conforms_to_schema(self):
+        """Test conformity to schema."""
+        check_conforms_to_schema(self, TEST_URL, "Translations")
+
+    def test_get_translations_expected_result(self):
+        """Test some minimum set of expected values returned."""
+        rv = check_success(self, TEST_URL)
+        self.assertIsInstance(rv, type({}))
+        self.assertGreaterEqual(len(rv), 39)
+        self.assertIn("ar", rv)
+        self.assertIn("zh_TW", rv)
 
 
 class TestTranslationsLanguage(unittest.TestCase):
@@ -58,39 +73,32 @@ class TestTranslationsLanguage(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_translations_language_endpoint_422(self):
-        """Test response for an invalid parm."""
-        # check 422 returned if missing parm
-        result = self.client.get("/api/translations/fr")
-        self.assertEqual(result.status_code, 422)
-        # check 422 returned for bad parm
-        result = self.client.get("/api/translations/fr?junk_parm=1")
-        self.assertEqual(result.status_code, 422)
+    def test_get_translations_language_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL + 'fr?strings=["Birth"]')
 
-    def test_translations_language_endpoint_404(self):
-        """Test response for a unsupported language code."""
-        # check 404 returned for non-existent place
-        result = self.client.get('/api/translations/fake?strings=["Birth"]')
-        self.assertEqual(result.status_code, 404)
+    def test_get_translations_language_validate_syntax(self):
+        """Test invalid syntax."""
+        check_invalid_syntax(self, TEST_URL + "fr?strings=[Birth]")
 
-    def test_translations_language_endpoint_400(self):
-        """Test response for improperly formatted strings argument."""
-        # check 404 returned for non-existent place
-        result = self.client.get("/api/translations/fake?strings=[Birth]")
-        self.assertEqual(result.status_code, 400)
+    def test_get_translations_language_validate_semantics(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(self, TEST_URL + "fr")
+        check_invalid_semantics(self, TEST_URL + "fr?junk_parm=1")
 
-    def test_translations_language_endpoint(self):
-        """Test response for a translation."""
-        # check a single expected translation was returned
-        result = self.client.get('/api/translations/fr?strings=["Birth"]')
-        self.assertEqual(len(result.json), 1)
-        self.assertEqual(
-            result.json[0], {"original": "Birth", "translation": "Naissance"}
-        )
-        # check multiple expected translations were returned
-        result = self.client.get('/api/translations/fr?strings=["Birth", "Death"]')
-        self.assertEqual(len(result.json), 2)
-        self.assertEqual(
-            result.json[0], {"original": "Birth", "translation": "Naissance"}
-        )
-        self.assertEqual(result.json[1], {"original": "Death", "translation": "Décès"})
+    def test_get_translations_language_missing_content(self):
+        """Test response for missing content."""
+        check_resource_missing(self, TEST_URL + 'fake?strings=["Birth"]')
+
+    def test_get_translations_language_expected_result_single_value(self):
+        """Test response for single translation."""
+        rv = check_success(self, TEST_URL + 'fr?strings=["Birth"]')
+        self.assertEqual(len(rv), 1)
+        self.assertEqual(rv[0], {"original": "Birth", "translation": "Naissance"})
+
+    def test_get_translations_language_expected_result_multiple_values(self):
+        """Test response for multiple translations."""
+        rv = check_success(self, TEST_URL + 'fr?strings=["Birth", "Death"]')
+        self.assertEqual(len(rv), 2)
+        self.assertEqual(rv[0], {"original": "Birth", "translation": "Naissance"})
+        self.assertEqual(rv[1], {"original": "Death", "translation": "Décès"})

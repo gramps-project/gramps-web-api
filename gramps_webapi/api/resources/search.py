@@ -72,8 +72,8 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
         {
             "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
             "query": fields.Str(required=True, validate=validate.Length(min=1)),
-            "page": fields.Int(missing=1, required=False),
-            "pagesize": fields.Int(missing=20, required=False),
+            "page": fields.Int(missing=1, validate=validate.Range(min=1)),
+            "pagesize": fields.Int(missing=20, validate=validate.Range(min=1)),
             "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(

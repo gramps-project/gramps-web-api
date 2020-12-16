@@ -27,7 +27,10 @@ from PIL import Image
 
 from gramps_webapi.const import MIME_JPEG
 
-from . import get_test_client
+from . import BASE_URL, get_test_client
+from .checks import check_requires_token, check_success
+
+TEST_URL = BASE_URL + "/media/"
 
 
 class TestFile(unittest.TestCase):
@@ -38,13 +41,18 @@ class TestFile(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_file_endpoint(self):
+    def test_get_file_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL + "b39fe1cfc1305ac4a21/file")
+
+    def test_get_file_endpoint(self):
         """Test reponse for files."""
-        # get all media handles
-        media_objects = self.client.get("/api/media/").json
+        media_objects = check_success(self, TEST_URL)
         assert len(media_objects) == 7
         for obj in media_objects:
-            rv = self.client.get("/api/media/{}/file".format(obj["handle"]))
+            rv = check_success(
+                self, "{}{}/file".format(TEST_URL, obj["handle"]), full=True
+            )
             assert rv.mimetype == obj["mime"]
 
 
@@ -56,45 +64,60 @@ class TestThumbnail(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_thumbnail_endpoint_small(self):
+    def test_get_thumbnail_small_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL + "b39fe1cfc1305ac4a21/thumbnail/20")
+
+    def test_get_thumbnail_small(self):
         """Test reponse for thumbnails."""
-        # get all media handles
-        media_objects = self.client.get("/api/media/").json
+        media_objects = check_success(self, TEST_URL)
         for obj in media_objects:
-            rv = self.client.get("/api/media/{}/thumbnail/20".format(obj["handle"]))
+            rv = check_success(
+                self, "{}{}/thumbnail/20".format(TEST_URL, obj["handle"]), full=True
+            )
             assert rv.mimetype == MIME_JPEG
             img = Image.open(BytesIO(rv.data))
             # long side should be 20 px
             assert max(img.width, img.height) == 20
 
-    def test_thumbnail_endpoint_square(self):
+    def test_get_thumbnail_square(self):
         """Test reponse for square thumbnails."""
-        # get all media handles
-        media_objects = self.client.get("/api/media/").json
+        media_objects = check_success(self, TEST_URL)
         for obj in media_objects:
-            rv = self.client.get(
-                "/api/media/{}/thumbnail/20?square=1".format(obj["handle"])
+            rv = check_success(
+                self,
+                "{}{}/thumbnail/20?square=1".format(TEST_URL, obj["handle"]),
+                full=True,
             )
             # should be small & square
             img = Image.open(BytesIO(rv.data))
             assert img.width == 20
             assert img.height == 20
 
-    def test_thumbnail_endpoint_large(self):
+    def test_get_thumbnail_large_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL + "b39fe1cfc1305ac4a21/thumbnail/10000")
+
+    def test_get_thumbnail_large(self):
         """Test reponse for thumbnails (large)."""
-        # get all media handles
-        media_objects = self.client.get("/api/media/").json
+        media_objects = check_success(self, TEST_URL)
         for obj in media_objects:
             # large thumb: return original image size
-            rv = self.client.get("/api/media/{}/file".format(obj["handle"]))
+            rv = check_success(
+                self, "{}{}/file".format(TEST_URL, obj["handle"]), full=True
+            )
             full_img = Image.open(BytesIO(rv.data))
-            rv = self.client.get("/api/media/{}/thumbnail/10000".format(obj["handle"]))
+            rv = check_success(
+                self, "{}{}/thumbnail/10000".format(TEST_URL, obj["handle"]), full=True
+            )
             thumb = Image.open(BytesIO(rv.data))
             assert full_img.width == thumb.width
             assert full_img.height == thumb.height
             # large square thumb: return cropped original image size
-            rv = self.client.get(
-                "/api/media/{}/thumbnail/10000?square=1".format(obj["handle"])
+            rv = check_success(
+                self,
+                "{}{}/thumbnail/10000?square=1".format(TEST_URL, obj["handle"]),
+                full=True,
             )
             thumb = Image.open(BytesIO(rv.data))
             assert thumb.width == thumb.height
@@ -109,15 +132,24 @@ class TestCropped(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_cropped_endpoint(self):
+    def test_get_cropped_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(
+            self, TEST_URL + "b39fe1cfc1305ac4a21/cropped/10/80/20/100"
+        )
+
+    def test_get_cropped(self):
         """Test reponse for cropped image."""
-        # get all media handles
-        media_objects = self.client.get("/api/media/").json
+        media_objects = check_success(self, TEST_URL)
         for obj in media_objects:
-            rv = self.client.get("/api/media/{}/file".format(obj["handle"]))
+            rv = check_success(
+                self, "{}{}/file".format(TEST_URL, obj["handle"]), full=True
+            )
             full_img = Image.open(BytesIO(rv.data))
-            rv = self.client.get(
-                "/api/media/{}/cropped/10/80/20/100".format(obj["handle"])
+            rv = check_success(
+                self,
+                "{}{}/cropped/10/80/20/100".format(TEST_URL, obj["handle"]),
+                full=True,
             )
             assert rv.mimetype == MIME_JPEG
             img = Image.open(BytesIO(rv.data))
@@ -134,57 +166,76 @@ class TestCroppedThumbnail(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_thumbnail_endpoint_small(self):
+    def test_get_cropped_thumbnail_small_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(
+            self, TEST_URL + "b39fe1cfc1305ac4a21/cropped/10/10/90/90/thumbnail/20"
+        )
+
+    def test_get_cropped_thumbnail_small(self):
         """Test reponse for thumbnails."""
-        # get all media handles
-        media_objects = self.client.get("/api/media/").json
+        media_objects = check_success(self, TEST_URL)
         for obj in media_objects:
-            rv = self.client.get(
-                "/api/media/{}/cropped/10/10/90/90/thumbnail/20".format(obj["handle"])
+            rv = check_success(
+                self,
+                "{}{}/cropped/10/10/90/90/thumbnail/20".format(TEST_URL, obj["handle"]),
+                full=True,
             )
             assert rv.mimetype == MIME_JPEG
             img = Image.open(BytesIO(rv.data))
             # long side should be 20 px
             assert max(img.width, img.height) == 20
 
-    def test_thumbnail_endpoint_square(self):
+    def test_get_cropped_thumbnail_square(self):
         """Test reponse for square thumbnails."""
-        # get all media handles
-        media_objects = self.client.get("/api/media/").json
+        media_objects = check_success(self, TEST_URL)
         for obj in media_objects:
-            rv = self.client.get(
-                "/api/media/{}/cropped/10/10/90/90/thumbnail/20?square=1".format(
-                    obj["handle"]
-                )
+            rv = check_success(
+                self,
+                "{}{}/cropped/10/10/90/90/thumbnail/20?square=1".format(
+                    TEST_URL, obj["handle"]
+                ),
+                full=True,
             )
             # should be small & square
             img = Image.open(BytesIO(rv.data))
             assert img.width == 20
             assert img.height == 20
 
-    def test_thumbnail_endpoint_large(self):
+    def test_get_cropped_thumbnail_large_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(
+            self, TEST_URL + "b39fe1cfc1305ac4a21/cropped/10/10/90/90/thumbnail/10000"
+        )
+
+    def test_get_cropped_thumbnail_large(self):
         """Test reponse for thumbnails (large)."""
-        # get all media handles
-        media_objects = self.client.get("/api/media/").json
+        media_objects = check_success(self, TEST_URL)
         for obj in media_objects:
             # large thumb: return original image size
-            rv = self.client.get(
-                "/api/media/{}/cropped/10/10/90/90".format(obj["handle"])
+            rv = check_success(
+                self,
+                "{}{}/cropped/10/10/90/90".format(TEST_URL, obj["handle"]),
+                full=True,
             )
             full_img = Image.open(BytesIO(rv.data))
-            rv = self.client.get(
-                "/api/media/{}/cropped/10/10/90/90/thumbnail/10000".format(
-                    obj["handle"]
-                )
+            rv = check_success(
+                self,
+                "{}{}/cropped/10/10/90/90/thumbnail/10000".format(
+                    TEST_URL, obj["handle"]
+                ),
+                full=True,
             )
             thumb = Image.open(BytesIO(rv.data))
             assert full_img.width == thumb.width
             assert full_img.height == thumb.height
             # large square thumb: return cropped original image size
-            rv = self.client.get(
-                "/api/media/{}/cropped/10/10/90/90/thumbnail/10000?square=1".format(
-                    obj["handle"]
-                )
+            rv = check_success(
+                self,
+                "{}{}/cropped/10/10/90/90/thumbnail/10000?square=1".format(
+                    TEST_URL, obj["handle"]
+                ),
+                full=True,
             )
             thumb = Image.open(BytesIO(rv.data))
             assert thumb.width == thumb.height

@@ -22,9 +22,10 @@
 
 import unittest
 
-from jsonschema import RefResolver, validate
+from . import BASE_URL, get_test_client
+from .checks import check_conforms_to_schema, check_requires_token
 
-from . import API_SCHEMA, get_test_client
+TEST_URL = BASE_URL + "/metadata/"
 
 
 class TestMetadata(unittest.TestCase):
@@ -35,15 +36,10 @@ class TestMetadata(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_metadata_endpoint_schema(self):
-        """Test response for default types listing."""
-        # check expected number of record types found
-        result = self.client.get("/api/metadata/")
-        self.assertEqual(result.status_code, 200)
-        # check response conforms to schema
-        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
-        validate(
-            instance=result.json,
-            schema=API_SCHEMA["definitions"]["Metadata"],
-            resolver=resolver,
-        )
+    def test_get_metadata_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL)
+
+    def test_get_metadata_conforms_to_schema(self):
+        """Test conforms to schema."""
+        check_conforms_to_schema(self, TEST_URL, "Metadata")

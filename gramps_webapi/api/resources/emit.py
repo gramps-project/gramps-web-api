@@ -20,32 +20,31 @@
 
 """Gramps Json Encoder."""
 
-import inspect
 from typing import Any, Dict, Optional
 
 import gramps.gen.lib as lib
-from flask import Response, current_app
-from flask.json import JSONEncoder
+from flask import Response, current_app, json
 from gramps.gen.db import DbBookmarks
+from gramps.gen.lib.baseobj import BaseObject
 from werkzeug.datastructures import Headers
 
-from ...const import PRIMARY_GRAMPS_OBJECTS
+
+def default(obj: Any):
+    """Default handler for unserializable objects."""
+    current_app.logger.error("Unexpected object type: " + obj.__class__.__name__)
+    return None
 
 
-class GrampsJSONEncoder(JSONEncoder):
+class GrampsJSONEncoder:
     """Customizes Gramps Web API output."""
 
     gramps_class_name = ""
 
     def __init__(self):
         """Initialize class."""
-        JSONEncoder.__init__(self, ensure_ascii=False, sort_keys=True)
         self.strip_empty_keys = False
         self.filter_only_keys = []
         self.filter_skip_keys = []
-        self.gramps_classes = [
-            getattr(lib, key) for key, value in inspect.getmembers(lib, inspect.isclass)
-        ]
 
     def response(
         self,
@@ -76,15 +75,21 @@ class GrampsJSONEncoder(JSONEncoder):
             headers.add("X-Total-Count", total_items)
         else:
             headers = None
+
         return Response(
             status=status,
             headers=headers,
-            response=self.encode(payload),
+            response=json.dumps(
+                self.extract_objects(payload),
+                ensure_ascii=False,
+                sort_keys=True,
+                default=default,
+            ),
             mimetype="application/json",
         )
 
-    def api_filter(self, obj: Any) -> Dict:
-        """Filter data for a Gramps object."""
+    def extract_object(self, obj: Any, apply_filter=True) -> Dict:
+        """Extract and filter attributes for a Gramps object."""
 
         def is_null(value: Any) -> bool:
             """Test for empty value."""
@@ -97,22 +102,15 @@ class GrampsJSONEncoder(JSONEncoder):
             return False
 
         data = {}
-        apply_filter = False
-        if (
-            hasattr(self, "gramps_class_name")
-            and self.gramps_class_name
-            and isinstance(obj, PRIMARY_GRAMPS_OBJECTS[self.gramps_class_name])
-        ):
-            apply_filter = True
         for key, value in obj.__class__.__dict__.items():
-            if key.startswith("_"):
-                key = key[2 + key.find("__") :]
-            if apply_filter:
-                if self.filter_only_keys and key not in self.filter_only_keys:
-                    continue
-                if self.filter_skip_keys and key in self.filter_skip_keys:
-                    continue
             if isinstance(value, property):
+                if key.startswith("_"):
+                    key = key[2 + key.find("__") :]
+                if apply_filter:
+                    if self.filter_only_keys and key not in self.filter_only_keys:
+                        continue
+                    if self.filter_skip_keys and key in self.filter_skip_keys:
+                        continue
                 value = getattr(obj, key)
                 if not self.strip_empty_keys or not is_null(value):
                     data[key] = value
@@ -127,7 +125,6 @@ class GrampsJSONEncoder(JSONEncoder):
                     continue
                 if self.filter_skip_keys and key in self.filter_skip_keys:
                     continue
-            # Values we normalize for schema consistency
             if key == "rect" and value is None:
                 value = []
             if key in ["mother_handle", "father_handle", "famc"] and value is None:
@@ -136,22 +133,40 @@ class GrampsJSONEncoder(JSONEncoder):
                 data[key] = value
         return data
 
-    def default(self, obj: Any):
-        """Our default handler."""
+    def extract_objects(self, obj, level=0):
+        """Recursively extract and filter object attributes."""
+        if isinstance(obj, (str, int, bool)):
+            return obj
         if isinstance(obj, lib.GrampsType):
             return obj.xml_str()
-
-        for gramps_class in self.gramps_classes:
-            if isinstance(obj, gramps_class):
-                return self.api_filter(obj)
-
-        if isinstance(obj, DbBookmarks):
-            return self.api_filter(obj)
-
-        try:
-            return JSONEncoder.default(self, obj)
-        except TypeError:
-            current_app.logger.error(
-                "Unexpected object type: " + obj.__class__.__name__
+        if isinstance(
+            obj,
+            (
+                BaseObject,
+                lib.Date,
+                lib.StyledText,
+                lib.StyledTextTag,
+                lib.Researcher,
+                DbBookmarks,
+            ),
+        ):
+            level = level + 1
+            return self.extract_objects(
+                self.extract_object(obj, bool(level == 1)), level=level
             )
-            return None
+        if isinstance(obj, type([])):
+            result = []
+            for item in obj:
+                result.append(self.extract_objects(item, level=level))
+            return result
+        if isinstance(obj, type({})):
+            result = {}
+            for key in obj:
+                if level == 0:
+                    if self.filter_only_keys and key not in self.filter_only_keys:
+                        continue
+                    if self.filter_skip_keys and key in self.filter_skip_keys:
+                        continue
+                result.update({key: self.extract_objects(obj[key], level=level)})
+            return result
+        return obj

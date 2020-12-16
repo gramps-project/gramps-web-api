@@ -67,7 +67,9 @@ class Sort:
     def by_type_key(self, handle):
         """Compare by type."""
         obj = self.query_method(handle)
-        return self.locale.sort_key(str(obj.get_type()))
+        return self.locale.sort_key(
+            self.locale.translation.sgettext(str(obj.get_type()))
+        )
 
     # Specific object key methods
 
@@ -140,7 +142,7 @@ class Sort:
     def by_family_type_key(self, handle):
         """Compare by relationship type."""
         obj = self.query_method(handle)
-        return self.locale.sort_key(str(obj.get_type()))
+        return self.locale.sort_key(self.locale.translation.sgettext(str(obj.type)))
 
     def by_event_place_key(self, handle):
         """Compare by event place."""
@@ -257,7 +259,7 @@ def sort_objects(db_handle, gramps_class_name, handles, args, locale=glocale):
     elif gramps_class_name == "Family":
         lookup.update(
             {
-                "name": sort.by_family_surname_key,
+                "surname": sort.by_family_surname_key,
                 "type": sort.by_family_type_key,
                 "soundex": sort.by_family_soundex_key,
             }

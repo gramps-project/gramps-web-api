@@ -22,9 +22,16 @@
 
 import unittest
 
-from jsonschema import RefResolver, validate
+from . import BASE_URL, get_test_client
+from .checks import (
+    check_conforms_to_schema,
+    check_invalid_semantics,
+    check_requires_token,
+    check_resource_missing,
+    check_success,
+)
 
-from tests.test_endpoints import API_SCHEMA, get_test_client
+TEST_URL = BASE_URL + "/bookmarks/"
 
 
 class TestBookmarks(unittest.TestCase):
@@ -35,20 +42,40 @@ class TestBookmarks(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_bookmarks_endpoint_schema(self):
-        """Test bookmarks against the bookmark schema."""
-        # check response conforms to schema
-        result = self.client.get("/api/bookmarks/")
-        resolver = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
-        validate(
-            instance=result.json,
-            schema=API_SCHEMA["definitions"]["Bookmarks"],
-            resolver=resolver,
-        )
-        # check bad entry returns 404
-        result = self.client.get("/api/bookmarks/junk")
-        self.assertEqual(result.status_code, 404)
-        # check valid response returned for families
-        result = self.client.get("/api/bookmarks/families")
-        self.assertEqual(result.status_code, 200)
-        self.assertIsInstance(result.json[0], str)
+    def test_get_bookmarks_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL)
+
+    def test_get_bookmarks_conforms_to_schema(self):
+        """Test conformity to schema."""
+        check_conforms_to_schema(self, TEST_URL, "Bookmarks")
+
+    def test_get_bookmarks_validate_semantics(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(self, TEST_URL + "?query")
+
+
+class TestBookmarksNameSpace(unittest.TestCase):
+    """Test cases for the /api/bookmarks/{namespace} endpoint."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_get_bookmarks_namespace_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL + "families")
+
+    def test_get_bookmarks_namespace_expected_result(self):
+        """Test normal response."""
+        rv = check_success(self, TEST_URL + "families")
+        self.assertEqual(rv, ["9OUJQCBOHW9UEK9CNV"])
+
+    def test_get_bookmarks_namespace_missing_content(self):
+        """Test response for missing namespace."""
+        check_resource_missing(self, TEST_URL + "missing")
+
+    def test_get_bookmarks_namespace_validate_semantics(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(self, TEST_URL + "families?query")
