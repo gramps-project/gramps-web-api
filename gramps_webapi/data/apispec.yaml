@@ -934,6 +934,7 @@ paths:
             ------ | --------
             all | Returns all information below
             events | Returns event name, date and location
+            participants | Returns information about the event participants
       responses:
         200:
           description: "OK: Successful operation."
@@ -4660,6 +4661,22 @@ definitions:
         description: "Type of the event."
         type: string
         example: "Birth"
+      participants:
+        description: "People or families participating in the event."
+        type: object
+        properties:
+          people:
+            description: "People participating in the event."
+            type: array
+            items:
+              $ref: "#/definitions/PersonProfile"
+          families:
+            description: "Families participating in the event."
+            type: array
+            items:
+              $ref: "#/definitions/FamilyProfile"
+
+
 
 ##############################################################################
 # Model - EventReference
@@ -5196,7 +5213,7 @@ definitions:
 ##############################################################################
 # Model - CitationProfile
 ##############################################################################
-       
+
   CitationProfile:
     type: object
     properties:
@@ -5216,7 +5233,7 @@ definitions:
         type: object
         items:
           $ref: "#/definitions/SourceProfile"
-    
+
 ##############################################################################
 # Model - Source
 ##############################################################################
@@ -5335,7 +5352,7 @@ definitions:
 ##############################################################################
 # Model - SourceProfile
 ##############################################################################
-           
+
   SourceProfile:
     type: object
     properties:
@@ -5642,7 +5659,7 @@ definitions:
 ##############################################################################
 # Model - MediaProfile
 ##############################################################################
-       
+
   MediaProfile:
     type: object
     properties:
@@ -5654,7 +5671,7 @@ definitions:
         description: "An alternate user managed identifier for the media, usually but not guaranteed to be unique."
         type: string
         example: "O0010"
-        
+
 ##############################################################################
 # Model - Note
 ##############################################################################

@@ -9,7 +9,7 @@ matrix:
     dist: bionic
   - name: "Python 3.8 on Bionic"
     python: 3.8
-    dist: bionic      
+    dist: bionic
 before_install:
   - sudo apt-get -y install appstream pkg-config libcairo2-dev gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev
 install:

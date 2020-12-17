@@ -109,19 +109,71 @@ def get_sex_profile(person: Person) -> str:
     return SEX_UNKNOWN
 
 
+def get_event_participants_for_handle(
+    db_handle: DbReadBase, handle: Handle, locale: GrampsLocale = glocale,
+) -> Dict:
+    """Get event participants given a handle."""
+    result = {"people": [], "families": []}
+    seen = set()  # to avoid duplicates
+    for class_name, backref_handle in db_handle.find_backlink_handles(
+        handle, include_classes=["Person", "Family"]
+    ):
+        if backref_handle in seen:
+            continue
+        seen.add(backref_handle)
+        if class_name == "Person":
+            person = db_handle.get_person_from_handle(backref_handle)
+            if not person:
+                continue
+            for event_ref in person.get_event_ref_list():
+                if handle == event_ref.ref:
+                    result["people"].append(
+                        {
+                            "role": locale.translation.sgettext(
+                                event_ref.get_role().xml_str()
+                            ),
+                            "person": get_person_profile_for_handle(
+                                db_handle, backref_handle, args=[], locale=locale
+                            ),
+                        }
+                    )
+        elif class_name == "Family":
+            family = db_handle.get_family_from_handle(backref_handle)
+            if not family:
+                continue
+            for event_ref in family.get_event_ref_list():
+                if handle == event_ref.ref:
+                    result["families"].append(
+                        {
+                            "role": locale.translation.sgettext(
+                                event_ref.get_role().xml_str()
+                            ),
+                            "family": get_family_profile_for_handle(
+                                db_handle, backref_handle, args=[], locale=locale
+                            ),
+                        }
+                    )
+    return result
+
+
 def get_event_profile_for_object(
     db_handle: DbReadBase,
     event: Event,
+    args: List,
     base_event: Union[Event, None] = None,
     label: str = "span",
     locale: GrampsLocale = glocale,
 ) -> Dict:
     """Get event profile given an Event."""
     result = {
-        "type": locale.translation.sgettext(str(event.type)),
+        "type": locale.translation.sgettext(event.type.xml_str()),
         "date": locale.date_displayer.display(event.date),
         "place": pd.display_event(db_handle, event),
     }
+    if "all" in args or "participants" in args:
+        result["participants"] = get_event_participants_for_handle(
+            db_handle, event.handle, locale=locale
+        )
     if base_event is not None:
         result[label] = (
             Span(base_event.date, event.date)
@@ -134,6 +186,7 @@ def get_event_profile_for_object(
 def get_event_profile_for_handle(
     db_handle: DbReadBase,
     handle: Handle,
+    args: List,
     base_event: Union[Event, None] = None,
     label: str = "span",
     locale: GrampsLocale = glocale,
@@ -144,7 +197,7 @@ def get_event_profile_for_handle(
     except HandleError:
         return {}
     return get_event_profile_for_object(
-        db_handle, obj, base_event=base_event, label=label, locale=locale
+        db_handle, obj, args=args, base_event=base_event, label=label, locale=locale
     )
 
 
@@ -155,7 +208,7 @@ def get_birth_profile(
     event = get_birth_or_fallback(db_handle, person)
     if event is None:
         return {}, None
-    return get_event_profile_for_object(db_handle, event, locale=locale), event
+    return get_event_profile_for_object(db_handle, event, args=[], locale=locale), event
 
 
 def get_death_profile(
@@ -165,7 +218,7 @@ def get_death_profile(
     event = get_death_or_fallback(db_handle, person)
     if event is None:
         return {}, None
-    return get_event_profile_for_object(db_handle, event, locale=locale), event
+    return get_event_profile_for_object(db_handle, event, args=[], locale=locale), event
 
 
 def get_marriage_profile(
@@ -175,7 +228,7 @@ def get_marriage_profile(
     event = get_marriage_or_fallback(db_handle, family)
     if event is None:
         return {}, None
-    return get_event_profile_for_object(db_handle, event, locale=locale), event
+    return get_event_profile_for_object(db_handle, event, args=[], locale=locale), event
 
 
 def get_divorce_profile(
@@ -185,7 +238,7 @@ def get_divorce_profile(
     event = get_divorce_or_fallback(db_handle, family)
     if event is None:
         return {}, None
-    return get_event_profile_for_object(db_handle, event, locale=locale), event
+    return get_event_profile_for_object(db_handle, event, args=[], locale=locale), event
 
 
 def _format_place_type(
@@ -276,6 +329,7 @@ def get_person_profile_for_object(
             get_event_profile_for_handle(
                 db_handle,
                 event_ref.ref,
+                args=options,
                 base_event=birth_event,
                 label="age",
                 locale=locale,
@@ -364,6 +418,7 @@ def get_family_profile_for_object(
             get_event_profile_for_handle(
                 db_handle,
                 event_ref.ref,
+                args=options,
                 base_event=marriage_event,
                 label="span",
                 locale=locale,

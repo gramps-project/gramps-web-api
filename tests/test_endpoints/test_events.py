@@ -50,6 +50,7 @@ class TestEvents(unittest.TestCase):
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
+        cls.maxDiff = None
 
     def test_get_events_requires_token(self):
         """Test authorization required."""
@@ -385,6 +386,27 @@ class TestEvents(unittest.TestCase):
                 "date": "1987-08-29",
                 "place": "Gainesville, Llano, TX, USA",
                 "type": "Birth",
+                "participants": {
+                    "families": [],
+                    "people": [
+                        {
+                            "person": {
+                                "birth": {
+                                    "date": "1987-08-29",
+                                    "place": "Gainesville, Llano, TX, USA",
+                                    "type": "Birth",
+                                },
+                                "death": {},
+                                "gramps_id": "I0001",
+                                "handle": "66TJQC6CC7ZWL9YZ64",
+                                "name_given": "Sarah Suzanne",
+                                "name_surname": "Warner",
+                                "sex": "F",
+                            },
+                            "role": "Primary",
+                        }
+                    ],
+                },
             },
         )
 
@@ -564,6 +586,27 @@ class TestEventsHandle(unittest.TestCase):
                 "date": "1250",
                 "place": "Atchison, Atchison, KS, USA",
                 "type": "Birth",
+                "participants": {
+                    "families": [],
+                    "people": [
+                        {
+                            "person": {
+                                "birth": {
+                                    "date": "1250",
+                                    "place": "Atchison, Atchison, KS, USA",
+                                    "type": "Birth",
+                                },
+                                "death": {"date": "1316", "place": "", "type": "Death"},
+                                "gramps_id": "I1020",
+                                "handle": "H4EKQCFV3436HSKY2D",
+                                "name_given": "Ralph",
+                                "name_surname": "Knudsen",
+                                "sex": "M",
+                            },
+                            "role": "Primary",
+                        }
+                    ],
+                },
             },
         )
 
@@ -576,6 +619,27 @@ class TestEventsHandle(unittest.TestCase):
                 "date": "1250",
                 "place": "Atchison, Atchison, KS, USA",
                 "type": "Geburt",
+                "participants": {
+                    "families": [],
+                    "people": [
+                        {
+                            "person": {
+                                "birth": {
+                                    "date": "1250",
+                                    "place": "Atchison, Atchison, KS, USA",
+                                    "type": "Geburt",
+                                },
+                                "death": {"date": "1316", "place": "", "type": "Tod"},
+                                "gramps_id": "I1020",
+                                "handle": "H4EKQCFV3436HSKY2D",
+                                "name_given": "Ralph",
+                                "name_surname": "Knudsen",
+                                "sex": "M",
+                            },
+                            "role": "Primär",
+                        }
+                    ],
+                },
             },
         )
 

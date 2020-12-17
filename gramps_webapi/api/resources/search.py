@@ -64,7 +64,7 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
                 )
             elif class_name == "event":
                 obj.profile = get_event_profile_for_object(
-                    self.db_handle, obj, locale=locale
+                    self.db_handle, obj, args["profile"], locale=locale
                 )
         return obj
 
