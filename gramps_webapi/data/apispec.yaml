@@ -142,7 +142,7 @@ paths:
 # Endpoint - User
 ##############################################################################
 
-  /user/password/change:
+  /users/{user_name}/password/change:
     post:
       tags:
       - authentication
@@ -151,6 +151,11 @@ paths:
       security:
         - Bearer: []
       parameters:
+      - name: user_name
+        in: path
+        required: true
+        type: string
+        description: "The user name or '-' for the authenticated user."
       - name: Authorization
         in: header
         required: true
@@ -170,13 +175,18 @@ paths:
           description: "Unprocessable Entity: Invalid token."
 
 
-  /user/password/reset/trigger:
+  /users/{user_name}/password/reset/trigger:
     post:
       tags:
       - authentication
       summary: "Trigger a password reset e-mail."
       operationId: triggerResetUserPassword
       parameters:
+      - name: user_name
+        in: path
+        required: true
+        type: string
+        description: "The user name or '-' for the authenticated user."
       - name: username
         in: body
         schema:
@@ -198,7 +208,7 @@ paths:
           description: "Server Error, e.g. failed to send e-mail."
 
 
-  /user/password/reset:
+  /users/-/password/reset:
     post:
       tags:
       - authentication
