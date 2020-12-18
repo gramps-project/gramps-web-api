@@ -46,7 +46,11 @@ class TestWebDbManager(unittest.TestCase):
         """Test if db is locked while open."""
         dbmgr = WebDbManager(self.name)
         self.assertFalse(dbmgr.is_locked())
-        dbstate = dbmgr.get_db()
+        dbstate = dbmgr.get_db(lock=True)
         self.assertTrue(dbmgr.is_locked())
+        dbstate.db.close()
+        self.assertFalse(dbmgr.is_locked())
+        dbstate = dbmgr.get_db(lock=False)
+        self.assertFalse(dbmgr.is_locked())
         dbstate.db.close()
         self.assertFalse(dbmgr.is_locked())
