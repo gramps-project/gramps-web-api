@@ -78,8 +78,8 @@ def register_endpt(resource: Type[Resource], url: str, name: str):
 
 
 # Token
-register_endpt(TokenResource, "/login/", "token")
-register_endpt(TokenRefreshResource, "/refresh/", "token_refresh")
+register_endpt(TokenResource, "/token/", "token")
+register_endpt(TokenRefreshResource, "/token/refresh/", "token_refresh")
 # People
 register_endpt(PersonResource, "/people/<string:handle>", "person")
 register_endpt(PeopleResource, "/people/", "people")

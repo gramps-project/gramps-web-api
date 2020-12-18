@@ -79,7 +79,7 @@ class TestPerson(unittest.TestCase):
         assert rv.status_code == 401
         # fetch a token and try again
         rv = self.client.post(
-            "/api/login/", json={"username": "user", "password": "123"}
+            "/api/token/", json={"username": "user", "password": "123"}
         )
         token = rv.json["access_token"]
         rv = self.client.get(
@@ -92,7 +92,7 @@ class TestPerson(unittest.TestCase):
         assert rv.status_code == 401
         # fetch a token and try again
         rv = self.client.post(
-            "/api/login/", json={"username": "user", "password": "123"}
+            "/api/token/", json={"username": "user", "password": "123"}
         )
         token = rv.json["access_token"]
         rv = self.client.get(
@@ -112,11 +112,11 @@ class TestPerson(unittest.TestCase):
 
     def test_person_endpoint_privacy(self):
         rv = self.client.post(
-            "/api/login/", json={"username": "user", "password": "123"}
+            "/api/token/", json={"username": "user", "password": "123"}
         )
         token_user = rv.json["access_token"]
         rv = self.client.post(
-            "/api/login/", json={"username": "admin", "password": "123"}
+            "/api/token/", json={"username": "admin", "password": "123"}
         )
         token_admin = rv.json["access_token"]
         rv = self.client.get(
@@ -129,44 +129,44 @@ class TestPerson(unittest.TestCase):
         assert len(rv.json) == 2
 
     def test_token_endpoint(self):
-        rv = self.client.post("/api/login/", json={})
+        rv = self.client.post("/api/token/", json={})
         # no username or password provided
         assert rv.status_code == 401
         rv = self.client.post(
-            "/api/login/", json={"username": "user", "password": "234"}
+            "/api/token/", json={"username": "user", "password": "234"}
         )
         # wrong pw
         assert rv.status_code == 403
         rv = self.client.post(
-            "/api/login/", json={"username": "unknown", "password": "123"}
+            "/api/token/", json={"username": "unknown", "password": "123"}
         )
         # wrong user
         assert rv.status_code == 403
         rv = self.client.post(
-            "/api/login/", json={"username": "user", "password": "123"}
+            "/api/token/", json={"username": "user", "password": "123"}
         )
         assert rv.status_code == 200
         assert "refresh_token" in rv.json
         assert "access_token" in rv.json
 
     def test_refresh_token_endpoint(self):
-        rv = self.client.post("/api/refresh/", json={})
+        rv = self.client.post("/api/token/refresh/", json={})
         # no authorization header!
         assert rv.status_code == 401
         # fetch a token and try again
         rv = self.client.post(
-            "/api/login/", json={"username": "user", "password": "123"}
+            "/api/token/", json={"username": "user", "password": "123"}
         )
         refresh_token = rv.json["refresh_token"]
         access_token = rv.json["access_token"]
         # incorrectly send access token instead of refresh token!
         rv = self.client.post(
-            "/api/refresh/",
+            "/api/token/refresh/",
             headers={"Authorization": "Bearer {}".format(access_token)},
         )
         assert rv.status_code == 422
         rv = self.client.post(
-            "/api/refresh/",
+            "/api/token/refresh/",
             headers={"Authorization": "Bearer {}".format(refresh_token)},
         )
         assert rv.status_code == 200

@@ -68,7 +68,7 @@ class TestUser(unittest.TestCase):
 
     def test_change_password_wrong_old_pw(self):
         rv = self.client.post(
-            BASE_URL + "/login/", json={"username": "user", "password": "123"}
+            BASE_URL + "/token/", json={"username": "user", "password": "123"}
         )
         assert rv.status_code == 200
         token = rv.json["access_token"]
@@ -81,7 +81,7 @@ class TestUser(unittest.TestCase):
 
     def test_change_password(self):
         rv = self.client.post(
-            BASE_URL + "/login/", json={"username": "user", "password": "123"}
+            BASE_URL + "/token/", json={"username": "user", "password": "123"}
         )
         assert rv.status_code == 200
         token = rv.json["access_token"]
@@ -92,17 +92,17 @@ class TestUser(unittest.TestCase):
         )
         assert rv.status_code == 201
         rv = self.client.post(
-            BASE_URL + "/login/", json={"username": "user", "password": "123"}
+            BASE_URL + "/token/", json={"username": "user", "password": "123"}
         )
         assert rv.status_code == 403
         rv = self.client.post(
-            BASE_URL + "/login/", json={"username": "user", "password": "456"}
+            BASE_URL + "/token/", json={"username": "user", "password": "456"}
         )
         assert rv.status_code == 200
 
     def test_change_password_twice(self):
         rv = self.client.post(
-            BASE_URL + "/login/", json={"username": "user", "password": "123"}
+            BASE_URL + "/token/", json={"username": "user", "password": "123"}
         )
         assert rv.status_code == 200
         token = rv.json["access_token"]
@@ -148,8 +148,7 @@ class TestUser(unittest.TestCase):
             token = matches[0]
         # try without token!
         rv = self.client.post(
-            BASE_URL + "/user/password/reset/",
-            json={"new_password": "789"},
+            BASE_URL + "/user/password/reset/", json={"new_password": "789"},
         )
         self.assertEqual(rv.status_code, 401)
         # try empty PW!
@@ -175,11 +174,11 @@ class TestUser(unittest.TestCase):
         self.assertEqual(rv.status_code, 409)
         # old password doesn't work anymore
         rv = self.client.post(
-            BASE_URL + "/login/", json={"username": "user", "password": "123"}
+            BASE_URL + "/token/", json={"username": "user", "password": "123"}
         )
         assert rv.status_code == 403
         # new password works!
         rv = self.client.post(
-            BASE_URL + "/login/", json={"username": "user", "password": "789"}
+            BASE_URL + "/token/", json={"username": "user", "password": "789"}
         )
         assert rv.status_code == 200

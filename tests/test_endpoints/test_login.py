@@ -28,7 +28,7 @@ from . import BASE_URL, TEST_USERS, get_test_client
 
 
 class TestLogin(unittest.TestCase):
-    """Test cases for the /api/login endpoint."""
+    """Test cases for the /api/token endpoint."""
 
     @classmethod
     def setUpClass(cls):
@@ -37,13 +37,13 @@ class TestLogin(unittest.TestCase):
 
     def test_login_no_credentials(self):
         """Test login response no credentials."""
-        rv = self.client.post(BASE_URL + "/login/")
+        rv = self.client.post(BASE_URL + "/token/")
         self.assertEqual(rv.status_code, 401)
 
     def test_login_wrong_password(self):
         """Test login response for wrong password."""
         rv = self.client.post(
-            BASE_URL + "/login/",
+            BASE_URL + "/token/",
             json={"username": TEST_USERS[ROLE_OWNER]["name"], "password": "notreal"},
         )
         self.assertEqual(rv.status_code, 403)
@@ -51,7 +51,7 @@ class TestLogin(unittest.TestCase):
     def test_login_wrong_username(self):
         """Test login response for wrong username."""
         rv = self.client.post(
-            BASE_URL + "/login/",
+            BASE_URL + "/token/",
             json={
                 "username": "notreal",
                 "password": TEST_USERS[ROLE_OWNER]["password"],
@@ -62,7 +62,7 @@ class TestLogin(unittest.TestCase):
     def test_login_response(self):
         """Test login response."""
         rv = self.client.post(
-            BASE_URL + "/login/",
+            BASE_URL + "/token/",
             json={
                 "username": TEST_USERS[ROLE_OWNER]["name"],
                 "password": TEST_USERS[ROLE_OWNER]["password"],
