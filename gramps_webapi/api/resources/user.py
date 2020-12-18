@@ -28,7 +28,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from webargs import fields
 
-from ...auth.const import PERM_EDIT_OWN_USER
+from ...auth.const import PERM_EDIT_OTHER_USER, PERM_EDIT_OWN_USER
 from ..util import use_args
 from ..auth import require_permissions
 from ..util import send_email
@@ -47,9 +47,12 @@ class UserChangePasswordResource(ProtectedResource):
         },
         location="json",
     )
-    def post(self, args):
+    def post(self, args, user_name: str):
         """Post new password."""
-        require_permissions([PERM_EDIT_OWN_USER])
+        if user_name == "-":
+            require_permissions([PERM_EDIT_OWN_USER])
+        else:
+            require_permissions([PERM_EDIT_OTHER_USER])
         auth_provider = current_app.config.get("AUTH_PROVIDER")
         if auth_provider is None:
             abort(405)
@@ -71,7 +74,7 @@ def handle_reset_token(username: str, email: str, token: str):
 
 Please click on the following link, or paste this into your browser to complete the process:
 
-{}/api/user/password/reset?jwt={}
+{}/api/users/-/password/reset?jwt={}
 
 If you did not request this, please ignore this e-mail and your password will remain unchanged.
 """.format(
@@ -85,13 +88,13 @@ class UserTriggerResetPasswordResource(Resource):
     """Resource for obtaining a one-time JWT for password reset."""
 
     @limiter.limit("1/second")
-    @use_args(
-        {"username": fields.Str(required=True)}, location="json",
-    )
-    def post(self, args):
+    def post(self, user_name):
         """Post username to initiate the password reset."""
+        if user_name == "-":
+            # password reset trigger not make sense for "own" user since not logged in
+            abort(404)
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        details = auth_provider.get_user_details(args["username"])
+        details = auth_provider.get_user_details(user_name)
         if details is None:
             # user does not exist!
             abort(404)
@@ -99,15 +102,15 @@ class UserTriggerResetPasswordResource(Resource):
         if email is None:
             abort(404)
         token = create_access_token(
-            identity=args["username"],
+            identity=user_name,
             # the hash of the existing password is stored in the token in order
             # to make sure the rest token can only be used once
-            user_claims={"old_hash": auth_provider.get_pwhash(args["username"])},
+            user_claims={"old_hash": auth_provider.get_pwhash(user_name)},
             # password reset has to be triggered within 1h
             expires_delta=datetime.timedelta(hours=1),
         )
         try:
-            handle_reset_token(username=args["username"], email=email, token=token)
+            handle_reset_token(username=user_name, email=email, token=token)
         except ValueError:
             abort(500)
         return "", 201

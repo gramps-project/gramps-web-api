@@ -160,11 +160,17 @@ register_endpt(ExportersResource, "/exporters/", "exporters")
 # Metadata
 register_endpt(MetadataResource, "/metadata/", "metadata")
 # User
-register_endpt(UserChangePasswordResource, "/user/password/change", "change_password")
-register_endpt(UserResetPasswordResource, "/user/password/reset/", "reset_password")
+register_endpt(
+    UserChangePasswordResource,
+    "/users/<string:user_name>/password/change",
+    "change_password",
+)
+register_endpt(
+    UserResetPasswordResource, "/users/-/password/reset/", "reset_password",
+)
 register_endpt(
     UserTriggerResetPasswordResource,
-    "/user/password/reset/trigger/",
+    "/users/<string:user_name>/password/reset/trigger/",
     "trigger_reset_password",
 )
 # Search
