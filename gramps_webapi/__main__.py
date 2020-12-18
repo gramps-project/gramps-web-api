@@ -44,8 +44,7 @@ def cli(ctx, config):
 def run(ctx, port):
     """Run the app."""
     app = ctx.obj
-    # threading is disabled to avoid problems with locked databases
-    app.run(port=port, threaded=False)
+    app.run(port=port, threaded=True)
 
 
 @cli.group("user")
