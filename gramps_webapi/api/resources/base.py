@@ -236,6 +236,8 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         if "sort" in args:
             handles = self.sort_objects(handles, args["sort"], locale=locale)
 
+        total_items = len(handles)
+
         if args["page"] > 0:
             offset = (args["page"] - 1) * args["pagesize"]
             handles = handles[offset : offset + args["pagesize"]]
@@ -250,7 +252,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                 for handle in handles
             ],
             args,
-            total_items=len(handles),
+            total_items=total_items,
         )
 
 
