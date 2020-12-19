@@ -18,7 +18,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 
-"""Timeline collection functions."""
+"""Timeline API resources."""
 from typing import Dict, List, Tuple, Union
 
 from flask import abort
@@ -46,6 +46,17 @@ from .util import get_person_profile_for_object, get_place_profile_for_object
 
 pd = PlaceDisplay()
 
+RELATIVES = [
+    "father",
+    "mother",
+    "brother",
+    "sister",
+    "wife",
+    "husband",
+    "son",
+    "daughter",
+]
+
 EVENT_CATEGORIES = [
     "vital",
     "family",
@@ -64,9 +75,11 @@ EVENT_CATEGORIES = [
 #
 # (Event, Person, relationship, span)
 #
-# A timeline may or may not have a focal person. If it does relationships
+# A timeline may or may not have a anchor person. If it does relationships
 # are calculated with respect to them and the span represents the age
-# of the focal person at the time of the event.
+# of the anchor person at the time of the event. The timeline is framed
+# when a anchor person is present so only events during their lifetime
+# are considered valid.
 
 
 class Timeline:
@@ -77,8 +90,9 @@ class Timeline:
         db_handle: DbReadBase,
         events: Union[List, None] = None,
         relative_events: Union[List, None] = None,
+        relatives: Union[List, None] = None,
         discard_empty: bool = True,
-        omit_focal: bool = True,
+        omit_anchor: bool = True,
         precision: int = 1,
         locale: GrampsLocale = glocale,
     ):
@@ -90,12 +104,13 @@ class Timeline:
         self.discard_empty = discard_empty
         self.precision = precision
         self.locale = locale
-        self.focal_person = None
-        self.omit_focal = omit_focal
+        self.anchor_person = None
+        self.omit_anchor = omit_anchor
         self.eligible_events = []
         self.event_filters = events or []
         self.eligible_relative_events = []
         self.relative_event_filters = relative_events or []
+        self.relative_filters = relatives or []
         self.set_event_filters(self.event_filters)
         self.set_relative_event_filters(self.relative_event_filters)
 
@@ -183,21 +198,21 @@ class Timeline:
     def add_person(
         self,
         handle: Handle,
-        focal: bool = False,
+        anchor: bool = False,
         start: bool = True,
         end: bool = True,
         ancestors: int = 1,
         offspring: int = 1,
     ):
         """Add events for a person to the timeline."""
-        if self.focal_person and handle == self.focal_person.handle:
+        if self.anchor_person and handle == self.anchor_person.handle:
             return
         person = self.db_handle.get_person_from_handle(handle)
         for event_ref in person.event_ref_list:
             event = self.db_handle.get_event_from_handle(event_ref.ref)
             self.add_event((event, person, "self"))
-        if focal and not self.focal_person:
-            self.focal_person = person
+        if anchor and not self.anchor_person:
+            self.anchor_person = person
             if len(self.timeline) > 0:
                 if start or end:
                     self.timeline.sort(
@@ -210,21 +225,29 @@ class Timeline:
 
             for family in person.family_list:
                 self.add_family(
-                    family, focal=person, ancestors=ancestors, offspring=offspring
+                    family, anchor=person, ancestors=ancestors, offspring=offspring
                 )
 
             for family in person.parent_family_list:
                 self.add_family(family, ancestors=ancestors)
 
     def add_relative(self, handle: Handle, ancestors: int = 1, offspring: int = 1):
-        """Add events for a relative of the focal person."""
+        """Add events for a relative of the anchor person."""
         person = self.db_handle.get_person_from_handle(handle)
         calculator = get_relationship_calculator(reinit=True, clocale=self.locale)
         relationship = calculator.get_one_relationship(
-            self.db_handle, self.focal_person, person
+            self.db_handle, self.anchor_person, person
         )
+        if self.relative_filters:
+            found = False
+            for relative in self.relative_filters:
+                if relative in relationship:
+                    found = True
+                    break
+            if not found:
+                return
 
-        if self.relative_event_filters == []:
+        if self.relative_event_filters:
             for event_ref in person.event_ref_list:
                 event = self.db_handle.get_event_from_handle(event_ref.ref)
                 self.add_event((event, person, relationship), relative=True)
@@ -262,31 +285,31 @@ class Timeline:
     def add_family(
         self,
         handle: Handle,
-        focal: Union[Person, None] = None,
+        anchor: Union[Person, None] = None,
         include_children: bool = True,
         ancestors: int = 1,
         offspring: int = 1,
     ):
         """Add events for all family members to the timeline."""
         family = self.db_handle.get_family_from_handle(handle)
-        if focal:
+        if anchor:
             for event_ref in family.event_ref_list:
                 event = self.db_handle.get_event_from_handle(event_ref.ref)
-                self.add_event((event, focal, "self"))
-        if self.focal_person:
+                self.add_event((event, anchor, "self"))
+        if self.anchor_person:
             if (
                 family.father_handle
-                and family.father_handle != self.focal_person.handle
+                and family.father_handle != self.anchor_person.handle
             ):
                 self.add_relative(family.father_handle, ancestors=ancestors)
             if (
                 family.mother_handle
-                and family.mother_handle != self.focal_person.handle
+                and family.mother_handle != self.anchor_person.handle
             ):
                 self.add_relative(family.mother_handle, ancestors=ancestors)
             if include_children:
                 for child in family.child_ref_list:
-                    if child.ref != self.focal_person.handle:
+                    if child.ref != self.anchor_person.handle:
                         self.add_relative(child.ref, offspring=offspring)
         else:
             if family.father_handle:
@@ -305,8 +328,8 @@ class Timeline:
             label = self.locale.translation.sgettext(str(event[0].type))
             if (
                 event[1]
-                and self.focal_person
-                and self.focal_person.handle != event[1].handle
+                and self.anchor_person
+                and self.anchor_person.handle != event[1].handle
                 and event[2] not in ["self", "", None]
             ):
                 label = "{} of {}".format(label, event[2].title())
@@ -321,8 +344,8 @@ class Timeline:
                 place = {}
             person = {}
             if event[1] is not None:
-                if self.focal_person and self.focal_person.handle == event[1].handle:
-                    if not self.omit_focal:
+                if self.anchor_person and self.anchor_person.handle == event[1].handle:
+                    if not self.omit_anchor:
                         person = get_person_profile_for_object(
                             self.db_handle, event[1], {}
                         )
@@ -365,11 +388,15 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
             "offspring": fields.Integer(
                 missing=1, validate=validate.Range(min=1, max=5)
             ),
-            "omit_focal": fields.Boolean(missing=True),
+            "omit_anchor": fields.Boolean(missing=True),
             "precision": fields.Integer(missing=1),
             "relative_events": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
+            ),
+            "relatives": fields.DelimitedList(
+                fields.Str(validate=validate.Length(min=1)),
+                validate=validate.ContainsOnly(choices=RELATIVES),
             ),
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
@@ -387,19 +414,23 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
         relative_event_filters = []
         if "relative_events" in args:
             relative_event_filters = args["relative_events"]
+        relative_filters = []
+        if "relatives" in args:
+            relative_filters = args["relatives"]
         timeline = Timeline(
             get_db_handle(),
             events=event_filters,
             relative_events=relative_event_filters,
+            relatives=relative_filters,
             discard_empty=args["discard_empty"],
-            omit_focal=args["omit_focal"],
+            omit_anchor=args["omit_anchor"],
             precision=args["precision"],
             locale=locale,
         )
         try:
             timeline.add_person(
                 handle,
-                focal=True,
+                anchor=True,
                 start=args["first"],
                 end=args["last"],
                 ancestors=args["ancestors"],
@@ -453,6 +484,7 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
 
     @use_args(
         {
+            "anchor": fields.Str(validate=validate.Length(min=1)),
             "discard_empty": fields.Boolean(missing=True),
             "events": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
@@ -460,18 +492,21 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
             ),
             "filter": fields.Str(validate=validate.Length(min=1)),
             "first": fields.Boolean(missing=True),
-            "focal": fields.Str(validate=validate.Length(min=1)),
             "handles": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "last": fields.Boolean(missing=True),
             "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
-            "omit_focal": fields.Boolean(missing=True),
+            "omit_anchor": fields.Boolean(missing=True),
             "precision": fields.Integer(missing=1),
             "relative_events": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
+            ),
+            "relatives": fields.DelimitedList(
+                fields.Str(validate=validate.Length(min=1)),
+                validate=validate.ContainsOnly(choices=RELATIVES),
             ),
             "rules": fields.Str(validate=validate.Length(min=1)),
             "skipkeys": fields.DelimitedList(
@@ -491,19 +526,23 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
         relative_event_filters = []
         if "relative_events" in args:
             relative_event_filters = args["relative_events"]
+        relative_filters = []
+        if "relatives" in args:
+            relative_filters = args["relatives"]
         timeline = Timeline(
             db_handle,
             events=event_filters,
             relative_events=relative_event_filters,
+            relatives=relative_filters,
             discard_empty=args["discard_empty"],
-            omit_focal=args["omit_focal"],
+            omit_anchor=args["omit_anchor"],
             precision=args["precision"],
             locale=locale,
         )
         try:
-            if "focal" in args:
+            if "anchor" in args:
                 timeline.add_person(
-                    args["focal"], focal=True, start=args["first"], end=args["last"]
+                    args["anchor"], anchor=True, start=args["first"], end=args["last"]
                 )
 
             if "handles" in args:
@@ -514,7 +553,7 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
             if "filter" in args or "rules" in args:
                 handles = apply_filter(db_handle, args, "Person", handles)
 
-            if "focal" in args:
+            if "anchor" in args:
                 for handle in handles:
                     timeline.add_relative(handle)
             else:
