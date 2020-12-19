@@ -8,7 +8,7 @@ info:
 
 
     * More about Gramps and the numerous features it provides for genealogists can be found at https://gramps-project.org
-  version: "0.1.0"
+  version: "0.33.0"
   license:
     name: "GNU GPL v2.0"
     url: "http://www.gnu.org/licenses/old-licenses/gpl-2.0.html"
@@ -26,51 +26,56 @@ securityDefinitions:
     in: header
 
 tags:
-- name: authentication
-  description: Access for presenting credentials.
 - name: people
-  description: Access to person objects.
+  description: Work with people.
 - name: families
-  description: Access to family objects.
+  description: Work with families.
 - name: events
-  description: Access to event objects.
+  description: Work with events.
 - name: places
-  description: Access to place objects.
+  description: Work with places.
 - name: citations
-  description: Access to citation objects.
+  description: Work with citations.
 - name: sources
-  description: Access to source objects.
+  description: Work with sources.
 - name: repositories
-  description: Access to repository objects.
+  description: Work with repositories.
 - name: media
-  description: Access to media objects.
+  description: Work with media.
 - name: notes
-  description: Access to note objects.
+  description: Work with notes.
 - name: tags
-  description: Access to tag objects.
+  description: Work with tags.
 - name: types
-  description: Access to default and custom types.
+  description: Work with default and custom types.
 - name: name-formats
-  description: Access to name formats.
+  description: Work with name formats.
 - name: name-groups
-  description: Access to name group mappings.
+  description: Work with name group mappings.
 - name: bookmarks
-  description: Access to user bookmarks.
+  description: Work with bookmarks.
 - name: filters
-  description: Access to filter management.
+  description: Work with filters.
 - name: translations
-  description: Access to translation service.
+  description: Work with translations.
 - name: relations
-  description: Access to relationship calculator.
+  description: Work with relationship calculator.
+- name: timelines
+  description: Work with timelines.
 - name: search
-  description: Access to search engine.
+  description: Work with search engine.
 - name: reports
-  description: Access to report generating service.
+  description: Work with reports.
 - name: exporters
-  description: Access to family tree exporters.
+  description: Work with exporters.
 - name: metadata
-  description: Access to tree and application metadata.
+  description: Work with metadata.
+- name: authentication
+  description: Authentication services.
+- name: users
+  description: Work with users.
 
+    
 ##############################################################################
 # Endpoint definitions
 ##############################################################################
@@ -78,9 +83,9 @@ tags:
 paths:
 
 ##############################################################################
-# Endpoint - Login
+# Endpoint - Token
 ##############################################################################
-
+    
   /token:
     post:
       tags:
@@ -110,15 +115,12 @@ paths:
         403:
           description: "Forbidden: Bad credentials, authentication failed."
 
-##############################################################################
-# Endpoint - Refresh
-##############################################################################
-
+    
   /token/refresh:
     post:
       tags:
       - authentication
-      summary: "Fetch a fresh JWT access token."
+      summary: "Obtain a fresh JWT access token."
       operationId: refreshToken
       security:
         - Bearer: []
@@ -138,15 +140,15 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid token."
 
+    
 ##############################################################################
 # Endpoint - Users
 ##############################################################################
-
-
+    
   /users:
     get:
       tags:
-      - authentication
+      - users
       summary: "Get information about registered users."
       operationId: getUsers
       security:
@@ -159,10 +161,11 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid token."
 
+    
   /users/{user_name}:
     get:
       tags:
-      - authentication
+      - users
       summary: "Get information about a registered user."
       operationId: getUser
       security:
@@ -184,7 +187,7 @@ paths:
           description: "Unprocessable Entity: Invalid token."
     put:
       tags:
-      - authentication
+      - users
       summary: "Update an existing user's details."
       operationId: updateUser
       security:
@@ -217,7 +220,7 @@ paths:
           description: "Unprocessable Entity: Invalid token."
     post:
       tags:
-      - authentication
+      - users
       summary: "Create a new user."
       operationId: createUser
       security:
@@ -259,7 +262,7 @@ paths:
   /users/{user_name}/password/change:
     post:
       tags:
-      - authentication
+      - users
       summary: "Change a user password."
       operationId: changeUserPassword
       security:
@@ -292,7 +295,7 @@ paths:
   /users/{user_name}/password/reset/trigger:
     post:
       tags:
-      - authentication
+      - users
       summary: "Trigger a password reset e-mail."
       operationId: triggerResetUserPassword
       parameters:
@@ -325,7 +328,7 @@ paths:
   /users/-/password/reset:
     post:
       tags:
-      - authentication
+      - users
       summary: "Reset a user's password using a token from a reset e-mail."
       operationId: resetUserPassword
       security:
@@ -357,7 +360,7 @@ paths:
           description: "Unprocessable Entity: missing password."
     get:
       tags:
-      - authentication
+      - users
       summary: "Display the password reset form."
       security:
         - Bearer: []
@@ -375,7 +378,7 @@ paths:
         405:
           description: "Method Not Allowed: No authorization provider configured."
 
-
+    
 ##############################################################################
 # Endpoint - People
 ##############################################################################
@@ -550,6 +553,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+    
   /people/{handle}:
     get:
       tags:
@@ -649,7 +653,161 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+    
+  /people/{handle}/timeline:
+    get:
+      tags:
+      - people
+      summary: "Get the timeline for a specific person."
+      operationId: getPersonTimeline
+      security:
+        - Bearer: []
+      parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        minLength: 8
+        description: "The unique identifier for a person."
+      - name: first
+        in: query
+        required: false
+        type: boolean
+        default: true
+        description: "Indicates whether or not events dated prior to the first event for the person should be discarded or not."
+      - name: last
+        in: query
+        required: false
+        type: boolean
+        default: true
+        description: "Indicates whether or not events dated after the last event for the person should be discarded or not."
+      - name: ancestors
+        in: query
+        required: false
+        type: integer
+        default: 1
+        description: "The number of generations of ancestors to consider for relevant events."
+      - name: offspring
+        in: query
+        required: false
+        type: integer
+        default: 1
+        description: "The number of generations of offspring to consider for relevant events."
+      - name: events
+        in: query
+        required: false
+        type: string
+        description: >
+          If present a comma delimited list identifying the classes of events that should be considered for inclusion for the person. Note that the birth and death events are always included. If not present the default behaviour is to return all events. A list of available classes is as follows:
+    
 
+            Keyword | Contents
+            ------- | --------
+            vital | Birth, Adoption, Baptism, Death, Burial, Cremation
+            family | Engagement, Marriage, Marriage Settlement, Marriage License, Marriage Contract, Marriage Banns, Marriage, Divorce Filing, Divorce, Annulment, Alternate Marriage
+            religious | Christening, Adult Christening, Confirmation, First Communion, Blessing, Bar Mitzvah, Bas Mitzvah, Religion
+            vocational | Occupation, Retirement, Elected, Military Service, Ordination
+            academic | Education, Degree, Graduation
+            travel | Emigration, Immigration, Naturalization
+            legal | Probate, Will
+            residence | Residence, Census, Property
+            other | Cause of Death, Medical Information, Title of Nobility, Number of Marriages
+            custom | All user defined custom events
+      - name: relatives
+        in: query
+        required: false
+        type: string
+        description: >
+          If present a comma delimited list identifying the types of relationships a relative needs to have to consider their events for inclusion in the timeline. If not present the default behaviour is to consider all of them. A list of available types is as follows:
+
+
+            Relation | Notes
+            -------- | -----
+            father | Matches fathers and grand fathers
+            mother | Matches mothers and grand mothers
+            brother | Matches brothers
+            sister | Matches sisters
+            wife | Matches wife
+            husband | Matches husband
+            son | Matches sons and grand sons
+            daughter | Matches daughters and grand daughters"
+      - name: relative_events
+        in: query
+        required: false
+        type: string
+        description: >
+          If present a comma delimited list identifying the classes of events that should be considered for inclusion for relatives of the person. Note that the birth and death events are always included. If not present the default behaviour is to return the birth, marriage, divorce and death events. A list of available classes is as follows:
+    
+
+            Keyword | Contents
+            ------- | --------
+            vital | Birth, Adoption, Baptism, Death, Burial, Cremation
+            family | Engagement, Marriage, Marriage Settlement, Marriage License, Marriage Contract, Marriage Banns, Marriage, Divorce Filing, Divorce, Annulment, Alternate Marriage
+            religious | Christening, Adult Christening, Confirmation, First Communion, Blessing, Bar Mitzvah, Bas Mitzvah, Religion
+            vocational | Occupation, Retirement, Elected, Military Service, Ordination
+            academic | Education, Degree, Graduation
+            travel | Emigration, Immigration, Naturalization
+            legal | Probate, Will
+            residence | Residence, Census, Property
+            other | Cause of Death, Medical Information, Title of Nobility, Number of Marriages
+            custom | All user defined custom events
+      - name: precision
+        in: query
+        required: false
+        type: integer
+        default: 1
+        description: >
+          Selects the number of significant levels for the string representation. Values may be:
+
+            Precision | Description
+            --------- | -----------
+            1 | Only the most significant level (year, month, day)
+            2 | Only the two most significant levels (year, month, day)
+            3 | At most three items of signifance (year, month, day)
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
+      - name: discard_empty
+        in: query
+        required: false
+        type: boolean
+        default: true
+        description: "Indicates whether or not undated events should be discarded. It is recommended to leave this at the default of true."
+      - name: omit_anchor
+        in: query
+        required: false
+        type: boolean
+        default: true
+        description: "Indicates whether or not information for the person the timeline is for should be included in the response for events that pertain specifically to that person. It is recommended to leave this at the default of true."
+      - name: strip
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
+      - name: keys
+        in: query
+        required: false
+        type: string
+        description: "A comma delimited list of specific top level keys to return in the response, omitting all others."
+      - name: skipkeys
+        in: query
+        required: false
+        type: string
+        description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/TimelineEventProfile"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
+    
 ##############################################################################
 # Endpoint - Families
 ##############################################################################
@@ -819,6 +977,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
   /families/{handle}:
     get:
       tags:
@@ -915,6 +1074,80 @@ paths:
           description: "Not Found: Family not found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+
+
+  /families/{handle}/timeline:
+    get:
+      tags:
+      - families
+      summary: "Get the timeline for all the people in a specific family."
+      operationId: getFamilyTimeline
+      security:
+        - Bearer: []
+      parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        minLength: 8
+        description: "The unique identifier for a person."
+      - name: events
+        in: query
+        required: false
+        type: string
+        description: >
+          If present a comma delimited list identifying the classes of events that should be considered for inclusion for the people in the family. Note that the birth and death events are always included. If not present the default behaviour is to return all events. A list of available classes is as follows:
+    
+
+            Keyword | Contents
+            ------- | --------
+            vital | Birth, Adoption, Baptism, Death, Burial, Cremation
+            family | Engagement, Marriage, Marriage Settlement, Marriage License, Marriage Contract, Marriage Banns, Marriage, Divorce Filing, Divorce, Annulment, Alternate Marriage
+            religious | Christening, Adult Christening, Confirmation, First Communion, Blessing, Bar Mitzvah, Bas Mitzvah, Religion
+            vocational | Occupation, Retirement, Elected, Military Service, Ordination
+            academic | Education, Degree, Graduation
+            travel | Emigration, Immigration, Naturalization
+            legal | Probate, Will
+            residence | Residence, Census, Property
+            other | Cause of Death, Medical Information, Title of Nobility, Number of Marriages
+            custom | All user defined custom events
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
+      - name: discard_empty
+        in: query
+        required: false
+        type: boolean
+        default: true
+        description: "Indicates whether or not undated events should be discarded. It is recommended to leave this at the default of true."
+      - name: strip
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
+      - name: keys
+        in: query
+        required: false
+        type: string
+        description: "A comma delimited list of specific top level keys to return in the response, omitting all others."
+      - name: skipkeys
+        in: query
+        required: false
+        type: string
+        description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/TimelineEventProfile"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
 ##############################################################################
 # Endpoint - Events
@@ -1075,6 +1308,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
   /events/{handle}:
     get:
       tags:
@@ -1160,6 +1394,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
   /events/{handle1}/span/{handle2}:
     get:
       tags:
@@ -1216,6 +1451,7 @@ paths:
           description: "Not Found: Event not found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
 ##############################################################################
 # Endpoint - Places
@@ -1373,6 +1609,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
   /places/{handle}:
     get:
       tags:
@@ -1450,6 +1687,7 @@ paths:
           description: "Not Found: Place not found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
 ##############################################################################
 # Endpoint - Citations
@@ -1605,6 +1843,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
   /citations/{handle}:
     get:
       tags:
@@ -1682,6 +1921,7 @@ paths:
           description: "Not Found: Citation not found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
 ##############################################################################
 # Endpoint - Sources
@@ -1827,6 +2067,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
   /sources/{handle}:
     get:
       tags:
@@ -1892,6 +2133,7 @@ paths:
           description: "Not Found: Source not found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
 ##############################################################################
 # Endpoint - Repositories
@@ -2033,6 +2275,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
   /repositories/{handle}:
     get:
       tags:
@@ -2096,6 +2339,7 @@ paths:
           description: "Not Found: Repository not found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
 ##############################################################################
 # Endpoint - Media
@@ -2252,6 +2496,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
   /media/{handle}:
     get:
       tags:
@@ -2329,6 +2574,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
   /media/{handle}/file:
     get:
       tags:
@@ -2353,6 +2599,7 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Media item not found."
+
 
   /media/{handle}/thumbnail/{size}:
     get:
@@ -2389,6 +2636,7 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Media item not found."
+
 
   /media/{handle}/cropped/{x1}/{y1}/{x2}/{y2}:
     get:
@@ -2440,6 +2688,7 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Media item not found."
+
 
   /media/{handle}/cropped/{x1}/{y1}/{x2}/{y2}/thumbnail/{size}:
     get:
@@ -2496,6 +2745,7 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Media item not found."
+
 
 ##############################################################################
 # Endpoint - Notes
@@ -2656,6 +2906,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
   /notes/{handle}:
     get:
       tags:
@@ -2739,6 +2990,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
 ##############################################################################
 # Endpoint - Tags
 ##############################################################################
@@ -2811,9 +3063,9 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: No tags found."
-
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
   /tags/{handle}:
     get:
@@ -2858,6 +3110,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
 ##############################################################################
 # Endpoint - Types
 ##############################################################################
@@ -2886,6 +3139,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
   /types/default:
     get:
       tags:
@@ -2909,6 +3163,7 @@ paths:
           description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
   /types/default/{datatype}:
     get:
@@ -2948,6 +3203,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
   /types/default/{datatype}/map:
     get:
       tags:
@@ -2974,6 +3230,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
   /types/custom:
     get:
       tags:
@@ -2997,6 +3254,7 @@ paths:
           description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
   /types/custom/{datatype}:
     get:
@@ -3034,6 +3292,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
 ##############################################################################
 # Endpoint - NameFormats
 ##############################################################################
@@ -3056,6 +3315,7 @@ paths:
         401:
           description: "Unauthorized: Missing authorization header."
 
+
 ##############################################################################
 # Endpoint - NameGroups
 ##############################################################################
@@ -3077,6 +3337,7 @@ paths:
               $ref: "#/definitions/NameGroupMapping"
         401:
           description: "Unauthorized: Missing authorization header."
+
 
   /name-groups/{surname}:
     get:
@@ -3101,6 +3362,7 @@ paths:
           description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
+
 
   /name-groups/{surname}/{group}:
     post:
@@ -3133,6 +3395,7 @@ paths:
         404:
           description: "Not Found: Missing surname."
 
+
 ##############################################################################
 # Endpoint - Bookmarks
 ##############################################################################
@@ -3152,6 +3415,7 @@ paths:
             $ref: "#/definitions/Bookmarks"
         401:
           description: "Unauthorized: Missing authorization header."
+
 
   /bookmarks/{namespace}:
     get:
@@ -3178,6 +3442,7 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Bookmark type not found."
+
 
 ##############################################################################
 # Endpoint - Filters
@@ -3217,6 +3482,7 @@ paths:
                 $ref: "#/definitions/NamespaceFilters"
         401:
           description: "Unauthorized: Missing authorization header."
+
 
   /filters/{namespace}:
     get:
@@ -3306,6 +3572,7 @@ paths:
         403:
           description: "Forbidden: Bad credentials, authentication failed."
 
+
   /filters/{namespace}/{name}:
     get:
       tags:
@@ -3366,6 +3633,7 @@ paths:
         403:
           description: "Forbidden: Bad credentials, authentication failed."
 
+
 ##############################################################################
 # Endpoint - Translations
 ##############################################################################
@@ -3385,6 +3653,7 @@ paths:
             $ref: "#/definitions/Translations"
         401:
           description: "Unauthorized: Missing authorization header."
+
 
   /translations/{language}:
     get:
@@ -3420,6 +3689,7 @@ paths:
           description: "Not Found: Language code was not found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
 ##############################################################################
 # Endpoint - Relations
@@ -3467,6 +3737,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
   /relations/{handle1}/{handle2}/all:
     get:
       tags:
@@ -3508,6 +3779,269 @@ paths:
           description: "Not Found: One of the handles was not found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+
+
+##############################################################################
+# Endpoint - Timelines
+##############################################################################
+
+  /timelines/people/:
+    get:
+      tags:
+      - timelines
+      summary: "Get the timeline for a group of people."
+      operationId: getPeopleTimeline
+      security:
+        - Bearer: []
+      parameters:
+      - name: anchor
+        in: query
+        required: false
+        type: string
+        description: "If provided the handle of a person to anchor the timeline."
+      - name: first
+        in: query
+        required: false
+        type: boolean
+        default: true
+        description: "If an anchor person was provided then indicates whether or not events dated prior to the first event for the anchor person should be discarded or not."
+      - name: last
+        in: query
+        required: false
+        type: boolean
+        default: true
+        description: "If an anchor person was provided then indicates whether or not events dated after the last event for the anchor person should be discarded or not."
+      - name: handles
+        in: query
+        required: false
+        type: string
+        minLength: 8
+        description: "A comma delimited list of handles for specific people to put on the timeline. If not provided everyone in the database is evaluated."
+      - name: filter
+        in: query
+        required: false
+        type: string
+        description: "The name of an existing custom people filter to be applied to generate the list of people to put on the timeline."
+      - name: rules
+        in: query
+        required: false
+        type: string
+        description: >
+          A user defined custom filter expression consisting of one of more filter rules to be used when generating the result set.
+
+
+          This filter is built and applied dynamically, it is not saved like a custom filter. It consists of one or more rules acting in combination, some of which can accept custom filters as arguments.
+
+
+          The expression must be provided in JSON format and a number of fields are not required and have defaults if not present. The structure is defined as follows:
+
+
+          {"function": function, "invert": invert, "rules": [{"name": name, "values": [values], "regex": regex}]}
+
+
+          The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
+
+
+          The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
+
+
+          The rules consists of the list of rules to be evaluated. It is a mandatory field.
+
+
+          The name in a rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
+
+
+          The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
+
+
+          The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
+      - name: events
+        in: query
+        required: false
+        type: string
+        description: >
+          If present a comma delimited list identifying the classes of events that should be considered for inclusion for the people. Note that the birth and death events are always included. If not present the default behaviour is to return all events. A list of available classes is as follows:
+    
+
+            Keyword | Contents
+            ------- | --------
+            vital | Birth, Adoption, Baptism, Death, Burial, Cremation
+            family | Engagement, Marriage, Marriage Settlement, Marriage License, Marriage Contract, Marriage Banns, Marriage, Divorce Filing, Divorce, Annulment, Alternate Marriage
+            religious | Christening, Adult Christening, Confirmation, First Communion, Blessing, Bar Mitzvah, Bas Mitzvah, Religion
+            vocational | Occupation, Retirement, Elected, Military Service, Ordination
+            academic | Education, Degree, Graduation
+            travel | Emigration, Immigration, Naturalization
+            legal | Probate, Will
+            residence | Residence, Census, Property
+            other | Cause of Death, Medical Information, Title of Nobility, Number of Marriages
+            custom | All user defined custom events
+      - name: precision
+        in: query
+        required: false
+        type: integer
+        default: 1
+        description: >
+          Selects the number of significant levels for the string representation. Values may be:
+
+            Precision | Description
+            --------- | -----------
+            1 | Only the most significant level (year, month, day)
+            2 | Only the two most significant levels (year, month, day)
+            3 | At most three items of signifance (year, month, day)
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
+      - name: discard_empty
+        in: query
+        required: false
+        type: boolean
+        default: true
+        description: "Indicates whether or not undated events should be discarded. It is recommended to leave this at the default of true."
+      - name: omit_anchor
+        in: query
+        required: false
+        type: boolean
+        default: true
+        description: "Indicates whether or not information for the person the timeline is for should be included in the response for events that pertain specifically to that person. It is recommended to leave this at the default of true."
+      - name: strip
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
+      - name: keys
+        in: query
+        required: false
+        type: string
+        description: "A comma delimited list of specific top level keys to return in the response, omitting all others."
+      - name: skipkeys
+        in: query
+        required: false
+        type: string
+        description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/TimelineEventProfile"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
+
+  /timelines/families/:
+    get:
+      tags:
+      - timelines
+      summary: "Get the timeline for all the people in a group of families."
+      operationId: getFamiliesTimeline
+      security:
+        - Bearer: []
+      parameters:
+      - name: handles
+        in: query
+        required: false
+        type: string
+        minLength: 8
+        description: "A comma delimited list of handles for specific families to put on the timeline. If not provided every family in the database is evaluated."
+      - name: filter
+        in: query
+        required: false
+        type: string
+        description: "The name of an existing custom family filter to be applied to generate the list of families to put on the timeline."
+      - name: rules
+        in: query
+        required: false
+        type: string
+        description: >
+          A user defined custom filter expression consisting of one of more filter rules to be used when generating the result set.
+
+
+          This filter is built and applied dynamically, it is not saved like a custom filter. It consists of one or more rules acting in combination, some of which can accept custom filters as arguments.
+
+
+          The expression must be provided in JSON format and a number of fields are not required and have defaults if not present. The structure is defined as follows:
+
+
+          {"function": function, "invert": invert, "rules": [{"name": name, "values": [values], "regex": regex}]}
+
+
+          The function value is a string for the logical operation. Valid values are 'and', 'or', 'xor' and 'one'. If not present the default is 'and'.
+
+
+          The invert value is a boolean, true or false, that indicates if the results should be inverted. If not present the default is false.
+
+
+          The rules consists of the list of rules to be evaluated. It is a mandatory field.
+
+
+          The name in a rule entry is the name of a predefined rule.  A list of rules with their names and descriptions can be obtained from the filters endpoint. It is a mandatory field.
+
+
+          The values list in the rule entry is optional and defaults to an empty list if not present.  Some rules take no arguments and others may take one or more arguments of different types that would need to be provided here.
+
+
+          The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
+      - name: events
+        in: query
+        required: false
+        type: string
+        description: >
+          If present a comma delimited list identifying the classes of events that should be considered for inclusion for the people in the families. Note that the birth and death events are always included. If not present the default behaviour is to return all events. A list of available classes is as follows:
+    
+
+            Keyword | Contents
+            ------- | --------
+            vital | Birth, Adoption, Baptism, Death, Burial, Cremation
+            family | Engagement, Marriage, Marriage Settlement, Marriage License, Marriage Contract, Marriage Banns, Marriage, Divorce Filing, Divorce, Annulment, Alternate Marriage
+            religious | Christening, Adult Christening, Confirmation, First Communion, Blessing, Bar Mitzvah, Bas Mitzvah, Religion
+            vocational | Occupation, Retirement, Elected, Military Service, Ordination
+            academic | Education, Degree, Graduation
+            travel | Emigration, Immigration, Naturalization
+            legal | Probate, Will
+            residence | Residence, Census, Property
+            other | Cause of Death, Medical Information, Title of Nobility, Number of Marriages
+            custom | All user defined custom events
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
+      - name: discard_empty
+        in: query
+        required: false
+        type: boolean
+        default: true
+        description: "Indicates whether or not undated events should be discarded. It is recommended to leave this at the default of true."
+      - name: strip
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether keys with empty values should be stripped out of the response or not."
+      - name: keys
+        in: query
+        required: false
+        type: string
+        description: "A comma delimited list of specific top level keys to return in the response, omitting all others."
+      - name: skipkeys
+        in: query
+        required: false
+        type: string
+        description: "A comma delimited list of specific top level keys to omit from a response, keeping all others."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/TimelineEventProfile"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    
 
 ##############################################################################
 # Endpoint - Search
@@ -3579,6 +4113,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
 ##############################################################################
 # Endpoint - Reports
 ##############################################################################
@@ -3602,6 +4137,7 @@ paths:
           description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
   /reports/{report_id}:
     get:
@@ -3628,6 +4164,7 @@ paths:
           description: "Not Found: Report id not found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
   /reports/{report_id}/file:
     get:
@@ -3672,6 +4209,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
 ##############################################################################
 # Endpoint - Exporters
 ##############################################################################
@@ -3695,6 +4233,7 @@ paths:
           description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
   /exporters/{extension}:
     get:
@@ -3721,6 +4260,7 @@ paths:
           description: "Not Found: Exporter not found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
   /exporters/{extension}/file:
     get:
@@ -3887,6 +4427,7 @@ paths:
           description: "Not Found: Exporter not found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
 ##############################################################################
 # Endpoint - Metadata
@@ -4822,8 +5363,6 @@ definitions:
             items:
               $ref: "#/definitions/FamilyProfile"
 
-
-
 ##############################################################################
 # Model - EventReference
 ##############################################################################
@@ -5094,7 +5633,6 @@ definitions:
         type: string
         example: "c965872719e5db6bfe5fc47b033"
 
-
 ##############################################################################
 # Model - PlaceProfile
 ##############################################################################
@@ -5130,8 +5668,6 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/PlaceProfile"
-
-
 
 ##############################################################################
 # Model - Address
@@ -6738,3 +7274,93 @@ definitions:
       score:
         type: number
         example: 5.522300827719273
+
+##############################################################################
+# Model - TimelineEventProfile
+##############################################################################
+
+  TimelineEventProfile:
+    type: object
+    properties:
+      age:
+        description: "The age of the person the timeline is for at the time of the event."
+        type: string
+        example: "2 years"
+      date:
+        description: "Date of the event."
+        type: string
+        example: "1857-05-30"
+      description:
+        description: "The event description."
+        type: string
+        example: "Birth of Garner, Rebecca Catharine"
+      gramps_id:
+        description: "An alternate user managed identifier for the event, usually but not guaranteed to be unique."
+        type: string
+        example: "E0200"
+      handle:
+        description: "The unique identifier for the event."
+        type: string
+        example: "a5af0eb8062495c6e0e"
+      label:
+        description: "A generated label for the event type that accounts for the relationship between the people."
+        type: string
+        example: "Birth of Stepsister"
+      media:
+        description: "A list of media item handles for the event."
+        type: array
+        items:
+          type: string
+        example:
+          - ""
+      person:
+        $ref: "#/definitions/TimelinePersonProfile"
+      place:
+        $ref: "#/definitions/PlaceProfile"
+      type:
+        description: "Type of the event."
+        type: string
+        example: "Birth"
+
+##############################################################################
+# Model - TimelinePersonProfile
+##############################################################################
+
+  TimelinePersonProfile:
+    type: object
+    properties:
+      birth:
+        description: "The birth event profile, or best fallback such as baptism, of the person."
+        type: object
+        items:
+          $ref: "#/definitions/EventProfile"
+      death:
+        description: "The death event profile, or best fallback such as burial, of the person."
+        type: object
+        items:
+          $ref: "#/definitions/EventProfile"
+      gramps_id:
+        description: "An alternate user managed identifier for the person, usually but not guaranteed to be unique."
+        type: string
+        example: "I1117"
+      handle:
+        description: "The unique identifier for a person."
+        type: string
+        example: "ORFKQC4KLWEGTGR19L"
+      name_given:
+        description: "Preferred given name of the person."
+        type: string
+        example: "Rebecca Catharine"
+      name_surname:
+        description: "Preferred surname of the person."
+        type: string
+        example: "Garner"
+      relationship:
+        description: "The relationship the person has to the person for whom the timeline is for."
+        type: string
+        example: "stepsister"
+      sex:
+        description: "Simple identifier for gender/sex of the person."
+        type: string
+        example: "M"
+    

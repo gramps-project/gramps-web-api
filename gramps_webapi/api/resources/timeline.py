@@ -500,14 +500,6 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
             "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
             "omit_anchor": fields.Boolean(missing=True),
             "precision": fields.Integer(missing=1),
-            "relative_events": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
-            ),
-            "relatives": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(choices=RELATIVES),
-            ),
             "rules": fields.Str(validate=validate.Length(min=1)),
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
