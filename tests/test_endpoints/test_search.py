@@ -23,8 +23,10 @@
 import shutil
 import tempfile
 import unittest
+from urllib.parse import quote
 
 from gramps_webapi.api.search import SearchIndexer
+from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 
 from . import BASE_URL, get_test_client
 from .checks import (
@@ -33,6 +35,7 @@ from .checks import (
     check_strip_parameter,
     check_success,
 )
+from .util import fetch_header
 
 TEST_URL = BASE_URL + "/search/"
 
@@ -71,10 +74,7 @@ class TestSearchEngine(unittest.TestCase):
         total, rv = self.search.search("Abigail", page=1, pagesize=2)
         self.assertEqual(
             {(hit["object_type"], hit["handle"]) for hit in rv},
-            {
-                ("person", "1QTJQCP5QMT2X7YJDK"),
-                ("person", "APWKQCI6YXAXBLC33I"),
-            },
+            {("person", "1QTJQCP5QMT2X7YJDK"), ("person", "APWKQCI6YXAXBLC33I"),},
         )
 
 
@@ -99,10 +99,10 @@ class TestSearch(unittest.TestCase):
         """Test expected result querying for text."""
         rv = check_success(self, TEST_URL + "?query=microfilm")
         self.assertEqual(
-            [hit["handle"] for hit in rv],
-            ["b39fe2e143d1e599450", "b39fe3f390e30bd2b99"],
+            {hit["handle"] for hit in rv},
+            {"b39fe2e143d1e599450", "b39fe3f390e30bd2b99"},
         )
-        self.assertEqual(rv[0]["object_type"], "note")
+        self.assertIn(rv[0]["object_type"], ["source", "note"])
         self.assertEqual(rv[0]["rank"], 0)
         self.assertIsInstance(rv[0]["score"], float)
 
@@ -139,8 +139,7 @@ class TestSearch(unittest.TestCase):
         )
         self.assertEqual(len(rv.json), 1)
         self.assertEqual(
-            [hit["handle"] for hit in rv.json],
-            ["b39fe2e143d1e599450"],
+            [hit["handle"] for hit in rv.json], ["b39fe3f390e30bd2b99"],
         )
         count = rv.headers.pop("X-Total-Count")
         self.assertEqual(count, "2")
@@ -149,8 +148,7 @@ class TestSearch(unittest.TestCase):
         )
         self.assertEqual(len(rv.json), 1)
         self.assertEqual(
-            [hit["handle"] for hit in rv.json],
-            ["b39fe3f390e30bd2b99"],
+            [hit["handle"] for hit in rv.json], ["b39fe2e143d1e599450"],
         )
         count = rv.headers.pop("X-Total-Count")
         self.assertEqual(count, "2")
@@ -190,3 +188,51 @@ class TestSearch(unittest.TestCase):
         self.assertEqual(rv[0]["object"]["profile"]["name_given"], "Abigail")
         self.assertEqual(rv[0]["object"]["profile"]["birth"]["type"], "Geburt")
         self.assertEqual(rv[0]["object"]["profile"]["death"]["type"], "Tod")
+
+    def test_get_search_private_attribute_guest(self):
+        """Search for a private attribute as owner."""
+        header = fetch_header(self.client, role=ROLE_GUEST)
+        # the guest won't find any results when searching for the private attribute
+        rv = self.client.get(TEST_URL + "?query=123-456-7890", headers=header)
+        self.assertEqual(len(rv.json), 0)
+        rv = self.client.get(
+            TEST_URL + "?query=text_private:123-456-7890", headers=header
+        )
+        self.assertEqual(len(rv.json), 0)
+
+    def test_get_search_private_attribute_owner(self):
+        """Search for a private attribute as owner."""
+        header = fetch_header(self.client, role=ROLE_OWNER)
+        # the owner will get a hit when searching for the private attribute
+        rv = self.client.get(TEST_URL + "?query=123-456-7890", headers=header)
+        self.assertEqual(len(rv.json), 1)
+        self.assertEqual(rv.json[0]["object"]["gramps_id"], "I0044")
+        rv = self.client.get(
+            TEST_URL + "?query=text_private:123-456-7890", headers=header
+        )
+        self.assertEqual(len(rv.json), 1)
+        self.assertEqual(rv.json[0]["object"]["gramps_id"], "I0044")
+        rv = self.client.get(TEST_URL + "?query=text:123-456-7890", headers=header)
+        self.assertEqual(len(rv.json), 0)
+
+    def test_get_search_explicit_fields_owner(self):
+        """Search for a private attribute as owner."""
+        header = fetch_header(self.client, role=ROLE_OWNER)
+        rv = self.client.get(
+            TEST_URL
+            + "?query={}".format(quote("type:repository changed:'2012 to now'")),
+            headers=header,
+        )
+        self.assertEqual(len(rv.json), 1)
+        self.assertEqual(rv.json[0]["object"]["gramps_id"], "R0002")
+
+    def test_get_search_explicit_fields_guest(self):
+        """Search for a private attribute as owner."""
+        header = fetch_header(self.client, role=ROLE_GUEST)
+        rv = self.client.get(
+            TEST_URL
+            + "?query={}".format(quote("type:repository changed:'2012 to now'")),
+            headers=header,
+        )
+        self.assertEqual(len(rv.json), 1)
+        self.assertEqual(rv.json[0]["object"]["gramps_id"], "R0002")

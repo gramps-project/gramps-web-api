@@ -21,66 +21,107 @@
 """Full-text search utilities."""
 
 from collections import OrderedDict
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Generator, Tuple
 
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.lib import Name
 from whoosh import index
-from whoosh.fields import ID, TEXT, Schema
-from whoosh.qparser import QueryParser
-from whoosh.searching import Hit, ResultsPage
+from whoosh.fields import BOOLEAN, DATETIME, ID, TEXT, Schema
+from whoosh.qparser import FieldsPlugin, MultifieldParser, QueryParser
+from whoosh.qparser.dateparse import DateParserPlugin
+from whoosh.query import Term
+from whoosh.searching import Hit
 
 from ..const import PRIMARY_GRAMPS_OBJECTS
-from ..types import FilenameOrPath, Handle
+from ..types import FilenameOrPath
 
 
-def object_to_string(obj):
-    """Create a string from a Gramps object's textual pieces."""
+def object_to_strings(obj) -> Tuple[str, str]:
+    """Create strings from a Gramps object's textual pieces.
+
+    This function returns a tuple of two strings: the first one contains
+    the concatenated string of the object and the strings of all
+    non-private child objects. The second contains the concatenated
+    strings of all private child objects."""
     strings = obj.get_text_data_list()
+    private_strings = []
     if hasattr(obj, "gramps_id") and obj.gramps_id not in strings:
+        # repositories and notes currently don't have gramps_id on their
+        # text_data_list, so it is added here explicitly if missing
         strings.append(obj.gramps_id)
     for child_obj in obj.get_text_data_child_list():
         if hasattr(child_obj, "get_text_data_list"):
-            strings += child_obj.get_text_data_list()
+            if hasattr(child_obj, "private") and child_obj.private:
+                private_strings += child_obj.get_text_data_list()
+            else:
+                strings += child_obj.get_text_data_list()
             if isinstance(child_obj, Name):
                 # for names, need to iterate one level deeper to also find surnames
                 for grandchild_obj in child_obj.get_text_data_child_list():
                     if hasattr(grandchild_obj, "get_text_data_list"):
-                        strings += grandchild_obj.get_text_data_list()
+                        if hasattr(child_obj, "private") and child_obj.private:
+                            private_strings += grandchild_obj.get_text_data_list()
+                        else:
+                            strings += grandchild_obj.get_text_data_list()
     # discard duplicate strings but keep order
     strings = OrderedDict.fromkeys(strings)
-    return " ".join(strings)
+    private_strings = OrderedDict.fromkeys(private_strings)
+    return " ".join(strings), " ".join(private_strings)
 
 
-def iter_obj_strings(
-    db_handle: DbReadBase,
-) -> Generator[Tuple[str, Handle, str], None, None]:
+def iter_obj_strings(db_handle: DbReadBase,) -> Generator[Dict[str, Any], None, None]:
     """Iterate over object strings in the whole database."""
     for class_name in PRIMARY_GRAMPS_OBJECTS:
         query_method = db_handle.method("get_%s_from_handle", class_name)
         iter_method = db_handle.method("iter_%s_handles", class_name)
         for handle in iter_method():
             obj = query_method(handle)
-            obj_string = object_to_string(obj)
+            obj_string, obj_string_private = object_to_strings(obj)
+            private = hasattr(obj, "private") and obj.private
             if obj_string:
-                yield class_name, obj.handle, obj_string
+                yield {
+                    "class_name": class_name,
+                    "handle": obj.handle,
+                    "private": private,
+                    "string": obj_string,
+                    "string_private": obj_string_private,
+                    "changed": datetime.fromtimestamp(obj.change),
+                }
 
 
 class SearchIndexer:
     """Full-text search indexer."""
 
+    # schema for searches of all (public + private) info
     SCHEMA = Schema(
-        class_name=ID(stored=True),
+        type=ID(stored=True),
         handle=ID(stored=True, unique=True),
-        text=TEXT(stored=True),
+        private=BOOLEAN(stored=True),
+        text=TEXT(),
+        text_private=TEXT(),
+        changed=DATETIME(),
+    )
+
+    # schema for searches of public info only
+    SCHEMA_PUBLIC = Schema(
+        type=ID(stored=True),
+        handle=ID(stored=True, unique=True),
+        text=TEXT(),
+        changed=DATETIME(),
     )
 
     def __init__(self, index_dir=FilenameOrPath):
         """Initialize given an index dir path."""
         self.index_dir = Path(index_dir)
         self.index_dir.mkdir(exist_ok=True)
-        self.query_parser = QueryParser("text", schema=self.SCHEMA)
+        # query parser for all (public + private) content
+        self.query_parser_all = MultifieldParser(
+            ["text", "text_private"], schema=self.SCHEMA
+        )
+        # query parser for public content only
+        self.query_parser_public = QueryParser("text", schema=self.SCHEMA_PUBLIC)
 
     def index(self, overwrite=False):
         """Return the index; create if doesn't exist."""
@@ -92,9 +133,13 @@ class SearchIndexer:
     def reindex_full(self, db_handle: DbReadBase):
         """Reindex the whole database."""
         with self.index(overwrite=True).writer() as writer:
-            for class_name, handle, obj_string in iter_obj_strings(db_handle):
+            for obj_dict in iter_obj_strings(db_handle):
                 writer.add_document(
-                    class_name=class_name.lower(), handle=handle, text=obj_string
+                    type=obj_dict["class_name"].lower(),
+                    handle=obj_dict["handle"],
+                    text=obj_dict["string"],
+                    text_private=obj_dict["string_private"],
+                    changed=obj_dict["changed"],
                 )
 
     @staticmethod
@@ -102,14 +147,29 @@ class SearchIndexer:
         """Format a search hit."""
         return {
             "handle": hit["handle"],
-            "object_type": hit["class_name"],
+            "object_type": hit["type"],
             "rank": hit.rank,
             "score": hit.score,
         }
 
-    def search(self, query: str, page: int, pagesize: int, extend: bool = False):
-        """Search the index."""
-        parsed_query = self.query_parser.parse(query)
+    def search(
+        self,
+        query: str,
+        page: int,
+        pagesize: int,
+        include_private: bool = True,
+        extend: bool = False,
+    ):
+        """Search the index.
+
+        If `include_private` is true, include also private objects and
+        search in private fields.
+        """
+        query_parser = (
+            self.query_parser_all if include_private else self.query_parser_public
+        )
+        query_parser.add_plugin(DateParserPlugin())
+        parsed_query = query_parser.parse(query)
         with self.index().searcher() as searcher:
             results = searcher.search_page(parsed_query, page, pagesize)
             return results.total, [self.format_hit(hit) for hit in results]
