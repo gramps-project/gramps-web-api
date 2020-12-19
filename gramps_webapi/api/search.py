@@ -108,6 +108,7 @@ class SearchIndexer:
     SCHEMA_PUBLIC = Schema(
         type=ID(stored=True),
         handle=ID(stored=True, unique=True),
+        private=BOOLEAN(stored=True),
         text=TEXT(),
         changed=DATETIME(),
     )
@@ -169,7 +170,9 @@ class SearchIndexer:
             self.query_parser_all if include_private else self.query_parser_public
         )
         query_parser.add_plugin(DateParserPlugin())
+        # if private objects should not be shown, add a mask
+        mask = None if include_private else Term("private", True)
         parsed_query = query_parser.parse(query)
         with self.index().searcher() as searcher:
-            results = searcher.search_page(parsed_query, page, pagesize)
+            results = searcher.search_page(parsed_query, page, pagesize, mask=mask)
             return results.total, [self.format_hit(hit) for hit in results]
