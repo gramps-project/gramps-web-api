@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Dict, Generator, Tuple
 
 from gramps.gen.db.base import DbReadBase
+from gramps.gen.lib import Name
 from whoosh import index
 from whoosh.fields import ID, TEXT, Schema
 from whoosh.qparser import QueryParser
@@ -40,6 +41,11 @@ def object_to_string(obj):
     for child_obj in obj.get_text_data_child_list():
         if hasattr(child_obj, "get_text_data_list"):
             strings += child_obj.get_text_data_list()
+            if isinstance(child_obj, Name):
+                # for names, need to iterate one level deeper to also find surnames
+                for grandchild_obj in child_obj.get_text_data_child_list():
+                    if hasattr(grandchild_obj, "get_text_data_list"):
+                        strings += grandchild_obj.get_text_data_list()
     # discard duplicate strings but keep order
     strings = OrderedDict.fromkeys(strings)
     return " ".join(strings)
