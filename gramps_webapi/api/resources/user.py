@@ -22,22 +22,115 @@
 
 import datetime
 
-from flask import abort, current_app, render_template
+from flask import abort, current_app, jsonify, render_template
 from flask_jwt_extended import create_access_token, get_jwt_claims, get_jwt_identity
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from webargs import fields
 
-from ...auth.const import PERM_EDIT_OTHER_USER, PERM_EDIT_OWN_USER
-from ..util import use_args
+from ...auth.const import (
+    PERM_ADD_USER,
+    PERM_EDIT_OTHER_USER,
+    PERM_EDIT_OWN_USER,
+    PERM_VIEW_OTHER_USER,
+)
 from ..auth import require_permissions
-from ..util import send_email
+from ..util import send_email, use_args
 from . import ProtectedResource, Resource
 
 limiter = Limiter(key_func=get_remote_address)
 
 
-class UserChangePasswordResource(ProtectedResource):
+class UserChangeBase(ProtectedResource):
+    """Base class for user change endpoints."""
+
+    def prepare_edit(self, user_name: str):
+        """Cheks to do before processing the request."""
+        if user_name == "-":
+            require_permissions([PERM_EDIT_OWN_USER])
+            user_name = get_jwt_identity()
+        else:
+            require_permissions([PERM_EDIT_OTHER_USER])
+        auth_provider = current_app.config.get("AUTH_PROVIDER")
+        if auth_provider is None:
+            abort(405)
+        return auth_provider, user_name
+
+
+class UsersResource(ProtectedResource):
+    """Resource for all users."""
+
+    def get(self):
+        """Get users' details."""
+        require_permissions([PERM_VIEW_OTHER_USER])
+        auth_provider = current_app.config.get("AUTH_PROVIDER")
+        if auth_provider is None:
+            abort(405)
+        return jsonify(auth_provider.get_all_user_details()), 200
+
+
+class UserResource(UserChangeBase):
+    """Resource for a single user."""
+
+    def get(self, user_name: str):
+        """Get a user's details."""
+        if user_name == "-":
+            user_name = get_jwt_identity()
+        else:
+            require_permissions([PERM_VIEW_OTHER_USER])
+        auth_provider = current_app.config.get("AUTH_PROVIDER")
+        if auth_provider is None:
+            abort(405)
+        details = auth_provider.get_user_details(user_name)
+        if details is None:
+            # user does not exist
+            abort(404)
+        return jsonify(details), 200
+
+    @use_args(
+        {"email": fields.Str(required=False), "full_name": fields.Str(required=False),},
+        location="json",
+    )
+    def put(self, args, user_name: str):
+        """Update a user's details."""
+        auth_provider, user_name = self.prepare_edit(user_name)
+        auth_provider.modify_user(
+            name=user_name, email=args.get("email"), fullname=args.get("full_name")
+        )
+        return "", 201
+
+    @use_args(
+        {
+            "email": fields.Str(required=True),
+            "full_name": fields.Str(required=True),
+            "password": fields.Str(required=True),
+            "role": fields.Int(required=True),
+        },
+        location="json",
+    )
+    def post(self, args, user_name: str):
+        """Add a new user."""
+        if user_name == "-":
+            # Adding a new user does not make sense "own" user
+            abort(404)
+        auth_provider = current_app.config.get("AUTH_PROVIDER")
+        if auth_provider is None:
+            abort(405)
+        require_permissions([PERM_ADD_USER])
+        try:
+            auth_provider.add_user(
+                name=user_name,
+                password=args["password"],
+                email=args["email"],
+                fullname=args["full_name"],
+                role=args["role"],
+            )
+        except ValueError:
+            abort(409)
+        return "", 201
+
+
+class UserChangePasswordResource(UserChangeBase):
     """Resource for changing a user password."""
 
     @use_args(
@@ -49,14 +142,7 @@ class UserChangePasswordResource(ProtectedResource):
     )
     def post(self, args, user_name: str):
         """Post new password."""
-        if user_name == "-":
-            require_permissions([PERM_EDIT_OWN_USER])
-            user_name = get_jwt_identity()
-        else:
-            require_permissions([PERM_EDIT_OTHER_USER])
-        auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            abort(405)
+        auth_provider, user_name = self.prepare_edit(user_name)
         if len(args["new_password"]) == "":
             abort(400)
         if not auth_provider.authorized(user_name, args["old_password"]):

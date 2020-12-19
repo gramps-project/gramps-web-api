@@ -11,6 +11,7 @@ ROLE_GUEST = 0
 PERM_ADD_USER = "AddUser"
 PERM_EDIT_OWN_USER = "EditOwnUser"
 PERM_EDIT_OTHER_USER = "EditOtherUser"
+PERM_VIEW_OTHER_USER = "ViewOtherUser"
 PERM_DEL_USER = "DeleteUser"
 PERM_VIEW_PRIVATE = "ViewPrivate"
 PERM_EDIT_OBJ = "EditObject"
@@ -23,6 +24,7 @@ PERMISSIONS = {
         PERM_EDIT_OWN_USER,
         PERM_DEL_USER,
         PERM_EDIT_OTHER_USER,
+        PERM_VIEW_OTHER_USER,
         PERM_VIEW_PRIVATE,
         PERM_EDIT_OBJ,
         PERM_ADD_OBJ,

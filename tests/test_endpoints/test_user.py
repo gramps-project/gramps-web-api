@@ -220,3 +220,219 @@ class TestUser(unittest.TestCase):
             BASE_URL + "/token/", json={"username": "user", "password": "789"}
         )
         assert rv.status_code == 200
+
+    def test_show_user(self):
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "user", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token_user = rv.json["access_token"]
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token_owner = rv.json["access_token"]
+        # user can view themselves
+        rv = self.client.get(
+            BASE_URL + "/users/-/",
+            headers={"Authorization": "Bearer {}".format(token_user)},
+        )
+        assert rv.status_code == 200
+        self.assertEqual(
+            rv.json,
+            {
+                "name": "user",
+                "email": "test@example.com",
+                "role": ROLE_MEMBER,
+                "full_name": None,
+            },
+        )
+        # user cannot view others
+        rv = self.client.get(
+            BASE_URL + "/users/owner/",
+            headers={"Authorization": "Bearer {}".format(token_user)},
+        )
+        assert rv.status_code == 403
+        # owner can view others
+        rv = self.client.get(
+            BASE_URL + "/users/user/",
+            headers={"Authorization": "Bearer {}".format(token_owner)},
+        )
+        assert rv.status_code == 200
+        self.assertEqual(
+            rv.json,
+            {
+                "name": "user",
+                "email": "test@example.com",
+                "role": ROLE_MEMBER,
+                "full_name": None,
+            },
+        )
+
+    def test_show_users(self):
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "user", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token_user = rv.json["access_token"]
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token_owner = rv.json["access_token"]
+        # user cannot view users
+        rv = self.client.get(
+            BASE_URL + "/users/",
+            headers={"Authorization": "Bearer {}".format(token_user)},
+        )
+        assert rv.status_code == 403
+        # owner can view users
+        rv = self.client.get(
+            BASE_URL + "/users/",
+            headers={"Authorization": "Bearer {}".format(token_owner)},
+        )
+        assert rv.status_code == 200
+        self.assertEqual(
+            set([user["name"] for user in rv.json]), {"user", "owner"},
+        )
+
+    def test_edit_user(self):
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "user", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token_user = rv.json["access_token"]
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token_owner = rv.json["access_token"]
+        # user can edit themselves
+        rv = self.client.put(
+            BASE_URL + "/users/-/",
+            headers={"Authorization": "Bearer {}".format(token_user)},
+            json={"full_name": "My Name"},
+        )
+        assert rv.status_code == 201
+        rv = self.client.get(
+            BASE_URL + "/users/-/",
+            headers={"Authorization": "Bearer {}".format(token_user)},
+        )
+        assert rv.status_code == 200
+        # email is unchanged!
+        self.assertEqual(
+            rv.json,
+            {
+                "name": "user",
+                "email": "test@example.com",
+                "role": ROLE_MEMBER,
+                "full_name": "My Name",
+            },
+        )
+        # user cannot change others
+        rv = self.client.put(
+            BASE_URL + "/users/owner/",
+            headers={"Authorization": "Bearer {}".format(token_user)},
+            json={"full_name": "My Name"},
+        )
+        assert rv.status_code == 403
+        # owner can edit others
+        rv = self.client.put(
+            BASE_URL + "/users/user/",
+            headers={"Authorization": "Bearer {}".format(token_owner)},
+            json={"full_name": "His Name"},
+        )
+        assert rv.status_code == 201
+        rv = self.client.get(
+            BASE_URL + "/users/user/",
+            headers={"Authorization": "Bearer {}".format(token_owner)},
+        )
+        assert rv.status_code == 200
+        self.assertEqual(
+            rv.json,
+            {
+                "name": "user",
+                "email": "test@example.com",
+                "role": ROLE_MEMBER,
+                "full_name": "His Name",
+            },
+        )
+
+    def test_add_user(self):
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "user", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token_user = rv.json["access_token"]
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_owner = rv.json["access_token"]
+        # user cannot add user
+        rv = self.client.post(
+            BASE_URL + "/users/new_user/",
+            headers={"Authorization": "Bearer {}".format(token_user)},
+            json={
+                "email": "new@example.com",
+                "role": ROLE_MEMBER,
+                "full_name": "My Name",
+                "password": "abc",
+            },
+        )
+        assert rv.status_code == 403
+        # missing password
+        rv = self.client.post(
+            BASE_URL + "/users/new_user/",
+            headers={"Authorization": "Bearer {}".format(token_owner)},
+            json={
+                "email": "new@example.com",
+                "role": ROLE_MEMBER,
+                "full_name": "My Name",
+            },
+        )
+        assert rv.status_code == 422
+        # existing user
+        rv = self.client.post(
+            BASE_URL + "/users/user/",
+            headers={"Authorization": "Bearer {}".format(token_owner)},
+            json={
+                "email": "new@example.com",
+                "role": ROLE_MEMBER,
+                "full_name": "New Name",
+                "password": "abc",
+            },
+        )
+        assert rv.status_code == 409
+        # OK
+        rv = self.client.post(
+            BASE_URL + "/users/new_user/",
+            headers={"Authorization": "Bearer {}".format(token_owner)},
+            json={
+                "email": "new@example.com",
+                "role": ROLE_MEMBER,
+                "full_name": "New Name",
+                "password": "abc",
+            },
+        )
+        assert rv.status_code == 201
+        rv = self.client.get(
+            BASE_URL + "/users/new_user/",
+            headers={"Authorization": "Bearer {}".format(token_owner)},
+        )
+        assert rv.status_code == 200
+        # email is unchanged!
+        self.assertEqual(
+            rv.json,
+            {
+                "email": "new@example.com",
+                "role": ROLE_MEMBER,
+                "full_name": "New Name",
+                "name": "new_user",
+            },
+        )
+        # check token for new user
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "new_user", "password": "abc"}
+        )
+        assert rv.status_code == 200

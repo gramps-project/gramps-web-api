@@ -65,6 +65,8 @@ from .resources.types import (
 from .resources.user import (
     UserChangePasswordResource,
     UserResetPasswordResource,
+    UserResource,
+    UsersResource,
     UserTriggerResetPasswordResource,
 )
 from .util import use_args
@@ -160,6 +162,12 @@ register_endpt(ExportersResource, "/exporters/", "exporters")
 # Metadata
 register_endpt(MetadataResource, "/metadata/", "metadata")
 # User
+register_endpt(
+    UsersResource, "/users/", "users",
+)
+register_endpt(
+    UserResource, "/users/<string:user_name>/", "user",
+)
 register_endpt(
     UserChangePasswordResource,
     "/users/<string:user_name>/password/change",
