@@ -38,6 +38,8 @@ from ..types import FilenameOrPath, Handle
 def object_to_string(obj):
     """Create a string from a Gramps object's textual pieces."""
     strings = obj.get_text_data_list()
+    if hasattr(obj, "gramps_id") and obj.gramps_id not in strings:
+        strings.append(obj.gramps_id)
     for child_obj in obj.get_text_data_child_list():
         if hasattr(child_obj, "get_text_data_list"):
             strings += child_obj.get_text_data_list()
