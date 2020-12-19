@@ -52,6 +52,12 @@ from .resources.repositories import RepositoriesResource, RepositoryResource
 from .resources.search import SearchResource
 from .resources.sources import SourceResource, SourcesResource
 from .resources.tags import TagResource, TagsResource
+from .resources.timeline import (
+    FamilyTimelineResource,
+    PersonTimelineResource,
+    TimelineFamiliesResource,
+    TimelinePeopleResource,
+)
 from .resources.token import TokenRefreshResource, TokenResource
 from .resources.translations import TranslationResource, TranslationsResource
 from .resources.types import (
@@ -83,9 +89,15 @@ def register_endpt(resource: Type[Resource], url: str, name: str):
 register_endpt(TokenResource, "/token/", "token")
 register_endpt(TokenRefreshResource, "/token/refresh/", "token_refresh")
 # People
+register_endpt(
+    PersonTimelineResource, "/people/<string:handle>/timeline", "person-timeline"
+)
 register_endpt(PersonResource, "/people/<string:handle>", "person")
 register_endpt(PeopleResource, "/people/", "people")
 # Families
+register_endpt(
+    FamilyTimelineResource, "/families/<string:handle>/timeline", "family-timeline"
+)
 register_endpt(FamilyResource, "/families/<string:handle>", "family")
 register_endpt(FamiliesResource, "/families/", "families")
 # Events
@@ -94,6 +106,9 @@ register_endpt(
 )
 register_endpt(EventResource, "/events/<string:handle>", "event")
 register_endpt(EventsResource, "/events/", "events")
+# Timelines
+register_endpt(TimelinePeopleResource, "/timeline/people/", "timeline-people")
+register_endpt(TimelineFamiliesResource, "/timeline/families/", "timeline-families")
 # Places
 register_endpt(PlaceResource, "/places/<string:handle>", "place")
 register_endpt(PlacesResource, "/places/", "places")
@@ -144,10 +159,14 @@ register_endpt(TranslationResource, "/translations/<string:language>", "translat
 register_endpt(TranslationsResource, "/translations/", "translations")
 # Relations
 register_endpt(
-    RelationResource, "/relations/<string:handle1>/<string:handle2>", "relation",
+    RelationResource,
+    "/relations/<string:handle1>/<string:handle2>",
+    "relation",
 )
 register_endpt(
-    RelationsResource, "/relations/<string:handle1>/<string:handle2>/all", "relations",
+    RelationsResource,
+    "/relations/<string:handle1>/<string:handle2>/all",
+    "relations",
 )
 # Reports
 register_endpt(ReportFileResource, "/reports/<string:report_id>/file", "report-file")
