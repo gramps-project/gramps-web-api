@@ -51,6 +51,7 @@ class UserChangePasswordResource(ProtectedResource):
         """Post new password."""
         if user_name == "-":
             require_permissions([PERM_EDIT_OWN_USER])
+            user_name = get_jwt_identity()
         else:
             require_permissions([PERM_EDIT_OTHER_USER])
         auth_provider = current_app.config.get("AUTH_PROVIDER")
@@ -58,10 +59,9 @@ class UserChangePasswordResource(ProtectedResource):
             abort(405)
         if len(args["new_password"]) == "":
             abort(400)
-        username = get_jwt_identity()
-        if not auth_provider.authorized(username, args["old_password"]):
+        if not auth_provider.authorized(user_name, args["old_password"]):
             abort(403)
-        auth_provider.modify_user(name=username, password=args["new_password"])
+        auth_provider.modify_user(name=user_name, password=args["new_password"])
         return "", 201
 
 

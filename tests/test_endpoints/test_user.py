@@ -110,10 +110,12 @@ class TestUser(unittest.TestCase):
         rv = self.client.post(
             BASE_URL + "/token/", json={"username": "user", "password": "123"}
         )
+        assert rv.status_code == 200
         token_user = rv.json["access_token"]
         rv = self.client.post(
             BASE_URL + "/token/", json={"username": "owner", "password": "123"}
         )
+        assert rv.status_code == 200
         token_owner = rv.json["access_token"]
         # user can't change owner's PW
         rv = self.client.post(
