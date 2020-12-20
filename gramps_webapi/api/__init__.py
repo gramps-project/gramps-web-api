@@ -107,8 +107,8 @@ register_endpt(
 register_endpt(EventResource, "/events/<string:handle>", "event")
 register_endpt(EventsResource, "/events/", "events")
 # Timelines
-register_endpt(TimelinePeopleResource, "/timeline/people/", "timeline-people")
-register_endpt(TimelineFamiliesResource, "/timeline/families/", "timeline-families")
+register_endpt(TimelinePeopleResource, "/timelines/people/", "timeline-people")
+register_endpt(TimelineFamiliesResource, "/timelines/families/", "timeline-families")
 # Places
 register_endpt(PlaceResource, "/places/<string:handle>", "place")
 register_endpt(PlacesResource, "/places/", "places")

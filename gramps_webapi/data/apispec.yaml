@@ -698,7 +698,16 @@ paths:
         required: false
         type: string
         description: >
-          If present a comma delimited list identifying the classes of events that should be considered for inclusion for the person. Note that the birth and death events are always included. If not present the default behaviour is to return all events. A list of available classes is as follows:
+          If present a comma delimited list of specific events that should be considered for inclusion for the person. Note birth and death events are always included. If not present the default behaviour is to return all events.
+
+    
+          Note the event names may be for specific default or custom events, no distinction is made.
+      - name: event_classes
+        in: query
+        required: false
+        type: string
+        description: >
+          If present a comma delimited list identifying the classes of events that should be considered for inclusion for the person. Note that the birth and death events are always included. If not present the default behaviour is to return all events. A list of available event classes is as follows:
     
 
             Keyword | Contents
@@ -736,7 +745,16 @@ paths:
         required: false
         type: string
         description: >
-          If present a comma delimited list identifying the classes of events that should be considered for inclusion for relatives of the person. Note that the birth and death events are always included. If not present the default behaviour is to return the birth, marriage, divorce and death events. A list of available classes is as follows:
+          If present a comma delimited list of specific events that should be considered for inclusion for relatives of the person. Note that birth and death events are always included. If not present the default behaviour is to return the birth, marriage, divorce and death events.
+
+    
+          Note the event names may be for specific default or custom events, no distinction is made.
+      - name: relative_event_classes
+        in: query
+        required: false
+        type: string
+        description: >
+          If present a comma delimited list identifying the classes of events that should be considered for inclusion for relatives of the person. Note that the birth and death events are always included. If not present the default behaviour is to return the birth, marriage, divorce and death events. A list of available event classes is as follows:
     
 
             Keyword | Contents
@@ -1096,7 +1114,16 @@ paths:
         required: false
         type: string
         description: >
-          If present a comma delimited list identifying the classes of events that should be considered for inclusion for the people in the family. Note that the birth and death events are always included. If not present the default behaviour is to return all events. A list of available classes is as follows:
+          If present a comma delimited list of specific events that should be considered for inclusion for the people in the family. Note birth and death events are always included. If not present the default behaviour is to return all events.
+
+    
+          Note the event names may be for specific default or custom events, no distinction is made.
+      - name: event_classes
+        in: query
+        required: false
+        type: string
+        description: >
+          If present a comma delimited list identifying the classes of events that should be considered for inclusion for the people in the family. Note that the birth and death events are always included. If not present the default behaviour is to return all events. A list of available event classes is as follows:
     
 
             Keyword | Contents
@@ -3860,7 +3887,16 @@ paths:
         required: false
         type: string
         description: >
-          If present a comma delimited list identifying the classes of events that should be considered for inclusion for the people. Note that the birth and death events are always included. If not present the default behaviour is to return all events. A list of available classes is as follows:
+          If present a comma delimited list of specific events that should be considered for inclusion for the people. Note birth and death events are always included. If not present the default behaviour is to return all events.
+
+    
+          Note the event names may be for specific default or custom events, no distinction is made.
+      - name: event_classes
+        in: query
+        required: false
+        type: string
+        description: >
+          If present a comma delimited list identifying the classes of events that should be considered for inclusion for the people. Note that the birth and death events are always included. If not present the default behaviour is to return all events. A list of available event classes is as follows:
     
 
             Keyword | Contents
@@ -3990,7 +4026,16 @@ paths:
         required: false
         type: string
         description: >
-          If present a comma delimited list identifying the classes of events that should be considered for inclusion for the people in the families. Note that the birth and death events are always included. If not present the default behaviour is to return all events. A list of available classes is as follows:
+          If present a comma delimited list of specific events that should be considered for inclusion for the people in the families. Note birth and death events are always included. If not present the default behaviour is to return all events.
+
+    
+          Note the event names may be for specific default or custom events, no distinction is made.
+      - name: event_classes
+        in: query
+        required: false
+        type: string
+        description: >
+          If present a comma delimited list identifying the classes of events that should be considered for inclusion for the people in the families. Note that the birth and death events are always included. If not present the default behaviour is to return all events. A list of available event classes is as follows:
     
 
             Keyword | Contents

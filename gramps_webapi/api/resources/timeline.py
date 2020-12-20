@@ -89,8 +89,8 @@ class Timeline:
         self,
         db_handle: DbReadBase,
         events: Union[List, None] = None,
-        relative_events: Union[List, None] = None,
         relatives: Union[List, None] = None,
+        relative_events: Union[List, None] = None,
         discard_empty: bool = True,
         omit_anchor: bool = True,
         precision: int = 1,
@@ -106,9 +106,9 @@ class Timeline:
         self.locale = locale
         self.anchor_person = None
         self.omit_anchor = omit_anchor
-        self.eligible_events = []
+        self.eligible_events = set([])
         self.event_filters = events or []
-        self.eligible_relative_events = []
+        self.eligible_relative_events = set([])
         self.relative_event_filters = relative_events or []
         self.relative_filters = relatives or []
         self.set_event_filters(self.event_filters)
@@ -148,29 +148,35 @@ class Timeline:
 
     def _prepare_eligible_events(self, event_filters: List):
         """Prepare an event filter list."""
-        eligible_events = []
+        eligible_events = {"Birth", "Death"}
         event_type = EventType()
+        default_event_types = event_type.get_standard_xml()
+        default_event_map = event_type.get_map()
+        custom_event_types = self.db_handle.get_event_types()
+        for key in event_filters:
+            if key in default_event_types:
+                eligible_events.add(key)
+            if key in custom_event_types:
+                eligible_events.add(key)
         for entry in event_type.get_menu_standard_xml():
             event_key = entry[0].lower().replace("life events", "vital")
-            for key in event_filters:
-                if key == event_key:
-                    eligible_events = eligible_events + entry[1]
-                    break
+            if event_key in event_filters:
+                for event_id in entry[1]:
+                    if event_id in default_event_map:
+                        eligible_events.add(default_event_map[event_id])
+                break
         if "custom" in event_filters:
-            eligible_events.append(event_type.CUSTOM)
-        if event_type.BIRTH not in eligible_events:
-            eligible_events.append(event_type.BIRTH)
-        if event_type.DEATH not in eligible_events:
-            eligible_events.append(event_type.DEATH)
+            for event_name in custom_event_types:
+                eligible_events.add(event_name)
         return eligible_events
 
     def is_eligible(self, event: Event, relative: bool):
         """Check if an event is eligible for the timeline."""
         if relative:
-            return int(event.get_type()) in self.eligible_relative_events
+            return str(event.get_type()) in self.eligible_relative_events
         if self.event_filters == []:
             return True
-        return int(event.get_type()) in self.eligible_events
+        return str(event.get_type()) in self.eligible_events
 
     def add_event(self, event: Tuple, relative=False):
         """Add event to timeline if needed."""
@@ -254,22 +260,22 @@ class Timeline:
 
         event = get_birth_or_fallback(self.db_handle, person)
         if event:
-            self.add_event((event, person, relationship))
+            self.add_event((event, person, relationship), relative=True)
 
         event = get_death_or_fallback(self.db_handle, person)
         if event:
-            self.add_event((event, person, relationship))
+            self.add_event((event, person, relationship), relative=True)
 
         for family_handle in person.family_list:
             family = self.db_handle.get_family_from_handle(family_handle)
 
             event = get_marriage_or_fallback(self.db_handle, family)
             if event:
-                self.add_event((event, person, relationship))
+                self.add_event((event, person, relationship), relative=True)
 
             event = get_divorce_or_fallback(self.db_handle, family)
             if event:
-                self.add_event((event, person, relationship))
+                self.add_event((event, person, relationship), relative=True)
 
             if offspring > 1:
                 for child_ref in family.child_ref_list:
@@ -332,7 +338,7 @@ class Timeline:
                 and self.anchor_person.handle != event[1].handle
                 and event[2] not in ["self", "", None]
             ):
-                label = "{} of {}".format(label, event[2].title())
+                label = "{} ({})".format(label, event[2].title())
             try:
                 obj = self.db_handle.get_place_from_handle(event[0].place)
                 place = get_place_profile_for_object(
@@ -368,6 +374,16 @@ class Timeline:
         return profiles
 
 
+def prepare_events(args: Dict):
+    """Prepare events list."""
+    events = []
+    if "events" in args:
+        events = args["events"]
+    if "event_classes" in args:
+        events = events + args["event_classes"]
+    return events
+
+
 class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
     """Person timeline resource."""
 
@@ -377,10 +393,11 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
                 missing=1, validate=validate.Range(min=1, max=5)
             ),
             "discard_empty": fields.Boolean(missing=True),
-            "events": fields.DelimitedList(
+            "event_classes": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
             ),
+            "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "first": fields.Boolean(missing=True),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "last": fields.Boolean(missing=True),
@@ -390,9 +407,12 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
             ),
             "omit_anchor": fields.Boolean(missing=True),
             "precision": fields.Integer(missing=1),
-            "relative_events": fields.DelimitedList(
+            "relative_event_classes": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
+            ),
+            "relative_events": fields.DelimitedList(
+                fields.Str(validate=validate.Length(min=1)),
             ),
             "relatives": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
@@ -408,20 +428,20 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
     def get(self, args: Dict, handle: str):
         """Get list of events in timeline for a person."""
         locale = get_locale_for_language(args["locale"], default=True)
-        event_filters = []
-        if "events" in args:
-            event_filters = args["events"]
-        relative_event_filters = []
-        if "relative_events" in args:
-            relative_event_filters = args["relative_events"]
-        relative_filters = []
+        events = prepare_events(args)
+        relatives = []
         if "relatives" in args:
-            relative_filters = args["relatives"]
+            relatives = args["relatives"]
+        relative_events = []
+        if "relative_events" in args:
+            relative_events = args["relative_events"]
+        if "relative_event_classes" in args:
+            relative_events = relative_events + args["relative_event_classes"]
         timeline = Timeline(
             get_db_handle(),
-            events=event_filters,
-            relative_events=relative_event_filters,
-            relatives=relative_filters,
+            events=events,
+            relatives=relatives,
+            relative_events=relative_events,
             discard_empty=args["discard_empty"],
             omit_anchor=args["omit_anchor"],
             precision=args["precision"],
@@ -447,10 +467,11 @@ class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
     @use_args(
         {
             "discard_empty": fields.Boolean(missing=True),
-            "events": fields.DelimitedList(
+            "event_classes": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
             ),
+            "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "locale": fields.Str(missing=None),
             "skipkeys": fields.DelimitedList(
@@ -463,12 +484,10 @@ class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
     def get(self, args: Dict, handle: str):
         """Get list of events in timeline for a family."""
         locale = get_locale_for_language(args["locale"], default=True)
-        event_filters = []
-        if "events" in args:
-            event_filters = args["events"]
+        events = prepare_events(args)
         timeline = Timeline(
             get_db_handle(),
-            events=event_filters,
+            events=events,
             discard_empty=args["discard_empty"],
             locale=locale,
         )
@@ -486,10 +505,11 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
         {
             "anchor": fields.Str(validate=validate.Length(min=1)),
             "discard_empty": fields.Boolean(missing=True),
-            "events": fields.DelimitedList(
+            "event_classes": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
             ),
+            "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "filter": fields.Str(validate=validate.Length(min=1)),
             "first": fields.Boolean(missing=True),
             "handles": fields.DelimitedList(
@@ -512,20 +532,10 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
         """Get consolidated list of events in timeline for a list of people."""
         db_handle = get_db_handle()
         locale = get_locale_for_language(args["locale"], default=True)
-        event_filters = []
-        if "events" in args:
-            event_filters = args["events"]
-        relative_event_filters = []
-        if "relative_events" in args:
-            relative_event_filters = args["relative_events"]
-        relative_filters = []
-        if "relatives" in args:
-            relative_filters = args["relatives"]
+        events = prepare_events(args)
         timeline = Timeline(
             db_handle,
-            events=event_filters,
-            relative_events=relative_event_filters,
-            relatives=relative_filters,
+            events=events,
             discard_empty=args["discard_empty"],
             omit_anchor=args["omit_anchor"],
             precision=args["precision"],
@@ -562,10 +572,11 @@ class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
     @use_args(
         {
             "discard_empty": fields.Boolean(missing=True),
-            "events": fields.DelimitedList(
+            "event_classes": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
             ),
+            "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "filter": fields.Str(validate=validate.Length(min=1)),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "handles": fields.DelimitedList(
@@ -584,12 +595,10 @@ class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
         """Get consolidated list of events in timeline for a list of families."""
         db_handle = get_db_handle()
         locale = get_locale_for_language(args["locale"], default=True)
-        event_filters = []
-        if "events" in args:
-            event_filters = args["events"]
+        events = prepare_events(args)
         timeline = Timeline(
             db_handle,
-            events=event_filters,
+            events=events,
             discard_empty=args["discard_empty"],
             locale=locale,
         )
