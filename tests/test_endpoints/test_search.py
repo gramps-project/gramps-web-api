@@ -71,10 +71,13 @@ class TestSearchEngine(unittest.TestCase):
 
     def test_search_method(self):
         """Test search engine returns an expected result."""
-        total, rv = self.search.search("Abigail", page=1, pagesize=2)
+        total, rv = self.search.search("Lewis von", page=1, pagesize=2)
         self.assertEqual(
             {(hit["object_type"], hit["handle"]) for hit in rv},
-            {("person", "1QTJQCP5QMT2X7YJDK"), ("person", "APWKQCI6YXAXBLC33I"),},
+            {
+                ("person", "GNUJQCL9MD64AM56OH"),
+                ("note", "d0436be64ac277b615b79b34e72"),
+            },
         )
 
 
@@ -169,10 +172,10 @@ class TestSearch(unittest.TestCase):
 
     def test_get_search_parameter_profile_expected_result(self):
         """Test expected response."""
-        rv = check_success(self, TEST_URL + "?query=Abigail&page=1&profile=all")
+        rv = check_success(self, TEST_URL + "?query=Lewis%20von&page=1&profile=all")
         self.assertEqual(rv[0]["object_type"], "person")
         self.assertIn("profile", rv[0]["object"])
-        self.assertEqual(rv[0]["object"]["profile"]["name_given"], "Abigail")
+        self.assertEqual(rv[0]["object"]["profile"]["name_given"], "Lewis Anderson")
 
     def test_get_search_parameter_locale_validate_semantics(self):
         """Test invalid locale parameter and values."""
@@ -182,10 +185,10 @@ class TestSearch(unittest.TestCase):
 
     def test_get_search_parameter_profile_expected_result_with_locale(self):
         """Test expected profile response for a locale."""
-        rv = check_success(self, TEST_URL + "?query=Abigail&profile=self&locale=de")
+        rv = check_success(self, TEST_URL + "?query=Lewis%20von&profile=self&locale=de")
         self.assertEqual(rv[0]["object_type"], "person")
         self.assertIn("profile", rv[0]["object"])
-        self.assertEqual(rv[0]["object"]["profile"]["name_given"], "Abigail")
+        self.assertEqual(rv[0]["object"]["profile"]["name_given"], "Lewis Anderson")
         self.assertEqual(rv[0]["object"]["profile"]["birth"]["type"], "Geburt")
         self.assertEqual(rv[0]["object"]["profile"]["death"]["type"], "Tod")
 
