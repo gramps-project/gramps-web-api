@@ -21,8 +21,10 @@
 
 """Note API resource."""
 
-from typing import Dict
+import json
+from typing import Dict, Optional
 
+from flask import abort
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.lib import Note
 from gramps.gen.utils.grampslocale import GrampsLocale
@@ -54,18 +56,32 @@ class NoteResourceHelper(GrampsObjectResourceHelper):
                 for fmt in args["formats"]
                 if fmt.lower() in set(self.FORMATS_SUPPORTED)
             ]
+            if args.get("format_options"):
+                try:
+                    format_options = json.loads(args["format_options"])
+                except json.JSONDecodeError:
+                    abort(400)
+            else:
+                format_options = None
             obj.formatted = {
-                fmt: self.get_formatted_note(note=obj, fmt=fmt)
+                fmt: self.get_formatted_note(note=obj, fmt=fmt, options=format_options)
                 for fmt in formats_allowed
             }
         if "extend" in args:
             obj.extended = get_extended_attributes(self.db_handle, obj, args)
         return obj
 
-    def get_formatted_note(self, note: Note, fmt: str) -> str:
+    def get_formatted_note(
+        self, note: Note, fmt: str, options: Optional[Dict] = None
+    ) -> str:
         """Get the note text in a specific format."""
+
         if fmt.lower() == "html":
-            return get_note_html(note)
+            if options is not None:
+                link_format = options.get("link_format")
+            else:
+                link_format = None
+            return get_note_html(note, link_format=link_format)
         raise ValueError("Format {} not known or supported.".format(fmt))
 
 

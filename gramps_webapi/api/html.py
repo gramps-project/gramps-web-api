@@ -20,10 +20,15 @@
 
 """HTML backend for styled text."""
 
+from typing import Callable, Optional
+
 import bleach
 from gramps.gen.lib import Note, NoteType, StyledText
 from gramps.plugins.lib.libhtml import Html
 from gramps.plugins.lib.libhtmlbackend import HtmlBackend, process_spaces
+
+from .util import get_db_handle
+
 
 ALLOWED_TAGS = [
     "a",
@@ -75,24 +80,57 @@ def sanitize(html: str):
     )
 
 
-def get_note_html(note: Note):
+def get_note_html(note: Note, link_format: Optional[str] = None) -> str:
     """Return a note text as sanitized HTML."""
     html_note_text = styledtext_to_html(
         styledtext=note.get_styledtext(),
         space_format=note.get_format(),
         contains_html=(note.get_type() == NoteType.HTML_CODE),
+        link_format=link_format,
     )
     return sanitize(html_note_text)
 
 
+def build_link_factory(link_format: Optional[str] = None) -> Optional[Callable]:
+    """Return a build link function."""
+    if link_format is None:
+        return None
+
+    def build_link(prop: str, handle: str, obj_class: str) -> str:
+        """Build a link to an item."""
+        db_handle = get_db_handle()
+        if prop == "gramps_id":
+            gramps_id = handle
+            func = db_handle.method("get_%s_from_gramps_id", obj_class)
+            obj = func(gramps_id)
+            ref = obj.handle
+        elif prop == "handle":
+            ref = handle
+            func = db_handle.method("get_%s_from_handle", obj_class)
+            obj = func(ref)
+            gramps_id = obj.gramps_id
+        else:
+            raise ValueError("Unexpected property: {}".format(prop))
+        return link_format.format(
+            obj_class=obj_class.lower(), gramps_id=gramps_id, handle=ref
+        )
+
+    return build_link
+
+
 def styledtext_to_html(
-    styledtext: StyledText, space_format: int, contains_html: bool = False
+    styledtext: StyledText,
+    space_format: int,
+    contains_html: bool = False,
+    link_format: Optional[str] = None,
 ):
     """Return the note in HTML format.
 
     Adapted from DynamicWeb.
     """
     backend = HtmlBackend()
+    if link_format is not None:
+        backend.build_link = build_link_factory(link_format)
 
     text = str(styledtext)
 
