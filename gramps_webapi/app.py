@@ -74,7 +74,7 @@ def create_app(db_manager=None):
     try:
         app.config["SEARCH_INDEXER"].reindex_full(db)
     except:
-        app.logger.exception()
+        app.logger.exception("Error during indexing")
     finally:
         db.close()
     app.logger.info("Done building search index.")

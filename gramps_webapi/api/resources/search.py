@@ -28,8 +28,9 @@ from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 
-from ..util import use_args
-from ..util import get_db_handle, get_locale_for_language
+from ...auth.const import PERM_VIEW_PRIVATE
+from ..auth import has_permissions
+from ..util import get_db_handle, get_locale_for_language, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .util import (
@@ -87,7 +88,13 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
     def get(self, args: Dict):
         """Get search result."""
         searcher = current_app.config["SEARCH_INDEXER"]
-        total, hits = searcher.search(args["query"], args["page"], args["pagesize"])
+        total, hits = searcher.search(
+            query=args["query"],
+            page=args["page"],
+            pagesize=args["pagesize"],
+            # search in private records if allowed to
+            include_private=has_permissions([PERM_VIEW_PRIVATE]),
+        )
         if hits:
             locale = get_locale_for_language(args["locale"], default=True)
             for hit in hits:
