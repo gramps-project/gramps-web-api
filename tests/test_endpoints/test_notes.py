@@ -21,8 +21,10 @@
 
 """Tests for the /api/notes endpoints using example_gramps."""
 
+import json
 import re
 import unittest
+from urllib.parse import quote
 
 from . import BASE_URL, get_object_count, get_test_client
 from .checks import (
@@ -469,3 +471,22 @@ class TestNotesHandle(unittest.TestCase):
         # the HTML stripped of tags should be equal to the pure text string,
         # up to white space
         self.assertEqual(text_stripped, html_stripped)
+
+    def test_get_notes_link_format(self):
+        """Test formatting of internal links."""
+        options = {"link_format": "__{gramps_id}__{handle}__{obj_class}__"}
+        rv = check_success(
+            self,
+            "{}ac380498bac48eedee8?formats=html&format_options={}".format(
+                TEST_URL, quote(json.dumps(options))
+            ),
+        )
+        self.assertIn("formatted", rv)
+        self.assertIn("html", rv["formatted"])
+        html = rv["formatted"]["html"]
+        self.assertIsInstance(html, str)
+        self.assertIn(
+            '<a href="__I0044__GNUJQCL9MD64AM56OH__person__">Lewis Anderson Garner</a>',
+            html,
+        )
+

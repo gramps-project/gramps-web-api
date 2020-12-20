@@ -130,6 +130,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             "formats": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
+            "format_options": fields.Str(validate=validate.Length(min=1)),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
             "profile": fields.DelimitedList(
@@ -190,6 +191,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             "formats": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
+            "format_options": fields.Str(validate=validate.Length(min=1)),
             "gramps_id": fields.Str(validate=validate.Length(min=1)),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
