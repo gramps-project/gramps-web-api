@@ -23,7 +23,7 @@
 import logging
 import os
 
-from flask import Flask, g, send_from_directory
+from flask import abort, Flask, g, send_from_directory
 from flask_compress import Compress
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
@@ -102,7 +102,10 @@ def create_app(db_manager=None):
 
     @app.route("/<path:path>", methods=["GET", "POST"])
     def send_static(path):
-        if path and os.path.exists(os.path.join(app.static_folder, path)):
+        if path.startswith(API_PREFIX[1:]):
+            # we don't want any erroneous API calls to end up here!
+            abort(404)
+        if path and os.path.exists(os.path.join(static_path, path)):
             return send_from_directory(static_path, path)
         else:
             return send_from_directory(static_path, "index.html")
