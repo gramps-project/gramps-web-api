@@ -22,9 +22,10 @@
 import uuid
 from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 import sqlalchemy as sa
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -74,16 +75,19 @@ class SQLAuth:
             raise ValueError("Username must not be empty")
         if password == "":
             raise ValueError("Password must not be empty")
-        with self.session_scope() as session:
-            user = User(
-                id=uuid.uuid4(),
-                name=name,
-                fullname=fullname,
-                email=email,
-                pwhash=hash_password(password),
-                role=role,
-            )
-            session.add(user)
+        try:
+            with self.session_scope() as session:
+                user = User(
+                    id=uuid.uuid4(),
+                    name=name,
+                    fullname=fullname,
+                    email=email,
+                    pwhash=hash_password(password),
+                    role=role,
+                )
+                session.add(user)
+        except IntegrityError:
+            raise ValueError("Invalid or existing user")
 
     def get_guid(self, name: str) -> None:
         """Get the GUID of an existing user by username."""
@@ -138,13 +142,28 @@ class SQLAuth:
             user = session.query(User).filter_by(name=username).one()
             return user.pwhash
 
+    @staticmethod
+    def _get_user_detail(user):
+        return {
+            "name": user.name,
+            "email": user.email,
+            "full_name": user.fullname,
+            "role": user.role,
+        }
+
     def get_user_details(self, username: str) -> Optional[Dict[str, Any]]:
         """Return details about a user."""
         with self.session_scope() as session:
             user = session.query(User).filter_by(name=username).scalar()
             if user is None:
                 return None
-            return {"id": user.id, "email": user.email, "fullname": user.fullname}
+            return self._get_user_detail(user)
+
+    def get_all_user_details(self) -> List[Dict[str, Any]]:
+        """Return details about all users."""
+        with self.session_scope() as session:
+            users = session.query(User).all()
+            return [self._get_user_detail(user) for user in users]
 
     def get_permissions(self, username: str) -> Set[str]:
         """Get the permissions of a given user."""

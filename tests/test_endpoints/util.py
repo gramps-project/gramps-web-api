@@ -28,7 +28,7 @@ from . import TEST_USERS
 def fetch_header(test, role=ROLE_OWNER):
     """Return authorization header with valid token."""
     rv = test.post(
-        "/api/login/",
+        "/api/token/",
         json={
             "username": TEST_USERS[role]["name"],
             "password": TEST_USERS[role]["password"],

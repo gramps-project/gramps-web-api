@@ -81,7 +81,7 @@ paths:
 # Endpoint - Login
 ##############################################################################
 
-  /login:
+  /token:
     post:
       tags:
       - authentication
@@ -114,7 +114,7 @@ paths:
 # Endpoint - Refresh
 ##############################################################################
 
-  /refresh:
+  /token/refresh:
     post:
       tags:
       - authentication
@@ -139,10 +139,124 @@ paths:
           description: "Unprocessable Entity: Invalid token."
 
 ##############################################################################
-# Endpoint - User
+# Endpoint - Users
 ##############################################################################
 
-  /user/password/change:
+
+  /users:
+    get:
+      tags:
+      - authentication
+      summary: "Get information about registered users."
+      operationId: getUsers
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid token."
+
+  /users/{user_name}:
+    get:
+      tags:
+      - authentication
+      summary: "Get information about a registered user."
+      operationId: getUser
+      security:
+        - Bearer: []
+      parameters:
+      - name: user_name
+        in: path
+        required: true
+        type: string
+        description: "The user name or '-' for the authenticated user."
+      responses:
+        200:
+          description: "OK: Successful operation."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not found: User does not exist."
+        422:
+          description: "Unprocessable Entity: Invalid token."
+    put:
+      tags:
+      - authentication
+      summary: "Update an existing user's details."
+      operationId: updateUser
+      security:
+        - Bearer: []
+      parameters:
+      - name: user_name
+        in: path
+        required: true
+        type: string
+        description: "The desired user name of the new user."
+      - name: user_details
+        in: body
+        schema:
+          type: object
+          properties:
+            email:
+              description: "The new user's e-mail address."
+              type: string
+            full_name:
+              description: "The new user's full name."
+              type: string
+      responses:
+        200:
+          description: "OK: Successful operation."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not found: User does not exist."
+        422:
+          description: "Unprocessable Entity: Invalid token."
+    post:
+      tags:
+      - authentication
+      summary: "Create a new user."
+      operationId: createUser
+      security:
+        - Bearer: []
+      parameters:
+      - name: user_name
+        in: path
+        required: true
+        type: string
+        description: "The desired user name of the new user."
+      - name: user_details
+        in: body
+        schema:
+          type: object
+          properties:
+            email:
+              description: "The new user's e-mail address."
+              type: string
+            full_name:
+              description: "The new user's full name."
+              type: string
+            password:
+              description: "The new user's password."
+              type: string
+            role:
+              description: An integer user role ID
+              type: number
+      responses:
+        200:
+          description: "OK: Successful operation."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        409:
+          description: "Conflict: user already exists."
+        422:
+          description: "Unprocessable Entity: Invalid token."
+
+
+  /users/{user_name}/password/change:
     post:
       tags:
       - authentication
@@ -151,6 +265,11 @@ paths:
       security:
         - Bearer: []
       parameters:
+      - name: user_name
+        in: path
+        required: true
+        type: string
+        description: "The user name or '-' for the authenticated user."
       - name: Authorization
         in: header
         required: true
@@ -170,13 +289,18 @@ paths:
           description: "Unprocessable Entity: Invalid token."
 
 
-  /user/password/reset/trigger:
+  /users/{user_name}/password/reset/trigger:
     post:
       tags:
       - authentication
       summary: "Trigger a password reset e-mail."
       operationId: triggerResetUserPassword
       parameters:
+      - name: user_name
+        in: path
+        required: true
+        type: string
+        description: "The user name or '-' for the authenticated user."
       - name: username
         in: body
         schema:
@@ -198,7 +322,7 @@ paths:
           description: "Server Error, e.g. failed to send e-mail."
 
 
-  /user/password/reset:
+  /users/-/password/reset:
     post:
       tags:
       - authentication
@@ -525,7 +649,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
-    
+
 ##############################################################################
 # Endpoint - Families
 ##############################################################################
@@ -6271,7 +6395,7 @@ definitions:
         type: string
         example: Fernandez
 
-    
+
 ##############################################################################
 # Model - Types
 ##############################################################################
@@ -6285,7 +6409,7 @@ definitions:
       default:
         type: object
         $ref: "#/definitions/DefaultTypes"
-            
+
 ##############################################################################
 # Model - DefaultTypes
 ##############################################################################

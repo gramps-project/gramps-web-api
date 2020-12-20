@@ -61,8 +61,8 @@ def has_permissions(scope: Iterable[str]) -> bool:
         return True
     claims = get_jwt_claims()
     user_permissions = set(claims.get("permissions", []))
-    required_persmissions = set(scope)
-    missing_permissions = required_persmissions - user_permissions
+    required_permissions = set(scope)
+    missing_permissions = required_permissions - user_permissions
     if missing_permissions:
         return False
     return True

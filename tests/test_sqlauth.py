@@ -20,8 +20,6 @@
 
 import unittest
 
-from sqlalchemy.exc import IntegrityError
-
 from gramps_webapi.auth import SQLAuth, User
 from gramps_webapi.auth.const import (
     PERM_DEL_USER,
@@ -35,14 +33,14 @@ class TestSQLAuth(unittest.TestCase):
     def test_add_user(self):
         sqlauth = SQLAuth("sqlite://", logging=False)
         sqlauth.create_table()
-        with self.assertRaises(IntegrityError):
+        with self.assertRaises(ValueError):
             sqlauth.add_user(None, "123")  # NULL username
         with self.assertRaises(ValueError):
             sqlauth.add_user("", "123")  # empty username
         with self.assertRaises(ValueError):
             sqlauth.add_user("test_user", "")  # empty pw
         sqlauth.add_user("test_user", "123", fullname="Test User")
-        with self.assertRaises(IntegrityError):
+        with self.assertRaises(ValueError):
             # adding again should fail
             sqlauth.add_user("test_user", "123", fullname="Test User")
         with sqlauth.session_scope() as session:

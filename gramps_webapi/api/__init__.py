@@ -65,6 +65,8 @@ from .resources.types import (
 from .resources.user import (
     UserChangePasswordResource,
     UserResetPasswordResource,
+    UserResource,
+    UsersResource,
     UserTriggerResetPasswordResource,
 )
 from .util import use_args
@@ -78,8 +80,8 @@ def register_endpt(resource: Type[Resource], url: str, name: str):
 
 
 # Token
-register_endpt(TokenResource, "/login/", "token")
-register_endpt(TokenRefreshResource, "/refresh/", "token_refresh")
+register_endpt(TokenResource, "/token/", "token")
+register_endpt(TokenRefreshResource, "/token/refresh/", "token_refresh")
 # People
 register_endpt(PersonResource, "/people/<string:handle>", "person")
 register_endpt(PeopleResource, "/people/", "people")
@@ -160,11 +162,23 @@ register_endpt(ExportersResource, "/exporters/", "exporters")
 # Metadata
 register_endpt(MetadataResource, "/metadata/", "metadata")
 # User
-register_endpt(UserChangePasswordResource, "/user/password/change", "change_password")
-register_endpt(UserResetPasswordResource, "/user/password/reset/", "reset_password")
+register_endpt(
+    UsersResource, "/users/", "users",
+)
+register_endpt(
+    UserResource, "/users/<string:user_name>/", "user",
+)
+register_endpt(
+    UserChangePasswordResource,
+    "/users/<string:user_name>/password/change",
+    "change_password",
+)
+register_endpt(
+    UserResetPasswordResource, "/users/-/password/reset/", "reset_password",
+)
 register_endpt(
     UserTriggerResetPasswordResource,
-    "/user/password/reset/trigger/",
+    "/users/<string:user_name>/password/reset/trigger/",
     "trigger_reset_password",
 )
 # Search

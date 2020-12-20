@@ -22,22 +22,115 @@
 
 import datetime
 
-from flask import abort, current_app, render_template
+from flask import abort, current_app, jsonify, render_template
 from flask_jwt_extended import create_access_token, get_jwt_claims, get_jwt_identity
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from webargs import fields
 
-from ...auth.const import PERM_EDIT_OWN_USER
-from ..util import use_args
+from ...auth.const import (
+    PERM_ADD_USER,
+    PERM_EDIT_OTHER_USER,
+    PERM_EDIT_OWN_USER,
+    PERM_VIEW_OTHER_USER,
+)
 from ..auth import require_permissions
-from ..util import send_email
+from ..util import send_email, use_args
 from . import ProtectedResource, Resource
 
 limiter = Limiter(key_func=get_remote_address)
 
 
-class UserChangePasswordResource(ProtectedResource):
+class UserChangeBase(ProtectedResource):
+    """Base class for user change endpoints."""
+
+    def prepare_edit(self, user_name: str):
+        """Cheks to do before processing the request."""
+        if user_name == "-":
+            require_permissions([PERM_EDIT_OWN_USER])
+            user_name = get_jwt_identity()
+        else:
+            require_permissions([PERM_EDIT_OTHER_USER])
+        auth_provider = current_app.config.get("AUTH_PROVIDER")
+        if auth_provider is None:
+            abort(405)
+        return auth_provider, user_name
+
+
+class UsersResource(ProtectedResource):
+    """Resource for all users."""
+
+    def get(self):
+        """Get users' details."""
+        require_permissions([PERM_VIEW_OTHER_USER])
+        auth_provider = current_app.config.get("AUTH_PROVIDER")
+        if auth_provider is None:
+            abort(405)
+        return jsonify(auth_provider.get_all_user_details()), 200
+
+
+class UserResource(UserChangeBase):
+    """Resource for a single user."""
+
+    def get(self, user_name: str):
+        """Get a user's details."""
+        if user_name == "-":
+            user_name = get_jwt_identity()
+        else:
+            require_permissions([PERM_VIEW_OTHER_USER])
+        auth_provider = current_app.config.get("AUTH_PROVIDER")
+        if auth_provider is None:
+            abort(405)
+        details = auth_provider.get_user_details(user_name)
+        if details is None:
+            # user does not exist
+            abort(404)
+        return jsonify(details), 200
+
+    @use_args(
+        {"email": fields.Str(required=False), "full_name": fields.Str(required=False),},
+        location="json",
+    )
+    def put(self, args, user_name: str):
+        """Update a user's details."""
+        auth_provider, user_name = self.prepare_edit(user_name)
+        auth_provider.modify_user(
+            name=user_name, email=args.get("email"), fullname=args.get("full_name")
+        )
+        return "", 201
+
+    @use_args(
+        {
+            "email": fields.Str(required=True),
+            "full_name": fields.Str(required=True),
+            "password": fields.Str(required=True),
+            "role": fields.Int(required=True),
+        },
+        location="json",
+    )
+    def post(self, args, user_name: str):
+        """Add a new user."""
+        if user_name == "-":
+            # Adding a new user does not make sense "own" user
+            abort(404)
+        auth_provider = current_app.config.get("AUTH_PROVIDER")
+        if auth_provider is None:
+            abort(405)
+        require_permissions([PERM_ADD_USER])
+        try:
+            auth_provider.add_user(
+                name=user_name,
+                password=args["password"],
+                email=args["email"],
+                fullname=args["full_name"],
+                role=args["role"],
+            )
+        except ValueError:
+            abort(409)
+        return "", 201
+
+
+class UserChangePasswordResource(UserChangeBase):
     """Resource for changing a user password."""
 
     @use_args(
@@ -47,18 +140,14 @@ class UserChangePasswordResource(ProtectedResource):
         },
         location="json",
     )
-    def post(self, args):
+    def post(self, args, user_name: str):
         """Post new password."""
-        require_permissions([PERM_EDIT_OWN_USER])
-        auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            abort(405)
+        auth_provider, user_name = self.prepare_edit(user_name)
         if len(args["new_password"]) == "":
             abort(400)
-        username = get_jwt_identity()
-        if not auth_provider.authorized(username, args["old_password"]):
+        if not auth_provider.authorized(user_name, args["old_password"]):
             abort(403)
-        auth_provider.modify_user(name=username, password=args["new_password"])
+        auth_provider.modify_user(name=user_name, password=args["new_password"])
         return "", 201
 
 
@@ -71,7 +160,7 @@ def handle_reset_token(username: str, email: str, token: str):
 
 Please click on the following link, or paste this into your browser to complete the process:
 
-{}/api/user/password/reset?jwt={}
+{}/api/users/-/password/reset?jwt={}
 
 If you did not request this, please ignore this e-mail and your password will remain unchanged.
 """.format(
@@ -85,13 +174,13 @@ class UserTriggerResetPasswordResource(Resource):
     """Resource for obtaining a one-time JWT for password reset."""
 
     @limiter.limit("1/second")
-    @use_args(
-        {"username": fields.Str(required=True)}, location="json",
-    )
-    def post(self, args):
+    def post(self, user_name):
         """Post username to initiate the password reset."""
+        if user_name == "-":
+            # password reset trigger not make sense for "own" user since not logged in
+            abort(404)
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        details = auth_provider.get_user_details(args["username"])
+        details = auth_provider.get_user_details(user_name)
         if details is None:
             # user does not exist!
             abort(404)
@@ -99,15 +188,15 @@ class UserTriggerResetPasswordResource(Resource):
         if email is None:
             abort(404)
         token = create_access_token(
-            identity=args["username"],
+            identity=user_name,
             # the hash of the existing password is stored in the token in order
             # to make sure the rest token can only be used once
-            user_claims={"old_hash": auth_provider.get_pwhash(args["username"])},
+            user_claims={"old_hash": auth_provider.get_pwhash(user_name)},
             # password reset has to be triggered within 1h
             expires_delta=datetime.timedelta(hours=1),
         )
         try:
-            handle_reset_token(username=args["username"], email=email, token=token)
+            handle_reset_token(username=user_name, email=email, token=token)
         except ValueError:
             abort(500)
         return "", 201
