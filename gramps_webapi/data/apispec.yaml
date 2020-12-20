@@ -525,7 +525,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
-    
+
 ##############################################################################
 # Endpoint - Families
 ##############################################################################
@@ -2431,6 +2431,17 @@ paths:
 
 
           html
+      - name: format_options
+        in: query
+        required: false
+        type: string
+        description: >
+          A user defined dictionary of options to be used by note formatters that must be provided in JSON format.
+
+          Possible keys in the JSON object:
+            Key | Description
+            --- | -------
+            link_format | Used by the 'html' formatter to format URLs to Gramps-internal links. Must be a template string that can contain '{obj_class}' (which will be replaced by, e.g, 'person'), '{gramps_id}', and '{handle}'.
       - name: rules
         in: query
         required: false
@@ -2545,6 +2556,17 @@ paths:
 
 
           html
+      - name: format_options
+        in: query
+        required: false
+        type: string
+        description: >
+          A user defined dictionary of options to be used by note formatters that must be provided in JSON format.
+
+          Possible keys in the JSON object:
+            Key | Description
+            --- | -------
+            link_format | Used by the 'html' formatter to format URLs to Gramps-internal links. Must be a template string that can contain '{obj_class}' (which will be replaced by, e.g, 'person'), '{gramps_id}', and '{handle}'.
       - name: strip
         in: query
         required: false
@@ -6271,7 +6293,7 @@ definitions:
         type: string
         example: Fernandez
 
-    
+
 ##############################################################################
 # Model - Types
 ##############################################################################
@@ -6285,7 +6307,7 @@ definitions:
       default:
         type: object
         $ref: "#/definitions/DefaultTypes"
-            
+
 ##############################################################################
 # Model - DefaultTypes
 ##############################################################################
