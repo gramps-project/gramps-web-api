@@ -163,6 +163,7 @@ def get_event_profile_for_object(
     base_event: Union[Event, None] = None,
     label: str = "span",
     locale: GrampsLocale = glocale,
+    role: Optional[str] = None,
 ) -> Dict:
     """Get event profile given an Event."""
     result = {
@@ -170,6 +171,8 @@ def get_event_profile_for_object(
         "date": locale.date_displayer.display(event.date),
         "place": pd.display_event(db_handle, event),
     }
+    if role is not None:
+        result["role"] = role
     if "all" in args or "participants" in args:
         result["participants"] = get_event_participants_for_handle(
             db_handle, event.handle, locale=locale
@@ -190,6 +193,7 @@ def get_event_profile_for_handle(
     base_event: Union[Event, None] = None,
     label: str = "span",
     locale: GrampsLocale = glocale,
+    role: Optional[str] = None,
 ) -> Dict:
     """Get event profile given a handle."""
     try:
@@ -197,7 +201,13 @@ def get_event_profile_for_handle(
     except HandleError:
         return {}
     return get_event_profile_for_object(
-        db_handle, obj, args=args, base_event=base_event, label=label, locale=locale
+        db_handle,
+        obj,
+        args=args,
+        base_event=base_event,
+        label=label,
+        locale=locale,
+        role=role,
     )
 
 
@@ -333,6 +343,7 @@ def get_person_profile_for_object(
                 base_event=birth_event,
                 label="age",
                 locale=locale,
+                role=str(event_ref.get_role()),
             )
             for event_ref in person.event_ref_list
         ]
