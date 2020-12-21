@@ -34,9 +34,12 @@ from ..util import get_db_handle, get_locale_for_language, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .util import (
+    get_citation_profile_for_object,
     get_event_profile_for_object,
     get_family_profile_for_object,
+    get_media_profile_for_object,
     get_person_profile_for_object,
+    get_place_profile_for_object,
 )
 
 
@@ -67,6 +70,19 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
                 obj.profile = get_event_profile_for_object(
                     self.db_handle, obj, args["profile"], locale=locale
                 )
+            elif class_name == "citation":
+                obj.profile = get_citation_profile_for_object(
+                    self.db_handle, obj, args["profile"], locale=locale
+                )
+            elif class_name == "place":
+                obj.profile = get_place_profile_for_object(
+                    self.db_handle, obj, locale=locale
+                )
+            elif class_name == "media":
+                obj.profile = get_media_profile_for_object(
+                    self.db_handle, obj, args["profile"], locale=locale
+                )
+
         return obj
 
     @use_args(
