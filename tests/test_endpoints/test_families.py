@@ -781,6 +781,62 @@ class TestFamiliesHandle(unittest.TestCase):
                     "sex": "F",
                 },
                 "relationship": "Married",
+                "references": {
+                    "person": [
+                        {
+                            "birth": {
+                                "date": "1983-10-05",
+                                "place": "Ottawa, IL",
+                                "type": "Geburt",
+                            },
+                            "death": {},
+                            "gramps_id": "I0124",
+                            "handle": "1GWJQCGOOZ8FJW3YK9",
+                            "name_given": "Stephen Gerard",
+                            "name_surname": "Garner",
+                            "sex": "M",
+                        },
+                        {
+                            "birth": {
+                                "date": "1985-02-11",
+                                "place": "Ottawa, IL",
+                                "type": "Geburt",
+                            },
+                            "death": {},
+                            "gramps_id": "I0125",
+                            "handle": "IGWJQCSVT8NXTFXOFJ",
+                            "name_given": "Daniel Patrick",
+                            "name_surname": "Garner",
+                            "sex": "M",
+                        },
+                        {
+                            "birth": {
+                                "date": "1957-01-31",
+                                "place": "",
+                                "type": "Geburt",
+                            },
+                            "death": {},
+                            "gramps_id": "I0123",
+                            "handle": "JFWJQCRREDFKZLDKVD",
+                            "name_given": "Elizabeth",
+                            "name_surname": "George",
+                            "sex": "F",
+                        },
+                        {
+                            "birth": {
+                                "date": "1955-07-31",
+                                "place": "Ottawa, IL",
+                                "type": "Geburt",
+                            },
+                            "death": {},
+                            "gramps_id": "I0017",
+                            "handle": "KLTJQC70XVZJSPQ43U",
+                            "name_given": "Gerard Stephen",
+                            "name_surname": "Garner",
+                            "sex": "M",
+                        },
+                    ]
+                },
             },
         )
 
@@ -843,9 +899,7 @@ class TestFamiliesHandleTimeline(unittest.TestCase):
     def test_get_families_handle_timeline_conforms_to_schema(self):
         """Test conforms to schema."""
         check_conforms_to_schema(
-            self,
-            TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline",
-            "TimelineEventProfile",
+            self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline", "TimelineEventProfile",
         )
 
     def test_get_families_handle_timeline_missing_content(self):

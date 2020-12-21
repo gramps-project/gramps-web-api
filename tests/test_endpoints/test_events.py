@@ -407,6 +407,26 @@ class TestEvents(unittest.TestCase):
                         }
                     ],
                 },
+                "references": {
+                    "families": [],
+                    "people": [
+                        {
+                            "person": {
+                                "birth": {
+                                    "date": "1987-08-29",
+                                    "place": "Gainesville, Llano, TX, USA",
+                                    "type": "Birth",
+                                },
+                                "death": {},
+                                "gramps_id": "I0001",
+                                "handle": "66TJQC6CC7ZWL9YZ64",
+                                "name_given": "Sarah Suzanne",
+                                "name_surname": "Warner",
+                                "sex": "F",
+                            },
+                        }
+                    ],
+                },
             },
         )
 
@@ -607,6 +627,26 @@ class TestEventsHandle(unittest.TestCase):
                         }
                     ],
                 },
+                "references": {
+                    "families": [],
+                    "people": [
+                        {
+                            "person": {
+                                "birth": {
+                                    "date": "1250",
+                                    "place": "Atchison, Atchison, KS, USA",
+                                    "type": "Birth",
+                                },
+                                "death": {"date": "1316", "place": "", "type": "Death"},
+                                "gramps_id": "I1020",
+                                "handle": "H4EKQCFV3436HSKY2D",
+                                "name_given": "Ralph",
+                                "name_surname": "Knudsen",
+                                "sex": "M",
+                            },
+                        }
+                    ],
+                },
             },
         )
 
@@ -637,6 +677,26 @@ class TestEventsHandle(unittest.TestCase):
                                 "sex": "M",
                             },
                             "role": "Primär",
+                        }
+                    ],
+                },
+                "references": {
+                    "families": [],
+                    "people": [
+                        {
+                            "person": {
+                                "birth": {
+                                    "date": "1250",
+                                    "place": "Atchison, Atchison, KS, USA",
+                                    "type": "Geburt",
+                                },
+                                "death": {"date": "1316", "place": "", "type": "Tod"},
+                                "gramps_id": "I1020",
+                                "handle": "H4EKQCFV3436HSKY2D",
+                                "name_given": "Ralph",
+                                "name_surname": "Knudsen",
+                                "sex": "M",
+                            },
                         }
                     ],
                 },
