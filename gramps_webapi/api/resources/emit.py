@@ -30,7 +30,7 @@ from werkzeug.datastructures import Headers
 
 
 def default(obj: Any):
-    """Default handler for unserializable objects."""
+    """Handle unserializable objects."""
     current_app.logger.error("Unexpected object type: " + obj.__class__.__name__)
     return None
 
@@ -88,19 +88,18 @@ class GrampsJSONEncoder:
             mimetype="application/json",
         )
 
+    def is_null(self, value: Any) -> bool:
+        """Test for empty value."""
+        if value is None:
+            return True
+        try:
+            return len(value) == 0
+        except TypeError:
+            pass
+        return False
+
     def extract_object(self, obj: Any, apply_filter=True) -> Dict:
         """Extract and filter attributes for a Gramps object."""
-
-        def is_null(value: Any) -> bool:
-            """Test for empty value."""
-            if value is None:
-                return True
-            try:
-                return len(value) == 0
-            except TypeError:
-                pass
-            return False
-
         data = {}
         for key, value in obj.__class__.__dict__.items():
             if isinstance(value, property):
@@ -112,7 +111,7 @@ class GrampsJSONEncoder:
                     if self.filter_skip_keys and key in self.filter_skip_keys:
                         continue
                 value = getattr(obj, key)
-                if not self.strip_empty_keys or not is_null(value):
+                if not self.strip_empty_keys or not self.is_null(value):
                     data[key] = value
         for key, value in obj.__dict__.items():
             if key.startswith("_"):
@@ -129,7 +128,7 @@ class GrampsJSONEncoder:
                 value = []
             if key in ["mother_handle", "father_handle", "famc"] and value is None:
                 value = ""
-            if not self.strip_empty_keys or not is_null(value):
+            if not self.strip_empty_keys or not self.is_null(value):
                 data[key] = value
         return data
 
@@ -167,6 +166,10 @@ class GrampsJSONEncoder:
                         continue
                     if self.filter_skip_keys and key in self.filter_skip_keys:
                         continue
-                result.update({key: self.extract_objects(obj[key], level=level)})
+                value = obj[key]
+                if key in ["lat", "long"] and value is None:
+                    value = 0
+                if not self.strip_empty_keys or not self.is_null(obj[key]):
+                    result.update({key: self.extract_objects(value, level=level)})
             return result
         return obj

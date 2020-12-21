@@ -826,3 +826,169 @@ class TestFamiliesHandle(unittest.TestCase):
                     "KLTJQC70XVZJSPQ43U",
                 ],
             )
+
+
+class TestFamiliesHandleTimeline(unittest.TestCase):
+    """Test cases for the /api/families/{handle}/timeline endpoint for a specific family."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_get_families_handle_timeline_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline")
+
+    def test_get_families_handle_timeline_conforms_to_schema(self):
+        """Test conforms to schema."""
+        check_conforms_to_schema(
+            self,
+            TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline",
+            "TimelineEventProfile",
+        )
+
+    def test_get_families_handle_timeline_missing_content(self):
+        """Test response for missing content."""
+        check_resource_missing(self, TEST_URL + "does_not_exist/timeline")
+
+    def test_get_families_handle_timeline_expected_result(self):
+        """Test response for specific person."""
+        rv = check_success(self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline")
+        self.assertEqual(rv[0]["gramps_id"], "E1679")
+        self.assertEqual(rv[0]["label"], "Birth")
+        self.assertEqual(rv[1]["gramps_id"], "E1656")
+        self.assertEqual(rv[1]["label"], "Birth")
+        self.assertEqual(rv[13]["gramps_id"], "E1657")
+        self.assertEqual(rv[13]["label"], "Death")
+        self.assertEqual(rv[32]["gramps_id"], "E1704")
+        self.assertEqual(rv[32]["label"], "Burial")
+
+    def test_get_families_handle_timeline_validate_semantics(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline?junk_parm=1"
+        )
+
+    def test_get_families_handle_timeline_parameter_strip_validate_semantics(self):
+        """Test invalid strip parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline?strip", check="boolean"
+        )
+
+    def test_get_families_handle_timeline_parameter_strip_expected_result(self):
+        """Test strip parameter produces expected result."""
+        check_strip_parameter(self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline")
+
+    def test_get_families_handle_timeline_parameter_keys_validate_semantics(self):
+        """Test invalid keys parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline?keys", check="base"
+        )
+
+    def test_get_families_handle_timeline_parameter_keys_expected_result_single_key(
+        self,
+    ):
+        """Test keys parameter for some single keys produces expected result."""
+        check_keys_parameter(
+            self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline", ["date", "handle", "type"]
+        )
+
+    def test_get_families_handle_timeline_parameter_keys_expected_result_multiple_keys(
+        self,
+    ):
+        """Test keys parameter for multiple keys produces expected result."""
+        check_keys_parameter(
+            self,
+            TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline",
+            [",".join(["date", "handle", "type"])],
+        )
+
+    def test_get_families_handle_timeline_parameter_skipkeys_validate_semantics(self):
+        """Test invalid skipkeys parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline?skipkeys", check="base"
+        )
+
+    def test_get_families_handle_timeline_parameter_skipkeys_expected_result_single_key(
+        self,
+    ):
+        """Test skipkeys parameter for some single keys produces expected result."""
+        check_skipkeys_parameter(
+            self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline", ["date", "handle", "type"]
+        )
+
+    def test_get_families_handle_timeline_parameter_skipkeys_expected_result_multiple_keys(
+        self,
+    ):
+        """Test skipkeys parameter for multiple keys produces expected result."""
+        check_skipkeys_parameter(
+            self,
+            TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline",
+            [",".join(["date", "handle", "type"])],
+        )
+
+    def test_get_families_handle_timeline_parameter_page_validate_semantics(self):
+        """Test invalid page parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline?page", check="number"
+        )
+
+    def test_get_families_handle_timeline_parameter_pagesize_validate_semantics(self):
+        """Test invalid pagesize parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline?pagesize", check="number"
+        )
+
+    def test_get_families_handle_timeline_parameter_page_pagesize_expected_result(self):
+        """Test page and pagesize parameters produce expected result."""
+        check_paging_parameters(
+            self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline?keys=handle", 2, join="&"
+        )
+
+    def test_get_families_handle_timeline_parameter_events_validate_semantics(self):
+        """Test invalid events parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline?events", check="list"
+        )
+
+    def test_get_families_handle_timeline_parameter_events_expected_result(self):
+        """Test events parameter for expected results."""
+        rv = check_success(self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline?events=Birth")
+        count = 0
+        for event in rv:
+            if event["type"] == "Burial":
+                count = count + 1
+        self.assertEqual(count, 0)
+        rv = check_success(self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline?events=Burial")
+        count = 0
+        for event in rv:
+            if event["type"] == "Burial":
+                count = count + 1
+        self.assertEqual(count, 8)
+
+    def test_get_families_handle_timeline_parameter_event_class_validate_semantics(
+        self,
+    ):
+        """Test invalid event_class parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline?event_class", check="list"
+        )
+
+    def test_get_families_handle_timeline_parameter_event_class_expected_result(self):
+        """Test event_class parameter for expected results."""
+        rv = check_success(
+            self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline?event_classes=other"
+        )
+        count = 0
+        for event in rv:
+            if event["type"] == "Burial":
+                count = count + 1
+        self.assertEqual(count, 0)
+        rv = check_success(
+            self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline?event_classes=vital"
+        )
+        count = 0
+        for event in rv:
+            if event["type"] == "Burial":
+                count = count + 1
