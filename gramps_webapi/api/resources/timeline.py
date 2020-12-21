@@ -156,8 +156,14 @@ class Timeline:
         for key in event_filters:
             if key in default_event_types:
                 eligible_events.add(key)
+                continue
             if key in custom_event_types:
                 eligible_events.add(key)
+                continue
+            if key not in EVENT_CATEGORIES:
+                raise ValueError(
+                    "{} is not a valid event or event category".format(key)
+                )
         for entry in event_type.get_menu_standard_xml():
             event_key = entry[0].lower().replace("life events", "vital")
             if event_key in event_filters:
@@ -173,6 +179,8 @@ class Timeline:
     def is_eligible(self, event: Event, relative: bool):
         """Check if an event is eligible for the timeline."""
         if relative:
+            if self.relative_event_filters == []:
+                return True
             return str(event.get_type()) in self.eligible_relative_events
         if self.event_filters == []:
             return True
@@ -229,13 +237,16 @@ class Timeline:
                     if end:
                         self.end_date = self.timeline[-1][0].date
 
+            for family in person.parent_family_list:
+                self.add_family(family, ancestors=ancestors)
+
             for family in person.family_list:
                 self.add_family(
                     family, anchor=person, ancestors=ancestors, offspring=offspring
                 )
-
-            for family in person.parent_family_list:
-                self.add_family(family, ancestors=ancestors)
+        else:
+            for family in person.family_list:
+                self.add_family(family, anchor=person, events_only=True)
 
     def add_relative(self, handle: Handle, ancestors: int = 1, offspring: int = 1):
         """Add events for a relative of the anchor person."""
@@ -295,6 +306,7 @@ class Timeline:
         include_children: bool = True,
         ancestors: int = 1,
         offspring: int = 1,
+        events_only: bool = False,
     ):
         """Add events for all family members to the timeline."""
         family = self.db_handle.get_family_from_handle(handle)
@@ -302,6 +314,8 @@ class Timeline:
             for event_ref in family.event_ref_list:
                 event = self.db_handle.get_event_from_handle(event_ref.ref)
                 self.add_event((event, anchor, "self"))
+            if events_only:
+                return
         if self.anchor_person:
             if (
                 family.father_handle
@@ -325,12 +339,15 @@ class Timeline:
             for child in family.child_ref_list:
                 self.add_person(child.ref)
 
-    @property
-    def profile(self):
+    def profile(self, page=0, pagesize=20):
         """Return a profile for the timeline."""
         profiles = []
         self.timeline.sort(key=lambda x: x[0].get_date_object().get_sort_value())
-        for event in self.timeline:
+        events = self.timeline
+        if page > 0:
+            offset = (page - 1) * pagesize
+            events = events[offset : offset + pagesize]
+        for event in events:
             label = self.locale.translation.sgettext(str(event[0].type))
             if (
                 event[1]
@@ -353,10 +370,12 @@ class Timeline:
                 if self.anchor_person and self.anchor_person.handle == event[1].handle:
                     if not self.omit_anchor:
                         person = get_person_profile_for_object(
-                            self.db_handle, event[1], {}
+                            self.db_handle, event[1], {}, locale=self.locale
                         )
                 else:
-                    person = get_person_profile_for_object(self.db_handle, event[1], {})
+                    person = get_person_profile_for_object(
+                        self.db_handle, event[1], {}, locale=self.locale
+                    )
             profile = {
                 "date": self.locale.date_displayer.display(event[0].date),
                 "description": event[0].description,
@@ -406,7 +425,11 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
                 missing=1, validate=validate.Range(min=1, max=5)
             ),
             "omit_anchor": fields.Boolean(missing=True),
-            "precision": fields.Integer(missing=1),
+            "page": fields.Integer(missing=0, validate=validate.Range(min=1)),
+            "pagesize": fields.Integer(missing=20, validate=validate.Range(min=1)),
+            "precision": fields.Integer(
+                missing=1, validate=validate.Range(min=1, max=3)
+            ),
             "relative_event_classes": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
@@ -437,17 +460,17 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
             relative_events = args["relative_events"]
         if "relative_event_classes" in args:
             relative_events = relative_events + args["relative_event_classes"]
-        timeline = Timeline(
-            get_db_handle(),
-            events=events,
-            relatives=relatives,
-            relative_events=relative_events,
-            discard_empty=args["discard_empty"],
-            omit_anchor=args["omit_anchor"],
-            precision=args["precision"],
-            locale=locale,
-        )
         try:
+            timeline = Timeline(
+                get_db_handle(),
+                events=events,
+                relatives=relatives,
+                relative_events=relative_events,
+                discard_empty=args["discard_empty"],
+                omit_anchor=args["omit_anchor"],
+                precision=args["precision"],
+                locale=locale,
+            )
             timeline.add_person(
                 handle,
                 anchor=True,
@@ -456,9 +479,13 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
                 ancestors=args["ancestors"],
                 offspring=args["offspring"],
             )
+        except ValueError:
+            abort(422)
         except HandleError:
             abort(404)
-        return self.response(200, timeline.profile, args)
+
+        payload = timeline.profile(page=args["page"], pagesize=args["pagesize"])
+        return self.response(200, payload, args, total_items=len(timeline.timeline))
 
 
 class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
@@ -474,6 +501,8 @@ class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
             "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "locale": fields.Str(missing=None),
+            "page": fields.Integer(missing=0, validate=validate.Range(min=1)),
+            "pagesize": fields.Integer(missing=20, validate=validate.Range(min=1)),
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
@@ -485,17 +514,21 @@ class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
         """Get list of events in timeline for a family."""
         locale = get_locale_for_language(args["locale"], default=True)
         events = prepare_events(args)
-        timeline = Timeline(
-            get_db_handle(),
-            events=events,
-            discard_empty=args["discard_empty"],
-            locale=locale,
-        )
         try:
+            timeline = Timeline(
+                get_db_handle(),
+                events=events,
+                discard_empty=args["discard_empty"],
+                locale=locale,
+            )
             timeline.add_family(handle)
+        except ValueError:
+            abort(422)
         except HandleError:
             abort(404)
-        return self.response(200, timeline.profile, args)
+
+        payload = timeline.profile(page=args["page"], pagesize=args["pagesize"])
+        return self.response(200, payload, args, total_items=len(timeline.timeline))
 
 
 class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
@@ -519,7 +552,11 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
             "last": fields.Boolean(missing=True),
             "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
             "omit_anchor": fields.Boolean(missing=True),
-            "precision": fields.Integer(missing=1),
+            "page": fields.Integer(missing=0, validate=validate.Range(min=1)),
+            "pagesize": fields.Integer(missing=20, validate=validate.Range(min=1)),
+            "precision": fields.Integer(
+                missing=1, validate=validate.Range(min=1, max=3)
+            ),
             "rules": fields.Str(validate=validate.Length(min=1)),
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
@@ -533,15 +570,15 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
         db_handle = get_db_handle()
         locale = get_locale_for_language(args["locale"], default=True)
         events = prepare_events(args)
-        timeline = Timeline(
-            db_handle,
-            events=events,
-            discard_empty=args["discard_empty"],
-            omit_anchor=args["omit_anchor"],
-            precision=args["precision"],
-            locale=locale,
-        )
         try:
+            timeline = Timeline(
+                db_handle,
+                events=events,
+                discard_empty=args["discard_empty"],
+                omit_anchor=args["omit_anchor"],
+                precision=args["precision"],
+                locale=locale,
+            )
             if "anchor" in args:
                 timeline.add_person(
                     args["anchor"], anchor=True, start=args["first"], end=args["last"]
@@ -561,9 +598,13 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
             else:
                 for handle in handles:
                     timeline.add_person(handle)
+        except ValueError:
+            abort(422)
         except HandleError:
             abort(404)
-        return self.response(200, timeline.profile, args)
+
+        payload = timeline.profile(page=args["page"], pagesize=args["pagesize"])
+        return self.response(200, payload, args, total_items=len(timeline.timeline))
 
 
 class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
@@ -583,6 +624,8 @@ class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
                 fields.Str(validate=validate.Length(min=1))
             ),
             "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
+            "page": fields.Integer(missing=0, validate=validate.Range(min=1)),
+            "pagesize": fields.Integer(missing=20, validate=validate.Range(min=1)),
             "rules": fields.Str(validate=validate.Length(min=1)),
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
@@ -596,12 +639,15 @@ class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
         db_handle = get_db_handle()
         locale = get_locale_for_language(args["locale"], default=True)
         events = prepare_events(args)
-        timeline = Timeline(
-            db_handle,
-            events=events,
-            discard_empty=args["discard_empty"],
-            locale=locale,
-        )
+        try:
+            timeline = Timeline(
+                db_handle,
+                events=events,
+                discard_empty=args["discard_empty"],
+                locale=locale,
+            )
+        except ValueError:
+            abort(422)
 
         if "handles" in args:
             handles = args["handles"]
@@ -616,4 +662,6 @@ class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
                 timeline.add_family(handle)
         except HandleError:
             abort(404)
-        return self.response(200, timeline.profile, args)
+
+        payload = timeline.profile(page=args["page"], pagesize=args["pagesize"])
+        return self.response(200, payload, args, total_items=len(timeline.timeline))

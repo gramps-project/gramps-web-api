@@ -30,7 +30,7 @@ from werkzeug.datastructures import Headers
 
 
 def default(obj: Any):
-    """Default handler for unserializable objects."""
+    """Handle unserializable objects."""
     current_app.logger.error("Unexpected object type: " + obj.__class__.__name__)
     return None
 
@@ -166,7 +166,10 @@ class GrampsJSONEncoder:
                         continue
                     if self.filter_skip_keys and key in self.filter_skip_keys:
                         continue
+                value = obj[key]
+                if key in ["lat", "long"] and value is None:
+                    value = 0
                 if not self.strip_empty_keys or not self.is_null(obj[key]):
-                    result.update({key: self.extract_objects(obj[key], level=level)})
+                    result.update({key: self.extract_objects(value, level=level)})
             return result
         return obj

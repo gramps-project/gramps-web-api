@@ -799,6 +799,18 @@ paths:
         type: boolean
         default: true
         description: "Indicates whether or not information for the person the timeline is for should be included in the response for events that pertain specifically to that person. It is recommended to leave this at the default of true."
+      - name: page
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "The number of items that constitute a page."
       - name: strip
         in: query
         required: false
@@ -1149,6 +1161,18 @@ paths:
         type: boolean
         default: true
         description: "Indicates whether or not undated events should be discarded. It is recommended to leave this at the default of true."
+      - name: page
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "The number of items that constitute a page."
       - name: strip
         in: query
         required: false
@@ -3941,6 +3965,18 @@ paths:
         type: boolean
         default: true
         description: "Indicates whether or not information for the person the timeline is for should be included in the response for events that pertain specifically to that person. It is recommended to leave this at the default of true."
+      - name: page
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "The number of items that constitute a page."
       - name: strip
         in: query
         required: false
@@ -4061,6 +4097,18 @@ paths:
         type: boolean
         default: true
         description: "Indicates whether or not undated events should be discarded. It is recommended to leave this at the default of true."
+      - name: page
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "The number of items that constitute a page."
       - name: strip
         in: query
         required: false
