@@ -77,7 +77,7 @@ tags:
 - name: users
   description: Work with users.
 
-    
+
 ##############################################################################
 # Endpoint definitions
 ##############################################################################
@@ -87,7 +87,7 @@ paths:
 ##############################################################################
 # Endpoint - Token
 ##############################################################################
-    
+
   /token:
     post:
       tags:
@@ -117,7 +117,7 @@ paths:
         403:
           description: "Forbidden: Bad credentials, authentication failed."
 
-    
+
   /token/refresh:
     post:
       tags:
@@ -142,11 +142,11 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid token."
 
-    
+
 ##############################################################################
 # Endpoint - Users
 ##############################################################################
-    
+
   /users:
     get:
       tags:
@@ -163,7 +163,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid token."
 
-    
+
   /users/{user_name}:
     get:
       tags:
@@ -380,7 +380,7 @@ paths:
         405:
           description: "Method Not Allowed: No authorization provider configured."
 
-    
+
 ##############################################################################
 # Endpoint - People
 ##############################################################################
@@ -539,6 +539,7 @@ paths:
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns event list with name, date and location
             families | Returns family information with parents, children, and key relationship between parents
+            references | Returns information about objects that refer to the person
       responses:
         200:
           description: "OK: Successful operation."
@@ -555,7 +556,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
-    
+
   /people/{handle}:
     get:
       tags:
@@ -643,6 +644,7 @@ paths:
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns event list with name, date and location
             families | Returns family information with parents, children, and key relationship between parents
+            references | Returns information about objects that refer to the person
       responses:
         200:
           description: "OK: Successful operation."
@@ -655,7 +657,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
-    
+
   /people/{handle}/timeline:
     get:
       tags:
@@ -702,7 +704,7 @@ paths:
         description: >
           If present a comma delimited list of specific events that should be considered for inclusion for the person. Note birth and death events are always included. If not present the default behaviour is to return all events.
 
-    
+
           Note the event names may be for specific default or custom events, no distinction is made.
       - name: event_classes
         in: query
@@ -710,7 +712,7 @@ paths:
         type: string
         description: >
           If present a comma delimited list identifying the classes of events that should be considered for inclusion for the person. Note that the birth and death events are always included. If not present the default behaviour is to return all events. A list of available event classes is as follows:
-    
+
 
             Keyword | Contents
             ------- | --------
@@ -749,7 +751,7 @@ paths:
         description: >
           If present a comma delimited list of specific events that should be considered for inclusion for relatives of the person. Note that birth and death events are always included. If not present the default behaviour is to return the birth, marriage, divorce and death events.
 
-    
+
           Note the event names may be for specific default or custom events, no distinction is made.
       - name: relative_event_classes
         in: query
@@ -757,7 +759,7 @@ paths:
         type: string
         description: >
           If present a comma delimited list identifying the classes of events that should be considered for inclusion for relatives of the person. Note that the birth and death events are always included. If not present the default behaviour is to return the birth, marriage, divorce and death events. A list of available event classes is as follows:
-    
+
 
             Keyword | Contents
             ------- | --------
@@ -839,7 +841,7 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
-    
+
 ##############################################################################
 # Endpoint - Families
 ##############################################################################
@@ -993,6 +995,7 @@ paths:
             self | Returns family information with parents, children, and key relationship between parents and is an implied default if events specified
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns family event list with name, date and location
+            references | Returns information about objects that refer to the family
       responses:
         200:
           description: "OK: Successful operation."
@@ -1095,6 +1098,7 @@ paths:
             self | Returns family information with parents, children, and key relationship between parents and is an implied default if events specified
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns family event list with name, date and location
+            references | Returns information about objects that refer to the family
       responses:
         200:
           description: "OK: Successful operation."
@@ -1130,7 +1134,7 @@ paths:
         description: >
           If present a comma delimited list of specific events that should be considered for inclusion for the people in the family. Note birth and death events are always included. If not present the default behaviour is to return all events.
 
-    
+
           Note the event names may be for specific default or custom events, no distinction is made.
       - name: event_classes
         in: query
@@ -1138,7 +1142,7 @@ paths:
         type: string
         description: >
           If present a comma delimited list identifying the classes of events that should be considered for inclusion for the people in the family. Note that the birth and death events are always included. If not present the default behaviour is to return all events. A list of available event classes is as follows:
-    
+
 
             Keyword | Contents
             ------- | --------
@@ -1345,6 +1349,7 @@ paths:
             all | Returns all information below
             events | Returns event name, date and location
             participants | Returns information about the event participants
+            references | Returns information about objects that refer to the family
       responses:
         200:
           description: "OK: Successful operation."
@@ -1435,6 +1440,7 @@ paths:
             ------ | --------
             all | Returns all information below
             events | Returns event name, date and location
+            references | Returns information about objects that refer to the event
       responses:
         200:
           description: "OK: Successful operation."
@@ -1642,10 +1648,11 @@ paths:
           Enables the return of summarized information about the place in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
 
 
-          Accepts a comma delimited list of possible objects to be provided. For events the possible objects are:
+          Accepts a comma delimited list of possible objects to be provided. For places the possible objects are:
             Object | Contents
             ------ | --------
             all | Returns all information
+            references | Returns information about objects that refer to the place
       responses:
         200:
           description: "OK: Successful operation."
@@ -1729,6 +1736,7 @@ paths:
             Object | Contents
             ------ | --------
             all | Returns all information
+            references | Returns information about objects that refer to the place
       responses:
         200:
           description: "OK: Successful operation."
@@ -1880,6 +1888,7 @@ paths:
             Object | Contents
             ------ | --------
             all | Returns all information
+            references | Returns information about objects that refer to the place
       responses:
         200:
           description: "OK: Successful operation."
@@ -1963,6 +1972,7 @@ paths:
             Object | Contents
             ------ | --------
             all | Returns all information
+            references | Returns information about objects that refer to the place
       responses:
         200:
           description: "OK: Successful operation."
@@ -2529,10 +2539,11 @@ paths:
           Enables the return of summarized information about the media in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
 
 
-          Accepts a comma delimited list of possible objects to be provided. For events the possible objects are:
+          Accepts a comma delimited list of possible objects to be provided. For media items the possible objects are:
             Object | Contents
             ------ | --------
             all | Returns all information
+            references | Returns information about objects that refer to the place
       responses:
         200:
           description: "OK: Successful operation."
@@ -2611,10 +2622,11 @@ paths:
           Enables the return of summarized information about the media in a more readily consumable format. This additional information is returned under the top level 'profile' keyword in the response.
 
 
-          Accepts a comma delimited list of possible objects to be provided. For events the possible objects are:
+          Accepts a comma delimited list of possible objects to be provided. For media items the possible objects are:
             Object | Contents
             ------ | --------
             all | Returns all information
+            references | Returns information about objects that refer to the place
       responses:
         200:
           description: "OK: Successful operation."
@@ -3915,7 +3927,7 @@ paths:
         description: >
           If present a comma delimited list of specific events that should be considered for inclusion for the people. Note birth and death events are always included. If not present the default behaviour is to return all events.
 
-    
+
           Note the event names may be for specific default or custom events, no distinction is made.
       - name: event_classes
         in: query
@@ -3923,7 +3935,7 @@ paths:
         type: string
         description: >
           If present a comma delimited list identifying the classes of events that should be considered for inclusion for the people. Note that the birth and death events are always included. If not present the default behaviour is to return all events. A list of available event classes is as follows:
-    
+
 
             Keyword | Contents
             ------- | --------
@@ -4066,7 +4078,7 @@ paths:
         description: >
           If present a comma delimited list of specific events that should be considered for inclusion for the people in the families. Note birth and death events are always included. If not present the default behaviour is to return all events.
 
-    
+
           Note the event names may be for specific default or custom events, no distinction is made.
       - name: event_classes
         in: query
@@ -4074,7 +4086,7 @@ paths:
         type: string
         description: >
           If present a comma delimited list identifying the classes of events that should be considered for inclusion for the people in the families. Note that the birth and death events are always included. If not present the default behaviour is to return all events. A list of available event classes is as follows:
-    
+
 
             Keyword | Contents
             ------- | --------
@@ -4136,7 +4148,7 @@ paths:
           description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
-    
+
 
 ##############################################################################
 # Endpoint - Search
@@ -5095,6 +5107,18 @@ definitions:
         type: object
         items:
           $ref: "#/definitions/FamilyProfile"
+      references:
+        description: "References from other objects"
+        type: object
+        properties:
+          person:
+            type: array
+            items:
+              $ref: "#/definitions/PersonProfile"
+          family:
+            type: array
+            items:
+              $ref: "#/definitions/FamilyProfile"
       sex:
         description: "Simple identified for gender/sex of the person."
         type: string
@@ -5338,6 +5362,14 @@ definitions:
         type: object
         items:
           $ref: "#/definitions/PersonProfile"
+      references:
+        description: "References from other objects"
+        type: object
+        properties:
+          person:
+            type: array
+            items:
+              $ref: "#/definitions/PersonProfile"
       relationship:
         description: "The relationship between the parents of the family."
         type: string
@@ -5543,6 +5575,19 @@ definitions:
             type: array
             items:
               $ref: "#/definitions/FamilyProfile"
+      references:
+        description: "References from other objects"
+        type: object
+        properties:
+          person:
+            type: array
+            items:
+              $ref: "#/definitions/PersonProfile"
+          family:
+            type: array
+            items:
+              $ref: "#/definitions/FamilyProfile"
+
 
 ##############################################################################
 # Model - EventReference
@@ -5849,6 +5894,22 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/PlaceProfile"
+      references:
+        description: "References from other objects"
+        type: object
+        properties:
+          person:
+            type: array
+            items:
+              $ref: "#/definitions/PersonProfile"
+          event:
+            type: array
+            items:
+              $ref: "#/definitions/EventProfile"
+          place:
+            type: array
+            items:
+              $ref: "#/definitions/PlaceProfile"
 
 ##############################################################################
 # Model - Address
@@ -6096,6 +6157,30 @@ definitions:
         type: object
         items:
           $ref: "#/definitions/SourceProfile"
+      references:
+        description: "References from other objects"
+        type: object
+        properties:
+          person:
+            type: array
+            items:
+              $ref: "#/definitions/PersonProfile"
+          family:
+            type: array
+            items:
+              $ref: "#/definitions/FamilyProfile"
+          event:
+            type: array
+            items:
+              $ref: "#/definitions/EventProfile"
+          media:
+            type: array
+            items:
+              $ref: "#/definitions/MediaProfile"
+          place:
+            type: array
+            items:
+              $ref: "#/definitions/PlaceProfile"
 
 ##############################################################################
 # Model - Source
@@ -6235,6 +6320,14 @@ definitions:
         description: "An alternate user managed identifier for the source, usually but not guaranteed to be unique."
         type: string
         example: "S0002"
+      references:
+        description: "References from other objects"
+        type: object
+        properties:
+          citation:
+            type: array
+            items:
+              $ref: "#/definitions/CitationProfile"
 
 ##############################################################################
 # Model - Repository
@@ -6534,6 +6627,34 @@ definitions:
         description: "An alternate user managed identifier for the media, usually but not guaranteed to be unique."
         type: string
         example: "O0010"
+      references:
+        description: "References from other objects"
+        type: object
+        properties:
+          person:
+            type: array
+            items:
+              $ref: "#/definitions/PersonProfile"
+          family:
+            type: array
+            items:
+              $ref: "#/definitions/FamilyProfile"
+          event:
+            type: array
+            items:
+              $ref: "#/definitions/EventProfile"
+          media:
+            type: array
+            items:
+              $ref: "#/definitions/MediaProfile"
+          citation:
+            type: array
+            items:
+              $ref: "#/definitions/CitationProfile"
+          place:
+            type: array
+            items:
+              $ref: "#/definitions/PlaceProfile"
 
 ##############################################################################
 # Model - Note
@@ -7544,7 +7665,7 @@ definitions:
         description: "Simple identifier for gender/sex of the person."
         type: string
         example: "M"
-    
+
 ##############################################################################
 # Model - RecordFactEntry
 ##############################################################################
