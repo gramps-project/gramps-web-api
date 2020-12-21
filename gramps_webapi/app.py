@@ -26,6 +26,7 @@ from flask import Flask, g
 from flask_compress import Compress
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
+from whoosh.index import LockError
 
 from .api import api_blueprint
 from .api.resources.token import limiter
@@ -73,6 +74,9 @@ def create_app(db_manager=None):
     db = app.config["DB_MANAGER"].get_db().db
     try:
         app.config["SEARCH_INDEXER"].reindex_full(db)
+    except LockError:
+        # this is expected in a multi-thread environment
+        app.logger.info("Index is locked")
     except:
         app.logger.exception("Error during indexing")
     finally:
