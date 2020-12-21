@@ -523,18 +523,21 @@ class TestPeople(unittest.TestCase):
                         "date": "570-04-19",
                         "place": "",
                         "type": "Birth",
+                        "role": "Primary",
                     },
                     {
                         "age": "62 years, 1 months, 19 days",
                         "date": "632-06-08",
                         "place": "",
                         "type": "Death",
+                        "role": "Primary",
                     },
                     {
                         "age": "39 years, 8 months, 13 days",
                         "date": "610",
                         "place": "",
                         "type": "Marriage",
+                        "role": "Primary",
                     },
                 ],
                 "families": [
@@ -1023,9 +1026,7 @@ class TestPeopleHandleTimeline(unittest.TestCase):
     def test_get_people_handle_timeline_conforms_to_schema(self):
         """Test conforms to schema."""
         check_conforms_to_schema(
-            self,
-            TEST_URL + "GNUJQCL9MD64AM56OH/timeline",
-            "TimelineEventProfile",
+            self, TEST_URL + "GNUJQCL9MD64AM56OH/timeline", "TimelineEventProfile",
         )
 
     def test_get_people_handle_timeline_missing_content(self):
