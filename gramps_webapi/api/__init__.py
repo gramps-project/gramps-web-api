@@ -46,6 +46,7 @@ from .resources.name_groups import NameGroupsResource
 from .resources.notes import NoteResource, NotesResource
 from .resources.people import PeopleResource, PersonResource
 from .resources.places import PlaceResource, PlacesResource
+from .resources.records import RecordsResource
 from .resources.relations import RelationResource, RelationsResource
 from .resources.reports import ReportFileResource, ReportResource, ReportsResource
 from .resources.repositories import RepositoriesResource, RepositoryResource
@@ -178,14 +179,20 @@ register_endpt(
 )
 register_endpt(ExporterResource, "/exporters/<string:extension>", "exporter")
 register_endpt(ExportersResource, "/exporters/", "exporters")
+# Records
+register_endpt(RecordsResource, "/records/", "records")
 # Metadata
 register_endpt(MetadataResource, "/metadata/", "metadata")
 # User
 register_endpt(
-    UsersResource, "/users/", "users",
+    UsersResource,
+    "/users/",
+    "users",
 )
 register_endpt(
-    UserResource, "/users/<string:user_name>/", "user",
+    UserResource,
+    "/users/<string:user_name>/",
+    "user",
 )
 register_endpt(
     UserChangePasswordResource,
@@ -193,7 +200,9 @@ register_endpt(
     "change_password",
 )
 register_endpt(
-    UserResetPasswordResource, "/users/-/password/reset/", "reset_password",
+    UserResetPasswordResource,
+    "/users/-/password/reset/",
+    "reset_password",
 )
 register_endpt(
     UserTriggerResetPasswordResource,

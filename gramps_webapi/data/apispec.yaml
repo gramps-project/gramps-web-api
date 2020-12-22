@@ -66,6 +66,8 @@ tags:
   description: Work with search engine.
 - name: reports
   description: Work with reports.
+- name: records
+  description: Work with records.
 - name: exporters
   description: Work with exporters.
 - name: metadata
@@ -4304,6 +4306,93 @@ paths:
 
 
 ##############################################################################
+# Endpoint - Records
+##############################################################################
+
+  /records/:
+    get:
+      tags:
+      - records
+      summary: "Get interesting facts about records in the tree."
+      operationId: getRecords
+      security:
+        - Bearer: []
+      parameters:
+      - name: gramps_id
+        in: query
+        required: false
+        type: string
+        default: null
+        description: "The Gramps identifier of the person to whom a built in person filter should be applied if one was provided."
+      - name: handle
+        in: query
+        required: false
+        type: string
+        default: null
+        description: "The handle identifying the person to whom a built in person filter should be applied if one was provided. If gramps_id was also provided that will always take precedence."
+      - name: living
+        in: query
+        required: false
+        type: string
+        default: "IncludeAll"
+        description: >
+          The name of a built in proxy function controlling how people determined to be living should be handled. Possible values are:
+
+
+            Keyword | Description
+            ------- | -----------
+            IncludeAll | Include all living people and information about them
+            FullNameOnly | Include only the full name of living people omitting all other information about them
+            LastNameOnly | Replace the first name of living people with 'living' omitting all other information about them
+            ReplaceCompleteName | Replace the full name of living people with 'living' 'living' omitting all other information about them
+            ExcludeAll | Exclude all living people
+      - name: locale
+        in: query
+        required: false
+        type: string
+        default: "current locale"
+        description: "The language code of the locale to use for those items to which translation can be applied."
+      - name: person
+        in: query
+        required: false
+        type: string
+        default: null
+        description: >
+          If provided the name of a built in or a custom filter to apply. Built in filters are applied with respect to a person so a gramps_id or handle must also be provided separately. The four built in filters are:
+
+
+            Keyword | Description
+            ------- | -----------
+            Descendants | Matches all descendants of the given person
+            DescendantFamilies | Matches all descendant families of the given person
+            Ancestors | Matches all ancestors of the given person
+            CommonAncestor | Matches all people who have a common ancestory with the given person
+      - name: private
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether or not to exclude all records marked private."
+      - name: rank
+        in: query
+        required: false
+        type: integer
+        default: 1
+        description: "Determines how many objects should be returned for ranked statistics items."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/RecordFact"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
+
+##############################################################################
 # Endpoint - Exporters
 ##############################################################################
 
@@ -4515,7 +4604,6 @@ paths:
             type: file
         401:
           description: "Unauthorized: Missing authorization header."
-
         404:
           description: "Not Found: Exporter not found."
         422:
@@ -7457,3 +7545,51 @@ definitions:
         type: string
         example: "M"
     
+##############################################################################
+# Model - RecordFactEntry
+##############################################################################
+
+  RecordFact:
+    type: object
+    properties:
+      description:
+        description: "A description of the fact."
+        type: string
+        example: "Youngest living person"
+      key:
+        description: "A unique identifier for the fact."
+        type: string
+        example: "person_youngestliving"
+      objects:
+        description: "The list of objects the fact is about."
+        type: array
+        items:
+          $ref: "#/definitions/RecordFactObject"
+
+##############################################################################
+# Model - RecordFactData
+##############################################################################
+
+  RecordFactObject:
+    type: object
+    properties:
+      gramps_id:
+        description: "The alternate user managed identifier for an object, usually but not guaranteed to be unique."
+        type: string
+        example: "I2044"
+      handle:
+        description: "The unique identifier for an object."
+        type: string
+        example: "9BXKQC1PVLPYFMD6IX"
+      name:
+        description: "A description of the object."
+        type: string
+        example: "Garner, Andrew Joseph"
+      object:
+        description: "The type of object."
+        type: string
+        example: "Person"
+      value:
+        description: "The object value supporting the fact."
+        type: string
+        example: "21 years, 8 months, 11 days"
