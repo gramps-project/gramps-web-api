@@ -420,10 +420,12 @@ def get_family_profile_for_object(
     if profile["father"]:
         if profile["father"]["name_surname"] or profile["father"]["name_given"]:
             profile["family_surname"] = profile["father"]["name_surname"]
-        else:
+        elif profile["mother"]:
             profile["family_surname"] = profile["mother"]["name_surname"]
-    else:
+    elif profile["mother"]:
         profile["family_surname"] = profile["mother"]["name_surname"]
+    else:
+        profile["family_surname"] = ""
     if "all" in args or "events" in args:
         if "span" not in args and "all" not in args:
             marriage_event = None
