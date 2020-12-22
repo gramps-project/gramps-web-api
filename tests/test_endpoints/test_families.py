@@ -473,6 +473,53 @@ class TestFamilies(unittest.TestCase):
                     "sex": "F",
                 },
                 "relationship": "Married",
+                "references": {
+                    "person": [
+                        {
+                            "birth": {
+                                "date": "164-03-00 (Islamic)",
+                                "place": "",
+                                "type": "Birth",
+                            },
+                            "death": {
+                                "date": "241-03-12 (Islamic)",
+                                "place": "",
+                                "type": "Death",
+                            },
+                            "gramps_id": "I2111",
+                            "handle": "cc82060504445ab6deb",
+                            "name_given": "أحمد",
+                            "name_surname": "",
+                            "sex": "M",
+                        },
+                        {
+                            "birth": {},
+                            "death": {
+                                "date": "234 (Islamic)",
+                                "place": "",
+                                "type": "Death",
+                            },
+                            "gramps_id": "I2112",
+                            "handle": "cc8206050980ea622d0",
+                            "name_given": "العباسة",
+                            "name_surname": "الفضل",
+                            "sex": "F",
+                        },
+                        {
+                            "birth": {
+                                "date": "203 (Islamic)",
+                                "place": "",
+                                "type": "Birth",
+                            },
+                            "death": {},
+                            "gramps_id": "I2115",
+                            "handle": "cc82060516c6c141500",
+                            "name_given": "صالح",
+                            "name_surname": "",
+                            "sex": "M",
+                        },
+                    ]
+                },
             },
         )
 
