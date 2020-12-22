@@ -653,6 +653,48 @@ class TestPeople(unittest.TestCase):
                 "other_parent_families": [],
                 "primary_parent_family": {},
                 "sex": "M",
+                "references": {
+                    "family": [
+                        {
+                            "children": [],
+                            "divorce": {},
+                            "events": [],
+                            "family_surname": "",
+                            "father": {
+                                "birth": {
+                                    "age": "0 days",
+                                    "date": "570-04-19",
+                                    "place": "",
+                                    "type": "Birth",
+                                },
+                                "death": {
+                                    "age": "62 years, 1 months, 19 days",
+                                    "date": "632-06-08",
+                                    "place": "",
+                                    "type": "Death",
+                                },
+                                "handle": "cc8205d872f532ab14e",
+                                "gramps_id": "I2110",
+                                "name_given": "محمد",
+                                "name_surname": "",
+                                "sex": "M",
+                            },
+                            "handle": "cc8205d874433c12fd8",
+                            "gramps_id": "F0743",
+                            "marriage": {},
+                            "mother": {
+                                "birth": {},
+                                "death": {},
+                                "handle": "cc8205d87831c772e87",
+                                "gramps_id": "I2105",
+                                "name_given": "عائشة",
+                                "name_surname": "",
+                                "sex": "F",
+                            },
+                            "relationship": "Married",
+                        },
+                    ]
+                },
             },
         )
 
