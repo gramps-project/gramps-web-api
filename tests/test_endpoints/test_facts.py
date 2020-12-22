@@ -18,7 +18,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 
-"""Tests for the /api/records endpoints using example_gramps."""
+"""Tests for the /api/facts endpoint using example_gramps."""
 
 import unittest
 
@@ -31,11 +31,11 @@ from .checks import (
 )
 from .util import fetch_header
 
-TEST_URL = BASE_URL + "/records/"
+TEST_URL = BASE_URL + "/facts/"
 
 
-class TestRecords(unittest.TestCase):
-    """Test cases for the /api/records/ endpoint."""
+class TestFacts(unittest.TestCase):
+    """Test cases for the /api/facts/ endpoint."""
 
     @classmethod
     def setUpClass(cls):

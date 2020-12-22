@@ -37,6 +37,7 @@ from .resources.exporters import (
     ExporterResource,
     ExportersResource,
 )
+from .resources.facts import FactsResource
 from .resources.families import FamiliesResource, FamilyResource
 from .resources.filters import FilterResource, FiltersResource, FiltersResources
 from .resources.media import MediaObjectResource, MediaObjectsResource
@@ -46,7 +47,6 @@ from .resources.name_groups import NameGroupsResource
 from .resources.notes import NoteResource, NotesResource
 from .resources.people import PeopleResource, PersonResource
 from .resources.places import PlaceResource, PlacesResource
-from .resources.records import RecordsResource
 from .resources.relations import RelationResource, RelationsResource
 from .resources.reports import ReportFileResource, ReportResource, ReportsResource
 from .resources.repositories import RepositoriesResource, RepositoryResource
@@ -173,14 +173,14 @@ register_endpt(
 register_endpt(ReportFileResource, "/reports/<string:report_id>/file", "report-file")
 register_endpt(ReportResource, "/reports/<string:report_id>", "report")
 register_endpt(ReportsResource, "/reports/", "reports")
+# Facts
+register_endpt(FactsResource, "/facts/", "facts")
 # Exporters
 register_endpt(
     ExporterFileResource, "/exporters/<string:extension>/file", "exporter-file"
 )
 register_endpt(ExporterResource, "/exporters/<string:extension>", "exporter")
 register_endpt(ExportersResource, "/exporters/", "exporters")
-# Records
-register_endpt(RecordsResource, "/records/", "records")
 # Metadata
 register_endpt(MetadataResource, "/metadata/", "metadata")
 # User

@@ -66,8 +66,8 @@ tags:
   description: Work with search engine.
 - name: reports
   description: Work with reports.
-- name: records
-  description: Work with records.
+- name: facts
+  description: Work with record facts.
 - name: exporters
   description: Work with exporters.
 - name: metadata
@@ -4306,15 +4306,15 @@ paths:
 
 
 ##############################################################################
-# Endpoint - Records
+# Endpoint - Facts
 ##############################################################################
 
-  /records/:
+  /facts/:
     get:
       tags:
-      - records
+      - facts
       summary: "Get interesting facts about records in the tree."
-      operationId: getRecords
+      operationId: getRecordFacts
       security:
         - Bearer: []
       parameters:

@@ -18,7 +18,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 
-"""Records API resource."""
+"""Facts API resource."""
 
 from typing import Dict, Union
 
@@ -93,8 +93,8 @@ def get_person_filter(db_handle: DbReadBase, args: Dict) -> Union[GenericFilter,
     return person_filter
 
 
-class RecordsResource(ProtectedResource, GrampsJSONEncoder):
-    """Records resource."""
+class FactsResource(ProtectedResource, GrampsJSONEncoder):
+    """Facts resource."""
 
     @use_args(
         {
