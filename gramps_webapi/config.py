@@ -36,6 +36,7 @@ class DefaultConfig(object):
     DEFAULT_FROM_EMAIL = ""
     BASE_URL = "http://localhost/"
     CORS_EXPOSE_HEADERS = ["X-Total-Count"]
+    STATIC_PATH = "static"
 
 
 class DefaultConfigJWT(object):

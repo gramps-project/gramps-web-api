@@ -21,8 +21,9 @@
 """Flask web app providing a REST API to a gramps family tree."""
 
 import logging
+import os
 
-from flask import Flask, g
+from flask import abort, Flask, g, send_from_directory
 from flask_compress import Compress
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
@@ -39,6 +40,7 @@ from .dbmanager import WebDbManager
 def create_app(db_manager=None):
     """Flask application factory."""
     app = Flask(__name__)
+
     app.logger.setLevel(logging.INFO)
 
     # load default config
@@ -90,6 +92,23 @@ def create_app(db_manager=None):
 
     # enable gzip compression
     Compress(app)
+
+    static_path = app.config.get("STATIC_PATH")
+
+    # routes for static hosting (e.g. SPA frontend)
+    @app.route("/", methods=["GET", "POST"])
+    def send_index():
+        return send_from_directory(static_path, "index.html")
+
+    @app.route("/<path:path>", methods=["GET", "POST"])
+    def send_static(path):
+        if path.startswith(API_PREFIX[1:]):
+            # we don't want any erroneous API calls to end up here!
+            abort(404)
+        if path and os.path.exists(os.path.join(static_path, path)):
+            return send_from_directory(static_path, path)
+        else:
+            return send_from_directory(static_path, "index.html")
 
     # register the API blueprint
     app.register_blueprint(api_blueprint)
