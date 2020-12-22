@@ -408,7 +408,6 @@ class TestEvents(unittest.TestCase):
                     ],
                 },
                 "references": {
-                    "family": [],
                     "person": [
                         {
                             "birth": {
@@ -626,7 +625,6 @@ class TestEventsHandle(unittest.TestCase):
                     ],
                 },
                 "references": {
-                    "family": [],
                     "person": [
                         {
                             "birth": {
@@ -677,7 +675,6 @@ class TestEventsHandle(unittest.TestCase):
                     ],
                 },
                 "references": {
-                    "family": [],
                     "person": [
                         {
                             "birth": {
