@@ -833,8 +833,8 @@ class TestFamiliesHandle(unittest.TestCase):
                         {
                             "birth": {
                                 "date": "1983-10-05",
-                                "place": "Ottawa, IL",
-                                "type": "Geburt",
+                                "place": "Ottawa, La Salle, IL, USA",
+                                "type": "Birth",
                             },
                             "death": {},
                             "gramps_id": "I0124",
@@ -846,8 +846,8 @@ class TestFamiliesHandle(unittest.TestCase):
                         {
                             "birth": {
                                 "date": "1985-02-11",
-                                "place": "Ottawa, IL",
-                                "type": "Geburt",
+                                "place": "Ottawa, La Salle, IL, USA",
+                                "type": "Birth",
                             },
                             "death": {},
                             "gramps_id": "I0125",
@@ -860,7 +860,7 @@ class TestFamiliesHandle(unittest.TestCase):
                             "birth": {
                                 "date": "1957-01-31",
                                 "place": "",
-                                "type": "Geburt",
+                                "type": "Birth",
                             },
                             "death": {},
                             "gramps_id": "I0123",
@@ -872,8 +872,8 @@ class TestFamiliesHandle(unittest.TestCase):
                         {
                             "birth": {
                                 "date": "1955-07-31",
-                                "place": "Ottawa, IL",
-                                "type": "Geburt",
+                                "place": "Ottawa, La Salle, IL, USA",
+                                "type": "Birth",
                             },
                             "death": {},
                             "gramps_id": "I0017",
@@ -946,7 +946,9 @@ class TestFamiliesHandleTimeline(unittest.TestCase):
     def test_get_families_handle_timeline_conforms_to_schema(self):
         """Test conforms to schema."""
         check_conforms_to_schema(
-            self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline", "TimelineEventProfile",
+            self,
+            TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline",
+            "TimelineEventProfile",
         )
 
     def test_get_families_handle_timeline_missing_content(self):
