@@ -23,7 +23,7 @@
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Generator, Tuple
+from typing import Any, Dict, Generator, List, Optional, Tuple
 
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.lib import Name
@@ -33,6 +33,7 @@ from whoosh.qparser import FieldsPlugin, MultifieldParser, QueryParser
 from whoosh.qparser.dateparse import DateParserPlugin
 from whoosh.query import Term
 from whoosh.searching import Hit
+from whoosh.sorting import FieldFacet
 
 from ..const import PRIMARY_GRAMPS_OBJECTS
 from ..types import FilenameOrPath
@@ -96,21 +97,21 @@ class SearchIndexer:
 
     # schema for searches of all (public + private) info
     SCHEMA = Schema(
-        type=ID(stored=True),
+        type=ID(stored=True, sortable=True),
         handle=ID(stored=True, unique=True),
         private=BOOLEAN(stored=True),
         text=TEXT(),
         text_private=TEXT(),
-        changed=DATETIME(),
+        changed=DATETIME(sortable=True),
     )
 
     # schema for searches of public info only
     SCHEMA_PUBLIC = Schema(
-        type=ID(stored=True),
+        type=ID(stored=True, sortable=True),
         handle=ID(stored=True, unique=True),
         private=BOOLEAN(stored=True),
         text=TEXT(),
-        changed=DATETIME(),
+        changed=DATETIME(sortable=True),
     )
 
     def __init__(self, index_dir=FilenameOrPath):
@@ -153,6 +154,22 @@ class SearchIndexer:
             "score": hit.score,
         }
 
+    def _get_sorting(
+        self, sort: Optional[List[str]] = None,
+    ) -> Optional[List[FieldFacet]]:
+        """Get the appropriate field facets for sorting."""
+        if not sort:
+            return None
+        facets = []
+        allowed_sorters = {"type", "changed"}
+        for sorter in sort:
+            _field = sorter.lstrip("+-")
+            if _field not in allowed_sorters:
+                continue
+            reverse = sorter.startswith("-")
+            facets.append(FieldFacet(_field, reverse=reverse))
+        return facets
+
     def search(
         self,
         query: str,
@@ -160,6 +177,7 @@ class SearchIndexer:
         pagesize: int,
         include_private: bool = True,
         extend: bool = False,
+        sort: Optional[List[str]] = None,
     ):
         """Search the index.
 
@@ -174,5 +192,8 @@ class SearchIndexer:
         mask = None if include_private else Term("private", True)
         parsed_query = query_parser.parse(query)
         with self.index().searcher() as searcher:
-            results = searcher.search_page(parsed_query, page, pagesize, mask=mask)
+            sortedby = self._get_sorting(sort)
+            results = searcher.search_page(
+                parsed_query, page, pagesize, mask=mask, sortedby=sortedby
+            )
             return results.total, [self.format_hit(hit) for hit in results]
