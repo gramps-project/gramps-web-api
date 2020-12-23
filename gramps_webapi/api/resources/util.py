@@ -302,6 +302,19 @@ def get_place_profile_for_object(
     return profile
 
 
+def get_place_profile_for_handle(
+    db_handle: DbReadBase,
+    handle: Handle,
+    locale: GrampsLocale = glocale,
+    parent_places: bool = True,
+) -> Union[Media, Dict]:
+    """Get place profile given a handle."""
+    obj = get_place_by_handle(db_handle, handle)
+    return get_place_profile_for_object(
+        db_handle, obj, locale=locale, parent_places=parent_places
+    )
+
+
 def get_person_profile_for_object(
     db_handle: DbReadBase, person: Person, args: List, locale: GrampsLocale = glocale
 ) -> Person:
@@ -418,10 +431,12 @@ def get_family_profile_for_object(
     if profile["father"]:
         if profile["father"]["name_surname"] or profile["father"]["name_given"]:
             profile["family_surname"] = profile["father"]["name_surname"]
-        else:
+        elif profile["mother"]:
             profile["family_surname"] = profile["mother"]["name_surname"]
-    else:
+    elif profile["mother"]:
         profile["family_surname"] = profile["mother"]["name_surname"]
+    else:
+        profile["family_surname"] = ""
     if "all" in args or "events" in args:
         if "span" not in args and "all" not in args:
             marriage_event = None
@@ -471,6 +486,17 @@ def get_citation_profile_for_object(
     }
 
 
+def get_citation_profile_for_handle(
+    db_handle: DbReadBase, handle: Handle, args: List, locale: GrampsLocale = glocale
+) -> Union[Family, Dict]:
+    """Get citation profile given a handle."""
+    try:
+        obj = db_handle.get_citation_from_handle(handle)
+    except HandleError:
+        return {}
+    return get_citation_profile_for_object(db_handle, obj, args, locale=locale)
+
+
 def get_media_profile_for_object(
     db_handle: DbReadBase, media: Media, args: List, locale: GrampsLocale = glocale
 ) -> Media:
@@ -479,6 +505,17 @@ def get_media_profile_for_object(
         "gramps_id": media.gramps_id,
         "date": locale.date_displayer.display(media.date),
     }
+
+
+def get_media_profile_for_handle(
+    db_handle: DbReadBase, handle: Handle, args: List, locale: GrampsLocale = glocale
+) -> Union[Media, Dict]:
+    """Get media profile given a handle."""
+    try:
+        obj = db_handle.get_media_from_handle(handle)
+    except HandleError:
+        return {}
+    return get_media_profile_for_object(db_handle, obj, args, locale=locale)
 
 
 def get_extended_attributes(
@@ -570,3 +607,47 @@ def get_soundex(
     else:
         person = obj
     return soundex(person.get_primary_name().get_surname())
+
+
+def get_reference_profile_for_object(
+    db_handle: DbReadBase, obj: GrampsObject, locale: GrampsLocale = glocale,
+) -> Dict:
+    """ bla"""
+    profile = {}
+    # get backlink handles
+    if hasattr(obj, "backlinks"):
+        backlink_handles = obj.backlinks
+    else:
+        # if not computed yet, do it now
+        backlink_handles = get_backlinks(db_handle, obj.handle)
+    if "person" in backlink_handles:
+        profile["person"] = [
+            get_person_profile_for_handle(db_handle, handle, args=[], locale=locale)
+            for handle in backlink_handles["person"]
+        ]
+    if "family" in backlink_handles:
+        profile["family"] = [
+            get_family_profile_for_handle(db_handle, handle, args=[], locale=locale)
+            for handle in backlink_handles["family"]
+        ]
+    if "event" in backlink_handles:
+        profile["event"] = [
+            get_event_profile_for_handle(db_handle, handle, args=[], locale=locale)
+            for handle in backlink_handles["event"]
+        ]
+    if "media" in backlink_handles:
+        profile["media"] = [
+            get_media_profile_for_handle(db_handle, handle, args=[], locale=locale)
+            for handle in backlink_handles["media"]
+        ]
+    if "citation" in backlink_handles:
+        profile["citation"] = [
+            get_citation_profile_for_handle(db_handle, handle, args=[], locale=locale)
+            for handle in backlink_handles["citation"]
+        ]
+    if "place" in backlink_handles:
+        profile["place"] = [
+            get_place_profile_for_handle(db_handle, handle, locale=locale)
+            for handle in backlink_handles["place"]
+        ]
+    return profile

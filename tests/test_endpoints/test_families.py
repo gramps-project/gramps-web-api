@@ -473,6 +473,53 @@ class TestFamilies(unittest.TestCase):
                     "sex": "F",
                 },
                 "relationship": "Married",
+                "references": {
+                    "person": [
+                        {
+                            "birth": {
+                                "date": "164-03-00 (Islamic)",
+                                "place": "",
+                                "type": "Birth",
+                            },
+                            "death": {
+                                "date": "241-03-12 (Islamic)",
+                                "place": "",
+                                "type": "Death",
+                            },
+                            "gramps_id": "I2111",
+                            "handle": "cc82060504445ab6deb",
+                            "name_given": "أحمد",
+                            "name_surname": "",
+                            "sex": "M",
+                        },
+                        {
+                            "birth": {},
+                            "death": {
+                                "date": "234 (Islamic)",
+                                "place": "",
+                                "type": "Death",
+                            },
+                            "gramps_id": "I2112",
+                            "handle": "cc8206050980ea622d0",
+                            "name_given": "العباسة",
+                            "name_surname": "الفضل",
+                            "sex": "F",
+                        },
+                        {
+                            "birth": {
+                                "date": "203 (Islamic)",
+                                "place": "",
+                                "type": "Birth",
+                            },
+                            "death": {},
+                            "gramps_id": "I2115",
+                            "handle": "cc82060516c6c141500",
+                            "name_given": "صالح",
+                            "name_surname": "",
+                            "sex": "M",
+                        },
+                    ]
+                },
             },
         )
 
@@ -781,6 +828,62 @@ class TestFamiliesHandle(unittest.TestCase):
                     "sex": "F",
                 },
                 "relationship": "Married",
+                "references": {
+                    "person": [
+                        {
+                            "birth": {
+                                "date": "1983-10-05",
+                                "place": "Ottawa, La Salle, IL, USA",
+                                "type": "Birth",
+                            },
+                            "death": {},
+                            "gramps_id": "I0124",
+                            "handle": "1GWJQCGOOZ8FJW3YK9",
+                            "name_given": "Stephen Gerard",
+                            "name_surname": "Garner",
+                            "sex": "M",
+                        },
+                        {
+                            "birth": {
+                                "date": "1985-02-11",
+                                "place": "Ottawa, La Salle, IL, USA",
+                                "type": "Birth",
+                            },
+                            "death": {},
+                            "gramps_id": "I0125",
+                            "handle": "IGWJQCSVT8NXTFXOFJ",
+                            "name_given": "Daniel Patrick",
+                            "name_surname": "Garner",
+                            "sex": "M",
+                        },
+                        {
+                            "birth": {
+                                "date": "1957-01-31",
+                                "place": "",
+                                "type": "Birth",
+                            },
+                            "death": {},
+                            "gramps_id": "I0123",
+                            "handle": "JFWJQCRREDFKZLDKVD",
+                            "name_given": "Elizabeth",
+                            "name_surname": "George",
+                            "sex": "F",
+                        },
+                        {
+                            "birth": {
+                                "date": "1955-07-31",
+                                "place": "Ottawa, La Salle, IL, USA",
+                                "type": "Birth",
+                            },
+                            "death": {},
+                            "gramps_id": "I0017",
+                            "handle": "KLTJQC70XVZJSPQ43U",
+                            "name_given": "Gerard Stephen",
+                            "name_surname": "Garner",
+                            "sex": "M",
+                        },
+                    ]
+                },
             },
         )
 

@@ -509,7 +509,7 @@ class TestPlacesHandle(unittest.TestCase):
 
     def test_get_places_handle_parameter_profile(self):
         """Test place profile."""
-        rv = check_success(self, TEST_URL + "08TJQCCFIX31BXPNXN?profile=all&locale=it")
+        rv = check_success(self, TEST_URL + "08TJQCCFIX31BXPNXN?profile=self&locale=it")
         self.assertEqual(
             rv["profile"],
             {

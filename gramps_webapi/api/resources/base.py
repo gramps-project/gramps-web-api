@@ -37,7 +37,12 @@ from . import ProtectedResource, Resource
 from .emit import GrampsJSONEncoder
 from .filters import apply_filter
 from .sort import sort_objects
-from .util import get_backlinks, get_extended_attributes, get_soundex
+from .util import (
+    get_backlinks,
+    get_reference_profile_for_object,
+    get_extended_attributes,
+    get_soundex,
+)
 
 
 class GrampsObjectResourceHelper(GrampsJSONEncoder):
@@ -59,6 +64,15 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
                 abort(422)
             obj.soundex = get_soundex(self.db_handle, obj, self.gramps_class_name)
         obj = self.object_extend(obj, args, locale=locale)
+        if args.get("profile") and (
+            "all" in args["profile"] or "references" in args["profile"]
+        ):
+            if not hasattr(obj, "profile"):
+                # create profile if doesn't exist
+                obj.profile = {}
+            obj.profile["references"] = get_reference_profile_for_object(
+                self.db_handle, obj, locale=locale
+            )
         return obj
 
     def object_extend(
@@ -136,7 +150,15 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
-                    choices=["all", "self", "families", "events", "age", "span"]
+                    choices=[
+                        "all",
+                        "self",
+                        "families",
+                        "events",
+                        "age",
+                        "span",
+                        "references",
+                    ]
                 ),
             ),
             "skipkeys": fields.DelimitedList(
@@ -200,7 +222,15 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
-                    choices=["all", "self", "families", "events", "age", "span"]
+                    choices=[
+                        "all",
+                        "self",
+                        "families",
+                        "events",
+                        "age",
+                        "span",
+                        "references",
+                    ]
                 ),
             ),
             "rules": fields.Str(validate=validate.Length(min=1)),
