@@ -501,77 +501,62 @@ class TestPeople(unittest.TestCase):
 
     def test_get_people_parameter_profile_expected_result(self):
         """Test expected response."""
-        rv = check_success(self, TEST_URL + "?page=1&profile=all")
+        rv = check_success(
+            self, TEST_URL + "?page=1&pagesize=1&keys=profile&strip=1&profile=all"
+        )
         self.assertEqual(
             rv[0]["profile"],
             {
-                "birth": {
-                    "age": "0 days",
-                    "date": "570-04-19",
-                    "place": "",
-                    "type": "Birth",
-                },
+                "birth": {"age": "0 days", "date": "570-04-19", "type": "Birth"},
                 "death": {
                     "age": "62 years, 1 months, 19 days",
                     "date": "632-06-08",
-                    "place": "",
                     "type": "Death",
                 },
                 "events": [
                     {
                         "age": "0 days",
                         "date": "570-04-19",
-                        "place": "",
+                        "role": "Primary",
                         "type": "Birth",
                     },
                     {
                         "age": "62 years, 1 months, 19 days",
                         "date": "632-06-08",
-                        "place": "",
+                        "role": "Primary",
                         "type": "Death",
                     },
                     {
                         "age": "39 years, 8 months, 13 days",
                         "date": "610",
-                        "place": "",
+                        "role": "Primary",
                         "type": "Marriage",
                     },
                 ],
                 "families": [
                     {
-                        "children": [],
-                        "divorce": {},
-                        "events": [],
-                        "family_surname": "",
                         "father": {
                             "birth": {
                                 "age": "0 days",
                                 "date": "570-04-19",
-                                "place": "",
                                 "type": "Birth",
                             },
                             "death": {
                                 "age": "62 years, 1 months, 19 days",
                                 "date": "632-06-08",
-                                "place": "",
                                 "type": "Death",
                             },
                             "gramps_id": "I2110",
                             "handle": "cc8205d872f532ab14e",
                             "name_given": "محمد",
-                            "name_surname": "",
                             "sex": "M",
                         },
                         "gramps_id": "F0743",
                         "handle": "cc8205d874433c12fd8",
-                        "marriage": {},
                         "mother": {
-                            "birth": {},
-                            "death": {},
                             "gramps_id": "I2105",
                             "handle": "cc8205d87831c772e87",
                             "name_given": "عائشة",
-                            "name_surname": "",
                             "sex": "F",
                         },
                         "relationship": "Married",
@@ -579,65 +564,46 @@ class TestPeople(unittest.TestCase):
                     {
                         "children": [
                             {
-                                "birth": {},
-                                "death": {},
                                 "gramps_id": "I2107",
                                 "handle": "cc8205d87fd529000ff",
                                 "name_given": "القاسم",
-                                "name_surname": "",
                                 "sex": "M",
                             },
                             {
-                                "birth": {},
-                                "death": {},
                                 "gramps_id": "I2108",
                                 "handle": "cc8205d883763f02abd",
                                 "name_given": "عبد الله",
-                                "name_surname": "",
                                 "sex": "M",
                             },
                             {
-                                "birth": {},
-                                "death": {},
                                 "gramps_id": "I2109",
                                 "handle": "cc8205d887376aacba2",
                                 "name_given": "أم كلثوم",
-                                "name_surname": "",
                                 "sex": "F",
                             },
                         ],
-                        "divorce": {},
-                        "events": [],
-                        "family_surname": "",
                         "father": {
                             "birth": {
                                 "age": "0 days",
                                 "date": "570-04-19",
-                                "place": "",
                                 "type": "Birth",
                             },
                             "death": {
                                 "age": "62 years, 1 months, 19 days",
                                 "date": "632-06-08",
-                                "place": "",
                                 "type": "Death",
                             },
                             "gramps_id": "I2110",
                             "handle": "cc8205d872f532ab14e",
                             "name_given": "محمد",
-                            "name_surname": "",
                             "sex": "M",
                         },
                         "gramps_id": "F0744",
                         "handle": "cc8205d87492b90b437",
-                        "marriage": {},
                         "mother": {
-                            "birth": {},
-                            "death": {},
                             "gramps_id": "I2106",
                             "handle": "cc8205d87c20350420b",
                             "name_given": "خديجة",
-                            "name_surname": "",
                             "sex": "F",
                         },
                         "relationship": "Married",
@@ -646,42 +612,23 @@ class TestPeople(unittest.TestCase):
                 "gramps_id": "I2110",
                 "handle": "cc8205d872f532ab14e",
                 "name_given": "محمد",
-                "name_surname": "",
-                "other_parent_families": [],
-                "primary_parent_family": {},
                 "references": {
                     "family": [
                         {
-                            "children": [],
-                            "divorce": {},
-                            "family_surname": "",
                             "father": {
-                                "birth": {
-                                    "date": "570-04-19",
-                                    "place": "",
-                                    "type": "Birth",
-                                },
-                                "death": {
-                                    "date": "632-06-08",
-                                    "place": "",
-                                    "type": "Death",
-                                },
+                                "birth": {"date": "570-04-19", "type": "Birth"},
+                                "death": {"date": "632-06-08", "type": "Death"},
                                 "gramps_id": "I2110",
                                 "handle": "cc8205d872f532ab14e",
                                 "name_given": "محمد",
-                                "name_surname": "",
                                 "sex": "M",
                             },
                             "gramps_id": "F0743",
                             "handle": "cc8205d874433c12fd8",
-                            "marriage": {},
                             "mother": {
-                                "birth": {},
-                                "death": {},
                                 "gramps_id": "I2105",
                                 "handle": "cc8205d87831c772e87",
                                 "name_given": "عائشة",
-                                "name_surname": "",
                                 "sex": "F",
                             },
                             "relationship": "Married",
@@ -689,62 +636,38 @@ class TestPeople(unittest.TestCase):
                         {
                             "children": [
                                 {
-                                    "birth": {},
-                                    "death": {},
                                     "gramps_id": "I2107",
                                     "handle": "cc8205d87fd529000ff",
                                     "name_given": "القاسم",
-                                    "name_surname": "",
                                     "sex": "M",
                                 },
                                 {
-                                    "birth": {},
-                                    "death": {},
                                     "gramps_id": "I2108",
                                     "handle": "cc8205d883763f02abd",
                                     "name_given": "عبد الله",
-                                    "name_surname": "",
                                     "sex": "M",
                                 },
                                 {
-                                    "birth": {},
-                                    "death": {},
                                     "gramps_id": "I2109",
                                     "handle": "cc8205d887376aacba2",
                                     "name_given": "أم كلثوم",
-                                    "name_surname": "",
                                     "sex": "F",
                                 },
                             ],
-                            "divorce": {},
-                            "family_surname": "",
                             "father": {
-                                "birth": {
-                                    "date": "570-04-19",
-                                    "place": "",
-                                    "type": "Birth",
-                                },
-                                "death": {
-                                    "date": "632-06-08",
-                                    "place": "",
-                                    "type": "Death",
-                                },
+                                "birth": {"date": "570-04-19", "type": "Birth"},
+                                "death": {"date": "632-06-08", "type": "Death"},
                                 "gramps_id": "I2110",
                                 "handle": "cc8205d872f532ab14e",
                                 "name_given": "محمد",
-                                "name_surname": "",
                                 "sex": "M",
                             },
                             "gramps_id": "F0744",
                             "handle": "cc8205d87492b90b437",
-                            "marriage": {},
                             "mother": {
-                                "birth": {},
-                                "death": {},
                                 "gramps_id": "I2106",
                                 "handle": "cc8205d87c20350420b",
                                 "name_given": "خديجة",
-                                "name_surname": "",
                                 "sex": "F",
                             },
                             "relationship": "Married",
@@ -752,48 +675,6 @@ class TestPeople(unittest.TestCase):
                     ]
                 },
                 "sex": "M",
-                "references": {
-                    "family": [
-                        {
-                            "children": [],
-                            "divorce": {},
-                            "events": [],
-                            "family_surname": "",
-                            "father": {
-                                "birth": {
-                                    "age": "0 days",
-                                    "date": "570-04-19",
-                                    "place": "",
-                                    "type": "Birth",
-                                },
-                                "death": {
-                                    "age": "62 years, 1 months, 19 days",
-                                    "date": "632-06-08",
-                                    "place": "",
-                                    "type": "Death",
-                                },
-                                "handle": "cc8205d872f532ab14e",
-                                "gramps_id": "I2110",
-                                "name_given": "محمد",
-                                "name_surname": "",
-                                "sex": "M",
-                            },
-                            "handle": "cc8205d874433c12fd8",
-                            "gramps_id": "F0743",
-                            "marriage": {},
-                            "mother": {
-                                "birth": {},
-                                "death": {},
-                                "handle": "cc8205d87831c772e87",
-                                "gramps_id": "I2105",
-                                "name_given": "عائشة",
-                                "name_surname": "",
-                                "sex": "F",
-                            },
-                            "relationship": "Married",
-                        },
-                    ]
-                },
             },
         )
 
@@ -1167,7 +1048,9 @@ class TestPeopleHandleTimeline(unittest.TestCase):
     def test_get_people_handle_timeline_conforms_to_schema(self):
         """Test conforms to schema."""
         check_conforms_to_schema(
-            self, TEST_URL + "GNUJQCL9MD64AM56OH/timeline", "TimelineEventProfile",
+            self,
+            TEST_URL + "GNUJQCL9MD64AM56OH/timeline",
+            "TimelineEventProfile",
         )
 
     def test_get_people_handle_timeline_missing_content(self):
