@@ -70,6 +70,8 @@ tags:
   description: Work with reports.
 - name: facts
   description: Work with record facts.
+- name: holidays
+  description: Work with holiday calculator.
 - name: exporters
   description: Work with exporters.
 - name: metadata
@@ -4724,6 +4726,63 @@ paths:
 
 
 ##############################################################################
+# Endpoint - Holidays
+##############################################################################
+   
+  /holidays:
+    get:
+      tags:
+      - holidays
+      summary: "Get the list of countries with available holiday calendars."
+      operationId: getHolidayCalendars
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/Countries"
+        401:
+          description: "Unauthorized: Missing authorization header."
+
+  /holidays/{country}/{year}/{month}/{day}:
+    get:
+      tags:
+      - holidays
+      summary: "Get any holiday names for the given date in the given country."
+      operationId: getHolidays
+      security:
+        - Bearer: []
+      parameters:
+      - name: country
+        in: path
+        required: true
+        type: string
+        description: "The country name."
+      - name: year
+        in: path
+        required: true
+        type: integer
+        description: "The year."
+      - name: month
+        in: path
+        required: true
+        type: integer
+        description: "The month."
+      - name: day
+        in: path
+        required: true
+        type: integer
+        description: "The day."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/Holidays"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        
+##############################################################################
 # Endpoint - Metadata
 ##############################################################################
 
@@ -7316,6 +7375,30 @@ definitions:
         - 35WJQC1B7T7NPV8OLV
         - Q8HKQC3VMRM1M6M7ES
 
+##############################################################################
+# Model - Countries
+##############################################################################
+
+  Countries:
+    type: array
+    items:
+      type: string
+    example:
+      - "Bulgaria"
+      - "Canada"
+      - "Czech Republic"
+
+##############################################################################
+# Model - Holidays
+##############################################################################
+
+  Holidays:
+    type: array
+    items:
+      type: string
+    example:
+      - "Christmas"
+    
 ##############################################################################
 # Model - NameFormat
 ##############################################################################
