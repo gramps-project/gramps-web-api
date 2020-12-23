@@ -40,6 +40,7 @@ from .resources.exporters import (
 from .resources.facts import FactsResource
 from .resources.families import FamiliesResource, FamilyResource
 from .resources.filters import FilterResource, FiltersResource, FiltersResources
+from .resources.living import LivingDatesResource, LivingResource
 from .resources.media import MediaObjectResource, MediaObjectsResource
 from .resources.metadata import MetadataResource
 from .resources.name_formats import NameFormatsResource
@@ -169,6 +170,9 @@ register_endpt(
     "/relations/<string:handle1>/<string:handle2>/all",
     "relations",
 )
+# Living
+register_endpt(LivingDatesResource, "/living/<string:handle>/dates", "living-dates")
+register_endpt(LivingResource, "/living/<string:handle>", "living")
 # Reports
 register_endpt(ReportFileResource, "/reports/<string:report_id>/file", "report-file")
 register_endpt(ReportResource, "/reports/<string:report_id>", "report")

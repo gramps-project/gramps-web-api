@@ -60,6 +60,8 @@ tags:
   description: Work with translations.
 - name: relations
   description: Work with relationship calculator.
+- name: living
+  description: Work with living calculator.
 - name: timelines
   description: Work with timelines.
 - name: search
@@ -3847,6 +3849,105 @@ paths:
 
 
 ##############################################################################
+# Endpoint - Living
+##############################################################################
+
+  /living/{handle}:
+    get:
+      tags:
+      - living
+      summary: "Get whether or not a person is living."
+      operationId: getAlive
+      security:
+        - Bearer: []
+      parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        description: "The handle of the person to evaluate."
+      - name: average_generation_gap
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "Average number of years between generations."
+      - name: max_age_probably_alive
+        in: query
+        required: false
+        type: integer
+        default: 110
+        description: "Maximum possible age in years someone could be considered alive."
+      - name: max_sibling_age_difference
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "Maximum possible age difference in years between youngest and oldest sibling."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/Living"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Handle was not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
+
+  /living/{handle}/dates:
+    get:
+      tags:
+      - living
+      summary: "Get estimated birth and death dates for a person."
+      operationId: getAliveDates
+      security:
+        - Bearer: []
+      parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        description: "The handle of the person to evaluate."
+      - name: average_generation_gap
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "Average number of years between generations."
+      - name: max_age_probably_alive
+        in: query
+        required: false
+        type: integer
+        default: 110
+        description: "Maximum possible age in years someone could be considered alive."
+      - name: max_sibling_age_difference
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "Maximum possible age difference in years between youngest and oldest sibling."
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale for the date string if one other than the current default is desired."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/LivingDates"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Handle was not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
+
+##############################################################################
 # Endpoint - Timelines
 ##############################################################################
 
@@ -7576,6 +7677,39 @@ definitions:
       score:
         type: number
         example: 5.522300827719273
+
+##############################################################################
+# Model - Living
+##############################################################################
+
+  Living:
+    type: object
+    properties:
+      living:
+        type: boolean
+        example: true
+
+##############################################################################
+# Model - LivingDates
+##############################################################################
+
+  LivingDates:
+    type: object
+    properties:
+      birth:
+        description: "Birth date or estimated birth date."
+        type: string
+        example: "1999-04-01"
+      death:
+         description: "Death date or estimated death date."
+         type: string
+         example: "2179-04-11"
+      explain:
+         description: "Explanation indicating how dates were arrived at."
+         type: string
+         example: "birth date"
+      other:
+        $ref: "#/definitions/Person"
 
 ##############################################################################
 # Model - TimelineEventProfile
