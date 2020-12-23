@@ -37,6 +37,7 @@ from .resources.exporters import (
     ExporterResource,
     ExportersResource,
 )
+from .resources.facts import FactsResource
 from .resources.families import FamiliesResource, FamilyResource
 from .resources.filters import FilterResource, FiltersResource, FiltersResources
 from .resources.media import MediaObjectResource, MediaObjectsResource
@@ -172,6 +173,8 @@ register_endpt(
 register_endpt(ReportFileResource, "/reports/<string:report_id>/file", "report-file")
 register_endpt(ReportResource, "/reports/<string:report_id>", "report")
 register_endpt(ReportsResource, "/reports/", "reports")
+# Facts
+register_endpt(FactsResource, "/facts/", "facts")
 # Exporters
 register_endpt(
     ExporterFileResource, "/exporters/<string:extension>/file", "exporter-file"
@@ -182,10 +185,14 @@ register_endpt(ExportersResource, "/exporters/", "exporters")
 register_endpt(MetadataResource, "/metadata/", "metadata")
 # User
 register_endpt(
-    UsersResource, "/users/", "users",
+    UsersResource,
+    "/users/",
+    "users",
 )
 register_endpt(
-    UserResource, "/users/<string:user_name>/", "user",
+    UserResource,
+    "/users/<string:user_name>/",
+    "user",
 )
 register_endpt(
     UserChangePasswordResource,
@@ -193,7 +200,9 @@ register_endpt(
     "change_password",
 )
 register_endpt(
-    UserResetPasswordResource, "/users/-/password/reset/", "reset_password",
+    UserResetPasswordResource,
+    "/users/-/password/reset/",
+    "reset_password",
 )
 register_endpt(
     UserTriggerResetPasswordResource,
