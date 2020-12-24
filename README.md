@@ -1,4 +1,4 @@
-# web-api
+# gramps-webapi
 
 A RESTful web API for Gramps
 
