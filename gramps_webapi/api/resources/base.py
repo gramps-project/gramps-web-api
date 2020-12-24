@@ -163,6 +163,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
                         "events",
                         "age",
                         "span",
+                        "ratings",
                         "references",
                     ]
                 ),
@@ -245,6 +246,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                         "events",
                         "age",
                         "span",
+                        "ratings",
                         "references",
                     ]
                 ),

@@ -32,8 +32,7 @@ from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 
 from ...types import Handle
-from ..util import use_args
-from ..util import get_db_handle, get_locale_for_language
+from ..util import get_db_handle, get_locale_for_language, use_args
 from . import ProtectedResource
 from .base import (
     GrampsObjectProtectedResource,
@@ -58,16 +57,16 @@ class EventResourceHelper(GrampsObjectResourceHelper):
     ) -> Event:
         """Extend event attributes as needed."""
         db_handle = self.db_handle
+        if "extend" in args:
+            obj.extended = get_extended_attributes(db_handle, obj, args)
+            if "all" in args["extend"] or "place" in args["extend"]:
+                obj.extended["place"] = get_place_by_handle(db_handle, obj.place)
         if "profile" in args:
             if "families" in args["profile"] or "events" in args["profile"]:
                 abort(422)
             obj.profile = get_event_profile_for_object(
                 db_handle, obj, args["profile"], locale=locale
             )
-        if "extend" in args:
-            obj.extended = get_extended_attributes(db_handle, obj, args)
-            if "all" in args["extend"] or "place" in args["extend"]:
-                obj.extended["place"] = get_place_by_handle(db_handle, obj.place)
         return obj
 
 

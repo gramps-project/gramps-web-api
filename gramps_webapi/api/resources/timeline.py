@@ -42,7 +42,11 @@ from ..util import get_db_handle, get_locale_for_language, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .filters import apply_filter
-from .util import get_person_profile_for_object, get_place_profile_for_object
+from .util import (
+    get_person_profile_for_object,
+    get_place_profile_for_object,
+    get_rating,
+)
 
 pd = PlaceDisplay()
 
@@ -90,6 +94,7 @@ class Timeline:
         db_handle: DbReadBase,
         dates: Union[str, None] = None,
         events: Union[List, None] = None,
+        ratings: bool = False,
         relatives: Union[List, None] = None,
         relative_events: Union[List, None] = None,
         discard_empty: bool = True,
@@ -103,6 +108,7 @@ class Timeline:
         self.dates = dates
         self.start_date = None
         self.end_date = None
+        self.ratings = ratings
         self.discard_empty = discard_empty
         self.precision = precision
         self.locale = locale
@@ -230,6 +236,10 @@ class Timeline:
             if item[0].handle == event[0].handle:
                 return
         if self.is_eligible(event[0], relative):
+            if self.ratings:
+                count, confidence = get_rating(self.db_handle, event[0])
+                event[0].citations = count
+                event[0].confidence = confidence
             self.timeline.append(event + (span,))
 
     def add_person(
@@ -413,6 +423,9 @@ class Timeline:
                 "type": event[0].type,
             }
             profile["person"]["relationship"] = str(event[2])
+            if self.ratings:
+                profile["citations"] = event[0].citations
+                profile["confidence"] = event[0].confidence
             profiles.append(profile)
         return profiles
 
@@ -463,6 +476,7 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
             "precision": fields.Integer(
                 missing=1, validate=validate.Range(min=1, max=3)
             ),
+            "ratings": fields.Boolean(missing=False),
             "relative_event_classes": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
@@ -498,6 +512,7 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
                 get_db_handle(),
                 dates=args["dates"],
                 events=events,
+                ratings=args["ratings"],
                 relatives=relatives,
                 relative_events=relative_events,
                 discard_empty=args["discard_empty"],
@@ -546,6 +561,7 @@ class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
             "locale": fields.Str(missing=None),
             "page": fields.Integer(missing=0, validate=validate.Range(min=1)),
             "pagesize": fields.Integer(missing=20, validate=validate.Range(min=1)),
+            "ratings": fields.Boolean(missing=False),
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
@@ -562,6 +578,7 @@ class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
                 get_db_handle(),
                 dates=args["dates"],
                 events=events,
+                ratings=args["ratings"],
                 discard_empty=args["discard_empty"],
                 locale=locale,
             )
@@ -610,6 +627,7 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
             "precision": fields.Integer(
                 missing=1, validate=validate.Range(min=1, max=3)
             ),
+            "ratings": fields.Boolean(missing=False),
             "rules": fields.Str(validate=validate.Length(min=1)),
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
@@ -628,6 +646,7 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
                 db_handle,
                 dates=args["dates"],
                 events=events,
+                ratings=args["ratings"],
                 discard_empty=args["discard_empty"],
                 omit_anchor=args["omit_anchor"],
                 precision=args["precision"],
@@ -689,6 +708,7 @@ class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
             "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
             "page": fields.Integer(missing=0, validate=validate.Range(min=1)),
             "pagesize": fields.Integer(missing=20, validate=validate.Range(min=1)),
+            "ratings": fields.Boolean(missing=False),
             "rules": fields.Str(validate=validate.Length(min=1)),
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
@@ -707,6 +727,7 @@ class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
                 db_handle,
                 dates=args["dates"],
                 events=events,
+                ratings=args["ratings"],
                 discard_empty=args["discard_empty"],
                 locale=locale,
             )
