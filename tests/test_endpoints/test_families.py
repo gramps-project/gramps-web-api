@@ -418,7 +418,9 @@ class TestFamilies(unittest.TestCase):
 
     def test_get_families_parameter_profile_expected_result(self):
         """Test expected response."""
-        rv = check_success(self, TEST_URL + "?page=1&keys=profile&profile=all")
+        rv = check_success(
+            self, TEST_URL + "?page=1&pagesize=1&keys=profile&profile=all"
+        )
         self.assertEqual(
             rv[0]["profile"],
             {
@@ -426,13 +428,15 @@ class TestFamilies(unittest.TestCase):
                     {
                         "birth": {
                             "age": "0 days",
+                            "citations": 0,
+                            "confidence": 0,
                             "date": "203 (Islamic)",
                             "place": "",
                             "type": "Birth",
                         },
                         "death": {},
-                        "handle": "cc82060516c6c141500",
                         "gramps_id": "I2115",
+                        "handle": "cc82060516c6c141500",
                         "name_given": "صالح",
                         "name_surname": "",
                         "sex": "M",
@@ -444,35 +448,44 @@ class TestFamilies(unittest.TestCase):
                 "father": {
                     "birth": {
                         "age": "0 days",
+                        "citations": 0,
+                        "confidence": 0,
                         "date": "164-03-00 (Islamic)",
                         "place": "",
                         "type": "Birth",
                     },
                     "death": {
                         "age": "77 years, 11 days",
+                        "citations": 0,
+                        "confidence": 0,
                         "date": "241-03-12 (Islamic)",
                         "place": "",
                         "type": "Death",
                     },
-                    "handle": "cc82060504445ab6deb",
                     "gramps_id": "I2111",
+                    "handle": "cc82060504445ab6deb",
                     "name_given": "أحمد",
                     "name_surname": "",
                     "sex": "M",
                 },
-                "handle": "cc82060505948b9e57f",
                 "gramps_id": "F0745",
+                "handle": "cc82060505948b9e57f",
                 "marriage": {},
                 "mother": {
                     "birth": {},
-                    "death": {"date": "234 (Islamic)", "place": "", "type": "Death"},
-                    "handle": "cc8206050980ea622d0",
+                    "death": {
+                        "citations": 0,
+                        "confidence": 0,
+                        "date": "234 (Islamic)",
+                        "place": "",
+                        "type": "Death",
+                    },
                     "gramps_id": "I2112",
+                    "handle": "cc8206050980ea622d0",
                     "name_given": "العباسة",
                     "name_surname": "الفضل",
                     "sex": "F",
                 },
-                "relationship": "Married",
                 "references": {
                     "person": [
                         {
@@ -520,6 +533,7 @@ class TestFamilies(unittest.TestCase):
                         },
                     ]
                 },
+                "relationship": "Married",
             },
         )
 
@@ -747,7 +761,9 @@ class TestFamiliesHandle(unittest.TestCase):
 
     def test_get_families_handle_parameter_profile_expected_result(self):
         """Test response as expected."""
-        rv = check_success(self, TEST_URL + "7MTJQCHRUUYSUA8ABB?profile=all")
+        rv = check_success(
+            self, TEST_URL + "7MTJQCHRUUYSUA8ABB?keys=profile&profile=all"
+        )
         self.assertEqual(
             rv["profile"],
             {
@@ -755,13 +771,15 @@ class TestFamiliesHandle(unittest.TestCase):
                     {
                         "birth": {
                             "age": "0 days",
+                            "citations": 0,
+                            "confidence": 0,
                             "date": "1983-10-05",
                             "place": "Ottawa, La Salle, IL, USA",
                             "type": "Birth",
                         },
                         "death": {},
-                        "handle": "1GWJQCGOOZ8FJW3YK9",
                         "gramps_id": "I0124",
+                        "handle": "1GWJQCGOOZ8FJW3YK9",
                         "name_given": "Stephen Gerard",
                         "name_surname": "Garner",
                         "sex": "M",
@@ -769,13 +787,15 @@ class TestFamiliesHandle(unittest.TestCase):
                     {
                         "birth": {
                             "age": "0 days",
+                            "citations": 0,
+                            "confidence": 0,
                             "date": "1985-02-11",
                             "place": "Ottawa, La Salle, IL, USA",
                             "type": "Birth",
                         },
                         "death": {},
-                        "handle": "IGWJQCSVT8NXTFXOFJ",
                         "gramps_id": "I0125",
+                        "handle": "IGWJQCSVT8NXTFXOFJ",
                         "name_given": "Daniel Patrick",
                         "name_surname": "Garner",
                         "sex": "M",
@@ -784,6 +804,8 @@ class TestFamiliesHandle(unittest.TestCase):
                 "divorce": {},
                 "events": [
                     {
+                        "citations": 0,
+                        "confidence": 0,
                         "date": "1979-01-06",
                         "place": "Farmington, MO, USA",
                         "span": "0 days",
@@ -794,20 +816,24 @@ class TestFamiliesHandle(unittest.TestCase):
                 "father": {
                     "birth": {
                         "age": "0 days",
+                        "citations": 0,
+                        "confidence": 0,
                         "date": "1955-07-31",
                         "place": "Ottawa, La Salle, IL, USA",
                         "type": "Birth",
                     },
                     "death": {},
-                    "handle": "KLTJQC70XVZJSPQ43U",
                     "gramps_id": "I0017",
+                    "handle": "KLTJQC70XVZJSPQ43U",
                     "name_given": "Gerard Stephen",
                     "name_surname": "Garner",
                     "sex": "M",
                 },
-                "handle": "7MTJQCHRUUYSUA8ABB",
                 "gramps_id": "F0033",
+                "handle": "7MTJQCHRUUYSUA8ABB",
                 "marriage": {
+                    "citations": 0,
+                    "confidence": 0,
                     "date": "1979-01-06",
                     "place": "Farmington, MO, USA",
                     "span": "0 days",
@@ -816,18 +842,19 @@ class TestFamiliesHandle(unittest.TestCase):
                 "mother": {
                     "birth": {
                         "age": "0 days",
+                        "citations": 0,
+                        "confidence": 0,
                         "date": "1957-01-31",
                         "place": "",
                         "type": "Birth",
                     },
                     "death": {},
-                    "handle": "JFWJQCRREDFKZLDKVD",
                     "gramps_id": "I0123",
+                    "handle": "JFWJQCRREDFKZLDKVD",
                     "name_given": "Elizabeth",
                     "name_surname": "George",
                     "sex": "F",
                 },
-                "relationship": "Married",
                 "references": {
                     "person": [
                         {
@@ -884,6 +911,7 @@ class TestFamiliesHandle(unittest.TestCase):
                         },
                     ]
                 },
+                "relationship": "Married",
             },
         )
 
@@ -947,7 +975,7 @@ class TestFamiliesHandleTimeline(unittest.TestCase):
         """Test conforms to schema."""
         check_conforms_to_schema(
             self,
-            TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline",
+            TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline?ratings=1",
             "TimelineEventProfile",
         )
 
@@ -1095,3 +1123,9 @@ class TestFamiliesHandleTimeline(unittest.TestCase):
         for event in rv:
             if event["type"] == "Burial":
                 count = count + 1
+
+    def test_get_families_handle_timeline_parameter_ratings_validate_semantics(self):
+        """Test invalid ratings parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline?ratings", check="boolean"
+        )

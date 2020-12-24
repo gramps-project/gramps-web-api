@@ -379,10 +379,14 @@ class TestEvents(unittest.TestCase):
 
     def test_get_events_parameter_profile_expected_result(self):
         """Test expected response."""
-        rv = check_success(self, TEST_URL + "?page=1&keys=profile&profile=all")
+        rv = check_success(
+            self, TEST_URL + "?page=1&pagesize=1&keys=profile&profile=all"
+        )
         self.assertEqual(
             rv[0]["profile"],
             {
+                "citations": 0,
+                "confidence": 0,
                 "date": "1987-08-29",
                 "place": "Gainesville, Llano, TX, USA",
                 "type": "Birth",
@@ -618,10 +622,14 @@ class TestEventsHandle(unittest.TestCase):
 
     def test_get_events_handle_parameter_profile_expected_result(self):
         """Test response as expected."""
-        rv = check_success(self, TEST_URL + "a5af0eb6dd140de132c?profile=all")
+        rv = check_success(
+            self, TEST_URL + "a5af0eb6dd140de132c?keys=profile&profile=all"
+        )
         self.assertEqual(
             rv["profile"],
             {
+                "citations": 0,
+                "confidence": 0,
                 "date": "1250",
                 "place": "Atchison, Atchison, KS, USA",
                 "type": "Birth",
@@ -672,6 +680,8 @@ class TestEventsHandle(unittest.TestCase):
         self.assertEqual(
             rv["profile"],
             {
+                "citations": 0,
+                "confidence": 0,
                 "date": "1250",
                 "place": "Atchison, Atchison, KS, USA",
                 "type": "Geburt",

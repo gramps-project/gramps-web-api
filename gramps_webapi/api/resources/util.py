@@ -707,8 +707,8 @@ def get_rating(db_handle: DbReadBase, obj: GrampsObject) -> Tuple[int, int]:
     confidence = 0
     if hasattr(obj, "citation_list"):
         count = len(obj.citation_list)
-        if hasattr(obj, "extended") and "citations" in obj["extended"]:
-            for citation in obj["extended"]["citations"]:
+        if hasattr(obj, "extended") and "citations" in obj.extended:
+            for citation in obj.extended["citations"]:
                 if citation.confidence > confidence:
                     confidence = citation.confidence
         else:
