@@ -25,6 +25,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
+from flask import current_app
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.lib import Name
 from whoosh import index
@@ -136,13 +137,16 @@ class SearchIndexer:
         """Reindex the whole database."""
         with self.index(overwrite=True).writer() as writer:
             for obj_dict in iter_obj_strings(db_handle):
-                writer.add_document(
-                    type=obj_dict["class_name"].lower(),
-                    handle=obj_dict["handle"],
-                    text=obj_dict["string"],
-                    text_private=obj_dict["string_private"],
-                    changed=obj_dict["changed"],
-                )
+                try:
+                    writer.add_document(
+                        type=obj_dict["class_name"].lower(),
+                        handle=obj_dict["handle"],
+                        text=obj_dict["string"],
+                        text_private=obj_dict["string_private"],
+                        changed=obj_dict["changed"],
+                    )
+                except:
+                    current_app.logger.error("Failed adding object {}".format(handle))
 
     @staticmethod
     def format_hit(hit: Hit) -> Dict[str, Any]:
