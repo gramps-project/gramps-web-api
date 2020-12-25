@@ -40,6 +40,7 @@ from .resources.exporters import (
 from .resources.facts import FactsResource
 from .resources.families import FamiliesResource, FamilyResource
 from .resources.filters import FilterResource, FiltersResource, FiltersResources
+from .resources.holidays import HolidayResource, HolidaysResource
 from .resources.living import LivingDatesResource, LivingResource
 from .resources.media import MediaObjectResource, MediaObjectsResource
 from .resources.metadata import MetadataResource
@@ -185,6 +186,13 @@ register_endpt(
 )
 register_endpt(ExporterResource, "/exporters/<string:extension>", "exporter")
 register_endpt(ExportersResource, "/exporters/", "exporters")
+# Holidays
+register_endpt(
+    HolidayResource,
+    "/holidays/<string:country>/<int:year>/<int:month>/<int:day>",
+    "holiday",
+)
+register_endpt(HolidaysResource, "/holidays/", "holidays")
 # Metadata
 register_endpt(MetadataResource, "/metadata/", "metadata")
 # User
