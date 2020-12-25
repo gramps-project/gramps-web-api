@@ -89,7 +89,7 @@ def iter_obj_strings(db_handle: DbReadBase,) -> Generator[Dict[str, Any], None, 
                     "private": private,
                     "string": obj_string,
                     "string_private": obj_string_private,
-                    "changed": datetime.fromtimestamp(obj.change),
+                    "change": datetime.fromtimestamp(obj.change),
                 }
 
 
@@ -103,7 +103,7 @@ class SearchIndexer:
         private=BOOLEAN(stored=True),
         text=TEXT(),
         text_private=TEXT(),
-        changed=DATETIME(sortable=True),
+        change=DATETIME(sortable=True),
     )
 
     # schema for searches of public info only
@@ -112,7 +112,7 @@ class SearchIndexer:
         handle=ID(stored=True, unique=True),
         private=BOOLEAN(stored=True),
         text=TEXT(),
-        changed=DATETIME(sortable=True),
+        change=DATETIME(sortable=True),
     )
 
     def __init__(self, index_dir=FilenameOrPath):
@@ -143,7 +143,7 @@ class SearchIndexer:
                         handle=obj_dict["handle"],
                         text=obj_dict["string"],
                         text_private=obj_dict["string_private"],
-                        changed=obj_dict["changed"],
+                        change=obj_dict["change"],
                     )
                 except:
                     current_app.logger.error(
@@ -167,7 +167,7 @@ class SearchIndexer:
         if not sort:
             return None
         facets = []
-        allowed_sorters = {"type", "changed"}
+        allowed_sorters = {"type", "change"}
         for sorter in sort:
             _field = sorter.lstrip("+-")
             if _field not in allowed_sorters:
