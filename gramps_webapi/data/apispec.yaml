@@ -4281,6 +4281,17 @@ paths:
         type: integer
         default: 20
         description: "The number of search results that constitute a page."
+      - name: sort
+        in: query
+        required: false
+        type: string
+        description: >
+          A comma delimited list of keys to sort the result set by.  By default the sort is in ascending order, if the key name starts with a - sign then the sort will be in descending order. For search the available keys are:
+
+            Key | Description
+            --- | -----------
+            change | The time the record was last updated
+            type | The type of object (e.g. person)
       - name: strip
         in: query
         required: false
