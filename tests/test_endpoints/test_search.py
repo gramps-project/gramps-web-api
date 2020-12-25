@@ -223,7 +223,7 @@ class TestSearch(unittest.TestCase):
         header = fetch_header(self.client, role=ROLE_OWNER)
         rv = self.client.get(
             TEST_URL
-            + "?query={}".format(quote("type:repository changed:'2012 to now'")),
+            + "?query={}".format(quote("type:repository change:'2012 to now'")),
             headers=header,
         )
         self.assertEqual(len(rv.json), 1)
@@ -234,7 +234,7 @@ class TestSearch(unittest.TestCase):
         header = fetch_header(self.client, role=ROLE_GUEST)
         rv = self.client.get(
             TEST_URL
-            + "?query={}".format(quote("type:repository changed:'2012 to now'")),
+            + "?query={}".format(quote("type:repository change:'2012 to now'")),
             headers=header,
         )
         self.assertEqual(len(rv.json), 1)
@@ -245,8 +245,8 @@ class TestSearch(unittest.TestCase):
         header = fetch_header(self.client, role=ROLE_OWNER)
         rv = self.client.get(
             TEST_URL
-            + "?sort=changed&pagesize=1&page=1&query={}".format(
-                quote("type:person changed:'1990 to now'")
+            + "?sort=change&pagesize=1&page=1&query={}".format(
+                quote("type:person change:'1990 to now'")
             ),
             headers=header,
         )
@@ -258,8 +258,8 @@ class TestSearch(unittest.TestCase):
         header = fetch_header(self.client, role=ROLE_OWNER)
         rv = self.client.get(
             TEST_URL
-            + "?sort=-changed&pagesize=1&page=1&query={}".format(
-                quote("type:person changed:'1990 to now'")
+            + "?sort=-change&pagesize=1&page=1&query={}".format(
+                quote("type:person change:'1990 to now'")
             ),
             headers=header,
         )
