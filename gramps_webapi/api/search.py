@@ -146,7 +146,9 @@ class SearchIndexer:
                         changed=obj_dict["changed"],
                     )
                 except:
-                    current_app.logger.error("Failed adding object {}".format(handle))
+                    current_app.logger.error(
+                        "Failed adding object {}".format(obj_dict["handle"])
+                    )
 
     @staticmethod
     def format_hit(hit: Hit) -> Dict[str, Any]:
