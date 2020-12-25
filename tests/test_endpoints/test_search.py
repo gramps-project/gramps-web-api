@@ -253,19 +253,6 @@ class TestSearch(unittest.TestCase):
         self.assertEqual(len(rv.json), 1)
         self.assertEqual(rv.json[0]["object"]["gramps_id"], "I0552")
 
-    def test_get_search_oldest(self):
-        """Search for the oldest person record."""
-        header = fetch_header(self.client, role=ROLE_OWNER)
-        rv = self.client.get(
-            TEST_URL
-            + "?sort=changed&pagesize=1&page=1&query={}".format(
-                quote("type:person changed:'1990 to now'")
-            ),
-            headers=header,
-        )
-        self.assertEqual(len(rv.json), 1)
-        self.assertEqual(rv.json[0]["object"]["gramps_id"], "I0552")
-
     def test_get_search_newest(self):
         """Search for the newest person record."""
         header = fetch_header(self.client, role=ROLE_OWNER)
