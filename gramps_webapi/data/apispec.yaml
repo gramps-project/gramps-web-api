@@ -98,19 +98,13 @@ paths:
       - authentication
       summary: "Authenticate a user to obtain a pair of JWT access tokens."
       operationId: login
-      consumes:
-      - "multipart/form-data"
       parameters:
-      - name: username
-        in: formData
+      - name: credentials
+        in: body
         required: true
-        type: string
-        description: "The user or account name."
-      - name: password
-        in: formData
-        required: true
-        type: string
-        description: "The password for the user or account."
+        description: "The user credentials required to obtain a token."    
+        schema:
+          $ref: "#/definitions/Credentials"
       responses:
         200:
           description: "OK: Successful operation."
@@ -7648,6 +7642,25 @@ definitions:
         description: "The new password."
         type: string
         example: "321cba"
+
+##############################################################################
+# Model - Credentials
+##############################################################################
+
+  Credentials:
+    type: object
+    required:
+      - username
+      - password
+    properties:
+      username:
+        description: "The username."
+        type: string
+        example: "admin"
+      password:
+        description: "The password."
+        type: string
+        example: "nimda"
 
 ##############################################################################
 # Model - Exporter
