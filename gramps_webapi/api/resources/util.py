@@ -356,7 +356,7 @@ def get_person_profile_for_object(
                 base_event=birth_event,
                 label="age",
                 locale=locale,
-                role=str(event_ref.get_role()),
+                role=locale.translation.sgettext(event_ref.get_role().xml_str()),
             )
             for event_ref in person.event_ref_list
         ]
@@ -418,7 +418,7 @@ def get_family_profile_for_object(
         "mother": get_person_profile_for_handle(
             db_handle, family.mother_handle, options, locale=locale
         ),
-        "relationship": locale.translation.sgettext(str(family.type)),
+        "relationship": locale.translation.sgettext(family.type.xml_str()),
         "marriage": marriage,
         "divorce": divorce,
         "children": [

@@ -91,6 +91,7 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
             "query": fields.Str(required=True, validate=validate.Length(min=1)),
             "page": fields.Int(missing=1, validate=validate.Range(min=1)),
             "pagesize": fields.Int(missing=20, validate=validate.Range(min=1)),
+            "sort": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
@@ -110,6 +111,7 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
             pagesize=args["pagesize"],
             # search in private records if allowed to
             include_private=has_permissions([PERM_VIEW_PRIVATE]),
+            sort=args.get("sort"),
         )
         if hits:
             locale = get_locale_for_language(args["locale"], default=True)
