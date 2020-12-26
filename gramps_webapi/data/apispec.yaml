@@ -3709,11 +3709,33 @@ paths:
       operationId: getTranslations
       security:
         - Bearer: []
+      parameters:
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the language code of the locale to be used as the current locale."
+      - name: sort
+        in: query
+        required: false
+        type: string
+        default: "language"
+        description: >
+          A comma delimited list of keys to sort the result set by.  By default the sort is in ascending order, if the key name starts with a - sign then the sort will be in descending order.  For translations the available keys are:
+
+            Key | Description
+            --- | -----------
+            current | The name of the language in the current locale
+            default | The name of the language in the default locale
+            language | The language code
+            native | The native name of the language in it's own locale
       responses:
         200:
           description: "OK: Successful operation."
           schema:
-            $ref: "#/definitions/Translations"
+            type: array
+            items:
+              $ref: "#/definitions/Language"
         401:
           description: "Unauthorized: Missing authorization header."
 
@@ -7104,14 +7126,25 @@ definitions:
 # Model - Translations
 ##############################################################################
 
-  Translations:
+  Language:
     type: object
-    additionalProperties:
-      type: string
-    example:
-      ar: Arabic
-      bg: Bulgarian
-      ca: Catalan
+    properties:
+      current:
+        description: "The language name in the current locale."
+        type: string
+        example: "Bulgarisch"
+      default:
+        description: "The language name in the default locale."
+        type: string
+        example: "Bulgarian"
+      language:
+        description: "The language code."
+        type: string
+        example: "bg"
+      native:
+        description: "The language name in the native locale of the language."
+        type: string
+        example: "Български"
 
 ##############################################################################
 # Model - Translation

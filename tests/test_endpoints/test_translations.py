@@ -54,15 +54,7 @@ class TestTranslations(unittest.TestCase):
 
     def test_get_translations_conforms_to_schema(self):
         """Test conformity to schema."""
-        check_conforms_to_schema(self, TEST_URL, "Translations")
-
-    def test_get_translations_expected_result(self):
-        """Test some minimum set of expected values returned."""
-        rv = check_success(self, TEST_URL)
-        self.assertIsInstance(rv, type({}))
-        self.assertGreaterEqual(len(rv), 39)
-        self.assertIn("ar", rv)
-        self.assertIn("zh_TW", rv)
+        check_conforms_to_schema(self, TEST_URL, "Language")
 
 
 class TestTranslationsLanguage(unittest.TestCase):
