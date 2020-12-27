@@ -24,6 +24,7 @@ from typing import Dict
 
 from flask import current_app
 from gramps.gen.db.base import DbReadBase
+from gramps.gen.errors import HandleError
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
@@ -116,10 +117,15 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
         if hits:
             locale = get_locale_for_language(args["locale"], default=True)
             for hit in hits:
-                hit["object"] = self.get_object_from_handle(
-                    handle=hit["handle"],
-                    class_name=hit["object_type"],
-                    args=args,
-                    locale=locale,
-                )
+                try:
+                    hit["object"] = self.get_object_from_handle(
+                        handle=hit["handle"],
+                        class_name=hit["object_type"],
+                        args=args,
+                        locale=locale,
+                    )
+                except HandleError:
+                    pass
+            # filter out hits without object (i.e. if handle failed)
+            hits = [hit for hit in hits if "object" in hit]
         return self.response(200, payload=hits or [], args=args, total_items=total)
