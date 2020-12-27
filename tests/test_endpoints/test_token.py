@@ -27,7 +27,53 @@ from gramps_webapi.auth.const import ROLE_OWNER
 from . import BASE_URL, TEST_USERS, get_test_client
 
 
-class TestRefresh(unittest.TestCase):
+class TestToken(unittest.TestCase):
+    """Test cases for the /api/token endpoint."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_login_no_credentials(self):
+        """Test login response no credentials."""
+        rv = self.client.post(BASE_URL + "/token/")
+        self.assertEqual(rv.status_code, 422)
+
+    def test_login_wrong_password(self):
+        """Test login response for wrong password."""
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": TEST_USERS[ROLE_OWNER]["name"], "password": "notreal"},
+        )
+        self.assertEqual(rv.status_code, 403)
+
+    def test_login_wrong_username(self):
+        """Test login response for wrong username."""
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={
+                "username": "notreal",
+                "password": TEST_USERS[ROLE_OWNER]["password"],
+            },
+        )
+        self.assertEqual(rv.status_code, 403)
+
+    def test_login_response(self):
+        """Test login response."""
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={
+                "username": TEST_USERS[ROLE_OWNER]["name"],
+                "password": TEST_USERS[ROLE_OWNER]["password"],
+            },
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertIn("access_token", rv.json)
+        self.assertIn("refresh_token", rv.json)
+
+
+class TestTokenRefresh(unittest.TestCase):
     """Test cases for the /api/token/refresh endpoint."""
 
     @classmethod

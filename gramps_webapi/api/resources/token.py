@@ -30,7 +30,7 @@ from flask_jwt_extended import (
 )
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from webargs import fields
+from webargs import fields, validate
 
 from ..util import use_args
 from . import RefreshProtectedResource, Resource
@@ -59,7 +59,11 @@ class TokenResource(Resource):
 
     @limiter.limit("1/second")
     @use_args(
-        {"username": fields.Str(), "password": fields.Str()}, location="json",
+        {
+            "username": fields.Str(required=True, validate=validate.Length(min=1)),
+            "password": fields.Str(required=True, validate=validate.Length(min=1)),
+        },
+        location="json",
     )
     def post(self, args):
         """Post username and password to fetch a token."""

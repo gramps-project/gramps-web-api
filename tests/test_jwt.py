@@ -29,7 +29,7 @@ from gramps.gen.dbstate import DbState
 from gramps.gen.lib import Person, Surname
 
 from gramps_webapi.app import create_app
-from gramps_webapi.auth.const import ROLE_OWNER, ROLE_GUEST
+from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
 
@@ -83,7 +83,8 @@ class TestPerson(unittest.TestCase):
         )
         token = rv.json["access_token"]
         rv = self.client.get(
-            "/api/people/", headers={"Authorization": "Bearer {}".format(token)},
+            "/api/people/",
+            headers={"Authorization": "Bearer {}".format(token)},
         )
         assert rv.status_code == 200
         it = rv.json[0]
@@ -120,18 +121,20 @@ class TestPerson(unittest.TestCase):
         )
         token_admin = rv.json["access_token"]
         rv = self.client.get(
-            "/api/people/", headers={"Authorization": "Bearer {}".format(token_user)},
+            "/api/people/",
+            headers={"Authorization": "Bearer {}".format(token_user)},
         )
         assert len(rv.json) == 1
         rv = self.client.get(
-            "/api/people/", headers={"Authorization": "Bearer {}".format(token_admin)},
+            "/api/people/",
+            headers={"Authorization": "Bearer {}".format(token_admin)},
         )
         assert len(rv.json) == 2
 
     def test_token_endpoint(self):
         rv = self.client.post("/api/token/", json={})
         # no username or password provided
-        assert rv.status_code == 401
+        assert rv.status_code == 422
         rv = self.client.post(
             "/api/token/", json={"username": "user", "password": "234"}
         )
