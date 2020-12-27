@@ -27,18 +27,45 @@ from typing import Dict, Union
 from flask import Response, abort
 from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.utils.grampslocale import GrampsLocale
-from webargs import fields
+from webargs import fields, validate
 
-from ..util import use_args
+from ..util import get_locale_for_language, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+
+
+class Sort:
+    """Class for extracting translation sort keys."""
+
+    def __init__(self, default_locale=GRAMPS_LOCALE, current_locale=GRAMPS_LOCALE):
+        """Initialize sort class."""
+        self.default_locale = default_locale
+        self.current_locale = current_locale
+
+    def get_language_key(self, data):
+        """Return sort key for language."""
+        return self.default_locale.sort_key(data["language"])
+
+    def get_default_key(self, data):
+        """Return sort key for default locale."""
+        return self.default_locale.sort_key(data["default"])
+
+    def get_current_key(self, data):
+        """Return sort key for current locale."""
+        return self.current_locale.sort_key(data["current"])
+
+    def get_native_key(self, data):
+        """Return sort key for native locale."""
+        native_locale = GrampsLocale(lang=data["language"])
+        return native_locale.sort_key(data["native"])
 
 
 class TranslationResource(ProtectedResource, GrampsJSONEncoder):
     """Translation resource."""
 
     @use_args(
-        {"strings": fields.Str(required=True)}, location="query",
+        {"strings": fields.Str(required=True)},
+        location="query",
     )
     def get(self, args: Dict, language: str) -> Response:
         """Get translation."""
@@ -68,10 +95,47 @@ class TranslationsResource(ProtectedResource, GrampsJSONEncoder):
     """Translations resource."""
 
     @use_args(
-        {},
+        {
+            "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
+            "sort": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
+        },
         location="query",
     )
     def get(self, args: Union[Dict, None] = None) -> Response:
         """Get available translations."""
-        catalog = GRAMPS_LOCALE.get_language_dict()
-        return self.response(200, {catalog[entry]: entry for entry in catalog})
+        default_locale = GrampsLocale(lang="en")
+        current_locale = get_locale_for_language(args["locale"], default=True)
+        catalog = default_locale.get_language_dict()
+        translations = []
+        for entry in catalog:
+            native_locale = GrampsLocale(lang=catalog[entry])
+            translations.append(
+                {
+                    "default": entry,
+                    "current": current_locale.translation.sgettext(entry),
+                    "language": catalog[entry],
+                    "native": native_locale.translation.sgettext(entry),
+                }
+            )
+
+        sort = Sort(default_locale=default_locale, current_locale=current_locale)
+        lookup = {
+            "current": sort.get_current_key,
+            "default": sort.get_default_key,
+            "language": sort.get_language_key,
+            "native": sort.get_native_key,
+        }
+
+        if "sort" not in args:
+            args["sort"] = ["language"]
+        for sort_key in args["sort"]:
+            sort_key = sort_key.strip()
+            reverse = False
+            if sort_key[:1] == "-":
+                reverse = True
+                sort_key = sort_key[1:]
+            if sort_key not in lookup:
+                abort(422)
+            translations.sort(key=lambda x: lookup[sort_key](x), reverse=reverse)
+
+        return self.response(200, translations)
