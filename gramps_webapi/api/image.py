@@ -57,11 +57,7 @@ def image_square(image: Image) -> Image:
     """Crop an image to a centered square."""
     size = min(image.size)
     return ImageOps.fit(
-        image,
-        (size, size),
-        bleed=0.0,
-        centering=(0.0, 0.5),
-        method=Image.BICUBIC,
+        image, (size, size), bleed=0.0, centering=(0.0, 0.5), method=Image.BICUBIC,
     )
 
 
@@ -82,6 +78,8 @@ def crop_image(image: Image, x1: int, y1: int, x2: int, y2: int) -> Image:
 def save_image_buffer(image: Image, fmt="JPEG") -> BinaryIO:
     """Save an image to a binary buffer."""
     buffer = io.BytesIO()
+    if image.mode != "RGB":
+        image = image.convert("RGB")
     image.save(buffer, format=fmt)
     buffer.seek(0)
     return buffer
