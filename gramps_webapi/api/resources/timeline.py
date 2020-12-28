@@ -88,6 +88,7 @@ class Timeline:
     def __init__(
         self,
         db_handle: DbReadBase,
+        dates: Union[str, None] = None,
         events: Union[List, None] = None,
         relatives: Union[List, None] = None,
         relative_events: Union[List, None] = None,
@@ -99,6 +100,7 @@ class Timeline:
         """Initialize timeline."""
         self.db_handle = db_handle
         self.timeline = []
+        self.dates = dates
         self.start_date = None
         self.end_date = None
         self.discard_empty = discard_empty
@@ -114,13 +116,34 @@ class Timeline:
         self.set_event_filters(self.event_filters)
         self.set_relative_event_filters(self.relative_event_filters)
 
-    def set_start_date(self, date: Date):
-        """Set optional timeline start date."""
-        self.start_date = date
+        if dates and "-" in dates:
+            start, end = dates.split("-")
+            if "/" in start:
+                year, month, day = start.split("/")
+                self.start_date = Date((int(year), int(month), int(day)))
+            else:
+                self.start_date = None
+            if "/" in end:
+                year, month, day = end.split("/")
+                self.end_date = Date((int(year), int(month), int(day)))
+            else:
+                self.end_date = None
 
-    def set_end_date(self, date: Date):
+    def set_start_date(self, date: Union[Date, str]):
+        """Set optional timeline start date."""
+        if isinstance(date, str):
+            year, month, day = date.split("/")
+            self.start_date = Date((int(year), int(month), int(day)))
+        else:
+            self.start_date = date
+
+    def set_end_date(self, date: Union[Date, str]):
         """Set optional timeline end date."""
-        self.start_date = date
+        if isinstance(date, str):
+            year, month, day = date.split("/")
+            self.end_date = Date((int(year), int(month), int(day)))
+        else:
+            self.end_date = date
 
     def set_discard_empty(self, discard_empty: bool):
         """Set discard empty identifier."""
@@ -227,15 +250,16 @@ class Timeline:
             self.add_event((event, person, "self"))
         if anchor and not self.anchor_person:
             self.anchor_person = person
-            if len(self.timeline) > 0:
-                if start or end:
-                    self.timeline.sort(
-                        key=lambda x: x[0].get_date_object().get_sort_value()
-                    )
-                    if start:
-                        self.start_date = self.timeline[0][0].date
-                    if end:
-                        self.end_date = self.timeline[-1][0].date
+            if self.start_date is None and self.end_date is None:
+                if len(self.timeline) > 0:
+                    if start or end:
+                        self.timeline.sort(
+                            key=lambda x: x[0].get_date_object().get_sort_value()
+                        )
+                        if start:
+                            self.start_date = self.timeline[0][0].date
+                        if end:
+                            self.end_date = self.timeline[-1][0].date
 
             for family in person.parent_family_list:
                 self.add_family(family, ancestors=ancestors)
@@ -411,6 +435,15 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
             "ancestors": fields.Integer(
                 missing=1, validate=validate.Range(min=1, max=5)
             ),
+            "dates": fields.Str(
+                missing=None,
+                validate=validate.Regexp(
+                    r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
+                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
+                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
+                    r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
+                ),
+            ),
             "discard_empty": fields.Boolean(missing=True),
             "event_classes": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
@@ -463,6 +496,7 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
         try:
             timeline = Timeline(
                 get_db_handle(),
+                dates=args["dates"],
                 events=events,
                 relatives=relatives,
                 relative_events=relative_events,
@@ -493,6 +527,15 @@ class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
 
     @use_args(
         {
+            "dates": fields.Str(
+                missing=None,
+                validate=validate.Regexp(
+                    r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
+                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
+                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
+                    r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
+                ),
+            ),
             "discard_empty": fields.Boolean(missing=True),
             "event_classes": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
@@ -517,6 +560,7 @@ class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
         try:
             timeline = Timeline(
                 get_db_handle(),
+                dates=args["dates"],
                 events=events,
                 discard_empty=args["discard_empty"],
                 locale=locale,
@@ -537,6 +581,15 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
     @use_args(
         {
             "anchor": fields.Str(validate=validate.Length(min=1)),
+            "dates": fields.Str(
+                missing=None,
+                validate=validate.Regexp(
+                    r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
+                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
+                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
+                    r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
+                ),
+            ),
             "discard_empty": fields.Boolean(missing=True),
             "event_classes": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
@@ -573,6 +626,7 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
         try:
             timeline = Timeline(
                 db_handle,
+                dates=args["dates"],
                 events=events,
                 discard_empty=args["discard_empty"],
                 omit_anchor=args["omit_anchor"],
@@ -612,6 +666,15 @@ class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
 
     @use_args(
         {
+            "dates": fields.Str(
+                missing=None,
+                validate=validate.Regexp(
+                    r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
+                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
+                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
+                    r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
+                ),
+            ),
             "discard_empty": fields.Boolean(missing=True),
             "event_classes": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
@@ -642,6 +705,7 @@ class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
         try:
             timeline = Timeline(
                 db_handle,
+                dates=args["dates"],
                 events=events,
                 discard_empty=args["discard_empty"],
                 locale=locale,
