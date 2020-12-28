@@ -160,7 +160,7 @@ def handle_reset_token(username: str, email: str, token: str):
 
 Please click on the following link, or paste this into your browser to complete the process:
 
-{}/api/users/-/password/reset?jwt={}
+{}/api/users/-/password/reset/?jwt={}
 
 If you did not request this, please ignore this e-mail and your password will remain unchanged.
 """.format(

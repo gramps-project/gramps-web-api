@@ -141,6 +141,7 @@ class SearchIndexer:
                     writer.add_document(
                         type=obj_dict["class_name"].lower(),
                         handle=obj_dict["handle"],
+                        private=obj_dict["private"],
                         text=obj_dict["string"],
                         text_private=obj_dict["string_private"],
                         change=obj_dict["change"],
