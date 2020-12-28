@@ -272,6 +272,27 @@ class TestTimelinesPeople(unittest.TestCase):
                 item["person"]["name_given"], ["Lewis Anderson", "Howard Lane"]
             )
 
+    def test_get_timelines_people_parameter_dates_validate_semantics(self):
+        """Test invalid dates parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "people/?dates", check="list")
+        check_invalid_semantics(self, TEST_URL + "people/?dates=/1/1")
+        check_invalid_semantics(self, TEST_URL + "people/?dates=1900//1")
+        check_invalid_semantics(self, TEST_URL + "people/?dates=1900/1/")
+        check_invalid_semantics(self, TEST_URL + "people/?dates=1900/a/1")
+        check_invalid_semantics(self, TEST_URL + "people/?dates=-1900/a/1")
+        check_invalid_semantics(self, TEST_URL + "people/?dates=1900/a/1-")
+        check_invalid_semantics(self, TEST_URL + "people/?dates=1855/1/1-1900/*/1")
+        check_invalid_semantics(self, TEST_URL + "people/?dates=1855/*/*")
+
+    def test_get_timelines_people_parameter_dates_expected_result(self):
+        """Test dates parameter expected results."""
+        rv = check_success(self, TEST_URL + "people/?dates=-1900/1/1")
+        self.assertEqual(len(rv), 1235)
+        rv = check_success(self, TEST_URL + "people/?dates=1900/1/1-")
+        self.assertEqual(len(rv), 903)
+        rv = check_success(self, TEST_URL + "people/?dates=1855/1/1-1900/12/31")
+        self.assertEqual(len(rv), 300)
+
 
 class TestTimelinesFamilies(unittest.TestCase):
     """Test cases for the /api/timelines/families endpoint for a group of families."""
@@ -447,3 +468,24 @@ class TestTimelinesFamilies(unittest.TestCase):
         """Test handles parameter for expected results."""
         rv = check_success(self, TEST_URL + "families/?handles=9OUJQCBOHW9UEK9CNV")
         self.assertEqual(len(rv), 33)
+
+    def test_get_timelines_families_parameter_dates_validate_semantics(self):
+        """Test invalid dates parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "families/?dates", check="list")
+        check_invalid_semantics(self, TEST_URL + "families/?dates=/1/1")
+        check_invalid_semantics(self, TEST_URL + "families/?dates=1900//1")
+        check_invalid_semantics(self, TEST_URL + "families/?dates=1900/1/")
+        check_invalid_semantics(self, TEST_URL + "families/?dates=1900/a/1")
+        check_invalid_semantics(self, TEST_URL + "families/?dates=-1900/a/1")
+        check_invalid_semantics(self, TEST_URL + "families/?dates=1900/a/1-")
+        check_invalid_semantics(self, TEST_URL + "families/?dates=1855/1/1-1900/*/1")
+        check_invalid_semantics(self, TEST_URL + "families/?dates=1855/*/*")
+
+    def test_get_timelines_families_parameter_dates_expected_result(self):
+        """Test dates parameter expected results."""
+        rv = check_success(self, TEST_URL + "families/?dates=-1900/1/1")
+        self.assertEqual(len(rv), 1214)
+        rv = check_success(self, TEST_URL + "families/?dates=1900/1/1-")
+        self.assertEqual(len(rv), 885)
+        rv = check_success(self, TEST_URL + "families/?dates=1855/1/1-1900/12/31")
+        self.assertEqual(len(rv), 290)

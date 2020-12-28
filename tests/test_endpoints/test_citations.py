@@ -336,6 +336,28 @@ class TestCitations(unittest.TestCase):
         rv = check_success(self, TEST_URL + "?page=1&keys=backlinks&backlinks=1")
         self.assertIn("a5af0ecb107303354a0", rv[0]["backlinks"]["event"])
 
+    def test_get_citations_parameter_dates_validate_semantics(self):
+        """Test invalid dates parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "?dates", check="list")
+        check_invalid_semantics(self, TEST_URL + "?dates=/1/1")
+        check_invalid_semantics(self, TEST_URL + "?dates=1900//1")
+        check_invalid_semantics(self, TEST_URL + "?dates=1900/1/")
+        check_invalid_semantics(self, TEST_URL + "?dates=1900/a/1")
+        check_invalid_semantics(self, TEST_URL + "?dates=-1900/a/1")
+        check_invalid_semantics(self, TEST_URL + "?dates=1900/a/1-")
+        check_invalid_semantics(self, TEST_URL + "?dates=1855/1/1-1900/*/1")
+
+    def test_get_citations_parameter_dates_expected_result(self):
+        """Test dates parameter expected results."""
+        rv = check_success(self, TEST_URL + "?dates=1855/*/*")
+        self.assertEqual(len(rv), 2)
+        rv = check_success(self, TEST_URL + "?dates=-1900/1/1")
+        self.assertEqual(len(rv), 2)
+        rv = check_success(self, TEST_URL + "?dates=1900/1/1-")
+        self.assertEqual(len(rv), 1)
+        rv = check_success(self, TEST_URL + "?dates=1855/1/1-1900/12/31")
+        self.assertEqual(len(rv), 2)
+
 
 class TestCitationsHandle(unittest.TestCase):
     """Test cases for the /api/citations/{handle} endpoint for a specific citation."""

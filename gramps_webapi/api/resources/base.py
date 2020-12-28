@@ -31,16 +31,16 @@ from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 
-from ..util import use_args
-from ..util import get_db_handle, get_locale_for_language
+from ..util import get_db_handle, get_locale_for_language, use_args
 from . import ProtectedResource, Resource
 from .emit import GrampsJSONEncoder
 from .filters import apply_filter
+from .match import match_dates
 from .sort import sort_objects
 from .util import (
     get_backlinks,
-    get_reference_profile_for_object,
     get_extended_attributes,
+    get_reference_profile_for_object,
     get_soundex,
 )
 
@@ -90,6 +90,12 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
         return sort_objects(
             self.db_handle, self.gramps_class_name, objs, args, locale=locale
         )
+
+    def match_dates(self, handles: List[str], date: str):
+        """If supported filter objects using date mask."""
+        if self.gramps_class_name in ["Event", "Media", "Citation"]:
+            return match_dates(self.db_handle, self.gramps_class_name, handles, date)
+        return handles
 
     @property
     def db_handle(self) -> DbReadBase:
@@ -185,6 +191,16 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
     @use_args(
         {
             "backlinks": fields.Boolean(missing=False),
+            "dates": fields.Str(
+                missing=None,
+                validate=validate.Regexp(
+                    r"^([0-9]+|\*)/([1-9]|1[0-2]|\*)/([1-9]|1[0-9]|2[0-9]|3[0-1]|\*)$|"
+                    r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
+                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
+                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
+                    r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
+                ),
+            ),
             "extend": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
@@ -264,6 +280,9 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             handles = apply_filter(
                 self.db_handle, args, self.gramps_class_name, handles
             )
+
+        if args["dates"]:
+            handles = self.match_dates(handles, args["dates"])
 
         if "sort" in args:
             handles = self.sort_objects(handles, args["sort"], locale=locale)

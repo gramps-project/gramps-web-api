@@ -671,18 +671,34 @@ paths:
         type: string
         minLength: 8
         description: "The unique identifier for a person."
+      - name: dates
+        in: query
+        required: false
+        type: string
+        description: >
+          A date range to bound the timeline that may be provided in one of three formats as follows:
+
+
+            Format | Description
+            ------ | -----------
+            -y/m/d | Match everything before the provided end date
+            y/m/d-y/m/d | Match everything in the given date range
+            y/m/d- | Match everthing after the provided start date
+
+
+          Note a person timeline is usually bounded by the first and last recorded event of their lives and this will override that behaviour. If this is not used the timeline boundaries can still be altered using the first and last parameters.
       - name: first
         in: query
         required: false
         type: boolean
         default: true
-        description: "Indicates whether or not events dated prior to the first event for the person should be discarded or not."
+        description: "Indicates whether or not events dated prior to the first event for the person should be discarded or not. Note if the dates parameter is used this has no effect."
       - name: last
         in: query
         required: false
         type: boolean
         default: true
-        description: "Indicates whether or not events dated after the last event for the person should be discarded or not."
+        description: "Indicates whether or not events dated after the last event for the person should be discarded or not. Note if the dates parameter is used this has no effect."
       - name: ancestors
         in: query
         required: false
@@ -1125,6 +1141,21 @@ paths:
         type: string
         minLength: 8
         description: "The unique identifier for a person."
+      - name: dates
+        in: query
+        required: false
+        type: string
+        description: >
+          A date range to bound the timeline that may be provided in one of three formats as follows:
+
+
+            Format | Description
+            ------ | -----------
+            -y/m/d | Match everything before the provided end date
+            y/m/d-y/m/d | Match everything in the given date range
+            y/m/d- | Match everthing after the provided start date
+
+          If not provided all events for all family members will be returned.
       - name: events
         in: query
         required: false
@@ -1250,6 +1281,20 @@ paths:
             place | The event place
             private | Indicates whether the record is private or not
             type | The event type
+      - name: dates
+        in: query
+        required: false
+        type: string
+        description: >
+          A date filter that operates on the event date and can accept an argument in one of four formats as follows:
+
+
+            Format | Description
+            ------ | -----------
+            y/m/d | Match the specific date or date pattern as * may be used to wild card an entry
+            -y/m/d | Match everything before the provided end date
+            y/m/d-y/m/d | Match everything in the given date range
+            y/m/d- | Match everthing after the provided start date
       - name: filter
         in: query
         required: false
@@ -1792,6 +1837,20 @@ paths:
             date | The date of the citation
             gramps_id | The user assigned Gramps identifier for the citation
             private | Indicates whether the record is private or not
+      - name: dates
+        in: query
+        required: false
+        type: string
+        description: >
+          A date filter that operates on the citation date and can accept an argument in one of four formats as follows:
+
+
+            Format | Description
+            ------ | -----------
+            y/m/d | Match the specific date or date pattern as * may be used to wild card an entry
+            -y/m/d | Match everything before the provided end date
+            y/m/d-y/m/d | Match everything in the given date range
+            y/m/d- | Match everthing after the provided start date
       - name: filter
         in: query
         required: false
@@ -2448,6 +2507,20 @@ paths:
             path | The path to the media item
             private | Indicates whether the record is private or not
             title | The title for the media item
+      - name: dates
+        in: query
+        required: false
+        type: string
+        description: >
+          A date filter that operates on the media item date and can accept an argument in one of four formats as follows:
+
+
+            Format | Description
+            ------ | -----------
+            y/m/d | Match the specific date or date pattern as * may be used to wild card an entry
+            -y/m/d | Match everything before the provided end date
+            y/m/d-y/m/d | Match everything in the given date range
+            y/m/d- | Match everthing after the provided start date
       - name: filter
         in: query
         required: false
@@ -3983,18 +4056,33 @@ paths:
         required: false
         type: string
         description: "If provided the handle of a person to anchor the timeline."
+      - name: dates
+        in: query
+        required: false
+        type: string
+        description: >
+          A date range to bound the timeline that may be provided in one of three formats as follows:
+
+
+            Format | Description
+            ------ | -----------
+            -y/m/d | Match everything before the provided end date
+            y/m/d-y/m/d | Match everything in the given date range
+            y/m/d- | Match everthing after the provided start date
+
+          Note if an anchor person was provided the timeline is usually bound by the first and last recorded event of their lives and this will override that behaviour. If this is not used and an anchor person is present the timeline boundaries can still be altered using the first and last parameters.
       - name: first
         in: query
         required: false
         type: boolean
         default: true
-        description: "If an anchor person was provided then indicates whether or not events dated prior to the first event for the anchor person should be discarded or not."
+        description: "If an anchor person was provided then indicates whether or not events dated prior to the first event for the anchor person should be discarded or not. Note if the dates parameter is used this has no effect."
       - name: last
         in: query
         required: false
         type: boolean
         default: true
-        description: "If an anchor person was provided then indicates whether or not events dated after the last event for the anchor person should be discarded or not."
+        description: "If an anchor person was provided then indicates whether or not events dated after the last event for the anchor person should be discarded or not. Note if the date parameter has been used this has no effect."
       - name: handles
         in: query
         required: false
@@ -4152,6 +4240,19 @@ paths:
         type: string
         minLength: 8
         description: "A comma delimited list of handles for specific families to put on the timeline. If not provided every family in the database is evaluated."
+      - name: dates
+        in: query
+        required: false
+        type: string
+        description: >
+          A date range to bound the timeline that may be provided in one of three formats as follows:
+
+
+            Format | Description
+            ------ | -----------
+            -y/m/d | Match everything before the provided end date
+            y/m/d-y/m/d | Match everything in the given date range
+            y/m/d- | Match everthing after the provided start date
       - name: filter
         in: query
         required: false
