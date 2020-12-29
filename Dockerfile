@@ -3,6 +3,9 @@ FROM dmstraub/gramps:latest
 WORKDIR /app
 ENV PYTHONPATH="${PYTHONPATH}:/usr/lib/python3/dist-packages"
 
+# install poppler (needed for PDF thumbnails)
+RUN apt-get update && apt-get install -y poppler-utils && rm -rf /var/lib/apt/lists/*
+
 # set locale
 RUN localedef -i en_GB -c -f UTF-8 -A /usr/share/locale/locale.alias en_GB.UTF-8
 ENV LANGUAGE en_GB.utf8
