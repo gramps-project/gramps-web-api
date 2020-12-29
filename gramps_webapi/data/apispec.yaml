@@ -536,6 +536,7 @@ paths:
             self | Returns name, sex, birth and death information and is an implied default when events or families specified
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns event list with name, date and location
+            ratings | Returns citation count and highest confidence rating for events
             families | Returns family information with parents, children, and key relationship between parents
             references | Returns information about objects that refer to the person
       responses:
@@ -641,6 +642,7 @@ paths:
             self | Returns name, sex, birth and death information and is an implied default when events or families specified
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns event list with name, date and location
+            ratings | Returns citation count and highest confidence rating for events    
             families | Returns family information with parents, children, and key relationship between parents
             references | Returns information about objects that refer to the person
       responses:
@@ -787,6 +789,12 @@ paths:
             residence | Residence, Census, Property
             other | Cause of Death, Medical Information, Title of Nobility, Number of Marriages
             custom | All user defined custom events
+      - name: ratings
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether or not to include total citation count and highest confidence score."
       - name: precision
         in: query
         required: false
@@ -1009,6 +1017,7 @@ paths:
             self | Returns family information with parents, children, and key relationship between parents and is an implied default if events specified
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns family event list with name, date and location
+            ratings | Returns citation count and highest confidence rating for events
             references | Returns information about objects that refer to the family
       responses:
         200:
@@ -1112,6 +1121,7 @@ paths:
             self | Returns family information with parents, children, and key relationship between parents and is an implied default if events specified
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns family event list with name, date and location
+            ratings | Returns citation count and highest confidence rating for events
             references | Returns information about objects that refer to the family
       responses:
         200:
@@ -1185,6 +1195,12 @@ paths:
             residence | Residence, Census, Property
             other | Cause of Death, Medical Information, Title of Nobility, Number of Marriages
             custom | All user defined custom events
+      - name: ratings
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether or not to include total citation count and highest confidence score."
       - name: locale
         in: query
         required: false
@@ -1391,6 +1407,7 @@ paths:
             ------ | --------
             all | Returns all information below
             events | Returns event name, date and location
+            ratings | Returns citation count and highest confidence rating for events
             participants | Returns information about the event participants
             references | Returns information about objects that refer to the family
       responses:
@@ -1483,6 +1500,7 @@ paths:
             ------ | --------
             all | Returns all information below
             events | Returns event name, date and location
+            ratings | Returns citation count and highest confidence rating for events
             references | Returns information about objects that refer to the event
       responses:
         200:
@@ -4156,6 +4174,12 @@ paths:
             residence | Residence, Census, Property
             other | Cause of Death, Medical Information, Title of Nobility, Number of Marriages
             custom | All user defined custom events
+      - name: ratings
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether or not to include total citation count and highest confidence score."
       - name: precision
         in: query
         required: false
@@ -4320,6 +4344,12 @@ paths:
             residence | Residence, Census, Property
             other | Cause of Death, Medical Information, Title of Nobility, Number of Marriages
             custom | All user defined custom events
+      - name: ratings
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether or not to include total citation count and highest confidence score."
       - name: locale
         in: query
         required: false
@@ -5837,6 +5867,14 @@ definitions:
   EventProfile:
     type: object
     properties:
+      citations:
+        description: "Total citations supporting the event."
+        type: integer
+        example: 2
+      confidence:
+        description: "Highest confidence rating among the supporting citations."
+        type: integer
+        example: 3
       date:
         description: "Date of the event."
         type: string
@@ -7963,6 +8001,14 @@ definitions:
         description: "The age of the person the timeline is for at the time of the event."
         type: string
         example: "2 years"
+      citations:
+        description: "Total citations supporting the event."
+        type: integer
+        example: 2
+      confidence:
+        description: "Highest confidence rating among the supporting citations."
+        type: integer
+        example: 3
       date:
         description: "Date of the event."
         type: string

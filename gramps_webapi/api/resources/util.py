@@ -110,7 +110,9 @@ def get_sex_profile(person: Person) -> str:
 
 
 def get_event_participants_for_handle(
-    db_handle: DbReadBase, handle: Handle, locale: GrampsLocale = glocale,
+    db_handle: DbReadBase,
+    handle: Handle,
+    locale: GrampsLocale = glocale,
 ) -> Dict:
     """Get event participants given a handle."""
     result = {"people": [], "families": []}
@@ -177,6 +179,10 @@ def get_event_profile_for_object(
         result["participants"] = get_event_participants_for_handle(
             db_handle, event.handle, locale=locale
         )
+    if "all" in args or "ratings" in args:
+        count, confidence = get_rating(db_handle, event)
+        result["citations"] = count
+        result["confidence"] = confidence
     if base_event is not None:
         result[label] = (
             Span(base_event.date, event.date)
@@ -212,43 +218,71 @@ def get_event_profile_for_handle(
 
 
 def get_birth_profile(
-    db_handle: DbReadBase, person: Person, locale: GrampsLocale = glocale
+    db_handle: DbReadBase,
+    person: Person,
+    args: Union[List, None] = None,
+    locale: GrampsLocale = glocale,
 ) -> Tuple[Dict, Union[Event, None]]:
     """Return best available birth information for a person."""
     event = get_birth_or_fallback(db_handle, person)
     if event is None:
         return {}, None
-    return get_event_profile_for_object(db_handle, event, args=[], locale=locale), event
+    args = args or []
+    return (
+        get_event_profile_for_object(db_handle, event, args=args, locale=locale),
+        event,
+    )
 
 
 def get_death_profile(
-    db_handle: DbReadBase, person: Person, locale: GrampsLocale = glocale
+    db_handle: DbReadBase,
+    person: Person,
+    args: Union[List, None] = None,
+    locale: GrampsLocale = glocale,
 ) -> Tuple[Dict, Union[Event, None]]:
     """Return best available death information for a person."""
     event = get_death_or_fallback(db_handle, person)
     if event is None:
         return {}, None
-    return get_event_profile_for_object(db_handle, event, args=[], locale=locale), event
+    args = args or []
+    return (
+        get_event_profile_for_object(db_handle, event, args=args, locale=locale),
+        event,
+    )
 
 
 def get_marriage_profile(
-    db_handle: DbReadBase, family: Family, locale: GrampsLocale = glocale
+    db_handle: DbReadBase,
+    family: Family,
+    args: Union[List, None] = None,
+    locale: GrampsLocale = glocale,
 ) -> Tuple[Dict, Union[Event, None]]:
     """Return best available marriage information for a couple."""
     event = get_marriage_or_fallback(db_handle, family)
     if event is None:
         return {}, None
-    return get_event_profile_for_object(db_handle, event, args=[], locale=locale), event
+    args = args or []
+    return (
+        get_event_profile_for_object(db_handle, event, args=args, locale=locale),
+        event,
+    )
 
 
 def get_divorce_profile(
-    db_handle: DbReadBase, family: Family, locale: GrampsLocale = glocale
+    db_handle: DbReadBase,
+    family: Family,
+    args: Union[List, None] = None,
+    locale: GrampsLocale = glocale,
 ) -> Tuple[Dict, Union[Event, None]]:
     """Return best available divorce information for a couple."""
     event = get_divorce_or_fallback(db_handle, family)
     if event is None:
         return {}, None
-    return get_event_profile_for_object(db_handle, event, args=[], locale=locale), event
+    args = args or {}
+    return (
+        get_event_profile_for_object(db_handle, event, args=args, locale=locale),
+        event,
+    )
 
 
 def _format_place_type(
@@ -320,9 +354,15 @@ def get_person_profile_for_object(
 ) -> Person:
     """Get person profile given a Person."""
     options = []
+    if "all" in args or "ratings" in args:
+        options.append("ratings")
     name_display = NameDisplay(xlocale=locale)
-    birth, birth_event = get_birth_profile(db_handle, person, locale=locale)
-    death, death_event = get_death_profile(db_handle, person, locale=locale)
+    birth, birth_event = get_birth_profile(
+        db_handle, person, args=options, locale=locale
+    )
+    death, death_event = get_death_profile(
+        db_handle, person, args=options, locale=locale
+    )
     if "all" in args or "age" in args:
         options.append("age")
         if birth_event is not None:
@@ -396,8 +436,14 @@ def get_family_profile_for_object(
 ) -> Family:
     """Get family profile given a Family."""
     options = []
-    marriage, marriage_event = get_marriage_profile(db_handle, family, locale=locale)
-    divorce, divorce_event = get_divorce_profile(db_handle, family, locale=locale)
+    if "all" in args or "ratings" in args:
+        options.append("ratings")
+    marriage, marriage_event = get_marriage_profile(
+        db_handle, family, args=options, locale=locale
+    )
+    divorce, divorce_event = get_divorce_profile(
+        db_handle, family, args=options, locale=locale
+    )
     if "all" in args or "span" in args:
         if marriage_event is not None:
             marriage["span"] = locale.translation.sgettext("0 days")
@@ -610,9 +656,11 @@ def get_soundex(
 
 
 def get_reference_profile_for_object(
-    db_handle: DbReadBase, obj: GrampsObject, locale: GrampsLocale = glocale,
+    db_handle: DbReadBase,
+    obj: GrampsObject,
+    locale: GrampsLocale = glocale,
 ) -> Dict:
-    """ bla"""
+    """Return reference profiles for an object."""
     profile = {}
     # get backlink handles
     if hasattr(obj, "backlinks"):
@@ -651,3 +699,21 @@ def get_reference_profile_for_object(
             for handle in backlink_handles["place"]
         ]
     return profile
+
+
+def get_rating(db_handle: DbReadBase, obj: GrampsObject) -> Tuple[int, int]:
+    """Return rating based on citations."""
+    count = 0
+    confidence = 0
+    if hasattr(obj, "citation_list"):
+        count = len(obj.citation_list)
+        if hasattr(obj, "extended") and "citations" in obj.extended:
+            for citation in obj.extended["citations"]:
+                if citation.confidence > confidence:
+                    confidence = citation.confidence
+        else:
+            for handle in obj.citation_list:
+                citation = db_handle.get_citation_from_handle(handle)
+                if citation.confidence > confidence:
+                    confidence = citation.confidence
+    return count, confidence

@@ -507,27 +507,41 @@ class TestPeople(unittest.TestCase):
         self.assertEqual(
             rv[0]["profile"],
             {
-                "birth": {"age": "0 days", "date": "570-04-19", "type": "Birth"},
+                "birth": {
+                    "age": "0 days",
+                    "citations": 0,
+                    "confidence": 0,
+                    "date": "570-04-19",
+                    "type": "Birth",
+                },
                 "death": {
                     "age": "62 years, 1 months, 19 days",
+                    "citations": 0,
+                    "confidence": 0,
                     "date": "632-06-08",
                     "type": "Death",
                 },
                 "events": [
                     {
                         "age": "0 days",
+                        "citations": 0,
+                        "confidence": 0,
                         "date": "570-04-19",
                         "role": "Primary",
                         "type": "Birth",
                     },
                     {
                         "age": "62 years, 1 months, 19 days",
+                        "citations": 0,
+                        "confidence": 0,
                         "date": "632-06-08",
                         "role": "Primary",
                         "type": "Death",
                     },
                     {
                         "age": "39 years, 8 months, 13 days",
+                        "citations": 0,
+                        "confidence": 0,
                         "date": "610",
                         "role": "Primary",
                         "type": "Marriage",
@@ -538,11 +552,15 @@ class TestPeople(unittest.TestCase):
                         "father": {
                             "birth": {
                                 "age": "0 days",
+                                "citations": 0,
+                                "confidence": 0,
                                 "date": "570-04-19",
                                 "type": "Birth",
                             },
                             "death": {
                                 "age": "62 years, 1 months, 19 days",
+                                "citations": 0,
+                                "confidence": 0,
                                 "date": "632-06-08",
                                 "type": "Death",
                             },
@@ -585,11 +603,15 @@ class TestPeople(unittest.TestCase):
                         "father": {
                             "birth": {
                                 "age": "0 days",
+                                "citations": 0,
+                                "confidence": 0,
                                 "date": "570-04-19",
                                 "type": "Birth",
                             },
                             "death": {
                                 "age": "62 years, 1 months, 19 days",
+                                "citations": 0,
+                                "confidence": 0,
                                 "date": "632-06-08",
                                 "type": "Death",
                             },
@@ -1049,7 +1071,7 @@ class TestPeopleHandleTimeline(unittest.TestCase):
         """Test conforms to schema."""
         check_conforms_to_schema(
             self,
-            TEST_URL + "GNUJQCL9MD64AM56OH/timeline",
+            TEST_URL + "GNUJQCL9MD64AM56OH/timeline?ratings=1",
             "TimelineEventProfile",
         )
 
@@ -1318,3 +1340,9 @@ class TestPeopleHandleTimeline(unittest.TestCase):
             if event["label"] == "Marriage (Stepsister)":
                 count = count + 1
         self.assertEqual(count, 4)
+
+    def test_get_people_handle_timeline_parameter_ratings_validate_semantics(self):
+        """Test invalid ratings parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "1QTJQCP5QMT2X7YJDK/timeline?ratings", check="boolean"
+        )

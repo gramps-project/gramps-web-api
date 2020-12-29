@@ -54,7 +54,9 @@ class TestTimelinesPeople(unittest.TestCase):
 
     def test_get_timelines_people_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(self, TEST_URL + "people/", "TimelineEventProfile")
+        check_conforms_to_schema(
+            self, TEST_URL + "people/?ratings=1", "TimelineEventProfile"
+        )
 
     def test_get_timelines_people_expected_results(self):
         """Test some expected results returned."""
@@ -254,6 +256,10 @@ class TestTimelinesPeople(unittest.TestCase):
         for item in rv:
             self.assertIn(item["type"], ["Birth", "Death", "Burial"])
 
+    def test_get_timelines_people_parameter_ratings_validate_semantics(self):
+        """Test invalid ratings parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "people/?ratings", check="boolean")
+
     def test_get_timelines_people_parameter_handles_missing_content(self):
         """Test missing content response."""
         check_resource_missing(self, TEST_URL + "people/?handles=not_a_real_handle")
@@ -308,7 +314,9 @@ class TestTimelinesFamilies(unittest.TestCase):
 
     def test_get_timelines_families_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(self, TEST_URL + "families/", "TimelineEventProfile")
+        check_conforms_to_schema(
+            self, TEST_URL + "families/?ratings=1", "TimelineEventProfile"
+        )
 
     def test_get_timelines_families_expected_results(self):
         """Test some expected results returned."""
@@ -455,6 +463,10 @@ class TestTimelinesFamilies(unittest.TestCase):
         rv = check_success(self, TEST_URL + "families/?keys=type&event_classes=vital")
         for item in rv:
             self.assertIn(item["type"], ["Birth", "Death", "Burial"])
+
+    def test_get_timelines_families_parameter_ratings_validate_semantics(self):
+        """Test invalid ratings parameter and values."""
+        check_invalid_semantics(self, TEST_URL + "families/?ratings", check="boolean")
 
     def test_get_timelines_families_parameter_handles_missing_content(self):
         """Test missing content response."""
