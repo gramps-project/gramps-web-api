@@ -20,13 +20,18 @@
 
 """Command line interface for the Gramps web API."""
 
+import logging
 import os
 
 import click
+from whoosh.index import LockError
 
 from .app import create_app
 from .auth import SQLAuth
 from .const import ENV_CONFIG_FILE
+
+logging.basicConfig()
+LOG = logging.getLogger("gramps_webapi")
 
 
 @click.group("cli")
@@ -47,7 +52,7 @@ def run(ctx, port):
     app.run(port=port, threaded=True)
 
 
-@cli.group("user")
+@cli.group("user", help="Manage users.")
 @click.pass_context
 def user(ctx):
     app = ctx.obj
@@ -59,22 +64,51 @@ def user(ctx):
 @click.argument("password")
 @click.option("--fullname", help="Full name", default="")
 @click.option("--email", help="E-mail address", default=None)
+@click.option("--role", help="User role", default=0, type=int)
 @click.pass_context
-def user_add(ctx, name, password, fullname, email):
+def user_add(ctx, name, password, fullname, email, role):
+    LOG.info("Adding user {} ...".format(name))
     auth = ctx.obj
     auth.create_table()
-    auth.add_user(name, password, fullname, email)
+    auth.add_user(name, password, fullname, email, role)
 
 
 @user.command("delete")
 @click.argument("name")
 @click.pass_context
 def user_del(ctx, name):
+    LOG.info("Deleting user {} ...".format(name))
     auth = ctx.obj
     auth.delete_user(name)
 
 
+@cli.group("search", help="Manage the full-text search index.")
+@click.pass_context
+def search(ctx):
+    pass
+
+
+@search.command("index-full")
+@click.pass_context
+def index_full(ctx):
+    LOG.info("Rebuilding search index ...")
+    app = ctx.obj
+    indexer = app.config["SEARCH_INDEXER"]
+    db = app.config["DB_MANAGER"].get_db().db
+    try:
+        indexer.reindex_full(db)
+    except LockError:
+        LOG.warning("Index is locked")
+    except:
+        LOG.exception("Error during indexing")
+    finally:
+        db.close()
+    LOG.info("Done building search index.")
+
+
 if __name__ == "__main__":
+    LOG.setLevel(logging.INFO)
+
     cli(
         prog_name="python3 -m gramps_webapi"
     )  # pylint:disable=no-value-for-parameter,unexpected-keyword-arg

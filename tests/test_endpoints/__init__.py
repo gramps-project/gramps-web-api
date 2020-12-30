@@ -71,6 +71,10 @@ def setUpModule():
         test_app = create_app(db_manager=test_db)
     test_app.config["TESTING"] = True
     TEST_CLIENT = test_app.test_client()
+    search_index = test_app.config["SEARCH_INDEXER"]
+    db = test_db.get_db().db
+    search_index.reindex_full(db)
+    db.close()
     sqlauth = test_app.config["AUTH_PROVIDER"]
     sqlauth.create_table()
     for role in TEST_USERS:
