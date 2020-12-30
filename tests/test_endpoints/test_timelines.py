@@ -200,7 +200,7 @@ class TestTimelinesPeople(unittest.TestCase):
             self, TEST_URL + "people/?anchor=GNUJQCL9MD64AM56OH&precision=3"
         )
         self.assertEqual(rv[11]["label"], "Birth")
-        self.assertEqual(rv[11]["span"], "2 years, 6 months, 1 days")
+        self.assertEqual(rv[11]["age"], "2 years, 6 months, 1 days")
 
     def test_get_timelines_people_parameter_first_validate_semantics(self):
         """Test invalid first parameter and values."""

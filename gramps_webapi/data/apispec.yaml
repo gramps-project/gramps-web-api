@@ -7998,7 +7998,11 @@ definitions:
     type: object
     properties:
       age:
-        description: "The age of the person the timeline is for at the time of the event."
+        description: >
+          The age of the person at the time of the event. If the timeline is anchored, that is
+          for a specific person, then it is their age at the time of the event. If the timeline
+          is not anchored then it is the age of the person associated with that event at the
+          time of the event.
         type: string
         example: "2 years"
       citations:
@@ -8052,6 +8056,10 @@ definitions:
   TimelinePersonProfile:
     type: object
     properties:
+      age:
+        description: "The age of the person at the time of the event."
+        type: string
+        example: "2 years"
       birth:
         description: "The birth event profile, or best fallback such as baptism, of the person."
         type: object

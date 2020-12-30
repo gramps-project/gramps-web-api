@@ -1214,7 +1214,7 @@ class TestPeopleHandleTimeline(unittest.TestCase):
         """Test precision parameter for expected results."""
         rv = check_success(self, TEST_URL + "1QTJQCP5QMT2X7YJDK/timeline?precision=3")
         self.assertEqual(rv[8]["label"], "Death (Mother)")
-        self.assertEqual(rv[8]["span"], "22 years, 3 months, 23 days")
+        self.assertEqual(rv[8]["age"], "22 years, 3 months, 23 days")
 
     def test_get_people_handle_timeline_parameter_first_validate_semantics(self):
         """Test invalid first parameter and values."""
