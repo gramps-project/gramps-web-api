@@ -106,6 +106,24 @@ def index_full(ctx):
     LOG.info("Done building search index.")
 
 
+@search.command("index-incremental")
+@click.pass_context
+def index_incremental(ctx):
+    LOG.info("Updating search index ...")
+    app = ctx.obj
+    indexer = app.config["SEARCH_INDEXER"]
+    db = app.config["DB_MANAGER"].get_db().db
+    try:
+        indexer.reindex_incremental(db)
+    except LockError:
+        LOG.warning("Index is locked")
+    except:
+        LOG.exception("Error during indexing")
+    finally:
+        db.close()
+    LOG.info("Done updating search index.")
+
+
 if __name__ == "__main__":
     LOG.setLevel(logging.INFO)
 
