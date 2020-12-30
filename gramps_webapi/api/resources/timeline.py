@@ -28,6 +28,7 @@ from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Date, Event, EventType, Person, Span
 from gramps.gen.relationship import get_relationship_calculator
+from gramps.gen.utils.alive import probably_alive_range
 from gramps.gen.utils.db import (
     get_birth_or_fallback,
     get_death_or_fallback,
@@ -114,6 +115,7 @@ class Timeline:
         self.locale = locale
         self.anchor_person = None
         self.omit_anchor = omit_anchor
+        self.depth = 1
         self.eligible_events = set([])
         self.event_filters = events or []
         self.eligible_relative_events = set([])
@@ -134,6 +136,15 @@ class Timeline:
                 self.end_date = Date((int(year), int(month), int(day)))
             else:
                 self.end_date = None
+
+        event_type = EventType()
+        self.death_indicators = [
+            event_type.DEATH,
+            event_type.BURIAL,
+            event_type.CREMATION,
+            event_type.CAUSE_DEATH,
+            event_type.PROBATE,
+        ]
 
     def set_start_date(self, date: Union[Date, str]):
         """Set optional timeline start date."""
@@ -205,6 +216,25 @@ class Timeline:
                 eligible_events.add(event_name)
         return eligible_events
 
+    def is_death_indicator(self, event: Event) -> bool:
+        """Check if an event indicates death timeframe."""
+        if event.type in self.death_indicators:
+            return True
+        if event.type.xml_str().lower() in [
+            "funeral",
+            "funeral mass",
+            "interment",
+            "reinterment",
+            "inurnment",
+            "memorial",
+            "memorial service",
+            "visitation",
+            "wake",
+            "shiva",
+        ]:
+            return True
+        return False
+
     def is_eligible(self, event: Event, relative: bool):
         """Check if an event is eligible for the timeline."""
         if relative:
@@ -260,6 +290,7 @@ class Timeline:
             self.add_event((event, person, "self"))
         if anchor and not self.anchor_person:
             self.anchor_person = person
+            self.depth = max(ancestors, offspring) + 1
             if self.start_date is None and self.end_date is None:
                 if len(self.timeline) > 0:
                     if start or end:
@@ -269,7 +300,11 @@ class Timeline:
                         if start:
                             self.start_date = self.timeline[0][0].date
                         if end:
-                            self.end_date = self.timeline[-1][0].date
+                            if self.is_death_indicator(self.timeline[-1][0]):
+                                self.end_date = self.timeline[-1][0].date
+                            else:
+                                data = probably_alive_range(person, self.db_handle)
+                                self.end_date = data[1]
 
             for family in person.parent_family_list:
                 self.add_family(family, ancestors=ancestors)
@@ -286,6 +321,7 @@ class Timeline:
         """Add events for a relative of the anchor person."""
         person = self.db_handle.get_person_from_handle(handle)
         calculator = get_relationship_calculator(reinit=True, clocale=self.locale)
+        calculator.set_depth(self.depth)
         relationship = calculator.get_one_relationship(
             self.db_handle, self.anchor_person, person
         )
