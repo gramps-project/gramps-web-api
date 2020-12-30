@@ -53,13 +53,6 @@ pd = PlaceDisplay()
 default_locale = GrampsLocale(lang="en")
 event_type = EventType()
 
-BIRTH_INDICATORS = [
-    event_type.BIRTH,
-    event_type.BAPTISM,
-    event_type.CHRISTEN,
-    event_type.ADOPT,
-]
-
 DEATH_INDICATORS = [
     event_type.DEATH,
     event_type.BURIAL,
@@ -297,11 +290,13 @@ class Timeline:
         if self.anchor_person and handle == self.anchor_person.handle:
             return
         person = self.db_handle.get_person_from_handle(handle)
+        if person.handle not in self.birth_dates:
+            event = get_birth_or_fallback(self.db_handle, person)
+            if event:
+                self.birth_dates.update({person.handle: event.date})
         for event_ref in person.event_ref_list:
             event = self.db_handle.get_event_from_handle(event_ref.ref)
             self.add_event((event, person, "self"))
-            if person.handle not in self.birth_dates and event.type in BIRTH_INDICATORS:
-                self.birth_dates.update({person.handle: event.date})
         if anchor and not self.anchor_person:
             self.anchor_person = person
             self.depth = max(ancestors, offspring) + 1
@@ -356,7 +351,7 @@ class Timeline:
         event = get_birth_or_fallback(self.db_handle, person)
         if event:
             self.add_event((event, person, relationship), relative=True)
-            if person.handle not in self.birth_dates and event.type in BIRTH_INDICATORS:
+            if person.handle not in self.birth_dates:
                 self.birth_dates.update({person.handle: event.date})
 
         event = get_death_or_fallback(self.db_handle, person)
@@ -456,28 +451,27 @@ class Timeline:
             age = ""
             person = {}
             if event[1] is not None:
-                if self.anchor_person:
-                    age = self.get_age(
-                        self.birth_dates[self.anchor_person.handle], event[0].date
-                    )
-
                 person_age = ""
                 get_person = True
-                if self.anchor_person and self.anchor_person.handle == event[1].handle:
-                    person_age = age
-                    if self.omit_anchor:
-                        get_person = False
+                if self.anchor_person:
+                    if self.anchor_person.handle in self.birth_dates:
+                        age = self.get_age(
+                            self.birth_dates[self.anchor_person.handle], event[0].date
+                        )
+                    if self.anchor_person.handle == event[1].handle:
+                        person_age = age
+                        if self.omit_anchor:
+                            get_person = False
                 if get_person:
                     person = get_person_profile_for_object(
                         self.db_handle, event[1], {}, locale=self.locale
                     )
-                    if not person_age:
-                        if event[1].handle in self.birth_dates:
-                            person_age = self.get_age(
-                                self.birth_dates[event[1].handle], event[0].date
-                            )
-                            if not age:
-                                age = person_age
+                    if not person_age and event[1].handle in self.birth_dates:
+                        person_age = self.get_age(
+                            self.birth_dates[event[1].handle], event[0].date
+                        )
+                        if not age:
+                            age = person_age
                     person["age"] = person_age
 
             profile = {
