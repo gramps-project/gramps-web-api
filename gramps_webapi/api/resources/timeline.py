@@ -476,7 +476,8 @@ class Timeline:
                             person_age = self.get_age(
                                 self.birth_dates[event[1].handle], event[0].date
                             )
-                            age = person_age
+                            if not age:
+                                age = person_age
                     person["age"] = person_age
 
             profile = {
