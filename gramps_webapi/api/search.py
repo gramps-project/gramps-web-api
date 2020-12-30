@@ -73,24 +73,47 @@ def object_to_strings(obj) -> Tuple[str, str]:
     return " ".join(strings), " ".join(private_strings)
 
 
+def obj_strings_from_handle(
+    db_handle: DbReadBase, class_name: str, handle
+) -> Optional[Dict[str, Any]]:
+    """Return object strings from a handle and Gramps class name."""
+    query_method = db_handle.method("get_%s_from_handle", class_name)
+    obj = query_method(handle)
+    obj_string, obj_string_private = object_to_strings(obj)
+    private = hasattr(obj, "private") and obj.private
+    if obj_string:
+        return {
+            "class_name": class_name,
+            "handle": obj.handle,
+            "private": private,
+            "string": obj_string,
+            "string_private": obj_string_private,
+            "change": datetime.fromtimestamp(obj.change),
+        }
+    return None
+
+
 def iter_obj_strings(db_handle: DbReadBase,) -> Generator[Dict[str, Any], None, None]:
     """Iterate over object strings in the whole database."""
     for class_name in PRIMARY_GRAMPS_OBJECTS:
-        query_method = db_handle.method("get_%s_from_handle", class_name)
         iter_method = db_handle.method("iter_%s_handles", class_name)
         for handle in iter_method():
+            obj_strings = obj_strings_from_handle(db_handle, class_name, handle)
+            if obj_strings:
+                yield obj_strings
+
+
+def get_object_timestamps(db_handle: DbReadBase):
+    """Get a dictionary with change timestamps of all objects in the DB."""
+    d = {}
+    for class_name in PRIMARY_GRAMPS_OBJECTS:
+        d[class_name] = set()
+        iter_method = db_handle.method("iter_%s_handles", class_name)
+        for handle in iter_method():
+            query_method = db_handle.method("get_%s_from_handle", class_name)
             obj = query_method(handle)
-            obj_string, obj_string_private = object_to_strings(obj)
-            private = hasattr(obj, "private") and obj.private
-            if obj_string:
-                yield {
-                    "class_name": class_name,
-                    "handle": obj.handle,
-                    "private": private,
-                    "string": obj_string,
-                    "string_private": obj_string_private,
-                    "change": datetime.fromtimestamp(obj.change),
-                }
+            d[class_name].add((handle, datetime.fromtimestamp(obj.change)))
+    return d
 
 
 class SearchIndexer:
@@ -103,7 +126,7 @@ class SearchIndexer:
         private=BOOLEAN(stored=True),
         text=TEXT(),
         text_private=TEXT(),
-        change=DATETIME(sortable=True),
+        change=DATETIME(sortable=True, stored=True),
     )
 
     # schema for searches of public info only
@@ -112,7 +135,7 @@ class SearchIndexer:
         handle=ID(stored=True, unique=True),
         private=BOOLEAN(stored=True),
         text=TEXT(),
-        change=DATETIME(sortable=True),
+        change=DATETIME(sortable=True, stored=True),
     )
 
     def __init__(self, index_dir=FilenameOrPath):
@@ -133,23 +156,82 @@ class SearchIndexer:
             return index.create_in(index_dir, self.SCHEMA)
         return index.open_dir(index_dir)
 
+    def _add_obj_strings(self, writer, obj_dict):
+        """Add or update an object to the index."""
+        try:
+            writer.update_document(
+                type=obj_dict["class_name"].lower(),
+                handle=obj_dict["handle"],
+                private=obj_dict["private"],
+                text=obj_dict["string"],
+                text_private=obj_dict["string_private"],
+                change=obj_dict["change"],
+            )
+        except:
+            current_app.logger.error(
+                "Failed adding object {}".format(obj_dict["handle"])
+            )
+
     def reindex_full(self, db_handle: DbReadBase):
         """Reindex the whole database."""
         with self.index(overwrite=True).writer() as writer:
             for obj_dict in iter_obj_strings(db_handle):
-                try:
-                    writer.add_document(
-                        type=obj_dict["class_name"].lower(),
-                        handle=obj_dict["handle"],
-                        private=obj_dict["private"],
-                        text=obj_dict["string"],
-                        text_private=obj_dict["string_private"],
-                        change=obj_dict["change"],
-                    )
-                except:
-                    current_app.logger.error(
-                        "Failed adding object {}".format(obj_dict["handle"])
-                    )
+                self._add_obj_strings(writer, obj_dict)
+
+    def _get_object_timestamps(self):
+        """Get a dictionary with the timestamps of all objects in the index."""
+        d = {}
+        with self.index().searcher() as searcher:
+            for fields in searcher.all_stored_fields():
+                class_name = fields["type"]
+                if class_name not in d:
+                    d[class_name] = set()
+                d[class_name].add((fields["handle"], fields["change"]))
+        return d
+
+    def _get_update_info(self, db_handle: DbReadBase):
+        """Get a dictionary with info about changed objects in the db."""
+        db_timestamps = get_object_timestamps(db_handle)
+        ix_timestamps = self._get_object_timestamps()
+        deleted = {}
+        updated = {}
+        new = {}
+        for class_name in db_timestamps:
+            db_handles = set(handle for handle, _ in db_timestamps[class_name])
+            ix_handles = set(
+                handle for handle, _ in ix_timestamps.get(class_name.lower(), set())
+            )
+            # new: not present in index
+            new[class_name] = db_handles - ix_handles
+            # deleted: not present in db
+            deleted[class_name] = ix_handles - db_handles
+            # changed: different (new or modified) in db
+            changed_timestamps = db_timestamps[class_name] - ix_timestamps.get(
+                class_name.lower(), set()
+            )
+            changed_handles = set(handle for handle, _ in changed_timestamps)
+            # updated: changed and present in the index
+            updated[class_name] = changed_handles & ix_handles
+        return {"deleted": deleted, "updated": updated, "new": new}
+
+    def reindex_incremental(self, db_handle: DbReadBase):
+        """Update the index incrementally."""
+        update_info = self._get_update_info(db_handle)
+        with self.index(overwrite=False).writer() as writer:
+            # delete objects
+            for class_name, info in update_info["deleted"].items():
+                for handle in info:
+                    writer.delete_by_term("handle", handle)
+            # add objects
+            for class_name, info in update_info["new"].items():
+                for handle in info:
+                    obj_dict = obj_strings_from_handle(db_handle, class_name, handle)
+                    self._add_obj_strings(writer, obj_dict)
+            # update objects
+            for class_name, info in update_info["updated"].items():
+                for handle in info:
+                    obj_dict = obj_strings_from_handle(db_handle, class_name, handle)
+                    self._add_obj_strings(writer, obj_dict)
 
     @staticmethod
     def format_hit(hit: Hit) -> Dict[str, Any]:

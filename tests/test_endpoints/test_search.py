@@ -69,6 +69,16 @@ class TestSearchEngine(unittest.TestCase):
         total, rv = self.search.search("I0044", page=1, pagesize=10)
         self.assertEqual(len(rv), 1)
 
+    def test_reindexing_incremental(self):
+        """Test if reindexing again leads to doubled rv."""
+        total, rv = self.search.search("I0044", page=1, pagesize=10)
+        self.assertEqual(len(rv), 1)
+        db = self.__class__.dbmgr.get_db().db
+        self.__class__.search.reindex_incremental(db)
+        db.close()
+        total, rv = self.search.search("I0044", page=1, pagesize=10)
+        self.assertEqual(len(rv), 1)
+
     def test_search_method(self):
         """Test search engine returns an expected result."""
         total, rv = self.search.search("Lewis von", page=1, pagesize=2)
