@@ -50,6 +50,23 @@ from .util import (
 )
 
 pd = PlaceDisplay()
+default_locale = GrampsLocale(lang="en")
+event_type = EventType()
+
+BIRTH_INDICATORS = [
+    event_type.BIRTH,
+    event_type.BAPTISM,
+    event_type.CHRISTEN,
+    event_type.ADOPT,
+]
+
+DEATH_INDICATORS = [
+    event_type.DEATH,
+    event_type.BURIAL,
+    event_type.CREMATION,
+    event_type.CAUSE_DEATH,
+    event_type.PROBATE,
+]
 
 RELATIVES = [
     "father",
@@ -78,13 +95,10 @@ EVENT_CATEGORIES = [
 
 # A timeline item is a tuple of following format:
 #
-# (Event, Person, relationship, span)
+# (Event, Person, relationship)
 #
 # A timeline may or may not have a anchor person. If it does relationships
-# are calculated with respect to them and the span represents the age
-# of the anchor person at the time of the event. The timeline is framed
-# when a anchor person is present so only events during their lifetime
-# are considered valid.
+# are calculated with respect to them.
 
 
 class Timeline:
@@ -123,6 +137,7 @@ class Timeline:
         self.relative_filters = relatives or []
         self.set_event_filters(self.event_filters)
         self.set_relative_event_filters(self.relative_event_filters)
+        self.birth_dates = {}
 
         if dates and "-" in dates:
             start, end = dates.split("-")
@@ -136,15 +151,6 @@ class Timeline:
                 self.end_date = Date((int(year), int(month), int(day)))
             else:
                 self.end_date = None
-
-        event_type = EventType()
-        self.death_indicators = [
-            event_type.DEATH,
-            event_type.BURIAL,
-            event_type.CREMATION,
-            event_type.CAUSE_DEATH,
-            event_type.PROBATE,
-        ]
 
     def set_start_date(self, date: Union[Date, str]):
         """Set optional timeline start date."""
@@ -216,23 +222,35 @@ class Timeline:
                 eligible_events.add(event_name)
         return eligible_events
 
+    def get_age(self, start_date, date):
+        """Return calculated age or empty string otherwise."""
+        age = ""
+        if start_date:
+            span = Span(start_date, date)
+            if span.is_valid():
+                age = str(
+                    span.format(precision=self.precision, dlocale=self.locale).strip(
+                        "()"
+                    )
+                )
+        return age
+
     def is_death_indicator(self, event: Event) -> bool:
         """Check if an event indicates death timeframe."""
-        if event.type in self.death_indicators:
+        if event.type in DEATH_INDICATORS:
             return True
-        if event.type.xml_str().lower() in [
-            "funeral",
-            "funeral mass",
-            "interment",
-            "reinterment",
-            "inurnment",
-            "memorial",
-            "memorial service",
-            "visitation",
-            "wake",
-            "shiva",
+        for event_name in [
+            "Funeral",
+            "Interment",
+            "Reinterment",
+            "Inurnment",
+            "Memorial",
+            "Visitation",
+            "Wake",
+            "Shiva",
         ]:
-            return True
+            if self.locale.translation.sgettext(event_name) == str(event.type):
+                return True
         return False
 
     def is_eligible(self, event: Event, relative: bool):
@@ -253,15 +271,9 @@ class Timeline:
         if self.end_date:
             if self.end_date.match(event[0].date, comparison="<"):
                 return
-        span = ""
         if self.start_date:
             if self.start_date.match(event[0].date, comparison=">"):
                 return
-            span = str(
-                Span(self.start_date, event[0].date)
-                .format(precision=self.precision, dlocale=self.locale)
-                .strip("()")
-            )
         for item in self.timeline:
             if item[0].handle == event[0].handle:
                 return
@@ -270,7 +282,7 @@ class Timeline:
                 count, confidence = get_rating(self.db_handle, event[0])
                 event[0].citations = count
                 event[0].confidence = confidence
-            self.timeline.append(event + (span,))
+            self.timeline.append(event)
 
     def add_person(
         self,
@@ -288,6 +300,8 @@ class Timeline:
         for event_ref in person.event_ref_list:
             event = self.db_handle.get_event_from_handle(event_ref.ref)
             self.add_event((event, person, "self"))
+            if person.handle not in self.birth_dates and event.type in BIRTH_INDICATORS:
+                self.birth_dates.update({person.handle: event.date})
         if anchor and not self.anchor_person:
             self.anchor_person = person
             self.depth = max(ancestors, offspring) + 1
@@ -342,6 +356,8 @@ class Timeline:
         event = get_birth_or_fallback(self.db_handle, person)
         if event:
             self.add_event((event, person, relationship), relative=True)
+            if person.handle not in self.birth_dates and event.type in BIRTH_INDICATORS:
+                self.birth_dates.update({person.handle: event.date})
 
         event = get_death_or_fallback(self.db_handle, person)
         if event:
@@ -426,6 +442,7 @@ class Timeline:
                 and event[2] not in ["self", "", None]
             ):
                 label = "{} ({})".format(label, event[2].title())
+
             try:
                 obj = self.db_handle.get_place_from_handle(event[0].place)
                 place = get_place_profile_for_object(
@@ -435,17 +452,33 @@ class Timeline:
                 place["handle"] = event[0].place
             except HandleError:
                 place = {}
+
+            age = ""
             person = {}
             if event[1] is not None:
+                if self.anchor_person:
+                    age = self.get_age(
+                        self.birth_dates[self.anchor_person.handle], event[0].date
+                    )
+
+                person_age = ""
+                get_person = True
                 if self.anchor_person and self.anchor_person.handle == event[1].handle:
-                    if not self.omit_anchor:
-                        person = get_person_profile_for_object(
-                            self.db_handle, event[1], {}, locale=self.locale
-                        )
-                else:
+                    person_age = age
+                    if self.omit_anchor:
+                        get_person = False
+                if get_person:
                     person = get_person_profile_for_object(
                         self.db_handle, event[1], {}, locale=self.locale
                     )
+                    if not person_age:
+                        if event[1].handle in self.birth_dates:
+                            person_age = self.get_age(
+                                self.birth_dates[event[1].handle], event[0].date
+                            )
+                            age = person_age
+                    person["age"] = person_age
+
             profile = {
                 "date": self.locale.date_displayer.display(event[0].date),
                 "description": event[0].description,
@@ -455,7 +488,7 @@ class Timeline:
                 "media": [x.ref for x in event[0].media_list],
                 "person": person,
                 "place": place,
-                "span": event[3],
+                "age": age,
                 "type": event[0].type,
             }
             profile["person"]["relationship"] = str(event[2])
