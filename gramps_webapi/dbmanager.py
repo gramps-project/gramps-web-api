@@ -24,6 +24,7 @@ import os
 
 from gramps.cli.clidbman import CLIDbManager
 from gramps.cli.user import User
+from gramps.gen.config import config
 from gramps.gen.db.dbconst import DBLOCKFN, DBMODE_R, DBMODE_W
 from gramps.gen.db.utils import get_dbid_from_path
 from gramps.gen.dbstate import DbState
@@ -49,7 +50,9 @@ class WebDbManager:
         path = dbman.get_family_tree_path(self.name)
         if path is None:
             raise ValueError(
-                "Database path for family tree '{}' not found".format(self.name)
+                "Database path for family tree '{}' not found in databse directory {}".format(
+                    self.name, config.get("database.path")
+                )
             )
         return path
 
