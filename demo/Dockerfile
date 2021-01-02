@@ -3,6 +3,11 @@ FROM dmstraub/gramps-webapi:latest
 # copy config file
 COPY config.cfg /app/config/
 
+# create non-root user and grant privileges
+RUN useradd -m appuser
+RUN chown -R appuser:appuser /app
+USER appuser
+
 # extract & use Gramps example tree
 ENV GRAMPS_RESOURCES /usr/share/
 RUN cp -r /usr/share/doc/gramps/example/gramps/example.gramps.gz .
