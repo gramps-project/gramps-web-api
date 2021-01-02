@@ -10,9 +10,6 @@ RUN gunzip example.gramps.gz
 RUN gramps -C Example -i example.gramps --config=database.backend:sqlite
 RUN rm -rf appcache
 
-# add test user
-RUN python3 -m gramps_webapi  --config /app/config/config.cfg user add test test
-
 # build full-text search index
 RUN python3 -m gramps_webapi  --config /app/config/config.cfg search index-full
 
