@@ -87,7 +87,7 @@ MIME_JPEG = "image/jpeg"
 try:
     import gi
 
-    REPORT_FILTERS = ["dot", "gvpdf"]
+    REPORT_FILTERS = ["gv", "dot", "gvpdf"]
     REPORT_DEFAULTS = {
         CATEGORY_TEXT: "pdf",
         CATEGORY_DRAW: "pdf",

@@ -21,9 +21,9 @@
 """Reports Plugin API resource."""
 
 import json
+import mimetypes
 import os
 import uuid
-from mimetypes import types_map
 from pathlib import Path
 from typing import Dict
 
@@ -37,12 +37,13 @@ from gramps.gen.utils.resourcepath import ResourcePath
 from webargs import fields, validate
 
 from ...const import REPORT_DEFAULTS, REPORT_FILTERS
-from ..util import use_args
-from ..util import get_buffer_for_file, get_db_handle
+from ..util import get_buffer_for_file, get_db_handle, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
 _EXTENSION_MAP = {".gvpdf": ".pdf", ".gspdf": ".pdf", ".dot": ".gv"}
+
+mimetypes.init()
 
 
 def get_report_profile(
@@ -112,6 +113,14 @@ def run_report(
                 report_options["off"] = REPORT_DEFAULTS[report_data.category]
             file_type = "." + report_options["off"]
             file_type = _EXTENSION_MAP.get(file_type) or file_type
+            if file_type not in mimetypes.types_map:
+                current_app.logger.error(
+                    "Can not find {} in mimetypes.types_map" % file_type
+                )
+                current_app.logger.debug(
+                    "mimetypes.types_map = {}" % str(mimetypes.types_map)
+                )
+                abort(500)
             report_path = TEMP_DIR
             if current_app.config.get("REPORT_PATH"):
                 report_path = current_app.config.get("REPORT_PATH")
@@ -124,6 +133,7 @@ def run_report(
             module = plugin_manager.load_plugin(report_data)
             option_class = getattr(module, report_data.optionclass)
             report_class = getattr(module, report_data.reportclass)
+
             cl_report(
                 db_handle,
                 report_data.name,
@@ -194,7 +204,10 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
     """Report file resource."""
 
     @use_args(
-        {"options": fields.Str(validate=validate.Length(min=1)),}, location="query",
+        {
+            "options": fields.Str(validate=validate.Length(min=1)),
+        },
+        location="query",
     )
     def get(self, args: Dict, report_id: str) -> Response:
         """Get specific report attributes."""
@@ -209,4 +222,4 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
 
         file_name, file_type = run_report(get_db_handle(), report_id, report_options)
         buffer = get_buffer_for_file(file_name)
-        return send_file(buffer, mimetype=types_map[file_type])
+        return send_file(buffer, mimetype=mimetypes.types_map[file_type])
