@@ -21,15 +21,17 @@
 """Utility functions."""
 
 import io
+import hashlib
 import os
 import smtplib
 import socket
 from email.message import EmailMessage
 from typing import BinaryIO, Optional, Sequence
 
-from flask import abort, current_app, g
+from flask import abort, current_app, g, request
 from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
+from gramps.gen.errors import HandleError
 from gramps.gen.proxy import PrivateProxyDb
 from gramps.gen.utils.file import expand_media_path
 from gramps.gen.utils.grampslocale import GrampsLocale
@@ -163,3 +165,28 @@ def send_email(
     except OSError:
         current_app.logger.error("Error while trying to send e-mail.")
         raise ValueError("Error while trying to send e-mail.")
+
+
+def make_cache_key_thumbnails(*args, **kwargs):
+    """Make a cache key for thumbnails."""
+    # hash query args except jwt
+    query_args = list((k, v) for (k, v) in request.args.items(multi=True) if k != "jwt")
+    args_as_sorted_tuple = tuple(sorted(query_args))
+    args_as_bytes = str(args_as_sorted_tuple).encode()
+    arg_hash = hashlib.md5(args_as_bytes)
+    arg_hash = str(arg_hash.hexdigest())
+
+    # get media checksum
+    handle = kwargs["handle"]
+    db_handle = get_db_handle()
+    try:
+        obj = db_handle.get_media_from_handle(handle)
+    except HandleError:
+        abort(404)
+    # checksum in the DB
+    checksum = obj.checksum
+
+    print(checksum, request.path, arg_hash)
+    cache_key = checksum + request.path + arg_hash
+
+    return cache_key
