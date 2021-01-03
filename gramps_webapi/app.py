@@ -28,7 +28,7 @@ from flask_compress import Compress
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 
-from .api import api_blueprint
+from .api import api_blueprint, thumbnail_cache
 from .api.resources.token import limiter
 from .api.search import SearchIndexer
 from .auth import SQLAuth
@@ -68,6 +68,8 @@ def create_app(db_manager=None):
         if not app.config.get("USER_DB_URI"):
             raise ValueError("USER_DB_URI must be specified")
         app.config["AUTH_PROVIDER"] = SQLAuth(db_uri=app.config["USER_DB_URI"])
+
+    thumbnail_cache.init_app(app, config=app.config["THUMBNAIL_CACHE_CONFIG"])
 
     # search indexer
     app.config["SEARCH_INDEXER"] = SearchIndexer(app.config["SEARCH_INDEX_DIR"])

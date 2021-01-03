@@ -23,6 +23,7 @@
 from typing import Type
 
 from flask import Blueprint, current_app
+from flask_caching import Cache
 from webargs import fields, validate
 
 from ..const import API_PREFIX
@@ -78,9 +79,10 @@ from .resources.user import (
     UsersResource,
     UserTriggerResetPasswordResource,
 )
-from .util import use_args
+from .util import make_cache_key_thumbnails, use_args
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
+thumbnail_cache = Cache()
 
 
 def register_endpt(resource: Type[Resource], url: str, name: str):
@@ -162,14 +164,10 @@ register_endpt(TranslationResource, "/translations/<string:language>", "translat
 register_endpt(TranslationsResource, "/translations/", "translations")
 # Relations
 register_endpt(
-    RelationResource,
-    "/relations/<string:handle1>/<string:handle2>",
-    "relation",
+    RelationResource, "/relations/<string:handle1>/<string:handle2>", "relation",
 )
 register_endpt(
-    RelationsResource,
-    "/relations/<string:handle1>/<string:handle2>/all",
-    "relations",
+    RelationsResource, "/relations/<string:handle1>/<string:handle2>/all", "relations",
 )
 # Living
 register_endpt(LivingDatesResource, "/living/<string:handle>/dates", "living-dates")
@@ -197,14 +195,10 @@ register_endpt(HolidaysResource, "/holidays/", "holidays")
 register_endpt(MetadataResource, "/metadata/", "metadata")
 # User
 register_endpt(
-    UsersResource,
-    "/users/",
-    "users",
+    UsersResource, "/users/", "users",
 )
 register_endpt(
-    UserResource,
-    "/users/<string:user_name>/",
-    "user",
+    UserResource, "/users/<string:user_name>/", "user",
 )
 register_endpt(
     UserChangePasswordResource,
@@ -212,9 +206,7 @@ register_endpt(
     "change_password",
 )
 register_endpt(
-    UserResetPasswordResource,
-    "/users/-/password/reset/",
-    "reset_password",
+    UserResetPasswordResource, "/users/-/password/reset/", "reset_password",
 )
 register_endpt(
     UserTriggerResetPasswordResource,
@@ -241,6 +233,7 @@ def download_file(handle):
     {"square": fields.Boolean(missing=False), "jwt": fields.String(required=False)},
     location="query",
 )
+@thumbnail_cache.cached(make_cache_key=make_cache_key_thumbnails)
 def get_thumbnail(args, handle, size):
     """Get a file's thumbnail."""
     base_dir = current_app.config.get("MEDIA_BASE_DIR")
@@ -256,6 +249,7 @@ def get_thumbnail(args, handle, size):
     {"square": fields.Boolean(missing=False), "jwt": fields.String(required=False)},
     location="query",
 )
+@thumbnail_cache.cached(make_cache_key=make_cache_key_thumbnails)
 def get_cropped(args, handle: str, x1: int, y1: int, x2: int, y2: int):
     """Get the thumbnail of a cropped file."""
     base_dir = current_app.config.get("MEDIA_BASE_DIR")
@@ -271,6 +265,7 @@ def get_cropped(args, handle: str, x1: int, y1: int, x2: int, y2: int):
     {"square": fields.Boolean(missing=False), "jwt": fields.String(required=False)},
     location="query",
 )
+@thumbnail_cache.cached(make_cache_key=make_cache_key_thumbnails)
 def get_thumbnail_cropped(
     args, handle: str, x1: int, y1: int, x2: int, y2: int, size: int
 ):

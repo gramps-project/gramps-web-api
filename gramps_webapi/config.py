@@ -37,6 +37,11 @@ class DefaultConfig(object):
     BASE_URL = "http://localhost/"
     CORS_EXPOSE_HEADERS = ["X-Total-Count"]
     STATIC_PATH = "static"
+    THUMBNAIL_CACHE_CONFIG = {
+        "CACHE_TYPE": "filesystem",
+        "CACHE_DIR": "thumbnail_cache",
+        "CACHE_THRESHOLD": 1000,
+    }
 
 
 class DefaultConfigJWT(object):

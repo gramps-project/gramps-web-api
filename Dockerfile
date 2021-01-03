@@ -18,6 +18,7 @@ ENV GRAMPS_API_CONFIG=/app/config/config.cfg
 RUN mkdir /app/src &&  mkdir /app/config && touch /app/config/config.cfg
 RUN mkdir /app/static && touch /app/static/index.html
 RUN mkdir /app/db && mkdir /app/media && mkdir /app/indexdir && mkdir /app/users
+RUN mkdir /app/thumbnail_cache
 
 # install gunicorn
 RUN python3 -m pip install --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
