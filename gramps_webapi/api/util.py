@@ -186,7 +186,6 @@ def make_cache_key_thumbnails(*args, **kwargs):
     # checksum in the DB
     checksum = obj.checksum
 
-    print(checksum, request.path, arg_hash)
     cache_key = checksum + request.path + arg_hash
 
     return cache_key
