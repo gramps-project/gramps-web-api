@@ -116,12 +116,14 @@ def get_locale_for_language(language: str, default: bool = False) -> GrampsLocal
     return None
 
 
-def get_buffer_for_file(filename: str, delete=True) -> BinaryIO:
+def get_buffer_for_file(filename: str, delete=True, not_found=False) -> BinaryIO:
     """Return binary buffer with file contents."""
     try:
         with open(filename, "rb") as file_handle:
             buffer = io.BytesIO(file_handle.read())
     except FileNotFoundError:
+        if not_found:
+            raise FileNotFoundError
         abort(500)
     if delete:
         os.remove(filename)

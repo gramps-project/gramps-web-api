@@ -21,7 +21,6 @@
 """Reports Plugin API resource."""
 
 import json
-import mimetypes
 import os
 import uuid
 from pathlib import Path
@@ -36,14 +35,12 @@ from gramps.gen.plug import BasePluginManager
 from gramps.gen.utils.resourcepath import ResourcePath
 from webargs import fields, validate
 
-from ...const import REPORT_DEFAULTS, REPORT_FILTERS
+from ...const import MIME_TYPES, REPORT_DEFAULTS, REPORT_FILTERS
 from ..util import get_buffer_for_file, get_db_handle, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
-_EXTENSION_MAP = {".gvpdf": ".pdf", ".gspdf": ".pdf", ".dot": ".gv"}
-
-mimetypes.init()
+_EXTENSION_MAP = {".gvpdf": ".pdf", ".gspdf": ".pdf"}
 
 
 def get_report_profile(
@@ -113,17 +110,14 @@ def run_report(
                 report_options["off"] = REPORT_DEFAULTS[report_data.category]
             file_type = "." + report_options["off"]
             file_type = _EXTENSION_MAP.get(file_type) or file_type
-            if file_type not in mimetypes.types_map:
+            if file_type not in MIME_TYPES:
                 current_app.logger.error(
-                    "Can not find {} in mimetypes.types_map" % file_type
-                )
-                current_app.logger.debug(
-                    "mimetypes.types_map = {}" % str(mimetypes.types_map)
+                    "Can not find {} in MIME_TYPES".format(file_type)
                 )
                 abort(500)
             report_path = TEMP_DIR
-            if current_app.config.get("REPORT_PATH"):
-                report_path = current_app.config.get("REPORT_PATH")
+            if current_app.config.get("REPORT_DIR"):
+                report_path = current_app.config.get("REPORT_DIR")
             file_name = os.path.join(
                 report_path, "{}{}".format(uuid.uuid4(), file_type)
             )
@@ -221,5 +215,13 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
             abort(422)
 
         file_name, file_type = run_report(get_db_handle(), report_id, report_options)
-        buffer = get_buffer_for_file(file_name)
-        return send_file(buffer, mimetype=mimetypes.types_map[file_type])
+        try:
+            buffer = get_buffer_for_file(file_name, not_found=True)
+        except FileNotFoundError:
+            if file_type == ".dot":
+                file_type = ".gv"
+                file_name = file_name + file_type
+                buffer = get_buffer_for_file(file_name)
+            else:
+                abort(500)
+        return send_file(buffer, mimetype=MIME_TYPES[file_type])
