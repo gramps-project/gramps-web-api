@@ -82,12 +82,32 @@ GRAMPS_NAMESPACES = {
 MIME_PDF = "application/pdf"
 MIME_JPEG = "image/jpeg"
 
+# Some platforms may not find all of these
+MIME_TYPES = {
+    ".pdf": "application/pdf",
+    ".gvpdf": "application/pdf",
+    ".gspdf": "application/pdf",
+    ".gv": "text/vnd.graphviz",
+    ".dot": "text/vnd.graphviz",
+    ".rtf": "application/rtf",
+    ".ps": "application/postscript",
+    ".svg": "image/svg+xml",
+    ".svgz": "image/svg+xml",
+    ".jpg": "image/jpeg",
+    ".gif": "image/gif",
+    ".png": "image/png",
+    ".odt": "application/vnd.oasis.opendocument.text",
+    ".tex": "application/x-tex",
+    ".txt": "text/plain",
+    ".html": "text/html",
+}
+
 # These determine the supported report categories and default formats
 # depending on whether needed dependencies are available.
 try:
     import gi
 
-    REPORT_FILTERS = ["dot", "gvpdf"]
+    REPORT_FILTERS = ["gv", "dot", "gvpdf"]
     REPORT_DEFAULTS = {
         CATEGORY_TEXT: "pdf",
         CATEGORY_DRAW: "pdf",

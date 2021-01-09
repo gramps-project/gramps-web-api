@@ -23,9 +23,9 @@
 
 """Exporters Plugin API resource."""
 
+import mimetypes
 import os
 import uuid
-from mimetypes import types_map
 from pathlib import Path
 from typing import Dict
 
@@ -48,8 +48,7 @@ from gramps.gen.user import User
 from gramps.gen.utils.resourcepath import ResourcePath
 from webargs import fields, validate
 
-from ..util import use_args
-from ..util import get_buffer_for_file, get_db_handle, get_locale_for_language
+from ..util import get_buffer_for_file, get_db_handle, get_locale_for_language, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -60,6 +59,8 @@ LIVING_FILTERS = {
     "ReplaceCompleteName": LivingProxyDb.MODE_REPLACE_COMPLETE_NAME,
     "ExcludeAll": LivingProxyDb.MODE_EXCLUDE_ALL,
 }
+
+mimetypes.init()
 
 
 def get_exporters(extension: str = None):
@@ -136,8 +137,8 @@ def prepare_options(db_handle: DbReadBase, args: Dict):
 def run_export(db_handle: DbReadBase, extension: str, options):
     """Generate the export."""
     export_path = TEMP_DIR
-    if current_app.config.get("EXPORT_PATH"):
-        export_path = current_app.config.get("EXPORT_PATH")
+    if current_app.config.get("EXPORT_DIR"):
+        export_path = current_app.config.get("EXPORT_DIR")
     file_name = os.path.join(export_path, "{}.{}".format(uuid.uuid4(), extension))
     _resources = ResourcePath()
     os.environ["GRAMPS_RESOURCES"] = str(Path(_resources.data_dir).parent)
@@ -226,8 +227,8 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
         file_name, file_type = run_export(db_handle, extension, options)
         buffer = get_buffer_for_file(file_name, delete=True)
         mime_type = "application/octet-stream"
-        if file_type != ".pl" and file_type in types_map:
-            mime_type = types_map[file_type]
+        if file_type != ".pl" and file_type in mimetypes.types_map:
+            mime_type = mimetypes.types_map[file_type]
         return send_file(buffer, mimetype=mime_type)
 
 
