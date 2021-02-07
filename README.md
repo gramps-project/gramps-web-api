@@ -9,7 +9,7 @@ The documentation of the current state of the API can be browsed with Swagger:
 
 [Gramps API docs](https://generator.swagger.io/?url=https://raw.githubusercontent.com/gramps-project/web-api/master/gramps_webapi/data/apispec.yaml)
 
-The project is still in developments, so API changes should be expeted.
+The project is still under development, so API changes should be expected.
 
 ## Demo Server
 
