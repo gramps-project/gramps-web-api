@@ -2,8 +2,8 @@
 # Gramps - a GTK+/GNOME based genealogy program
 #
 # Copyright (C) 2001-2006  Donald N. Allingham
-# Copyright (C) 2009 Benny Malengier
-# Copyright (C) 2020 David Straub
+# Copyright (C) 2009       Benny Malengier
+# Copyright (C) 2020       David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
