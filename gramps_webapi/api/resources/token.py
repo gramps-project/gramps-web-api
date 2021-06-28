@@ -43,7 +43,7 @@ def get_tokens(
 ):
     """Create access token (and refresh token if desired)."""
     access_token = create_access_token(
-        identity=username, user_claims={"permissions": list(permissions)}
+        identity=username, additional_claims={"permissions": list(permissions)}
     )
     if not include_refresh:
         return {"access_token": access_token}

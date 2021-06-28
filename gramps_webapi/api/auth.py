@@ -24,11 +24,7 @@ from functools import wraps
 from typing import Iterable
 
 from flask import abort, current_app
-from flask_jwt_extended import (
-    get_jwt_claims,
-    verify_jwt_in_request,
-    verify_jwt_refresh_token_in_request,
-)
+from flask_jwt_extended import get_jwt, verify_jwt_in_request
 
 
 def jwt_required_ifauth(func):
@@ -49,7 +45,7 @@ def jwt_refresh_token_required_ifauth(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         if not current_app.config.get("DISABLE_AUTH"):
-            verify_jwt_refresh_token_in_request()
+            verify_jwt_in_request(refresh=True)
         return func(*args, **kwargs)
 
     return wrapper
@@ -59,7 +55,7 @@ def has_permissions(scope: Iterable[str]) -> bool:
     """Check a set of permissions and return False if any are missing."""
     if current_app.config.get("DISABLE_AUTH"):
         return True
-    claims = get_jwt_claims()
+    claims = get_jwt()
     user_permissions = set(claims.get("permissions", []))
     required_permissions = set(scope)
     missing_permissions = required_permissions - user_permissions
