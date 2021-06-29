@@ -364,7 +364,6 @@ def get_person_profile_for_object(
     if "all" in args or "age" in args:
         options.append("age")
         if birth_event is not None:
-            print(locale.__dict__)
             birth["age"] = locale.translation.sgettext("0 days")
             if death_event is not None:
                 death["age"] = (
