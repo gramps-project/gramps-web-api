@@ -110,9 +110,7 @@ def get_sex_profile(person: Person) -> str:
 
 
 def get_event_participants_for_handle(
-    db_handle: DbReadBase,
-    handle: Handle,
-    locale: GrampsLocale = glocale,
+    db_handle: DbReadBase, handle: Handle, locale: GrampsLocale = glocale,
 ) -> Dict:
     """Get event participants given a handle."""
     result = {"people": [], "families": []}
@@ -366,6 +364,7 @@ def get_person_profile_for_object(
     if "all" in args or "age" in args:
         options.append("age")
         if birth_event is not None:
+            print(locale.__dict__)
             birth["age"] = locale.translation.sgettext("0 days")
             if death_event is not None:
                 death["age"] = (
@@ -656,9 +655,7 @@ def get_soundex(
 
 
 def get_reference_profile_for_object(
-    db_handle: DbReadBase,
-    obj: GrampsObject,
-    locale: GrampsLocale = glocale,
+    db_handle: DbReadBase, obj: GrampsObject, locale: GrampsLocale = glocale,
 ) -> Dict:
     """Return reference profiles for an object."""
     profile = {}
