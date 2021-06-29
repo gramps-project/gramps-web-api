@@ -93,9 +93,7 @@ class LocalFileHandler(FileHandler):
 
     def send_file(self):
         """Send media file to client."""
-        return send_from_directory(
-            directory=self.base_dir, filename=self.path_rel, mimetype=self.mime
-        )
+        return send_from_directory(self.base_dir, self.path_rel, mimetype=self.mime)
 
     def send_cropped(self, x1: int, y1: int, x2: int, y2: int, square: bool = False):
         """Send cropped image."""
