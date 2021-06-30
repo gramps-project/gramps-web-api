@@ -364,7 +364,9 @@ def get_person_profile_for_object(
     if "all" in args or "age" in args:
         options.append("age")
         if birth_event is not None:
-            birth["age"] = locale.translation.sgettext("0 days")
+            birth["age"] = locale.translation.ngettext(
+                "{number_of} day", "{number_of} days", 0
+            ).format(number_of=0)
             if death_event is not None:
                 death["age"] = (
                     Span(birth_event.date, death_event.date)
@@ -444,7 +446,9 @@ def get_family_profile_for_object(
     )
     if "all" in args or "span" in args:
         if marriage_event is not None:
-            marriage["span"] = locale.translation.sgettext("0 days")
+            marriage["span"] = locale.translation.ngettext(
+                "{number_of} day", "{number_of} days", 0
+            ).format(number_of=0)
             if divorce_event is not None:
                 divorce["span"] = (
                     Span(marriage_event.date, divorce_event.date)
