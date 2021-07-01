@@ -23,7 +23,7 @@
 import datetime
 
 from flask import abort, current_app, jsonify, render_template
-from flask_jwt_extended import create_access_token, get_jwt_claims, get_jwt_identity
+from flask_jwt_extended import create_access_token, get_jwt, get_jwt_identity
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from webargs import fields
@@ -191,7 +191,7 @@ class UserTriggerResetPasswordResource(Resource):
             identity=user_name,
             # the hash of the existing password is stored in the token in order
             # to make sure the rest token can only be used once
-            user_claims={"old_hash": auth_provider.get_pwhash(user_name)},
+            additional_claims={"old_hash": auth_provider.get_pwhash(user_name)},
             # password reset has to be triggered within 1h
             expires_delta=datetime.timedelta(hours=1),
         )
@@ -215,7 +215,7 @@ class UserResetPasswordResource(ProtectedResource):
             abort(405)
         if args["new_password"] == "":
             abort(400)
-        claims = get_jwt_claims()
+        claims = get_jwt()
         username = get_jwt_identity()
         # the old PW hash is stored in the reset JWT to check if the token has
         # been used already
@@ -231,7 +231,7 @@ class UserResetPasswordResource(ProtectedResource):
         if auth_provider is None:
             abort(405)
         username = get_jwt_identity()
-        claims = get_jwt_claims()
+        claims = get_jwt()
         # the old PW hash is stored in the reset JWT to check if the token has
         # been used already
         if claims["old_hash"] != auth_provider.get_pwhash(username):

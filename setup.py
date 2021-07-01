@@ -35,7 +35,7 @@ REQUIREMENTS = [
     "Flask-Caching",
     "Flask-Compress",
     "Flask-Cors",
-    "Flask-JWT-Extended",
+    "Flask-JWT-Extended>=4.2.1",
     "Flask-Limiter",
     "webargs",
     "SQLAlchemy",

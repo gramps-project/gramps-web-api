@@ -540,11 +540,11 @@ class TestFamilies(unittest.TestCase):
     def test_get_families_parameter_profile_expected_result_with_locale(self):
         """Test expected profile response for a locale."""
         rv = check_success(
-            self, TEST_URL + "?page=1&keys=profile&profile=all&locale=de"
+            self, TEST_URL + "?page=1&keys=profile&profile=all&locale=it"
         )
-        self.assertEqual(rv[0]["profile"]["father"]["birth"]["age"], "0 Tage")
-        self.assertEqual(rv[0]["profile"]["father"]["birth"]["type"], "Geburt")
-        self.assertEqual(rv[0]["profile"]["relationship"], "Verheiratet")
+        self.assertEqual(rv[0]["profile"]["father"]["birth"]["age"], "0 giorni")
+        self.assertEqual(rv[0]["profile"]["father"]["birth"]["type"], "Nascita")
+        self.assertEqual(rv[0]["profile"]["relationship"], "Sposati")
 
     def test_get_families_parameter_backlinks_validate_semantics(self):
         """Test invalid backlinks parameter and values."""
