@@ -4,14 +4,14 @@ info:
   description: >
     The Gramps Web API is a REST API that provides access to family tree databases generated and maintained with Gramps, a popular Open Source genealogical research software package.
 
-    * The Gramps Web API project is hosted at https://github.com/gramps-project/web-api
+    * The Gramps Web API project and code are hosted at https://github.com/gramps-project/web-api
 
 
     * More about Gramps and the numerous features it provides for genealogists can be found at https://gramps-project.org
-  version: "0.33.0"
+  version: "0.99.0"
   license:
-    name: "GNU GPL v2.0"
-    url: "http://www.gnu.org/licenses/old-licenses/gpl-2.0.html"
+    name: "GNU Affero General Public License v3.0"
+    url: "http://www.gnu.org/licenses/agpl-3.0.html"
 basePath: /api
 schemes:
   - https
