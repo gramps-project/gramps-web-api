@@ -1,6 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
+# Copyright (C) 2009      Gerald Britton <gerald.britton@gmail.com>
 # Copyright (C) 2020      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
