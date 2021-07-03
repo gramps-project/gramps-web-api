@@ -57,7 +57,7 @@ setup(
     long_description=README,
     long_description_content_type="text/markdown",
     include_package_data=True,
-    name="gramps_webapi",
+    name="gramps-webapi",
     packages=find_packages(include=["gramps_webapi", "gramps_webapi.*"]),
     version=__version__,
     zip_safe=False,
