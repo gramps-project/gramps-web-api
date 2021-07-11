@@ -19,7 +19,20 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install Ubuntu dependencies
-        run: sudo apt-get -y install gettext appstream intltool pkg-config libcairo2-dev gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev
+        run: |
+        sudo apt-get install appstream
+        sudo apt-get install pkg-config
+        sudo apt-get install libcairo2-dev
+        sudo apt-get install libgirepository1.0-dev
+        sudo apt-get install libicu-dev
+        sudo apt-get install gir1.2-pango-1.0
+        sudo apt-get install gir1.2-gtk-3.0
+        sudo apt-get install xdg-utils
+        sudo apt-get install librsvg2-common
+        sudo apt-get install libglib2.0-dev
+        sudo apt-get install intltool
+        sudo apt-get install libxml2-utils
+        sudo apt-get install zlib1g-dev
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip wheel
