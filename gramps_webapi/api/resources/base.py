@@ -319,6 +319,10 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         obj_dict = request.json
         if not validate_object_dict(obj_dict):
             abort(400)
+        if "_class" not in obj_dict:
+            obj_dict["_class"] = self.gramps_class_name
+        elif obj_dict["_class"] != self.gramps_class_name:
+            abort(400)
         return from_json(json.dumps(obj_dict))
 
     def post(self) -> Response:
