@@ -19,17 +19,22 @@
 
 """Base for Gramps object API resources."""
 
+import json
 from abc import abstractmethod
-from typing import Dict, List
+from typing import Dict, List, Sequence
 
-from flask import Response, abort
+from flask import Response, abort, request
 from gramps.gen.const import GRAMPS_LOCALE as glocale
+from gramps.gen.db import DbTxn
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
+from gramps.gen.lib.serialize import from_json
 from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 
+from ...auth.const import PERM_ADD_OBJ
+from ..auth import require_permissions
 from ..util import get_db_handle, get_locale_for_language, use_args
 from . import ProtectedResource, Resource
 from .emit import GrampsJSONEncoder
@@ -37,10 +42,12 @@ from .filters import apply_filter
 from .match import match_dates
 from .sort import sort_objects
 from .util import (
+    add_object,
     get_backlinks,
     get_extended_attributes,
     get_reference_profile_for_object,
     get_soundex,
+    validate_object_dict,
 )
 
 
@@ -306,6 +313,24 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             args,
             total_items=total_items,
         )
+
+    def _parse_object(self) -> Sequence[GrampsObject]:
+        """Parse the object."""
+        obj_dict = request.json
+        if not validate_object_dict(obj_dict):
+            abort(400)
+        return from_json(json.dumps(obj_dict))
+
+    def post(self) -> Response:
+        """Post a new object."""
+        require_permissions([PERM_ADD_OBJ])
+        obj = self._parse_object()
+        if not obj:
+            abort(400)
+        db_handle = get_db_handle()
+        with DbTxn("Add objects", db_handle) as trans:
+            add_object(db_handle, obj, trans)
+        return Response(status=201)
 
 
 class GrampsObjectProtectedResource(GrampsObjectResource, ProtectedResource):

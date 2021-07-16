@@ -17,7 +17,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""Tests for the object creation endpoint."""
+"""Tests object creation via POST."""
 
 import unittest
 import uuid
@@ -44,7 +44,7 @@ def make_handle() -> str:
     return str(uuid.uuid4())
 
 
-class TestObjectEndpoint(unittest.TestCase):
+class TestObjectCreation(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.name = "Test Web API"
@@ -63,8 +63,8 @@ class TestObjectEndpoint(unittest.TestCase):
     def tearDownClass(cls):
         cls.dbman.remove_database(cls.name)
 
-    def test_add_note(self):
-        """Add a single note."""
+    def test_objects_add_note(self):
+        """Add a single note via objects."""
         handle = make_handle()
         obj = [
             {
@@ -82,7 +82,7 @@ class TestObjectEndpoint(unittest.TestCase):
         rv = self.client.get(f"/api/notes/{handle}", headers=headers)
         self.assertEqual(rv.status_code, 200)
 
-    def test_add_person(self):
+    def test_objects_add_person(self):
         """Add a person with a birth event."""
         handle_person = make_handle()
         handle_birth = make_handle()
@@ -128,5 +128,31 @@ class TestObjectEndpoint(unittest.TestCase):
         self.assertEqual(
             person_dict["extended"]["events"][0]["date"]["dateval"],
             [2, 10, 1764, False],
+        )
+
+    def test_people_add_person(self):
+        """Add a person with a birth event."""
+        handle_person = make_handle()
+        handle_birth = make_handle()
+        person = {
+            "_class": "Person",
+            "handle": handle_person,
+            "primary_name": {
+                "_class": "Name",
+                "surname_list": [{"_class": "Surname", "surname": "Doe",}],
+                "first_name": "John",
+            },
+            "gender": 1,
+        }
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/people/", json=person, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.get(f"/api/people/{handle_person}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        person_dict = rv.json
+        self.assertEqual(person_dict["handle"], handle_person)
+        self.assertEqual(person_dict["primary_name"]["first_name"], "John")
+        self.assertEqual(
+            person_dict["primary_name"]["surname_list"][0]["surname"], "Doe"
         )
 

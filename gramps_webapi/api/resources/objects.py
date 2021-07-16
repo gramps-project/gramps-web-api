@@ -47,48 +47,7 @@ from ...auth.const import PERM_ADD_OBJ
 from ..auth import require_permissions
 from ..util import get_db_handle
 from . import ProtectedResource
-
-
-def add_object(db_handle: DbWriteBase, obj: GrampsObject, trans: DbTxn):
-    """Commit a Gramps object to the database."""
-    try:
-        if isinstance(obj, Person):
-            return db_handle.add_person(obj, trans)
-        if isinstance(obj, Family):
-            return db_handle.add_family(obj, trans)
-        if isinstance(obj, Event):
-            return db_handle.add_event(obj, trans)
-        if isinstance(obj, Place):
-            return db_handle.add_place(obj, trans)
-        if isinstance(obj, Repository):
-            return db_handle.add_repository(obj, trans)
-        if isinstance(obj, Source):
-            return db_handle.add_source(obj, trans)
-        if isinstance(obj, Citation):
-            return db_handle.add_citation(obj, trans)
-        if isinstance(obj, Media):
-            return db_handle.add_media(obj, trans)
-        if isinstance(obj, Note):
-            return db_handle.add_note(obj, trans)
-        if isinstance(obj, Tag):
-            return db_handle.add_tag(obj, trans)
-    except AttributeError:
-        raise ValueError("Database does not support writing.")
-    raise ValueError("Unexpected object type.")
-
-
-def validate_object_dict(obj_dict: Dict[str, Any]) -> bool:
-    """Validate a dict representation of a Gramps object vs. its schema."""
-    try:
-        obj_cls = getattr(gramps.gen.lib, obj_dict["_class"])
-    except (KeyError, AttributeError):
-        return False
-    schema = obj_cls.get_schema()
-    try:
-        jsonschema.validate(obj_dict, schema)
-    except jsonschema.exceptions.ValidationError:
-        return False
-    return True
+from .util import add_object, validate_object_dict
 
 
 class CreateObjectsResource(ProtectedResource):

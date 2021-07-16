@@ -19,10 +19,15 @@
 #
 
 """Gramps utility functions."""
+
+
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import gramps
+import jsonschema
 from gramps.gen.const import GRAMPS_LOCALE as glocale
-from gramps.gen.db.base import DbReadBase
+from gramps.gen.db import DbTxn
+from gramps.gen.db.base import DbReadBase, DbWriteBase
 from gramps.gen.display.name import NameDisplay
 from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
@@ -31,11 +36,14 @@ from gramps.gen.lib import (
     Event,
     Family,
     Media,
+    Note,
     Person,
     Place,
     PlaceType,
+    Repository,
     Source,
     Span,
+    Tag,
 )
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.soundex import soundex
@@ -716,3 +724,45 @@ def get_rating(db_handle: DbReadBase, obj: GrampsObject) -> Tuple[int, int]:
                 if citation.confidence > confidence:
                     confidence = citation.confidence
     return count, confidence
+
+
+def add_object(db_handle: DbWriteBase, obj: GrampsObject, trans: DbTxn):
+    """Commit a Gramps object to the database."""
+    try:
+        if isinstance(obj, Person):
+            return db_handle.add_person(obj, trans)
+        if isinstance(obj, Family):
+            return db_handle.add_family(obj, trans)
+        if isinstance(obj, Event):
+            return db_handle.add_event(obj, trans)
+        if isinstance(obj, Place):
+            return db_handle.add_place(obj, trans)
+        if isinstance(obj, Repository):
+            return db_handle.add_repository(obj, trans)
+        if isinstance(obj, Source):
+            return db_handle.add_source(obj, trans)
+        if isinstance(obj, Citation):
+            return db_handle.add_citation(obj, trans)
+        if isinstance(obj, Media):
+            return db_handle.add_media(obj, trans)
+        if isinstance(obj, Note):
+            return db_handle.add_note(obj, trans)
+        if isinstance(obj, Tag):
+            return db_handle.add_tag(obj, trans)
+    except AttributeError:
+        raise ValueError("Database does not support writing.")
+    raise ValueError("Unexpected object type.")
+
+
+def validate_object_dict(obj_dict: Dict[str, Any]) -> bool:
+    """Validate a dict representation of a Gramps object vs. its schema."""
+    try:
+        obj_cls = getattr(gramps.gen.lib, obj_dict["_class"])
+    except (KeyError, AttributeError):
+        return False
+    schema = obj_cls.get_schema()
+    try:
+        jsonschema.validate(obj_dict, schema)
+    except jsonschema.exceptions.ValidationError:
+        return False
+    return True
