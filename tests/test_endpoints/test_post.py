@@ -82,6 +82,25 @@ class TestObjectCreation(unittest.TestCase):
         rv = self.client.get(f"/api/notes/{handle}", headers=headers)
         self.assertEqual(rv.status_code, 200)
 
+    def test_add_note(self):
+        """Add a single note."""
+        handle = make_handle()
+        obj = {
+            "handle": handle,
+            "text": {"_class": "StyledText", "string": "My first note."},
+        }
+        headers = get_headers(self.client, "user", "123")
+        rv = self.client.post("/api/notes/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 403)
+        headers = get_headers(self.client, "admin", "123")
+        wrong_obj = {"_class": "Person", "handle": handle}
+        rv = self.client.post("/api/notes/", json=wrong_obj, headers=headers)
+        self.assertEqual(rv.status_code, 400)
+        rv = self.client.post("/api/notes/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+
     def test_objects_add_person(self):
         """Add a person with a birth event."""
         handle_person = make_handle()
