@@ -175,3 +175,88 @@ class TestObjectCreation(unittest.TestCase):
             person_dict["primary_name"]["surname_list"][0]["surname"], "Doe"
         )
 
+    def test_add_tag(self):
+        """Add a single tag."""
+        handle = make_handle()
+        obj = {"handle": handle, "name": "MyTag"}
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/tags/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.get(f"/api/tags/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        obj_dict = rv.json
+        self.assertEqual(obj_dict["name"], obj["name"])
+
+    def test_add_event(self):
+        """Add a single event."""
+        handle = make_handle()
+        obj = {"handle": handle, "description": "My Event"}
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/events/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.get(f"/api/events/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        obj_dict = rv.json
+        self.assertEqual(obj_dict["description"], obj["description"])
+
+    def test_add_source(self):
+        """Add a single source."""
+        handle = make_handle()
+        obj = {"handle": handle, "title": "My Source"}
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/sources/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.get(f"/api/sources/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        obj_dict = rv.json
+        self.assertEqual(obj_dict["title"], obj["title"])
+
+    def test_add_citation(self):
+        """Add a single citation."""
+        handle = make_handle()
+        obj = {"handle": handle, "page": "p. 300"}
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/citations/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.get(f"/api/citations/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        obj_dict = rv.json
+        self.assertEqual(obj_dict["page"], obj["page"])
+
+    def test_add_repository(self):
+        """Add a single repository."""
+        handle = make_handle()
+        obj = {"handle": handle, "name": "My Repository"}
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/repositories/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.get(f"/api/repositories/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        obj_dict = rv.json
+        self.assertEqual(obj_dict["name"], obj["name"])
+
+    def test_add_media(self):
+        """Add a single media."""
+        handle = make_handle()
+        obj = {"handle": handle, "desc": "My photo"}
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/media/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.get(f"/api/media/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        obj_dict = rv.json
+        self.assertEqual(obj_dict["desc"], obj["desc"])
+        # test referring to non-existing objects
+        # handle = make_handle()
+        # obj = {"handle": handle, "desc": "My photo", "tag_list": ["idontexist"]}
+        # rv = self.client.post("/api/media/", json=obj, headers=headers)
+        # self.assertEqual(rv.status_code, 400)
+        # test referring to an existing object
+        handle = make_handle()
+        tag_handle = make_handle()
+        tag_obj = {"handle": tag_handle, "name": "MyTag"}
+        rv = self.client.post("/api/tags/", json=tag_obj, headers=headers)
+        obj = {"handle": handle, "desc": "My photo", "tag_list": [tag_handle]}
+        rv = self.client.post("/api/media/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+
