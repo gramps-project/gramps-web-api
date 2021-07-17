@@ -3505,6 +3505,40 @@ paths:
 
 
 ##############################################################################
+# Endpoint - Objects
+##############################################################################
+
+  /objects:
+    post:
+      tags:
+      - objects
+      summary: "Add one or more new objects to the database."
+      operationId: createObjects
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: objects
+          description: The objects to add. Should be a list of Person, Family, Event, Place, Source, Citation, Repository, Media, or Tag object.
+          schema:
+            type: array
+            items:
+              type: object
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
+
+
+##############################################################################
 # Endpoint - Types
 ##############################################################################
 
