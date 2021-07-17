@@ -102,7 +102,7 @@ paths:
       - name: credentials
         in: body
         required: true
-        description: "The user credentials required to obtain a token."    
+        description: "The user credentials required to obtain a token."
         schema:
           $ref: "#/definitions/Credentials"
       responses:
@@ -554,7 +554,30 @@ paths:
           description: "Not Found: No people found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
-
+    post:
+      tags:
+      - people
+      summary: "Add a new person to the database."
+      operationId: createPerson
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: person
+          description: The person to add
+          schema:
+            $ref: "#/definitions/Person"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /people/{handle}:
     get:
@@ -642,7 +665,7 @@ paths:
             self | Returns name, sex, birth and death information and is an implied default when events or families specified
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns event list with name, date and location
-            ratings | Returns citation count and highest confidence rating for events    
+            ratings | Returns citation count and highest confidence rating for events
             families | Returns family information with parents, children, and key relationship between parents
             references | Returns information about objects that refer to the person
       responses:
@@ -1032,6 +1055,30 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: No families found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - families
+      summary: "Add a new family to the database."
+      operationId: createFamily
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: family
+          description: The family to add
+          schema:
+            $ref: "#/definitions/Family"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -1425,6 +1472,30 @@ paths:
           description: "Not Found: No events found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - events
+      summary: "Add a new event to the database."
+      operationId: createEvent
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: event
+          description: The event to add
+          schema:
+            $ref: "#/definitions/Event"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
   /events/{handle}:
@@ -1729,6 +1800,30 @@ paths:
           description: "Not Found: No places found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - places
+      summary: "Add a new place to the database."
+      operationId: createPlace
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: place
+          description: The place to add
+          schema:
+            $ref: "#/definitions/Place"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
   /places/{handle}:
@@ -1979,6 +2074,30 @@ paths:
           description: "Not Found: No citations found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - citations
+      summary: "Add a new citation to the database."
+      operationId: createCitation
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: citation
+          description: The citation to add
+          schema:
+            $ref: "#/definitions/Citation"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
   /citations/{handle}:
@@ -2204,6 +2323,30 @@ paths:
           description: "Not Found: No sources found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - sources
+      summary: "Add a new source to the database."
+      operationId: createSource
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: source
+          description: The source to add
+          schema:
+            $ref: "#/definitions/Source"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
   /sources/{handle}:
@@ -2410,6 +2553,30 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: No repositories found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - repositories
+      summary: "Add a new repository to the database."
+      operationId: createRepository
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: repository
+          description: The repository to add
+          schema:
+            $ref: "#/definitions/Repository"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -2646,6 +2813,30 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: No media items found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - media
+      summary: "Add a new media object to the database."
+      operationId: createMedia
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: media
+          description: The media object to add
+          schema:
+            $ref: "#/definitions/Media"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -3059,6 +3250,30 @@ paths:
           description: "Not Found: No notes found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - notes
+      summary: "Add a new note to the database."
+      operationId: createNote
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: note
+          description: The note to add
+          schema:
+            $ref: "#/definitions/Note"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
   /notes/{handle}:
@@ -3217,6 +3432,30 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: No tags found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - tags
+      summary: "Add a new tag to the database."
+      operationId: createTag
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: tag
+          description: The tag to add
+          schema:
+            $ref: "#/definitions/Tag"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -4886,7 +5125,7 @@ paths:
 ##############################################################################
 # Endpoint - Holidays
 ##############################################################################
-   
+
   /holidays:
     get:
       tags:
@@ -4939,7 +5178,7 @@ paths:
             $ref: "#/definitions/Holidays"
         401:
           description: "Unauthorized: Missing authorization header."
-        
+
 ##############################################################################
 # Endpoint - Metadata
 ##############################################################################
@@ -7575,7 +7814,7 @@ definitions:
       type: string
     example:
       - "Christmas"
-    
+
 ##############################################################################
 # Model - NameFormat
 ##############################################################################
