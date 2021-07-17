@@ -333,7 +333,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             abort(400)
         db_handle = get_db_handle()
         with DbTxn("Add objects", db_handle) as trans:
-            add_object(db_handle, obj, trans)
+            add_object(db_handle, obj, trans, fail_if_exists=True)
         return Response(status=201)
 
 
