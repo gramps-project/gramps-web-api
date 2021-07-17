@@ -733,49 +733,17 @@ def add_object(
     fail_if_exists: bool = False,
 ):
     """Commit a Gramps object to the database."""
-    # do we need to check if the handle exists?
-    check_handle = obj.handle and fail_if_exists
+    obj_class = obj.__class__.__name__.lower()
+    if fail_if_exists:
+        has_handle = db_handle.method("has_%s_handle", obj_class)
+        if obj.handle and has_handle(obj.handle):
+            raise ValueError("Handle already exists.")
+        has_grampsid = db_handle.method("has_%s_gramps_id", obj_class)
+        if hasattr(obj, "gramps_id") and obj.gramps_id and has_grampsid(obj.gramps_id):
+            raise ValueError("Gramps ID already exists.")
     try:
-        if isinstance(obj, Person):
-            if check_handle and db_handle.has_person_handle(obj.handle):
-                raise ValueError("Handle already exists.")
-            return db_handle.add_person(obj, trans)
-        if isinstance(obj, Family):
-            if check_handle and db_handle.has_family_handle(obj.handle):
-                raise ValueError("Handle already exists.")
-            return db_handle.add_family(obj, trans)
-        if isinstance(obj, Event):
-            if check_handle and db_handle.has_event_handle(obj.handle):
-                raise ValueError("Handle already exists.")
-            return db_handle.add_event(obj, trans)
-        if isinstance(obj, Place):
-            if check_handle and db_handle.has_place_handle(obj.handle):
-                raise ValueError("Handle already exists.")
-            return db_handle.add_place(obj, trans)
-        if isinstance(obj, Repository):
-            if check_handle and db_handle.has_repository_handle(obj.handle):
-                raise ValueError("Handle already exists.")
-            return db_handle.add_repository(obj, trans)
-        if isinstance(obj, Source):
-            if check_handle and db_handle.has_source_handle(obj.handle):
-                raise ValueError("Handle already exists.")
-            return db_handle.add_source(obj, trans)
-        if isinstance(obj, Citation):
-            if check_handle and db_handle.has_citation_handle(obj.handle):
-                raise ValueError("Handle already exists.")
-            return db_handle.add_citation(obj, trans)
-        if isinstance(obj, Media):
-            if check_handle and db_handle.has_media_handle(obj.handle):
-                raise ValueError("Handle already exists.")
-            return db_handle.add_media(obj, trans)
-        if isinstance(obj, Note):
-            if check_handle and db_handle.has_note_handle(obj.handle):
-                raise ValueError("Handle already exists.")
-            return db_handle.add_note(obj, trans)
-        if isinstance(obj, Tag):
-            if check_handle and db_handle.has_tag_handle(obj.handle):
-                raise ValueError("Handle already exists.")
-            return db_handle.add_tag(obj, trans)
+        add_method = db_handle.method("add_%s", obj_class)
+        return add_method(obj, trans)
     except AttributeError:
         raise ValueError("Database does not support writing.")
     raise ValueError("Unexpected object type.")
