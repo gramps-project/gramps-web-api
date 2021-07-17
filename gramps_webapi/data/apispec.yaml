@@ -5424,6 +5424,10 @@ definitions:
     required:
       - handle
     properties:
+      _class:
+        description: "Object class name; must be 'Person'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Person]
       address_list:
         description: "A list of addresses for the person if available."
         type: array
@@ -5473,6 +5477,7 @@ definitions:
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/PersonExtended"
       family_list:
@@ -5493,6 +5498,7 @@ definitions:
       handle:
         description: "The unique identifier for a person."
         type: string
+        maxLength: 50
         example: "GNUJQCL9MD64AM56OH"
       lds_ord_list:
         description: "A list of LDS specific events the person participated in."
@@ -5538,6 +5544,7 @@ definitions:
       profile:
         description: "An optional summary of some key events about the person and their familial relationships."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/PersonProfile"
       tag_list:
@@ -5726,6 +5733,10 @@ definitions:
     required:
       - handle
     properties:
+      _class:
+        description: "Object class name; must be 'Family'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Family]
       attribute_list:
         description: "A list of attributes about the family."
         type: array
@@ -5761,6 +5772,7 @@ definitions:
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/FamilyExtended"
       father_handle:
@@ -5774,6 +5786,7 @@ definitions:
       handle:
         description: "The unique identifier for a family."
         type: string
+        maxLength: 50
         example: "9OUJQCBOHW9UEK9CNV"
       lds_ord_list:
         description: "A list of LDS specific events the family participated in."
@@ -5803,6 +5816,7 @@ definitions:
       profile:
         description: "An optional summary of the members of a family as well as some key events."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/FamilyProfile"
       tag_list:
@@ -5981,6 +5995,10 @@ definitions:
     required:
       - handle
     properties:
+      _class:
+        description: "Object class name; must be 'Event'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Event]
       attribute_list:
         description: "A list of attributes about the event."
         type: array
@@ -6014,6 +6032,7 @@ definitions:
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/EventExtended"
       gramps_id:
@@ -6023,6 +6042,7 @@ definitions:
       handle:
         description: "The unique identifier for an event."
         type: string
+        maxLength: 50
         example: "a5af0ecb12e29af8a5d"
       media_list:
         description: "A list of references to media associated with the event."
@@ -6047,6 +6067,7 @@ definitions:
       profile:
         description: "An optional summary of the key attributes for the event."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/EventProfile"
       tag_list:
@@ -6248,6 +6269,10 @@ definitions:
     required:
       - handle
     properties:
+      _class:
+        description: "Object class name; must be 'Place'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Place]
       alt_loc:
         description: "Alternate locations for the place."
         type: array
@@ -6281,6 +6306,7 @@ definitions:
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/PlaceExtended"
       gramps_id:
@@ -6290,6 +6316,7 @@ definitions:
       handle:
         description: "The unique identifier for the place."
         type: string
+        maxLength: 50
         example: "YNUJQC8YM5EGRG868J"
       lat:
         description: "Latitude."
@@ -6332,6 +6359,7 @@ definitions:
       profile:
         description: "An optional summary of the parent places and geo coordinates."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/PlaceProfile"
       tag_list:
@@ -6593,6 +6621,10 @@ definitions:
       - handle
       - source_handle
     properties:
+      _class:
+        description: "Object class name; must be 'Citation'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Citation]
       attribute_list:
         description: "A list of attributes about the citation."
         type: array
@@ -6619,6 +6651,7 @@ definitions:
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/CitationExtended"
       gramps_id:
@@ -6628,6 +6661,7 @@ definitions:
       handle:
         description: "The unique identifier for the citation."
         type: string
+        maxLength: 50
         example: "c140d25efe703834da4"
       media_list:
         description: "A list of references to media associated with the citation."
@@ -6652,6 +6686,7 @@ definitions:
       profile:
         description: "An optional summary of the citation date and source information."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/CitationProfile"
       source_handle:
@@ -6756,6 +6791,10 @@ definitions:
     required:
       - handle
     properties:
+      _class:
+        description: "Object class name; must be 'Source'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Source]
       abbrev:
         description: "An abbreviated name for the source."
         type: string
@@ -6781,6 +6820,7 @@ definitions:
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/SourceExtended"
       gramps_id:
@@ -6790,6 +6830,7 @@ definitions:
       handle:
         description: "The unique identifier for the source."
         type: string
+        maxLength: 50
         example: "b39fe3f390e30bd2b99"
       media_list:
         description: "A list of references to media associated with the source."
@@ -6903,6 +6944,10 @@ definitions:
     required:
       - handle
     properties:
+      _class:
+        description: "Object class name; must be 'Repository'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Repository]
       address_list:
         description: "A list of addresses for the repository if available."
         type: array
@@ -6920,6 +6965,7 @@ definitions:
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/RepositoryExtended"
       gramps_id:
@@ -6929,6 +6975,7 @@ definitions:
       handle:
         description: "The unique identifier for the repository."
         type: string
+        maxLength: 50
         example: "b39fe38593f3f8c4f12"
       name:
         description: "Name of the repository."
@@ -7027,6 +7074,10 @@ definitions:
     required:
       - handle
     properties:
+      _class:
+        description: "Object class name; must be 'Media'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Media]
       attribute_list:
         description: "A list of attributes about the media object."
         type: array
@@ -7064,6 +7115,7 @@ definitions:
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/MediaExtended"
       gramps_id:
@@ -7073,6 +7125,7 @@ definitions:
       handle:
         description: "The unique identifier for the media object."
         type: string
+        maxLength: 50
         example: "B1AUFQV7H8R9NR4SZM"
       mime:
         description: "The format of the media object."
@@ -7096,6 +7149,7 @@ definitions:
       profile:
         description: "An optional summary of media information."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/MediaProfile"
       tag_list:
@@ -7230,6 +7284,10 @@ definitions:
     required:
       - handle
     properties:
+      _class:
+        description: "Object class name; must be 'Note'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Note]
       change:
         description: "Time in epoch format the note record was last modified."
         type: number
@@ -7242,6 +7300,7 @@ definitions:
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/NoteExtended"
       format:
@@ -7255,6 +7314,7 @@ definitions:
       handle:
         description: "The unique identifier for the note."
         type: string
+        maxLength: 50
         example: "b39feb55e1173f4a699"
       private:
         description: "Private object indicator."
@@ -7345,6 +7405,10 @@ definitions:
     required:
       - handle
     properties:
+      _class:
+        description: "Object class name; must be 'Tag'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Tag]
       change:
         description: "Time in epoch format the tag record was last modified."
         type: number
@@ -7356,6 +7420,7 @@ definitions:
       handle:
         description: "The unique identifier for the tag."
         type: string
+        maxLength: 50
         example: "bb80c2b235b0a1b3f49"
       name:
         description: "Tag name."
