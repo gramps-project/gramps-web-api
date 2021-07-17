@@ -73,5 +73,8 @@ class CreateObjectsResource(ProtectedResource):
         db_handle = get_db_handle()
         with DbTxn("Add objects", db_handle) as trans:
             for obj in objects:
-                add_object(db_handle, obj, trans, fail_if_exists=True)
+                try:
+                    add_object(db_handle, obj, trans, fail_if_exists=True)
+                except ValueError:
+                    abort(400)
         return Response(status=201)
