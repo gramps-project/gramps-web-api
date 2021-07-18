@@ -81,6 +81,9 @@ class TestObjectCreation(unittest.TestCase):
         self.assertEqual(rv.status_code, 201)
         rv = self.client.get(f"/api/notes/{handle}", headers=headers)
         self.assertEqual(rv.status_code, 200)
+        obj_dict = rv.json
+        self.assertEqual(obj_dict["handle"], handle)
+        self.assertEqual(obj_dict["text"]["string"], "My first note.")
 
     def test_add_note(self):
         """Add a single note."""
@@ -100,6 +103,9 @@ class TestObjectCreation(unittest.TestCase):
         self.assertEqual(rv.status_code, 201)
         rv = self.client.get(f"/api/notes/{handle}", headers=headers)
         self.assertEqual(rv.status_code, 200)
+        obj_dict = rv.json
+        self.assertEqual(obj_dict["handle"], handle)
+        self.assertEqual(obj_dict["text"]["string"], "My first note.")
 
     def test_objects_add_person(self):
         """Add a person with a birth event."""
@@ -148,6 +154,45 @@ class TestObjectCreation(unittest.TestCase):
             person_dict["extended"]["events"][0]["date"]["dateval"],
             [2, 10, 1764, False],
         )
+
+    def test_objects_errors(self):
+        """Test adding multiple objects with and without errors."""
+        handle_person = make_handle()
+        handle_birth = make_handle()
+        person = {
+            "_class": "Person",
+            "handle": handle_person,
+            "primary_name": {
+                "_class": "Name",
+                "surname_list": [{"_class": "Surname", "surname": "Doe",}],
+                "first_name": "John",
+            },
+            "event_ref_list": [
+                {
+                    "_class": "EventRef",
+                    "ref": handle_birth,
+                    "role": {"_class": "EventRoleType", "string": "Primary"},
+                },
+            ],
+            "birth_ref_index": 0,
+            "gender": 1,
+        }
+        birth = {
+            "_class": "Event",
+            "handle": handle_birth,
+            "date": {"_class": "Date", "dateval": [2, 10, 1764, False],},
+            "type": {"_class": "EventType", "string": "Birth"},
+        }
+        # erroneously use string as date
+        objects = [person, {**birth, "date": "1764-10-2"}]
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/objects/", json=objects, headers=headers)
+        self.assertEqual(rv.status_code, 400)
+        # make sure the objects don't exist
+        rv = self.client.get(f"/api/people/{handle_person}", headers=headers)
+        self.assertEqual(rv.status_code, 404)
+        rv = self.client.get(f"/api/events/{handle_birth}", headers=headers)
+        self.assertEqual(rv.status_code, 404)
 
     def test_people_add_person(self):
         """Add a person with a birth event."""
@@ -246,12 +291,6 @@ class TestObjectCreation(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         obj_dict = rv.json
         self.assertEqual(obj_dict["desc"], obj["desc"])
-        # test referring to non-existing objects
-        # handle = make_handle()
-        # obj = {"handle": handle, "desc": "My photo", "tag_list": ["idontexist"]}
-        # rv = self.client.post("/api/media/", json=obj, headers=headers)
-        # self.assertEqual(rv.status_code, 400)
-        # test referring to an existing object
         handle = make_handle()
         tag_handle = make_handle()
         tag_obj = {"handle": tag_handle, "name": "MyTag"}
