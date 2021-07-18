@@ -726,27 +726,44 @@ def get_rating(db_handle: DbReadBase, obj: GrampsObject) -> Tuple[int, int]:
     return count, confidence
 
 
+def has_handle(db_handle: DbWriteBase, obj: GrampsObject,) -> bool:
+    """Check if an object with the same class and handle exists in the DB."""
+    obj_class = obj.__class__.__name__.lower()
+    method = db_handle.method("has_%s_handle", obj_class)
+    return method(obj.handle)
+
+
+def has_gramps_id(db_handle: DbWriteBase, obj: GrampsObject,) -> bool:
+    """Check if an object with the same class and handle exists in the DB."""
+    if not hasattr(obj, "gramps_id"):  # needed for tags
+        return False
+    obj_class = obj.__class__.__name__.lower()
+    method = db_handle.method("has_%s_gramps_id", obj_class)
+    return method(obj.gramps_id)
+
+
 def add_object(
     db_handle: DbWriteBase,
     obj: GrampsObject,
     trans: DbTxn,
     fail_if_exists: bool = False,
 ):
-    """Commit a Gramps object to the database."""
+    """Commit a Gramps object to the database.
+
+    If `fail_if_exists` is true, raises a ValueError if an object of
+    the same type exists with the same handle or same Gramps ID.
+    """
     obj_class = obj.__class__.__name__.lower()
     if fail_if_exists:
-        has_handle = db_handle.method("has_%s_handle", obj_class)
-        if obj.handle and has_handle(obj.handle):
+        if has_handle(db_handle, obj):
             raise ValueError("Handle already exists.")
-        has_grampsid = db_handle.method("has_%s_gramps_id", obj_class)
-        if hasattr(obj, "gramps_id") and obj.gramps_id and has_grampsid(obj.gramps_id):
+        if has_gramps_id(db_handle, obj):
             raise ValueError("Gramps ID already exists.")
     try:
         add_method = db_handle.method("add_%s", obj_class)
         return add_method(obj, trans)
     except AttributeError:
         raise ValueError("Database does not support writing.")
-    raise ValueError("Unexpected object type.")
 
 
 def validate_object_dict(obj_dict: Dict[str, Any]) -> bool:
@@ -761,3 +778,24 @@ def validate_object_dict(obj_dict: Dict[str, Any]) -> bool:
     except jsonschema.exceptions.ValidationError:
         return False
     return True
+
+
+def update_object(
+    db_handle: DbWriteBase, obj: GrampsObject, trans: DbTxn,
+):
+    """Commit a modified Gramps object to the database.
+
+    Failes with a ValueError if the object with this handle does not
+    exist, or if another object of the same type exists with the
+    same Gramps ID.
+    """
+    obj_class = obj.__class__.__name__.lower()
+    if not has_handle(db_handle, obj):
+        raise ValueError("Cannot be used for new objects.")
+    if has_gramps_id(db_handle, obj):
+        raise ValueError("Gramps ID already exists.")
+    try:
+        commit_method = db_handle.method("commit_%s", obj_class)
+        return commit_method(obj, trans)
+    except AttributeError:
+        raise ValueError("Database does not support writing.")

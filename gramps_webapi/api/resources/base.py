@@ -33,7 +33,7 @@ from gramps.gen.lib.serialize import from_json
 from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 
-from ...auth.const import PERM_ADD_OBJ
+from ...auth.const import PERM_ADD_OBJ, PERM_EDIT_OBJ
 from ..auth import require_permissions
 from ..util import get_db_handle, get_locale_for_language, use_args
 from . import ProtectedResource, Resource
@@ -47,6 +47,7 @@ from .util import (
     get_extended_attributes,
     get_reference_profile_for_object,
     get_soundex,
+    update_object,
     validate_object_dict,
 )
 
@@ -121,6 +122,17 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
             "get_%s_from_handle", self.gramps_class_name
         )
         return query_method(handle)
+
+    def _parse_object(self) -> GrampsObject:
+        """Parse the object."""
+        obj_dict = request.json
+        if "_class" not in obj_dict:
+            obj_dict["_class"] = self.gramps_class_name
+        elif obj_dict["_class"] != self.gramps_class_name:
+            abort(400)
+        if not validate_object_dict(obj_dict):
+            abort(400)
+        return from_json(json.dumps(obj_dict))
 
 
 class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
@@ -313,17 +325,6 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             args,
             total_items=total_items,
         )
-
-    def _parse_object(self) -> Sequence[GrampsObject]:
-        """Parse the object."""
-        obj_dict = request.json
-        if "_class" not in obj_dict:
-            obj_dict["_class"] = self.gramps_class_name
-        elif obj_dict["_class"] != self.gramps_class_name:
-            abort(400)
-        if not validate_object_dict(obj_dict):
-            abort(400)
-        return from_json(json.dumps(obj_dict))
 
     def post(self) -> Response:
         """Post a new object."""
