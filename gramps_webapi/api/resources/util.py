@@ -785,7 +785,7 @@ def update_object(
 ):
     """Commit a modified Gramps object to the database.
 
-    Failes with a ValueError if the object with this handle does not
+    Fails with a ValueError if the object with this handle does not
     exist, or if another object of the same type exists with the
     same Gramps ID.
     """
