@@ -106,8 +106,13 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
 
     @property
     def db_handle(self) -> DbReadBase:
-        """Get the database instance."""
-        return get_db_handle()
+        """Get the readonly database instance."""
+        return get_db_handle(readonly=True)
+
+    @property
+    def db_handle_writable(self) -> DbReadBase:
+        """Get the writable database instance."""
+        return get_db_handle(readonly=False)
 
     def get_object_from_gramps_id(self, gramps_id: str) -> GrampsObject:
         """Get the object given a Gramps ID."""
@@ -332,7 +337,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         obj = self._parse_object()
         if not obj:
             abort(400)
-        db_handle = get_db_handle()
+        db_handle = self.db_handle_writable
         with DbTxn("Add objects", db_handle) as trans:
             try:
                 add_object(db_handle, obj, trans, fail_if_exists=True)

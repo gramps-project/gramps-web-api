@@ -69,7 +69,7 @@ class CreateObjectsResource(ProtectedResource):
         objects = self._parse_objects()
         if not objects:
             abort(400)
-        db_handle = get_db_handle()
+        db_handle = get_db_handle(readonly=False)
         with DbTxn("Add objects", db_handle) as trans:
             for obj in objects:
                 try:

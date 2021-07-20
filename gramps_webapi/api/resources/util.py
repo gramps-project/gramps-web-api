@@ -21,10 +21,12 @@
 """Gramps utility functions."""
 
 
+from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import gramps
 import jsonschema
+from flask import abort
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import DbTxn
 from gramps.gen.db.base import DbReadBase, DbWriteBase
@@ -753,6 +755,9 @@ def add_object(
     If `fail_if_exists` is true, raises a ValueError if an object of
     the same type exists with the same handle or same Gramps ID.
     """
+    if db_handle.readonly:
+        # adding objects is forbidden on a read-only db!
+        abort(HTTPStatus.FORBIDDEN)
     obj_class = obj.__class__.__name__.lower()
     if fail_if_exists:
         if has_handle(db_handle, obj):
@@ -789,6 +794,9 @@ def update_object(
     exist, or if another object of the same type exists with the
     same Gramps ID.
     """
+    if db_handle.readonly:
+        # updating objects is forbidden on a read-only db!
+        abort(HTTPStatus.FORBIDDEN)
     obj_class = obj.__class__.__name__.lower()
     if not has_handle(db_handle, obj):
         raise ValueError("Cannot be used for new objects.")

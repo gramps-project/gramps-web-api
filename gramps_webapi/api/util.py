@@ -19,12 +19,13 @@
 
 """Utility functions."""
 
-import io
 import hashlib
+import io
 import os
 import smtplib
 import socket
 from email.message import EmailMessage
+from http import HTTPStatus
 from typing import BinaryIO, Optional, Sequence
 
 from flask import abort, current_app, g, request
@@ -38,6 +39,7 @@ from marshmallow import RAISE
 from webargs.flaskparser import FlaskParser
 
 from ..auth.const import PERM_VIEW_PRIVATE
+from ..dbmanager import WebDbManager
 from .auth import has_permissions
 
 
@@ -79,20 +81,25 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
         return self.db.set_name_group_mapping(name, group)
 
 
-def get_db_handle() -> DbReadBase:
+def get_db_handle(readonly: bool = True) -> DbReadBase:
     """Open the database and get the current instance.
 
     Called before every request.
 
     If a user is not authorized to view private records,
     returns a proxy DB instance.
+
+    If `readonly` is false, locks the database during the request.
     """
     if "dbstate" not in g:
         # cache the DbState instance for the duration of
         # the request
-        dbmgr = current_app.config["DB_MANAGER"]
-        g.dbstate = dbmgr.get_db()
+        dbmgr: WebDbManager = current_app.config["DB_MANAGER"]
+        g.dbstate = dbmgr.get_db(lock=not readonly)
     if not has_permissions({PERM_VIEW_PRIVATE}):
+        if not readonly:
+            # requesting write access on a private proxy DB is impossible & forbidden!
+            abort(HTTPStatus.FORBIDDEN)
         # if we're not authorized to view private records,
         # return a proxy DB instead of the real one
         return ModifiedPrivateProxyDb(g.dbstate.db)
