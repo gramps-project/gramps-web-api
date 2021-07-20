@@ -95,7 +95,7 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
         # cache the DbState instance for the duration of
         # the request
         dbmgr: WebDbManager = current_app.config["DB_MANAGER"]
-        g.dbstate = dbmgr.get_db(lock=not readonly)
+        g.dbstate = dbmgr.get_db(readonly=readonly)
     if not has_permissions({PERM_VIEW_PRIVATE}):
         if not readonly:
             # requesting write access on a private proxy DB is impossible & forbidden!
