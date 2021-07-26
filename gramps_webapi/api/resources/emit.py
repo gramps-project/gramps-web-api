@@ -51,6 +51,7 @@ class GrampsJSONEncoder:
         payload: Optional[Any] = None,
         args: Optional[Dict] = None,
         total_items: int = -1,
+        add_etag: bool = False,
     ) -> Response:
         """Prepare response."""
         if payload is None:
@@ -75,7 +76,7 @@ class GrampsJSONEncoder:
         else:
             headers = None
 
-        return Response(
+        res = Response(
             status=status,
             headers=headers,
             response=json.dumps(
@@ -86,6 +87,9 @@ class GrampsJSONEncoder:
             ),
             mimetype="application/json",
         )
+        if add_etag:
+            res.add_etag()
+        return res
 
     def is_null(self, value: Any) -> bool:
         """Test for empty value."""

@@ -133,6 +133,8 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
     def _parse_object(self) -> GrampsObject:
         """Parse the object."""
         obj_dict = request.json
+        if obj_dict is None:
+            abort(400)
         if "_class" not in obj_dict:
             obj_dict["_class"] = self.gramps_class_name
         elif obj_dict["_class"] != self.gramps_class_name:
@@ -213,7 +215,9 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         except HandleError:
             abort(404)
         locale = get_locale_for_language(args["locale"], default=True)
-        return self.response(200, self.full_object(obj, args, locale=locale), args)
+        return self.response(
+            200, self.full_object(obj, args, locale=locale), args, add_etag=True
+        )
 
     def delete(self, handle: str) -> Response:
         """Delete the object."""
@@ -230,6 +234,10 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         require_permissions([PERM_EDIT_OBJ])
         if not self.has_handle(handle):
             abort(404)
+        get_etag, _ = self.get(handle=handle).get_etag()
+        for etag in request.if_match:
+            if etag != get_etag:
+                abort(412)
         obj = self._parse_object()
         if not obj:
             abort(400)

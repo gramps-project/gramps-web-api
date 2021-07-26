@@ -17,12 +17,13 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""Tests object deletion."""
+"""Tests updating objects."""
 
 import unittest
 import uuid
 from typing import Dict
 from unittest.mock import patch
+from copy import deepcopy
 
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
@@ -44,7 +45,7 @@ def make_handle() -> str:
     return str(uuid.uuid4())
 
 
-class TestObjectDeletion(unittest.TestCase):
+class TestObjectUpdate(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.name = "Test Web API"
@@ -64,44 +65,55 @@ class TestObjectDeletion(unittest.TestCase):
     def tearDownClass(cls):
         cls.dbman.remove_database(cls.name)
 
-    def test_delete_permissions(self):
-        """Test deletion permissions."""
+    def test_update_permission(self):
+        """Test update permissions."""
         handle = make_handle()
-        obj = [
-            {
-                "_class": "Note",
-                "handle": handle,
-                "text": {"_class": "StyledText", "string": "My first note."},
-            }
-        ]
+        obj = {
+            "handle": handle,
+            "_class": "Note",
+            "text": {"_class": "StyledText", "string": "My first note."},
+        }
+        obj_new = deepcopy(obj)
+        obj_new["text"]["string"] = "My second note."
+        obj_newer = deepcopy(obj)
+        obj_newer["text"]["string"] = "My third note."
         headers_guest = get_headers(self.client, "user", "123")
         headers_contributor = get_headers(self.client, "contributor", "123")
         headers_admin = get_headers(self.client, "admin", "123")
         # create object as contributor
-        rv = self.client.post("/api/objects/", json=obj, headers=headers_contributor)
+        rv = self.client.post(f"/api/notes/", json=obj, headers=headers_contributor)
         self.assertEqual(rv.status_code, 201)
-        # try deleting as guest
-        rv = self.client.delete(f"/api/notes/{handle}", headers=headers_guest)
+        # try updating as guest
+        rv = self.client.put(
+            f"/api/notes/{handle}", json=obj_new, headers=headers_guest
+        )
         self.assertEqual(rv.status_code, 403)
-        # check it's still there
+        # check it's still unchanged
         rv = self.client.get(f"/api/notes/{handle}", headers=headers_guest)
-        self.assertEqual(rv.status_code, 200)
-        # try deleting as contributor
-        rv = self.client.delete(f"/api/notes/{handle}", headers=headers_contributor)
+        self.assertEqual(rv.json["text"]["string"], "My first note.")
+        # try updating as contributor
+        rv = self.client.put(
+            f"/api/notes/{handle}", json=obj_new, headers=headers_contributor
+        )
         self.assertEqual(rv.status_code, 403)
-        # check it's still there
+        # check it's still unchanged
         rv = self.client.get(f"/api/notes/{handle}", headers=headers_guest)
+        etag = rv.headers["ETag"]
         self.assertEqual(rv.status_code, 200)
-        # try deleting as admin
-        rv = self.client.delete(f"/api/notes/{handle}", headers=headers_admin)
+        # try updating as admin
+        rv = self.client.put(
+            f"/api/notes/{handle}",
+            json=obj_new,
+            headers={**headers_admin, "If-Match": etag},
+        )
         self.assertEqual(rv.status_code, 200)
-        out = rv.json
-        # check it's gone
+        # check it has changed
         rv = self.client.get(f"/api/notes/{handle}", headers=headers_guest)
-        self.assertEqual(rv.status_code, 404)
-        self.assertEqual(len(out), 1)
-        self.assertEqual(out[0]["_class"], "Note")
-        self.assertEqual(out[0]["handle"], handle)
-        self.assertEqual(out[0]["new"], None)
-        self.assertEqual(out[0]["old"]["_class"], "Note")
-        self.assertEqual(out[0]["type"], "delete")
+        self.assertEqual(rv.json["text"]["string"], "My second note.")
+        # try again with old ETag
+        rv = self.client.put(
+            f"/api/notes/{handle}",
+            json=obj_newer,
+            headers={**headers_admin, "If-Match": etag},
+        )
+        self.assertEqual(rv.status_code, 412)
