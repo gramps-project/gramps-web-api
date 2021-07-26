@@ -42,6 +42,7 @@ REQUIREMENTS = [
     "Pillow",
     "bleach",
     "whoosh",
+    "jsonschema",
 ]
 
 EXTRA_REQUIREMENTS = ["pycairo", "PyGObject"]

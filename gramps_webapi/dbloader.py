@@ -95,9 +95,16 @@ class WebDbSessionManager:
         self.dbstate.change_database(db)
         self.dbstate.db.disable_signals()
 
+        # always use DMODE_R in load to avoid writing a lock file
         self.dbstate.db.load(
-            filename, callback=None, mode=mode, username=username, password=password,
+            filename,
+            callback=None,
+            mode=DBMODE_R,
+            username=username,
+            password=password,
         )
+        # set readonly correctly again
+        self.dbstate.db.readonly = mode == DBMODE_R
 
     def open_activate(self, filename, mode, username=None, password=None):
         """Open and make a family tree active."""

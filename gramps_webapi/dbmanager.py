@@ -78,10 +78,12 @@ class WebDbManager:
         if os.path.exists(os.path.join(self.path, DBLOCKFN)):
             os.unlink(os.path.join(self.path, DBLOCKFN))
 
-    def get_db(self, lock: bool = False, force_unlock: bool = False) -> DbState:
+    def get_db(self, readonly: bool = True, force_unlock: bool = False) -> DbState:
         """Open the database and return a dbstate instance.
 
-        If `lock` is `False`, will not write a lock file (use with care!).
+        If `readonly` is `True` (default), write operations will fail (note,
+        this is not enforced by Gramps but must be taken care of in Web
+        API methods!).
         If `force_unlock` is `True`, will break an existing lock (use with care!).
         """
         dbstate = DbState()
@@ -90,6 +92,6 @@ class WebDbManager:
         smgr.do_reg_plugins(dbstate, uistate=None)
         if force_unlock:
             self.break_lock()
-        mode = DBMODE_W if lock else DBMODE_R
+        mode = DBMODE_R if readonly else DBMODE_W
         smgr.open_activate(self.path, mode=mode)
         return dbstate

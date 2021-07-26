@@ -19,10 +19,17 @@
 #
 
 """Gramps utility functions."""
+
+
+from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import gramps
+import jsonschema
+from flask import abort
 from gramps.gen.const import GRAMPS_LOCALE as glocale
-from gramps.gen.db.base import DbReadBase
+from gramps.gen.db import DbTxn
+from gramps.gen.db.base import DbReadBase, DbWriteBase
 from gramps.gen.display.name import NameDisplay
 from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
@@ -31,11 +38,14 @@ from gramps.gen.lib import (
     Event,
     Family,
     Media,
+    Note,
     Person,
     Place,
     PlaceType,
+    Repository,
     Source,
     Span,
+    Tag,
 )
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.soundex import soundex
@@ -716,3 +726,84 @@ def get_rating(db_handle: DbReadBase, obj: GrampsObject) -> Tuple[int, int]:
                 if citation.confidence > confidence:
                     confidence = citation.confidence
     return count, confidence
+
+
+def has_handle(db_handle: DbWriteBase, obj: GrampsObject,) -> bool:
+    """Check if an object with the same class and handle exists in the DB."""
+    obj_class = obj.__class__.__name__.lower()
+    method = db_handle.method("has_%s_handle", obj_class)
+    return method(obj.handle)
+
+
+def has_gramps_id(db_handle: DbWriteBase, obj: GrampsObject,) -> bool:
+    """Check if an object with the same class and handle exists in the DB."""
+    if not hasattr(obj, "gramps_id"):  # needed for tags
+        return False
+    obj_class = obj.__class__.__name__.lower()
+    method = db_handle.method("has_%s_gramps_id", obj_class)
+    return method(obj.gramps_id)
+
+
+def add_object(
+    db_handle: DbWriteBase,
+    obj: GrampsObject,
+    trans: DbTxn,
+    fail_if_exists: bool = False,
+):
+    """Commit a Gramps object to the database.
+
+    If `fail_if_exists` is true, raises a ValueError if an object of
+    the same type exists with the same handle or same Gramps ID.
+    """
+    if db_handle.readonly:
+        # adding objects is forbidden on a read-only db!
+        abort(HTTPStatus.FORBIDDEN)
+    obj_class = obj.__class__.__name__.lower()
+    if fail_if_exists:
+        if has_handle(db_handle, obj):
+            raise ValueError("Handle already exists.")
+        if has_gramps_id(db_handle, obj):
+            raise ValueError("Gramps ID already exists.")
+    try:
+        add_method = db_handle.method("add_%s", obj_class)
+        return add_method(obj, trans)
+    except AttributeError:
+        raise ValueError("Database does not support writing.")
+
+
+def validate_object_dict(obj_dict: Dict[str, Any]) -> bool:
+    """Validate a dict representation of a Gramps object vs. its schema."""
+    try:
+        obj_cls = getattr(gramps.gen.lib, obj_dict["_class"])
+    except (KeyError, AttributeError):
+        return False
+    schema = obj_cls.get_schema()
+    try:
+        jsonschema.validate(obj_dict, schema)
+    except jsonschema.exceptions.ValidationError:
+        return False
+    return True
+
+
+def update_object(
+    db_handle: DbWriteBase, obj: GrampsObject, trans: DbTxn,
+):
+    """Commit a modified Gramps object to the database.
+
+    Fails with a ValueError if the object with this handle does not
+    exist, or if another object of the same type exists with the
+    same Gramps ID.
+    """
+    if db_handle.readonly:
+        # updating objects is forbidden on a read-only db!
+        abort(HTTPStatus.FORBIDDEN)
+    obj_class = obj.__class__.__name__.lower()
+    if not has_handle(db_handle, obj):
+        raise ValueError("Cannot be used for new objects.")
+    if has_gramps_id(db_handle, obj):
+        raise ValueError("Gramps ID already exists.")
+    try:
+        commit_method = db_handle.method("commit_%s", obj_class)
+        return commit_method(obj, trans)
+    except AttributeError:
+        raise ValueError("Database does not support writing.")

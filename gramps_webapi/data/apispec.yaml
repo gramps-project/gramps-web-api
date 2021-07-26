@@ -102,7 +102,7 @@ paths:
       - name: credentials
         in: body
         required: true
-        description: "The user credentials required to obtain a token."    
+        description: "The user credentials required to obtain a token."
         schema:
           $ref: "#/definitions/Credentials"
       responses:
@@ -554,7 +554,30 @@ paths:
           description: "Not Found: No people found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
-
+    post:
+      tags:
+      - people
+      summary: "Add a new person to the database."
+      operationId: createPerson
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: person
+          description: The person to add
+          schema:
+            $ref: "#/definitions/Person"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /people/{handle}:
     get:
@@ -642,7 +665,7 @@ paths:
             self | Returns name, sex, birth and death information and is an implied default when events or families specified
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns event list with name, date and location
-            ratings | Returns citation count and highest confidence rating for events    
+            ratings | Returns citation count and highest confidence rating for events
             families | Returns family information with parents, children, and key relationship between parents
             references | Returns information about objects that refer to the person
       responses:
@@ -1032,6 +1055,30 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: No families found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - families
+      summary: "Add a new family to the database."
+      operationId: createFamily
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: family
+          description: The family to add
+          schema:
+            $ref: "#/definitions/Family"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -1425,6 +1472,30 @@ paths:
           description: "Not Found: No events found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - events
+      summary: "Add a new event to the database."
+      operationId: createEvent
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: event
+          description: The event to add
+          schema:
+            $ref: "#/definitions/Event"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
   /events/{handle}:
@@ -1729,6 +1800,30 @@ paths:
           description: "Not Found: No places found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - places
+      summary: "Add a new place to the database."
+      operationId: createPlace
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: place
+          description: The place to add
+          schema:
+            $ref: "#/definitions/Place"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
   /places/{handle}:
@@ -1979,6 +2074,30 @@ paths:
           description: "Not Found: No citations found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - citations
+      summary: "Add a new citation to the database."
+      operationId: createCitation
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: citation
+          description: The citation to add
+          schema:
+            $ref: "#/definitions/Citation"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
   /citations/{handle}:
@@ -2204,6 +2323,30 @@ paths:
           description: "Not Found: No sources found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - sources
+      summary: "Add a new source to the database."
+      operationId: createSource
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: source
+          description: The source to add
+          schema:
+            $ref: "#/definitions/Source"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
   /sources/{handle}:
@@ -2410,6 +2553,30 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: No repositories found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - repositories
+      summary: "Add a new repository to the database."
+      operationId: createRepository
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: repository
+          description: The repository to add
+          schema:
+            $ref: "#/definitions/Repository"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -2646,6 +2813,30 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: No media items found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - media
+      summary: "Add a new media object to the database."
+      operationId: createMedia
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: media
+          description: The media object to add
+          schema:
+            $ref: "#/definitions/Media"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -3059,6 +3250,30 @@ paths:
           description: "Not Found: No notes found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - notes
+      summary: "Add a new note to the database."
+      operationId: createNote
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: note
+          description: The note to add
+          schema:
+            $ref: "#/definitions/Note"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
   /notes/{handle}:
@@ -3219,6 +3434,30 @@ paths:
           description: "Not Found: No tags found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - tags
+      summary: "Add a new tag to the database."
+      operationId: createTag
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: tag
+          description: The tag to add
+          schema:
+            $ref: "#/definitions/Tag"
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
   /tags/{handle}:
@@ -3263,6 +3502,40 @@ paths:
           description: "Not Found: Tag not found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+
+
+##############################################################################
+# Endpoint - Objects
+##############################################################################
+
+  /objects:
+    post:
+      tags:
+      - objects
+      summary: "Add one or more new objects to the database."
+      operationId: createObjects
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: objects
+          description: The objects to add. Should be a list of Person, Family, Event, Place, Source, Citation, Repository, Media, or Tag object.
+          schema:
+            type: array
+            items:
+              type: object
+      responses:
+        201:
+          description: Created
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
 
 ##############################################################################
@@ -4886,7 +5159,7 @@ paths:
 ##############################################################################
 # Endpoint - Holidays
 ##############################################################################
-   
+
   /holidays:
     get:
       tags:
@@ -4939,7 +5212,7 @@ paths:
             $ref: "#/definitions/Holidays"
         401:
           description: "Unauthorized: Missing authorization header."
-        
+
 ##############################################################################
 # Endpoint - Metadata
 ##############################################################################
@@ -5185,6 +5458,10 @@ definitions:
     required:
       - handle
     properties:
+      _class:
+        description: "Object class name; must be 'Person'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Person]
       address_list:
         description: "A list of addresses for the person if available."
         type: array
@@ -5234,6 +5511,7 @@ definitions:
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/PersonExtended"
       family_list:
@@ -5254,6 +5532,7 @@ definitions:
       handle:
         description: "The unique identifier for a person."
         type: string
+        maxLength: 50
         example: "GNUJQCL9MD64AM56OH"
       lds_ord_list:
         description: "A list of LDS specific events the person participated in."
@@ -5299,6 +5578,7 @@ definitions:
       profile:
         description: "An optional summary of some key events about the person and their familial relationships."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/PersonProfile"
       tag_list:
@@ -5487,6 +5767,10 @@ definitions:
     required:
       - handle
     properties:
+      _class:
+        description: "Object class name; must be 'Family'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Family]
       attribute_list:
         description: "A list of attributes about the family."
         type: array
@@ -5522,6 +5806,7 @@ definitions:
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/FamilyExtended"
       father_handle:
@@ -5535,6 +5820,7 @@ definitions:
       handle:
         description: "The unique identifier for a family."
         type: string
+        maxLength: 50
         example: "9OUJQCBOHW9UEK9CNV"
       lds_ord_list:
         description: "A list of LDS specific events the family participated in."
@@ -5564,6 +5850,7 @@ definitions:
       profile:
         description: "An optional summary of the members of a family as well as some key events."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/FamilyProfile"
       tag_list:
@@ -5742,6 +6029,10 @@ definitions:
     required:
       - handle
     properties:
+      _class:
+        description: "Object class name; must be 'Event'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Event]
       attribute_list:
         description: "A list of attributes about the event."
         type: array
@@ -5775,6 +6066,7 @@ definitions:
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/EventExtended"
       gramps_id:
@@ -5784,6 +6076,7 @@ definitions:
       handle:
         description: "The unique identifier for an event."
         type: string
+        maxLength: 50
         example: "a5af0ecb12e29af8a5d"
       media_list:
         description: "A list of references to media associated with the event."
@@ -5808,6 +6101,7 @@ definitions:
       profile:
         description: "An optional summary of the key attributes for the event."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/EventProfile"
       tag_list:
@@ -6009,6 +6303,10 @@ definitions:
     required:
       - handle
     properties:
+      _class:
+        description: "Object class name; must be 'Place'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Place]
       alt_loc:
         description: "Alternate locations for the place."
         type: array
@@ -6042,6 +6340,7 @@ definitions:
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/PlaceExtended"
       gramps_id:
@@ -6051,6 +6350,7 @@ definitions:
       handle:
         description: "The unique identifier for the place."
         type: string
+        maxLength: 50
         example: "YNUJQC8YM5EGRG868J"
       lat:
         description: "Latitude."
@@ -6093,6 +6393,7 @@ definitions:
       profile:
         description: "An optional summary of the parent places and geo coordinates."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/PlaceProfile"
       tag_list:
@@ -6354,6 +6655,10 @@ definitions:
       - handle
       - source_handle
     properties:
+      _class:
+        description: "Object class name; must be 'Citation'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Citation]
       attribute_list:
         description: "A list of attributes about the citation."
         type: array
@@ -6380,6 +6685,7 @@ definitions:
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/CitationExtended"
       gramps_id:
@@ -6389,6 +6695,7 @@ definitions:
       handle:
         description: "The unique identifier for the citation."
         type: string
+        maxLength: 50
         example: "c140d25efe703834da4"
       media_list:
         description: "A list of references to media associated with the citation."
@@ -6413,6 +6720,7 @@ definitions:
       profile:
         description: "An optional summary of the citation date and source information."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/CitationProfile"
       source_handle:
@@ -6517,6 +6825,10 @@ definitions:
     required:
       - handle
     properties:
+      _class:
+        description: "Object class name; must be 'Source'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Source]
       abbrev:
         description: "An abbreviated name for the source."
         type: string
@@ -6542,6 +6854,7 @@ definitions:
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/SourceExtended"
       gramps_id:
@@ -6551,6 +6864,7 @@ definitions:
       handle:
         description: "The unique identifier for the source."
         type: string
+        maxLength: 50
         example: "b39fe3f390e30bd2b99"
       media_list:
         description: "A list of references to media associated with the source."
@@ -6664,6 +6978,10 @@ definitions:
     required:
       - handle
     properties:
+      _class:
+        description: "Object class name; must be 'Repository'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Repository]
       address_list:
         description: "A list of addresses for the repository if available."
         type: array
@@ -6681,6 +6999,7 @@ definitions:
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/RepositoryExtended"
       gramps_id:
@@ -6690,6 +7009,7 @@ definitions:
       handle:
         description: "The unique identifier for the repository."
         type: string
+        maxLength: 50
         example: "b39fe38593f3f8c4f12"
       name:
         description: "Name of the repository."
@@ -6788,6 +7108,10 @@ definitions:
     required:
       - handle
     properties:
+      _class:
+        description: "Object class name; must be 'Media'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Media]
       attribute_list:
         description: "A list of attributes about the media object."
         type: array
@@ -6825,6 +7149,7 @@ definitions:
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/MediaExtended"
       gramps_id:
@@ -6834,6 +7159,7 @@ definitions:
       handle:
         description: "The unique identifier for the media object."
         type: string
+        maxLength: 50
         example: "B1AUFQV7H8R9NR4SZM"
       mime:
         description: "The format of the media object."
@@ -6857,6 +7183,7 @@ definitions:
       profile:
         description: "An optional summary of media information."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/MediaProfile"
       tag_list:
@@ -6991,6 +7318,10 @@ definitions:
     required:
       - handle
     properties:
+      _class:
+        description: "Object class name; must be 'Note'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Note]
       change:
         description: "Time in epoch format the note record was last modified."
         type: number
@@ -7003,6 +7334,7 @@ definitions:
       extended:
         description: "An optional extended data section with the attributes for the referenced handles elsewhere in the response."
         type: object
+        readOnly: true
         items:
           $ref: "#/definitions/NoteExtended"
       format:
@@ -7016,6 +7348,7 @@ definitions:
       handle:
         description: "The unique identifier for the note."
         type: string
+        maxLength: 50
         example: "b39feb55e1173f4a699"
       private:
         description: "Private object indicator."
@@ -7106,6 +7439,10 @@ definitions:
     required:
       - handle
     properties:
+      _class:
+        description: "Object class name; must be 'Tag'. Compulsory for /objects/ endpoint."
+        type: string
+        enum: [Tag]
       change:
         description: "Time in epoch format the tag record was last modified."
         type: number
@@ -7117,6 +7454,7 @@ definitions:
       handle:
         description: "The unique identifier for the tag."
         type: string
+        maxLength: 50
         example: "bb80c2b235b0a1b3f49"
       name:
         description: "Tag name."
@@ -7575,7 +7913,7 @@ definitions:
       type: string
     example:
       - "Christmas"
-    
+
 ##############################################################################
 # Model - NameFormat
 ##############################################################################
