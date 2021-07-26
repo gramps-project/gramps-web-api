@@ -33,10 +33,11 @@ from gramps.gen.lib.serialize import from_json
 from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 
-from ...auth.const import PERM_ADD_OBJ, PERM_EDIT_OBJ
+from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ..auth import require_permissions
 from ..util import get_db_handle, get_locale_for_language, use_args
 from . import ProtectedResource, Resource
+from .delete import delete_object
 from .emit import GrampsJSONEncoder
 from .filters import apply_filter
 from .match import match_dates
@@ -47,6 +48,7 @@ from .util import (
     get_extended_attributes,
     get_reference_profile_for_object,
     get_soundex,
+    transaction_to_json,
     update_object,
     validate_object_dict,
 )
@@ -139,6 +141,11 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
             abort(400)
         return from_json(json.dumps(obj_dict))
 
+    def has_handle(self, handle: str) -> bool:
+        """Chek if the handle exists in the database."""
+        query_method = self.db_handle.method("has_%s_handle", self.gramps_class_name)
+        return query_method(handle)
+
 
 class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
     """Resource for a single object."""
@@ -207,6 +214,33 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             abort(404)
         locale = get_locale_for_language(args["locale"], default=True)
         return self.response(200, self.full_object(obj, args, locale=locale), args)
+
+    def delete(self, handle: str) -> Response:
+        """Delete the object."""
+        require_permissions([PERM_DEL_OBJ])
+        if not self.has_handle(handle):
+            abort(404)
+        trans_dict = delete_object(
+            self.db_handle_writable, handle, self.gramps_class_name
+        )
+        return self.response(200, trans_dict, total_items=len(trans_dict))
+
+    def put(self, handle: str) -> Response:
+        """Modify an existing object."""
+        require_permissions([PERM_EDIT_OBJ])
+        if not self.has_handle(handle):
+            abort(404)
+        obj = self._parse_object()
+        if not obj:
+            abort(400)
+        db_handle = self.db_handle_writable
+        with DbTxn("Edit object", db_handle) as trans:
+            try:
+                update_object(db_handle, obj, trans)
+            except ValueError:
+                abort(400)
+        trans_dict = transaction_to_json(trans)
+        return self.response(200, trans_dict, total_items=len(trans_dict))
 
 
 class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):

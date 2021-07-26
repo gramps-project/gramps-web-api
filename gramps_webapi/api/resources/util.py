@@ -21,6 +21,7 @@
 """Gramps utility functions."""
 
 
+import json
 from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -28,8 +29,9 @@ import gramps
 import jsonschema
 from flask import abort
 from gramps.gen.const import GRAMPS_LOCALE as glocale
-from gramps.gen.db import DbTxn
+from gramps.gen.db import KEY_TO_CLASS_MAP, DbTxn
 from gramps.gen.db.base import DbReadBase, DbWriteBase
+from gramps.gen.db.dbconst import TXNADD, TXNDEL, TXNUPD
 from gramps.gen.display.name import NameDisplay
 from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
@@ -48,6 +50,7 @@ from gramps.gen.lib import (
     Tag,
 )
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
+from gramps.gen.lib.serialize import to_json
 from gramps.gen.soundex import soundex
 from gramps.gen.utils.db import (
     get_birth_or_fallback,
@@ -807,3 +810,26 @@ def update_object(
         return commit_method(obj, trans)
     except AttributeError:
         raise ValueError("Database does not support writing.")
+
+
+def transaction_to_json(transaction: DbTxn) -> List[Dict[str, Any]]:
+    """Return a JSON representation of a database transaction."""
+    out = []
+    for recno in transaction.get_recnos(reverse=True):
+        key, action, handle, old_data, new_data = transaction.get_record(recno)
+        obj_cls_name = KEY_TO_CLASS_MAP[key]
+        trans_dict = {TXNUPD: "update", TXNDEL: "delete", TXNADD: "add"}
+        obj_cls = getattr(gramps.gen.lib, obj_cls_name)
+        if old_data:
+            old_data = obj_cls().unserialize(old_data)
+        if new_data:
+            new_data = obj_cls().unserialize(new_data)
+        item = {
+            "type": trans_dict[action],
+            "handle": handle,
+            "_class": obj_cls_name,
+            "old": json.loads(to_json(old_data)),
+            "new": json.loads(to_json(new_data)),
+        }
+        out.append(item)
+    return out
