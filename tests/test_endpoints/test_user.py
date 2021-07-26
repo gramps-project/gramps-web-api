@@ -183,6 +183,8 @@ class TestUser(unittest.TestCase):
             matches = re.findall(r".*jwt=([^\s]+).*", body)
             self.assertEqual(len(matches), 1, msg=body)
             token = matches[0]
+            if token[:2] == "3D":
+                token = token[2:]
         # try without token!
         rv = self.client.post(
             BASE_URL + "/users/-/password/reset/", json={"new_password": "789"},
