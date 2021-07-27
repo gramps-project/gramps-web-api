@@ -22,6 +22,7 @@
 
 
 import json
+from hashlib import sha256
 from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -833,3 +834,9 @@ def transaction_to_json(transaction: DbTxn) -> List[Dict[str, Any]]:
         }
         out.append(item)
     return out
+
+
+def hash_object(obj: GrampsObject) -> str:
+    """Generate a SHA256 hash for a Gramps object's data."""
+    data = to_json(obj).encode()
+    return sha256(data).hexdigest()

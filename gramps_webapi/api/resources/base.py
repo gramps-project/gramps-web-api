@@ -48,6 +48,7 @@ from .util import (
     get_extended_attributes,
     get_reference_profile_for_object,
     get_soundex,
+    hash_object,
     transaction_to_json,
     update_object,
     validate_object_dict,
@@ -215,8 +216,9 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         except HandleError:
             abort(404)
         locale = get_locale_for_language(args["locale"], default=True)
+        get_etag = hash_object(obj)
         return self.response(
-            200, self.full_object(obj, args, locale=locale), args, add_etag=True
+            200, self.full_object(obj, args, locale=locale), args, etag=get_etag
         )
 
     def delete(self, handle: str) -> Response:
@@ -232,9 +234,11 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
     def put(self, handle: str) -> Response:
         """Modify an existing object."""
         require_permissions([PERM_EDIT_OBJ])
-        if not self.has_handle(handle):
+        try:
+            obj_old = self.get_object_from_handle(handle)
+        except HandleError:
             abort(404)
-        get_etag, _ = self.get(handle=handle).get_etag()
+        get_etag = hash_object(obj_old)
         for etag in request.if_match:
             if etag != get_etag:
                 abort(412)
