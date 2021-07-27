@@ -46,7 +46,7 @@ from ...auth.const import PERM_ADD_OBJ
 from ..auth import require_permissions
 from ..util import get_db_handle
 from . import ProtectedResource
-from .util import add_object, validate_object_dict
+from .util import add_object, transaction_to_json, validate_object_dict
 
 
 class CreateObjectsResource(ProtectedResource):
@@ -76,4 +76,9 @@ class CreateObjectsResource(ProtectedResource):
                     add_object(db_handle, obj, trans, fail_if_exists=True)
                 except ValueError:
                     abort(400)
-        return Response(status=201)
+            trans_dict = transaction_to_json(trans)
+        res = Response(
+            response=json.dumps(trans_dict), status=201, mimetype="application/json",
+        )
+        res.headers.add("X-Total-Count", len(trans_dict))
+        return res

@@ -818,7 +818,10 @@ def transaction_to_json(transaction: DbTxn) -> List[Dict[str, Any]]:
     out = []
     for recno in transaction.get_recnos(reverse=True):
         key, action, handle, old_data, new_data = transaction.get_record(recno)
-        obj_cls_name = KEY_TO_CLASS_MAP[key]
+        try:
+            obj_cls_name = KEY_TO_CLASS_MAP[key]
+        except KeyError:
+            continue  # this happens for references
         trans_dict = {TXNUPD: "update", TXNDEL: "delete", TXNADD: "add"}
         obj_cls = getattr(gramps.gen.lib, obj_cls_name)
         if old_data:

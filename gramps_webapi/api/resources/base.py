@@ -389,7 +389,8 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                 add_object(db_handle, obj, trans, fail_if_exists=True)
             except ValueError:
                 abort(400)
-        return Response(status=201)
+            trans_dict = transaction_to_json(trans)
+        return self.response(201, trans_dict, total_items=len(trans_dict))
 
 
 class GrampsObjectProtectedResource(GrampsObjectResource, ProtectedResource):
