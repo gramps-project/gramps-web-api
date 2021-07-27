@@ -251,7 +251,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
                 update_object(db_handle, obj, trans)
             except ValueError:
                 abort(400)
-        trans_dict = transaction_to_json(trans)
+            trans_dict = transaction_to_json(trans)
         return self.response(200, trans_dict, total_items=len(trans_dict))
 
 

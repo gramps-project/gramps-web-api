@@ -117,3 +117,30 @@ class TestObjectUpdate(unittest.TestCase):
             headers={**headers_admin, "If-Match": etag},
         )
         self.assertEqual(rv.status_code, 412)
+
+    def test_update_transaction(self):
+        """Test the update transaction return value."""
+        handle = make_handle()
+        obj = {
+            "handle": handle,
+            "_class": "Note",
+            "text": {"_class": "StyledText", "string": "Original note."},
+        }
+        obj_new = deepcopy(obj)
+        obj_new["text"]["string"] = "Updated note."
+        headers_admin = get_headers(self.client, "admin", "123")
+        # create object
+        rv = self.client.post(f"/api/notes/", json=obj, headers=headers_admin)
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.put(
+            f"/api/notes/{handle}", json=obj_new, headers=headers_admin
+        )
+        self.assertEqual(rv.status_code, 200)
+        # check return value
+        out = rv.json
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["_class"], "Note")
+        self.assertEqual(out[0]["handle"], handle)
+        self.assertEqual(out[0]["old"]["text"]["string"], "Original note.")
+        self.assertEqual(out[0]["new"]["text"]["string"], "Updated note.")
+        self.assertEqual(out[0]["type"], "update")
