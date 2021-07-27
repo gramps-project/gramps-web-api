@@ -19,11 +19,18 @@
 
 """File handling utilities."""
 
+import hashlib
+import mimetypes
 import os
+from io import BytesIO
 from pathlib import Path
+from typing import Any, BinaryIO, Optional, Tuple, Union
 
 from flask import abort, send_file, send_from_directory
+from gramps.gen.errors import HandleError
 from gramps.gen.lib import Media
+from gramps.gen.utils.file import create_checksum
+from werkzeug.datastructures import FileStorage
 
 from gramps_webapi.const import MIME_JPEG
 
@@ -42,10 +49,13 @@ class FileHandler:
         self.path = self.media.path
         self.checksum = self.media.checksum
 
-    def _get_media_object(self) -> Media:
+    def _get_media_object(self) -> Optional[Media]:
         """Get the media object from the database."""
         db_handle = get_db_handle()
-        return db_handle.get_media_from_handle(self.handle)
+        try:
+            return db_handle.get_media_from_handle(self.handle)
+        except HandleError:
+            return None
 
     def send_file(self):
         """Send media file to client."""
@@ -127,3 +137,43 @@ class LocalFileHandler(FileHandler):
             size=size, x1=x1, y1=y1, x2=x2, y2=y2, square=square
         )
         return send_file(buffer, mimetype=MIME_JPEG)
+
+
+def upload_file(base_dir, stream: BinaryIO, checksum: str, mime: str) -> str:
+    """Upload a file from a stream, returning the file path."""
+    if not mime:
+        raise ValueError("Missing MIME type")
+    ext = mimetypes.guess_extension(mime)
+    if not ext:
+        raise ValueError("MIME type not recognized")
+    filename = f"{checksum}{ext}"
+    fs = FileStorage(stream)
+    fs.save(os.path.join(base_dir, filename))
+    return filename
+
+
+def get_checksum(fp) -> str:
+    """Get the checksum of a file-like object."""
+    md5 = hashlib.md5()
+    try:
+        while True:
+            buf = fp.read(65536)
+            if not buf:
+                break
+            md5.update(buf)
+        md5sum = md5.hexdigest()
+    except (IOError, UnicodeEncodeError):
+        return ""
+    return md5sum
+
+
+def process_file(stream: Union[Any, BinaryIO]) -> Tuple[str, BinaryIO]:
+    """Process a file from a stream that has a read method."""
+    fp = BytesIO()
+    fp.write(stream.read())
+    fp.seek(0)
+    checksum = get_checksum(fp)
+    if not checksum:
+        raise IOError("Unable to process file.")
+    fp.seek(0)
+    return checksum, fp
