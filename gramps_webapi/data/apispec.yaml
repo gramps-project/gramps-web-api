@@ -1666,7 +1666,7 @@ paths:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
     put:
       tags:
-      - families
+      - events
       summary: "Update the event."
       operationId: updateEvent
       security:
