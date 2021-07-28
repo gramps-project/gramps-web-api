@@ -679,6 +679,46 @@ paths:
           description: "Not Found: Person not found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+    put:
+      tags:
+      - people
+      summary: "Update the person."
+      operationId: updatePerson
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: person
+          description: The updated person
+          schema:
+            $ref: "#/definitions/Person"
+      responses:
+        200:
+          description: "OK: Successful operation."
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    delete:
+      tags:
+      - people
+      summary: "Delete the person."
+      operationId: deletePerson
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
   /people/{handle}/timeline:
@@ -1179,6 +1219,46 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Family not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    put:
+      tags:
+      - families
+      summary: "Update the family."
+      operationId: updateFamily
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: family
+          description: The updated family
+          schema:
+            $ref: "#/definitions/Family"
+      responses:
+        200:
+          description: "OK: Successful operation."
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    delete:
+      tags:
+      - family
+      summary: "Delete the family."
+      operationId: deleteFamily
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
