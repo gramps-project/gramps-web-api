@@ -2884,6 +2884,46 @@ paths:
           description: "Not Found: Repository not found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+    put:
+      tags:
+      - repositories
+      summary: "Update the repository."
+      operationId: updateRepository
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: repository
+          description: The updated repository
+          schema:
+            $ref: "#/definitions/Repository"
+      responses:
+        200:
+          description: "OK: Successful operation."
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    delete:
+      tags:
+      - repositories
+      summary: "Delete the repository."
+      operationId: deleteRepository
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
 ##############################################################################
@@ -3156,6 +3196,46 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Media item not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    put:
+      tags:
+      - media
+      summary: "Update the media object."
+      operationId: updateMedia
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: media
+          description: The updated media object
+          schema:
+            $ref: "#/definitions/Media"
+      responses:
+        200:
+          description: "OK: Successful operation."
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    delete:
+      tags:
+      - media
+      summary: "Delete the media object."
+      operationId: deleteMedia
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -3598,6 +3678,46 @@ paths:
           description: "Not Found: Note not found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+    put:
+      tags:
+      - notes
+      summary: "Update the note."
+      operationId: updateNote
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: source
+          description: The updated note
+          schema:
+            $ref: "#/definitions/Note"
+      responses:
+        200:
+          description: "OK: Successful operation."
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    delete:
+      tags:
+      - note
+      summary: "Delete the note."
+      operationId: deleteNote
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
 ##############################################################################
@@ -3740,6 +3860,46 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Tag not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    put:
+      tags:
+      - tags
+      summary: "Update the tag."
+      operationId: updateTag
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: tag
+          description: The updated tag
+          schema:
+            $ref: "#/definitions/Tag"
+      responses:
+        200:
+          description: "OK: Successful operation."
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    delete:
+      tags:
+      - tag
+      summary: "Delete the tag."
+      operationId: deleteTag
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
