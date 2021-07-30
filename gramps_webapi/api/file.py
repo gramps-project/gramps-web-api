@@ -141,6 +141,7 @@ class LocalFileHandler(FileHandler):
 
 def upload_file(base_dir, stream: BinaryIO, checksum: str, mime: str) -> str:
     """Upload a file from a stream, returning the file path."""
+    base_dir = base_dir or get_media_base_dir()
     if not mime:
         raise ValueError("Missing MIME type")
     ext = mimetypes.guess_extension(mime)
