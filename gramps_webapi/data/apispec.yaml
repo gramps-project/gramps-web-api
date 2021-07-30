@@ -3151,21 +3151,17 @@ paths:
     post:
       tags:
       - media
-      summary: "Add a new media object to the database."
+      summary: "Add a new media file to the database."
       operationId: createMedia
       security:
         - Bearer: []
-      consumes:
-        - application/json
-      parameters:
-        - in: body
-          name: media
-          description: The media object to add
-          schema:
-            $ref: "#/definitions/Media"
       responses:
         201:
           description: Created
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
         400:
           description: "Bad Request: Malformed request could not be parsed."
         401:
@@ -3303,6 +3299,13 @@ paths:
 
 
   /media/{handle}/file:
+    parameters:
+    - name: handle
+      in: path
+      required: true
+      type: string
+      minLength: 8
+      description: "The unique identifier for a media item."
     get:
       tags:
       - media
@@ -3310,13 +3313,6 @@ paths:
       operationId: getMediaItemFile
       security:
         - Bearer: []
-      parameters:
-      - name: handle
-        in: path
-        required: true
-        type: string
-        minLength: 8
-        description: "The unique identifier for a media item."
       responses:
         200:
           description: "OK: Successful operation."
@@ -3326,6 +3322,26 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Media item not found."
+    put:
+      tags:
+      - media
+      summary: "Update an existing media object's file."
+      operationId: updateFile
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK. Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
   /media/{handle}/thumbnail/{size}:
