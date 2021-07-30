@@ -93,10 +93,16 @@ class TestUpload(unittest.TestCase):
             "/api/media/", data=img.read(), headers=headers, content_type="image/jpeg"
         )
         self.assertEqual(rv.status_code, 201)
+        # check output
+        out = rv.json
+        self.assertEqual(len(out), 1)
+        handle = out[0]["new"]["handle"]
+        self.assertEqual(out[0]["old"], None)
+        self.assertEqual(out[0]["type"], "add")
         # get the object
-        rv = self.client.get("/api/media/", headers=headers)
+        rv = self.client.get(f"/api/media/{handle}", headers=headers)
         self.assertEqual(rv.status_code, 200)
-        res = rv.json[0]
+        res = rv.json
         self.assertEqual(res["path"], f"{res['checksum']}.jpg")
         self.assertEqual(res["mime"], "image/jpeg")
         self.assertEqual(res["checksum"], checksum)

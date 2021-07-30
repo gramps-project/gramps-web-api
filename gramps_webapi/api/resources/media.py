@@ -38,7 +38,12 @@ from .base import (
     GrampsObjectResourceHelper,
     GrampsObjectsProtectedResource,
 )
-from .util import add_object, get_extended_attributes, get_media_profile_for_object
+from .util import (
+    add_object,
+    get_extended_attributes,
+    get_media_profile_for_object,
+    transaction_to_json,
+)
 
 
 class MediaObjectResourceHelper(GrampsObjectResourceHelper):
@@ -85,4 +90,5 @@ class MediaObjectsResource(GrampsObjectsProtectedResource, MediaObjectResourceHe
                 add_object(db_handle, obj, trans)
             except ValueError:
                 abort(400)
-        return Response(status=201)
+            trans_dict = transaction_to_json(trans)
+        return self.response(201, trans_dict, total_items=len(trans_dict))
