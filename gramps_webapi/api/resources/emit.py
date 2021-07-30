@@ -84,7 +84,7 @@ class GrampsJSONEncoder:
         if total_items > -1:
             res.headers.add("X-Total-Count", total_items)
         if etag:
-            res.headers.add("Etag", etag)
+            res.headers.add("ETag", etag)
         return res
 
     def is_null(self, value: Any) -> bool:

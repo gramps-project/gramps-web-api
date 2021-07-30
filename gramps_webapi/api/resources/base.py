@@ -224,8 +224,14 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
     def delete(self, handle: str) -> Response:
         """Delete the object."""
         require_permissions([PERM_DEL_OBJ])
-        if not self.has_handle(handle):
+        try:
+            obj = self.get_object_from_handle(handle)
+        except HandleError:
             abort(404)
+        get_etag = hash_object(obj)
+        for etag in request.if_match:
+            if etag != get_etag:
+                abort(412)
         trans_dict = delete_object(
             self.db_handle_writable, handle, self.gramps_class_name
         )

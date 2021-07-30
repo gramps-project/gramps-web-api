@@ -105,3 +105,57 @@ class TestObjectDeletion(unittest.TestCase):
         self.assertEqual(out[0]["new"], None)
         self.assertEqual(out[0]["old"]["_class"], "Note")
         self.assertEqual(out[0]["type"], "delete")
+
+    def test_delete_right_etag(self):
+        handle = make_handle()
+        obj = {
+            "handle": handle,
+            "text": {"_class": "StyledText", "string": "My first note."},
+        }
+
+        headers_admin = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/notes/", json=obj, headers=headers_admin)
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers_admin)
+        self.assertEqual(rv.status_code, 200)
+        etag = rv.headers["ETag"]
+        rv = self.client.delete(
+            f"/api/notes/{handle}", headers={**headers_admin, "If-Match": etag},
+        )
+        self.assertEqual(rv.status_code, 200)
+        # check it is gone
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers_admin)
+        self.assertEqual(rv.status_code, 404)
+
+    def test_delete_wrong_etag(self):
+        handle = make_handle()
+        obj = {
+            "handle": handle,
+            "text": {"_class": "StyledText", "string": "My first note."},
+        }
+        obj_new = {
+            "handle": handle,
+            "text": {"_class": "StyledText", "string": "My updated note."},
+        }
+        headers_admin = get_headers(self.client, "admin", "123")
+        # POST
+        rv = self.client.post("/api/notes/", json=obj, headers=headers_admin)
+        self.assertEqual(rv.status_code, 201)
+        # GET
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers_admin)
+        self.assertEqual(rv.status_code, 200)
+        etag = rv.headers["ETag"]
+        # PUT
+        rv = self.client.put(
+            f"/api/notes/{handle}", json=obj_new, headers=headers_admin
+        )
+        self.assertEqual(rv.status_code, 200)
+        # DELETE
+        rv = self.client.delete(
+            f"/api/notes/{handle}", headers={**headers_admin, "If-Match": etag},
+        )
+        # fails!
+        self.assertEqual(rv.status_code, 412)
+        # check it is still there
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers_admin)
+        self.assertEqual(rv.status_code, 200)
