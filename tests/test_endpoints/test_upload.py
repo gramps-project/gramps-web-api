@@ -45,12 +45,14 @@ def get_headers(client, user: str, password: str) -> Dict[str, str]:
 
 
 def get_image(color):
-    """Get a JPEG image."""
+    """Get a JPEG image and checksum."""
     image_file = BytesIO()
     image = Image.new("RGBA", size=(50, 50), color=color)
     image.save(image_file, "png")
     image_file.seek(0)
-    return image_file
+    checksum = hashlib.md5(image_file.getbuffer()).hexdigest()
+    image_file.seek(0)
+    return image_file, checksum
 
 
 class TestUpload(unittest.TestCase):
@@ -77,10 +79,7 @@ class TestUpload(unittest.TestCase):
 
     def test_upload_new_media(self):
         """Add new media object."""
-        img = get_image(0)
-        img.seek(0)
-        checksum = hashlib.md5(img.getbuffer()).hexdigest()
-        img.seek(0)
+        img, checksum = get_image(0)
         # try as guest - not allowed
         headers = get_headers(self.client, "user", "123")
         rv = self.client.post(
@@ -106,3 +105,30 @@ class TestUpload(unittest.TestCase):
         self.assertEqual(res["path"], f"{res['checksum']}.jpg")
         self.assertEqual(res["mime"], "image/jpeg")
         self.assertEqual(res["checksum"], checksum)
+
+    def test_update_media_file(self):
+        """Update a media file."""
+        img, checksum = get_image(1)
+        # create
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post(
+            "/api/media/", data=img.read(), headers=headers, content_type="image/jpeg"
+        )
+        self.assertEqual(rv.status_code, 201)
+        # get handle from response
+        handle = rv.json[0]["new"]["handle"]
+        new_img, new_checksum = get_image(2)
+        self.assertNotEqual(checksum, new_checksum)  # just to be sure
+        rv = self.client.put(
+            f"/api/media/{handle}/file",
+            data=new_img.read(),
+            headers=headers,
+            content_type="image/jpeg",
+        )
+        self.assertEqual(rv.status_code, 200)
+        # get the object
+        rv = self.client.get(f"/api/media/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        res = rv.json
+        self.assertEqual(res["checksum"], new_checksum)
+        self.assertEqual(res["path"], f"{new_checksum}.jpg")
