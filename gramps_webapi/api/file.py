@@ -144,7 +144,7 @@ def upload_file(base_dir, stream: BinaryIO, checksum: str, mime: str) -> str:
     base_dir = base_dir or get_media_base_dir()
     if not mime:
         raise ValueError("Missing MIME type")
-    ext = mimetypes.guess_extension(mime)
+    ext = mimetypes.guess_extension(mime, strict=False)
     if not ext:
         raise ValueError("MIME type not recognized")
     filename = f"{checksum}{ext}"
