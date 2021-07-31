@@ -291,23 +291,3 @@ class TestObjectCreation(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         obj_dict = rv.json
         self.assertEqual(obj_dict["name"], obj["name"])
-
-    def test_add_media(self):
-        """Add a single media."""
-        handle = make_handle()
-        obj = {"handle": handle, "desc": "My photo"}
-        headers = get_headers(self.client, "admin", "123")
-        rv = self.client.post("/api/media/", json=obj, headers=headers)
-        self.assertEqual(rv.status_code, 201)
-        rv = self.client.get(f"/api/media/{handle}", headers=headers)
-        self.assertEqual(rv.status_code, 200)
-        obj_dict = rv.json
-        self.assertEqual(obj_dict["desc"], obj["desc"])
-        handle = make_handle()
-        tag_handle = make_handle()
-        tag_obj = {"handle": tag_handle, "name": "MyTag"}
-        rv = self.client.post("/api/tags/", json=tag_obj, headers=headers)
-        obj = {"handle": handle, "desc": "My photo", "tag_list": [tag_handle]}
-        rv = self.client.post("/api/media/", json=obj, headers=headers)
-        self.assertEqual(rv.status_code, 201)
-
