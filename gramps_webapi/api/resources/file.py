@@ -41,7 +41,6 @@ class MediaFileResource(ProtectedResource):
             abort(HTTPStatus.CONFLICT)
         base_dir = current_app.config.get("MEDIA_BASE_DIR")
         path = upload_file(base_dir, f, checksum, mime)
-        print("path", path)
         obj.set_checksum(checksum)
         obj.set_path(path)
         obj.set_mime_type(mime)

@@ -20,7 +20,6 @@
 """File handling utilities."""
 
 import hashlib
-import mimetypes
 import os
 from io import BytesIO
 from pathlib import Path
@@ -29,10 +28,10 @@ from typing import Any, BinaryIO, Optional, Tuple, Union
 from flask import abort, send_file, send_from_directory
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Media
-from gramps.gen.utils.file import create_checksum
 from werkzeug.datastructures import FileStorage
 
 from gramps_webapi.const import MIME_JPEG
+from gramps_webapi.util import get_extension
 
 from .image import ThumbnailHandler
 from .util import get_db_handle, get_media_base_dir
@@ -144,8 +143,7 @@ def upload_file(base_dir, stream: BinaryIO, checksum: str, mime: str) -> str:
     base_dir = base_dir or get_media_base_dir()
     if not mime:
         raise ValueError("Missing MIME type")
-    mimetypes.init()
-    ext = mimetypes.guess_extension(mime, strict=False)
+    ext = get_extension(mime)
     if not ext:
         raise ValueError("MIME type not recognized")
     filename = f"{checksum}{ext}"

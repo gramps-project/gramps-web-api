@@ -18,3 +18,28 @@
 #
 
 """Utility functions."""
+
+import mimetypes
+from typing import Optional
+
+from ..const import MIME_TYPES
+
+
+def get_extension(mime: str) -> Optional[str]:
+    """Get extension from MIME type."""
+    # try hard-coded types first
+    for ext, ext_mime in MIME_TYPES.items():
+        if mime == ext_mime:
+            return ext
+    # last resort
+    return mimetypes.guess_extension(mime, strict=False)
+
+
+def get_type(ext: str) -> Optional[str]:
+    """Get file extension from MIME type."""
+    # try hard-coded types first
+    if ext in MIME_TYPES:
+        return MIME_TYPES[ext]
+    # last resort
+    typ, enc = mimetypes.guess_type(ext, strict=False)
+    return typ
