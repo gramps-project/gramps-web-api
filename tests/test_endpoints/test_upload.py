@@ -117,12 +117,26 @@ class TestUpload(unittest.TestCase):
         self.assertEqual(rv.status_code, 201)
         # get handle from response
         handle = rv.json[0]["new"]["handle"]
+        # check GET ETag
+        rv = self.client.get(f"/api/media/{handle}/file", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        etag = rv.headers["ETag"]
+        self.assertEqual(etag, checksum)
         new_img, new_checksum = get_image(2)
         self.assertNotEqual(checksum, new_checksum)  # just to be sure
+        # try with wrong checksum in If-Match!
         rv = self.client.put(
             f"/api/media/{handle}/file",
             data=new_img.read(),
-            headers=headers,
+            headers={**headers, "If-Match": new_checksum},
+            content_type="image/jpeg",
+        )
+        self.assertEqual(rv.status_code, 412)
+        new_img.seek(0)
+        rv = self.client.put(
+            f"/api/media/{handle}/file",
+            data=new_img.read(),
+            headers={**headers, "If-Match": checksum},
             content_type="image/jpeg",
         )
         self.assertEqual(rv.status_code, 200)

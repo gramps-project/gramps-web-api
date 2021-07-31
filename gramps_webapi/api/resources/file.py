@@ -20,9 +20,14 @@ class MediaFileResource(ProtectedResource):
 
     def get(self, handle) -> Response:
         """Download a file."""
+        db_handle = get_db_handle()
+        try:
+            obj = db_handle.get_media_from_handle(handle)
+        except HandleError:
+            abort(HTTPStatus.NOT_FOUND)
         base_dir = current_app.config.get("MEDIA_BASE_DIR")
         handler = LocalFileHandler(handle, base_dir)
-        return handler.send_file()
+        return handler.send_file(etag=obj.checksum)
 
     def put(self, handle) -> Response:
         """Upload a file and update the media object."""
@@ -32,6 +37,10 @@ class MediaFileResource(ProtectedResource):
             obj = db_handle.get_media_from_handle(handle)
         except HandleError:
             abort(HTTPStatus.NOT_FOUND)
+        checksum_old = obj.checksum
+        for etag in request.if_match:
+            if etag != checksum_old:
+                abort(412)
         mime = request.content_type
         if not mime:
             abort(HTTPStatus.NOT_ACCEPTABLE)

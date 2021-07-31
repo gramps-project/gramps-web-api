@@ -25,7 +25,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, BinaryIO, Optional, Tuple, Union
 
-from flask import abort, send_file, send_from_directory
+from flask import abort, make_response, send_file, send_from_directory
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Media
 from werkzeug.datastructures import FileStorage
@@ -56,7 +56,7 @@ class FileHandler:
         except HandleError:
             return None
 
-    def send_file(self):
+    def send_file(self, etag=Optional[str]):
         """Send media file to client."""
         raise NotImplementedError
 
@@ -99,9 +99,14 @@ class LocalFileHandler(FileHandler):
                 "File {} is not within the base directory.".format(file_path)
             )
 
-    def send_file(self):
+    def send_file(self, etag=Optional[str]):
         """Send media file to client."""
-        return send_from_directory(self.base_dir, self.path_rel, mimetype=self.mime)
+        res = make_response(
+            send_from_directory(self.base_dir, self.path_rel, mimetype=self.mime)
+        )
+        if etag:
+            res.headers["ETag"] = etag
+        return res
 
     def send_cropped(self, x1: int, y1: int, x2: int, y2: int, square: bool = False):
         """Send cropped image."""
