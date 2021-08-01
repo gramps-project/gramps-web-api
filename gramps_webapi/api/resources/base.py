@@ -145,7 +145,7 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
         return from_json(json.dumps(obj_dict))
 
     def has_handle(self, handle: str) -> bool:
-        """Chek if the handle exists in the database."""
+        """Check if the handle exists in the database."""
         query_method = self.db_handle.method("has_%s_handle", self.gramps_class_name)
         return query_method(handle)
 
