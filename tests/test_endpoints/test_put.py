@@ -21,15 +21,21 @@
 
 import unittest
 import uuid
+from copy import deepcopy
 from typing import Dict
 from unittest.mock import patch
-from copy import deepcopy
 
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
-from gramps_webapi.auth.const import ROLE_CONTRIBUTOR, ROLE_GUEST, ROLE_OWNER
+from gramps_webapi.auth.const import (
+    ROLE_CONTRIBUTOR,
+    ROLE_EDITOR,
+    ROLE_GUEST,
+    ROLE_MEMBER,
+    ROLE_OWNER,
+)
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
 
@@ -60,6 +66,8 @@ class TestObjectUpdate(unittest.TestCase):
         sqlauth.add_user(name="user", password="123", role=ROLE_GUEST)
         sqlauth.add_user(name="contributor", password="123", role=ROLE_CONTRIBUTOR)
         sqlauth.add_user(name="admin", password="123", role=ROLE_OWNER)
+        sqlauth.add_user(name="editor", password="123", role=ROLE_EDITOR)
+        sqlauth.add_user(name="member", password="123", role=ROLE_MEMBER)
 
     @classmethod
     def tearDownClass(cls):
@@ -80,12 +88,21 @@ class TestObjectUpdate(unittest.TestCase):
         headers_guest = get_headers(self.client, "user", "123")
         headers_contributor = get_headers(self.client, "contributor", "123")
         headers_admin = get_headers(self.client, "admin", "123")
+        headers_member = get_headers(self.client, "member", "123")
         # create object as contributor
         rv = self.client.post(f"/api/notes/", json=obj, headers=headers_contributor)
         self.assertEqual(rv.status_code, 201)
         # try updating as guest
         rv = self.client.put(
             f"/api/notes/{handle}", json=obj_new, headers=headers_guest
+        )
+        self.assertEqual(rv.status_code, 403)
+        # check it's still unchanged
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers_guest)
+        self.assertEqual(rv.json["text"]["string"], "My first note.")
+        # try updating as member
+        rv = self.client.put(
+            f"/api/notes/{handle}", json=obj_new, headers=headers_member
         )
         self.assertEqual(rv.status_code, 403)
         # check it's still unchanged
@@ -117,6 +134,29 @@ class TestObjectUpdate(unittest.TestCase):
             headers={**headers_admin, "If-Match": etag},
         )
         self.assertEqual(rv.status_code, 412)
+
+    def test_update_permission_editor(self):
+        """Test update permissions for an editor."""
+        handle = make_handle()
+        obj = {
+            "handle": handle,
+            "_class": "Note",
+            "text": {"_class": "StyledText", "string": "My first note."},
+        }
+        obj_new = deepcopy(obj)
+        obj_new["text"]["string"] = "My second note."
+        headers_editor = get_headers(self.client, "editor", "123")
+        # create object
+        rv = self.client.post(f"/api/notes/", json=obj, headers=headers_editor)
+        self.assertEqual(rv.status_code, 201)
+        # try updating
+        rv = self.client.put(
+            f"/api/notes/{handle}", json=obj_new, headers=headers_editor
+        )
+        self.assertEqual(rv.status_code, 200)
+        # check it has changed
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers_editor)
+        self.assertEqual(rv.json["text"]["string"], "My second note.")
 
     def test_update_transaction(self):
         """Test the update transaction return value."""

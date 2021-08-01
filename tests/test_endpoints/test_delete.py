@@ -28,7 +28,13 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
-from gramps_webapi.auth.const import ROLE_CONTRIBUTOR, ROLE_GUEST, ROLE_OWNER
+from gramps_webapi.auth.const import (
+    ROLE_CONTRIBUTOR,
+    ROLE_EDITOR,
+    ROLE_GUEST,
+    ROLE_MEMBER,
+    ROLE_OWNER,
+)
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
 
@@ -59,6 +65,8 @@ class TestObjectDeletion(unittest.TestCase):
         sqlauth.add_user(name="user", password="123", role=ROLE_GUEST)
         sqlauth.add_user(name="contributor", password="123", role=ROLE_CONTRIBUTOR)
         sqlauth.add_user(name="admin", password="123", role=ROLE_OWNER)
+        sqlauth.add_user(name="editor", password="123", role=ROLE_EDITOR)
+        sqlauth.add_user(name="member", password="123", role=ROLE_MEMBER)
 
     @classmethod
     def tearDownClass(cls):
@@ -77,11 +85,19 @@ class TestObjectDeletion(unittest.TestCase):
         headers_guest = get_headers(self.client, "user", "123")
         headers_contributor = get_headers(self.client, "contributor", "123")
         headers_admin = get_headers(self.client, "admin", "123")
+        headers_editor = get_headers(self.client, "editor", "123")
+        headers_member = get_headers(self.client, "member", "123")
         # create object as contributor
         rv = self.client.post("/api/objects/", json=obj, headers=headers_contributor)
         self.assertEqual(rv.status_code, 201)
         # try deleting as guest
         rv = self.client.delete(f"/api/notes/{handle}", headers=headers_guest)
+        self.assertEqual(rv.status_code, 403)
+        # check it's still there
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers_guest)
+        self.assertEqual(rv.status_code, 200)
+        # try deleting as member
+        rv = self.client.delete(f"/api/notes/{handle}", headers=headers_member)
         self.assertEqual(rv.status_code, 403)
         # check it's still there
         rv = self.client.get(f"/api/notes/{handle}", headers=headers_guest)
@@ -92,6 +108,14 @@ class TestObjectDeletion(unittest.TestCase):
         # check it's still there
         rv = self.client.get(f"/api/notes/{handle}", headers=headers_guest)
         self.assertEqual(rv.status_code, 200)
+        # try deleting as editor
+        rv = self.client.delete(f"/api/notes/{handle}", headers=headers_editor)
+        self.assertEqual(rv.status_code, 200)
+        # check it's gone
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers_guest)
+        self.assertEqual(rv.status_code, 404)
+        # create again
+        rv = self.client.post("/api/objects/", json=obj, headers=headers_contributor)
         # try deleting as admin
         rv = self.client.delete(f"/api/notes/{handle}", headers=headers_admin)
         self.assertEqual(rv.status_code, 200)
