@@ -139,6 +139,9 @@ class TestObjectCreation(unittest.TestCase):
         headers = get_headers(self.client, "admin", "123")
         rv = self.client.post("/api/objects/", json=objects, headers=headers)
         self.assertEqual(rv.status_code, 201)
+        # check return value
+        out = rv.json
+        self.assertEqual(len(out), 2)
         rv = self.client.get(
             f"/api/people/{handle_person}?extend=event_ref_list", headers=headers
         )
@@ -227,6 +230,15 @@ class TestObjectCreation(unittest.TestCase):
         headers = get_headers(self.client, "admin", "123")
         rv = self.client.post("/api/tags/", json=obj, headers=headers)
         self.assertEqual(rv.status_code, 201)
+        # check return value
+        out = rv.json
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["_class"], "Tag")
+        self.assertEqual(out[0]["handle"], handle)
+        self.assertEqual(out[0]["old"], None)
+        self.assertEqual(out[0]["new"]["name"], "MyTag")
+        self.assertEqual(out[0]["type"], "add")
+        # check get
         rv = self.client.get(f"/api/tags/{handle}", headers=headers)
         self.assertEqual(rv.status_code, 200)
         obj_dict = rv.json

@@ -113,5 +113,8 @@ def create_app(db_manager=None):
         dbstate = g.pop("dbstate", None)
         if dbstate and dbstate.is_open():
             dbstate.db.close()
+        dbstate_write = g.pop("dbstate_write", None)
+        if dbstate_write and dbstate_write.is_open():
+            dbstate_write.db.close()
 
     return app

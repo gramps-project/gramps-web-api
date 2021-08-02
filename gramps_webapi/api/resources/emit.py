@@ -51,6 +51,7 @@ class GrampsJSONEncoder:
         payload: Optional[Any] = None,
         args: Optional[Dict] = None,
         total_items: int = -1,
+        etag: Optional[str] = None,
     ) -> Response:
         """Prepare response."""
         if payload is None:
@@ -69,15 +70,8 @@ class GrampsJSONEncoder:
         else:
             self.filter_skip_keys = []
 
-        if total_items > -1:
-            headers = Headers()
-            headers.add("X-Total-Count", total_items)
-        else:
-            headers = None
-
-        return Response(
+        res = Response(
             status=status,
-            headers=headers,
             response=json.dumps(
                 self.extract_objects(payload),
                 ensure_ascii=False,
@@ -86,6 +80,12 @@ class GrampsJSONEncoder:
             ),
             mimetype="application/json",
         )
+
+        if total_items > -1:
+            res.headers.add("X-Total-Count", total_items)
+        if etag:
+            res.headers.add("ETag", etag)
+        return res
 
     def is_null(self, value: Any) -> bool:
         """Test for empty value."""

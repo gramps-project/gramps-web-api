@@ -196,7 +196,7 @@ class TestUser(unittest.TestCase):
             headers={"Authorization": "Bearer {}".format(token)},
             json={"new_password": ""},
         )
-        self.assertEqual(rv.status_code, 400, msg="Invalid token: {}".format(token))
+        self.assertEqual(rv.status_code, 400)
         # now that should work
         rv = self.client.post(
             BASE_URL + "/users/-/password/reset/",

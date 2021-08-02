@@ -163,6 +163,12 @@ paths:
 
 
   /users/{user_name}:
+    parameters:
+      - name: user_name
+        in: path
+        required: true
+        type: string
+        description: "The user name."
     get:
       tags:
       - users
@@ -170,12 +176,6 @@ paths:
       operationId: getUser
       security:
         - Bearer: []
-      parameters:
-      - name: user_name
-        in: path
-        required: true
-        type: string
-        description: "The user name or '-' for the authenticated user."
       responses:
         200:
           description: "OK: Successful operation."
@@ -193,11 +193,6 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: user_name
-        in: path
-        required: true
-        type: string
-        description: "The desired user name of the new user."
       - name: user_details
         in: body
         schema:
@@ -226,11 +221,6 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: user_name
-        in: path
-        required: true
-        type: string
-        description: "The desired user name of the new user."
       - name: user_details
         in: body
         schema:
@@ -580,6 +570,13 @@ paths:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /people/{handle}:
+    parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        minLength: 8
+        description: "The unique identifier for a person."
     get:
       tags:
       - people
@@ -588,12 +585,6 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: handle
-        in: path
-        required: true
-        type: string
-        minLength: 8
-        description: "The unique identifier for a person."
       - name: strip
         in: query
         required: false
@@ -677,6 +668,54 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Person not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    put:
+      tags:
+      - people
+      summary: "Update the person."
+      operationId: updatePerson
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: person
+          description: The updated person
+          schema:
+            $ref: "#/definitions/Person"
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    delete:
+      tags:
+      - people
+      summary: "Delete the person."
+      operationId: deletePerson
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -1084,6 +1123,13 @@ paths:
 
 
   /families/{handle}:
+    parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        minLength: 8
+        description: "The unique identifier for a family."
     get:
       tags:
       - families
@@ -1092,12 +1138,6 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: handle
-        in: path
-        required: true
-        type: string
-        minLength: 8
-        description: "The unique identifier for a family."
       - name: strip
         in: query
         required: false
@@ -1179,6 +1219,54 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Family not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    put:
+      tags:
+      - families
+      summary: "Update the family."
+      operationId: updateFamily
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: family
+          description: The updated family
+          schema:
+            $ref: "#/definitions/Family"
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    delete:
+      tags:
+      - family
+      summary: "Delete the family."
+      operationId: deleteFamily
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -1499,6 +1587,13 @@ paths:
 
 
   /events/{handle}:
+    parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        minLength: 0
+        description: "The unique identifier for an event."
     get:
       tags:
       - events
@@ -1507,12 +1602,6 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: handle
-        in: path
-        required: true
-        type: string
-        minLength: 0
-        description: "The unique identifier for an event."
       - name: strip
         in: query
         required: false
@@ -1582,6 +1671,54 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Event not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    put:
+      tags:
+      - events
+      summary: "Update the event."
+      operationId: updateEvent
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: event
+          description: The updated event
+          schema:
+            $ref: "#/definitions/Event"
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    delete:
+      tags:
+      - events
+      summary: "Delete the event."
+      operationId: deleteEvent
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -1827,6 +1964,13 @@ paths:
 
 
   /places/{handle}:
+    parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        minLength: 8
+        description: "The unique identifier for a place."
     get:
       tags:
       - places
@@ -1835,12 +1979,6 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: handle
-        in: path
-        required: true
-        type: string
-        minLength: 8
-        description: "The unique identifier for a place."
       - name: strip
         in: query
         required: false
@@ -1902,6 +2040,54 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Place not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    put:
+      tags:
+      - places
+      summary: "Update the place."
+      operationId: updatePlace
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: place
+          description: The updated place
+          schema:
+            $ref: "#/definitions/Place"
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    delete:
+      tags:
+      - places
+      summary: "Delete the place."
+      operationId: deletePlace
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -2101,6 +2287,13 @@ paths:
 
 
   /citations/{handle}:
+    parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        minLength: 8
+        description: "The unique identifier for a citation."
     get:
       tags:
       - citations
@@ -2109,12 +2302,6 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: handle
-        in: path
-        required: true
-        type: string
-        minLength: 8
-        description: "The unique identifier for a citation."
       - name: strip
         in: query
         required: false
@@ -2176,6 +2363,54 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Citation not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    put:
+      tags:
+      - citations
+      summary: "Update the citation."
+      operationId: updateCitation
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: citation
+          description: The updated citation
+          schema:
+            $ref: "#/definitions/Citation"
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    delete:
+      tags:
+      - citations
+      summary: "Delete the citation."
+      operationId: deleteCitation
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -2350,6 +2585,13 @@ paths:
 
 
   /sources/{handle}:
+    parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        minLength: 8
+        description: "The unique identifier for a source."
     get:
       tags:
       - sources
@@ -2358,12 +2600,6 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: handle
-        in: path
-        required: true
-        type: string
-        minLength: 8
-        description: "The unique identifier for a source."
       - name: strip
         in: query
         required: false
@@ -2412,6 +2648,54 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Source not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    put:
+      tags:
+      - sources
+      summary: "Update the source."
+      operationId: updateSource
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: source
+          description: The updated source
+          schema:
+            $ref: "#/definitions/Source"
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    delete:
+      tags:
+      - sources
+      summary: "Delete the source."
+      operationId: deleteSource
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -2582,6 +2866,13 @@ paths:
 
 
   /repositories/{handle}:
+    parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        minLength: 8
+        description: "The unique identifier for a repository."
     get:
       tags:
       - repositories
@@ -2590,12 +2881,6 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: handle
-        in: path
-        required: true
-        type: string
-        minLength: 8
-        description: "The unique identifier for a repository."
       - name: strip
         in: query
         required: false
@@ -2642,6 +2927,54 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Repository not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    put:
+      tags:
+      - repositories
+      summary: "Update the repository."
+      operationId: updateRepository
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: repository
+          description: The updated repository
+          schema:
+            $ref: "#/definitions/Repository"
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    delete:
+      tags:
+      - repositories
+      summary: "Delete the repository."
+      operationId: deleteRepository
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -2842,6 +3175,13 @@ paths:
 
 
   /media/{handle}:
+    parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        minLength: 8
+        description: "The unique identifier for a media item."
     get:
       tags:
       - media
@@ -2850,12 +3190,6 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: handle
-        in: path
-        required: true
-        type: string
-        minLength: 8
-        description: "The unique identifier for a media item."
       - name: strip
         in: query
         required: false
@@ -2916,6 +3250,54 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Media item not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    put:
+      tags:
+      - media
+      summary: "Update the media object."
+      operationId: updateMedia
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: media
+          description: The updated media object
+          schema:
+            $ref: "#/definitions/Media"
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    delete:
+      tags:
+      - media
+      summary: "Delete the media object."
+      operationId: deleteMedia
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -3277,6 +3659,13 @@ paths:
 
 
   /notes/{handle}:
+    parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        minLength: 8
+        description: "The unique identifier for a note."
     get:
       tags:
       - notes
@@ -3285,12 +3674,6 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: handle
-        in: path
-        required: true
-        type: string
-        minLength: 8
-        description: "The unique identifier for a note."
       - name: formats
         in: query
         required: false
@@ -3356,6 +3739,54 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Note not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    put:
+      tags:
+      - notes
+      summary: "Update the note."
+      operationId: updateNote
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: source
+          description: The updated note
+          schema:
+            $ref: "#/definitions/Note"
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    delete:
+      tags:
+      - note
+      summary: "Delete the note."
+      operationId: deleteNote
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -3461,6 +3892,13 @@ paths:
 
 
   /tags/{handle}:
+    parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        minLength: 8
+        description: "The unique identifier for a tag."
     get:
       tags:
       - tags
@@ -3469,12 +3907,6 @@ paths:
       security:
         - Bearer: []
       parameters:
-      - name: handle
-        in: path
-        required: true
-        type: string
-        minLength: 8
-        description: "The unique identifier for a tag."
       - name: strip
         in: query
         required: false
@@ -3500,6 +3932,54 @@ paths:
           description: "Unauthorized: Missing authorization header."
         404:
           description: "Not Found: Tag not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    put:
+      tags:
+      - tags
+      summary: "Update the tag."
+      operationId: updateTag
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: tag
+          description: The updated tag
+          schema:
+            $ref: "#/definitions/Tag"
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+    delete:
+      tags:
+      - tag
+      summary: "Delete the tag."
+      operationId: deleteTag
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -5448,6 +5928,43 @@ definitions:
         description: "Value of the attribute."
         type: string
         example: "123-456-7890"
+
+##############################################################################
+# Model - Transaction
+##############################################################################
+
+  Transaction:
+    type: object
+    required:
+      - type
+      - handle
+      - _class
+      - old
+      - new
+    properties:
+      type:
+        description: "The type of action"
+        type: string
+        enum:
+          - add
+          - update
+          - delete
+      _class:
+        description: "Object class name"
+        type: string
+        example: Person
+      handle:
+        description: "The unique identifier for the object."
+        type: string
+        maxLength: 50
+        example: "GNUJQCL9MD64AM56OH"
+      old:
+        description: "The old object"
+        type: object
+      new:
+        description: "The new object"
+        type: object
+
 
 ##############################################################################
 # Model - Person

@@ -91,15 +91,36 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
 
     If `readonly` is false, locks the database during the request.
     """
-    if "dbstate" not in g:
+    if readonly and "dbstate" not in g:
         # cache the DbState instance for the duration of
         # the request
         dbmgr: WebDbManager = current_app.config["DB_MANAGER"]
-        g.dbstate = dbmgr.get_db(readonly=readonly)
+        g.dbstate = dbmgr.get_db()
     if not has_permissions({PERM_VIEW_PRIVATE}):
         if not readonly:
             # requesting write access on a private proxy DB is impossible & forbidden!
             abort(HTTPStatus.FORBIDDEN)
+        # if we're not authorized to view private records,
+        # return a proxy DB instead of the real one
+        return ModifiedPrivateProxyDb(g.dbstate.db)
+    if not readonly and "dbstate_write" not in g:
+        # cache the DbState instance for the duration of
+        # the request
+        dbmgr = current_app.config["DB_MANAGER"]
+        g.dbstate_write = dbmgr.get_db(readonly=False)
+    if not readonly:
+        return g.dbstate_write.db
+    return g.dbstate.db
+
+
+def _get_db_handle_readonly(readonly: bool = True) -> DbReadBase:
+    """Open the database in read-only mode and get the current instance."""
+    if "dbstate" not in g:
+        # cache the DbState instance for the duration of
+        # the request
+        dbmgr: WebDbManager = current_app.config["DB_MANAGER"]
+        g.dbstate = dbmgr.get_db()
+    if not has_permissions({PERM_VIEW_PRIVATE}):
         # if we're not authorized to view private records,
         # return a proxy DB instead of the real one
         return ModifiedPrivateProxyDb(g.dbstate.db)
