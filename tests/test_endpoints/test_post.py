@@ -55,6 +55,9 @@ class TestObjectCreation(unittest.TestCase):
         cls.app.config["TESTING"] = True
         cls.client = cls.app.test_client()
         sqlauth = cls.app.config["AUTH_PROVIDER"]
+        search_index = cls.app.config["SEARCH_INDEXER"]
+        db = cls.app.config["DB_MANAGER"].get_db().db
+        search_index.reindex_full(db)
         sqlauth.create_table()
         sqlauth.add_user(name="user", password="123", role=ROLE_GUEST)
         sqlauth.add_user(name="admin", password="123", role=ROLE_OWNER)
@@ -291,3 +294,95 @@ class TestObjectCreation(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         obj_dict = rv.json
         self.assertEqual(obj_dict["name"], obj["name"])
+
+    def test_add_media(self):
+        """Add a single media."""
+        handle = make_handle()
+        obj = {"handle": handle, "desc": "My photo"}
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/media/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.get(f"/api/media/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        obj_dict = rv.json
+        self.assertEqual(obj_dict["desc"], obj["desc"])
+        handle = make_handle()
+        tag_handle = make_handle()
+        tag_obj = {"handle": tag_handle, "name": "MyTag"}
+        rv = self.client.post("/api/tags/", json=tag_obj, headers=headers)
+        obj = {"handle": handle, "desc": "My photo", "tag_list": [tag_handle]}
+        rv = self.client.post("/api/media/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+
+    def test_search_add_note(self):
+        """Test whether adding a note updates the search index correctly."""
+        handle = make_handle()
+        headers = get_headers(self.client, "admin", "123")
+        # not added yet: shouldn't find anything
+        rv = self.client.get("/api/search/?query=handle:{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.json, [])
+        obj = {
+            "_class": "Note",
+            "handle": handle,
+            "text": {"_class": "StyledText", "string": "My searchable note."},
+        }
+        rv = self.client.post("/api/notes/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        # now it should be there
+        rv = self.client.get(f"/api/search/?query=handle:{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        data = rv.json
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["handle"], handle)
+        self.assertEqual(data[0]["object_type"], "note")
+
+    def test_search_add_person(self):
+        """Test whether adding a person with event updates the search index."""
+        handle_person = make_handle()
+        handle_birth = make_handle()
+        person = {
+            "_class": "Person",
+            "handle": handle_person,
+            "primary_name": {
+                "_class": "Name",
+                "surname_list": [{"_class": "Surname", "surname": "Doe",}],
+                "first_name": "John",
+            },
+            "event_ref_list": [
+                {
+                    "_class": "EventRef",
+                    "ref": handle_birth,
+                    "role": {"_class": "EventRoleType", "string": "Primary"},
+                },
+            ],
+            "birth_ref_index": 0,
+            "gender": 1,
+        }
+        birth = {
+            "_class": "Event",
+            "handle": handle_birth,
+            "date": {"_class": "Date", "dateval": [2, 10, 1764, False],},
+            "type": {"_class": "EventType", "string": "Birth"},
+        }
+        objects = [person, birth]
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/objects/", json=objects, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        # now they should be there
+        rv = self.client.get(
+            f"/api/search/?query=handle:{handle_person}", headers=headers
+        )
+        self.assertEqual(rv.status_code, 200)
+        data = rv.json
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["handle"], handle_person)
+        self.assertEqual(data[0]["object_type"], "person")
+        rv = self.client.get(
+            f"/api/search/?query=handle:{handle_birth}", headers=headers
+        )
+        self.assertEqual(rv.status_code, 200)
+        data = rv.json
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["handle"], handle_birth)
+        self.assertEqual(data[0]["object_type"], "event")
