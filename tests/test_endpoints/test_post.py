@@ -55,9 +55,6 @@ class TestObjectCreation(unittest.TestCase):
         cls.app.config["TESTING"] = True
         cls.client = cls.app.test_client()
         sqlauth = cls.app.config["AUTH_PROVIDER"]
-        search_index = cls.app.config["SEARCH_INDEXER"]
-        db = cls.app.config["DB_MANAGER"].get_db().db
-        search_index.reindex_full(db)
         sqlauth.create_table()
         sqlauth.add_user(name="user", password="123", role=ROLE_GUEST)
         sqlauth.add_user(name="admin", password="123", role=ROLE_OWNER)
