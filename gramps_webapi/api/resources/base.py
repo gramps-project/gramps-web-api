@@ -23,7 +23,7 @@ import json
 from abc import abstractmethod
 from typing import Dict, List, Sequence
 
-from flask import Response, abort, request
+from flask import Response, abort, current_app, request
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import DbTxn
 from gramps.gen.db.base import DbReadBase
@@ -35,6 +35,7 @@ from webargs import fields, validate
 
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ..auth import require_permissions
+from ..search import SearchIndexer
 from ..util import get_db_handle, get_locale_for_language, use_args
 from . import ProtectedResource, Resource
 from .delete import delete_object
@@ -235,6 +236,10 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         trans_dict = delete_object(
             self.db_handle_writable, handle, self.gramps_class_name
         )
+        # update search index
+        indexer: SearchIndexer = current_app.config["SEARCH_INDEXER"]
+        with indexer.index(overwrite=False).writer() as writer:
+            indexer.delete_object(writer, handle)
         return self.response(200, trans_dict, total_items=len(trans_dict))
 
     def put(self, handle: str) -> Response:
@@ -258,6 +263,12 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             except ValueError:
                 abort(400)
             trans_dict = transaction_to_json(trans)
+        # update search index
+        indexer: SearchIndexer = current_app.config["SEARCH_INDEXER"]
+        with indexer.index(overwrite=False).writer() as writer:
+            indexer.add_or_update_object(
+                writer, handle, db_handle, self.gramps_class_name
+            )
         return self.response(200, trans_dict, total_items=len(trans_dict))
 
 
@@ -396,6 +407,15 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             except ValueError:
                 abort(400)
             trans_dict = transaction_to_json(trans)
+        # update search index
+        indexer: SearchIndexer = current_app.config["SEARCH_INDEXER"]
+        # get the new handle from the transaction dict, in case it was not specified
+        # explicitly
+        handle = trans_dict[0]["handle"]
+        with indexer.index(overwrite=False).writer() as writer:
+            indexer.add_or_update_object(
+                writer, handle, db_handle, self.gramps_class_name
+            )
         return self.response(201, trans_dict, total_items=len(trans_dict))
 
 
