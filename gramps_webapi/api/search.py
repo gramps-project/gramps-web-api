@@ -213,24 +213,33 @@ class SearchIndexer:
             updated[class_name] = changed_handles & ix_handles
         return {"deleted": deleted, "updated": updated, "new": new}
 
+    def delete_object(self, writer, handle: str):
+        """Delete an object from the index."""
+        writer.delete_by_term("handle", handle)
+
+    def add_or_update_object(
+        self, writer, handle: str, db_handle: DbReadBase, class_name: str
+    ):
+        """Add an object to the index or update it if it exists."""
+        obj_dict = obj_strings_from_handle(db_handle, class_name, handle)
+        self._add_obj_strings(writer, obj_dict)
+
     def reindex_incremental(self, db_handle: DbReadBase):
         """Update the index incrementally."""
         update_info = self._get_update_info(db_handle)
         with self.index(overwrite=False).writer() as writer:
             # delete objects
-            for class_name, info in update_info["deleted"].items():
-                for handle in info:
-                    writer.delete_by_term("handle", handle)
+            for class_name, handles in update_info["deleted"].items():
+                for handle in handles:
+                    self.delete_object(writer, handle)
             # add objects
-            for class_name, info in update_info["new"].items():
-                for handle in info:
-                    obj_dict = obj_strings_from_handle(db_handle, class_name, handle)
-                    self._add_obj_strings(writer, obj_dict)
+            for class_name, handles in update_info["new"].items():
+                for handle in handles:
+                    self.add_or_update_object(writer, handle, db_handle, class_name)
             # update objects
-            for class_name, info in update_info["updated"].items():
-                for handle in info:
-                    obj_dict = obj_strings_from_handle(db_handle, class_name, handle)
-                    self._add_obj_strings(writer, obj_dict)
+            for class_name, handles in update_info["updated"].items():
+                for handle in handles:
+                    self.add_or_update_object(writer, handle, db_handle, class_name)
 
     @staticmethod
     def format_hit(hit: Hit) -> Dict[str, Any]:
