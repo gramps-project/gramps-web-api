@@ -65,7 +65,7 @@ class CreateObjectsResource(ProtectedResource):
             trans_dict = transaction_to_json(trans)
         # update search index
         indexer: SearchIndexer = current_app.config["SEARCH_INDEXER"]
-        with indexer.index(overwrite=False).writer() as writer:
+        with indexer.get_writer(overwrite=False, use_async=True) as writer:
             for _trans_dict in trans_dict:
                 handle = _trans_dict["handle"]
                 class_name = _trans_dict["_class"]

@@ -238,7 +238,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         )
         # update search index
         indexer: SearchIndexer = current_app.config["SEARCH_INDEXER"]
-        with indexer.index(overwrite=False).writer() as writer:
+        with indexer.get_writer(overwrite=False, use_async=True) as writer:
             indexer.delete_object(writer, handle)
         return self.response(200, trans_dict, total_items=len(trans_dict))
 
@@ -265,7 +265,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             trans_dict = transaction_to_json(trans)
         # update search index
         indexer: SearchIndexer = current_app.config["SEARCH_INDEXER"]
-        with indexer.index(overwrite=False).writer() as writer:
+        with indexer.get_writer(overwrite=False, use_async=True) as writer:
             indexer.add_or_update_object(
                 writer, handle, db_handle, self.gramps_class_name
             )
