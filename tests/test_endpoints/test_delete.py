@@ -183,3 +183,34 @@ class TestObjectDeletion(unittest.TestCase):
         # check it is still there
         rv = self.client.get(f"/api/notes/{handle}", headers=headers_admin)
         self.assertEqual(rv.status_code, 200)
+
+    def test_search_delete_note(self):
+        """Test whether deleting a note updates the search index correctly."""
+        handle = make_handle()
+        text = make_handle()
+        headers = get_headers(self.client, "admin", "123")
+        obj = {
+            "_class": "Note",
+            "handle": handle,
+            "text": {"_class": "StyledText", "string": f"Original note: {text}."},
+        }
+        # create object
+        rv = self.client.post("/api/notes/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        # find it
+        rv = self.client.get(f"/api/search/?query=handle:{handle}", headers=headers)
+        self.assertEqual(len(rv.json), 1)
+        self.assertEqual(rv.json[0]["handle"], handle)
+        # or its text
+        rv = self.client.get(f"/api/search/?query={text}", headers=headers)
+        self.assertEqual(len(rv.json), 1)
+        self.assertEqual(rv.json[0]["handle"], handle)
+        # now delete
+        rv = self.client.delete(f"/api/notes/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        # don't find it anymore
+        rv = self.client.get(f"/api/search/?query=handle:{handle}", headers=headers)
+        self.assertEqual(len(rv.json), 0)
+        # or its text
+        rv = self.client.get(f"/api/search/?query={text}", headers=headers)
+        self.assertEqual(len(rv.json), 0)

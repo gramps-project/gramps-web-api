@@ -187,7 +187,7 @@ class TestObjectUpdate(unittest.TestCase):
 
     def test_search_update_note(self):
         """Test whether updating a note updates the search index correctly."""
-        handle = "9bc37216-5e45-42d8-b125-754a4f8329be"  # make_handle()
+        handle = make_handle()
         text = uuid.uuid4()
         text_new = uuid.uuid4()
         headers = get_headers(self.client, "admin", "123")
