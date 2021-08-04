@@ -34,6 +34,7 @@ from whoosh.qparser.dateparse import DateParserPlugin
 from whoosh.query import Term
 from whoosh.searching import Hit
 from whoosh.sorting import FieldFacet
+from whoosh.writing import AsyncWriter
 
 from ..const import PRIMARY_GRAMPS_OBJECTS
 from ..types import FilenameOrPath
@@ -223,6 +224,16 @@ class SearchIndexer:
         """Add an object to the index or update it if it exists."""
         obj_dict = obj_strings_from_handle(db_handle, class_name, handle)
         self._add_obj_strings(writer, obj_dict)
+
+    def get_writer(self, overwrite: bool = False, use_async: bool = False):
+        """Get a writer instance.
+
+        If `use_async` is true, use an `AsyncWriter`.
+        """
+        idx = self.index(overwrite=overwrite)
+        if use_async:
+            return AsyncWriter(idx, delay=0.1)
+        return idx.writer()
 
     def reindex_incremental(self, db_handle: DbReadBase):
         """Update the index incrementally."""

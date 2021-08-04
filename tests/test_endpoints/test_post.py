@@ -21,6 +21,7 @@
 
 import unittest
 import uuid
+from time import sleep
 from typing import Dict
 from unittest.mock import patch
 
@@ -383,3 +384,21 @@ class TestObjectCreation(unittest.TestCase):
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0]["handle"], handle_birth)
         self.assertEqual(data[0]["object_type"], "event")
+
+    def test_search_locked(self):
+        """Torture test for search with manually locked index."""
+        headers = get_headers(self.client, "admin", "123")
+        indexer = self.app.config["SEARCH_INDEXER"]
+        label = make_handle()
+        content = {"text": {"_class": "StyledText", "string": label}}
+        with indexer.index(overwrite=False).writer() as writer:
+            for _ in range(10):
+                # write 10 objects while index is locked
+                rv = self.client.post("/api/notes/", json=content, headers=headers,)
+                self.assertEqual(rv.status_code, 201)
+        sleep(2)  # give the async writer time to flush
+        rv = self.client.get(f"/api/search/?query={label}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        data = rv.json
+        # check all 10 exist in the index
+        self.assertEqual(len(data), 10)

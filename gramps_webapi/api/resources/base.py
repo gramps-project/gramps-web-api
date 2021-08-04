@@ -412,7 +412,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         # get the new handle from the transaction dict, in case it was not specified
         # explicitly
         handle = trans_dict[0]["handle"]
-        with indexer.index(overwrite=False).writer() as writer:
+        with indexer.get_writer(overwrite=False, use_async=True) as writer:
             indexer.add_or_update_object(
                 writer, handle, db_handle, self.gramps_class_name
             )
