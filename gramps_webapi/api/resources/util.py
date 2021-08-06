@@ -819,7 +819,7 @@ def update_object(
 def transaction_to_json(transaction: DbTxn) -> List[Dict[str, Any]]:
     """Return a JSON representation of a database transaction."""
     out = []
-    for recno in transaction.get_recnos(reverse=True):
+    for recno in transaction.get_recnos(reverse=False):
         key, action, handle, old_data, new_data = transaction.get_record(recno)
         try:
             obj_cls_name = KEY_TO_CLASS_MAP[key]

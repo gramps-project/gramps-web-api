@@ -137,3 +137,114 @@ class TestTransactionResource(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         rv = self.client.get(f"/api/notes/{handle}", headers=headers)
         self.assertEqual(rv.status_code, 404)
+
+    def test_modify_two(self):
+        """Modify two objects simultaneously."""
+        handle1 = make_handle()
+        handle2 = make_handle()
+        obj1 = {
+            "_class": "Note",
+            "handle": handle1,
+            "text": {"_class": "StyledText", "string": "Note 1."},
+            "gramps_id": "N21",
+        }
+        obj2 = {
+            "_class": "Note",
+            "handle": handle2,
+            "text": {"_class": "StyledText", "string": "Note 2."},
+            "gramps_id": "N22",
+        }
+        obj1_upd = {
+            "_class": "Note",
+            "handle": handle1,
+            "text": {"_class": "StyledText", "string": "Updated note 1."},
+            "gramps_id": "N21",
+        }
+        obj2_upd = {
+            "_class": "Note",
+            "handle": handle2,
+            "text": {"_class": "StyledText", "string": "Updated note 2."},
+            "gramps_id": "N22",
+        }
+        headers = get_headers(self.client, "editor", "123")
+        # add
+        trans = [
+            {
+                "type": "add",
+                "handle": handle1,
+                "_class": "Note",
+                "old": None,
+                "new": obj1,
+            },
+            {
+                "type": "add",
+                "handle": handle2,
+                "_class": "Note",
+                "old": None,
+                "new": obj2,
+            },
+        ]
+        rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        trans_dict = rv.json
+        self.assertEqual(len(trans_dict), 2)
+        self.assertEqual(trans_dict[0]["handle"], handle1)
+        self.assertEqual(trans_dict[1]["handle"], handle2)
+        rv = self.client.get(f"/api/notes/{handle1}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        obj_dict = rv.json
+        self.assertEqual(obj_dict["text"]["string"], "Note 1.")
+        rv = self.client.get(f"/api/notes/{handle2}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        obj_dict = rv.json
+        self.assertEqual(obj_dict["text"]["string"], "Note 2.")
+        # update
+        trans = [
+            {
+                "type": "add",
+                "handle": handle1,
+                "_class": "Note",
+                "old": obj1,
+                "new": obj1_upd,
+            },
+            {
+                "type": "add",
+                "handle": handle2,
+                "_class": "Note",
+                "old": obj2,
+                "new": obj2_upd,
+            },
+        ]
+        rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        rv = self.client.get(f"/api/notes/{handle1}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        obj_dict = rv.json
+        self.assertEqual(obj_dict["text"]["string"], "Updated note 1.")
+        rv = self.client.get(f"/api/notes/{handle2}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        obj_dict = rv.json
+        self.assertEqual(obj_dict["text"]["string"], "Updated note 2.")
+        # delete
+        trans = [
+            {
+                "type": "delete",
+                "handle": handle1,
+                "_class": "Note",
+                "old": obj1_upd,
+                "new": None,
+            },
+            {
+                "type": "delete",
+                "handle": handle2,
+                "_class": "Note",
+                "old": obj2_upd,
+                "new": None,
+            },
+        ]
+        rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        rv = self.client.get(f"/api/notes/{handle1}", headers=headers)
+        self.assertEqual(rv.status_code, 404)
+        rv = self.client.get(f"/api/notes/{handle2}", headers=headers)
+        self.assertEqual(rv.status_code, 404)
