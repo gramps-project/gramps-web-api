@@ -804,8 +804,6 @@ def update_object(
     obj_class = obj.__class__.__name__.lower()
     if not has_handle(db_handle, obj):
         raise ValueError("Cannot be used for new objects.")
-<<<<<<< HEAD
-=======
     if has_gramps_id(db_handle, obj):
         raise ValueError("Gramps ID already exists.")
     if not obj.gramps_id:
@@ -813,7 +811,6 @@ def update_object(
         handle_func = db_handle.method("get_%s_from_handle", obj_class)
         old_obj = handle_func(obj.handle)
         obj.set_gramps_id(old_obj.gramps_id)
->>>>>>> c6ad85a... [util] On update, set Gramps ID if missing
     try:
         commit_method = db_handle.method("commit_%s", obj_class)
         return commit_method(obj, trans)
