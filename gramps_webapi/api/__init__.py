@@ -39,6 +39,7 @@ from .resources.exporters import (
 )
 from .resources.facts import FactsResource
 from .resources.families import FamiliesResource, FamilyResource
+from .resources.file import MediaFileResource
 from .resources.filters import FilterResource, FiltersResource, FiltersResources
 from .resources.holidays import HolidayResource, HolidaysResource
 from .resources.living import LivingDatesResource, LivingResource
@@ -218,14 +219,9 @@ register_endpt(
 # Search
 register_endpt(SearchResource, "/search/", "search")
 
-# Media files
-@api_blueprint.route("/media/<string:handle>/file")
-@jwt_required_ifauth
-def download_file(handle):
-    """Download a file."""
-    base_dir = current_app.config.get("MEDIA_BASE_DIR")
-    handler = LocalFileHandler(handle, base_dir)
-    return handler.send_file()
+register_endpt(
+    MediaFileResource, "/media/<string:handle>/file", "media_file",
+)
 
 
 # Thumbnails

@@ -20,18 +20,30 @@
 
 """Media API resource."""
 
+import uuid
+from http import HTTPStatus
 from typing import Dict
 
+from flask import Response, abort, current_app, request
 from gramps.gen.const import GRAMPS_LOCALE as glocale
+from gramps.gen.db import DbTxn
 from gramps.gen.lib import Media
 from gramps.gen.utils.grampslocale import GrampsLocale
 
+from ...auth.const import PERM_ADD_OBJ
+from ..auth import require_permissions
+from ..file import upload_file, process_file
 from .base import (
     GrampsObjectProtectedResource,
     GrampsObjectResourceHelper,
     GrampsObjectsProtectedResource,
 )
-from .util import get_extended_attributes, get_media_profile_for_object
+from .util import (
+    add_object,
+    get_extended_attributes,
+    get_media_profile_for_object,
+    transaction_to_json,
+)
 
 
 class MediaObjectResourceHelper(GrampsObjectResourceHelper):
@@ -58,3 +70,25 @@ class MediaObjectResource(GrampsObjectProtectedResource, MediaObjectResourceHelp
 
 class MediaObjectsResource(GrampsObjectsProtectedResource, MediaObjectResourceHelper):
     """Media objects resource."""
+
+    def post(self) -> Response:
+        """Post a new object."""
+        require_permissions([PERM_ADD_OBJ])
+        mime = request.content_type
+        if not mime:
+            abort(HTTPStatus.NOT_ACCEPTABLE)
+        checksum, f = process_file(request.stream)
+        base_dir = current_app.config.get("MEDIA_BASE_DIR")
+        path = upload_file(base_dir, f, checksum, mime)
+        db_handle = self.db_handle_writable
+        obj = Media()
+        obj.set_checksum(checksum)
+        obj.set_path(path)
+        obj.set_mime_type(mime)
+        with DbTxn("Add object", db_handle) as trans:
+            try:
+                add_object(db_handle, obj, trans)
+            except ValueError:
+                abort(400)
+            trans_dict = transaction_to_json(trans)
+        return self.response(201, trans_dict, total_items=len(trans_dict))
