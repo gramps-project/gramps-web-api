@@ -80,6 +80,7 @@ from .resources.user import (
     UserTriggerResetPasswordResource,
 )
 from .resources.objects import CreateObjectsResource
+from .resources.transactions import TransactionsResource
 from .util import make_cache_key_thumbnails, use_args
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
@@ -93,6 +94,8 @@ def register_endpt(resource: Type[Resource], url: str, name: str):
 
 # Objects
 register_endpt(CreateObjectsResource, "/objects/", "objects")
+# Transactions
+register_endpt(TransactionsResource, "/transactions/", "transactions")
 # Token
 register_endpt(TokenResource, "/token/", "token")
 register_endpt(TokenRefreshResource, "/token/refresh/", "token_refresh")

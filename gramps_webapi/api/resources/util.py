@@ -779,7 +779,7 @@ def validate_object_dict(obj_dict: Dict[str, Any]) -> bool:
     """Validate a dict representation of a Gramps object vs. its schema."""
     try:
         obj_cls = getattr(gramps.gen.lib, obj_dict["_class"])
-    except (KeyError, AttributeError):
+    except (KeyError, AttributeError, TypeError):
         return False
     schema = obj_cls.get_schema()
     try:
