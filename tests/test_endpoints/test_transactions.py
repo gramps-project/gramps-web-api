@@ -248,3 +248,33 @@ class TestTransactionResource(unittest.TestCase):
         self.assertEqual(rv.status_code, 404)
         rv = self.client.get(f"/api/notes/{handle2}", headers=headers)
         self.assertEqual(rv.status_code, 404)
+
+    def test_missing_handle(self):
+        """Add with missing handle."""
+        handle = make_handle()
+        obj = {
+            "_class": "Note",
+            "text": {"_class": "StyledText", "string": "My first note."},
+            "gramps_id": "N31",
+        }
+        trans = [{"type": "add", "_class": "Note", "old": None, "new": obj}]
+        headers = get_headers(self.client, "editor", "123")
+        # add
+        rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        self.assertEqual(rv.status_code, 400)
+
+    def test_missing_gramps_id(self):
+        """Add with missing gramps ID."""
+        handle = make_handle()
+        obj = {
+            "_class": "Note",
+            "text": {"_class": "StyledText", "string": "My first note."},
+            "handle": handle,
+        }
+        trans = [
+            {"type": "add", "_class": "Note", "handle": handle, "old": None, "new": obj}
+        ]
+        headers = get_headers(self.client, "editor", "123")
+        # add
+        rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        self.assertEqual(rv.status_code, 400)
