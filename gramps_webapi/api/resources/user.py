@@ -32,6 +32,7 @@ from ...auth.const import (
     PERM_EDIT_OTHER_USER,
     PERM_EDIT_OWN_USER,
     PERM_VIEW_OTHER_USER,
+    ROLE_UNCONFIRMED,
 )
 from ..auth import require_permissions
 from ..util import send_email, use_args
@@ -110,7 +111,7 @@ class UserResource(UserChangeBase):
     def post(self, args, user_name: str):
         """Add a new user."""
         if user_name == "-":
-            # Adding a new user does not make sense "own" user
+            # Adding a new user does not make sense for "own" user
             abort(404)
         auth_provider = current_app.config.get("AUTH_PROVIDER")
         if auth_provider is None:
@@ -123,6 +124,39 @@ class UserResource(UserChangeBase):
                 email=args["email"],
                 fullname=args["full_name"],
                 role=args["role"],
+            )
+        except ValueError:
+            abort(409)
+        return "", 201
+
+
+class UserRegisterResource(Resource):
+    """Resource for registering a new user."""
+
+    @limiter.limit("1/second")
+    @use_args(
+        {
+            "email": fields.Str(required=True),
+            "full_name": fields.Str(required=True),
+            "password": fields.Str(required=True),
+        },
+        location="json",
+    )
+    def post(self, args, user_name: str):
+        """Register a new user."""
+        if user_name == "-":
+            # Registering a new user does not make sense for "own" user
+            abort(404)
+        auth_provider = current_app.config.get("AUTH_PROVIDER")
+        if auth_provider is None:
+            abort(405)
+        try:
+            auth_provider.add_user(
+                name=user_name,
+                password=args["password"],
+                email=args["email"],
+                fullname=args["full_name"],
+                role=ROLE_UNCONFIRMED,
             )
         except ValueError:
             abort(409)

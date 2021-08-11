@@ -25,6 +25,9 @@ ROLE_EDITOR = 3
 ROLE_CONTRIBUTOR = 2
 ROLE_MEMBER = 1
 ROLE_GUEST = 0
+# Roles for unauthorized users
+ROLE_DISABLED = -1
+ROLE_UNCONFIRMED = -2
 
 # User permissions
 PERM_ADD_USER = "AddUser"

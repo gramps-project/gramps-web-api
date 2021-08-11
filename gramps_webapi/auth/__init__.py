@@ -134,6 +134,9 @@ class SQLAuth:
             user = session.query(User).filter_by(name=username).scalar()
             if user is None:
                 return False
+            if user.role < 0:
+                # users with negative roles cannot login!
+                return False
             return verify_password(password=password, salt_hash=user.pwhash)
 
     def get_pwhash(self, username: str) -> str:

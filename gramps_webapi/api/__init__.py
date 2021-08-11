@@ -74,6 +74,7 @@ from .resources.types import (
 )
 from .resources.user import (
     UserChangePasswordResource,
+    UserRegisterResource,
     UserResetPasswordResource,
     UserResource,
     UsersResource,
@@ -202,6 +203,9 @@ register_endpt(
 )
 register_endpt(
     UserResource, "/users/<string:user_name>/", "user",
+)
+register_endpt(
+    UserRegisterResource, "/users/<string:user_name>/register/", "register",
 )
 register_endpt(
     UserChangePasswordResource,

@@ -27,7 +27,7 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
-from gramps_webapi.auth.const import ROLE_MEMBER, ROLE_OWNER
+from gramps_webapi.auth.const import ROLE_MEMBER, ROLE_OWNER, ROLE_UNCONFIRMED
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
 from . import BASE_URL
@@ -437,3 +437,67 @@ class TestUser(unittest.TestCase):
             BASE_URL + "/token/", json={"username": "new_user", "password": "abc"}
         )
         assert rv.status_code == 200
+
+    def test_register_user(self):
+        # role is not allowed
+        rv = self.client.post(
+            BASE_URL + "/users/new_user_2/register/",
+            json={
+                "email": "new_2@example.com",
+                "role": ROLE_OWNER,
+                "full_name": "My Name",
+                "password": "abc",
+            },
+        )
+        assert rv.status_code == 422
+        # missing password
+        rv = self.client.post(
+            BASE_URL + "/users/new_user_2/register/",
+            json={"email": "new_2@example.com", "full_name": "My Name",},
+        )
+        assert rv.status_code == 422
+        # existing user
+        rv = self.client.post(
+            BASE_URL + "/users/user/register/",
+            json={
+                "email": "new_2@example.com",
+                "full_name": "New Name",
+                "password": "abc",
+            },
+        )
+        assert rv.status_code == 409
+        # OK
+        rv = self.client.post(
+            BASE_URL + "/users/new_user_2/register/",
+            json={
+                "email": "new_2@example.com",
+                "full_name": "New Name",
+                "password": "abc",
+            },
+        )
+        assert rv.status_code == 201
+        # get owner token
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_owner = rv.json["access_token"]
+        rv = self.client.get(
+            BASE_URL + "/users/new_user_2/",
+            headers={"Authorization": "Bearer {}".format(token_owner)},
+        )
+        assert rv.status_code == 200
+        self.assertEqual(
+            rv.json,
+            {
+                "email": "new_2@example.com",
+                "role": ROLE_UNCONFIRMED,
+                "full_name": "New Name",
+                "name": "new_user_2",
+            },
+        )
+        # new user cannot get token
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "new_user_2", "password": "abc"}
+        )
+        assert rv.status_code == 403
