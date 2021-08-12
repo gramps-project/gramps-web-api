@@ -33,6 +33,7 @@ from ...auth.const import (
     PERM_EDIT_OWN_USER,
     PERM_VIEW_OTHER_USER,
     ROLE_UNCONFIRMED,
+    ROLE_DISABLED,
 )
 from ..auth import require_permissions
 from ..util import send_email, use_args
@@ -160,7 +161,31 @@ class UserRegisterResource(Resource):
             )
         except ValueError:
             abort(409)
+        token = create_access_token(
+            identity=user_name,
+            additional_claims={"email": args["email"]},
+            # email has to be confirmed within 1h
+            expires_delta=datetime.timedelta(hours=1),
+        )
+        handle_reg_conf_email(username=user_name, email=args["email"], token=token)
         return "", 201
+
+
+def handle_reg_conf_email(username: str, email: str, token: str):
+    """Handle the e-mail address confirmation token."""
+    base_url = current_app.config["BASE_URL"].rstrip("/")
+    send_email(
+        subject="Confirm your e-mail address",
+        body="""You are receiving this e-mail because you (or someone else) have registered a new account at {base_url}.
+
+Please click on the following link, or paste this into your browser to confirm your e-mail address:
+
+{base_url}/api/users/-/email/confirm/?jwt={token}
+""".format(
+            base_url=base_url, token=token
+        ),
+        to=[email],
+    )
 
 
 class UserChangePasswordResource(UserChangeBase):
@@ -271,3 +296,24 @@ class UserResetPasswordResource(ProtectedResource):
             # the one-time token has been used before!
             return render_template("reset_password_error.html", username=username)
         return render_template("reset_password.html", username=username)
+
+
+class UserConfirmEmailResource(ProtectedResource):
+    """Resource for confirming an email address."""
+
+    def get(self):
+        """Show email confirmation dialog."""
+        auth_provider = current_app.config.get("AUTH_PROVIDER")
+        if auth_provider is None:
+            abort(405)
+        username = get_jwt_identity()
+        claims = get_jwt()
+        current_details = auth_provider.get_user_details(username)
+        # the email is stored in the JWT
+        if claims["email"] != current_details.get("email"):
+            # This is a wrong token!
+            abort(403)
+        if current_details["role"] == ROLE_UNCONFIRMED:
+            # otherwise it has been confirmed already
+            auth_provider.modify_user(name=username, role=ROLE_DISABLED)
+        return render_template("email_confirmed.html", username=username)
