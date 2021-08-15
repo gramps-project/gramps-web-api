@@ -28,16 +28,19 @@ from flask_limiter.util import get_remote_address
 from webargs import fields
 
 from ...auth.const import (
+    CLAIM_LIMITED_SCOPE,
     PERM_ADD_USER,
     PERM_EDIT_OTHER_USER,
     PERM_EDIT_OWN_USER,
     PERM_VIEW_OTHER_USER,
-    ROLE_UNCONFIRMED,
     ROLE_DISABLED,
+    ROLE_UNCONFIRMED,
+    SCOPE_CONF_EMAIL,
+    SCOPE_RESET_PW,
 )
 from ..auth import require_permissions
 from ..util import send_email, use_args
-from . import ProtectedResource, Resource
+from . import LimitedScopeProtectedResource, ProtectedResource, Resource
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -163,7 +166,10 @@ class UserRegisterResource(Resource):
             abort(409)
         token = create_access_token(
             identity=user_name,
-            additional_claims={"email": args["email"]},
+            additional_claims={
+                "email": args["email"],
+                CLAIM_LIMITED_SCOPE: SCOPE_CONF_EMAIL,
+            },
             # email has to be confirmed within 1h
             expires_delta=datetime.timedelta(hours=1),
         )
@@ -249,7 +255,10 @@ class UserTriggerResetPasswordResource(Resource):
             identity=user_name,
             # the hash of the existing password is stored in the token in order
             # to make sure the rest token can only be used once
-            additional_claims={"old_hash": auth_provider.get_pwhash(user_name)},
+            additional_claims={
+                "old_hash": auth_provider.get_pwhash(user_name),
+                CLAIM_LIMITED_SCOPE: SCOPE_RESET_PW,
+            },
             # password reset has to be triggered within 1h
             expires_delta=datetime.timedelta(hours=1),
         )
@@ -260,7 +269,7 @@ class UserTriggerResetPasswordResource(Resource):
         return "", 201
 
 
-class UserResetPasswordResource(ProtectedResource):
+class UserResetPasswordResource(LimitedScopeProtectedResource):
     """Resource for resetting a user password."""
 
     @use_args(
@@ -274,6 +283,9 @@ class UserResetPasswordResource(ProtectedResource):
         if args["new_password"] == "":
             abort(400)
         claims = get_jwt()
+        if claims[CLAIM_LIMITED_SCOPE] != SCOPE_RESET_PW:
+            # This is a wrong token!
+            abort(403)
         username = get_jwt_identity()
         # the old PW hash is stored in the reset JWT to check if the token has
         # been used already
@@ -290,6 +302,9 @@ class UserResetPasswordResource(ProtectedResource):
             abort(405)
         username = get_jwt_identity()
         claims = get_jwt()
+        if claims[CLAIM_LIMITED_SCOPE] != SCOPE_RESET_PW:
+            # This is a wrong token!
+            abort(403)
         # the old PW hash is stored in the reset JWT to check if the token has
         # been used already
         if claims["old_hash"] != auth_provider.get_pwhash(username):
@@ -298,7 +313,7 @@ class UserResetPasswordResource(ProtectedResource):
         return render_template("reset_password.html", username=username)
 
 
-class UserConfirmEmailResource(ProtectedResource):
+class UserConfirmEmailResource(LimitedScopeProtectedResource):
     """Resource for confirming an email address."""
 
     def get(self):
@@ -308,6 +323,9 @@ class UserConfirmEmailResource(ProtectedResource):
             abort(405)
         username = get_jwt_identity()
         claims = get_jwt()
+        if claims[CLAIM_LIMITED_SCOPE] != SCOPE_CONF_EMAIL:
+            # This is a wrong token!
+            abort(403)
         current_details = auth_provider.get_user_details(username)
         # the email is stored in the JWT
         if claims["email"] != current_details.get("email"):

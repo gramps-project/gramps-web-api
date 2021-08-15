@@ -561,3 +561,10 @@ class TestUser(unittest.TestCase):
                     "name": "new_user_3",
                 },
             )
+            # try getting list of people with email confirmation token
+            # this should not be allowed!
+            rv = self.client.get(
+                BASE_URL + "/people/",
+                headers={"Authorization": "Bearer {}".format(token)},
+            )
+            self.assertEqual(rv.status_code, 401)

@@ -63,3 +63,8 @@ PERMISSIONS = {
     ROLE_MEMBER: {PERM_EDIT_OWN_USER, PERM_VIEW_PRIVATE,},
     ROLE_GUEST: {PERM_EDIT_OWN_USER,},
 }
+
+# keys/values for user claims
+CLAIM_LIMITED_SCOPE = "limited_scope"
+SCOPE_RESET_PW = "reset_password"
+SCOPE_CONF_EMAIL = "confirm_email"

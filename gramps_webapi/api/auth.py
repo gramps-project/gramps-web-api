@@ -24,15 +24,42 @@ from typing import Iterable
 
 from flask import abort, current_app
 from flask_jwt_extended import get_jwt, verify_jwt_in_request
+from flask_jwt_extended.exceptions import NoAuthorizationError
+
+from ..auth.const import CLAIM_LIMITED_SCOPE
 
 
 def jwt_required_ifauth(func):
-    """Check JWT unless authentication is disabled."""
+    """Check JWT unless authentication is disabled.
+
+    Raise if claims include limited_scope key.
+    """
 
     @wraps(func)
     def wrapper(*args, **kwargs):
         if not current_app.config.get("DISABLE_AUTH"):
             verify_jwt_in_request()
+            claims = get_jwt()
+            if claims.get(CLAIM_LIMITED_SCOPE):
+                raise NoAuthorizationError
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+def jwt_limited_scope_required_ifauth(func):
+    """Check JWT unless authentication is disabled.
+
+    Raise if claims do not include limited_scope key.
+    """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if not current_app.config.get("DISABLE_AUTH"):
+            verify_jwt_in_request()
+            claims = get_jwt()
+            if not claims.get(CLAIM_LIMITED_SCOPE):
+                raise NoAuthorizationError
         return func(*args, **kwargs)
 
     return wrapper
