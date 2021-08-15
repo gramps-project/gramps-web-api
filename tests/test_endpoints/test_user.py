@@ -539,6 +539,8 @@ class TestUser(unittest.TestCase):
                 headers={"Authorization": "Bearer {}".format(token)},
             )
             self.assertEqual(rv.status_code, 200)
+            # check return template
+            self.assertIn(b"Thank you for confirming your e-mail address", rv.data)
             # get owner token
             rv = self.client.post(
                 BASE_URL + "/token/", json={"username": "owner", "password": "123"},

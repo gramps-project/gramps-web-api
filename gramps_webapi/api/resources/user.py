@@ -20,6 +20,7 @@
 """User administration resources."""
 
 import datetime
+from gettext import gettext as _
 
 from flask import abort, current_app, jsonify, render_template
 from flask_jwt_extended import create_access_token, get_jwt, get_jwt_identity
@@ -308,4 +309,6 @@ class UserConfirmEmailResource(LimitedScopeProtectedResource):
                 fullname=current_details.get("full_name", ""),
                 email=claims["email"],
             )
-        return render_template("email_confirmed.html", username=username)
+        title = _("E-mail address confirmation")
+        message = _("Thank you for confirming your e-mail address.")
+        return render_template("confirmation.html", title=title, message=message)
