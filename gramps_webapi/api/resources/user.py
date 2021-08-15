@@ -39,7 +39,11 @@ from ...auth.const import (
     SCOPE_RESET_PW,
 )
 from ..auth import require_permissions
-from ..tasks import send_email_confirm_email, send_email_reset_password
+from ..tasks import (
+    send_email_confirm_email,
+    send_email_new_user,
+    send_email_reset_password,
+)
 from ..util import use_args
 from . import LimitedScopeProtectedResource, ProtectedResource, Resource
 
@@ -299,4 +303,9 @@ class UserConfirmEmailResource(LimitedScopeProtectedResource):
         if current_details["role"] == ROLE_UNCONFIRMED:
             # otherwise it has been confirmed already
             auth_provider.modify_user(name=username, role=ROLE_DISABLED)
+            send_email_new_user(
+                username=username,
+                fullname=current_details.get("full_name", ""),
+                email=claims["email"],
+            )
         return render_template("email_confirmed.html", username=username)

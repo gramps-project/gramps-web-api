@@ -29,7 +29,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-from .const import PERMISSIONS
+from .const import PERMISSIONS, ROLE_OWNER
 from .passwords import hash_password, verify_password
 from .sql_guid import GUID
 
@@ -173,6 +173,12 @@ class SQLAuth:
         with self.session_scope() as session:
             user = session.query(User).filter_by(name=username).one()
             return PERMISSIONS[user.role]
+
+    def get_owner_emails(self) -> List[str]:
+        """Get e-mail addresses of all owners."""
+        with self.session_scope() as session:
+            owners = session.query(User).filter_by(role=ROLE_OWNER).all()
+            return [user.email for user in owners if user.email]
 
 
 class User(Base):

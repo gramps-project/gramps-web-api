@@ -50,3 +50,18 @@ def email_confirm_email(base_url: str, token: str):
 {base_url}/api/users/-/email/confirm/?jwt={token}
 """
 
+
+def email_new_user(base_url: str, username: str, fullname: str, email: str):
+    """E-mail notifying owners of a new registered user."""
+    intro = _("A new user registered at %s:") % base_url
+    label_username = _("User name")
+    label_fullname = _("Full name")
+    label_email = _("E-mail")
+    user_details = f"""{label_username}: {username}
+{label_fullname}: {fullname}
+{label_email}: {email}
+"""
+    return f"""{intro}
+
+{user_details}
+"""
