@@ -39,7 +39,8 @@ from ...auth.const import (
     SCOPE_RESET_PW,
 )
 from ..auth import require_permissions
-from ..util import send_email, use_args
+from ..tasks import send_email_confirm_email, send_email_reset_password
+from ..util import use_args
 from . import LimitedScopeProtectedResource, ProtectedResource, Resource
 
 limiter = Limiter(key_func=get_remote_address)
@@ -180,18 +181,7 @@ class UserRegisterResource(Resource):
 def handle_reg_conf_email(username: str, email: str, token: str):
     """Handle the e-mail address confirmation token."""
     base_url = current_app.config["BASE_URL"].rstrip("/")
-    send_email(
-        subject="Confirm your e-mail address",
-        body="""You are receiving this e-mail because you (or someone else) have registered a new account at {base_url}.
-
-Please click on the following link, or paste this into your browser to confirm your e-mail address:
-
-{base_url}/api/users/-/email/confirm/?jwt={token}
-""".format(
-            base_url=base_url, token=token
-        ),
-        to=[email],
-    )
+    send_email_confirm_email(base_url=base_url, email=email, token=token)
 
 
 class UserChangePasswordResource(UserChangeBase):
@@ -218,20 +208,7 @@ class UserChangePasswordResource(UserChangeBase):
 def handle_reset_token(username: str, email: str, token: str):
     """Handle the password reset token."""
     base_url = current_app.config["BASE_URL"].rstrip("/")
-    send_email(
-        subject="Reset your Gramps password",
-        body="""You are receiving this e-mail because you (or someone else) have requested the reset of the password for your account.
-
-Please click on the following link, or paste this into your browser to complete the process:
-
-{}/api/users/-/password/reset/?jwt={}
-
-If you did not request this, please ignore this e-mail and your password will remain unchanged.
-""".format(
-            base_url, token
-        ),
-        to=[email],
-    )
+    send_email_reset_password(base_url=base_url, email=email, token=token)
 
 
 class UserTriggerResetPasswordResource(Resource):
