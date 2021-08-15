@@ -174,14 +174,8 @@ class UserRegisterResource(Resource):
             # email has to be confirmed within 1h
             expires_delta=datetime.timedelta(hours=1),
         )
-        handle_reg_conf_email(username=user_name, email=args["email"], token=token)
+        send_email_confirm_email(email=args["email"], token=token)
         return "", 201
-
-
-def handle_reg_conf_email(username: str, email: str, token: str):
-    """Handle the e-mail address confirmation token."""
-    base_url = current_app.config["BASE_URL"].rstrip("/")
-    send_email_confirm_email(base_url=base_url, email=email, token=token)
 
 
 class UserChangePasswordResource(UserChangeBase):
@@ -203,12 +197,6 @@ class UserChangePasswordResource(UserChangeBase):
             abort(403)
         auth_provider.modify_user(name=user_name, password=args["new_password"])
         return "", 201
-
-
-def handle_reset_token(username: str, email: str, token: str):
-    """Handle the password reset token."""
-    base_url = current_app.config["BASE_URL"].rstrip("/")
-    send_email_reset_password(base_url=base_url, email=email, token=token)
 
 
 class UserTriggerResetPasswordResource(Resource):
@@ -240,7 +228,7 @@ class UserTriggerResetPasswordResource(Resource):
             expires_delta=datetime.timedelta(hours=1),
         )
         try:
-            handle_reset_token(username=user_name, email=email, token=token)
+            send_email_reset_password(email=email, token=token)
         except ValueError:
             abort(500)
         return "", 201
