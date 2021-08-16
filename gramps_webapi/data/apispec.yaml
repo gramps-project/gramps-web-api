@@ -239,7 +239,7 @@ paths:
               description: An integer user role ID
               type: number
       responses:
-        200:
+        201:
           description: "OK: Successful operation."
         401:
           description: "Unauthorized: Missing authorization header."
@@ -248,6 +248,41 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid token."
 
+  /users/{user_name}/register/:
+    post:
+      tags:
+      - users
+      summary: "Register a new user."
+      operationId: registerUser
+      parameters:
+      - name: user_name
+        in: path
+        required: true
+        type: string
+        description: "The user name or '-' for the authenticated user."
+      - name: user_details
+        in: body
+        schema:
+          type: object
+          properties:
+            email:
+              description: "The new user's e-mail address."
+              type: string
+            full_name:
+              description: "The new user's full name."
+              type: string
+            password:
+              description: "The new user's password."
+              type: string
+      responses:
+        201:
+          description: "OK: Successful operation."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        409:
+          description: "Conflict: user already exists."
+        422:
+          description: "Unprocessable Entity: Invalid token."
 
   /users/{user_name}/password/change:
     post:
@@ -267,7 +302,7 @@ paths:
         in: header
         required: true
         type: string
-        description: "The JWT refresh token."
+        description: "The JWT access token."
       - name: passwords
         in: body
         required: true
@@ -293,15 +328,7 @@ paths:
         in: path
         required: true
         type: string
-        description: "The user name or '-' for the authenticated user."
-      - name: username
-        in: body
-        schema:
-          type: object
-          properties:
-            username:
-              description: "The username of the user whose password should be reset."
-              type: string
+        description: "The username of the user whose password should be reset."
       responses:
         201:
           description: "OK: e-mail successfully sent."
@@ -365,6 +392,29 @@ paths:
           description: "OK: Form or error message displayed."
         401:
           description: "Unauthorized: Missing authorization header."
+        405:
+          description: "Method Not Allowed: No authorization provider configured."
+
+
+  /users/-/email/confirm/:
+    get:
+      tags:
+      - users
+      summary: "Confirm the e-mail address after user registration."
+      operationId: confirmEmail
+      security:
+        - Bearer: []
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        type: string
+        description: "The one-time confirmation token."
+      responses:
+        200:
+          description: "OK: e-mail successfully confirmed."
+        403:
+          description: "Forbidden: missing authorization."
         405:
           description: "Method Not Allowed: No authorization provider configured."
 
