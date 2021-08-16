@@ -48,11 +48,11 @@ def check_invalid_semantics(test, url, check="none", role=ROLE_OWNER):
     """Test that invalid parameters and values are handled properly."""
     check_list = {
         "none": [""],
-        "base": ["=,"],
+        "base": [],
         "boolean": ["=", "=-1", "=2", "=LoremIpsumDolorSitAmet"],
         "number": ["=", "=-1", "=0", "=LoremIpsumDolorSitAmet"],
         "integer": ["=", "=LoremIpsumDolorSitAmet"],
-        "list": ["=", "=LoremIpsumDolorSitAmet"],
+        "list": ["=LoremIpsumDolorSitAmet"],
     }
     header = fetch_header(test.client, role=role)
     for item in check_list[check]:
