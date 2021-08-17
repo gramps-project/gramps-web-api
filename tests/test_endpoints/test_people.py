@@ -1031,7 +1031,7 @@ class TestPeopleHandle(unittest.TestCase):
     def test_get_people_handle_parameter_backlinks_validate_semantics(self):
         """Test invalid backlinks parameter and values."""
         check_invalid_semantics(
-            self, TEST_URL + "0PWJQCZYFXOS0HGREE?profile", check="boolean"
+            self, TEST_URL + "0PWJQCZYFXOS0HGREE?profile", check="list"
         )
 
     def test_get_people_handle_parameter_backlinks_expected_result(self):
