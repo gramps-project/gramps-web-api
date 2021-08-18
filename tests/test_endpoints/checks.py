@@ -48,11 +48,11 @@ def check_invalid_semantics(test, url, check="none", role=ROLE_OWNER):
     """Test that invalid parameters and values are handled properly."""
     check_list = {
         "none": [""],
-        "base": ["="],
+        "base": [],
         "boolean": ["=", "=-1", "=2", "=LoremIpsumDolorSitAmet"],
         "number": ["=", "=-1", "=0", "=LoremIpsumDolorSitAmet"],
         "integer": ["=", "=LoremIpsumDolorSitAmet"],
-        "list": ["=", "=LoremIpsumDolorSitAmet"],
+        "list": ["=LoremIpsumDolorSitAmet"],
     }
     header = fetch_header(test.client, role=role)
     for item in check_list[check]:
@@ -196,13 +196,7 @@ def check_paging_parameters(test, url, size, join="?", role=ROLE_OWNER):
 
 
 def check_sort_parameter(
-    test,
-    url,
-    sort_key,
-    value_key=None,
-    direction="+",
-    join="?",
-    role=ROLE_OWNER,
+    test, url, sort_key, value_key=None, direction="+", join="?", role=ROLE_OWNER,
 ):
     """Test that sort parameter produces expected result."""
     header = fetch_header(test.client, role=role)
@@ -229,13 +223,7 @@ def check_sort_parameter(
 
 
 def check_single_extend_parameter(
-    test,
-    url,
-    key,
-    extended_key,
-    join="?",
-    reference=False,
-    role=ROLE_OWNER,
+    test, url, key, extended_key, join="?", reference=False, role=ROLE_OWNER,
 ):
     """Test that extend parameter produces expected result for a single key."""
 
