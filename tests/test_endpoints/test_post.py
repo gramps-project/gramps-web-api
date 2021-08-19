@@ -21,6 +21,7 @@
 
 import unittest
 import uuid
+from time import sleep
 from typing import Dict
 from unittest.mock import patch
 
@@ -291,3 +292,94 @@ class TestObjectCreation(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         obj_dict = rv.json
         self.assertEqual(obj_dict["name"], obj["name"])
+
+    def test_search_add_note(self):
+        """Test whether adding a note updates the search index correctly."""
+        handle = make_handle()
+        headers = get_headers(self.client, "admin", "123")
+        # not added yet: shouldn't find anything
+        rv = self.client.get("/api/search/?query=handle:{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.json, [])
+        obj = {
+            "_class": "Note",
+            "handle": handle,
+            "text": {"_class": "StyledText", "string": "My searchable note."},
+        }
+        rv = self.client.post("/api/notes/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        # now it should be there
+        rv = self.client.get(f"/api/search/?query=handle:{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        data = rv.json
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["handle"], handle)
+        self.assertEqual(data[0]["object_type"], "note")
+
+    def test_search_add_person(self):
+        """Test whether adding a person with event updates the search index."""
+        handle_person = make_handle()
+        handle_birth = make_handle()
+        person = {
+            "_class": "Person",
+            "handle": handle_person,
+            "primary_name": {
+                "_class": "Name",
+                "surname_list": [{"_class": "Surname", "surname": "Doe",}],
+                "first_name": "John",
+            },
+            "event_ref_list": [
+                {
+                    "_class": "EventRef",
+                    "ref": handle_birth,
+                    "role": {"_class": "EventRoleType", "string": "Primary"},
+                },
+            ],
+            "birth_ref_index": 0,
+            "gender": 1,
+        }
+        birth = {
+            "_class": "Event",
+            "handle": handle_birth,
+            "date": {"_class": "Date", "dateval": [2, 10, 1764, False],},
+            "type": {"_class": "EventType", "string": "Birth"},
+        }
+        objects = [person, birth]
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/objects/", json=objects, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        # now they should be there
+        rv = self.client.get(
+            f"/api/search/?query=handle:{handle_person}", headers=headers
+        )
+        self.assertEqual(rv.status_code, 200)
+        data = rv.json
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["handle"], handle_person)
+        self.assertEqual(data[0]["object_type"], "person")
+        rv = self.client.get(
+            f"/api/search/?query=handle:{handle_birth}", headers=headers
+        )
+        self.assertEqual(rv.status_code, 200)
+        data = rv.json
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["handle"], handle_birth)
+        self.assertEqual(data[0]["object_type"], "event")
+
+    def test_search_locked(self):
+        """Torture test for search with manually locked index."""
+        headers = get_headers(self.client, "admin", "123")
+        indexer = self.app.config["SEARCH_INDEXER"]
+        label = make_handle()
+        content = {"text": {"_class": "StyledText", "string": label}}
+        with indexer.index(overwrite=False).writer() as writer:
+            for _ in range(10):
+                # write 10 objects while index is locked
+                rv = self.client.post("/api/notes/", json=content, headers=headers,)
+                self.assertEqual(rv.status_code, 201)
+        sleep(2)  # give the async writer time to flush
+        rv = self.client.get(f"/api/search/?query={label}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        data = rv.json
+        # check all 10 exist in the index
+        self.assertEqual(len(data), 10)

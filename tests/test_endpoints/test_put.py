@@ -184,3 +184,37 @@ class TestObjectUpdate(unittest.TestCase):
         self.assertEqual(out[0]["old"]["text"]["string"], "Original note.")
         self.assertEqual(out[0]["new"]["text"]["string"], "Updated note.")
         self.assertEqual(out[0]["type"], "update")
+
+    def test_search_update_note(self):
+        """Test whether updating a note updates the search index correctly."""
+        handle = make_handle()
+        text = uuid.uuid4()
+        text_new = uuid.uuid4()
+        headers = get_headers(self.client, "admin", "123")
+        obj = {
+            "_class": "Note",
+            "handle": handle,
+            "text": {"_class": "StyledText", "string": f"Original note: {text}."},
+        }
+        obj_new = deepcopy(obj)
+        obj_new["text"]["string"] = f"Updated note: {text_new}."
+        # create object
+        rv = self.client.post("/api/notes/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        # should find old text
+        rv = self.client.get(f"/api/search/?query={text}", headers=headers)
+        self.assertEqual(len(rv.json), 1)
+        self.assertEqual(rv.json[0]["handle"], handle)
+        # ... but not new
+        rv = self.client.get(f"/api/search/?query={text_new}", headers=headers)
+        self.assertEqual(len(rv.json), 0)
+        # now update!
+        rv = self.client.put(f"/api/notes/{handle}", json=obj_new, headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        # should find new text
+        rv = self.client.get(f"/api/search/?query={text_new}", headers=headers)
+        self.assertEqual(len(rv.json), 1)
+        self.assertEqual(rv.json[0]["handle"], handle)
+        # ... but not old
+        rv = self.client.get(f"/api/search/?query={text}", headers=headers)
+        self.assertEqual(len(rv.json), 0)

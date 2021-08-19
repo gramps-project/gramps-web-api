@@ -20,30 +20,16 @@
 """Object creation API resource."""
 
 import json
-from typing import Any, Dict, Sequence
+from typing import Sequence
 
-import gramps
-import jsonschema
-from flask import Response, abort, request
+from flask import Response, abort, current_app, request
 from gramps.gen.db import DbTxn
-from gramps.gen.db.base import DbWriteBase
-from gramps.gen.lib import (
-    Citation,
-    Event,
-    Family,
-    Media,
-    Note,
-    Person,
-    Place,
-    Repository,
-    Source,
-    Tag,
-)
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.lib.serialize import from_json
 
 from ...auth.const import PERM_ADD_OBJ
 from ..auth import require_permissions
+from ..search import SearchIndexer
 from ..util import get_db_handle
 from . import ProtectedResource
 from .util import add_object, transaction_to_json, validate_object_dict
@@ -77,6 +63,13 @@ class CreateObjectsResource(ProtectedResource):
                 except ValueError:
                     abort(400)
             trans_dict = transaction_to_json(trans)
+        # update search index
+        indexer: SearchIndexer = current_app.config["SEARCH_INDEXER"]
+        with indexer.get_writer(overwrite=False, use_async=True) as writer:
+            for _trans_dict in trans_dict:
+                handle = _trans_dict["handle"]
+                class_name = _trans_dict["_class"]
+                indexer.add_or_update_object(writer, handle, db_handle, class_name)
         res = Response(
             response=json.dumps(trans_dict), status=201, mimetype="application/json",
         )

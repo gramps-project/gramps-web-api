@@ -804,6 +804,11 @@ def update_object(
     obj_class = obj.__class__.__name__.lower()
     if not has_handle(db_handle, obj):
         raise ValueError("Cannot be used for new objects.")
+    if not obj.gramps_id:
+        # if the Gramps ID is empty, set it to the old one!
+        handle_func = db_handle.method("get_%s_from_handle", obj_class)
+        old_obj = handle_func(obj.handle)
+        obj.set_gramps_id(old_obj.gramps_id)
     try:
         commit_method = db_handle.method("commit_%s", obj_class)
         return commit_method(obj, trans)
