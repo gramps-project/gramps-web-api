@@ -1,4 +1,4 @@
-FROM dmstraub/gramps-webapi:latest
+FROM dmstraub/gramps-webapi:latest-devel
 
 # copy config file
 COPY config.cfg /app/config/
