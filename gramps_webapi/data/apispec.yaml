@@ -46,6 +46,10 @@ tags:
   description: Work with notes.
 - name: tags
   description: Work with tags.
+- name: objects
+  description: Work with primary objects.
+- name: transactions
+  description: Work with raw database transactions.
 - name: types
   description: Work with default and custom types.
 - name: name-formats
@@ -4032,6 +4036,46 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+
+##############################################################################
+# Endpoint - Transactions
+##############################################################################
+
+  /transactions:
+    post:
+      tags:
+      - transactions
+      summary: "Commit a raw database transaction."
+      operationId: newTransaction
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: source
+          description: The database transaction
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        403:
+          description: "Unauthorized: Insufficient permissions."
+        409:
+          description: "Conflict: Objects have changed."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
 ##############################################################################
