@@ -21,6 +21,7 @@
 
 import unittest
 import uuid
+from copy import deepcopy
 from time import sleep
 from typing import Dict
 from unittest.mock import patch
@@ -196,7 +197,7 @@ class TestObjectCreation(unittest.TestCase):
         # check return value
         out = rv.json
         self.assertEqual(len(out), 3)
-        family = {
+        family_json = {
             "_class": "Family",
             "handle": handle_family,
             "father_handle": handle_father,
@@ -205,17 +206,65 @@ class TestObjectCreation(unittest.TestCase):
         }
         # posting a family as contributor should fail
         rv = self.client.post(
-            "/api/families/", json=family, headers=headers_contributor
+            "/api/families/", json=family_json, headers=headers_contributor
         )
         self.assertEqual(rv.status_code, 403)
         # posting a family as contributor to the objects endpoint should also fail
         rv = self.client.post(
-            "/api/objects/", json=[family], headers=headers_contributor
+            "/api/objects/", json=[family_json], headers=headers_contributor
         )
         self.assertEqual(rv.status_code, 403)
         # Now that should work
-        rv = self.client.post("/api/families/", json=family, headers=headers_editor)
+        rv = self.client.post(
+            "/api/families/", json=family_json, headers=headers_editor
+        )
         self.assertEqual(rv.status_code, 201)
+        rv = self.client.get(f"/api/families/{handle_family}", headers=headers_editor)
+        self.assertEqual(rv.status_code, 200)
+        family = rv.json
+        self.assertEqual(family["handle"], handle_family)
+        self.assertEqual(family["father_handle"], handle_father)
+        self.assertEqual(family["mother_handle"], handle_mother)
+        self.assertListEqual(
+            [childref["ref"] for childref in family["child_ref_list"]], [handle_child]
+        )
+        rv = self.client.get(f"/api/people/{handle_father}", headers=headers_editor)
+        self.assertEqual(rv.status_code, 200)
+        father = rv.json
+        self.assertEqual(father["handle"], handle_father)
+        self.assertListEqual(father["family_list"], [handle_family])
+        self.assertListEqual(father["parent_family_list"], [])
+        rv = self.client.get(f"/api/people/{handle_mother}", headers=headers_editor)
+        self.assertEqual(rv.status_code, 200)
+        mother = rv.json
+        self.assertEqual(mother["handle"], handle_mother)
+        self.assertListEqual(mother["family_list"], [handle_family])
+        self.assertListEqual(mother["parent_family_list"], [])
+        rv = self.client.get(f"/api/people/{handle_child}", headers=headers_editor)
+        self.assertEqual(rv.status_code, 200)
+        child = rv.json
+        self.assertEqual(child["handle"], handle_child)
+        self.assertListEqual(child["family_list"], [])
+        self.assertListEqual(child["parent_family_list"], [handle_family])
+        # and now, interchange father & son
+        family_new = deepcopy(family_json)
+        family_new["father_handle"] = handle_child
+        family_new["child_ref_list"][0]["ref"] = handle_father
+        rv = self.client.put(
+            f"/api/families/{handle_family}", json=family_new, headers=headers_editor
+        )
+        self.assertEqual(rv.status_code, 200)
+        # ... and check the refs have been updated correctly
+        rv = self.client.get(f"/api/people/{handle_father}", headers=headers_editor)
+        self.assertEqual(rv.status_code, 200)
+        father = rv.json
+        self.assertListEqual(father["family_list"], [])
+        self.assertListEqual(father["parent_family_list"], [handle_family])
+        rv = self.client.get(f"/api/people/{handle_child}", headers=headers_editor)
+        self.assertEqual(rv.status_code, 200)
+        child = rv.json
+        self.assertListEqual(child["family_list"], [handle_family])
+        self.assertListEqual(child["parent_family_list"], [])
 
     def test_objects_errors(self):
         """Test adding multiple objects with and without errors."""
