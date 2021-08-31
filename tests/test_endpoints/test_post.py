@@ -29,7 +29,12 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
-from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
+from gramps_webapi.auth.const import (
+    ROLE_CONTRIBUTOR,
+    ROLE_EDITOR,
+    ROLE_GUEST,
+    ROLE_OWNER,
+)
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
 
@@ -59,6 +64,8 @@ class TestObjectCreation(unittest.TestCase):
         sqlauth.create_table()
         sqlauth.add_user(name="user", password="123", role=ROLE_GUEST)
         sqlauth.add_user(name="admin", password="123", role=ROLE_OWNER)
+        sqlauth.add_user(name="contributor", password="123", role=ROLE_CONTRIBUTOR)
+        sqlauth.add_user(name="editor", password="123", role=ROLE_EDITOR)
 
     @classmethod
     def tearDownClass(cls):
@@ -158,6 +165,57 @@ class TestObjectCreation(unittest.TestCase):
             person_dict["extended"]["events"][0]["date"]["dateval"],
             [2, 10, 1764, False],
         )
+
+    def test_objects_add_family(self):
+        """Add three people and then create a new family."""
+        handle_father = make_handle()
+        handle_mother = make_handle()
+        handle_child = make_handle()
+        handle_family = make_handle()
+        people = [
+            {
+                "_class": "Person",
+                "handle": handle,
+                "primary_name": {
+                    "_class": "Name",
+                    "surname_list": [{"_class": "Surname", "surname": surname}],
+                    "first_name": firstname,
+                },
+                "gender": gender,
+            }
+            for (handle, gender, firstname, surname) in [
+                (handle_father, 1, "Father", "Family"),
+                (handle_mother, 0, "Mother", "Family"),
+                (handle_child, 1, "Son", "Family"),
+            ]
+        ]
+        headers_contributor = get_headers(self.client, "contributor", "123")
+        headers_editor = get_headers(self.client, "editor", "123")
+        rv = self.client.post("/api/objects/", json=people, headers=headers_contributor)
+        self.assertEqual(rv.status_code, 201)
+        # check return value
+        out = rv.json
+        self.assertEqual(len(out), 3)
+        family = {
+            "_class": "Family",
+            "handle": handle_family,
+            "father_handle": handle_father,
+            "mother_handle": handle_mother,
+            "child_ref_list": [{"_class": "ChildRef", "ref": handle_child}],
+        }
+        # posting a family as contributor should fail
+        rv = self.client.post(
+            "/api/families/", json=family, headers=headers_contributor
+        )
+        self.assertEqual(rv.status_code, 403)
+        # posting a family as contributor to the objects endpoint should also fail
+        rv = self.client.post(
+            "/api/objects/", json=[family], headers=headers_contributor
+        )
+        self.assertEqual(rv.status_code, 403)
+        # Now that should work
+        rv = self.client.post("/api/families/", json=family, headers=headers_editor)
+        self.assertEqual(rv.status_code, 201)
 
     def test_objects_errors(self):
         """Test adding multiple objects with and without errors."""

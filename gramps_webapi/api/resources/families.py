@@ -22,11 +22,13 @@
 
 from typing import Dict
 
-from flask import abort
+from flask import Response, abort
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.lib import Family
 from gramps.gen.utils.grampslocale import GrampsLocale
 
+from ...auth.const import PERM_ADD_OBJ, PERM_EDIT_OBJ
+from ..auth import require_permissions
 from .base import (
     GrampsObjectProtectedResource,
     GrampsObjectResourceHelper,
@@ -72,3 +74,13 @@ class FamilyResource(GrampsObjectProtectedResource, FamilyResourceHelper):
 
 class FamiliesResource(GrampsObjectsProtectedResource, FamilyResourceHelper):
     """Families resource."""
+
+    def post(self) -> Response:
+        """Post a new object.
+
+        The parent class's method is overridden since creating a Family object
+        modifies the family members' Person objects as well, so `PERM_EDIT_OBJ`
+        is required.
+        """
+        require_permissions([PERM_ADD_OBJ, PERM_EDIT_OBJ])
+        return GrampsObjectsProtectedResource.post(self)
