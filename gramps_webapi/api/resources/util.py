@@ -861,6 +861,8 @@ def _get_class_name(super_name, key_name) -> str:
         return "Location"
     if key_name == "reporef_list":
         return "RepoRef"
+    if key_name == "placeref_list":
+        return "PlaceRef"
     if key_name == "tags":
         return "StyledTextTag"
     if (key_name == "name" and super_name == "Place") or key_name == "alt_names":
