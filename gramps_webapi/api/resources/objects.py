@@ -32,7 +32,7 @@ from ..auth import require_permissions
 from ..search import SearchIndexer
 from ..util import get_db_handle
 from . import ProtectedResource
-from .util import add_object, transaction_to_json, validate_object_dict
+from .util import add_object, fix_object_dict, transaction_to_json, validate_object_dict
 
 
 class CreateObjectsResource(ProtectedResource):
@@ -43,6 +43,7 @@ class CreateObjectsResource(ProtectedResource):
         payload = request.json
         objects = []
         for obj_dict in payload:
+            obj_dict = fix_object_dict(obj_dict)
             if not validate_object_dict(obj_dict):
                 abort(400)
             obj = from_json(json.dumps(obj_dict))
