@@ -25,6 +25,9 @@ ROLE_EDITOR = 3
 ROLE_CONTRIBUTOR = 2
 ROLE_MEMBER = 1
 ROLE_GUEST = 0
+# Roles for unauthorized users
+ROLE_DISABLED = -1
+ROLE_UNCONFIRMED = -2
 
 # User permissions
 PERM_ADD_USER = "AddUser"
@@ -60,3 +63,8 @@ PERMISSIONS = {
     ROLE_MEMBER: {PERM_EDIT_OWN_USER, PERM_VIEW_PRIVATE,},
     ROLE_GUEST: {PERM_EDIT_OWN_USER,},
 }
+
+# keys/values for user claims
+CLAIM_LIMITED_SCOPE = "limited_scope"
+SCOPE_RESET_PW = "reset_password"
+SCOPE_CONF_EMAIL = "confirm_email"

@@ -27,7 +27,12 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
-from gramps_webapi.auth.const import ROLE_MEMBER, ROLE_OWNER
+from gramps_webapi.auth.const import (
+    ROLE_DISABLED,
+    ROLE_MEMBER,
+    ROLE_OWNER,
+    ROLE_UNCONFIRMED,
+)
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
 from . import BASE_URL
@@ -437,3 +442,131 @@ class TestUser(unittest.TestCase):
             BASE_URL + "/token/", json={"username": "new_user", "password": "abc"}
         )
         assert rv.status_code == 200
+
+    def test_register_user(self):
+        with patch("smtplib.SMTP") as mock_smtp:
+            # role is not allowed
+            rv = self.client.post(
+                BASE_URL + "/users/new_user_2/register/",
+                json={
+                    "email": "new_2@example.com",
+                    "role": ROLE_OWNER,
+                    "full_name": "My Name",
+                    "password": "abc",
+                },
+            )
+            assert rv.status_code == 422
+            # missing password
+            rv = self.client.post(
+                BASE_URL + "/users/new_user_2/register/",
+                json={"email": "new_2@example.com", "full_name": "My Name",},
+            )
+            assert rv.status_code == 422
+            # existing user
+            rv = self.client.post(
+                BASE_URL + "/users/user/register/",
+                json={
+                    "email": "new_2@example.com",
+                    "full_name": "New Name",
+                    "password": "abc",
+                },
+            )
+            assert rv.status_code == 409
+            # OK
+            rv = self.client.post(
+                BASE_URL + "/users/new_user_2/register/",
+                json={
+                    "email": "new_2@example.com",
+                    "full_name": "New Name",
+                    "password": "abc",
+                },
+            )
+            assert rv.status_code == 201
+            # get owner token
+            rv = self.client.post(
+                BASE_URL + "/token/", json={"username": "owner", "password": "123"},
+            )
+            assert rv.status_code == 200
+            token_owner = rv.json["access_token"]
+            rv = self.client.get(
+                BASE_URL + "/users/new_user_2/",
+                headers={"Authorization": "Bearer {}".format(token_owner)},
+            )
+            assert rv.status_code == 200
+            self.assertEqual(
+                rv.json,
+                {
+                    "email": "new_2@example.com",
+                    "role": ROLE_UNCONFIRMED,
+                    "full_name": "New Name",
+                    "name": "new_user_2",
+                },
+            )
+            # new user cannot get token
+            rv = self.client.post(
+                BASE_URL + "/token/", json={"username": "new_user_2", "password": "abc"}
+            )
+            assert rv.status_code == 403
+
+    def test_confirm_email(self):
+        with patch("smtplib.SMTP") as mock_smtp:
+            rv = self.client.post(
+                BASE_URL + "/users/new_user_3/register/",
+                json={
+                    "email": "new_3@example.com",
+                    "full_name": "New Name",
+                    "password": "abc",
+                },
+            )
+            assert rv.status_code == 201
+            context = mock_smtp.return_value
+            context.send_message.assert_called()
+            name, args, kwargs = context.method_calls.pop(0)
+            msg = args[0]
+            # extract the token from the message body
+            body = msg.get_body().get_payload().replace("=\n", "")
+            matches = re.findall(r".*jwt=([^\s]+).*", body)
+            self.assertEqual(len(matches), 1, msg=body)
+            token = matches[0]
+            if token[:2] == "3D":
+                token = token[2:]
+            # try without token
+            rv = self.client.get(BASE_URL + "/users/-/email/confirm/")
+            self.assertEqual(rv.status_code, 401)
+            # now that should work
+            rv = self.client.get(
+                BASE_URL + "/users/-/email/confirm/",
+                headers={"Authorization": "Bearer {}".format(token)},
+            )
+            self.assertEqual(rv.status_code, 200)
+            # check return template
+            self.assertIn(b"Thank you for confirming your e-mail address", rv.data)
+            # get owner token
+            rv = self.client.post(
+                BASE_URL + "/token/", json={"username": "owner", "password": "123"},
+            )
+            assert rv.status_code == 200
+            token_owner = rv.json["access_token"]
+            # get user info
+            rv = self.client.get(
+                BASE_URL + "/users/new_user_3/",
+                headers={"Authorization": "Bearer {}".format(token_owner)},
+            )
+            assert rv.status_code == 200
+            # new role should be ROLE_DISABLED!
+            self.assertEqual(
+                rv.json,
+                {
+                    "email": "new_3@example.com",
+                    "role": ROLE_DISABLED,
+                    "full_name": "New Name",
+                    "name": "new_user_3",
+                },
+            )
+            # try getting list of people with email confirmation token
+            # this should not be allowed!
+            rv = self.client.get(
+                BASE_URL + "/people/",
+                headers={"Authorization": "Bearer {}".format(token)},
+            )
+            self.assertEqual(rv.status_code, 401)

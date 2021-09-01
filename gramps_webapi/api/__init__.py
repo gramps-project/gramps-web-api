@@ -74,6 +74,8 @@ from .resources.types import (
 )
 from .resources.user import (
     UserChangePasswordResource,
+    UserConfirmEmailResource,
+    UserRegisterResource,
     UserResetPasswordResource,
     UserResource,
     UsersResource,
@@ -205,6 +207,12 @@ register_endpt(
 )
 register_endpt(
     UserResource, "/users/<string:user_name>/", "user",
+)
+register_endpt(
+    UserRegisterResource, "/users/<string:user_name>/register/", "register",
+)
+register_endpt(
+    UserConfirmEmailResource, "/users/-/email/confirm/", "confirm_email",
 )
 register_endpt(
     UserChangePasswordResource,
