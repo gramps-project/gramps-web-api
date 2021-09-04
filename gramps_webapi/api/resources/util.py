@@ -805,20 +805,25 @@ def fix_object_dict(object_dict: Dict, class_name: Optional[str] = None):
     d_out["_class"] = class_name
     for k, v in object_dict.items():
         # convert type back to dict and translate type name
-        is_grampstype = k in [
-            "type",
-            "place_type",
-            "media_type",
-            "origintype",
-            "role",
-            "frel",
-            "mrel",
-        ] or (k == "name" and class_name == "StyledTextTag")
-        if is_grampstype:
+        if k in ["type", "place_type", "media_type", "frel", "mrel"] or (
+            k == "name" and class_name == "StyledTextTag"
+        ):
             if isinstance(v, str):
                 d_out[k] = {"_class": f"{class_name}Type", "string": _(v)}
             else:
                 d_out[k] = v
+        elif k == "role":
+            if isinstance(v, str):
+                d_out[k] = {"_class": "EventRoleType", "string": _(v)}
+            else:
+                d_out[k] = v
+        elif k == "origintype":
+            if isinstance(v, str):
+                d_out[k] = {"_class": "NameOriginType", "string": _(v)}
+            else:
+                d_out[k] = v
+        elif k in ["rect", "mother_handle", "father_handle", "famc"] and not v:
+            d_out[k] = None
         elif isinstance(v, dict):
             d_out[k] = fix_object_dict(v, _get_class_name(class_name, k))
         elif isinstance(v, list):

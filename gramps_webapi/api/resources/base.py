@@ -142,7 +142,10 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
             obj_dict["_class"] = self.gramps_class_name
         elif obj_dict["_class"] != self.gramps_class_name:
             abort(400)
-        obj_dict = fix_object_dict(obj_dict)
+        try:
+            obj_dict = fix_object_dict(obj_dict)
+        except ValueError:
+            abort(400)
         if not validate_object_dict(obj_dict):
             abort(400)
         return from_json(json.dumps(obj_dict))

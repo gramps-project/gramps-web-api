@@ -43,7 +43,10 @@ class CreateObjectsResource(ProtectedResource):
         payload = request.json
         objects = []
         for obj_dict in payload:
-            obj_dict = fix_object_dict(obj_dict)
+            try:
+                obj_dict = fix_object_dict(obj_dict)
+            except ValueError:
+                abort(400)
             if not validate_object_dict(obj_dict):
                 abort(400)
             obj = from_json(json.dumps(obj_dict))
