@@ -22,7 +22,7 @@
 import json
 from typing import Dict
 
-from flask import Response, abort, request
+from flask import Response, abort, current_app, request
 from gramps.gen.db import DbTxn
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, TXNADD, TXNDEL, TXNUPD
@@ -32,6 +32,7 @@ from gramps.gen.merge.diff import diff_items
 
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ..auth import require_permissions
+from ..search import SearchIndexer
 from ..util import get_db_handle
 from . import ProtectedResource
 from .util import transaction_to_json
@@ -72,6 +73,16 @@ class TransactionsResource(ProtectedResource):
                 except (KeyError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
                     abort(400)
             trans_dict = transaction_to_json(trans)
+        # update search index
+        indexer: SearchIndexer = current_app.config["SEARCH_INDEXER"]
+        with indexer.get_writer(overwrite=False, use_async=True) as writer:
+            for _trans_dict in trans_dict:
+                handle = _trans_dict["handle"]
+                class_name = _trans_dict["_class"]
+                if _trans_dict["type"] == "delete":
+                    indexer.delete_object(writer, handle)
+                else:
+                    indexer.add_or_update_object(writer, handle, db_handle, class_name)
         res = Response(
             response=json.dumps(trans_dict), status=200, mimetype="application/json",
         )
