@@ -1,0 +1,24 @@
+nav:
+    - Getting Started:
+          - Introduction: index.md
+          - Deployment: Deployment.md
+          - Configuration: Configuration.md
+    - API specification: api.md
+    - Developer Guide:
+          - Introduction: Development-instructions.md
+site_name: Gramps Web API
+site_url: https://gramps-project.github.io/gramps-webapi
+repo_url: https://github.com/gramps-project/gramps-webapi
+edit_uri: https://github.com/gramps-project/gramps-webapi/blob/master/docs/
+theme:
+    name: "material"
+    features:
+        - navigation.tabs
+        - navigation.instant
+    palette:
+        scheme: default
+        primary: brown
+        accent: blue
+    logo: logo.svg
+plugins:
+  - search
