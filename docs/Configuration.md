@@ -1,6 +1,8 @@
-A configuration file is necessary to run `gramps-webapi`. Its path can either be provided on the command line when running the module as a script (`python3 -m gramps_webapi --config .path/to/config.cfg ...`), or as an environment variable, `GRAMPS_API_CONFIG=path/to/config.cfg`.
+# Configuration
 
-The following settings can be specified in a configuration file
+A configuration file is necessary to run the Gramps Web API. Its path can either be provided on the command line when running the module as a script (`python3 -m gramps_webapi --config path/to/config.cfg ...`), or as an environment variable, `GRAMPS_API_CONFIG=path/to/config.cfg`.
+
+The following settings can be specified in the configuration file.
 
 
 ## Required settings
@@ -8,7 +10,13 @@ The following settings can be specified in a configuration file
 Key | Description
 ----|------------
 `TREE` | The name of the family tree database to use. Show available trees with `gramps -l`
-`SECRET_KEY` | The secret key for flask. This must be set for use in production. The secret must not be shared publicly. Changing it will invalidate all access tokens. You can generate a secure token e.g. with `python3 -c "import secrets;print(secrets.token_urlsafe(32))"`
+`SECRET_KEY` | The secret key for flask. This must be set for use in production. The secret must not be shared publicly. Changing it will invalidate all access tokens.`
+
+ You can generate a secure secret key e.g. with the command
+
+```
+python3 -c "import secrets;print(secrets.token_urlsafe(32))"
+```
 
 ## Optional settings
 

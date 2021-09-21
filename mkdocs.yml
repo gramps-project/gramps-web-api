@@ -1,11 +1,12 @@
 nav:
     - Getting Started:
           - Introduction: index.md
-          - Deployment: Deployment.md
+          - Testing locally: Testing.md
           - Configuration: Configuration.md
+          - Deployment: Deployment.md
     - API specification: api.md
     - Developer Guide:
-          - Introduction: Development-instructions.md
+          - Development environment: Development-instructions.md
 site_name: Gramps Web API
 site_url: https://gramps-project.github.io/gramps-webapi
 repo_url: https://github.com/gramps-project/gramps-webapi
@@ -22,3 +23,7 @@ theme:
     logo: logo.svg
 plugins:
   - search
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
