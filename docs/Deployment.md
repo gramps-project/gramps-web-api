@@ -38,9 +38,9 @@ SEARCH_INDEX_DIR="/app/indexdir"
 STATIC_PATH="/app/static"
 ```
 
-For other configuration options, see [Configuration](Configuration)
+For other configuration options, see [Configuration](Configuration.md)
 
-## Step 3: Docker configuration
+## Step 4: Docker configuration
 
 Create a new file on the server named `docker-compose.yml` and insert the following contents:
 
@@ -74,7 +74,7 @@ This will generate three named volumes to make sure that the user database, sear
 
 
 
-## Step 5: Securing access with SSL/TLS
+## Step 5: Secure access with SSL/TLS
 
 The web API **must** be served to the public internet over HTTPS. There are several options, e.g.
 
@@ -155,3 +155,52 @@ networks:
 ```
 
 Please see the [acme-companion](https://github.com/nginx-proxy/acme-companion) docs for how to set up your domain.
+
+## Step 6: Import database
+
+If you have copied the Gramps database directory directly in Step 1, you can skip this step.
+
+If you have uploaded a Gramps XML instead, you need to import it into a new family tree using the Gramps executable inside the docker container. This can be achieved with the command
+
+```bash
+docker-compose run gramps_webapi \
+    gramps -C 'My family tree' \
+    -i /root/.gramps/grampsdb/my_tree.gramps \
+    --config=database.backend:sqlite \
+    --config=database.path:/root/.gramps/grampsdb
+```
+where `My family tree` is the name of the new family tree (must match the setting in the config file) and `my_tree.gramps` the file name of the Gramps XML export.
+
+
+## Step 7: Add users
+
+Initialize the user system by creating an administrator account with the command
+
+```bash
+docker-compose run gramps_webapi \
+    python3 -m gramps_webapi user add \
+    --fullname 'My full name' \
+    --email 'my@email' \
+    --role 4 \
+    my_username my_password
+```
+
+See [User system](Users.md) for more details and how to add additional users.
+
+
+## Step 8: Build the search index
+
+Build the initial search index by running
+
+```bash
+docker-compose run gramps_webapi \
+    python3 -m gramps_webapi search index-full
+```
+
+## Step 9: Start the server
+
+Run
+
+```
+docker-compose up -d
+```
