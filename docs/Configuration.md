@@ -12,11 +12,12 @@ Key | Description
 `TREE` | The name of the family tree database to use. Show available trees with `gramps -l`
 `SECRET_KEY` | The secret key for flask. This must be set for use in production. The secret must not be shared publicly. Changing it will invalidate all access tokens.`
 
- You can generate a secure secret key e.g. with the command
+!!! info
+    You can generate a secure secret key e.g. with the command
 
-```
-python3 -c "import secrets;print(secrets.token_urlsafe(32))"
-```
+    ```
+    python3 -c "import secrets;print(secrets.token_urlsafe(32))"
+    ```
 
 ## Optional settings
 

@@ -4,6 +4,7 @@ nav:
           - Testing locally: Testing.md
           - Configuration: Configuration.md
           - Deployment: Deployment.md
+          - User system: Users.md
     - API specification: api.md
     - Developer Guide:
           - Development environment: Development-instructions.md
