@@ -24,10 +24,11 @@ from typing import Sequence
 
 from flask import Response, abort, current_app, request
 from gramps.gen.db import DbTxn
+from gramps.gen.lib import Family
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.lib.serialize import from_json
 
-from ...auth.const import PERM_ADD_OBJ
+from ...auth.const import PERM_ADD_OBJ, PERM_EDIT_OBJ
 from ..auth import require_permissions
 from ..search import SearchIndexer
 from ..util import get_db_handle
@@ -53,6 +54,12 @@ class CreateObjectsResource(ProtectedResource):
         """Post the objects."""
         require_permissions([PERM_ADD_OBJ])
         objects = self._parse_objects()
+        if any(isinstance(obj, Family) for obj in objects):
+            # If any of the objects to add is a Family object,
+            # require EDIT permissions in addition to ADD
+            # since creating a Family object modifies the family
+            # members' Person objects as well
+            require_permissions([PERM_EDIT_OBJ])
         if not objects:
             abort(400)
         db_handle = get_db_handle(readonly=False)

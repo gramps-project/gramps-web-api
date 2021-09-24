@@ -59,6 +59,7 @@ from gramps.gen.utils.db import (
     get_divorce_or_fallback,
     get_marriage_or_fallback,
 )
+from gramps.gen.utils.id import create_id
 from gramps.gen.utils.grampslocale import GrampsLocale
 from gramps.gen.utils.place import conv_lat_lon
 
@@ -758,6 +759,9 @@ def add_object(
 
     If `fail_if_exists` is true, raises a ValueError if an object of
     the same type exists with the same handle or same Gramps ID.
+
+    In the case of a family object, also updates the referenced handles
+    in the corresponding person objects.
     """
     if db_handle.readonly:
         # adding objects is forbidden on a read-only db!
@@ -770,9 +774,32 @@ def add_object(
             raise ValueError("Gramps ID already exists.")
     try:
         add_method = db_handle.method("add_%s", obj_class)
+        if obj_class == "family":
+            # need to add handle if not present yet!
+            if not obj.handle:
+                obj.handle = create_id()
+            add_family_update_refs(db_handle=db_handle, obj=obj, trans=trans)
         return add_method(obj, trans)
     except AttributeError:
         raise ValueError("Database does not support writing.")
+
+
+def add_family_update_refs(db_handle: DbWriteBase, obj: Family, trans: DbTxn,) -> None:
+    """Update the `family_list` and `parent_family_list` of family members.
+
+    Case where the family is new.
+    """
+    # add family handle to parents
+    for handle in [obj.get_father_handle(), obj.get_mother_handle()]:
+        if handle:
+            parent = db_handle.get_person_from_handle(handle)
+            parent.add_family_handle(obj.handle)
+            db_handle.commit_person(parent, trans)
+    # for each child, add the family handle to the child
+    for ref in obj.get_child_ref_list():
+        child = db_handle.get_person_from_handle(ref.ref)
+        child.add_parent_family_handle(obj.handle)
+        db_handle.commit_person(child, trans)
 
 
 def validate_object_dict(obj_dict: Dict[str, Any]) -> bool:
@@ -782,8 +809,9 @@ def validate_object_dict(obj_dict: Dict[str, Any]) -> bool:
     except (KeyError, AttributeError, TypeError):
         return False
     schema = obj_cls.get_schema()
+    obj_dict_fixed = {k: v for k, v in obj_dict.items() if k != "complete"}
     try:
-        jsonschema.validate(obj_dict, schema)
+        jsonschema.validate(obj_dict_fixed, schema)
     except jsonschema.exceptions.ValidationError:
         return False
     return True
@@ -807,13 +835,63 @@ def update_object(
     if not obj.gramps_id:
         # if the Gramps ID is empty, set it to the old one!
         handle_func = db_handle.method("get_%s_from_handle", obj_class)
-        old_obj = handle_func(obj.handle)
-        obj.set_gramps_id(old_obj.gramps_id)
+        obj_old = handle_func(obj.handle)
+        obj.set_gramps_id(obj_old.gramps_id)
     try:
         commit_method = db_handle.method("commit_%s", obj_class)
+        if obj_class == "family":
+            handle_func = db_handle.method("get_%s_from_handle", obj_class)
+            obj_old = handle_func(obj.handle)
+            update_family_update_refs(
+                db_handle=db_handle, obj_old=obj_old, obj=obj, trans=trans
+            )
         return commit_method(obj, trans)
     except AttributeError:
         raise ValueError("Database does not support writing.")
+
+
+def update_family_update_refs(
+    db_handle: DbWriteBase, obj_old: Family, obj: Family, trans: DbTxn,
+) -> None:
+    """Update the `family_list` and `parent_family_list` of family members.
+
+    Case where the family was modified.
+    """
+    _fix_parent_handles(
+        db_handle, obj, obj_old.get_father_handle(), obj.get_father_handle(), trans
+    )
+    _fix_parent_handles(
+        db_handle, obj, obj_old.get_mother_handle(), obj.get_mother_handle(), trans
+    )
+    # fix child handles
+    orig_set = set(r.ref for r in obj_old.get_child_ref_list())
+    new_set = set(r.ref for r in obj.get_child_ref_list())
+
+    # remove the family from children which have been removed
+    for ref in orig_set - new_set:
+        person = db_handle.get_person_from_handle(ref)
+        person.remove_parent_family_handle(obj.handle)
+        db_handle.commit_person(person, trans)
+
+    # add the family to children which have been added
+    for ref in new_set - orig_set:
+        person = db_handle.get_person_from_handle(ref)
+        person.add_parent_family_handle(obj.handle)
+        db_handle.commit_person(person, trans)
+
+
+def _fix_parent_handles(
+    db_handle: DbWriteBase, obj: Family, orig_handle, new_handle, trans
+) -> None:
+    if orig_handle != new_handle:
+        if orig_handle:
+            person = db_handle.get_person_from_handle(orig_handle)
+            person.family_list.remove(obj.handle)
+            db_handle.commit_person(person, trans)
+        if new_handle:
+            person = db_handle.get_person_from_handle(new_handle)
+            person.family_list.append(obj.handle)
+            db_handle.commit_person(person, trans)
 
 
 def transaction_to_json(transaction: DbTxn) -> List[Dict[str, Any]]:

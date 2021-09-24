@@ -21,6 +21,7 @@
 
 import unittest
 import uuid
+from copy import deepcopy
 from time import sleep
 from typing import Dict
 from unittest.mock import patch
@@ -29,7 +30,12 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
-from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
+from gramps_webapi.auth.const import (
+    ROLE_CONTRIBUTOR,
+    ROLE_EDITOR,
+    ROLE_GUEST,
+    ROLE_OWNER,
+)
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
 
@@ -59,6 +65,8 @@ class TestObjectCreation(unittest.TestCase):
         sqlauth.create_table()
         sqlauth.add_user(name="user", password="123", role=ROLE_GUEST)
         sqlauth.add_user(name="admin", password="123", role=ROLE_OWNER)
+        sqlauth.add_user(name="contributor", password="123", role=ROLE_CONTRIBUTOR)
+        sqlauth.add_user(name="editor", password="123", role=ROLE_EDITOR)
 
     @classmethod
     def tearDownClass(cls):
@@ -158,6 +166,105 @@ class TestObjectCreation(unittest.TestCase):
             person_dict["extended"]["events"][0]["date"]["dateval"],
             [2, 10, 1764, False],
         )
+
+    def test_objects_add_family(self):
+        """Add three people and then create a new family."""
+        handle_father = make_handle()
+        handle_mother = make_handle()
+        handle_child = make_handle()
+        handle_family = make_handle()
+        people = [
+            {
+                "_class": "Person",
+                "handle": handle,
+                "primary_name": {
+                    "_class": "Name",
+                    "surname_list": [{"_class": "Surname", "surname": surname}],
+                    "first_name": firstname,
+                },
+                "gender": gender,
+            }
+            for (handle, gender, firstname, surname) in [
+                (handle_father, 1, "Father", "Family"),
+                (handle_mother, 0, "Mother", "Family"),
+                (handle_child, 1, "Son", "Family"),
+            ]
+        ]
+        headers_contributor = get_headers(self.client, "contributor", "123")
+        headers_editor = get_headers(self.client, "editor", "123")
+        rv = self.client.post("/api/objects/", json=people, headers=headers_contributor)
+        self.assertEqual(rv.status_code, 201)
+        # check return value
+        out = rv.json
+        self.assertEqual(len(out), 3)
+        family_json = {
+            "_class": "Family",
+            "handle": handle_family,
+            "father_handle": handle_father,
+            "mother_handle": handle_mother,
+            "child_ref_list": [{"_class": "ChildRef", "ref": handle_child}],
+        }
+        # posting a family as contributor should fail
+        rv = self.client.post(
+            "/api/families/", json=family_json, headers=headers_contributor
+        )
+        self.assertEqual(rv.status_code, 403)
+        # posting a family as contributor to the objects endpoint should also fail
+        rv = self.client.post(
+            "/api/objects/", json=[family_json], headers=headers_contributor
+        )
+        self.assertEqual(rv.status_code, 403)
+        # Now that should work
+        rv = self.client.post(
+            "/api/families/", json=family_json, headers=headers_editor
+        )
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.get(f"/api/families/{handle_family}", headers=headers_editor)
+        self.assertEqual(rv.status_code, 200)
+        family = rv.json
+        self.assertEqual(family["handle"], handle_family)
+        self.assertEqual(family["father_handle"], handle_father)
+        self.assertEqual(family["mother_handle"], handle_mother)
+        self.assertListEqual(
+            [childref["ref"] for childref in family["child_ref_list"]], [handle_child]
+        )
+        rv = self.client.get(f"/api/people/{handle_father}", headers=headers_editor)
+        self.assertEqual(rv.status_code, 200)
+        father = rv.json
+        self.assertEqual(father["handle"], handle_father)
+        self.assertListEqual(father["family_list"], [handle_family])
+        self.assertListEqual(father["parent_family_list"], [])
+        rv = self.client.get(f"/api/people/{handle_mother}", headers=headers_editor)
+        self.assertEqual(rv.status_code, 200)
+        mother = rv.json
+        self.assertEqual(mother["handle"], handle_mother)
+        self.assertListEqual(mother["family_list"], [handle_family])
+        self.assertListEqual(mother["parent_family_list"], [])
+        rv = self.client.get(f"/api/people/{handle_child}", headers=headers_editor)
+        self.assertEqual(rv.status_code, 200)
+        child = rv.json
+        self.assertEqual(child["handle"], handle_child)
+        self.assertListEqual(child["family_list"], [])
+        self.assertListEqual(child["parent_family_list"], [handle_family])
+        # and now, interchange father & son
+        family_new = deepcopy(family_json)
+        family_new["father_handle"] = handle_child
+        family_new["child_ref_list"][0]["ref"] = handle_father
+        rv = self.client.put(
+            f"/api/families/{handle_family}", json=family_new, headers=headers_editor
+        )
+        self.assertEqual(rv.status_code, 200)
+        # ... and check the refs have been updated correctly
+        rv = self.client.get(f"/api/people/{handle_father}", headers=headers_editor)
+        self.assertEqual(rv.status_code, 200)
+        father = rv.json
+        self.assertListEqual(father["family_list"], [])
+        self.assertListEqual(father["parent_family_list"], [handle_family])
+        rv = self.client.get(f"/api/people/{handle_child}", headers=headers_editor)
+        self.assertEqual(rv.status_code, 200)
+        child = rv.json
+        self.assertListEqual(child["family_list"], [handle_family])
+        self.assertListEqual(child["parent_family_list"], [])
 
     def test_objects_errors(self):
         """Test adding multiple objects with and without errors."""
