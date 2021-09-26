@@ -51,7 +51,7 @@ from gramps.gen.lib import (
     Tag,
 )
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
-from gramps.gen.lib.serialize import to_json
+from gramps.gen.lib.serialize import from_json, to_json
 from gramps.gen.soundex import soundex
 from gramps.gen.utils.db import (
     get_birth_or_fallback,
@@ -67,6 +67,7 @@ from ...const import SEX_FEMALE, SEX_MALE, SEX_UNKNOWN
 from ...types import Handle
 
 pd = PlaceDisplay()
+_ = glocale.translation.gettext
 
 
 def get_person_by_handle(db_handle: DbReadBase, handle: Handle) -> Union[Person, Dict]:
@@ -815,6 +816,97 @@ def validate_object_dict(obj_dict: Dict[str, Any]) -> bool:
     except jsonschema.exceptions.ValidationError:
         return False
     return True
+
+
+def fix_object_dict(object_dict: Dict, class_name: Optional[str] = None):
+    """Restore a Gramps object in simplified representation to its full form.
+
+    This restores in particular:
+    - class names
+    - Gramps types are turned from strings into dictionaries
+    - Gramps type names are translated to the default Gramps locale
+    """
+    d_out = {}
+    class_name = class_name or object_dict.get("_class")
+    if not class_name:
+        raise ValueError("No class name specified!")
+    d_out["_class"] = class_name
+    for k, v in object_dict.items():
+        # convert type back to dict and translate type name
+        if k in ["type", "place_type", "media_type", "frel", "mrel"] or (
+            k == "name" and class_name == "StyledTextTag"
+        ):
+            if isinstance(v, str):
+                d_out[k] = {"_class": f"{class_name}Type", "string": _(v)}
+            else:
+                d_out[k] = v
+        elif k == "role":
+            if isinstance(v, str):
+                d_out[k] = {"_class": "EventRoleType", "string": _(v)}
+            else:
+                d_out[k] = v
+        elif k == "origintype":
+            if isinstance(v, str):
+                d_out[k] = {"_class": "NameOriginType", "string": _(v)}
+            else:
+                d_out[k] = v
+        elif k in ["rect", "mother_handle", "father_handle", "famc"] and not v:
+            d_out[k] = None
+        elif isinstance(v, dict):
+            d_out[k] = fix_object_dict(v, _get_class_name(class_name, k))
+        elif isinstance(v, list):
+            d_out[k] = [
+                fix_object_dict(item, _get_class_name(class_name, k))
+                if isinstance(item, dict)
+                else item
+                for item in v
+            ]
+        else:
+            d_out[k] = v
+    return d_out
+
+
+def _get_class_name(super_name, key_name) -> str:
+    """Get the correct Gramps class name for a given key in a class dict."""
+    if key_name == "date":
+        return "Date"
+    if key_name == "media_list":
+        return "MediaRef"
+    if key_name == "child_ref_list":
+        return "ChildRef"
+    if key_name == "event_ref_list":
+        return "EventRef"
+    if key_name == "address_list":
+        return "Address"
+    if key_name == "urls":
+        return "Url"
+    if key_name == "lds_ord_list":
+        return "LdsOrd"
+    if key_name == "person_ref_list":
+        return "PersonRef"
+    if key_name == "surname_list":
+        return "Surname"
+    if key_name == "text":
+        return "StyledText"
+    if key_name == "place_type":
+        return "PlaceType"
+    if key_name == "alt_loc":
+        return "Location"
+    if key_name == "reporef_list":
+        return "RepoRef"
+    if key_name == "placeref_list":
+        return "PlaceRef"
+    if key_name == "tags":
+        return "StyledTextTag"
+    if (key_name == "name" and super_name == "Place") or key_name == "alt_names":
+        return "PlaceName"
+    if key_name in ["primary_name", "alternate_names"]:
+        return "Name"
+    if key_name == "attribute_list" and super_name == "Citation":
+        return "SrcAttribute"
+    elif key_name == "attribute_list":
+        return "Attribute"
+    raise ValueError(f"Unknown classes: {super_name}, {key_name}")
 
 
 def update_object(

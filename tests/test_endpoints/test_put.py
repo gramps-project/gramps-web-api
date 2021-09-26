@@ -26,6 +26,7 @@ from typing import Dict
 from unittest.mock import patch
 
 from gramps.cli.clidbman import CLIDbManager
+from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
@@ -37,6 +38,8 @@ from gramps_webapi.auth.const import (
     ROLE_OWNER,
 )
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
+
+_ = glocale.translation.gettext
 
 
 def get_headers(client, user: str, password: str) -> Dict[str, str]:
@@ -218,3 +221,26 @@ class TestObjectUpdate(unittest.TestCase):
         # ... but not old
         rv = self.client.get(f"/api/search/?query={text}", headers=headers)
         self.assertEqual(len(rv.json), 0)
+
+    def test_get_put(self):
+        """Test putting an object obtained via get."""
+        handle = make_handle()
+        obj = {
+            "handle": handle,
+            "text": {"_class": "StyledText", "string": "My first note."},
+            "type": {"_class": "NoteType", "string": _("Person Note")},
+        }
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/notes/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers)
+        obj_get = rv.json
+        rv = self.client.put(
+            f"/api/notes/{handle}",
+            json={**obj_get, "gramps_id": "newid"},
+            headers=headers,
+        )
+        self.assertEqual(rv.status_code, 200)
+        # check it has changed
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers)
+        self.assertEqual(rv.json["gramps_id"], "newid")
