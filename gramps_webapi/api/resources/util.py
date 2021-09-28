@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import gramps
 import jsonschema
-from flask import abort
+from flask import abort, current_app
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import KEY_TO_CLASS_MAP, DbTxn
 from gramps.gen.db.base import DbReadBase, DbWriteBase
@@ -813,7 +813,8 @@ def validate_object_dict(obj_dict: Dict[str, Any]) -> bool:
     obj_dict_fixed = {k: v for k, v in obj_dict.items() if k != "complete"}
     try:
         jsonschema.validate(obj_dict_fixed, schema)
-    except jsonschema.exceptions.ValidationError:
+    except jsonschema.exceptions.ValidationError as exc:
+        current_app.log_exception(exc)
         return False
     return True
 
@@ -837,7 +838,10 @@ def fix_object_dict(object_dict: Dict, class_name: Optional[str] = None):
             k == "name" and class_name == "StyledTextTag"
         ):
             if isinstance(v, str):
-                d_out[k] = {"_class": f"{class_name}Type", "string": _(v)}
+                if class_name == "Family":
+                    d_out[k] = {"_class": f"{class_name}RelType", "string": _(v)}
+                else:
+                    d_out[k] = {"_class": f"{class_name}Type", "string": _(v)}
             else:
                 d_out[k] = v
         elif k == "role":
@@ -861,6 +865,8 @@ def fix_object_dict(object_dict: Dict, class_name: Optional[str] = None):
                 else item
                 for item in v
             ]
+        elif k in ["complete"]:
+            pass
         else:
             d_out[k] = v
     return d_out
