@@ -161,7 +161,7 @@ def validate_options(report: Dict, report_options: Dict, allow_file: bool = Fals
             abort(422)
         if "A number" in report["options_help"][option][2]:
             try:
-                int(report_options[option])
+                float(report_options[option])
             except ValueError:
                 abort(422)
         if "Size in cm" in report["options_help"][option][2]:
@@ -197,10 +197,7 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
     """Report file resource."""
 
     @use_args(
-        {
-            "options": fields.Str(validate=validate.Length(min=1)),
-        },
-        location="query",
+        {"options": fields.Str(validate=validate.Length(min=1)),}, location="query",
     )
     def get(self, args: Dict, report_id: str) -> Response:
         """Get specific report attributes."""
