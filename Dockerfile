@@ -1,4 +1,4 @@
-FROM dmstraub/gramps:latest
+FROM dmstraub/gramps:5.1.4
 
 WORKDIR /app
 ENV PYTHONPATH="${PYTHONPATH}:/usr/lib/python3/dist-packages"
