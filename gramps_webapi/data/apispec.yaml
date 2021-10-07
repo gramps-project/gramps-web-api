@@ -208,11 +208,16 @@ paths:
             full_name:
               description: "The new user's full name."
               type: string
+            role:
+              description: "An integer user role ID."
+              type: number
       responses:
         200:
           description: "OK: Successful operation."
         401:
           description: "Unauthorized: Missing authorization header."
+        403:
+          description: "Unauthorized: insufficient permissions."
         404:
           description: "Not found: User does not exist."
         422:
@@ -251,6 +256,27 @@ paths:
           description: "Conflict: user already exists."
         422:
           description: "Unprocessable Entity: Invalid token."
+    delete:
+      tags:
+      - users
+      summary: "Delete the user."
+      operationId: deleteUser
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        403:
+          description: "Unauthorized: insufficient permissions."
+        404:
+          description: "Not found: user does not exist."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
   /users/{user_name}/register/:
     post:

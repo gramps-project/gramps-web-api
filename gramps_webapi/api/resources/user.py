@@ -31,8 +31,10 @@ from webargs import fields
 from ...auth.const import (
     CLAIM_LIMITED_SCOPE,
     PERM_ADD_USER,
+    PERM_DEL_USER,
     PERM_EDIT_OTHER_USER,
     PERM_EDIT_OWN_USER,
+    PERM_EDIT_USER_ROLE,
     PERM_VIEW_OTHER_USER,
     ROLE_DISABLED,
     ROLE_UNCONFIRMED,
@@ -98,16 +100,25 @@ class UserResource(UserChangeBase):
         return jsonify(details), 200
 
     @use_args(
-        {"email": fields.Str(required=False), "full_name": fields.Str(required=False),},
+        {
+            "email": fields.Str(required=False),
+            "full_name": fields.Str(required=False),
+            "role": fields.Int(required=False),
+        },
         location="json",
     )
     def put(self, args, user_name: str):
         """Update a user's details."""
         auth_provider, user_name = self.prepare_edit(user_name)
+        if "role" in args:
+            require_permissions([PERM_EDIT_USER_ROLE])
         auth_provider.modify_user(
-            name=user_name, email=args.get("email"), fullname=args.get("full_name")
+            name=user_name,
+            email=args.get("email"),
+            fullname=args.get("full_name"),
+            role=args.get("role"),
         )
-        return "", 201
+        return "", 200
 
     @use_args(
         {
@@ -138,6 +149,21 @@ class UserResource(UserChangeBase):
         except ValueError:
             abort(409)
         return "", 201
+
+    def delete(self, user_name: str):
+        """Delete a user."""
+        if user_name == "-":
+            # Deleting the own user is currently not allowed
+            abort(404)
+        auth_provider = current_app.config.get("AUTH_PROVIDER")
+        if auth_provider is None:
+            abort(405)
+        require_permissions([PERM_DEL_USER])
+        try:
+            auth_provider.delete_user(name=user_name)
+        except ValueError:
+            abort(404)  # user not found
+        return "", 200
 
 
 class UserRegisterResource(Resource):
