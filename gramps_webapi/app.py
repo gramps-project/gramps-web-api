@@ -64,6 +64,11 @@ def create_app(db_manager=None):
     if not app.config.get("SECRET_KEY"):
         raise ValueError("SECRET_KEY must be specified")
 
+    # try setting media basedir from environment
+    app.config["MEDIA_BASE_DIR"] = app.config.get("MEDIA_BASE_DIR") or os.getenv(
+        "MEDIA_BASE_DIR"
+    )
+
     # instantiate DB manager
     if db_manager is None:
         app.config["DB_MANAGER"] = WebDbManager(name=app.config["TREE"])
