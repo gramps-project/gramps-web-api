@@ -172,12 +172,12 @@ class TestUser(unittest.TestCase):
         assert rv.status_code == 404
 
     def test_reset_password_trigger_status(self):
-        with patch("smtplib.SMTP") as mock_smtp:
+        with patch("smtplib.SMTP_SSL") as mock_smtp:
             rv = self.client.post(BASE_URL + "/users/user/password/reset/trigger/")
             assert rv.status_code == 201
 
     def test_reset_password(self):
-        with patch("smtplib.SMTP") as mock_smtp:
+        with patch("smtplib.SMTP_SSL") as mock_smtp:
             rv = self.client.post(BASE_URL + "/users/user/password/reset/trigger/")
             context = mock_smtp.return_value
             context.send_message.assert_called()
@@ -444,7 +444,7 @@ class TestUser(unittest.TestCase):
         assert rv.status_code == 200
 
     def test_register_user(self):
-        with patch("smtplib.SMTP") as mock_smtp:
+        with patch("smtplib.SMTP_SSL") as mock_smtp:
             # role is not allowed
             rv = self.client.post(
                 BASE_URL + "/users/new_user_2/register/",
@@ -509,7 +509,7 @@ class TestUser(unittest.TestCase):
             assert rv.status_code == 403
 
     def test_confirm_email(self):
-        with patch("smtplib.SMTP") as mock_smtp:
+        with patch("smtplib.SMTP_SSL") as mock_smtp:
             rv = self.client.post(
                 BASE_URL + "/users/new_user_3/register/",
                 json={
