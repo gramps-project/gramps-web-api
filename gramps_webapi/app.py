@@ -51,7 +51,18 @@ def create_app(db_manager=None):
     app.config.from_object(DefaultConfig)
 
     # overwrite with user config file
-    app.config.from_envvar(ENV_CONFIG_FILE)
+    if os.getenv(ENV_CONFIG_FILE):
+        app.config.from_envvar(ENV_CONFIG_FILE)
+
+    # if tree is missing, try to get it from the env or fail
+    app.config["TREE"] = app.config.get("TREE") or os.getenv("TREE")
+    if not app.config.get("TREE"):
+        raise ValueError("TREE must be specified")
+
+    # if secret key is missing, try to get it from the env or fail
+    app.config["SECRET_KEY"] = app.config["SECRET_KEY"] or os.getenv("SECRET_KEY")
+    if not app.config.get("SECRET_KEY"):
+        raise ValueError("SECRET_KEY must be specified")
 
     # instantiate DB manager
     if db_manager is None:
@@ -69,6 +80,10 @@ def create_app(db_manager=None):
         JWTManager(app)
 
         # instantiate and store auth provider
+        # if DB URI is missing, try to get it from the env or fail
+        app.config["USER_DB_URI"] = app.config.get("USER_DB_URI") or os.getenv(
+            "USER_DB_URI"
+        )
         if not app.config.get("USER_DB_URI"):
             raise ValueError("USER_DB_URI must be specified")
         app.config["AUTH_PROVIDER"] = SQLAuth(db_uri=app.config["USER_DB_URI"])

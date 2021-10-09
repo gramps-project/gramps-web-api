@@ -20,22 +20,23 @@
 """Default configuration settings."""
 
 import datetime
+import os
 
 
 class DefaultConfig(object):
     """Default configuration object."""
 
     PROPAGATE_EXCEPTIONS = True
-    SEARCH_INDEX_DIR = "indexdir"
-    EMAIL_HOST = "localhost"
-    EMAIL_PORT = 0
-    EMAIL_HOST_USER = ""
-    EMAIL_HOST_PASSWORD = ""
-    EMAIL_USE_TLS = False
-    DEFAULT_FROM_EMAIL = ""
-    BASE_URL = "http://localhost/"
+    SEARCH_INDEX_DIR = os.getenv("SEARCH_INDEX_DIR", "indexdir")
+    EMAIL_HOST = os.getenv("EMAIL_HOST", "localhost")
+    EMAIL_PORT = int(os.getenv("EMAIL_PORT", "465"))
+    EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+    EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+    EMAIL_USE_TLS = True
+    DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "")
+    BASE_URL = os.getenv("BASE_URL", "http://localhost/")
     CORS_EXPOSE_HEADERS = ["X-Total-Count"]
-    STATIC_PATH = "static"
+    STATIC_PATH = os.getenv("STATIC_PATH", "static")
     THUMBNAIL_CACHE_CONFIG = {
         "CACHE_TYPE": "filesystem",
         "CACHE_DIR": "thumbnail_cache",
