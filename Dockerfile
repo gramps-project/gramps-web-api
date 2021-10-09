@@ -20,6 +20,10 @@ RUN mkdir /app/static && touch /app/static/index.html
 RUN mkdir /app/db && mkdir /app/media && mkdir /app/indexdir && mkdir /app/users
 RUN mkdir /app/thumbnail_cache
 RUN mkdir /app/tmp
+ENV USER_DB_URI=sqlite:////app/users/users.sqlite
+ENV MEDIA_BASE_DIR=/app/media
+ENV SEARCH_INDEX_DIR=/app/indexdir
+ENV STATIC_PATH=/app/static
 
 # install gunicorn
 RUN python3 -m pip install --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
@@ -32,4 +36,6 @@ RUN python3 -m pip install --no-cache-dir --extra-index-url https://www.piwheels
 
 EXPOSE 5000
 
+COPY docker-entrypoint.sh /
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD gunicorn -w 8 -b 0.0.0.0:5000 gramps_webapi.wsgi:app --timeout 120 --limit-request-line 8190
