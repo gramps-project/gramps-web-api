@@ -188,6 +188,6 @@ On first run, it will build the full-text search index of the API.
 
 If you want to add the [Gramps.js](https://github.com/DavidMStraub/Gramps.js) web frontend to your installation, simply add
 ```yaml
-      - GRAMPSJS_VERSION=v0.1.0
+      - GRAMPSJS_VERSION=v0.1.1
 ```
 (or any other released version) to the `environment` block in the `gramps_webapi` service section of `docker-compose.yml`.
