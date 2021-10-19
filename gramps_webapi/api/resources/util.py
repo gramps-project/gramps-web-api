@@ -24,7 +24,7 @@
 import json
 from hashlib import sha256
 from http import HTTPStatus
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 import gramps
 import jsonschema
@@ -40,6 +40,7 @@ from gramps.gen.lib import (
     Citation,
     Event,
     Family,
+    GrampsType,
     Media,
     Note,
     Person,
@@ -819,6 +820,14 @@ def validate_object_dict(obj_dict: Dict[str, Any]) -> bool:
     return True
 
 
+def xml_to_locale(gramps_type_name: str, string: str) -> str:
+    """Translate and XML string type name to a localized type name."""
+    gramps_type = getattr(gramps.gen.lib, gramps_type_name)
+    typ = gramps_type()
+    typ.set_from_xml_str(string)
+    return str(typ)
+
+
 def fix_object_dict(object_dict: Dict, class_name: Optional[str] = None):
     """Restore a Gramps object in simplified representation to its full form.
 
@@ -839,19 +848,31 @@ def fix_object_dict(object_dict: Dict, class_name: Optional[str] = None):
         ):
             if isinstance(v, str):
                 if class_name == "Family":
-                    d_out[k] = {"_class": f"{class_name}RelType", "string": _(v)}
+                    d_out[k] = {
+                        "_class": f"{class_name}RelType",
+                        "string": xml_to_locale(f"{class_name}RelType", v),
+                    }
                 else:
-                    d_out[k] = {"_class": f"{class_name}Type", "string": _(v)}
+                    d_out[k] = {
+                        "_class": f"{class_name}Type",
+                        "string": xml_to_locale(f"{class_name}Type", v),
+                    }
             else:
                 d_out[k] = v
         elif k == "role":
             if isinstance(v, str):
-                d_out[k] = {"_class": "EventRoleType", "string": _(v)}
+                d_out[k] = {
+                    "_class": "EventRoleType",
+                    "string": xml_to_locale("EventRoleType", v),
+                }
             else:
                 d_out[k] = v
         elif k == "origintype":
             if isinstance(v, str):
-                d_out[k] = {"_class": "NameOriginType", "string": _(v)}
+                d_out[k] = {
+                    "_class": "NameOriginType",
+                    "string": xml_to_locale("NameOriginType", v),
+                }
             else:
                 d_out[k] = v
         elif k in ["rect", "mother_handle", "father_handle", "famc"] and not v:
