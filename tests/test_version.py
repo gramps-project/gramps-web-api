@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2021      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -17,4 +17,23 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 
-from ._version import __version__
+"""Test consistent version numbers."""
+
+import unittest
+
+import yaml
+from pkg_resources import resource_filename
+
+from gramps_webapi import __version__
+
+
+class TestVersion(unittest.TestCase):
+    """Test the version specifiers are consistent."""
+
+    def test_version(self):
+        """Test version in setup and apispec are equal."""
+        with open(
+            resource_filename("gramps_webapi", "data/apispec.yaml")
+        ) as file_handle:
+            schema = yaml.safe_load(file_handle)
+        self.assertEqual(__version__, schema["info"]["version"])
