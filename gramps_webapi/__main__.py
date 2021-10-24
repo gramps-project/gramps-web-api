@@ -34,11 +34,12 @@ LOG = logging.getLogger("gramps_webapi")
 
 
 @click.group("cli")
-@click.option("--config", help="Set the path to the config file", required=True)
+@click.option("--config", help="Set the path to the config file")
 @click.pass_context
 def cli(ctx, config):
     """Gramps web API command line interface."""
-    os.environ[ENV_CONFIG_FILE] = os.path.abspath(config)
+    if config:
+        os.environ[ENV_CONFIG_FILE] = os.path.abspath(config)
     ctx.obj = create_app()
 
 

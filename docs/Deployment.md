@@ -23,24 +23,7 @@ Upload your media files to the server. Make sure your Gramps database uses relat
     Use the "Convert media paths from absolute to relative" option in the "Media Manager" tool in Gramps' "Tools" menu if necessary.
 
 
-
-## Step 3: Create a configuration file
-
-Create a configuration and upload it to your server (we will assume the path is `~/config.cfg`). It should contain at least the following lines:
-
-```python
-TREE="..."  # set the name of your family tree
-SECRET_KEY="..." # set your secret key
-# do not change the following lines as they refer to paths within the container
-USER_DB_URI="sqlite:////app/users/users.sqlite"
-MEDIA_BASE_DIR="/app/media"
-SEARCH_INDEX_DIR="/app/indexdir"
-STATIC_PATH="/app/static"
-```
-
-For other configuration options, see [Configuration](Configuration.md)
-
-## Step 4: Docker configuration
+## Step 3: Docker configuration
 
 Create a new file on the server named `docker-compose.yml` and insert the following contents:
 
@@ -53,11 +36,14 @@ services:
     restart: always
     ports:
       - "80:5000"
+    environment:
+      TREE: "..." # set the name of your family tree
+      SECRET_KEY: "..." # set your secret key
+      BASE_URL: "http://localhost:5554"
     volumes:
       - gramps_users:/app/users
       - gramps_index:/app/indexdir
       - gramps_thumb_cache:/app/thumbnail_cache
-      - ~/config.cfg:/app/config/config.cfg
       - ~/gramps_db:/root/.gramps/grampsdb
       - ~/gramps_media:/app/media
 
@@ -67,14 +53,14 @@ volumes:
   gramps_thumb_cache:
 ```
 
-This will generate three named volumes to make sure that the user database, search index, and thumbnail cache will persist, and will mount the configuration file, Gramps database directory, and the directory holding your media files into the container (the paths on the left-hand side of the colon `:` refer to your host machine, the ones on the right hand side to the container and should not be changed).
+This will generate three named volumes to make sure that the user database, search index, and thumbnail cache will persist, and will mount the Gramps database directory and the directory holding your media files into the container (the paths on the left-hand side of the colon `:` refer to your host machine, the ones on the right hand side to the container and should not be changed). For more configuration options, see [Configuration](Configuration.md).
 
 !!! warning
     The above will make the API available on port 80 of the host machine **without SSL/TLS protection**. You can use this for local testing, but do not expose this directly to the internet, it is completely insecure!
 
 
 
-## Step 5: Secure access with SSL/TLS
+## Step 4: Secure access with SSL/TLS
 
 The web API **must** be served to the public internet over HTTPS. There are several options, e.g.
 
@@ -156,7 +142,7 @@ networks:
 
 Please see the [acme-companion](https://github.com/nginx-proxy/acme-companion) docs for how to set up your domain.
 
-## Step 6: Import database
+## Step 5: Import database
 
 If you have copied the Gramps database directory directly in Step 1, you can skip this step.
 
@@ -172,7 +158,7 @@ docker-compose run gramps_webapi \
 where `My family tree` is the name of the new family tree (must match the setting in the config file) and `my_tree.gramps` the file name of the Gramps XML export.
 
 
-## Step 7: Add users
+## Step 6: Add users
 
 Initialize the user system by creating an administrator account with the command
 
@@ -188,19 +174,20 @@ docker-compose run gramps_webapi \
 See [User system](Users.md) for more details and how to add additional users.
 
 
-## Step 8: Build the search index
-
-Build the initial search index by running
-
-```bash
-docker-compose run gramps_webapi \
-    python3 -m gramps_webapi search index-full
-```
-
-## Step 9: Start the server
+## Step 7: Start the server
 
 Run
 
 ```
 docker-compose up -d
 ```
+
+On first run, it will build the full-text search index of the API.
+
+## Optional step: use Gramps.js web frontend
+
+If you want to add the [Gramps.js](https://github.com/DavidMStraub/Gramps.js) web frontend to your installation, simply add
+```yaml
+      - GRAMPSJS_VERSION=v0.1.1
+```
+(or any other released version) to the `environment` block in the `gramps_webapi` service section of `docker-compose.yml`.
