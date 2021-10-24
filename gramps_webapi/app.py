@@ -59,9 +59,10 @@ def create_app(db_manager=None):
     if not app.config.get("TREE"):
         raise ValueError("TREE must be specified")
 
-    # if secret key is missing, try to get it from the env or fail
+    # if secret key is missing, try to get it from the env
     app.config["SECRET_KEY"] = app.config["SECRET_KEY"] or os.getenv("SECRET_KEY")
-    if not app.config.get("SECRET_KEY"):
+    # still not found? Fail, unless auth is disabled
+    if not app.config.get("SECRET_KEY") and not app.config.get("DISABLE_AUTH"):
         raise ValueError("SECRET_KEY must be specified")
 
     # try setting media basedir from environment
