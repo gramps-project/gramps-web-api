@@ -1,5 +1,5 @@
 #!/bin/sh
-set -eu
+set -e
 
 # Use Gramps.js frontend
 if [ -n "$GRAMPSJS_VERSION" ]
