@@ -852,6 +852,11 @@ def fix_object_dict(object_dict: Dict, class_name: Optional[str] = None):
                         "_class": f"{class_name}RelType",
                         "string": xml_to_locale(f"{class_name}RelType", v),
                     }
+                elif class_name == "RepoRef":
+                    d_out[k] = {
+                        "_class": "SourceMediaType",
+                        "string": xml_to_locale("SourceMediaType", v),
+                    }
                 else:
                     d_out[k] = {
                         "_class": f"{class_name}Type",
