@@ -62,16 +62,11 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 if key == db_key:
                     db_type = db_summary[0][key]
 
-        with open(
-            resource_filename("gramps_webapi", "data/apispec.yaml")
-        ) as file_handle:
-            schema = yaml.safe_load(file_handle)
-
         result = {
             "database": {"id": db_handle.get_dbid(), "name": db_name, "type": db_type,},
             "default_person": db_handle.get_default_handle(),
             "gramps": {"version": ENV["VERSION"],},
-            "gramps_webapi": {"schema": schema["info"]["version"], "version": VERSION,},
+            "gramps_webapi": {"schema": VERSION, "version": VERSION,},
             "locale": {
                 "lang": GRAMPS_LOCALE.lang,
                 "language": GRAMPS_LOCALE.language[0],
