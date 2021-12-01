@@ -71,6 +71,7 @@ def get_exporters(extension: str = None):
         if extension is not None and extension != plugin.get_extension():
             continue
         exporter = {
+            "name": plugin.get_name(),
             "description": plugin.get_description(),
             "extension": plugin.get_extension(),
             "module": plugin.get_module_name(),
