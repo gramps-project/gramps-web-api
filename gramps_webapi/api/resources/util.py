@@ -38,6 +38,7 @@ from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import (
     Citation,
+    Date,
     Event,
     Family,
     GrampsType,
@@ -126,7 +127,9 @@ def get_sex_profile(person: Person) -> str:
 
 
 def get_event_participants_for_handle(
-    db_handle: DbReadBase, handle: Handle, locale: GrampsLocale = glocale,
+    db_handle: DbReadBase,
+    handle: Handle,
+    locale: GrampsLocale = glocale,
 ) -> Dict:
     """Get event participants given a handle."""
     result = {"people": [], "families": []}
@@ -311,6 +314,7 @@ def get_place_profile_for_object(
     place: Place,
     locale: GrampsLocale = glocale,
     parent_places: bool = True,
+    date: Optional[Date] = None,
 ) -> Dict[str, Any]:
     """Get place profile given a Place."""
     latitude, longitude = conv_lat_lon(place.lat, place.long, format="D.D8")
@@ -324,29 +328,22 @@ def get_place_profile_for_object(
         "lat": float(latitude) if (latitude and longitude) else None,
         "long": float(longitude) if (latitude and longitude) else None,
     }
+    if date is not None and not date.is_empty():
+        profile["date"] = locale.date_displayer.display(date)
     if parent_places:
-        parent_places_handles = []
-        _place = place
-        handle = None
-        while True:
-            for placeref in _place.get_placeref_list():
-                handle = placeref.ref
-                break
-            if handle is None or handle in parent_places_handles:
-                break
-            _place = db_handle.get_place_from_handle(handle)
-            if _place is None:
-                break
-            parent_places_handles.append(handle)
-        profile["parent_places"] = [
-            get_place_profile_for_object(
-                db_handle=db_handle,
-                place=db_handle.get_place_from_handle(parent_place),
-                locale=locale,
-                parent_places=False,
-            )
-            for parent_place in parent_places_handles
-        ]
+        profile["parent_places"] = []
+        for placeref in place.get_placeref_list():
+            try:
+                parent_place_profile = get_place_profile_for_object(
+                    db_handle=db_handle,
+                    place=db_handle.get_place_from_handle(placeref.ref),
+                    locale=locale,
+                    parent_places=False,
+                    date=placeref.date,
+                )
+            except HandleError:
+                parent_place_profile = {}
+            profile["parent_places"].append(parent_place_profile)
     return profile
 
 
@@ -674,7 +671,9 @@ def get_soundex(
 
 
 def get_reference_profile_for_object(
-    db_handle: DbReadBase, obj: GrampsObject, locale: GrampsLocale = glocale,
+    db_handle: DbReadBase,
+    obj: GrampsObject,
+    locale: GrampsLocale = glocale,
 ) -> Dict:
     """Return reference profiles for an object."""
     profile = {}
@@ -735,14 +734,20 @@ def get_rating(db_handle: DbReadBase, obj: GrampsObject) -> Tuple[int, int]:
     return count, confidence
 
 
-def has_handle(db_handle: DbWriteBase, obj: GrampsObject,) -> bool:
+def has_handle(
+    db_handle: DbWriteBase,
+    obj: GrampsObject,
+) -> bool:
     """Check if an object with the same class and handle exists in the DB."""
     obj_class = obj.__class__.__name__.lower()
     method = db_handle.method("has_%s_handle", obj_class)
     return method(obj.handle)
 
 
-def has_gramps_id(db_handle: DbWriteBase, obj: GrampsObject,) -> bool:
+def has_gramps_id(
+    db_handle: DbWriteBase,
+    obj: GrampsObject,
+) -> bool:
     """Check if an object with the same class and handle exists in the DB."""
     if not hasattr(obj, "gramps_id"):  # needed for tags
         return False
@@ -786,7 +791,11 @@ def add_object(
         raise ValueError("Database does not support writing.")
 
 
-def add_family_update_refs(db_handle: DbWriteBase, obj: Family, trans: DbTxn,) -> None:
+def add_family_update_refs(
+    db_handle: DbWriteBase,
+    obj: Family,
+    trans: DbTxn,
+) -> None:
     """Update the `family_list` and `parent_family_list` of family members.
 
     Case where the family is new.
@@ -942,7 +951,9 @@ def _get_class_name(super_name, key_name) -> str:
 
 
 def update_object(
-    db_handle: DbWriteBase, obj: GrampsObject, trans: DbTxn,
+    db_handle: DbWriteBase,
+    obj: GrampsObject,
+    trans: DbTxn,
 ):
     """Commit a modified Gramps object to the database.
 
@@ -975,7 +986,10 @@ def update_object(
 
 
 def update_family_update_refs(
-    db_handle: DbWriteBase, obj_old: Family, obj: Family, trans: DbTxn,
+    db_handle: DbWriteBase,
+    obj_old: Family,
+    obj: Family,
+    trans: DbTxn,
 ) -> None:
     """Update the `family_list` and `parent_family_list` of family members.
 

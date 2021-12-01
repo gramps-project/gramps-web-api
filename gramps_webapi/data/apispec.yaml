@@ -7174,6 +7174,10 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/PlaceProfile"
+      date:
+        description: "The date of a place reference."
+        type: string
+        example: "from 1900 to 1925"
       references:
         description: "References from other objects"
         type: object
