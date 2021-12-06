@@ -26,7 +26,7 @@ from typing import Any, Dict, Generator, List, Optional, Tuple
 
 from flask import current_app
 from gramps.gen.db.base import DbReadBase
-from gramps.gen.lib import Name
+from gramps.gen.lib import Name, Place
 from whoosh import index
 from whoosh.fields import BOOLEAN, DATETIME, ID, TEXT, Schema
 from whoosh.qparser import FieldsPlugin, MultifieldParser, QueryParser
@@ -53,7 +53,12 @@ def object_to_strings(obj) -> Tuple[str, str]:
         # repositories and notes currently don't have gramps_id on their
         # text_data_list, so it is added here explicitly if missing
         strings.append(obj.gramps_id)
-    for child_obj in obj.get_text_data_child_list():
+    text_data_child_list = obj.get_text_data_child_list()
+    if isinstance(obj, Place) and obj.name not in text_data_child_list:
+        # fix necessary for Gramps 5.1
+        # (see https://github.com/gramps-project/gramps-webapi/issues/245)
+        text_data_child_list.append(obj.name)
+    for child_obj in text_data_child_list:
         if hasattr(child_obj, "get_text_data_list"):
             if hasattr(child_obj, "private") and child_obj.private:
                 private_strings += child_obj.get_text_data_list()
@@ -93,7 +98,9 @@ def obj_strings_from_handle(
     return None
 
 
-def iter_obj_strings(db_handle: DbReadBase,) -> Generator[Dict[str, Any], None, None]:
+def iter_obj_strings(
+    db_handle: DbReadBase,
+) -> Generator[Dict[str, Any], None, None]:
     """Iterate over object strings in the whole database."""
     for class_name in PRIMARY_GRAMPS_OBJECTS:
         iter_method = db_handle.method("iter_%s_handles", class_name)
@@ -263,7 +270,8 @@ class SearchIndexer:
         }
 
     def _get_sorting(
-        self, sort: Optional[List[str]] = None,
+        self,
+        sort: Optional[List[str]] = None,
     ) -> Optional[List[FieldFacet]]:
         """Get the appropriate field facets for sorting."""
         if not sort:
