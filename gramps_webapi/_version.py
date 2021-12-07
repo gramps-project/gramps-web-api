@@ -18,4 +18,4 @@
 #
 
 # make sure to match this version with the one in apispec.yaml
-__version__ = "0.2.1"
+__version__ = "0.2.2"
