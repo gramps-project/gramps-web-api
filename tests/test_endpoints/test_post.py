@@ -27,6 +27,7 @@ from typing import Dict
 from unittest.mock import patch
 
 from gramps.cli.clidbman import CLIDbManager
+from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
@@ -37,6 +38,8 @@ from gramps_webapi.auth.const import (
     ROLE_OWNER,
 )
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
+
+_ = glocale.translation.gettext
 
 
 def get_headers(client, user: str, password: str) -> Dict[str, str]:
@@ -125,7 +128,12 @@ class TestObjectCreation(unittest.TestCase):
             "handle": handle_person,
             "primary_name": {
                 "_class": "Name",
-                "surname_list": [{"_class": "Surname", "surname": "Doe",}],
+                "surname_list": [
+                    {
+                        "_class": "Surname",
+                        "surname": "Doe",
+                    }
+                ],
                 "first_name": "John",
             },
             "event_ref_list": [
@@ -141,7 +149,10 @@ class TestObjectCreation(unittest.TestCase):
         birth = {
             "_class": "Event",
             "handle": handle_birth,
-            "date": {"_class": "Date", "dateval": [2, 10, 1764, False],},
+            "date": {
+                "_class": "Date",
+                "dateval": [2, 10, 1764, False],
+            },
             "type": {"_class": "EventType", "string": "Birth"},
         }
         objects = [person, birth]
@@ -166,6 +177,82 @@ class TestObjectCreation(unittest.TestCase):
             person_dict["extended"]["events"][0]["date"]["dateval"],
             [2, 10, 1764, False],
         )
+
+    def test_objects_add_person_seperate(self):
+        """Add a person, then a birth event, check birth ref index."""
+        handle_person = make_handle()
+        handle_birth = make_handle()
+        person = {
+            "_class": "Person",
+            "handle": handle_person,
+            "primary_name": {
+                "_class": "Name",
+                "surname_list": [
+                    {
+                        "_class": "Surname",
+                        "surname": "Doe",
+                    }
+                ],
+                "first_name": "John",
+            },
+            # "event_ref_list": [
+            #     {
+            #         "_class": "EventRef",
+            #         "ref": handle_birth,
+            #         "role": {"_class": "EventRoleType", "string": "Primary"},
+            #     },
+            # ],
+            # "birth_ref_index": 0,
+            "gender": 1,
+        }
+        birth = {
+            "_class": "Event",
+            "handle": handle_birth,
+            "date": {
+                "_class": "Date",
+                "dateval": [2, 10, 1764, False],
+            },
+            "type": {"_class": "EventType", "string": _("Birth")},
+        }
+        person_birth = {
+            "_class": "Person",
+            "handle": handle_person,
+            "primary_name": {
+                "_class": "Name",
+                "surname_list": [
+                    {
+                        "_class": "Surname",
+                        "surname": "Doe",
+                    }
+                ],
+                "first_name": "John",
+            },
+            "event_ref_list": [
+                {
+                    "_class": "EventRef",
+                    "ref": handle_birth,
+                    "role": {"_class": "EventRoleType", "string": _("Primary")},
+                },
+            ],
+            "gender": 1,
+        }
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/people/", json=person, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.post("/api/events/", json=birth, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.get(f"/api/people/{handle_person}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        person_dict = rv.json
+        self.assertEqual(person_dict["birth_ref_index"], -1)
+        rv = self.client.put(
+            f"/api/people/{handle_person}", json=person_birth, headers=headers
+        )
+        self.assertEqual(rv.status_code, 200)
+        rv = self.client.get(f"/api/people/{handle_person}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        person_dict = rv.json
+        self.assertEqual(person_dict["birth_ref_index"], 0)
 
     def test_objects_add_family(self):
         """Add three people and then create a new family."""
@@ -275,7 +362,12 @@ class TestObjectCreation(unittest.TestCase):
             "handle": handle_person,
             "primary_name": {
                 "_class": "Name",
-                "surname_list": [{"_class": "Surname", "surname": "Doe",}],
+                "surname_list": [
+                    {
+                        "_class": "Surname",
+                        "surname": "Doe",
+                    }
+                ],
                 "first_name": "John",
             },
             "event_ref_list": [
@@ -291,7 +383,10 @@ class TestObjectCreation(unittest.TestCase):
         birth = {
             "_class": "Event",
             "handle": handle_birth,
-            "date": {"_class": "Date", "dateval": [2, 10, 1764, False],},
+            "date": {
+                "_class": "Date",
+                "dateval": [2, 10, 1764, False],
+            },
             "type": {"_class": "EventType", "string": "Birth"},
         }
         # erroneously use string as date
@@ -314,7 +409,12 @@ class TestObjectCreation(unittest.TestCase):
             "handle": handle_person,
             "primary_name": {
                 "_class": "Name",
-                "surname_list": [{"_class": "Surname", "surname": "Doe",}],
+                "surname_list": [
+                    {
+                        "_class": "Surname",
+                        "surname": "Doe",
+                    }
+                ],
                 "first_name": "John",
             },
             "gender": 1,
@@ -432,7 +532,12 @@ class TestObjectCreation(unittest.TestCase):
             "handle": handle_person,
             "primary_name": {
                 "_class": "Name",
-                "surname_list": [{"_class": "Surname", "surname": "Doe",}],
+                "surname_list": [
+                    {
+                        "_class": "Surname",
+                        "surname": "Doe",
+                    }
+                ],
                 "first_name": "John",
             },
             "event_ref_list": [
@@ -448,7 +553,10 @@ class TestObjectCreation(unittest.TestCase):
         birth = {
             "_class": "Event",
             "handle": handle_birth,
-            "date": {"_class": "Date", "dateval": [2, 10, 1764, False],},
+            "date": {
+                "_class": "Date",
+                "dateval": [2, 10, 1764, False],
+            },
             "type": {"_class": "EventType", "string": "Birth"},
         }
         objects = [person, birth]
@@ -482,7 +590,11 @@ class TestObjectCreation(unittest.TestCase):
         with indexer.index(overwrite=False).writer() as writer:
             for _ in range(10):
                 # write 10 objects while index is locked
-                rv = self.client.post("/api/notes/", json=content, headers=headers,)
+                rv = self.client.post(
+                    "/api/notes/",
+                    json=content,
+                    headers=headers,
+                )
                 self.assertEqual(rv.status_code, 201)
         sleep(2)  # give the async writer time to flush
         rv = self.client.get(f"/api/search/?query={label}", headers=headers)

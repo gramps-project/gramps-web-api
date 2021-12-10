@@ -126,7 +126,9 @@ def get_sex_profile(person: Person) -> str:
 
 
 def get_event_participants_for_handle(
-    db_handle: DbReadBase, handle: Handle, locale: GrampsLocale = glocale,
+    db_handle: DbReadBase,
+    handle: Handle,
+    locale: GrampsLocale = glocale,
 ) -> Dict:
     """Get event participants given a handle."""
     result = {"people": [], "families": []}
@@ -674,7 +676,9 @@ def get_soundex(
 
 
 def get_reference_profile_for_object(
-    db_handle: DbReadBase, obj: GrampsObject, locale: GrampsLocale = glocale,
+    db_handle: DbReadBase,
+    obj: GrampsObject,
+    locale: GrampsLocale = glocale,
 ) -> Dict:
     """Return reference profiles for an object."""
     profile = {}
@@ -735,14 +739,20 @@ def get_rating(db_handle: DbReadBase, obj: GrampsObject) -> Tuple[int, int]:
     return count, confidence
 
 
-def has_handle(db_handle: DbWriteBase, obj: GrampsObject,) -> bool:
+def has_handle(
+    db_handle: DbWriteBase,
+    obj: GrampsObject,
+) -> bool:
     """Check if an object with the same class and handle exists in the DB."""
     obj_class = obj.__class__.__name__.lower()
     method = db_handle.method("has_%s_handle", obj_class)
     return method(obj.handle)
 
 
-def has_gramps_id(db_handle: DbWriteBase, obj: GrampsObject,) -> bool:
+def has_gramps_id(
+    db_handle: DbWriteBase,
+    obj: GrampsObject,
+) -> bool:
     """Check if an object with the same class and handle exists in the DB."""
     if not hasattr(obj, "gramps_id"):  # needed for tags
         return False
@@ -786,7 +796,11 @@ def add_object(
         raise ValueError("Database does not support writing.")
 
 
-def add_family_update_refs(db_handle: DbWriteBase, obj: Family, trans: DbTxn,) -> None:
+def add_family_update_refs(
+    db_handle: DbWriteBase,
+    obj: Family,
+    trans: DbTxn,
+) -> None:
     """Update the `family_list` and `parent_family_list` of family members.
 
     Case where the family is new.
@@ -942,7 +956,9 @@ def _get_class_name(super_name, key_name) -> str:
 
 
 def update_object(
-    db_handle: DbWriteBase, obj: GrampsObject, trans: DbTxn,
+    db_handle: DbWriteBase,
+    obj: GrampsObject,
+    trans: DbTxn,
 ):
     """Commit a modified Gramps object to the database.
 
@@ -969,13 +985,18 @@ def update_object(
             update_family_update_refs(
                 db_handle=db_handle, obj_old=obj_old, obj=obj, trans=trans
             )
+        elif obj_class == "person":
+            db_handle.set_birth_death_index(obj)
         return commit_method(obj, trans)
     except AttributeError:
         raise ValueError("Database does not support writing.")
 
 
 def update_family_update_refs(
-    db_handle: DbWriteBase, obj_old: Family, obj: Family, trans: DbTxn,
+    db_handle: DbWriteBase,
+    obj_old: Family,
+    obj: Family,
+    trans: DbTxn,
 ) -> None:
     """Update the `family_list` and `parent_family_list` of family members.
 
