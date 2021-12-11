@@ -1,0 +1,8 @@
+plugins:
+  - jekyll-redirect-from
+
+whitelist:
+  - jekyll-redirect-from
+
+permalink: /
+redirect_to: https://gramps-project.github.io/web/
