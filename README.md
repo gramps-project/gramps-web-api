@@ -16,4 +16,4 @@ A demo server is available at https://gramps-webapi-demo.herokuapp.com/api/metad
 
 ## Documentation
 
-The project's documentation is hosted at https://gramps-project.github.io/gramps-webapi/.
+The project's documentation is hosted at https://gramps-project.github.io/web/.
