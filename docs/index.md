@@ -4,6 +4,8 @@ Gramps Web API is a web application that provides a RESTful API to a [Gramps](ht
 
 The API can be used as a backend for web or mobile applications that allow collaborative editing of a Gramps database.
 
+.
+
 ## Main features
 
 - Query all Gramps objects: people, families, places, events, repositories, sources, citations, media objects, notes, tags
