@@ -53,7 +53,7 @@ class WebDbManager:
         path = dbman.get_family_tree_path(self.name)
         if path is None:
             raise ValueError(
-                "Database path for family tree '{}' not found in databse directory {}".format(
+                "Database path for family tree '{}' not found in database directory {}".format(
                     self.name, config.get("database.path")
                 )
             )
