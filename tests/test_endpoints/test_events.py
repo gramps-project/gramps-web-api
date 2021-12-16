@@ -389,6 +389,7 @@ class TestEvents(unittest.TestCase):
                 "date": "1987-08-29",
                 "place": "Gainesville, Llano, TX, USA",
                 "type": "Birth",
+                "summary": "Birth - Warner, Sarah Suzanne",
                 "participants": {
                     "families": [],
                     "people": [
@@ -436,6 +437,13 @@ class TestEvents(unittest.TestCase):
             self, TEST_URL + "?page=1&keys=profile&profile=all&locale=de"
         )
         self.assertEqual(rv[0]["profile"]["type"], "Geburt")
+
+    def test_get_events_parameter_profile_summary_with_locale(self):
+        """Test expected profile summary for a locale."""
+        rv = check_success(
+            self, TEST_URL + "?page=1&keys=profile&profile=all&locale=de"
+        )
+        self.assertEqual(rv[0]["profile"]["summary"], "Geburt - Warner, Sarah Suzanne")
 
     def test_get_events_parameter_backlinks_validate_semantics(self):
         """Test invalid backlinks parameter and values."""
@@ -684,6 +692,7 @@ class TestEventsHandle(unittest.TestCase):
                 "date": "1250",
                 "place": "Atchison, Atchison, KS, USA",
                 "type": "Geburt",
+                "summary": "Geburt - Knudsen, Ralph",
                 "participants": {
                     "families": [],
                     "people": [
