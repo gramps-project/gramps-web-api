@@ -1,6 +1,6 @@
 # Gramps Web API
 
-This project provides a RESTful web API to query and manipulate a [Gramps](https://gramps-project.org) family tree database. It can serve e.g. as backend for a web app.
+This project provides a RESTful web API to query and manipulate a [Gramps](https://gramps-project.org) family tree database. It can serve e.g. as backend for a web app. Gramps Web API is the backend powering [Gramps Web](https://gramps-project.github.io/web/).
 
 ## API documentation
 
