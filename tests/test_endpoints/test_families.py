@@ -49,6 +49,7 @@ class TestFamilies(unittest.TestCase):
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
+        cls.maxDiff = None
 
     def test_get_families_requires_token(self):
         """Test authorization required."""

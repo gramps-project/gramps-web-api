@@ -50,6 +50,7 @@ class TestPeople(unittest.TestCase):
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
+        cls.maxDiff = None
 
     def test_get_people_requires_token(self):
         """Test authorization required."""
