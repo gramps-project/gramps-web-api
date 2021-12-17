@@ -513,6 +513,7 @@ class TestPeople(unittest.TestCase):
                     "confidence": 0,
                     "date": "570-04-19",
                     "type": "Birth",
+                    "summary": "Birth - , محمد",
                 },
                 "death": {
                     "age": "62 years, 1 months, 19 days",
@@ -520,6 +521,7 @@ class TestPeople(unittest.TestCase):
                     "confidence": 0,
                     "date": "632-06-08",
                     "type": "Death",
+                    "summary": "Death - , محمد",
                 },
                 "events": [
                     {
@@ -529,6 +531,7 @@ class TestPeople(unittest.TestCase):
                         "date": "570-04-19",
                         "role": "Primary",
                         "type": "Birth",
+                        "summary": "Birth - , محمد",
                     },
                     {
                         "age": "62 years, 1 months, 19 days",
@@ -537,6 +540,7 @@ class TestPeople(unittest.TestCase):
                         "date": "632-06-08",
                         "role": "Primary",
                         "type": "Death",
+                        "summary": "Death - , محمد",
                     },
                     {
                         "age": "39 years, 8 months, 13 days",
@@ -545,6 +549,7 @@ class TestPeople(unittest.TestCase):
                         "date": "610",
                         "role": "Primary",
                         "type": "Marriage",
+                        "summary": "Marriage - , محمد, ...",
                     },
                 ],
                 "families": [
@@ -556,6 +561,7 @@ class TestPeople(unittest.TestCase):
                                 "confidence": 0,
                                 "date": "570-04-19",
                                 "type": "Birth",
+                                "summary": "Birth - , محمد",
                             },
                             "death": {
                                 "age": "62 years, 1 months, 19 days",
@@ -563,6 +569,7 @@ class TestPeople(unittest.TestCase):
                                 "confidence": 0,
                                 "date": "632-06-08",
                                 "type": "Death",
+                                "summary": "Death - , محمد",
                             },
                             "gramps_id": "I2110",
                             "handle": "cc8205d872f532ab14e",
@@ -607,6 +614,7 @@ class TestPeople(unittest.TestCase):
                                 "confidence": 0,
                                 "date": "570-04-19",
                                 "type": "Birth",
+                                "summary": "Birth - , محمد",
                             },
                             "death": {
                                 "age": "62 years, 1 months, 19 days",
@@ -614,6 +622,7 @@ class TestPeople(unittest.TestCase):
                                 "confidence": 0,
                                 "date": "632-06-08",
                                 "type": "Death",
+                                "summary": "Death - , محمد",
                             },
                             "gramps_id": "I2110",
                             "handle": "cc8205d872f532ab14e",
@@ -638,8 +647,16 @@ class TestPeople(unittest.TestCase):
                     "family": [
                         {
                             "father": {
-                                "birth": {"date": "570-04-19", "type": "Birth"},
-                                "death": {"date": "632-06-08", "type": "Death"},
+                                "birth": {
+                                    "date": "570-04-19",
+                                    "type": "Birth",
+                                    "summary": "Birth - , محمد",
+                                },
+                                "death": {
+                                    "date": "632-06-08",
+                                    "type": "Death",
+                                    "summary": "Death - , محمد",
+                                },
                                 "gramps_id": "I2110",
                                 "handle": "cc8205d872f532ab14e",
                                 "name_given": "محمد",
@@ -677,8 +694,16 @@ class TestPeople(unittest.TestCase):
                                 },
                             ],
                             "father": {
-                                "birth": {"date": "570-04-19", "type": "Birth"},
-                                "death": {"date": "632-06-08", "type": "Death"},
+                                "birth": {
+                                    "date": "570-04-19",
+                                    "type": "Birth",
+                                    "summary": "Birth - , محمد",
+                                },
+                                "death": {
+                                    "date": "632-06-08",
+                                    "type": "Death",
+                                    "summary": "Death - , محمد",
+                                },
                                 "gramps_id": "I2110",
                                 "handle": "cc8205d872f532ab14e",
                                 "name_given": "محمد",
@@ -945,11 +970,13 @@ class TestPeopleHandle(unittest.TestCase):
                     "date": "1906-09-05",
                     "place": "Central City, Muhlenberg, KY, USA",
                     "type": "Birth",
+                    "summary": "Birth - Warner, Mary Grace Elizabeth",
                 },
                 "death": {
                     "date": "1993-06-06",
                     "place": "Sevierville, TN, USA",
                     "type": "Death",
+                    "summary": "Death - Warner, Mary Grace Elizabeth",
                 },
                 "gramps_id": "I0138",
                 "handle": "0PWJQCZYFXOS0HGREE",
