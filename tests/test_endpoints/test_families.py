@@ -821,6 +821,7 @@ class TestFamiliesHandle(unittest.TestCase):
                         "place": "Farmington, MO, USA",
                         "span": "0 days",
                         "type": "Marriage",
+                        "summary": "Marriage - Garner, Gerard Stephen and George, Elizabeth",
                     }
                 ],
                 "family_surname": "Garner",
@@ -850,6 +851,7 @@ class TestFamiliesHandle(unittest.TestCase):
                     "place": "Farmington, MO, USA",
                     "span": "0 days",
                     "type": "Marriage",
+                    'summary': 'Marriage - Garner, Gerard Stephen and George, Elizabeth'
                 },
                 "mother": {
                     "birth": {
