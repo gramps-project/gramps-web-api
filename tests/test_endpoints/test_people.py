@@ -549,7 +549,7 @@ class TestPeople(unittest.TestCase):
                         "date": "610",
                         "role": "Primary",
                         "type": "Marriage",
-                        "summary": "Marriage - , عائشة, ...",
+                        "summary": "Marriage - , محمد, ...",
                     },
                 ],
                 "families": [
