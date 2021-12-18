@@ -502,7 +502,7 @@ class TestPeople(unittest.TestCase):
     def test_get_people_parameter_profile_expected_result(self):
         """Test expected response."""
         rv = check_success(
-            self, TEST_URL + "OS6KQCDBW36VIRF98Z/?keys=profile&strip=1&profile=all"
+            self, TEST_URL + "OS6KQCDBW36VIRF98Z?keys=profile&strip=1&profile=all"
         )
         self.assertEqual(
             rv["profile"],
