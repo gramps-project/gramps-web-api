@@ -576,6 +576,7 @@ class TestFamiliesHandle(unittest.TestCase):
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
+        cls.maxDiff = None
 
     def test_get_families_handle_requires_token(self):
         """Test authorization required."""
@@ -982,6 +983,7 @@ class TestFamiliesHandleTimeline(unittest.TestCase):
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
+        cls.maxDiff = None
 
     def test_get_families_handle_timeline_requires_token(self):
         """Test authorization required."""

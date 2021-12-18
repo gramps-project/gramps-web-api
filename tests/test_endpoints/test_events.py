@@ -486,6 +486,7 @@ class TestEventsHandle(unittest.TestCase):
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
+        cls.maxDiff = None
 
     def test_get_events_handle_requires_token(self):
         """Test authorization required."""
@@ -781,6 +782,7 @@ class TestEventsHandleSpan(unittest.TestCase):
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
+        cls.maxDiff = None
 
     def test_get_events_handle_span_requires_token(self):
         """Test authorization required."""
