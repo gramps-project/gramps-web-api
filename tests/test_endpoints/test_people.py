@@ -593,7 +593,7 @@ class TestPeople(unittest.TestCase):
                                 "citations": 0,
                                 "confidence": 0,
                                 "date": "about 1700-10-26",
-                                "place": "Dyersburg",
+                                "place": "Dyersburg, TN, USA",
                                 "summary": "Birth - Adams, William",
                                 "type": "Birth",
                             },
@@ -602,7 +602,7 @@ class TestPeople(unittest.TestCase):
                                 "citations": 0,
                                 "confidence": 0,
                                 "date": "1787-03-10",
-                                "place": "Hattiesburg",
+                                "place": "Hattiesburg, MS, USA",
                                 "summary": "Death - Adams, William",
                                 "type": "Death",
                             },
@@ -689,7 +689,7 @@ class TestPeople(unittest.TestCase):
                             "citations": 0,
                             "confidence": 0,
                             "date": "before 1665",
-                            "place": "Ketchikan",
+                            "place": "Ketchikan, AK, USA",
                             "summary": "Birth - Aguilar, John",
                             "type": "Birth",
                         },
@@ -740,7 +740,7 @@ class TestPeople(unittest.TestCase):
                             "father": {
                                 "birth": {
                                     "date": "before 1665",
-                                    "place": "Ketchikan",
+                                    "place": "Ketchikan, AK, USA",
                                     "summary": "Birth - Aguilar, John",
                                     "type": "Birth",
                                 },
@@ -786,13 +786,13 @@ class TestPeople(unittest.TestCase):
                             "father": {
                                 "birth": {
                                     "date": "about 1700-10-26",
-                                    "place": "Dyersburg",
+                                    "place": "Dyersburg, TN, USA",
                                     "summary": "Birth - Adams, William",
                                     "type": "Birth",
                                 },
                                 "death": {
                                     "date": "1787-03-10",
-                                    "place": "Hattiesburg",
+                                    "place": "Hattiesburg, MS, USA",
                                     "summary": "Death - Adams, William",
                                     "type": "Death",
                                 },
