@@ -59,6 +59,7 @@ from gramps.gen.utils.db import (
     get_death_or_fallback,
     get_divorce_or_fallback,
     get_marriage_or_fallback,
+    get_participant_from_event,
 )
 from gramps.gen.utils.id import create_id
 from gramps.gen.utils.grampslocale import GrampsLocale
@@ -174,6 +175,18 @@ def get_event_participants_for_handle(
     return result
 
 
+def get_event_summary_from_object(
+    db_handle: DbReadBase, event: Event, locale: GrampsLocale = glocale
+):
+    """Get a summary of an Event."""
+    handle = event.get_handle()
+    participant = get_participant_from_event(db_handle, handle)
+    event_type = locale.translation.sgettext(event.type.xml_str())
+    if not participant:
+        return event_type
+    return f"{event_type} - {participant}"
+
+
 def get_event_profile_for_object(
     db_handle: DbReadBase,
     event: Event,
@@ -188,6 +201,7 @@ def get_event_profile_for_object(
         "type": locale.translation.sgettext(event.type.xml_str()),
         "date": locale.date_displayer.display(event.date),
         "place": pd.display_event(db_handle, event),
+        "summary": get_event_summary_from_object(db_handle, event, locale=locale),
     }
     if role is not None:
         result["role"] = role

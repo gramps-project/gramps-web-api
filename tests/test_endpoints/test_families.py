@@ -49,6 +49,7 @@ class TestFamilies(unittest.TestCase):
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
+        cls.maxDiff = None
 
     def test_get_families_requires_token(self):
         """Test authorization required."""
@@ -432,6 +433,7 @@ class TestFamilies(unittest.TestCase):
                             "date": "203 (Islamic)",
                             "place": "",
                             "type": "Birth",
+                            "summary": "Birth - , صالح",
                         },
                         "death": {},
                         "gramps_id": "I2115",
@@ -452,6 +454,7 @@ class TestFamilies(unittest.TestCase):
                         "date": "164-03-00 (Islamic)",
                         "place": "",
                         "type": "Birth",
+                        "summary": "Birth - , أحمد",
                     },
                     "death": {
                         "age": "77 years, 11 days",
@@ -460,6 +463,7 @@ class TestFamilies(unittest.TestCase):
                         "date": "241-03-12 (Islamic)",
                         "place": "",
                         "type": "Death",
+                        "summary": "Death - , أحمد",
                     },
                     "gramps_id": "I2111",
                     "handle": "cc82060504445ab6deb",
@@ -478,6 +482,7 @@ class TestFamilies(unittest.TestCase):
                         "date": "234 (Islamic)",
                         "place": "",
                         "type": "Death",
+                        "summary": "Death - الفضل, العباسة",
                     },
                     "gramps_id": "I2112",
                     "handle": "cc8206050980ea622d0",
@@ -492,11 +497,13 @@ class TestFamilies(unittest.TestCase):
                                 "date": "164-03-00 (Islamic)",
                                 "place": "",
                                 "type": "Birth",
+                                "summary": "Birth - , أحمد",
                             },
                             "death": {
                                 "date": "241-03-12 (Islamic)",
                                 "place": "",
                                 "type": "Death",
+                                "summary": "Death - , أحمد",
                             },
                             "gramps_id": "I2111",
                             "handle": "cc82060504445ab6deb",
@@ -510,6 +517,7 @@ class TestFamilies(unittest.TestCase):
                                 "date": "234 (Islamic)",
                                 "place": "",
                                 "type": "Death",
+                                "summary": "Death - الفضل, العباسة",
                             },
                             "gramps_id": "I2112",
                             "handle": "cc8206050980ea622d0",
@@ -522,6 +530,7 @@ class TestFamilies(unittest.TestCase):
                                 "date": "203 (Islamic)",
                                 "place": "",
                                 "type": "Birth",
+                                "summary": "Birth - , صالح",
                             },
                             "death": {},
                             "gramps_id": "I2115",
@@ -567,6 +576,7 @@ class TestFamiliesHandle(unittest.TestCase):
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
+        cls.maxDiff = None
 
     def test_get_families_handle_requires_token(self):
         """Test authorization required."""
@@ -775,6 +785,7 @@ class TestFamiliesHandle(unittest.TestCase):
                             "date": "1983-10-05",
                             "place": "Ottawa, La Salle, IL, USA",
                             "type": "Birth",
+                            "summary": "Birth - Garner, Stephen Gerard",
                         },
                         "death": {},
                         "gramps_id": "I0124",
@@ -791,6 +802,7 @@ class TestFamiliesHandle(unittest.TestCase):
                             "date": "1985-02-11",
                             "place": "Ottawa, La Salle, IL, USA",
                             "type": "Birth",
+                            "summary": "Birth - Garner, Daniel Patrick",
                         },
                         "death": {},
                         "gramps_id": "I0125",
@@ -809,6 +821,7 @@ class TestFamiliesHandle(unittest.TestCase):
                         "place": "Farmington, MO, USA",
                         "span": "0 days",
                         "type": "Marriage",
+                        "summary": "Marriage - Garner, Gerard Stephen and George, Elizabeth",
                     }
                 ],
                 "family_surname": "Garner",
@@ -820,6 +833,7 @@ class TestFamiliesHandle(unittest.TestCase):
                         "date": "1955-07-31",
                         "place": "Ottawa, La Salle, IL, USA",
                         "type": "Birth",
+                        "summary": "Birth - Garner, Gerard Stephen",
                     },
                     "death": {},
                     "gramps_id": "I0017",
@@ -837,6 +851,7 @@ class TestFamiliesHandle(unittest.TestCase):
                     "place": "Farmington, MO, USA",
                     "span": "0 days",
                     "type": "Marriage",
+                    'summary': 'Marriage - Garner, Gerard Stephen and George, Elizabeth'
                 },
                 "mother": {
                     "birth": {
@@ -846,6 +861,7 @@ class TestFamiliesHandle(unittest.TestCase):
                         "date": "1957-01-31",
                         "place": "",
                         "type": "Birth",
+                        "summary": "Birth - George, Elizabeth",
                     },
                     "death": {},
                     "gramps_id": "I0123",
@@ -861,6 +877,7 @@ class TestFamiliesHandle(unittest.TestCase):
                                 "date": "1983-10-05",
                                 "place": "Ottawa, La Salle, IL, USA",
                                 "type": "Birth",
+                                "summary": "Birth - Garner, Stephen Gerard",
                             },
                             "death": {},
                             "gramps_id": "I0124",
@@ -874,6 +891,7 @@ class TestFamiliesHandle(unittest.TestCase):
                                 "date": "1985-02-11",
                                 "place": "Ottawa, La Salle, IL, USA",
                                 "type": "Birth",
+                                "summary": "Birth - Garner, Daniel Patrick",
                             },
                             "death": {},
                             "gramps_id": "I0125",
@@ -887,6 +905,7 @@ class TestFamiliesHandle(unittest.TestCase):
                                 "date": "1957-01-31",
                                 "place": "",
                                 "type": "Birth",
+                                "summary": "Birth - George, Elizabeth",
                             },
                             "death": {},
                             "gramps_id": "I0123",
@@ -900,6 +919,7 @@ class TestFamiliesHandle(unittest.TestCase):
                                 "date": "1955-07-31",
                                 "place": "Ottawa, La Salle, IL, USA",
                                 "type": "Birth",
+                                "summary": "Birth - Garner, Gerard Stephen",
                             },
                             "death": {},
                             "gramps_id": "I0017",
@@ -965,6 +985,7 @@ class TestFamiliesHandleTimeline(unittest.TestCase):
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
+        cls.maxDiff = None
 
     def test_get_families_handle_timeline_requires_token(self):
         """Test authorization required."""

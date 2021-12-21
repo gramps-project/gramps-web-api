@@ -389,6 +389,7 @@ class TestEvents(unittest.TestCase):
                 "date": "1987-08-29",
                 "place": "Gainesville, Llano, TX, USA",
                 "type": "Birth",
+                "summary": "Birth - Warner, Sarah Suzanne",
                 "participants": {
                     "families": [],
                     "people": [
@@ -398,6 +399,7 @@ class TestEvents(unittest.TestCase):
                                     "date": "1987-08-29",
                                     "place": "Gainesville, Llano, TX, USA",
                                     "type": "Birth",
+                                    "summary": "Birth - Warner, Sarah Suzanne",
                                 },
                                 "death": {},
                                 "gramps_id": "I0001",
@@ -417,6 +419,7 @@ class TestEvents(unittest.TestCase):
                                 "date": "1987-08-29",
                                 "place": "Gainesville, Llano, TX, USA",
                                 "type": "Birth",
+                                "summary": "Birth - Warner, Sarah Suzanne",
                             },
                             "death": {},
                             "gramps_id": "I0001",
@@ -436,6 +439,13 @@ class TestEvents(unittest.TestCase):
             self, TEST_URL + "?page=1&keys=profile&profile=all&locale=de"
         )
         self.assertEqual(rv[0]["profile"]["type"], "Geburt")
+
+    def test_get_events_parameter_profile_summary_with_locale(self):
+        """Test expected profile summary for a locale."""
+        rv = check_success(
+            self, TEST_URL + "?page=1&keys=profile&profile=all&locale=de"
+        )
+        self.assertEqual(rv[0]["profile"]["summary"], "Geburt - Warner, Sarah Suzanne")
 
     def test_get_events_parameter_backlinks_validate_semantics(self):
         """Test invalid backlinks parameter and values."""
@@ -476,6 +486,7 @@ class TestEventsHandle(unittest.TestCase):
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
+        cls.maxDiff = None
 
     def test_get_events_handle_requires_token(self):
         """Test authorization required."""
@@ -632,6 +643,7 @@ class TestEventsHandle(unittest.TestCase):
                 "date": "1250",
                 "place": "Atchison, Atchison, KS, USA",
                 "type": "Birth",
+                "summary": "Birth - Knudsen, Ralph",
                 "participants": {
                     "families": [],
                     "people": [
@@ -641,8 +653,14 @@ class TestEventsHandle(unittest.TestCase):
                                     "date": "1250",
                                     "place": "Atchison, Atchison, KS, USA",
                                     "type": "Birth",
+                                    "summary": "Birth - Knudsen, Ralph",
                                 },
-                                "death": {"date": "1316", "place": "", "type": "Death"},
+                                "death": {
+                                    "date": "1316",
+                                    "place": "",
+                                    "type": "Death",
+                                    "summary": "Death - Knudsen, Ralph",
+                                },
                                 "gramps_id": "I1020",
                                 "handle": "H4EKQCFV3436HSKY2D",
                                 "name_given": "Ralph",
@@ -660,8 +678,14 @@ class TestEventsHandle(unittest.TestCase):
                                 "date": "1250",
                                 "place": "Atchison, Atchison, KS, USA",
                                 "type": "Birth",
+                                "summary": "Birth - Knudsen, Ralph",
                             },
-                            "death": {"date": "1316", "place": "", "type": "Death"},
+                            "death": {
+                                "date": "1316",
+                                "place": "",
+                                "type": "Death",
+                                "summary": "Death - Knudsen, Ralph",
+                            },
                             "gramps_id": "I1020",
                             "handle": "H4EKQCFV3436HSKY2D",
                             "name_given": "Ralph",
@@ -684,6 +708,7 @@ class TestEventsHandle(unittest.TestCase):
                 "date": "1250",
                 "place": "Atchison, Atchison, KS, USA",
                 "type": "Geburt",
+                "summary": "Geburt - Knudsen, Ralph",
                 "participants": {
                     "families": [],
                     "people": [
@@ -693,8 +718,14 @@ class TestEventsHandle(unittest.TestCase):
                                     "date": "1250",
                                     "place": "Atchison, Atchison, KS, USA",
                                     "type": "Geburt",
+                                    "summary": "Geburt - Knudsen, Ralph",
                                 },
-                                "death": {"date": "1316", "place": "", "type": "Tod"},
+                                "death": {
+                                    "date": "1316",
+                                    "place": "",
+                                    "type": "Tod",
+                                    "summary": "Tod - Knudsen, Ralph",
+                                },
                                 "gramps_id": "I1020",
                                 "handle": "H4EKQCFV3436HSKY2D",
                                 "name_given": "Ralph",
@@ -712,8 +743,14 @@ class TestEventsHandle(unittest.TestCase):
                                 "date": "1250",
                                 "place": "Atchison, Atchison, KS, USA",
                                 "type": "Geburt",
+                                "summary": "Geburt - Knudsen, Ralph",
                             },
-                            "death": {"date": "1316", "place": "", "type": "Tod"},
+                            "death": {
+                                "date": "1316",
+                                "place": "",
+                                "type": "Tod",
+                                "summary": "Tod - Knudsen, Ralph",
+                            },
                             "gramps_id": "I1020",
                             "handle": "H4EKQCFV3436HSKY2D",
                             "name_given": "Ralph",
@@ -758,6 +795,7 @@ class TestEventsHandleSpan(unittest.TestCase):
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
+        cls.maxDiff = None
 
     def test_get_events_handle_span_requires_token(self):
         """Test authorization required."""
