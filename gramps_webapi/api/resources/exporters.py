@@ -215,6 +215,7 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
             ),
             "translate_headers": fields.Boolean(missing=True),
             "years_after_death": fields.Integer(missing=0),
+            "jwt": fields.String(required=False),
         },
         location="query",
     )
