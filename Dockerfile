@@ -1,11 +1,16 @@
 FROM dmstraub/gramps:5.1.4
 
+ENV GRAMPS_VERSION=51
 WORKDIR /app
 ENV PYTHONPATH="${PYTHONPATH}:/usr/lib/python3/dist-packages"
 
-# install poppler (needed for PDF thumbnails) and ffmpeg (needed for video thumbnails)
+# install poppler (needed for PDF thumbnails)
+# ffmpeg (needed for video thumbnails)
+# postgresql client (needed for PostgreSQL backend)
 RUN apt-get update && apt-get install -y \
   poppler-utils ffmpeg libavcodec-extra \
+  unzip \
+  libpq-dev postgresql-client postgresql-client-common python3-psycopg2 \
   && rm -rf /var/lib/apt/lists/*
 
 # set locale
@@ -22,10 +27,16 @@ RUN mkdir /app/static && touch /app/static/index.html
 RUN mkdir /app/db && mkdir /app/media && mkdir /app/indexdir && mkdir /app/users
 RUN mkdir /app/thumbnail_cache
 RUN mkdir /app/tmp
+RUN mkdir -p /root/.gramps/gramps$GRAMPS_VERSION
 ENV USER_DB_URI=sqlite:////app/users/users.sqlite
 ENV MEDIA_BASE_DIR=/app/media
 ENV SEARCH_INDEX_DIR=/app/indexdir
 ENV STATIC_PATH=/app/static
+
+# install PostgreSQL addon
+RUN wget https://github.com/gramps-project/addons/archive/refs/heads/master.zip \
+    && unzip -p master.zip addons-master/gramps$GRAMPS_VERSION/download/PostgreSQL.addon.tgz | \
+    tar -xvz -C /root/.gramps/gramps$GRAMPS_VERSION/plugins && rm master.zip
 
 # install gunicorn
 RUN python3 -m pip install --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
