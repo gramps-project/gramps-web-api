@@ -72,7 +72,10 @@ def create_app(db_manager=None):
 
     # instantiate DB manager
     if db_manager is None:
-        app.config["DB_MANAGER"] = WebDbManager(name=app.config["TREE"])
+        app.config["DB_MANAGER"] = WebDbManager(
+            name=app.config["TREE"],
+            password=os.getenv("POSTGRES_PASSWORD")
+        )
     else:
         app.config["DB_MANAGER"] = db_manager
 

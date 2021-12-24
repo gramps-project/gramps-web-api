@@ -38,11 +38,12 @@ from .dbloader import WebDbSessionManager
 class WebDbManager:
     """Database manager class based on Gramps CLI."""
 
-    ALLOWED_DB_BACKENDS = ["sqlite"]
+    ALLOWED_DB_BACKENDS = ["sqlite", "postgresql"]
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, password: str or None = None) -> None:
         """Initialize given a family tree name."""
         self.name = name
+        self.password = password
         self.path = self._get_path()
         self._check_backend()
 
@@ -93,5 +94,5 @@ class WebDbManager:
         if force_unlock:
             self.break_lock()
         mode = DBMODE_R if readonly else DBMODE_W
-        smgr.open_activate(self.path, mode=mode)
+        smgr.open_activate(self.path, mode=mode, password=self.password)
         return dbstate
