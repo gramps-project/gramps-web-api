@@ -3,8 +3,10 @@ FROM dmstraub/gramps:5.1.4
 WORKDIR /app
 ENV PYTHONPATH="${PYTHONPATH}:/usr/lib/python3/dist-packages"
 
-# install poppler (needed for PDF thumbnails)
-RUN apt-get update && apt-get install -y poppler-utils && rm -rf /var/lib/apt/lists/*
+# install poppler (needed for PDF thumbnails) and ffmpeg (needed for video thumbnails)
+RUN apt-get update && apt-get install -y \
+  poppler-utils ffmpeg libavcodec-extra \
+  && rm -rf /var/lib/apt/lists/*
 
 # set locale
 RUN localedef -i en_GB -c -f UTF-8 -A /usr/share/locale/locale.alias en_GB.UTF-8
