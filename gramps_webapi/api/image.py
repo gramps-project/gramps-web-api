@@ -24,6 +24,7 @@ import io
 from pathlib import Path
 from typing import BinaryIO
 
+import ffmpeg
 from pdf2image import convert_from_path
 from PIL import Image, ImageOps
 
@@ -56,7 +57,11 @@ def image_square(image: Image) -> Image:
     """Crop an image to a centered square."""
     size = min(image.size)
     return ImageOps.fit(
-        image, (size, size), bleed=0.0, centering=(0.0, 0.5), method=Image.BICUBIC,
+        image,
+        (size, size),
+        bleed=0.0,
+        centering=(0.0, 0.5),
+        method=Image.BICUBIC,
     )
 
 
@@ -96,17 +101,24 @@ class ThumbnailHandler:
         self.mime_type = mime_type
         if self.mime_type.startswith("image/"):
             self.is_image = True
+            self.is_video = False
+        elif self.mime_type.startswith("video/"):
+            self.is_image = False
+            self.is_video = True
         else:
             if self.mime_type not in self.MIME_NO_IMAGE:
                 raise ValueError(
                     "No thumbnailer found for MIME type {}.".format(self.mime_type)
                 )
             self.is_image = False
+            self.is_video = False
 
     def get_image(self) -> Image:
         """Get a Pillow Image instance."""
         if self.mime_type == MIME_PDF:
             return self._get_image_pdf()
+        if self.is_video:
+            return self._get_image_video()
         return Image.open(self.path)
 
     def get_cropped(
@@ -129,6 +141,15 @@ class ThumbnailHandler:
         """Get a Pillow Image instance of the PDF's first page."""
         ims = convert_from_path(self.path, single_file=True, use_cropbox=True, dpi=100)
         return ims[0]
+
+    def _get_image_video(self) -> Image:
+        """Get a Pillow Image instance of the video's first frame."""
+        out, _ = (
+            ffmpeg.input(self.path, ss=0)
+            .output("pipe:", format="image2", pix_fmt="rgb24", vframes=1)
+            .run(capture_stdout=True, capture_stderr=True)
+        )
+        return Image.open(io.BytesIO(out))
 
     def get_thumbnail(
         self, size: int, square: bool = False, fmt: str = "JPEG"
