@@ -99,7 +99,7 @@ class LocalFileHandler(FileHandler):
                 "File {} is not within the base directory.".format(file_path)
             )
 
-    def send_file(self, etag=Optional[str]):
+    def send_file(self, etag: Optional[str] = None):
         """Send media file to client."""
         res = make_response(
             send_from_directory(self.base_dir, self.path_rel, mimetype=self.mime)
