@@ -45,8 +45,6 @@ REQUIREMENTS = [
     "jsonschema",
 ]
 
-EXTRA_REQUIREMENTS = ["pycairo", "PyGObject"]
-
 setup(
     author="Gramps Development Team",
     url="https://github.com/gramps-project/web-api",
@@ -54,7 +52,6 @@ setup(
     description="A RESTful web API for the Gramps genealogical database.",
     license="AGPL v3 or greater",
     install_requires=REQUIREMENTS,
-    extra_requires=EXTRA_REQUIREMENTS,
     long_description=README,
     long_description_content_type="text/markdown",
     include_package_data=True,
