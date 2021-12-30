@@ -43,6 +43,7 @@ REQUIREMENTS = [
     "bleach",
     "whoosh",
     "jsonschema",
+    "ffmpeg-python",
 ]
 
 setup(
