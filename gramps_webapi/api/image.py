@@ -21,8 +21,11 @@
 
 
 import io
+import shutil
+import os
+import tempfile
 from pathlib import Path
-from typing import BinaryIO
+from typing import BinaryIO, Callable
 
 import ffmpeg
 from pdf2image import convert_from_path
@@ -90,14 +93,14 @@ def save_image_buffer(image: Image, fmt="JPEG") -> BinaryIO:
 
 
 class ThumbnailHandler:
-    """Thumbnail handler."""
+    """Generic thumbnail handler."""
 
     # supported MIME types that are not images
     MIME_NO_IMAGE = [MIME_PDF]
 
-    def __init__(self, path: FilenameOrPath, mime_type: str) -> None:
-        """Initialize self given a path and MIME type."""
-        self.path = Path(path)
+    def __init__(self, stream: BinaryIO, mime_type: str) -> None:
+        """Initialize self given a binary stream and MIME type."""
+        self.stream = stream
         self.mime_type = mime_type
         if self.mime_type.startswith("image/"):
             self.is_image = True
@@ -119,7 +122,7 @@ class ThumbnailHandler:
             return self._get_image_pdf()
         if self.is_video:
             return self._get_image_video()
-        return Image.open(self.path)
+        return Image.open(self.stream)
 
     def get_cropped(
         self, x1: int, y1: int, x2: int, y2: int, square: bool = False
@@ -139,15 +142,35 @@ class ThumbnailHandler:
 
     def _get_image_pdf(self) -> Image:
         """Get a Pillow Image instance of the PDF's first page."""
-        ims = convert_from_path(self.path, single_file=True, use_cropbox=True, dpi=100)
+        ims = self._apply_to_path(
+            convert_from_path, single_file=True, use_cropbox=True, dpi=100
+        )
         return ims[0]
+
+    def _apply_to_path(self, func: Callable, *args, **kwargs):
+        """Apply a function to a file path instead of the buffer.
+
+        The first argument of the callable f must be the file path.
+        """
+        fh, temp_filename = tempfile.mkstemp()
+        try:
+            with open(temp_filename, "wb") as f:
+                shutil.copyfileobj(self.stream, f, length=131072)
+                f.flush()
+                output = func(temp_filename, *args, **kwargs)
+        finally:
+            os.close(fh)
+            os.remove(temp_filename)
+        return output
 
     def _get_image_video(self) -> Image:
         """Get a Pillow Image instance of the video's first frame."""
-        out, _ = (
-            ffmpeg.input(self.path, ss=0)
-            .output("pipe:", format="image2", pix_fmt="rgb24", vframes=1)
-            .run(capture_stdout=True, capture_stderr=True)
+        out, _ = self._apply_to_path(
+            lambda path: (
+                ffmpeg.input(path, ss=0)
+                .output("pipe:", format="image2", pix_fmt="rgb24", vframes=1)
+                .run(capture_stdout=True, capture_stderr=True)
+            )
         )
         return Image.open(io.BytesIO(out))
 
@@ -176,3 +199,13 @@ class ThumbnailHandler:
         img = crop_image(img, x1, y1, x2, y2)
         img = image_thumbnail(image=img, size=size, square=square)
         return save_image_buffer(img)
+
+
+class LocalFileThumbnailHandler(ThumbnailHandler):
+    """Thumbnail handler for local files."""
+
+    def __init__(self, path: FilenameOrPath, mime_type: str) -> None:
+        """Initialize self given a path and MIME type."""
+        self.path = Path(path)
+        stream = open(self.path, "rb")
+        super().__init__(stream=stream, mime_type=mime_type)

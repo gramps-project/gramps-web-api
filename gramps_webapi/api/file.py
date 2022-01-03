@@ -33,7 +33,7 @@ from werkzeug.datastructures import FileStorage
 from gramps_webapi.const import MIME_JPEG
 from gramps_webapi.util import get_extension
 
-from .image import ThumbnailHandler
+from .image import LocalFileThumbnailHandler
 from .util import get_db_handle, get_media_base_dir
 
 
@@ -114,7 +114,7 @@ class LocalFileHandler(FileHandler):
             self._check_path()
         except ValueError:
             abort(403)
-        thumb = ThumbnailHandler(self.path_abs, self.mime)
+        thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
         buffer = thumb.get_cropped(x1=x1, y1=y1, x2=x2, y2=y2, square=square)
         return send_file(buffer, mimetype=MIME_JPEG)
 
@@ -124,7 +124,7 @@ class LocalFileHandler(FileHandler):
             self._check_path()
         except ValueError:
             abort(403)
-        thumb = ThumbnailHandler(self.path_abs, self.mime)
+        thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
         buffer = thumb.get_thumbnail(size=size, square=square)
         return send_file(buffer, mimetype=MIME_JPEG)
 
@@ -136,7 +136,7 @@ class LocalFileHandler(FileHandler):
             self._check_path()
         except ValueError:
             abort(403)
-        thumb = ThumbnailHandler(self.path_abs, self.mime)
+        thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
         buffer = thumb.get_thumbnail_cropped(
             size=size, x1=x1, y1=y1, x2=x2, y2=y2, square=square
         )
