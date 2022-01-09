@@ -44,6 +44,7 @@ REQUIREMENTS = [
     "whoosh",
     "jsonschema",
     "ffmpeg-python",
+    "boto3",
 ]
 
 setup(
