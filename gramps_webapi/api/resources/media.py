@@ -32,7 +32,8 @@ from gramps.gen.utils.grampslocale import GrampsLocale
 
 from ...auth.const import PERM_ADD_OBJ
 from ..auth import require_permissions
-from ..file import upload_file, process_file
+from ..file import process_file
+from ..media import MediaHandler
 from .base import (
     GrampsObjectProtectedResource,
     GrampsObjectResourceHelper,
@@ -78,8 +79,8 @@ class MediaObjectsResource(GrampsObjectsProtectedResource, MediaObjectResourceHe
         if not mime:
             abort(HTTPStatus.NOT_ACCEPTABLE)
         checksum, f = process_file(request.stream)
-        base_dir = current_app.config.get("MEDIA_BASE_DIR")
-        path = upload_file(base_dir, f, checksum, mime)
+        base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
+        path = MediaHandler(base_dir).upload_file(f, checksum, mime)
         db_handle = self.db_handle_writable
         obj = Media()
         obj.set_checksum(checksum)

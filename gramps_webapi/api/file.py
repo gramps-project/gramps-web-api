@@ -145,7 +145,7 @@ class LocalFileHandler(FileHandler):
         return send_file(buffer, mimetype=MIME_JPEG)
 
 
-def upload_file(base_dir, stream: BinaryIO, checksum: str, mime: str) -> str:
+def upload_file_local(base_dir, stream: BinaryIO, checksum: str, mime: str) -> str:
     """Upload a file from a stream, returning the file path."""
     base_dir = base_dir or get_media_base_dir()
     if not mime:

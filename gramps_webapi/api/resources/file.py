@@ -29,7 +29,7 @@ from gramps.gen.errors import HandleError
 
 from ...auth.const import PERM_EDIT_OBJ
 from ..auth import require_permissions
-from ..file import process_file, upload_file
+from ..file import process_file
 from ..media import MediaHandler
 from ..util import get_db_handle
 from . import ProtectedResource
@@ -69,8 +69,8 @@ class MediaFileResource(ProtectedResource):
         if checksum == obj.checksum:
             # don't allow PUTting if the file didn't change
             abort(HTTPStatus.CONFLICT)
-        base_dir = current_app.config.get("MEDIA_BASE_DIR")
-        path = upload_file(base_dir, f, checksum, mime)
+        base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
+        path = MediaHandler(base_dir).upload_file(f, checksum, mime)
         obj.set_checksum(checksum)
         obj.set_path(path)
         obj.set_mime_type(mime)

@@ -29,6 +29,19 @@ from .file import FileHandler
 from .image import ThumbnailHandler
 from ..const import MIME_JPEG
 
+from gramps_webapi.util import get_extension
+
+
+def get_client(endpoint_url: Optional[str] = None):
+    """Return an S3 client."""
+    return boto3.client(
+        "s3",
+        endpoint_url=endpoint_url,
+        config=boto3.session.Config(
+            s3={"addressing_style": "path"}, signature_version="s3v4"
+        ),
+    )
+
 
 class ObjectStorageFileHandler(FileHandler):
     """Handler for files on object storage (e.g. S3)."""
@@ -38,14 +51,8 @@ class ObjectStorageFileHandler(FileHandler):
     def __init__(self, handle, bucket_name: str, endpoint_url: Optional[str] = None):
         """Initialize self given a handle and media base directory."""
         super().__init__(handle)
+        self.client = get_client(endpoint_url)
         self.bucket_name = bucket_name
-        self.client = boto3.client(
-            "s3",
-            endpoint_url=endpoint_url,
-            config=boto3.session.Config(
-                s3={"addressing_style": "path"}, signature_version="s3v4"
-            ),
-        )
         self.object_name = self.checksum
 
     def _get_presigned_url(self, expires_in: float):
@@ -99,3 +106,24 @@ class ObjectStorageFileHandler(FileHandler):
             size=size, x1=x1, y1=y1, x2=x2, y2=y2, square=square
         )
         return send_file(buffer, mimetype=MIME_JPEG)
+
+
+def upload_file_s3(
+    bucket_name: str,
+    stream: BinaryIO,
+    checksum: str,
+    mime: str,
+    endpoint_url: Optional[str] = None,
+) -> str:
+    """Upload a file from a stream, returning the file path."""
+    if not mime:
+        raise ValueError("Missing MIME type")
+    ext = get_extension(mime)
+    if not ext:
+        raise ValueError("MIME type not recognized")
+    filename = f"{checksum}{ext}"
+    client = get_client(endpoint_url)
+    client.upload_fileobj(
+        stream, bucket_name, checksum, ExtraArgs={"ContentType": mime}
+    )
+    return filename
