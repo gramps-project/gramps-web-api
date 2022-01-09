@@ -18,7 +18,7 @@ class MediaHandler:
 
     def __init__(self, base_dir: str):
         """Initialize given a base dir or URL."""
-        self.base_dir = base_dir
+        self.base_dir = base_dir or ""
         self.repo_type = self._get_repo_type()
 
     def _get_repo_type(self) -> str:
