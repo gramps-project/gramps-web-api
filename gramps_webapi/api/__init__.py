@@ -261,7 +261,7 @@ register_endpt(
 @thumbnail_cache.cached(make_cache_key=make_cache_key_thumbnails)
 def get_thumbnail(args, handle, size):
     """Get a file's thumbnail."""
-    base_dir = current_app.config.get("MEDIA_BASE_DIR")
+    base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
     handler = MediaHandler(base_dir).get_file_handler(handle)
     return handler.send_thumbnail(size=size, square=args["square"])
 
