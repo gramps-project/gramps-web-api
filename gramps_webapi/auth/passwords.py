@@ -21,6 +21,7 @@
 
 import hashlib
 import os
+from secrets import compare_digest
 
 
 def generate_salt() -> bytes:
@@ -45,4 +46,4 @@ def verify_password(password: str, salt_hash: str) -> bool:
     salt = salt_hash[:64].encode("ascii")
     correct_pw_hash = salt_hash[64:]
     computed_pw_hash = hash_password_salt(password, salt).hex()
-    return computed_pw_hash == correct_pw_hash
+    return compare_digest(computed_pw_hash, correct_pw_hash)
