@@ -45,6 +45,7 @@ REQUIREMENTS = [
     "jsonschema",
     "ffmpeg-python",
     "boto3",
+    "alembic",
 ]
 
 setup(

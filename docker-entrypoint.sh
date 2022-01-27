@@ -14,10 +14,15 @@ then
     export STATIC_PATH="/app/static/grampsjs-${GRAMPSJS_VERSION}"
 fi
 
-# Recreate search index if not exists
+# Create search index if not exists
 if [ -z "$(ls -A /app/indexdir)" ]
 then
     python3 -m gramps_webapi --config /app/config/config.cfg search index-full
 fi
+
+# Run migrations for user database, if any
+cd /app/src/
+GRAMPS_API_CONFIG=/app/config/config.cfg python3 -m alembic upgrade head
+cd /app/
 
 exec "$@"
