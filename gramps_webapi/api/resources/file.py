@@ -29,7 +29,8 @@ from gramps.gen.errors import HandleError
 
 from ...auth.const import PERM_EDIT_OBJ
 from ..auth import require_permissions
-from ..file import LocalFileHandler, process_file, upload_file
+from ..file import process_file
+from ..media import MediaHandler
 from ..util import get_db_handle
 from . import ProtectedResource
 from .util import transaction_to_json, update_object
@@ -45,8 +46,8 @@ class MediaFileResource(ProtectedResource):
             obj = db_handle.get_media_from_handle(handle)
         except HandleError:
             abort(HTTPStatus.NOT_FOUND)
-        base_dir = current_app.config.get("MEDIA_BASE_DIR")
-        handler = LocalFileHandler(handle, base_dir)
+        base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
+        handler = MediaHandler(base_dir).get_file_handler(handle)
         return handler.send_file(etag=obj.checksum)
 
     def put(self, handle) -> Response:
@@ -68,8 +69,8 @@ class MediaFileResource(ProtectedResource):
         if checksum == obj.checksum:
             # don't allow PUTting if the file didn't change
             abort(HTTPStatus.CONFLICT)
-        base_dir = current_app.config.get("MEDIA_BASE_DIR")
-        path = upload_file(base_dir, f, checksum, mime)
+        base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
+        path = MediaHandler(base_dir).upload_file(f, checksum, mime)
         obj.set_checksum(checksum)
         obj.set_path(path)
         obj.set_mime_type(mime)

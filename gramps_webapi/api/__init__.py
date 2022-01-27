@@ -27,7 +27,7 @@ from webargs import fields, validate
 
 from ..const import API_PREFIX
 from .auth import jwt_required_ifauth
-from .file import LocalFileHandler
+from .media import MediaHandler
 from .resources.base import Resource
 from .resources.bookmarks import BookmarkResource, BookmarksResource
 from .resources.citations import CitationResource, CitationsResource
@@ -172,10 +172,14 @@ register_endpt(TranslationResource, "/translations/<string:language>", "translat
 register_endpt(TranslationsResource, "/translations/", "translations")
 # Relations
 register_endpt(
-    RelationResource, "/relations/<string:handle1>/<string:handle2>", "relation",
+    RelationResource,
+    "/relations/<string:handle1>/<string:handle2>",
+    "relation",
 )
 register_endpt(
-    RelationsResource, "/relations/<string:handle1>/<string:handle2>/all", "relations",
+    RelationsResource,
+    "/relations/<string:handle1>/<string:handle2>/all",
+    "relations",
 )
 # Living
 register_endpt(LivingDatesResource, "/living/<string:handle>/dates", "living-dates")
@@ -203,16 +207,24 @@ register_endpt(HolidaysResource, "/holidays/", "holidays")
 register_endpt(MetadataResource, "/metadata/", "metadata")
 # User
 register_endpt(
-    UsersResource, "/users/", "users",
+    UsersResource,
+    "/users/",
+    "users",
 )
 register_endpt(
-    UserResource, "/users/<string:user_name>/", "user",
+    UserResource,
+    "/users/<string:user_name>/",
+    "user",
 )
 register_endpt(
-    UserRegisterResource, "/users/<string:user_name>/register/", "register",
+    UserRegisterResource,
+    "/users/<string:user_name>/register/",
+    "register",
 )
 register_endpt(
-    UserConfirmEmailResource, "/users/-/email/confirm/", "confirm_email",
+    UserConfirmEmailResource,
+    "/users/-/email/confirm/",
+    "confirm_email",
 )
 register_endpt(
     UserChangePasswordResource,
@@ -220,7 +232,9 @@ register_endpt(
     "change_password",
 )
 register_endpt(
-    UserResetPasswordResource, "/users/-/password/reset/", "reset_password",
+    UserResetPasswordResource,
+    "/users/-/password/reset/",
+    "reset_password",
 )
 register_endpt(
     UserTriggerResetPasswordResource,
@@ -231,7 +245,9 @@ register_endpt(
 register_endpt(SearchResource, "/search/", "search")
 
 register_endpt(
-    MediaFileResource, "/media/<string:handle>/file", "media_file",
+    MediaFileResource,
+    "/media/<string:handle>/file",
+    "media_file",
 )
 
 
@@ -245,8 +261,8 @@ register_endpt(
 @thumbnail_cache.cached(make_cache_key=make_cache_key_thumbnails)
 def get_thumbnail(args, handle, size):
     """Get a file's thumbnail."""
-    base_dir = current_app.config.get("MEDIA_BASE_DIR")
-    handler = LocalFileHandler(handle, base_dir)
+    base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
+    handler = MediaHandler(base_dir).get_file_handler(handle)
     return handler.send_thumbnail(size=size, square=args["square"])
 
 
@@ -261,8 +277,8 @@ def get_thumbnail(args, handle, size):
 @thumbnail_cache.cached(make_cache_key=make_cache_key_thumbnails)
 def get_cropped(args, handle: str, x1: int, y1: int, x2: int, y2: int):
     """Get the thumbnail of a cropped file."""
-    base_dir = current_app.config.get("MEDIA_BASE_DIR")
-    handler = LocalFileHandler(handle, base_dir)
+    base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
+    handler = MediaHandler(base_dir).get_file_handler(handle)
     return handler.send_cropped(x1=x1, y1=y1, x2=x2, y2=y2, square=args["square"])
 
 
@@ -279,8 +295,8 @@ def get_thumbnail_cropped(
     args, handle: str, x1: int, y1: int, x2: int, y2: int, size: int
 ):
     """Get the thumbnail of a cropped file."""
-    base_dir = current_app.config.get("MEDIA_BASE_DIR")
-    handler = LocalFileHandler(handle, base_dir)
+    base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
+    handler = MediaHandler(base_dir).get_file_handler(handle)
     return handler.send_thumbnail_cropped(
         size=size, x1=x1, y1=y1, x2=x2, y2=y2, square=args["square"]
     )

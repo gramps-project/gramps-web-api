@@ -33,12 +33,12 @@ from werkzeug.datastructures import FileStorage
 from gramps_webapi.const import MIME_JPEG
 from gramps_webapi.util import get_extension
 
-from .image import ThumbnailHandler
+from .image import LocalFileThumbnailHandler
 from .util import get_db_handle, get_media_base_dir
 
 
 class FileHandler:
-    """Generic media file handler."""
+    """Generic handler for a single media file."""
 
     def __init__(self, handle):
         """Initialize self."""
@@ -60,6 +60,10 @@ class FileHandler:
         """Send media file to client."""
         raise NotImplementedError
 
+    def send_cropped(self, x1: int, y1: int, x2: int, y2: int, square: bool = False):
+        """Send cropped media file to client."""
+        raise NotImplementedError
+
     def send_thumbnail(self, size: int, square: bool = False):
         """Send thumbnail of image."""
         raise NotImplementedError
@@ -79,7 +83,7 @@ class LocalFileHandler(FileHandler):
         super().__init__(handle)
         self.base_dir = base_dir or get_media_base_dir()
         if not os.path.isdir(self.base_dir):
-            raise ValueError("Directory {} does not exist".format(self.base_dir))
+            raise ValueError(f"Directory {self.base_dir} does not exist")
         if os.path.isabs(self.path):
             self.path_abs = self.path
             self.path_rel = os.path.relpath(self.path, self.base_dir)
@@ -95,11 +99,9 @@ class LocalFileHandler(FileHandler):
         base_dir = Path(self.base_dir).resolve()
         file_path = Path(self.path_abs).resolve()
         if base_dir not in file_path.parents:
-            raise ValueError(
-                "File {} is not within the base directory.".format(file_path)
-            )
+            raise ValueError(f"File {file_path} is not within the base directory.")
 
-    def send_file(self, etag=Optional[str]):
+    def send_file(self, etag: Optional[str] = None):
         """Send media file to client."""
         res = make_response(
             send_from_directory(self.base_dir, self.path_rel, mimetype=self.mime)
@@ -114,7 +116,7 @@ class LocalFileHandler(FileHandler):
             self._check_path()
         except ValueError:
             abort(403)
-        thumb = ThumbnailHandler(self.path_abs, self.mime)
+        thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
         buffer = thumb.get_cropped(x1=x1, y1=y1, x2=x2, y2=y2, square=square)
         return send_file(buffer, mimetype=MIME_JPEG)
 
@@ -124,7 +126,7 @@ class LocalFileHandler(FileHandler):
             self._check_path()
         except ValueError:
             abort(403)
-        thumb = ThumbnailHandler(self.path_abs, self.mime)
+        thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
         buffer = thumb.get_thumbnail(size=size, square=square)
         return send_file(buffer, mimetype=MIME_JPEG)
 
@@ -136,14 +138,14 @@ class LocalFileHandler(FileHandler):
             self._check_path()
         except ValueError:
             abort(403)
-        thumb = ThumbnailHandler(self.path_abs, self.mime)
+        thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
         buffer = thumb.get_thumbnail_cropped(
             size=size, x1=x1, y1=y1, x2=x2, y2=y2, square=square
         )
         return send_file(buffer, mimetype=MIME_JPEG)
 
 
-def upload_file(base_dir, stream: BinaryIO, checksum: str, mime: str) -> str:
+def upload_file_local(base_dir, stream: BinaryIO, checksum: str, mime: str) -> str:
     """Upload a file from a stream, returning the file path."""
     base_dir = base_dir or get_media_base_dir()
     if not mime:

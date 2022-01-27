@@ -109,9 +109,7 @@ def create_app(db_manager=None):
     if app.config.get("CORS_ORIGINS"):
         CORS(
             app,
-            resources={
-                "{}/*".format(API_PREFIX): {"origins": app.config["CORS_ORIGINS"]}
-            },
+            resources={f"{API_PREFIX}/*": {"origins": app.config["CORS_ORIGINS"]}},
         )
 
     # enable gzip compression
