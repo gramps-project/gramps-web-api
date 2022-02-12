@@ -842,7 +842,7 @@ class TestPeople(unittest.TestCase):
         self.assertEqual(rv[0]["profile"]["birth"]["age"], "0 Tage")
         self.assertEqual(rv[0]["profile"]["birth"]["type"], "Geburt")
         self.assertEqual(rv[0]["profile"]["families"][0]["relationship"], "Verheiratet")
-        self.assertEqual(rv[0]["profile"]["events"][2]["type"], "Hochzeit")
+        self.assertEqual(rv[0]["profile"]["events"][2]["type"], "Heirat")
 
     def test_get_people_parameter_backlinks_validate_semantics(self):
         """Test invalid backlinks parameter and values."""
