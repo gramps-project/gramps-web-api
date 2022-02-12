@@ -3213,6 +3213,11 @@ paths:
             ------ | --------
             all | Returns all information
             references | Returns information about objects that refer to the place
+      - name: filemissing
+        in: query
+        required: false
+        type: boolean
+        description: If present, only return media objects where the file is not available to the server.
       responses:
         200:
           description: "OK: Successful operation."
@@ -3409,6 +3414,13 @@ paths:
       operationId: updateFile
       security:
         - Bearer: []
+      parameters:
+      - name: uploadmissing
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "To be set to true when uploading a missing file to an existing media object. Will not modify the object."
       responses:
         200:
           description: "OK. Successful operation."
@@ -3420,6 +3432,8 @@ paths:
           description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
+        409:
+          description: "Conflict: Uploaded file identical to existing file or has wrong checksum for missing file."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 

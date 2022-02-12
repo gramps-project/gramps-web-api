@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-2022      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -133,6 +133,16 @@ class TestUpload(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 412)
         new_img.seek(0)
+        # try with uploadmissing for existing file!
+        rv = self.client.put(
+            f"/api/media/{handle}/file?uploadmissing=1",
+            data=new_img.read(),
+            headers={**headers},
+            content_type="image/jpeg",
+        )
+        self.assertEqual(rv.status_code, 409)
+        new_img.seek(0)
+        # now it should work
         rv = self.client.put(
             f"/api/media/{handle}/file",
             data=new_img.read(),
@@ -146,3 +156,43 @@ class TestUpload(unittest.TestCase):
         res = rv.json
         self.assertEqual(res["checksum"], new_checksum)
         self.assertEqual(res["path"], f"{new_checksum}.jpg")
+
+    def test_upload_missing_file(self):
+        """Upload a missing media file."""
+        img, checksum = get_image(3)
+        # create
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post(
+            "/api/media/", data=img.read(), headers=headers, content_type="image/jpeg"
+        )
+        self.assertEqual(rv.status_code, 201)
+        # get handle from response
+        handle = rv.json[0]["new"]["handle"]
+        # check GET ETag
+        rv = self.client.get(f"/api/media/{handle}/file", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        etag = rv.headers["ETag"]
+        self.assertEqual(etag, checksum)
+        rv = self.client.get(f"/api/media/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        media_object = rv.json
+        # change path!
+        media_object["path"] = "newpath.jpg"
+        rv = self.client.put(f"/api/media/{handle}", json=media_object, headers=headers)
+        # check that handle appears for filemissing
+        rv = self.client.get("/api/media/?filemissing=1", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.json[0]["handle"], handle)
+        # check that fetching file returns 404
+        rv = self.client.get(f"/api/media/{handle}/file", headers=headers)
+        self.assertEqual(rv.status_code, 404)
+        img.seek(0)
+        rv = self.client.put(
+            f"/api/media/{handle}/file?uploadmissing=1",
+            data=img.read(),
+            headers=headers,
+            content_type="image/jpeg",
+        )
+        self.assertEqual(rv.status_code, 200)
+        rv = self.client.get(f"/api/media/{handle}/file", headers=headers)
+        self.assertEqual(rv.status_code, 200)

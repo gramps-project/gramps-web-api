@@ -48,6 +48,7 @@ from .util import (
     fix_object_dict,
     get_backlinks,
     get_extended_attributes,
+    get_missing_media_file_handles,
     get_reference_profile_for_object,
     get_soundex,
     hash_object,
@@ -350,6 +351,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             "sort": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "soundex": fields.Boolean(missing=False),
             "strip": fields.Boolean(missing=False),
+            "filemissing": fields.Boolean(missing=False),
         },
         location="query",
     )
@@ -374,6 +376,9 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             handles = apply_filter(
                 self.db_handle, args, self.gramps_class_name, handles
             )
+
+        if self.gramps_class_name == "Media" and args.get("filemissing"):
+            handles = get_missing_media_file_handles(self.db_handle, handles)
 
         if args["dates"]:
             handles = self.match_dates(handles, args["dates"])
