@@ -457,7 +457,7 @@ class TestFamilies(unittest.TestCase):
                         "summary": "Birth - , أحمد",
                     },
                     "death": {
-                        "age": "77 years, 11 days",
+                        "age": "74 years, 8 months, 26 days",
                         "citations": 0,
                         "confidence": 0,
                         "date": "241-03-12 (Islamic)",
@@ -851,7 +851,7 @@ class TestFamiliesHandle(unittest.TestCase):
                     "place": "Farmington, MO, USA",
                     "span": "0 days",
                     "type": "Marriage",
-                    'summary': 'Marriage - Garner, Gerard Stephen and George, Elizabeth'
+                    "summary": "Marriage - Garner, Gerard Stephen and George, Elizabeth",
                 },
                 "mother": {
                     "birth": {
