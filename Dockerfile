@@ -1,4 +1,4 @@
-FROM dmstraub/gramps:5.1.4
+FROM dmstraub/gramps:5.1.5
 
 ENV GRAMPS_VERSION=51
 WORKDIR /app
