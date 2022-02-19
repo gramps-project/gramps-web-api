@@ -61,12 +61,13 @@ from gramps.gen.utils.db import (
     get_marriage_or_fallback,
     get_participant_from_event,
 )
-from gramps.gen.utils.id import create_id
 from gramps.gen.utils.grampslocale import GrampsLocale
+from gramps.gen.utils.id import create_id
 from gramps.gen.utils.place import conv_lat_lon
 
 from ...const import SEX_FEMALE, SEX_MALE, SEX_UNKNOWN
 from ...types import Handle
+from ..media import MediaHandler
 
 pd = PlaceDisplay()
 _ = glocale.translation.gettext
@@ -1083,3 +1084,21 @@ def hash_object(obj: GrampsObject) -> str:
     """Generate a SHA256 hash for a Gramps object's data."""
     data = to_json(obj).encode()
     return sha256(data).hexdigest()
+
+
+def filter_missing_files(objects: List[Media]) -> List[Media]:
+    """Filter media objects returning only ones where the file is missing."""
+    base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
+    handler = MediaHandler(base_dir)
+    objects_existing = handler.filter_existing_files(objects)
+    handles_existing = set(obj.handle for obj in objects_existing)
+    return [obj for obj in objects if obj.handle not in handles_existing]
+
+
+def get_missing_media_file_handles(
+    db_handle: DbReadBase, handles: List[str]
+) -> List[str]:
+    """Filter media handles returning only ones where the file is missing."""
+    objects = [db_handle.get_media_from_handle(handle) for handle in handles]
+    objects_missing = filter_missing_files(objects)
+    return [obj.handle for obj in objects_missing]

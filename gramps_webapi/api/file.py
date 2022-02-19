@@ -31,8 +31,8 @@ from gramps.gen.lib import Media
 from werkzeug.datastructures import FileStorage
 
 from gramps_webapi.const import MIME_JPEG
-from gramps_webapi.util import get_extension
 
+from ..types import FilenameOrPath
 from .image import LocalFileThumbnailHandler
 from .util import get_db_handle, get_media_base_dir
 
@@ -55,6 +55,10 @@ class FileHandler:
             return db_handle.get_media_from_handle(self.handle)
         except HandleError:
             return None
+
+    def file_exists(self) -> bool:
+        """Check if the file exists."""
+        raise NotImplementedError
 
     def send_file(self, etag=Optional[str]):
         """Send media file to client."""
@@ -101,6 +105,11 @@ class LocalFileHandler(FileHandler):
         if base_dir not in file_path.parents:
             raise ValueError(f"File {file_path} is not within the base directory.")
 
+    def file_exists(self) -> bool:
+        """Check if the file exists."""
+        self._check_path()
+        return Path(self.path_abs).is_file()
+
     def send_file(self, etag: Optional[str] = None):
         """Send media file to client."""
         res = make_response(
@@ -145,18 +154,12 @@ class LocalFileHandler(FileHandler):
         return send_file(buffer, mimetype=MIME_JPEG)
 
 
-def upload_file_local(base_dir, stream: BinaryIO, checksum: str, mime: str) -> str:
+def upload_file_local(
+    base_dir: FilenameOrPath, rel_path: FilenameOrPath, stream: BinaryIO
+) -> None:
     """Upload a file from a stream, returning the file path."""
-    base_dir = base_dir or get_media_base_dir()
-    if not mime:
-        raise ValueError("Missing MIME type")
-    ext = get_extension(mime)
-    if not ext:
-        raise ValueError("MIME type not recognized")
-    filename = f"{checksum}{ext}"
     fs = FileStorage(stream)
-    fs.save(os.path.join(base_dir, filename))
-    return filename
+    fs.save(os.path.join(base_dir, rel_path))
 
 
 def get_checksum(fp) -> str:

@@ -22,16 +22,19 @@
 
 import json
 from http import HTTPStatus
+from typing import Dict
 
 from flask import Response, abort, current_app, request
 from gramps.gen.db import DbTxn
 from gramps.gen.errors import HandleError
+from gramps.gen.lib import Media
+from webargs import fields
 
 from ...auth.const import PERM_EDIT_OBJ
 from ..auth import require_permissions
 from ..file import process_file
 from ..media import MediaHandler
-from ..util import get_db_handle
+from ..util import get_db_handle, use_args
 from . import ProtectedResource
 from .util import transaction_to_json, update_object
 
@@ -50,12 +53,18 @@ class MediaFileResource(ProtectedResource):
         handler = MediaHandler(base_dir).get_file_handler(handle)
         return handler.send_file(etag=obj.checksum)
 
-    def put(self, handle) -> Response:
+    @use_args(
+        {
+            "uploadmissing": fields.Boolean(missing=False),
+        },
+        location="query",
+    )
+    def put(self, args: Dict, handle: str) -> Response:
         """Upload a file and update the media object."""
         require_permissions([PERM_EDIT_OBJ])
         db_handle = get_db_handle()
         try:
-            obj = db_handle.get_media_from_handle(handle)
+            obj: Media = db_handle.get_media_from_handle(handle)
         except HandleError:
             abort(HTTPStatus.NOT_FOUND)
         checksum_old = obj.checksum
@@ -66,12 +75,23 @@ class MediaFileResource(ProtectedResource):
         if not mime:
             abort(HTTPStatus.NOT_ACCEPTABLE)
         checksum, f = process_file(request.stream)
-        if checksum == obj.checksum:
-            # don't allow PUTting if the file didn't change
-            abort(HTTPStatus.CONFLICT)
         base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
-        path = MediaHandler(base_dir).upload_file(f, checksum, mime)
+        media_handler = MediaHandler(base_dir)
+        if checksum == obj.checksum:
+            file_handler = media_handler.get_file_handler(handle)
+            if not args.get("uploadmissing") or file_handler.file_exists():
+                # don't allow PUTting if the file didn't change
+                abort(HTTPStatus.CONFLICT)
+            # we're uploading a missing file!
+            # use existing path
+            path = obj.get_path()
+            media_handler.upload_file(f, checksum, mime, path=path)
+            return Response(status=200)
+        if args.get("uploadmissing"):
+            abort(HTTPStatus.CONFLICT)
+        media_handler.upload_file(f, checksum, mime)
         obj.set_checksum(checksum)
+        path = media_handler.get_default_filename(checksum, mime)
         obj.set_path(path)
         obj.set_mime_type(mime)
         db_handle_writable = get_db_handle(readonly=False)

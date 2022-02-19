@@ -19,11 +19,12 @@
 
 """Object storage (e.g. S3) handling utilities."""
 
-from typing import BinaryIO, Optional
+from typing import BinaryIO, List, Optional
 
 import boto3
 from botocore.exceptions import ClientError
 from flask import current_app, redirect, send_file
+from gramps.gen.lib import Media
 
 from .file import FileHandler
 from .image import ThumbnailHandler
@@ -77,6 +78,14 @@ class ObjectStorageFileHandler(FileHandler):
         response = self.client.get_object(Bucket=self.bucket_name, Key=self.object_name)
         return response["Body"]
 
+    def file_exists(self) -> bool:
+        """Check if the file exists."""
+        try:
+            self.client.head_object(Bucket=self.bucket_name, Key=self.object_name)
+            return True
+        except ClientError:
+            return False
+
     def send_file(self, etag: Optional[str] = None):
         """Send media file to client."""
         url = self._get_presigned_url(expires_in=self.URL_LIFETIME)
@@ -114,16 +123,23 @@ def upload_file_s3(
     checksum: str,
     mime: str,
     endpoint_url: Optional[str] = None,
-) -> str:
+) -> None:
     """Upload a file from a stream, returning the file path."""
     if not mime:
         raise ValueError("Missing MIME type")
-    ext = get_extension(mime)
-    if not ext:
-        raise ValueError("MIME type not recognized")
-    filename = f"{checksum}{ext}"
     client = get_client(endpoint_url)
     client.upload_fileobj(
         stream, bucket_name, checksum, ExtraArgs={"ContentType": mime}
     )
-    return filename
+
+
+def filter_existing_files_s3(
+    bucket_name: str,
+    objects: List[Media],
+    endpoint_url: Optional[str] = None,
+) -> List[Media]:
+    """Given a list of media objects, return the ones with existing files."""
+    client = get_client(endpoint_url)
+    contents = client.list_objects(Bucket=bucket_name)["Contents"]
+    bucket_checksums = set(obj["Key"] for obj in contents)
+    return [obj for obj in objects if obj.checksum in bucket_checksums]

@@ -80,7 +80,9 @@ class MediaObjectsResource(GrampsObjectsProtectedResource, MediaObjectResourceHe
             abort(HTTPStatus.NOT_ACCEPTABLE)
         checksum, f = process_file(request.stream)
         base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
-        path = MediaHandler(base_dir).upload_file(f, checksum, mime)
+        media_handler = MediaHandler(base_dir)
+        media_handler.upload_file(f, checksum, mime)
+        path = media_handler.get_default_filename(checksum, mime)
         db_handle = self.db_handle_writable
         obj = Media()
         obj.set_checksum(checksum)
