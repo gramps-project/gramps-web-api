@@ -42,9 +42,12 @@ class WebDbManager:
 
     ALLOWED_DB_BACKENDS = ["sqlite", "postgresql"]
 
-    def __init__(self, name: str, password: Optional[str] = None) -> None:
+    def __init__(
+        self, name: str, username: Optional[str] = None, password: Optional[str] = None
+    ) -> None:
         """Initialize given a family tree name."""
         self.name = name
+        self.username = username
         self.password = password
         self.path = self._get_path()
         self._check_backend()
@@ -96,5 +99,7 @@ class WebDbManager:
         if force_unlock:
             self.break_lock()
         mode = DBMODE_R if readonly else DBMODE_W
-        smgr.open_activate(self.path, mode=mode, password=self.password)
+        smgr.open_activate(
+            self.path, mode=mode, username=self.username, password=self.password
+        )
         return dbstate
