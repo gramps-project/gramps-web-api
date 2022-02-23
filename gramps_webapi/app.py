@@ -65,8 +65,13 @@ def create_app(db_manager=None):
     if not app.config.get("SECRET_KEY") and not app.config.get("DISABLE_AUTH"):
         raise ValueError("SECRET_KEY must be specified")
 
-    # if postgresql password is missing, try to get  it from the env
-    app.config["POSTGRES_PASSWORD"] = app.config["POSTGRES_PASSWORD"] or os.getenv("POSTGRES_PASSWORD")
+    # if postgresql user/password is missing, try to get  it from the env
+    app.config["POSTGRES_USER"] = app.config["POSTGRES_USER"] or os.getenv(
+        "POSTGRES_USER"
+    )
+    app.config["POSTGRES_PASSWORD"] = app.config["POSTGRES_PASSWORD"] or os.getenv(
+        "POSTGRES_PASSWORD"
+    )
 
     # try setting media basedir from environment
     app.config["MEDIA_BASE_DIR"] = app.config.get("MEDIA_BASE_DIR") or os.getenv(
@@ -77,6 +82,7 @@ def create_app(db_manager=None):
     if db_manager is None:
         app.config["DB_MANAGER"] = WebDbManager(
             name=app.config["TREE"],
+            user=app.config["POSTGRES_USER"],
             password=app.config["POSTGRES_PASSWORD"],
         )
     else:

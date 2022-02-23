@@ -42,6 +42,7 @@ class DefaultConfig(object):
         "CACHE_DIR": "thumbnail_cache",
         "CACHE_THRESHOLD": 1000,
     }
+    POSTGRES_USER = None
     POSTGRES_PASSWORD = None
 
 
