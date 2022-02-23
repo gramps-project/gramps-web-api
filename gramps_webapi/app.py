@@ -82,7 +82,7 @@ def create_app(db_manager=None):
     if db_manager is None:
         app.config["DB_MANAGER"] = WebDbManager(
             name=app.config["TREE"],
-            user=app.config["POSTGRES_USER"],
+            username=app.config["POSTGRES_USER"],
             password=app.config["POSTGRES_PASSWORD"],
         )
     else:
