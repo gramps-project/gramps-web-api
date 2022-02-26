@@ -142,6 +142,8 @@ def get_locale_for_language(language: str, default: bool = False) -> GrampsLocal
             if catalog[entry] == language:
                 # translate language code (e.g. "da") to locale code (e.g. "da_DK")
                 locale_code = LOCALE_MAP.get(language, language)
+                if "UTF" not in locale_code.upper():
+                    locale_code = f"{locale_code}.UTF-8"
                 return GrampsLocale(lang=locale_code)
     if default:
         return GRAMPS_LOCALE
