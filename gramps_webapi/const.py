@@ -123,7 +123,7 @@ except ImportError:
 
 # mapping Gramps language codes to locales that exist on a typical Unix system.
 LOCALE_MAP = {
-    "ar": "ar_AR",
+    "ar": "ar_EG",
     "bg": "bg_BG",
     "ca": "ca_ES",
     "cs": "cs_CZ",
