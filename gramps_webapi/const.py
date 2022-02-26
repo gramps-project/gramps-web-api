@@ -119,3 +119,40 @@ except ImportError:
     REPORT_DEFAULTS = {
         CATEGORY_TEXT: "rtf",
     }
+
+
+# mapping Gramps language codes to locales that exist on a typical Unix system.
+LOCALE_MAP = {
+    "ar": "ar_AR",
+    "bg": "bg_BG",
+    "ca": "ca_ES",
+    "cs": "cs_CZ",
+    "da": "da_DK",
+    "de": "de_DE",
+    "el": "el_GR",
+    "en": "en_GB",
+    "es": "es_ES",
+    "fi": "fi_FI",
+    "fr": "fr_FR",
+    "he": "he_IL",
+    "hr": "hr_HR",
+    "hu": "hu_HU",
+    "is": "is_IS",
+    "it": "it_IT",
+    "ja": "ja_JP",
+    "lt": "lt_LT",
+    "nb": "nb_NO",
+    "nl": "nl_NL",
+    "nn": "nn_NO",
+    "pl": "pl_PL",
+    "ru": "ru_RU",
+    "sk": "sk_SK",
+    "sl": "sl_SI",
+    "sq": "sq_AL",
+    "sr": "sr_RS",
+    "sv": "sv_SE",
+    "ta": "ta_IN",
+    "tr": "tr_TR",
+    "uk": "uk_UA",
+    "vi": "vi_VN",
+}

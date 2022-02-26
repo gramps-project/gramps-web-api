@@ -39,6 +39,7 @@ from marshmallow import RAISE
 from webargs.flaskparser import FlaskParser
 
 from ..auth.const import PERM_VIEW_PRIVATE
+from ..const import LOCALE_MAP
 from ..dbmanager import WebDbManager
 from .auth import has_permissions
 
@@ -139,7 +140,9 @@ def get_locale_for_language(language: str, default: bool = False) -> GrampsLocal
         catalog = GRAMPS_LOCALE.get_language_dict()
         for entry in catalog:
             if catalog[entry] == language:
-                return GrampsLocale(lang=language)
+                # translate language code (e.g. "da") to locale code (e.g. "da_DK")
+                locale_code = LOCALE_MAP.get(language, language)
+                return GrampsLocale(lang=locale_code)
     if default:
         return GRAMPS_LOCALE
     return None
