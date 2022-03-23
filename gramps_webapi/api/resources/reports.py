@@ -21,13 +21,13 @@
 
 import json
 import os
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Dict
 
 from flask import Response, abort, current_app, send_file
 from gramps.cli.plug import CommandLineReport, cl_report
-from gramps.gen.const import TEMP_DIR
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.filters import reload_custom_filters
 from gramps.gen.plug import BasePluginManager
@@ -114,7 +114,7 @@ def run_report(
                     "Can not find {} in MIME_TYPES".format(file_type)
                 )
                 abort(500)
-            report_path = TEMP_DIR
+            report_path = tempfile.TemporaryDirectory().name
             if current_app.config.get("REPORT_DIR"):
                 report_path = current_app.config.get("REPORT_DIR")
             file_name = os.path.join(
@@ -197,7 +197,10 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
     """Report file resource."""
 
     @use_args(
-        {"options": fields.Str(validate=validate.Length(min=1)),}, location="query",
+        {
+            "options": fields.Str(validate=validate.Length(min=1)),
+        },
+        location="query",
     )
     def get(self, args: Dict, report_id: str) -> Response:
         """Get specific report attributes."""

@@ -25,13 +25,13 @@
 
 import mimetypes
 import os
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Dict
 
 from flask import Response, abort, current_app, send_file
 from gramps.gen.const import GRAMPS_LOCALE as glocale
-from gramps.gen.const import TEMP_DIR
 from gramps.gen.errors import HandleError
 
 _ = glocale.translation.gettext
@@ -137,7 +137,7 @@ def prepare_options(db_handle: DbReadBase, args: Dict):
 
 def run_export(db_handle: DbReadBase, extension: str, options):
     """Generate the export."""
-    export_path = TEMP_DIR
+    export_path = tempfile.TemporaryDirectory().name
     if current_app.config.get("EXPORT_DIR"):
         export_path = current_app.config.get("EXPORT_DIR")
     file_name = os.path.join(export_path, "{}.{}".format(uuid.uuid4(), extension))
