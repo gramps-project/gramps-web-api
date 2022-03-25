@@ -114,9 +114,10 @@ def run_report(
                     "Can not find {} in MIME_TYPES".format(file_type)
                 )
                 abort(500)
-            report_path = tempfile.TemporaryDirectory().name
             if current_app.config.get("REPORT_DIR"):
                 report_path = current_app.config.get("REPORT_DIR")
+            else:
+                report_path = tempfile.gettempdir()
             file_name = os.path.join(
                 report_path, "{}{}".format(uuid.uuid4(), file_type)
             )

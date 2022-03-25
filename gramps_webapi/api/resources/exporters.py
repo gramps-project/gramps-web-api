@@ -137,9 +137,10 @@ def prepare_options(db_handle: DbReadBase, args: Dict):
 
 def run_export(db_handle: DbReadBase, extension: str, options):
     """Generate the export."""
-    export_path = tempfile.TemporaryDirectory().name
     if current_app.config.get("EXPORT_DIR"):
         export_path = current_app.config.get("EXPORT_DIR")
+    else:
+        export_path = tempfile.gettempdir()
     file_name = os.path.join(export_path, "{}.{}".format(uuid.uuid4(), extension))
     _resources = ResourcePath()
     os.environ["GRAMPS_RESOURCES"] = str(Path(_resources.data_dir).parent)
