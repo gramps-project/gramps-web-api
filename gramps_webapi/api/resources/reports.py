@@ -117,7 +117,7 @@ def run_report(
             if current_app.config.get("REPORT_DIR"):
                 report_path = current_app.config.get("REPORT_DIR")
             else:
-                report_path = tempfile.gettempdir()  #
+                report_path = tempfile.gettempdir()
             file_name = os.path.join(
                 report_path, "{}{}".format(uuid.uuid4(), file_type)
             )
