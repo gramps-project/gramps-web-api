@@ -58,7 +58,9 @@ class RelationResource(ProtectedResource, GrampsJSONEncoder):
         calc = get_relationship_calculator(reinit=True, clocale=locale)
         calc.set_depth(args["depth"])
 
-        data = calc.get_one_relationship(db_handle, person1, person2, extra_info=True)
+        data = calc.get_one_relationship(
+            db_handle, person1, person2, extra_info=True, olocale=locale
+        )
         return self.response(
             200,
             {
