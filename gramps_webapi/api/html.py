@@ -24,6 +24,7 @@
 from typing import Callable, Optional
 
 import bleach
+from bleach.css_sanitizer import CSSSanitizer
 from gramps.gen.lib import Note, NoteType, StyledText
 from gramps.plugins.lib.libhtml import Html
 from gramps.plugins.lib.libhtmlbackend import HtmlBackend, process_spaces
@@ -59,7 +60,7 @@ ALLOWED_ATTRIBUTES = {
     "span": ["style"],
 }
 
-ALLOWED_STYLES = [
+ALLOWED_CSS_PROPERTIES = [
     "color",
     "background-color",
     "font-family",
@@ -70,13 +71,16 @@ ALLOWED_STYLES = [
 ]
 
 
+CSS_SANITIZER = CSSSanitizer(allowed_css_properties=ALLOWED_CSS_PROPERTIES)
+
+
 def sanitize(html: str):
     """Sanitize an HTML string by keeping only allowed tags/attributes."""
     return bleach.clean(
         html,
         tags=ALLOWED_TAGS,
         attributes=ALLOWED_ATTRIBUTES,
-        styles=ALLOWED_STYLES,
+        css_sanitizer=CSS_SANITIZER,
         strip=True,
     )
 
