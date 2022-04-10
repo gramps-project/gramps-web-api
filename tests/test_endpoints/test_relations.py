@@ -104,6 +104,15 @@ class TestRelations(unittest.TestCase):
         )
         self.assertEqual(rv["relationship_string"], "Stief-/Adoptivalttante")
 
+    def test_get_relations_parameter_locale_expected_result_partner(self):
+        """Test locale parameter working as expected."""
+        rv = check_success(self, TEST_URL + "cc8205d87831c772e87/cc8205d872f532ab14e")
+        self.assertEqual(rv["relationship_string"], "husband")
+        rv = check_success(
+            self, TEST_URL + "cc8205d87831c772e87/cc8205d872f532ab14e?locale=it"
+        )
+        self.assertEqual(rv["relationship_string"], "marito")
+
 
 class TestRelationsAll(unittest.TestCase):
     """Test cases for the /api/relations/{handle1}/{handle2}/all endpoint."""
