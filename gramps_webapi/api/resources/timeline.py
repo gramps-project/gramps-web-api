@@ -18,7 +18,7 @@
 #
 
 """Timeline API resources."""
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 from flask import abort
 from gramps.gen.const import GRAMPS_LOCALE as glocale
@@ -99,11 +99,11 @@ class Timeline:
     def __init__(
         self,
         db_handle: DbReadBase,
-        dates: Union[str, None] = None,
-        events: Union[List, None] = None,
+        dates: Optional[str] = None,
+        events: Optional[List[str]] = None,
         ratings: bool = False,
-        relatives: Union[List, None] = None,
-        relative_events: Union[List, None] = None,
+        relatives: Optional[List[str]] = None,
+        relative_events: Optional[List[str]] = None,
         discard_empty: bool = True,
         omit_anchor: bool = True,
         precision: int = 1,
@@ -111,7 +111,7 @@ class Timeline:
     ):
         """Initialize timeline."""
         self.db_handle = db_handle
-        self.timeline = []
+        self.timeline: List[Tuple[Event, Person, str]] = []
         self.dates = dates
         self.start_date = None
         self.end_date = None
@@ -122,14 +122,14 @@ class Timeline:
         self.anchor_person = None
         self.omit_anchor = omit_anchor
         self.depth = 1
-        self.eligible_events = set([])
-        self.event_filters = events or []
-        self.eligible_relative_events = set([])
-        self.relative_event_filters = relative_events or []
-        self.relative_filters = relatives or []
+        self.eligible_events: Set[str] = set()
+        self.event_filters: List[str] = events or []
+        self.eligible_relative_events: Set[str] = set()
+        self.relative_event_filters: List[str] = relative_events or []
+        self.relative_filters: List[str] = relatives or []
         self.set_event_filters(self.event_filters)
         self.set_relative_event_filters(self.relative_event_filters)
-        self.birth_dates = {}
+        self.birth_dates: Dict[str, Date] = {}
 
         if dates and "-" in dates:
             start, end = dates.split("-")
@@ -172,19 +172,19 @@ class Timeline:
         """Set optional locale for span."""
         self.locale = get_locale_for_language(locale, default=True)
 
-    def set_event_filters(self, filters: Union[List, None] = None):
+    def set_event_filters(self, filters: Optional[List[str]] = None):
         """Prepare the event filter table."""
         self.event_filters = filters or []
         self.eligible_events = self._prepare_eligible_events(self.event_filters)
 
-    def set_relative_event_filters(self, filters: Union[List, None] = None):
+    def set_relative_event_filters(self, filters: Optional[List[str]] = None):
         """Prepare the relative event filter table."""
         self.relative_event_filters = filters or []
         self.eligible_relative_events = self._prepare_eligible_events(
             self.relative_event_filters
         )
 
-    def _prepare_eligible_events(self, event_filters: List):
+    def _prepare_eligible_events(self, event_filters: List[str]):
         """Prepare an event filter list."""
         eligible_events = {"Birth", "Death"}
         event_type = EventType()
@@ -199,9 +199,7 @@ class Timeline:
                 eligible_events.add(key)
                 continue
             if key not in EVENT_CATEGORIES:
-                raise ValueError(
-                    "{} is not a valid event or event category".format(key)
-                )
+                raise ValueError(f"{key} is not a valid event or event category")
         for entry in event_type.get_menu_standard_xml():
             event_key = entry[0].lower().replace("life events", "vital")
             if event_key in event_filters:
@@ -214,7 +212,7 @@ class Timeline:
                 eligible_events.add(event_name)
         return eligible_events
 
-    def get_age(self, start_date, date):
+    def get_age(self, start_date: str, date: str):
         """Return calculated age or empty string otherwise."""
         age = ""
         if start_date:
@@ -255,7 +253,7 @@ class Timeline:
             return True
         return str(event.get_type()) in self.eligible_events
 
-    def add_event(self, event: Tuple, relative=False):
+    def add_event(self, event: Tuple[Event, Person, str], relative: bool = False):
         """Add event to timeline if needed."""
         if self.discard_empty:
             if event[0].date.sortval == 0:
@@ -382,7 +380,7 @@ class Timeline:
     def add_family(
         self,
         handle: Handle,
-        anchor: Union[Person, None] = None,
+        anchor: Optional[Person] = None,
         include_children: bool = True,
         ancestors: int = 1,
         offspring: int = 1,
@@ -435,7 +433,7 @@ class Timeline:
                 and self.anchor_person.handle != event[1].handle
                 and event[2] not in ["self", "", None]
             ):
-                label = "{} ({})".format(label, event[2].title())
+                label = f"{label} ({event[2].title()})"
 
             try:
                 obj = self.db_handle.get_place_from_handle(event[0].place)
@@ -584,7 +582,7 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
                 locale=locale,
             )
             timeline.add_person(
-                handle,
+                Handle(handle),
                 anchor=True,
                 start=args["first"],
                 end=args["last"],
@@ -645,7 +643,7 @@ class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
                 discard_empty=args["discard_empty"],
                 locale=locale,
             )
-            timeline.add_family(handle)
+            timeline.add_family(Handle(handle))
         except ValueError:
             abort(422)
         except HandleError:
