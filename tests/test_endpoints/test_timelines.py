@@ -169,7 +169,6 @@ class TestTimelinesPeople(unittest.TestCase):
         self.assertEqual(rv[0]["label"], "Heirat")
         self.assertEqual(rv[0]["role"], "Familie")
         self.assertEqual(rv[0]["person"]["birth"]["type"], "Geburt")
-        self.assertEqual(rv[0]["person"]["birth"]["role"], "Primär")
         self.assertEqual(rv[0]["person"]["death"]["type"], "Tod")
 
     def test_get_timelines_people_parameter_anchor_missing_content(self):
