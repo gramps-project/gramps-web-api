@@ -167,7 +167,9 @@ class TestTimelinesPeople(unittest.TestCase):
         """Test expected profile response for a locale."""
         rv = check_success(self, TEST_URL + "people/?page=1&locale=de")
         self.assertEqual(rv[0]["label"], "Heirat")
+        self.assertEqual(rv[0]["role"], "Familie")
         self.assertEqual(rv[0]["person"]["birth"]["type"], "Geburt")
+        self.assertEqual(rv[0]["person"]["birth"]["role"], "Primär")
         self.assertEqual(rv[0]["person"]["death"]["type"], "Tod")
 
     def test_get_timelines_people_parameter_anchor_missing_content(self):
