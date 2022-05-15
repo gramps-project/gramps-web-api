@@ -18,14 +18,14 @@
 #
 
 """Timeline API resources."""
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 from flask import abort
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
-from gramps.gen.lib import Date, Event, EventType, Person, Span
+from gramps.gen.lib import Date, Event, EventRef, EventType, Person, Span
 from gramps.gen.relationship import get_relationship_calculator
 from gramps.gen.utils.alive import probably_alive_range
 from gramps.gen.utils.db import (
@@ -99,11 +99,11 @@ class Timeline:
     def __init__(
         self,
         db_handle: DbReadBase,
-        dates: Union[str, None] = None,
-        events: Union[List, None] = None,
+        dates: Optional[str] = None,
+        events: Optional[List[str]] = None,
         ratings: bool = False,
-        relatives: Union[List, None] = None,
-        relative_events: Union[List, None] = None,
+        relatives: Optional[List[str]] = None,
+        relative_events: Optional[List[str]] = None,
         discard_empty: bool = True,
         omit_anchor: bool = True,
         precision: int = 1,
@@ -111,7 +111,7 @@ class Timeline:
     ):
         """Initialize timeline."""
         self.db_handle = db_handle
-        self.timeline = []
+        self.timeline: List[Tuple[Event, Person, str, str]] = []
         self.dates = dates
         self.start_date = None
         self.end_date = None
@@ -122,14 +122,14 @@ class Timeline:
         self.anchor_person = None
         self.omit_anchor = omit_anchor
         self.depth = 1
-        self.eligible_events = set([])
-        self.event_filters = events or []
-        self.eligible_relative_events = set([])
-        self.relative_event_filters = relative_events or []
-        self.relative_filters = relatives or []
+        self.eligible_events: Set[str] = set()
+        self.event_filters: List[str] = events or []
+        self.eligible_relative_events: Set[str] = set()
+        self.relative_event_filters: List[str] = relative_events or []
+        self.relative_filters: List[str] = relatives or []
         self.set_event_filters(self.event_filters)
         self.set_relative_event_filters(self.relative_event_filters)
-        self.birth_dates = {}
+        self.birth_dates: Dict[str, Date] = {}
 
         if dates and "-" in dates:
             start, end = dates.split("-")
@@ -172,19 +172,19 @@ class Timeline:
         """Set optional locale for span."""
         self.locale = get_locale_for_language(locale, default=True)
 
-    def set_event_filters(self, filters: Union[List, None] = None):
+    def set_event_filters(self, filters: Optional[List[str]] = None):
         """Prepare the event filter table."""
         self.event_filters = filters or []
         self.eligible_events = self._prepare_eligible_events(self.event_filters)
 
-    def set_relative_event_filters(self, filters: Union[List, None] = None):
+    def set_relative_event_filters(self, filters: Optional[List[str]] = None):
         """Prepare the relative event filter table."""
         self.relative_event_filters = filters or []
         self.eligible_relative_events = self._prepare_eligible_events(
             self.relative_event_filters
         )
 
-    def _prepare_eligible_events(self, event_filters: List):
+    def _prepare_eligible_events(self, event_filters: List[str]):
         """Prepare an event filter list."""
         eligible_events = {"Birth", "Death"}
         event_type = EventType()
@@ -199,9 +199,7 @@ class Timeline:
                 eligible_events.add(key)
                 continue
             if key not in EVENT_CATEGORIES:
-                raise ValueError(
-                    "{} is not a valid event or event category".format(key)
-                )
+                raise ValueError(f"{key} is not a valid event or event category")
         for entry in event_type.get_menu_standard_xml():
             event_key = entry[0].lower().replace("life events", "vital")
             if event_key in event_filters:
@@ -214,7 +212,7 @@ class Timeline:
                 eligible_events.add(event_name)
         return eligible_events
 
-    def get_age(self, start_date, date):
+    def get_age(self, start_date: str, date: str):
         """Return calculated age or empty string otherwise."""
         age = ""
         if start_date:
@@ -255,7 +253,7 @@ class Timeline:
             return True
         return str(event.get_type()) in self.eligible_events
 
-    def add_event(self, event: Tuple, relative=False):
+    def add_event(self, event: Tuple[Event, Person, str, str], relative: bool = False):
         """Add event to timeline if needed."""
         if self.discard_empty:
             if event[0].date.sortval == 0:
@@ -295,7 +293,8 @@ class Timeline:
                 self.birth_dates.update({person.handle: event.date})
         for event_ref in person.event_ref_list:
             event = self.db_handle.get_event_from_handle(event_ref.ref)
-            self.add_event((event, person, "self"))
+            role = event_ref.get_role().xml_str()
+            self.add_event((event, person, "self", role))
         if anchor and not self.anchor_person:
             self.anchor_person = person
             self.depth = max(ancestors, offspring) + 1
@@ -345,28 +344,29 @@ class Timeline:
         if self.relative_event_filters:
             for event_ref in person.event_ref_list:
                 event = self.db_handle.get_event_from_handle(event_ref.ref)
-                self.add_event((event, person, relationship), relative=True)
+                role = event_ref.get_role().xml_str()
+                self.add_event((event, person, relationship, role), relative=True)
 
         event = get_birth_or_fallback(self.db_handle, person)
         if event:
-            self.add_event((event, person, relationship), relative=True)
+            self.add_event((event, person, relationship, "Primary"), relative=True)
             if person.handle not in self.birth_dates:
                 self.birth_dates.update({person.handle: event.date})
 
         event = get_death_or_fallback(self.db_handle, person)
         if event:
-            self.add_event((event, person, relationship), relative=True)
+            self.add_event((event, person, relationship, "Primary"), relative=True)
 
         for family_handle in person.family_list:
             family = self.db_handle.get_family_from_handle(family_handle)
 
             event = get_marriage_or_fallback(self.db_handle, family)
             if event:
-                self.add_event((event, person, relationship), relative=True)
+                self.add_event((event, person, relationship, "Family"), relative=True)
 
             event = get_divorce_or_fallback(self.db_handle, family)
             if event:
-                self.add_event((event, person, relationship), relative=True)
+                self.add_event((event, person, relationship, "Family"), relative=True)
 
             if offspring > 1:
                 for child_ref in family.child_ref_list:
@@ -382,7 +382,7 @@ class Timeline:
     def add_family(
         self,
         handle: Handle,
-        anchor: Union[Person, None] = None,
+        anchor: Optional[Person] = None,
         include_children: bool = True,
         ancestors: int = 1,
         offspring: int = 1,
@@ -393,7 +393,8 @@ class Timeline:
         if anchor:
             for event_ref in family.event_ref_list:
                 event = self.db_handle.get_event_from_handle(event_ref.ref)
-                self.add_event((event, anchor, "self"))
+                role = event_ref.get_role().xml_str()
+                self.add_event((event, anchor, "self", role))
             if events_only:
                 return
         if self.anchor_person:
@@ -427,68 +428,69 @@ class Timeline:
         if page > 0:
             offset = (page - 1) * pagesize
             events = events[offset : offset + pagesize]
-        for event in events:
-            label = self.locale.translation.sgettext(str(event[0].type))
+        for (event, person_object, relationship, role) in events:
+            label = self.locale.translation.sgettext(str(event.type))
             if (
-                event[1]
+                person_object
                 and self.anchor_person
-                and self.anchor_person.handle != event[1].handle
-                and event[2] not in ["self", "", None]
+                and self.anchor_person.handle != person_object.handle
+                and relationship not in ["self", "", None]
             ):
-                label = "{} ({})".format(label, event[2].title())
+                label = f"{label} ({relationship.title()})"
 
             try:
-                obj = self.db_handle.get_place_from_handle(event[0].place)
+                obj = self.db_handle.get_place_from_handle(event.place)
                 place = get_place_profile_for_object(
                     self.db_handle, obj, locale=self.locale
                 )
-                place["display_name"] = pd.display_event(self.db_handle, event[0])
-                place["handle"] = event[0].place
+                place["display_name"] = pd.display_event(self.db_handle, event)
+                place["handle"] = event.place
             except HandleError:
                 place = {}
 
             age = ""
             person = {}
-            if event[1] is not None:
+            if person_object is not None:
                 person_age = ""
                 get_person = True
                 if self.anchor_person:
                     if self.anchor_person.handle in self.birth_dates:
                         age = self.get_age(
-                            self.birth_dates[self.anchor_person.handle], event[0].date
+                            self.birth_dates[self.anchor_person.handle], event.date
                         )
-                    if self.anchor_person.handle == event[1].handle:
+                    if self.anchor_person.handle == person_object.handle:
                         person_age = age
                         if self.omit_anchor:
                             get_person = False
                 if get_person:
                     person = get_person_profile_for_object(
-                        self.db_handle, event[1], {}, locale=self.locale
+                        self.db_handle, person_object, {}, locale=self.locale
                     )
-                    if not person_age and event[1].handle in self.birth_dates:
+                    if not person_age and person_object.handle in self.birth_dates:
                         person_age = self.get_age(
-                            self.birth_dates[event[1].handle], event[0].date
+                            self.birth_dates[person_object.handle], event.date
                         )
                         if not age:
                             age = person_age
                     person["age"] = person_age
 
             profile = {
-                "date": self.locale.date_displayer.display(event[0].date),
-                "description": event[0].description,
-                "gramps_id": event[0].gramps_id,
-                "handle": event[0].handle,
+                "date": self.locale.date_displayer.display(event.date),
+                "description": event.description,
+                "gramps_id": event.gramps_id,
+                "handle": event.handle,
                 "label": self.locale.translation.sgettext(label),
-                "media": [x.ref for x in event[0].media_list],
+                "media": [x.ref for x in event.media_list],
                 "person": person,
                 "place": place,
                 "age": age,
-                "type": event[0].type,
+                "type": event.type,
+                "role": self.locale.translation.gettext(role),
             }
-            profile["person"]["relationship"] = str(event[2])
+            profile["person"]["relationship"] = str(relationship)
             if self.ratings:
-                profile["citations"] = event[0].citations
-                profile["confidence"] = event[0].confidence
+                profile["citations"] = event.citations
+                profile["confidence"] = event.confidence
             profiles.append(profile)
         return profiles
 
@@ -584,7 +586,7 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
                 locale=locale,
             )
             timeline.add_person(
-                handle,
+                Handle(handle),
                 anchor=True,
                 start=args["first"],
                 end=args["last"],
@@ -645,7 +647,7 @@ class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
                 discard_empty=args["discard_empty"],
                 locale=locale,
             )
-            timeline.add_family(handle)
+            timeline.add_family(Handle(handle))
         except ValueError:
             abort(422)
         except HandleError:
