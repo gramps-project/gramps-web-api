@@ -160,13 +160,6 @@ class TestPerson(unittest.TestCase):
             "/api/token/", json={"username": "user", "password": "123"}
         )
         refresh_token = rv.json["refresh_token"]
-        access_token = rv.json["access_token"]
-        # incorrectly send access token instead of refresh token!
-        rv = self.client.post(
-            "/api/token/refresh/",
-            headers={"Authorization": "Bearer {}".format(access_token)},
-        )
-        assert rv.status_code == 422
         rv = self.client.post(
             "/api/token/refresh/",
             headers={"Authorization": "Bearer {}".format(refresh_token)},
