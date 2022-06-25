@@ -92,6 +92,23 @@ class TestTokenRefresh(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 422)
 
+    def test_refresh_wrong_token(self):
+        """Test refresh response wrong token presented."""
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={
+                "username": TEST_USERS[ROLE_OWNER]["name"],
+                "password": TEST_USERS[ROLE_OWNER]["password"],
+            },
+        )
+        self.assertEqual(rv.status_code, 200)
+        access_token = rv.json["access_token"]
+        rv = self.client.post(
+            BASE_URL + "/token/refresh/",
+            headers={"Authorization": "Bearer {}".format(access_token)},
+        )
+        self.assertEqual(rv.status_code, 422)
+
     def test_refresh_response(self):
         """Test refresh response."""
         rv = self.client.post(
