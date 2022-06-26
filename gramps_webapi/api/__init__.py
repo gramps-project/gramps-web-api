@@ -22,11 +22,11 @@
 from typing import Type
 
 from flask import Blueprint, current_app
-from flask_caching import Cache
 from webargs import fields, validate
 
 from ..const import API_PREFIX
 from .auth import jwt_required_ifauth
+from .cache import thumbnail_cache
 from .media import MediaHandler
 from .resources.base import Resource
 from .resources.bookmarks import BookmarkResource, BookmarksResource
@@ -37,6 +37,7 @@ from .resources.exporters import (
     ExporterResource,
     ExportersResource,
 )
+from .resources.face_detection import MediaFaceDetectionResource
 from .resources.facts import FactsResource
 from .resources.families import FamiliesResource, FamilyResource
 from .resources.file import MediaFileResource
@@ -86,7 +87,6 @@ from .resources.transactions import TransactionsResource
 from .util import make_cache_key_thumbnails, use_args
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
-thumbnail_cache = Cache()
 
 
 def register_endpt(resource: Type[Resource], url: str, name: str):
@@ -244,10 +244,18 @@ register_endpt(
 # Search
 register_endpt(SearchResource, "/search/", "search")
 
+# Media files
 register_endpt(
     MediaFileResource,
     "/media/<string:handle>/file",
     "media_file",
+)
+
+# Face detection
+register_endpt(
+    MediaFaceDetectionResource,
+    "/media/<string:handle>/face_detection",
+    "media_face_detection",
 )
 
 

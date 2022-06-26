@@ -239,3 +239,33 @@ class TestCroppedThumbnail(unittest.TestCase):
             thumb = Image.open(BytesIO(rv.data))
             assert thumb.width == thumb.height
             assert min(full_img.width, full_img.height) == thumb.height
+
+
+class TestFaceDetection(unittest.TestCase):
+    """Test cases for the /api/media/{}/face_detection endpoint."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_get_faces_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_URL + "b39fe1cfc1305ac4a21/face_detection")
+
+    def test_get_faces(self):
+        """Test reponse for face detection."""
+        rv = check_success(
+            self,
+            f"{TEST_URL}F8JYGQFL2PKLSYH79X/face_detection",
+            full=True,
+        )
+        faces = rv.json
+        assert len(faces) == 1
+        x1, y1, x2, y2 = faces[0]
+        assert 20 < x1 < 70
+        assert 50 < x2 < 80
+        assert 0 < y1 < 20
+        assert 20 < y2 < 60
+        assert x2 > x1
+        assert y2 > y1

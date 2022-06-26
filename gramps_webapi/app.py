@@ -27,7 +27,8 @@ from flask_compress import Compress
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 
-from .api import api_blueprint, thumbnail_cache
+from .api import api_blueprint
+from .api.cache import thumbnail_cache
 from .api.resources.token import limiter
 from .api.search import SearchIndexer
 from .auth import SQLAuth

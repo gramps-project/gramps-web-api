@@ -23,9 +23,9 @@ import hashlib
 import os
 from io import BytesIO
 from pathlib import Path
-from typing import Any, BinaryIO, Optional, Tuple, Union
+from typing import Any, BinaryIO, List, Optional, Tuple, Union
 
-from flask import abort, make_response, send_file, send_from_directory
+from flask import abort, jsonify, make_response, send_file, send_from_directory
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Media
 from werkzeug.datastructures import FileStorage
@@ -33,7 +33,7 @@ from werkzeug.datastructures import FileStorage
 from gramps_webapi.const import MIME_JPEG
 
 from ..types import FilenameOrPath
-from .image import LocalFileThumbnailHandler
+from .image import LocalFileThumbnailHandler, detect_faces
 from .util import get_db_handle, get_media_base_dir
 
 
@@ -56,6 +56,10 @@ class FileHandler:
         except HandleError:
             return None
 
+    def get_file_object(self) -> BinaryIO:
+        """Return a binary file object."""
+        raise NotImplementedError
+
     def file_exists(self) -> bool:
         """Check if the file exists."""
         raise NotImplementedError
@@ -77,6 +81,19 @@ class FileHandler:
     ):
         """Send thumbnail of cropped image."""
         raise NotImplementedError
+
+    def get_face_regions(self, etag: Optional[str] = None):
+        """Return regions containing faces."""
+        fobj = self.get_file_object()
+        try:
+            regions = detect_faces(fobj)
+        except ImportError:
+            # numpy or opencv missing
+            abort(501)
+        res = make_response(jsonify(regions))
+        if etag:
+            res.headers["ETag"] = etag
+        return res
 
 
 class LocalFileHandler(FileHandler):
@@ -109,6 +126,16 @@ class LocalFileHandler(FileHandler):
         """Check if the file exists."""
         self._check_path()
         return Path(self.path_abs).is_file()
+
+    def get_file_object(self) -> BinaryIO:
+        """Return a binary file object."""
+        try:
+            self._check_path()
+        except ValueError:
+            abort(403)
+        with open(self.path_abs, "rb") as f:
+            stream = BytesIO(f.read())
+        return stream
 
     def send_file(self, etag: Optional[str] = None):
         """Send media file to client."""

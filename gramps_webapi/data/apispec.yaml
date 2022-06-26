@@ -3438,6 +3438,38 @@ paths:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
+  /media/{handle}/face_detection:
+    parameters:
+    - name: handle
+      in: path
+      required: true
+      type: string
+      minLength: 8
+      description: "The unique identifier for a media item."
+    get:
+      tags:
+      - media
+      summary: "Detect faces in an image."
+      operationId: getMediaItemFaces
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              type: array
+              items:
+                type: number
+              example: [10, 20, 30, 40]
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Media item not found."
+        501:
+          description: "Not Implemented: Server does not support face detection."
+
   /media/{handle}/thumbnail/{size}:
     get:
       tags:
