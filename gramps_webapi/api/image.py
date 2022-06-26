@@ -219,7 +219,6 @@ def detect_faces(stream: BinaryIO) -> List[Tuple[float, float, float, float]]:
 
     file_bytes = np.asarray(bytearray(stream.read()), dtype=np.uint8)
     cv_image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-    # img_size = (cv_image.shape[0], cv_image.shape[1])
     cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
     haarcascade_path = os.path.join(
         cv2.data.haarcascades, "haarcascade_frontalface_default.xml"
