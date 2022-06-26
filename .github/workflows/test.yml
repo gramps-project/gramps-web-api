@@ -19,11 +19,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install Ubuntu dependencies
-        run: sudo apt-get -y install gettext appstream pkg-config libcairo2-dev gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev python3-opencv
+        run: sudo apt-get -y install gettext appstream pkg-config libcairo2-dev gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip wheel
-          pip install pycairo PyGObject pytest PyYAML jsonschema pyICU
+          pip install pycairo PyGObject pytest PyYAML jsonschema pyICU opencv-python
           python -m pip install git+https://github.com/gramps-project/gramps#egg=gramps
           pip install .
           pip list
