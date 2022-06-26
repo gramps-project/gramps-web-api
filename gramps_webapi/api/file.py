@@ -84,12 +84,15 @@ class FileHandler:
 
     def get_face_regions(self, etag: Optional[str] = None):
         """Return regions containing faces."""
-        fobj = self.get_file_object()
-        try:
-            regions = detect_faces(fobj)
-        except ImportError:
-            # numpy or opencv missing
-            abort(501)
+        if self.mime.startswith("image"):
+            fobj = self.get_file_object()
+            try:
+                regions = detect_faces(fobj)
+            except ImportError:
+                # numpy or opencv missing
+                abort(501)
+        else:
+            regions = []
         res = make_response(jsonify(regions))
         if etag:
             res.headers["ETag"] = etag
