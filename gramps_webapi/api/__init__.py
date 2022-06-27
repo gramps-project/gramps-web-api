@@ -42,6 +42,11 @@ from .resources.families import FamiliesResource, FamilyResource
 from .resources.file import MediaFileResource
 from .resources.filters import FilterResource, FiltersResource, FiltersResources
 from .resources.holidays import HolidayResource, HolidaysResource
+from .resources.importers import (
+    ImporterFileResource,
+    ImporterResource,
+    ImportersResource,
+)
 from .resources.living import LivingDatesResource, LivingResource
 from .resources.media import MediaObjectResource, MediaObjectsResource
 from .resources.metadata import MetadataResource
@@ -196,6 +201,12 @@ register_endpt(
 )
 register_endpt(ExporterResource, "/exporters/<string:extension>", "exporter")
 register_endpt(ExportersResource, "/exporters/", "exporters")
+# Importers
+register_endpt(
+    ImporterFileResource, "/importers/<string:extension>/file", "importer-file"
+)
+register_endpt(ImporterResource, "/importers/<string:extension>", "importer")
+register_endpt(ImportersResource, "/importers/", "importers")
 # Holidays
 register_endpt(
     HolidayResource,

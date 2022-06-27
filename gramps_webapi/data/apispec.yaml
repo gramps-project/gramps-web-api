@@ -5787,6 +5787,82 @@ paths:
 
 
 ##############################################################################
+# Endpoint - Importers
+##############################################################################
+
+  /importers:
+    get:
+      tags:
+      - importers
+      summary: "Get all importers."
+      operationId: getAllImporters
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Importer"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
+
+  /importers/{extension}:
+    get:
+      tags:
+      - importers
+      summary: "Get a specific importer."
+      operationId: getImporter
+      security:
+        - Bearer: []
+      parameters:
+      - name: extension
+        in: path
+        required: true
+        type: string
+        description: "The file extension used by a specific importer."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/Importer"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Importer not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
+  /importers/{extension}/file:
+    post:
+      tags:
+      - importers
+      summary: "Upload a file to import."
+      operationId: postImportFile
+      security:
+        - Bearer: []
+      parameters:
+      - name: extension
+        in: path
+        required: true
+        type: string
+        description: "The file extension used by a specific importer."
+      responses:
+        201:
+          description: "OK: resource created."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Importer not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
+
+##############################################################################
 # Endpoint - Holidays
 ##############################################################################
 
@@ -8858,6 +8934,28 @@ definitions:
         description: "The module name of the exporter plugin."
         type: string
         example: "exportxml"
+
+
+##############################################################################
+# Model - Importer
+##############################################################################
+
+  Importer:
+    type: object
+    properties:
+      description:
+        description: "A description of the importer."
+        type: string
+        example: "The Gramps XML format is a text version of a Family Tree. It is read-write compatible with the present Gramps database format."
+      extension:
+        description: "The common file extension used for the given export format."
+        type: string
+        example: "gramps"
+      module:
+        description: "The module name of the exporter plugin."
+        type: string
+        example: "importxml"
+
 
 ##############################################################################
 # Model - Report

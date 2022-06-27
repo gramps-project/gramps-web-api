@@ -36,6 +36,9 @@ TEST_EXAMPLE_GRAMPS_CONFIG = resource_filename(
 TEST_EXAMPLE_GRAMPS_AUTH_CONFIG = resource_filename(
     "gramps_webapi", "data/example_gramps_auth.cfg"
 )
+TEST_EMPTY_GRAMPS_AUTH_CONFIG = resource_filename(
+    "gramps_webapi", "data/empty_gramps_auth.cfg"
+)
 
 # environment variables
 ENV_CONFIG_FILE = "GRAMPS_API_CONFIG"
