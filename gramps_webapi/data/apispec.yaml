@@ -144,6 +144,20 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid token."
 
+  /token/create_owner/:
+    get:
+      tags:
+      - authentication
+      summary: "Obtain a JWT access token that allows creating an owner account if no other user exists yet."
+      operationId: getTokenCreateOwner
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/JWTAccessToken"
+        405:
+          description: "Method Not Allowed: A user already exists or authentication disabled."
+
 
 ##############################################################################
 # Endpoint - Users
@@ -311,6 +325,44 @@ paths:
           description: "Unauthorized: Missing authorization header."
         409:
           description: "Conflict: user already exists."
+        422:
+          description: "Unprocessable Entity: Invalid token."
+
+  /users/{user_name}/create_owner/:
+    post:
+      tags:
+      - users
+      summary: "Create an owner account if no other user exists yet."
+      operationId: createOwner
+      parameters:
+      - name: user_name
+        in: path
+        required: true
+        type: string
+        description: "The user name for the owner account."
+      - name: user_details
+        in: body
+        schema:
+          type: object
+          properties:
+            email:
+              description: "The owner's e-mail address."
+              type: string
+            full_name:
+              description: "The owner's full name."
+              type: string
+            password:
+              description: "The owner's password."
+              type: string
+      responses:
+        201:
+          description: "OK: Successful operation."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        403:
+          description: "Forbidden: wrong token."
+        405:
+          description: "Method Not Allowed: a user already exists or authentication disabled."
         422:
           description: "Unprocessable Entity: Invalid token."
 
@@ -5889,6 +5941,13 @@ definitions:
     properties:
       refresh_token:
         description: Refresh token
+        type: string
+
+  JWTAccessToken:
+    type: object
+    properties:
+      access_token:
+        description: Access token
         type: string
 
 ##############################################################################
