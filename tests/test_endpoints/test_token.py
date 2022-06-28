@@ -20,8 +20,14 @@
 """Tests for the `gramps_webapi.api` module."""
 
 import unittest
+from unittest.mock import patch
 
+from gramps.cli.clidbman import CLIDbManager
+from gramps.gen.dbstate import DbState
+
+from gramps_webapi.app import create_app
 from gramps_webapi.auth.const import ROLE_OWNER
+from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
 from . import BASE_URL, TEST_USERS, get_test_client
 
@@ -70,6 +76,11 @@ class TestToken(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         self.assertIn("access_token", rv.json)
         self.assertIn("refresh_token", rv.json)
+
+    def test_create_owner_response(self):
+        """Test response to create_owner."""
+        rv = self.client.get(f"{BASE_URL}/token/create_owner/")
+        self.assertEqual(rv.status_code, 405)
 
 
 class TestTokenRefresh(unittest.TestCase):
@@ -126,3 +137,30 @@ class TestTokenRefresh(unittest.TestCase):
         )
         self.assertIn("access_token", rv.json)
         self.assertNotIn("refresh_token", rv.json)
+
+
+class TestTokenCreateOwner(unittest.TestCase):
+    """Test cases for the /api/token/create_owner endpoint."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.name = "Test Web API"
+        cls.dbman = CLIDbManager(DbState())
+        _, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
+            cls.app = create_app()
+        cls.app.config["TESTING"] = True
+        cls.client = cls.app.test_client()
+        sqlauth = cls.app.config["AUTH_PROVIDER"]
+        sqlauth.create_table()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.dbman.remove_database(cls.name)
+
+    def test_create_owner_response(self):
+        """Test response to create_owner."""
+        rv = self.client.get(f"{BASE_URL}/token/create_owner/")
+        self.assertEqual(rv.status_code, 200)
+        self.assertIn("access_token", rv.json)

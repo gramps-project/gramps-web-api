@@ -62,7 +62,11 @@ from .resources.timeline import (
     TimelineFamiliesResource,
     TimelinePeopleResource,
 )
-from .resources.token import TokenRefreshResource, TokenResource
+from .resources.token import (
+    TokenRefreshResource,
+    TokenResource,
+    TokenCreateOwnerResource,
+)
 from .resources.translations import TranslationResource, TranslationsResource
 from .resources.types import (
     CustomTypeResource,
@@ -75,6 +79,7 @@ from .resources.types import (
 from .resources.user import (
     UserChangePasswordResource,
     UserConfirmEmailResource,
+    UserCreateOwnerResource,
     UserRegisterResource,
     UserResetPasswordResource,
     UserResource,
@@ -101,6 +106,7 @@ register_endpt(TransactionsResource, "/transactions/", "transactions")
 # Token
 register_endpt(TokenResource, "/token/", "token")
 register_endpt(TokenRefreshResource, "/token/refresh/", "token_refresh")
+register_endpt(TokenCreateOwnerResource, "/token/create_owner/", "token_create_owner")
 # People
 register_endpt(
     PersonTimelineResource, "/people/<string:handle>/timeline", "person-timeline"
@@ -220,6 +226,11 @@ register_endpt(
     UserRegisterResource,
     "/users/<string:user_name>/register/",
     "register",
+)
+register_endpt(
+    UserCreateOwnerResource,
+    "/users/<string:user_name>/create_owner/",
+    "user_create_owner",
 )
 register_endpt(
     UserConfirmEmailResource,

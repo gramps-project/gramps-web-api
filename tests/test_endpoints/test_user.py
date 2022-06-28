@@ -192,7 +192,8 @@ class TestUser(unittest.TestCase):
                 token = token[2:]
         # try without token!
         rv = self.client.post(
-            BASE_URL + "/users/-/password/reset/", json={"new_password": "789"},
+            BASE_URL + "/users/-/password/reset/",
+            json={"new_password": "789"},
         )
         self.assertEqual(rv.status_code, 401)
         # try empty PW!
@@ -299,7 +300,8 @@ class TestUser(unittest.TestCase):
         )
         assert rv.status_code == 200
         self.assertEqual(
-            set([user["name"] for user in rv.json]), {"user", "owner"},
+            set([user["name"] for user in rv.json]),
+            {"user", "owner"},
         )
 
     def test_edit_user(self):
@@ -371,7 +373,8 @@ class TestUser(unittest.TestCase):
         assert rv.status_code == 200
         token_user = rv.json["access_token"]
         rv = self.client.post(
-            BASE_URL + "/token/", json={"username": "owner", "password": "123"},
+            BASE_URL + "/token/",
+            json={"username": "owner", "password": "123"},
         )
         assert rv.status_code == 200
         token_owner = rv.json["access_token"]
@@ -459,7 +462,10 @@ class TestUser(unittest.TestCase):
             # missing password
             rv = self.client.post(
                 BASE_URL + "/users/new_user_2/register/",
-                json={"email": "new_2@example.com", "full_name": "My Name",},
+                json={
+                    "email": "new_2@example.com",
+                    "full_name": "My Name",
+                },
             )
             assert rv.status_code == 422
             # existing user
@@ -484,7 +490,8 @@ class TestUser(unittest.TestCase):
             assert rv.status_code == 201
             # get owner token
             rv = self.client.post(
-                BASE_URL + "/token/", json={"username": "owner", "password": "123"},
+                BASE_URL + "/token/",
+                json={"username": "owner", "password": "123"},
             )
             assert rv.status_code == 200
             token_owner = rv.json["access_token"]
@@ -543,7 +550,8 @@ class TestUser(unittest.TestCase):
             self.assertIn(b"Thank you for confirming your e-mail address", rv.data)
             # get owner token
             rv = self.client.post(
-                BASE_URL + "/token/", json={"username": "owner", "password": "123"},
+                BASE_URL + "/token/",
+                json={"username": "owner", "password": "123"},
             )
             assert rv.status_code == 200
             token_owner = rv.json["access_token"]
@@ -580,7 +588,8 @@ class TestUser(unittest.TestCase):
         token_user = rv.json["access_token"]
         # get owner token
         rv = self.client.post(
-            BASE_URL + "/token/", json={"username": "owner", "password": "123"},
+            BASE_URL + "/token/",
+            json={"username": "owner", "password": "123"},
         )
         assert rv.status_code == 200
         token_owner = rv.json["access_token"]
@@ -639,7 +648,8 @@ class TestUser(unittest.TestCase):
         token_user = rv.json["access_token"]
         # get owner token
         rv = self.client.post(
-            BASE_URL + "/token/", json={"username": "owner", "password": "123"},
+            BASE_URL + "/token/",
+            json={"username": "owner", "password": "123"},
         )
         assert rv.status_code == 200
         token_owner = rv.json["access_token"]
@@ -683,3 +693,62 @@ class TestUser(unittest.TestCase):
             json={"role": ROLE_OWNER},
         )
         assert rv.status_code == 200
+
+
+class TestUserCreateOwner(unittest.TestCase):
+    """Test cases for the /api/user/create_owner endpoint."""
+
+    def setUp(self):
+        self.name = "Test Web API"
+        self.dbman = CLIDbManager(DbState())
+        _, _name = self.dbman.create_new_db_cli(self.name, dbid="sqlite")
+        with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
+            self.app = create_app()
+        self.app.config["TESTING"] = True
+        self.client = self.app.test_client()
+        sqlauth = self.app.config["AUTH_PROVIDER"]
+        sqlauth.create_table()
+        self.ctx = self.app.test_request_context()
+        self.ctx.push()
+
+    def tearDown(self):
+        self.ctx.pop()
+        self.dbman.remove_database(self.name)
+
+    def test_create_owner(self):
+        rv = self.client.get(f"{BASE_URL}/token/create_owner/")
+        assert rv.status_code == 200
+        token = rv.json["access_token"]
+        assert self.app.config["AUTH_PROVIDER"].get_number_users() == 0
+        # data missing
+        rv = self.client.post(
+            f"{BASE_URL}/users/tree_owner/create_owner/",
+            headers={"Authorization": "Bearer {}".format(token)},
+            json={"full_name": "My Name"},
+        )
+        assert rv.status_code == 422
+        rv = self.client.post(
+            f"{BASE_URL}/users/tree_owner/create_owner/",
+            headers={"Authorization": "Bearer {}".format(token)},
+            json={
+                "password": "123",
+                "email": "test@example.com",
+                "full_name": "My Name",
+            },
+        )
+        assert rv.status_code == 201
+        assert self.app.config["AUTH_PROVIDER"].get_number_users() == 1
+        # try posting again
+        rv = self.client.post(
+            f"{BASE_URL}/users/tree_owner_2/create_owner/",
+            headers={"Authorization": "Bearer {}".format(token)},
+            json={
+                "password": "123",
+                "email": "test@example.com",
+                "full_name": "My Name",
+            },
+        )
+        assert rv.status_code == 405
+        assert self.app.config["AUTH_PROVIDER"].get_number_users() == 1
+        rv = self.client.get(f"{BASE_URL}/token/create_owner/")
+        assert rv.status_code == 405

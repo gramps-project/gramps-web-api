@@ -22,7 +22,7 @@
 import uuid
 from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Sequence, Set
 
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
@@ -179,6 +179,17 @@ class SQLAuth:
         with self.session_scope() as session:
             owners = session.query(User).filter_by(role=ROLE_OWNER).all()
             return [user.email for user in owners if user.email]
+
+    def get_number_users(self, roles: Optional[Sequence[int]] = None) -> int:
+        """Get the number of users in the database.
+
+        Optionally, provide an iterable of numeric roles.
+        """
+        with self.session_scope() as session:
+            query = session.query(User)
+            if roles is not None:
+                query = query.filter(User.role.in_(roles))
+            return query.count()
 
 
 class User(Base):

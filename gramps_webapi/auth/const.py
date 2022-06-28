@@ -61,12 +61,22 @@ PERMISSIONS = {
         PERM_ADD_OBJ,
         PERM_DEL_OBJ,
     },
-    ROLE_CONTRIBUTOR: {PERM_EDIT_OWN_USER, PERM_VIEW_PRIVATE, PERM_ADD_OBJ,},
-    ROLE_MEMBER: {PERM_EDIT_OWN_USER, PERM_VIEW_PRIVATE,},
-    ROLE_GUEST: {PERM_EDIT_OWN_USER,},
+    ROLE_CONTRIBUTOR: {
+        PERM_EDIT_OWN_USER,
+        PERM_VIEW_PRIVATE,
+        PERM_ADD_OBJ,
+    },
+    ROLE_MEMBER: {
+        PERM_EDIT_OWN_USER,
+        PERM_VIEW_PRIVATE,
+    },
+    ROLE_GUEST: {
+        PERM_EDIT_OWN_USER,
+    },
 }
 
 # keys/values for user claims
 CLAIM_LIMITED_SCOPE = "limited_scope"
 SCOPE_RESET_PW = "reset_password"
 SCOPE_CONF_EMAIL = "confirm_email"
+SCOPE_CREATE_OWNER = "create_owner"

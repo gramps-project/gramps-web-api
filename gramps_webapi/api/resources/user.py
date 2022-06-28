@@ -37,8 +37,10 @@ from ...auth.const import (
     PERM_EDIT_USER_ROLE,
     PERM_VIEW_OTHER_USER,
     ROLE_DISABLED,
+    ROLE_OWNER,
     ROLE_UNCONFIRMED,
     SCOPE_CONF_EMAIL,
+    SCOPE_CREATE_OWNER,
     SCOPE_RESET_PW,
 )
 from ..auth import require_permissions
@@ -209,6 +211,43 @@ class UserRegisterResource(Resource):
         return "", 201
 
 
+class UserCreateOwnerResource(LimitedScopeProtectedResource):
+    """Resource for creating an owner when the user database is empty."""
+
+    @limiter.limit("1/second")
+    @use_args(
+        {
+            "email": fields.Str(required=True),
+            "full_name": fields.Str(required=True),
+            "password": fields.Str(required=True),
+        },
+        location="json",
+    )
+    def post(self, args, user_name: str):
+        """Create a user with owner permissions."""
+        if user_name == "-":
+            # User name - is not allowed
+            abort(404)
+        auth_provider = current_app.config.get("AUTH_PROVIDER")
+        if auth_provider is None:
+            abort(405)
+        if auth_provider.get_number_users() > 0:
+            # there is already a user in the user DB
+            abort(405)
+        claims = get_jwt()
+        if claims[CLAIM_LIMITED_SCOPE] != SCOPE_CREATE_OWNER:
+            # This is a wrong token!
+            abort(403)
+        auth_provider.add_user(
+            name=user_name,
+            password=args["password"],
+            email=args["email"],
+            fullname=args["full_name"],
+            role=ROLE_OWNER,
+        )
+        return "", 201
+
+
 class UserChangePasswordResource(UserChangeBase):
     """Resource for changing a user password."""
 
@@ -269,7 +308,8 @@ class UserResetPasswordResource(LimitedScopeProtectedResource):
     """Resource for resetting a user password."""
 
     @use_args(
-        {"new_password": fields.Str(required=True)}, location="json",
+        {"new_password": fields.Str(required=True)},
+        location="json",
     )
     def post(self, args):
         """Post new password."""
