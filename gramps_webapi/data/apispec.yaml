@@ -323,6 +323,8 @@ paths:
           description: "OK: Successful operation."
         401:
           description: "Unauthorized: Missing authorization header."
+        405:
+          description: "Method Not Allowed: authentication disabled or owner account missing."
         409:
           description: "Conflict: user already exists."
         422:

@@ -188,6 +188,9 @@ class UserRegisterResource(Resource):
         auth_provider = current_app.config.get("AUTH_PROVIDER")
         if auth_provider is None:
             abort(405)
+        # do not allow registration if no admin account exists!
+        if auth_provider.get_number_users(roles=(ROLE_OWNER,)) == 0:
+            abort(405)
         try:
             auth_provider.add_user(
                 name=user_name,
