@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-2022      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -29,7 +29,7 @@ class DefaultConfig(object):
     PROPAGATE_EXCEPTIONS = True
     SEARCH_INDEX_DIR = os.getenv("SEARCH_INDEX_DIR", "indexdir")
     EMAIL_HOST = os.getenv("EMAIL_HOST", "localhost")
-    EMAIL_PORT = int(os.getenv("EMAIL_PORT", "465"))
+    EMAIL_PORT = os.getenv("EMAIL_PORT", "465")
     EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
     EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
     EMAIL_USE_TLS = True

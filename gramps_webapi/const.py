@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-20202      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -39,6 +39,17 @@ TEST_EXAMPLE_GRAMPS_AUTH_CONFIG = resource_filename(
 TEST_EMPTY_GRAMPS_AUTH_CONFIG = resource_filename(
     "gramps_webapi", "data/empty_gramps_auth.cfg"
 )
+
+# allowed db config keys
+DB_CONFIG_ALLOWED_KEYS = [
+    "EMAIL_HOST",
+    "EMAIL_PORT",
+    "EMAIL_HOST_USER",
+    "EMAIL_HOST_PASSWORD",
+    "DEFAULT_FROM_EMAIL",
+    "BASE_URL",
+]
+
 
 # environment variables
 ENV_CONFIG_FILE = "GRAMPS_API_CONFIG"

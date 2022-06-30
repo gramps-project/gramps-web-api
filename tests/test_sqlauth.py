@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-2022      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -111,3 +111,27 @@ class TestSQLAuth(unittest.TestCase):
         assert sqlauth.get_number_users((1,)) == 2
         assert sqlauth.get_number_users((2,)) == 0
         assert sqlauth.get_number_users((1, 3)) == 3
+
+
+class TestConfig(unittest.TestCase):
+    def test_add_user(self):
+        sqlauth = SQLAuth("sqlite://", logging=False)
+        sqlauth.create_table()
+        assert sqlauth.config_get_all() == {}
+        assert sqlauth.config_get("nope") is None
+        with self.assertRaises(ValueError):
+            sqlauth.config_set("key1", "value1")
+        sqlauth.config_set("EMAIL_HOST", "value1")
+        assert sqlauth.config_get("EMAIL_HOST") == "value1"
+        sqlauth.config_set("EMAIL_HOST", "value2")
+        assert sqlauth.config_get("EMAIL_HOST") == "value2"
+        sqlauth.config_set("EMAIL_HOST", 1)
+        assert sqlauth.config_get("EMAIL_HOST") == "1"
+        sqlauth.config_set("EMAIL_PORT", 2)
+        assert sqlauth.config_get("EMAIL_PORT") == "2"
+        sqlauth.config_delete("EMAIL_HOST")
+        assert sqlauth.config_get("EMAIL_HOST") is None
+        assert sqlauth.config_get("EMAIL_PORT") == "2"
+        assert sqlauth.config_get("nope") is None
+        sqlauth.config_delete("nope")
+        assert sqlauth.config_get("nope") is None

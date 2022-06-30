@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-2022      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -41,6 +41,8 @@ PERM_EDIT_OBJ = "EditObject"
 PERM_ADD_OBJ = "AddObject"
 PERM_DEL_OBJ = "DeleteObject"
 PERM_IMPORT_FILE = "ImportFile"
+PERM_VIEW_SETTINGS = "ViewSettings"
+PERM_EDIT_SETTINGS = "EditSettings"
 
 PERMISSIONS = {
     ROLE_OWNER: {
@@ -55,6 +57,8 @@ PERMISSIONS = {
         PERM_ADD_OBJ,
         PERM_DEL_OBJ,
         PERM_IMPORT_FILE,
+        PERM_VIEW_SETTINGS,
+        PERM_EDIT_SETTINGS,
     },
     ROLE_EDITOR: {
         PERM_EDIT_OWN_USER,
