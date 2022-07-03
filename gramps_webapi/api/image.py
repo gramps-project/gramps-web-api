@@ -25,7 +25,7 @@ import shutil
 import os
 import tempfile
 from pathlib import Path
-from typing import BinaryIO, Callable
+from typing import BinaryIO, Callable, List, Tuple
 
 import ffmpeg
 from pdf2image import convert_from_path
@@ -207,5 +207,31 @@ class LocalFileThumbnailHandler(ThumbnailHandler):
     def __init__(self, path: FilenameOrPath, mime_type: str) -> None:
         """Initialize self given a path and MIME type."""
         self.path = Path(path)
-        stream = open(self.path, "rb")
+        with open(self.path, "rb") as f:
+            stream = io.BytesIO(f.read())
         super().__init__(stream=stream, mime_type=mime_type)
+
+
+def detect_faces(stream: BinaryIO) -> List[Tuple[float, float, float, float]]:
+    """Detect faces in an image (stream)."""
+    import cv2
+    import numpy as np
+
+    file_bytes = np.asarray(bytearray(stream.read()), dtype=np.uint8)
+    cv_image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+    cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+    haarcascade_path = os.path.join(
+        cv2.data.haarcascades, "haarcascade_frontalface_default.xml"
+    )
+    cascade = cv2.CascadeClassifier(haarcascade_path)
+    faces = cascade.detectMultiScale(cv_image, 1.1, 4)
+    height, width = cv_image.shape
+    return [
+        (
+            100 * x / width,
+            100 * y / height,
+            100 * (x + w) / width,
+            100 * (y + h) / height,
+        )
+        for (x, y, w, h) in faces
+    ]

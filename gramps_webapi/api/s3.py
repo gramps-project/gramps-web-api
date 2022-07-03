@@ -78,6 +78,10 @@ class ObjectStorageFileHandler(FileHandler):
         response = self.client.get_object(Bucket=self.bucket_name, Key=self.object_name)
         return response["Body"]
 
+    def get_file_object(self) -> BinaryIO:
+        """Return a binary file object."""
+        return self._download_fileobj()
+
     def file_exists(self) -> bool:
         """Check if the file exists."""
         try:

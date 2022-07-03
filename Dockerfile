@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
   poppler-utils ffmpeg libavcodec-extra \
   unzip \
   libpq-dev postgresql-client postgresql-client-common python3-psycopg2 \
+  python3-opencv \
   && rm -rf /var/lib/apt/lists/*
 
 # set locale
