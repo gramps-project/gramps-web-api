@@ -55,12 +55,18 @@ from .emit import GrampsJSONEncoder
 _ = glocale.translation.gettext
 
 
+# list of importers (by file extension) that are not allowed
+DISABLED_IMPORTERS = ["grdb"]
+
+
 def get_importers(extension: str = None):
     """Extract and return list of importers."""
     importers = []
     plugin_manager = BasePluginManager.get_instance()
     for plugin in plugin_manager.get_import_plugins():
         if extension is not None and extension != plugin.get_extension():
+            continue
+        if extension in DISABLED_IMPORTERS:
             continue
         importer = {
             "name": plugin.get_name(),
