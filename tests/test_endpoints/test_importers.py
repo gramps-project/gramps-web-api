@@ -97,8 +97,10 @@ class TestImportersExtensionFile(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Test class setup."""
-        dbman = CLIDbManager(DbState())
-        dbman.create_new_db_cli("empty", dbid="sqlite")
+        cls.name = "empty"
+        cls.dbman = CLIDbManager(DbState())
+        _, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
         with patch.dict(
             "os.environ",
             {
@@ -117,6 +119,10 @@ class TestImportersExtensionFile(unittest.TestCase):
                 password=TEST_USERS[role]["password"],
                 role=role,
             )
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.dbman.remove_database(cls.name)
 
     def test_importers_empty_db(self):
         """Test that importers are loaded also for a fresh db."""
