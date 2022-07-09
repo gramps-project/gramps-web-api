@@ -81,3 +81,4 @@ PERMISSIONS = {
 CLAIM_LIMITED_SCOPE = "limited_scope"
 SCOPE_RESET_PW = "reset_password"
 SCOPE_CONF_EMAIL = "confirm_email"
+SCOPE_CREATE_OWNER = "create_owner"

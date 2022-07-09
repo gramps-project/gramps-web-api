@@ -19,6 +19,7 @@
 
 """Authentication endpoint blueprint."""
 
+import datetime
 from typing import Iterable
 
 from flask import abort, current_app
@@ -31,6 +32,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from webargs import fields, validate
 
+from ...auth.const import CLAIM_LIMITED_SCOPE, SCOPE_CREATE_OWNER
 from ..util import use_args
 from . import RefreshProtectedResource, Resource
 
@@ -103,3 +105,25 @@ class TokenRefreshResource(RefreshProtectedResource):
     def get_dummy_token():
         """Return dummy access token."""
         return {"access_token": 1}
+
+
+class TokenCreateOwnerResource(Resource):
+    """Resource for getting a token that allows creating an owner account."""
+
+    @limiter.limit("1/second")
+    def get(self):
+        """Get a token."""
+        auth_provider = current_app.config.get("AUTH_PROVIDER")
+        if auth_provider is None:
+            # auth is disabled!
+            abort(405)
+        if auth_provider.get_all_user_details():
+            # users already exist!
+            abort(405)
+        token = create_access_token(
+            identity="owner",
+            additional_claims={
+                CLAIM_LIMITED_SCOPE: SCOPE_CREATE_OWNER,
+            },
+        )
+        return {"access_token": token}

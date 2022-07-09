@@ -98,3 +98,16 @@ class TestSQLAuth(unittest.TestCase):
         self.assertNotIn(PERM_DEL_USER, sqlauth.get_permissions("test_guest"))
         self.assertIn(PERM_EDIT_OWN_USER, sqlauth.get_permissions("test_owner"))
         self.assertIn(PERM_EDIT_OWN_USER, sqlauth.get_permissions("test_guest"))
+
+    def test_count_users(self):
+        sqlauth = SQLAuth("sqlite://", logging=False)
+        sqlauth.create_table()
+        assert sqlauth.get_number_users() == 0
+        sqlauth.add_user("user1", "123", role=1)
+        sqlauth.add_user("user2", "123", role=1)
+        sqlauth.add_user("user3", "123", role=3)
+        sqlauth.add_user("user4", "123", role=4)
+        assert sqlauth.get_number_users() == 4
+        assert sqlauth.get_number_users((1,)) == 2
+        assert sqlauth.get_number_users((2,)) == 0
+        assert sqlauth.get_number_users((1, 3)) == 3
