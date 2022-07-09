@@ -163,6 +163,9 @@ class TestImportersExtensionFile(unittest.TestCase):
         # database has plenty of people
         rv = check_success(self, f"{BASE_URL}/people/")
         assert len(rv) == 2157
+        # seach should work
+        rv = self.client.get(f"/api/search/?query=Andrew&pagesize=5", headers=headers)
+        assert len(rv.json) == 5
         # import again
         file_obj.seek(0)
         rv = self.client.post(

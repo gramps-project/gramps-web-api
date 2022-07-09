@@ -1,10 +1,7 @@
 #
 # Gramps - a GTK+/GNOME based genealogy program
 #
-# Copyright (C) 2007-2008 Donald N. Allingham
-# Copyright (C) 2008      Gary Burton
-# Copyright (C) 2008      Robert Cheramy <robert@cheramy.net>
-# Copyright (C) 2020      Christopher Horn
+# Copyright (C) 2022      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,35 +21,24 @@
 """Importers Plugin API resource."""
 
 import os
-import shutil
 import tempfile
 import uuid
 from http import HTTPStatus
-from typing import Any, IO, Dict
+from typing import IO, Any, Dict
 
-from flask import Response, abort, current_app, request, send_file
+from flask import Response, abort, request
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
-from gramps.gen.errors import HandleError
 from gramps.gen.plug import BasePluginManager
-from gramps.gen.proxy import (
-    FilterProxyDb,
-    LivingProxyDb,
-    PrivateProxyDb,
-    ReferencedBySelectionProxyDb,
-)
 from gramps.gen.user import User
-from gramps.gen.utils.resourcepath import ResourcePath
-from webargs import fields, validate
+from webargs import fields
 
 from ...auth.const import PERM_IMPORT_FILE
 from ..auth import require_permissions
-from ..file import process_file
-from ..util import get_buffer_for_file, get_db_handle, get_locale_for_language, use_args
+from ..tasks import search_reindex_full
+from ..util import get_db_handle, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
-
-_ = glocale.translation.gettext
 
 
 # list of importers (by file extension) that are not allowed
@@ -131,8 +117,9 @@ class ImporterFileResource(ProtectedResource):
         """Import file."""
         require_permissions([PERM_IMPORT_FILE])
         db_handle = get_db_handle()
-        importers = get_importers(extension)
+        importers = get_importers(extension.lower())
         if not importers:
             abort(HTTPStatus.NOT_FOUND)
-        run_import(db_handle, request.stream, extension)
+        run_import(db_handle, request.stream, extension.lower())
+        search_reindex_full()
         return Response(status=201)
