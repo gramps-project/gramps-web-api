@@ -40,6 +40,7 @@ PERM_VIEW_PRIVATE = "ViewPrivate"
 PERM_EDIT_OBJ = "EditObject"
 PERM_ADD_OBJ = "AddObject"
 PERM_DEL_OBJ = "DeleteObject"
+PERM_IMPORT_FILE = "ImportFile"
 
 PERMISSIONS = {
     ROLE_OWNER: {
@@ -53,6 +54,7 @@ PERMISSIONS = {
         PERM_EDIT_OBJ,
         PERM_ADD_OBJ,
         PERM_DEL_OBJ,
+        PERM_IMPORT_FILE,
     },
     ROLE_EDITOR: {
         PERM_EDIT_OWN_USER,
@@ -61,9 +63,18 @@ PERMISSIONS = {
         PERM_ADD_OBJ,
         PERM_DEL_OBJ,
     },
-    ROLE_CONTRIBUTOR: {PERM_EDIT_OWN_USER, PERM_VIEW_PRIVATE, PERM_ADD_OBJ,},
-    ROLE_MEMBER: {PERM_EDIT_OWN_USER, PERM_VIEW_PRIVATE,},
-    ROLE_GUEST: {PERM_EDIT_OWN_USER,},
+    ROLE_CONTRIBUTOR: {
+        PERM_EDIT_OWN_USER,
+        PERM_VIEW_PRIVATE,
+        PERM_ADD_OBJ,
+    },
+    ROLE_MEMBER: {
+        PERM_EDIT_OWN_USER,
+        PERM_VIEW_PRIVATE,
+    },
+    ROLE_GUEST: {
+        PERM_EDIT_OWN_USER,
+    },
 }
 
 # keys/values for user claims
