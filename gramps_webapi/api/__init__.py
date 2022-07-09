@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-2022      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -31,6 +31,7 @@ from .media import MediaHandler
 from .resources.base import Resource
 from .resources.bookmarks import BookmarkResource, BookmarksResource
 from .resources.citations import CitationResource, CitationsResource
+from .resources.config import ConfigResource, ConfigsResource
 from .resources.events import EventResource, EventSpanResource, EventsResource
 from .resources.exporters import (
     ExporterFileResource,
@@ -54,6 +55,7 @@ from .resources.metadata import MetadataResource
 from .resources.name_formats import NameFormatsResource
 from .resources.name_groups import NameGroupsResource
 from .resources.notes import NoteResource, NotesResource
+from .resources.objects import CreateObjectsResource
 from .resources.people import PeopleResource, PersonResource
 from .resources.places import PlaceResource, PlacesResource
 from .resources.relations import RelationResource, RelationsResource
@@ -73,6 +75,8 @@ from .resources.token import (
     TokenResource,
     TokenCreateOwnerResource,
 )
+from .resources.token import TokenRefreshResource, TokenResource
+from .resources.transactions import TransactionsResource
 from .resources.translations import TranslationResource, TranslationsResource
 from .resources.types import (
     CustomTypeResource,
@@ -92,8 +96,6 @@ from .resources.user import (
     UsersResource,
     UserTriggerResetPasswordResource,
 )
-from .resources.objects import CreateObjectsResource
-from .resources.transactions import TransactionsResource
 from .util import make_cache_key_thumbnails, use_args
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
@@ -265,6 +267,18 @@ register_endpt(
 )
 # Search
 register_endpt(SearchResource, "/search/", "search")
+
+# Config
+register_endpt(
+    ConfigsResource,
+    "/config/",
+    "configs",
+)
+register_endpt(
+    ConfigResource,
+    "/config/<string:key>/",
+    "config",
+)
 
 # Media files
 register_endpt(

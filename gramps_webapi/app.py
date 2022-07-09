@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-20202      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -66,6 +66,24 @@ def create_app(db_manager=None):
     if not app.config.get("SECRET_KEY") and not app.config.get("DISABLE_AUTH"):
         raise ValueError("SECRET_KEY must be specified")
 
+    if app.config.get("DISABLE_AUTH"):
+        pass
+    else:
+        # load JWT default settings
+        app.config.from_object(DefaultConfigJWT)
+
+        # instantiate JWT manager
+        JWTManager(app)
+
+        # instantiate and store auth provider
+        # if DB URI is missing, try to get it from the env or fail
+        app.config["USER_DB_URI"] = app.config.get("USER_DB_URI") or os.getenv(
+            "USER_DB_URI"
+        )
+        if not app.config.get("USER_DB_URI"):
+            raise ValueError("USER_DB_URI must be specified")
+        app.config["AUTH_PROVIDER"] = SQLAuth(db_uri=app.config["USER_DB_URI"])
+
     # if postgresql user/password is missing, try to get  it from the env
     app.config["POSTGRES_USER"] = app.config["POSTGRES_USER"] or os.getenv(
         "POSTGRES_USER"
@@ -88,24 +106,6 @@ def create_app(db_manager=None):
         )
     else:
         app.config["DB_MANAGER"] = db_manager
-
-    if app.config.get("DISABLE_AUTH"):
-        pass
-    else:
-        # load JWT default settings
-        app.config.from_object(DefaultConfigJWT)
-
-        # instantiate JWT manager
-        JWTManager(app)
-
-        # instantiate and store auth provider
-        # if DB URI is missing, try to get it from the env or fail
-        app.config["USER_DB_URI"] = app.config.get("USER_DB_URI") or os.getenv(
-            "USER_DB_URI"
-        )
-        if not app.config.get("USER_DB_URI"):
-            raise ValueError("USER_DB_URI must be specified")
-        app.config["AUTH_PROVIDER"] = SQLAuth(db_uri=app.config["USER_DB_URI"])
 
     thumbnail_cache.init_app(app, config=app.config["THUMBNAIL_CACHE_CONFIG"])
 

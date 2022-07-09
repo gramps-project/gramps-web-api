@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-2022      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -29,6 +29,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
+from ..const import DB_CONFIG_ALLOWED_KEYS
 from .const import PERMISSIONS, ROLE_OWNER
 from .passwords import hash_password, verify_password
 from .sql_guid import GUID
@@ -191,6 +192,39 @@ class SQLAuth:
                 query = query.filter(User.role.in_(roles))
             return query.count()
 
+    def config_get(self, key: str) -> Optional[str]:
+        """Get a single config item."""
+        with self.session_scope() as session:
+            config = session.query(Config).filter_by(key=key).scalar()
+            if config is None:
+                return None
+            return config.value
+
+    def config_get_all(self) -> Dict[str, str]:
+        """Get all config items as dictionary."""
+        with self.session_scope() as session:
+            configs = session.query(Config).all()
+            return {c.key: c.value for c in configs}
+
+    def config_set(self, key: str, value: str) -> None:
+        """Set a config item."""
+        if key not in DB_CONFIG_ALLOWED_KEYS:
+            raise ValueError("Config key not allowed.")
+        with self.session_scope() as session:
+            config = session.query(Config).filter_by(key=key).scalar()
+            if config is None:  # does not exist, create
+                config = Config(key=str(key), value=str(value))
+            else:  # exists, update
+                config.value = str(value)
+            session.add(config)
+
+    def config_delete(self, key: str) -> None:
+        """Delete a config item."""
+        with self.session_scope() as session:
+            config = session.query(Config).filter_by(key=key).scalar()
+            if config is not None:
+                session.delete(config)
+
 
 class User(Base):
     """User table class for sqlalchemy."""
@@ -206,4 +240,18 @@ class User(Base):
 
     def __repr__(self):
         """Return string representation of instance."""
-        return "<User(name='%s', fullname='%s')>" % (self.name, self.fullname)
+        return f"<User(name='{self.name}', fullname='{self.fullname}')>"
+
+
+class Config(Base):
+    """Config table class for sqlalchemy."""
+
+    __tablename__ = "configuration"
+
+    id = sa.Column(sa.Integer, primary_key=True)
+    key = sa.Column(sa.String, unique=True, nullable=False)
+    value = sa.Column(sa.String)
+
+    def __repr__(self):
+        """Return string representation of instance."""
+        return f"<Config(key='{self.key}', value='{self.value}')>"

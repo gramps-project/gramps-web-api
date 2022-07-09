@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-2022      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -39,7 +39,7 @@ from marshmallow import RAISE
 from webargs.flaskparser import FlaskParser
 
 from ..auth.const import PERM_VIEW_PRIVATE
-from ..const import LOCALE_MAP
+from ..const import DB_CONFIG_ALLOWED_KEYS, LOCALE_MAP
 from ..dbmanager import WebDbManager
 from .auth import has_permissions
 
@@ -172,15 +172,15 @@ def send_email(
     msg.set_content(body)
     msg["Subject"] = subject
     if not from_email:
-        from_email = current_app.config["DEFAULT_FROM_EMAIL"]
+        from_email = get_config("DEFAULT_FROM_EMAIL")
     msg["From"] = from_email
     msg["To"] = ", ".join(to)
 
-    host = current_app.config["EMAIL_HOST"]
-    port = current_app.config["EMAIL_PORT"]
-    user = current_app.config["EMAIL_HOST_USER"]
-    password = current_app.config["EMAIL_HOST_PASSWORD"]
-    use_tls = current_app.config["EMAIL_USE_TLS"]
+    host = get_config("EMAIL_HOST")
+    port = int(get_config("EMAIL_PORT"))
+    user = get_config("EMAIL_HOST_USER")
+    password = get_config("EMAIL_HOST_PASSWORD")
+    use_tls = get_config("EMAIL_USE_TLS")
     try:
         if use_tls:
             smtp = smtplib.SMTP_SSL(host=host, port=port, timeout=10)
@@ -223,3 +223,17 @@ def make_cache_key_thumbnails(*args, **kwargs):
     cache_key = checksum + request.path + arg_hash
 
     return cache_key
+
+
+def get_config(key: str) -> Optional[str]:
+    """Get a config item.
+
+    If exists, returns the config item from the database.
+    Else, uses the app.config dictionary.
+    """
+    auth = current_app.config.get("AUTH_PROVIDER")
+    if auth is not None and key in DB_CONFIG_ALLOWED_KEYS:
+        val = auth.config_get(key)
+        if val is not None:
+            return val
+    return current_app.config.get(key)
