@@ -42,7 +42,7 @@ from .emit import GrampsJSONEncoder
 
 
 # list of importers (by file extension) that are not allowed
-DISABLED_IMPORTERS = ["grdb"]
+DISABLED_IMPORTERS = ["gpkg"]
 
 
 def get_importers(extension: str = None):
