@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020-20202      David Straub
+# Copyright (C) 2020-2022      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -17,7 +17,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""Flask web app providing a REST API to a gramps family tree."""
+"""Flask web app providing a REST API to a Gramps family tree."""
 
 import logging
 import os
