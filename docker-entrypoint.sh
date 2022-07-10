@@ -14,6 +14,18 @@ then
     export STATIC_PATH="/app/static/grampsjs-${GRAMPSJS_VERSION}"
 fi
 
+# create random flask secret key
+if [ ! -s /app/secret/secret ]
+then
+    mkdir -p /app/secret
+    python3 -c "import secrets;print(secrets.token_urlsafe(32))"  | tr -d "\n" > /app/secret/secret
+fi
+# use the secret key if none is set (will be overridden by config file if present)
+if [ -z "$SECRET_KEY" ]
+then
+    export SECRET_KEY=$(cat /app/secret/secret)
+fi
+
 # Create search index if not exists
 if [ -z "$(ls -A /app/indexdir)" ]
 then
