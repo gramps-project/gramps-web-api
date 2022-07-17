@@ -55,3 +55,13 @@ def send_email_new_user(username: str, fullname: str, email: str):
     emails = auth.get_owner_emails()
     if emails:
         send_email(subject=subject, body=body, to=emails)
+
+
+def search_reindex_full() -> None:
+    """Rebuild the search index."""
+    indexer = current_app.config["SEARCH_INDEXER"]
+    db = current_app.config["DB_MANAGER"].get_db().db
+    try:
+        indexer.reindex_full(db)
+    finally:
+        db.close()
