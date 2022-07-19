@@ -60,14 +60,18 @@ class UserChangeBase(ProtectedResource):
 
     def prepare_edit(self, user_name: str):
         """Cheks to do before processing the request."""
-        if user_name == "-":
-            require_permissions([PERM_EDIT_OWN_USER])
-            user_name = get_jwt_identity()
-        else:
-            require_permissions([PERM_EDIT_OTHER_USER])
         auth_provider = current_app.config.get("AUTH_PROVIDER")
         if auth_provider is None:
             abort(405)
+        if user_name == "-":
+            require_permissions([PERM_EDIT_OWN_USER])
+            user_id = get_jwt_identity()
+            try:
+                user_name = auth_provider.get_name(user_id)
+            except ValueError:
+                abort(401)
+        else:
+            require_permissions([PERM_EDIT_OTHER_USER])
         return auth_provider, user_name
 
 
@@ -88,13 +92,17 @@ class UserResource(UserChangeBase):
 
     def get(self, user_name: str):
         """Get a user's details."""
-        if user_name == "-":
-            user_name = get_jwt_identity()
-        else:
-            require_permissions([PERM_VIEW_OTHER_USER])
         auth_provider = current_app.config.get("AUTH_PROVIDER")
         if auth_provider is None:
             abort(405)
+        if user_name == "-":
+            user_id = get_jwt_identity()
+            try:
+                user_name = auth_provider.get_name(user_id)
+            except ValueError:
+                abort(401)
+        else:
+            require_permissions([PERM_VIEW_OTHER_USER])
         details = auth_provider.get_user_details(user_name)
         if details is None:
             # user does not exist
@@ -201,8 +209,9 @@ class UserRegisterResource(Resource):
             )
         except ValueError:
             abort(409)
+        user_id = auth_provider.get_guid(name=user_name)
         token = create_access_token(
-            identity=user_name,
+            identity=user_id,
             additional_claims={
                 "email": args["email"],
                 CLAIM_LIMITED_SCOPE: SCOPE_CONF_EMAIL,
@@ -289,8 +298,9 @@ class UserTriggerResetPasswordResource(Resource):
         email = details["email"]
         if email is None:
             abort(404)
+        user_id = auth_provider.get_guid(name=user_name)
         token = create_access_token(
-            identity=user_name,
+            identity=user_id,
             # the hash of the existing password is stored in the token in order
             # to make sure the rest token can only be used once
             additional_claims={
@@ -325,7 +335,11 @@ class UserResetPasswordResource(LimitedScopeProtectedResource):
         if claims[CLAIM_LIMITED_SCOPE] != SCOPE_RESET_PW:
             # This is a wrong token!
             abort(403)
-        username = get_jwt_identity()
+        user_id = get_jwt_identity()
+        try:
+            username = auth_provider.get_name(user_id)
+        except ValueError:
+            abort(401)
         # the old PW hash is stored in the reset JWT to check if the token has
         # been used already
         if claims["old_hash"] != auth_provider.get_pwhash(username):
@@ -339,7 +353,11 @@ class UserResetPasswordResource(LimitedScopeProtectedResource):
         auth_provider = current_app.config.get("AUTH_PROVIDER")
         if auth_provider is None:
             abort(405)
-        username = get_jwt_identity()
+        user_id = get_jwt_identity()
+        try:
+            username = auth_provider.get_name(user_id)
+        except ValueError:
+            abort(401)
         claims = get_jwt()
         if claims[CLAIM_LIMITED_SCOPE] != SCOPE_RESET_PW:
             # This is a wrong token!
@@ -360,7 +378,11 @@ class UserConfirmEmailResource(LimitedScopeProtectedResource):
         auth_provider = current_app.config.get("AUTH_PROVIDER")
         if auth_provider is None:
             abort(405)
-        username = get_jwt_identity()
+        user_id = get_jwt_identity()
+        try:
+            username = auth_provider.get_name(user_id)
+        except ValueError:
+            abort(401)
         claims = get_jwt()
         if claims[CLAIM_LIMITED_SCOPE] != SCOPE_CONF_EMAIL:
             # This is a wrong token!

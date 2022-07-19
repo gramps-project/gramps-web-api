@@ -25,7 +25,7 @@ from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Sequence, Set
 
 import sqlalchemy as sa
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, StatementError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -97,6 +97,17 @@ class SQLAuth:
             if user_id is None:
                 raise ValueError("User {} not found".format(name))
         return user_id
+
+    def get_name(self, guid: str) -> None:
+        """Get the username of an existing user by GUID."""
+        with self.session_scope() as session:
+            try:
+                user_name = session.query(User.name).filter_by(id=guid).scalar()
+            except StatementError as exc:
+                raise ValueError("User ID {} not found".format(guid)) from exc
+            if user_name is None:
+                raise ValueError("User ID {} not found".format(guid))
+        return user_name
 
     def delete_user(self, name: str) -> None:
         """Delete an existing user."""
