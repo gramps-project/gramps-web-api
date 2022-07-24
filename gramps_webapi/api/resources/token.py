@@ -39,16 +39,14 @@ from . import RefreshProtectedResource, Resource
 limiter = Limiter(key_func=get_remote_address)
 
 
-def get_tokens(
-    username: str, permissions: Iterable[str], include_refresh: bool = False
-):
+def get_tokens(user_id: str, permissions: Iterable[str], include_refresh: bool = False):
     """Create access token (and refresh token if desired)."""
     access_token = create_access_token(
-        identity=username, additional_claims={"permissions": list(permissions)}
+        identity=user_id, additional_claims={"permissions": list(permissions)}
     )
     if not include_refresh:
         return {"access_token": access_token}
-    refresh_token = create_refresh_token(identity=username)
+    refresh_token = create_refresh_token(identity=user_id)
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -76,8 +74,9 @@ class TokenResource(Resource):
         if not auth_provider.authorized(args.get("username"), args.get("password")):
             abort(403)
         permissions = auth_provider.get_permissions(args["username"])
+        user_id = auth_provider.get_guid(args["username"])
         return get_tokens(
-            username=args["username"], permissions=permissions, include_refresh=True
+            user_id=user_id, permissions=permissions, include_refresh=True
         )
 
     @staticmethod
@@ -95,10 +94,14 @@ class TokenRefreshResource(RefreshProtectedResource):
         auth_provider = current_app.config.get("AUTH_PROVIDER")
         if auth_provider is None:
             return self.get_dummy_token()
-        username = get_jwt_identity()
+        user_id = get_jwt_identity()
+        try:
+            username = auth_provider.get_name(user_id)
+        except ValueError:
+            abort(401)
         permissions = auth_provider.get_permissions(username)
         return get_tokens(
-            username=username, permissions=permissions, include_refresh=False
+            user_id=user_id, permissions=permissions, include_refresh=False
         )
 
     @staticmethod
