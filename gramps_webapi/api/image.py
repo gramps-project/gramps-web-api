@@ -48,7 +48,7 @@ def image_thumbnail(image: Image, size: int, square: bool = False) -> Image:
             image,
             (size_square, size_square),
             bleed=0.0,
-            centering=(0.0, 0.5),
+            centering=(0.5, 0.5),
             method=Image.BICUBIC,
         )
     img = image.copy()
