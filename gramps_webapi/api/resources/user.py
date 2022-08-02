@@ -211,7 +211,7 @@ class UserRegisterResource(Resource):
             abort(409)
         user_id = auth_provider.get_guid(name=user_name)
         token = create_access_token(
-            identity=user_id,
+            identity=str(user_id),
             additional_claims={
                 "email": args["email"],
                 CLAIM_LIMITED_SCOPE: SCOPE_CONF_EMAIL,
@@ -300,7 +300,7 @@ class UserTriggerResetPasswordResource(Resource):
             abort(404)
         user_id = auth_provider.get_guid(name=user_name)
         token = create_access_token(
-            identity=user_id,
+            identity=str(user_id),
             # the hash of the existing password is stored in the token in order
             # to make sure the rest token can only be used once
             additional_claims={
