@@ -46,7 +46,7 @@ def get_tokens(user_id: str, permissions: Iterable[str], include_refresh: bool =
     )
     if not include_refresh:
         return {"access_token": access_token}
-    refresh_token = create_refresh_token(identity=user_id)
+    refresh_token = create_refresh_token(identity=str(user_id))
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
