@@ -42,7 +42,7 @@ limiter = Limiter(key_func=get_remote_address)
 def get_tokens(user_id: str, permissions: Iterable[str], include_refresh: bool = False):
     """Create access token (and refresh token if desired)."""
     access_token = create_access_token(
-        identity=user_id, additional_claims={"permissions": list(permissions)}
+        identity=str(user_id), additional_claims={"permissions": list(permissions)}
     )
     if not include_refresh:
         return {"access_token": access_token}
