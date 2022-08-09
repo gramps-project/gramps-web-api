@@ -43,12 +43,17 @@ class WebDbManager:
     ALLOWED_DB_BACKENDS = ["sqlite", "postgresql"]
 
     def __init__(
-        self, name: str, username: Optional[str] = None, password: Optional[str] = None
+        self,
+        name: str,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        create_if_missing: bool = True,
     ) -> None:
         """Initialize given a family tree name."""
         self.name = name
         self.username = username
         self.password = password
+        self.create_if_missing = create_if_missing
         self.path = self._get_path()
         self._check_backend()
 
@@ -58,11 +63,22 @@ class WebDbManager:
         dbman = CLIDbManager(dbstate)
         path = dbman.get_family_tree_path(self.name)
         if path is None:
+            if self.create_if_missing:
+                return self._create()
             raise ValueError(
-                "Database path for family tree '{}' not found in database directory {}".format(
-                    self.name, config.get("database.path")
-                )
+                f"Database path for family tree '{self.name}' not found"
+                f" in database directory {config.get('database.path')}"
             )
+        return path
+
+    def _create(self) -> str:
+        """Create SQLite database.
+
+        Returns the database path as string.
+        """
+        dbstate = DbState()  # dbstate instance used only for this method
+        dbman = CLIDbManager(dbstate)
+        path, _ = dbman.create_new_db_cli(title=self.name, dbid="sqlite")
         return path
 
     def _check_backend(self) -> None:
@@ -70,9 +86,7 @@ class WebDbManager:
         backend = get_dbid_from_path(self.path)
         if backend not in self.ALLOWED_DB_BACKENDS:
             raise ValueError(
-                "Database backend '{}' of tree '{}' not supported.".format(
-                    backend, self.name
-                )
+                f"Database backend '{backend}' of tree '{self.name}' not supported."
             )
 
     def is_locked(self) -> bool:

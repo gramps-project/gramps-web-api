@@ -19,7 +19,6 @@
 
 """Tests for the `gramps_webapi.dbmanager` module."""
 
-import os
 import unittest
 
 from gramps.cli.clidbman import CLIDbManager
@@ -53,3 +52,18 @@ class TestWebDbManager(unittest.TestCase):
         self.assertFalse(dbmgr.is_locked())
         dbstate.db.close()
         self.assertFalse(dbmgr.is_locked())
+
+
+class TestWebDbManagerCreate(unittest.TestCase):
+    def test_create(self):
+        name = "Test Web Db Manager 2"
+        dbmgr = WebDbManager(name, create_if_missing=True)
+        dbstate = DbState()
+        assert dbmgr.path
+        dbman = CLIDbManager(dbstate)
+        dbman.remove_database(name)
+
+    def test_dont_create(self):
+        name = "Test Web Db Manager 3"
+        with self.assertRaises(ValueError):
+            dbmgr = WebDbManager(name, create_if_missing=False)

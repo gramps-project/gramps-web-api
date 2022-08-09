@@ -103,6 +103,7 @@ def create_app(db_manager=None):
             name=app.config["TREE"],
             username=app.config["POSTGRES_USER"],
             password=app.config["POSTGRES_PASSWORD"],
+            create_if_missing=True,
         )
     else:
         app.config["DB_MANAGER"] = db_manager
