@@ -56,16 +56,21 @@ class ObjectStorageFileHandler(FileHandler):
         self.bucket_name = bucket_name
         self.object_name = self.checksum
 
-    def _get_presigned_url(self, expires_in: float):
+    def _get_presigned_url(
+        self, expires_in: float, download: bool = False, filename: str = ""
+    ):
         """Get a presigned URL to a file object."""
+        params = {
+            "Bucket": self.bucket_name,
+            "Key": self.object_name,
+            "ResponseContentType": self.mime,
+        }
+        if download:
+            params["ResponseContentDisposition"] = f"attachment; filename={filename}"
         try:
             response = self.client.generate_presigned_url(
                 "get_object",
-                Params={
-                    "Bucket": self.bucket_name,
-                    "Key": self.object_name,
-                    "ResponseContentType": self.mime,
-                },
+                Params=params,
                 ExpiresIn=expires_in,
             )
         except ClientError as err:
@@ -90,9 +95,13 @@ class ObjectStorageFileHandler(FileHandler):
         except ClientError:
             return False
 
-    def send_file(self, etag: Optional[str] = None):
+    def send_file(
+        self, etag: Optional[str] = None, download: bool = False, filename: str = ""
+    ):
         """Send media file to client."""
-        url = self._get_presigned_url(expires_in=self.URL_LIFETIME)
+        url = self._get_presigned_url(
+            expires_in=self.URL_LIFETIME, download=download, filename=filename
+        )
         return redirect(url, 307)
 
     def send_cropped(self, x1: int, y1: int, x2: int, y2: int, square: bool = False):

@@ -21,6 +21,7 @@
 """Endpoint for up- and downloading media files."""
 
 import json
+import os
 from http import HTTPStatus
 from typing import Dict
 
@@ -42,7 +43,14 @@ from .util import transaction_to_json, update_object
 class MediaFileResource(ProtectedResource):
     """Resource for media files."""
 
-    def get(self, handle) -> Response:
+    @use_args(
+        {
+            "download": fields.Boolean(missing=False),
+            "jwt": fields.String(required=False),
+        },
+        location="query",
+    )
+    def get(self, args: Dict, handle) -> Response:
         """Download a file."""
         db_handle = get_db_handle()
         try:
@@ -51,7 +59,11 @@ class MediaFileResource(ProtectedResource):
             abort(HTTPStatus.NOT_FOUND)
         base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
         handler = MediaHandler(base_dir).get_file_handler(handle)
-        return handler.send_file(etag=obj.checksum)
+        download = bool(args.get("download"))
+        filename = os.path.basename(obj.path)
+        return handler.send_file(
+            etag=obj.checksum, download=download, filename=filename
+        )
 
     @use_args(
         {
