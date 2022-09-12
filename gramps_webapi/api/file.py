@@ -150,7 +150,7 @@ class LocalFileHandler(FileHandler):
                 self.path_rel,
                 mimetype=self.mime,
                 as_attachment=download,
-                attachment_filename=filename,
+                download_name=filename,
             )
         )
         if etag:
