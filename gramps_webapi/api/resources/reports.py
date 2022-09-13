@@ -200,6 +200,7 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
     @use_args(
         {
             "options": fields.Str(validate=validate.Length(min=1)),
+            "jwt": fields.String(required=False),
         },
         location="query",
     )
