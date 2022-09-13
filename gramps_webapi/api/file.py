@@ -64,7 +64,7 @@ class FileHandler:
         """Check if the file exists."""
         raise NotImplementedError
 
-    def send_file(self, etag=Optional[str]):
+    def send_file(self, etag=Optional[str], download: bool = False, filename: str = ""):
         """Send media file to client."""
         raise NotImplementedError
 
@@ -140,10 +140,18 @@ class LocalFileHandler(FileHandler):
             stream = BytesIO(f.read())
         return stream
 
-    def send_file(self, etag: Optional[str] = None):
+    def send_file(
+        self, etag: Optional[str] = None, download: bool = False, filename: str = ""
+    ):
         """Send media file to client."""
         res = make_response(
-            send_from_directory(self.base_dir, self.path_rel, mimetype=self.mime)
+            send_from_directory(
+                self.base_dir,
+                self.path_rel,
+                mimetype=self.mime,
+                as_attachment=download,
+                download_name=filename,
+            )
         )
         if etag:
             res.headers["ETag"] = etag
