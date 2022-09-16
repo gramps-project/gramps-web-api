@@ -144,7 +144,7 @@ LOCALE_MAP = {
     "da": "da_DK",
     "de": "de_DE",
     "el": "el_GR",
-    "en": "en_GB",
+    "en": "en_US",
     "es": "es_ES",
     "fi": "fi_FI",
     "fr": "fr_FR",
