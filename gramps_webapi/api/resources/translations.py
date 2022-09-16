@@ -21,7 +21,7 @@
 """Translate API Resource."""
 
 import json
-from typing import Dict, Union
+from typing import Dict, List, Union
 
 from flask import Response, abort
 from gramps.gen.const import GRAMPS_LOCALE
@@ -72,7 +72,18 @@ class TranslationResource(ProtectedResource, GrampsJSONEncoder):
             strings = json.loads(args["strings"])
         except json.JSONDecodeError:
             abort(400)
+        return self._get_or_post(strings=strings, language=language)
 
+    @use_args(
+        {"strings": fields.List(fields.Str, required=True)},
+        location="json",
+    )
+    def post(self, args: Dict, language: str) -> Response:
+        """Get translation for posted strings."""
+        return self._get_or_post(strings=args["strings"], language=language)
+
+    def _get_or_post(self, strings: List[str], language: str) -> Response:
+        """Get translation."""
         catalog = GRAMPS_LOCALE.get_language_dict()
         for entry in catalog:
             if catalog[entry] == language:

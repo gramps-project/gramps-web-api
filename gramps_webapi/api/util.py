@@ -28,7 +28,7 @@ from email.message import EmailMessage
 from http import HTTPStatus
 from typing import BinaryIO, Optional, Sequence
 
-from flask import abort, current_app, g, request
+from flask import abort, current_app, g, jsonify, make_response, request
 from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
@@ -47,6 +47,16 @@ from .auth import has_permissions
 class Parser(FlaskParser):
     # raise in case of unknown query arguments
     DEFAULT_UNKNOWN_BY_LOCATION = {"query": RAISE}
+
+    def handle_error(self, error, req, schema, *, error_status_code, error_headers):
+        status_code = error_status_code or self.DEFAULT_VALIDATION_STATUS
+        abort(
+            make_response(jsonify(error.messages), status_code),
+            exc=error,
+            messages=error.messages,
+            schema=schema,
+            headers=error_headers,
+        )
 
 
 parser = Parser()

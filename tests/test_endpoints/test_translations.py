@@ -22,6 +22,8 @@
 
 import unittest
 
+from gramps_webapi.auth.const import ROLE_OWNER
+
 from . import BASE_URL, get_test_client
 from .checks import (
     check_conforms_to_schema,
@@ -31,6 +33,7 @@ from .checks import (
     check_resource_missing,
     check_success,
 )
+from .util import fetch_header
 
 TEST_URL = BASE_URL + "/translations/"
 
@@ -57,7 +60,7 @@ class TestTranslations(unittest.TestCase):
 
 
 class TestTranslationsLanguage(unittest.TestCase):
-    """Test cases for the /api/translations/{language} endpoint."""
+    """Test cases for the /api/translations/{language} endpoint using GET."""
 
     @classmethod
     def setUpClass(cls):
@@ -90,6 +93,36 @@ class TestTranslationsLanguage(unittest.TestCase):
     def test_get_translations_language_expected_result_multiple_values(self):
         """Test response for multiple translations."""
         rv = check_success(self, TEST_URL + 'fr?strings=["Birth", "Death"]')
+        self.assertEqual(len(rv), 2)
+        self.assertEqual(rv[0], {"original": "Birth", "translation": "Naissance"})
+        self.assertEqual(rv[1], {"original": "Death", "translation": "Décès"})
+
+
+class TestTranslationsLanguagePost(unittest.TestCase):
+    """Test cases for the /api/translations/{language} endpoint using POST."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_get_translations_language_expected_result_single_value(self):
+        """Test response for single translation."""
+        header = fetch_header(self.client, role=ROLE_OWNER)
+        data = {"strings": ["Birth"]}
+        rv = self.client.post(TEST_URL + "fr", headers=header, json=data)
+        self.assertEqual(rv.status_code, 200)
+        rv = rv.json
+        self.assertEqual(len(rv), 1)
+        self.assertEqual(rv[0], {"original": "Birth", "translation": "Naissance"})
+
+    def test_get_translations_language_expected_result_multiple_values(self):
+        """Test response for multiple translations."""
+        header = fetch_header(self.client, role=ROLE_OWNER)
+        data = {"strings": ["Birth", "Death"]}
+        rv = self.client.post(TEST_URL + "fr", headers=header, json=data)
+        self.assertEqual(rv.status_code, 200)
+        rv = rv.json
         self.assertEqual(len(rv), 2)
         self.assertEqual(rv[0], {"original": "Birth", "translation": "Naissance"})
         self.assertEqual(rv[1], {"original": "Death", "translation": "Décès"})
