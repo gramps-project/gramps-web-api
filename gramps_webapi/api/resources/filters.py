@@ -161,7 +161,7 @@ class RuleSchema(Schema):
 
     name = fields.Str(required=True, validate=validate.Length(min=1))
     values = fields.List(fields.Raw, required=False)
-    regex = fields.Boolean(required=False, missing=False)
+    regex = fields.Boolean(required=False, load_default=False)
 
 
 class FilterSchema(Schema):
@@ -169,10 +169,10 @@ class FilterSchema(Schema):
 
     function = fields.Str(
         required=False,
-        missing="and",
+        load_default="and",
         validate=validate.OneOf(["and", "or", "xor", "one"]),
     )
-    invert = fields.Boolean(required=False, missing=False)
+    invert = fields.Boolean(required=False, load_default=False)
     rules = fields.List(
         fields.Nested(RuleSchema), required=True, validate=validate.Length(min=1)
     )
@@ -192,7 +192,8 @@ class FiltersResources(ProtectedResource, GrampsJSONEncoder):
     """Filters resources."""
 
     @use_args(
-        {}, location="query",
+        {},
+        location="query",
     )
     def get(self, args: Dict[str, str]) -> Response:
         """Get available custom filters and rules."""
@@ -286,7 +287,10 @@ class FilterResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, filter_list[0])
 
     @use_args(
-        {"force": fields.Str(validate=validate.Length(equal=0)),}, location="query",
+        {
+            "force": fields.Str(validate=validate.Length(equal=0)),
+        },
+        location="query",
     )
     def delete(self, args: Dict, namespace: str, name: str) -> Response:
         """Delete a custom filter."""

@@ -97,10 +97,10 @@ class FactsResource(ProtectedResource, GrampsJSONEncoder):
 
     @use_args(
         {
-            "gramps_id": fields.Str(missing=None, validate=validate.Length(min=1)),
-            "handle": fields.Str(missing=None, validate=validate.Length(min=1)),
+            "gramps_id": fields.Str(load_default=None, validate=validate.Length(min=1)),
+            "handle": fields.Str(load_default=None, validate=validate.Length(min=1)),
             "living": fields.Str(
-                missing="IncludeAll",
+                load_default="IncludeAll",
                 validate=validate.OneOf(
                     [
                         "IncludeAll",
@@ -111,10 +111,12 @@ class FactsResource(ProtectedResource, GrampsJSONEncoder):
                     ]
                 ),
             ),
-            "locale": fields.Str(missing=None, validate=validate.Length(min=2, max=5)),
-            "person": fields.Str(missing=None, validate=validate.Length(min=1)),
-            "private": fields.Boolean(missing=False),
-            "rank": fields.Integer(missing=1, validate=validate.Range(min=1)),
+            "locale": fields.Str(
+                load_default=None, validate=validate.Length(min=2, max=5)
+            ),
+            "person": fields.Str(load_default=None, validate=validate.Length(min=1)),
+            "private": fields.Boolean(load_default=False),
+            "rank": fields.Integer(load_default=1, validate=validate.Range(min=1)),
         },
         location="query",
     )

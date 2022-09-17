@@ -38,8 +38,10 @@ class RelationResource(ProtectedResource, GrampsJSONEncoder):
 
     @use_args(
         {
-            "depth": fields.Integer(missing=15, validate=validate.Range(min=2)),
-            "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
+            "depth": fields.Integer(load_default=15, validate=validate.Range(min=2)),
+            "locale": fields.Str(
+                load_default=None, validate=validate.Length(min=1, max=5)
+            ),
         },
         location="query",
     )
@@ -76,8 +78,10 @@ class RelationsResource(ProtectedResource, GrampsJSONEncoder):
 
     @use_args(
         {
-            "depth": fields.Integer(missing=15, validate=validate.Range(min=2)),
-            "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
+            "depth": fields.Integer(load_default=15, validate=validate.Range(min=2)),
+            "locale": fields.Str(
+                load_default=None, validate=validate.Length(min=1, max=5)
+            ),
         },
         location="query",
     )

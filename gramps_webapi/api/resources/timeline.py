@@ -511,10 +511,10 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
     @use_args(
         {
             "ancestors": fields.Integer(
-                missing=1, validate=validate.Range(min=1, max=5)
+                load_default=1, validate=validate.Range(min=1, max=5)
             ),
             "dates": fields.Str(
-                missing=None,
+                load_default=None,
                 validate=validate.Regexp(
                     r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
                     r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
@@ -522,26 +522,26 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
                     r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
                 ),
             ),
-            "discard_empty": fields.Boolean(missing=True),
+            "discard_empty": fields.Boolean(load_default=True),
             "event_classes": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
             ),
             "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "first": fields.Boolean(missing=True),
+            "first": fields.Boolean(load_default=True),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "last": fields.Boolean(missing=True),
-            "locale": fields.Str(missing=None),
+            "last": fields.Boolean(load_default=True),
+            "locale": fields.Str(load_default=None),
             "offspring": fields.Integer(
-                missing=1, validate=validate.Range(min=1, max=5)
+                load_default=1, validate=validate.Range(min=1, max=5)
             ),
-            "omit_anchor": fields.Boolean(missing=True),
-            "page": fields.Integer(missing=0, validate=validate.Range(min=1)),
-            "pagesize": fields.Integer(missing=20, validate=validate.Range(min=1)),
+            "omit_anchor": fields.Boolean(load_default=True),
+            "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
+            "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
             "precision": fields.Integer(
-                missing=1, validate=validate.Range(min=1, max=3)
+                load_default=1, validate=validate.Range(min=1, max=3)
             ),
-            "ratings": fields.Boolean(missing=False),
+            "ratings": fields.Boolean(load_default=False),
             "relative_event_classes": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
@@ -556,7 +556,7 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
-            "strip": fields.Boolean(missing=False),
+            "strip": fields.Boolean(load_default=False),
         },
         location="query",
     )
@@ -608,7 +608,7 @@ class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
     @use_args(
         {
             "dates": fields.Str(
-                missing=None,
+                load_default=None,
                 validate=validate.Regexp(
                     r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
                     r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
@@ -616,21 +616,21 @@ class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
                     r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
                 ),
             ),
-            "discard_empty": fields.Boolean(missing=True),
+            "discard_empty": fields.Boolean(load_default=True),
             "event_classes": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
             ),
             "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "locale": fields.Str(missing=None),
-            "page": fields.Integer(missing=0, validate=validate.Range(min=1)),
-            "pagesize": fields.Integer(missing=20, validate=validate.Range(min=1)),
-            "ratings": fields.Boolean(missing=False),
+            "locale": fields.Str(load_default=None),
+            "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
+            "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
+            "ratings": fields.Boolean(load_default=False),
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
-            "strip": fields.Boolean(missing=False),
+            "strip": fields.Boolean(load_default=False),
         },
         location="query",
     )
@@ -664,7 +664,7 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
         {
             "anchor": fields.Str(validate=validate.Length(min=1)),
             "dates": fields.Str(
-                missing=None,
+                load_default=None,
                 validate=validate.Regexp(
                     r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
                     r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
@@ -672,32 +672,34 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
                     r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
                 ),
             ),
-            "discard_empty": fields.Boolean(missing=True),
+            "discard_empty": fields.Boolean(load_default=True),
             "event_classes": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
             ),
             "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "filter": fields.Str(validate=validate.Length(min=1)),
-            "first": fields.Boolean(missing=True),
+            "first": fields.Boolean(load_default=True),
             "handles": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "last": fields.Boolean(missing=True),
-            "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
-            "omit_anchor": fields.Boolean(missing=True),
-            "page": fields.Integer(missing=0, validate=validate.Range(min=1)),
-            "pagesize": fields.Integer(missing=20, validate=validate.Range(min=1)),
-            "precision": fields.Integer(
-                missing=1, validate=validate.Range(min=1, max=3)
+            "last": fields.Boolean(load_default=True),
+            "locale": fields.Str(
+                load_default=None, validate=validate.Length(min=1, max=5)
             ),
-            "ratings": fields.Boolean(missing=False),
+            "omit_anchor": fields.Boolean(load_default=True),
+            "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
+            "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
+            "precision": fields.Integer(
+                load_default=1, validate=validate.Range(min=1, max=3)
+            ),
+            "ratings": fields.Boolean(load_default=False),
             "rules": fields.Str(validate=validate.Length(min=1)),
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
-            "strip": fields.Boolean(missing=False),
+            "strip": fields.Boolean(load_default=False),
         },
         location="query",
     )
@@ -751,7 +753,7 @@ class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
     @use_args(
         {
             "dates": fields.Str(
-                missing=None,
+                load_default=None,
                 validate=validate.Regexp(
                     r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
                     r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
@@ -759,7 +761,7 @@ class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
                     r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
                 ),
             ),
-            "discard_empty": fields.Boolean(missing=True),
+            "discard_empty": fields.Boolean(load_default=True),
             "event_classes": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
@@ -770,15 +772,17 @@ class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
             "handles": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
-            "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
-            "page": fields.Integer(missing=0, validate=validate.Range(min=1)),
-            "pagesize": fields.Integer(missing=20, validate=validate.Range(min=1)),
-            "ratings": fields.Boolean(missing=False),
+            "locale": fields.Str(
+                load_default=None, validate=validate.Length(min=1, max=5)
+            ),
+            "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
+            "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
+            "ratings": fields.Boolean(load_default=False),
             "rules": fields.Str(validate=validate.Length(min=1)),
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
-            "strip": fields.Boolean(missing=False),
+            "strip": fields.Boolean(load_default=False),
         },
         location="query",
     )

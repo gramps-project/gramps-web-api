@@ -183,19 +183,19 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
 
     @use_args(
         {
-            "compress": fields.Boolean(missing=True),
-            "current_year": fields.Integer(missing=None),
-            "event": fields.Str(missing=None),
-            "gramps_id": fields.Str(missing=None),
-            "handle": fields.Str(missing=None),
-            "include_children": fields.Boolean(missing=True),
-            "include_individuals": fields.Boolean(missing=True),
-            "include_marriages": fields.Boolean(missing=True),
-            "include_media": fields.Boolean(missing=True),
-            "include_places": fields.Boolean(missing=True),
-            "include_witnesses": fields.Boolean(missing=True),
+            "compress": fields.Boolean(load_default=True),
+            "current_year": fields.Integer(load_default=None),
+            "event": fields.Str(load_default=None),
+            "gramps_id": fields.Str(load_default=None),
+            "handle": fields.Str(load_default=None),
+            "include_children": fields.Boolean(load_default=True),
+            "include_individuals": fields.Boolean(load_default=True),
+            "include_marriages": fields.Boolean(load_default=True),
+            "include_media": fields.Boolean(load_default=True),
+            "include_places": fields.Boolean(load_default=True),
+            "include_witnesses": fields.Boolean(load_default=True),
             "living": fields.Str(
-                missing="IncludeAll",
+                load_default="IncludeAll",
                 validate=validate.OneOf(
                     [
                         "IncludeAll",
@@ -206,16 +206,16 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
                     ]
                 ),
             ),
-            "locale": fields.Str(missing=None),
-            "note": fields.Str(missing=None),
-            "person": fields.Str(missing=None),
-            "private": fields.Boolean(missing=False),
-            "reference": fields.Boolean(missing=False),
+            "locale": fields.Str(load_default=None),
+            "note": fields.Str(load_default=None),
+            "person": fields.Str(load_default=None),
+            "private": fields.Boolean(load_default=False),
+            "reference": fields.Boolean(load_default=False),
             "sequence": fields.Str(
-                missing="privacy,living,person,event,note,reference"
+                load_default="privacy,living,person,event,note,reference"
             ),
-            "translate_headers": fields.Boolean(missing=True),
-            "years_after_death": fields.Integer(missing=0),
+            "translate_headers": fields.Boolean(load_default=True),
+            "years_after_death": fields.Integer(load_default=0),
             "jwt": fields.String(required=False),
         },
         location="query",
