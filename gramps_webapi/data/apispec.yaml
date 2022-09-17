@@ -4972,7 +4972,39 @@ paths:
           description: "Not Found: Language code was not found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
-
+    post:
+      tags:
+      - translations
+      summary: "Get a translation in a specific language."
+      operationId: getTranslation
+      security:
+        - Bearer: []
+      parameters:
+      - name: language
+        in: path
+        required: true
+        type: string
+        description: "The language code or identifier."
+      - name: strings
+        in: body
+        required: true
+        type: string
+        description: "The list of strings to be translated. These must be provided in JSON format."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Translation"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Language code was not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 ##############################################################################
 # Endpoint - Relations
