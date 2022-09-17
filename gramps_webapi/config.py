@@ -38,7 +38,7 @@ class DefaultConfig(object):
     CORS_EXPOSE_HEADERS = ["X-Total-Count"]
     STATIC_PATH = os.getenv("STATIC_PATH", "static")
     THUMBNAIL_CACHE_CONFIG = {
-        "CACHE_TYPE": "filesystem",
+        "CACHE_TYPE": "FileSystemCache",
         "CACHE_DIR": "thumbnail_cache",
         "CACHE_THRESHOLD": 1000,
     }
