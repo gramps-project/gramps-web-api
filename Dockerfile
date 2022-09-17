@@ -15,10 +15,10 @@ RUN apt-get update && apt-get install -y \
   && rm -rf /var/lib/apt/lists/*
 
 # set locale
-RUN localedef -i en_GB -c -f UTF-8 -A /usr/share/locale/locale.alias en_GB.UTF-8
-ENV LANGUAGE en_GB.utf8
-ENV LANG en_GB.utf8
-ENV LC_ALL en_GB.utf8
+RUN localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
+ENV LANGUAGE en_US.utf8
+ENV LANG en_US.utf8
+ENV LC_ALL en_US.utf8
 
 ENV GRAMPS_API_CONFIG=/app/config/config.cfg
 
