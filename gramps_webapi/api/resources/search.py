@@ -87,10 +87,12 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
 
     @use_args(
         {
-            "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
+            "locale": fields.Str(
+                load_default=None, validate=validate.Length(min=1, max=5)
+            ),
             "query": fields.Str(required=True, validate=validate.Length(min=1)),
-            "page": fields.Int(missing=1, validate=validate.Range(min=1)),
-            "pagesize": fields.Int(missing=20, validate=validate.Range(min=1)),
+            "page": fields.Int(load_default=1, validate=validate.Range(min=1)),
+            "pagesize": fields.Int(load_default=20, validate=validate.Range(min=1)),
             "sort": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
@@ -98,7 +100,7 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
                     choices=["all", "self", "families", "events", "age", "span"]
                 ),
             ),
-            "strip": fields.Boolean(missing=False),
+            "strip": fields.Boolean(load_default=False),
         },
         location="query",
     )

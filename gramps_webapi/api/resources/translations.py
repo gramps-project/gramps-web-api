@@ -106,7 +106,9 @@ class TranslationsResource(ProtectedResource, GrampsJSONEncoder):
 
     @use_args(
         {
-            "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
+            "locale": fields.Str(
+                load_default=None, validate=validate.Length(min=1, max=5)
+            ),
             "sort": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
         },
         location="query",

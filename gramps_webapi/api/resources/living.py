@@ -38,13 +38,13 @@ class LivingResource(ProtectedResource, GrampsJSONEncoder):
     @use_args(
         {
             "average_generation_gap": fields.Integer(
-                missing=None, validate=validate.Range(min=1)
+                load_default=None, validate=validate.Range(min=1)
             ),
             "max_age_probably_alive": fields.Integer(
-                missing=None, validate=validate.Range(min=1)
+                load_default=None, validate=validate.Range(min=1)
             ),
             "max_sibling_age_difference": fields.Integer(
-                missing=None, validate=validate.Range(min=1)
+                load_default=None, validate=validate.Range(min=1)
             ),
         },
         location="query",
@@ -72,14 +72,16 @@ class LivingDatesResource(ProtectedResource, GrampsJSONEncoder):
     @use_args(
         {
             "average_generation_gap": fields.Integer(
-                missing=None, validate=validate.Range(min=1)
+                load_default=None, validate=validate.Range(min=1)
             ),
-            "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
+            "locale": fields.Str(
+                load_default=None, validate=validate.Length(min=1, max=5)
+            ),
             "max_age_probably_alive": fields.Integer(
-                missing=None, validate=validate.Range(min=1)
+                load_default=None, validate=validate.Range(min=1)
             ),
             "max_sibling_age_difference": fields.Integer(
-                missing=None, validate=validate.Range(min=1)
+                load_default=None, validate=validate.Range(min=1)
             ),
         },
         location="query",

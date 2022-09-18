@@ -31,11 +31,12 @@ with open("gramps_webapi/_version.py") as version_file:
 REQUIREMENTS = [
     "Click>=7.0",
     "Flask>=2.0.0",
-    "Flask-Caching",
+    "Flask-Caching>=2.0.0",
     "Flask-Compress",
     "Flask-Cors",
     "Flask-JWT-Extended>=4.2.1, !=4.4.0, !=4.4.1",
     "Flask-Limiter",
+    "marshmallow>=3.13.0",
     "webargs",
     "SQLAlchemy",
     "pdf2image",

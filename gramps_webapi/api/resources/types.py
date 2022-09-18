@@ -162,7 +162,7 @@ class DefaultTypesResource(ProtectedResource, GrampsJSONEncoder):
 
     @use_args(
         {
-            "locale": fields.Boolean(missing=False),
+            "locale": fields.Boolean(load_default=False),
         },
         location="query",
     )
@@ -179,7 +179,7 @@ class DefaultTypeResource(ProtectedResource, GrampsJSONEncoder):
 
     @use_args(
         {
-            "locale": fields.Boolean(missing=False),
+            "locale": fields.Boolean(load_default=False),
         },
         location="query",
     )
@@ -245,7 +245,7 @@ class TypesResource(ProtectedResource, GrampsJSONEncoder):
 
     @use_args(
         {
-            "locale": fields.Boolean(missing=False),
+            "locale": fields.Boolean(load_default=False),
         },
         location="query",
     )

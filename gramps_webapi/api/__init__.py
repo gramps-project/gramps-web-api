@@ -299,7 +299,10 @@ register_endpt(
 @api_blueprint.route("/media/<string:handle>/thumbnail/<int:size>")
 @jwt_required_ifauth
 @use_args(
-    {"square": fields.Boolean(missing=False), "jwt": fields.String(required=False)},
+    {
+        "square": fields.Boolean(load_default=False),
+        "jwt": fields.String(required=False),
+    },
     location="query",
 )
 @thumbnail_cache.cached(make_cache_key=make_cache_key_thumbnails)
@@ -315,7 +318,10 @@ def get_thumbnail(args, handle, size):
 )
 @jwt_required_ifauth
 @use_args(
-    {"square": fields.Boolean(missing=False), "jwt": fields.String(required=False)},
+    {
+        "square": fields.Boolean(load_default=False),
+        "jwt": fields.String(required=False),
+    },
     location="query",
 )
 @thumbnail_cache.cached(make_cache_key=make_cache_key_thumbnails)
@@ -331,7 +337,10 @@ def get_cropped(args, handle: str, x1: int, y1: int, x2: int, y2: int):
 )
 @jwt_required_ifauth
 @use_args(
-    {"square": fields.Boolean(missing=False), "jwt": fields.String(required=False)},
+    {
+        "square": fields.Boolean(load_default=False),
+        "jwt": fields.String(required=False),
+    },
     location="query",
 )
 @thumbnail_cache.cached(make_cache_key=make_cache_key_thumbnails)

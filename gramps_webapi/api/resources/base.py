@@ -162,7 +162,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
 
     @use_args(
         {
-            "backlinks": fields.Boolean(missing=False),
+            "backlinks": fields.Boolean(load_default=False),
             "extend": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
@@ -192,7 +192,9 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             ),
             "format_options": fields.Str(validate=validate.Length(min=1)),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
+            "locale": fields.Str(
+                load_default=None, validate=validate.Length(min=1, max=5)
+            ),
             "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
@@ -211,8 +213,8 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
-            "soundex": fields.Boolean(missing=False),
-            "strip": fields.Boolean(missing=False),
+            "soundex": fields.Boolean(load_default=False),
+            "strip": fields.Boolean(load_default=False),
         },
         location="query",
     )
@@ -284,9 +286,9 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
 
     @use_args(
         {
-            "backlinks": fields.Boolean(missing=False),
+            "backlinks": fields.Boolean(load_default=False),
             "dates": fields.Str(
-                missing=None,
+                load_default=None,
                 validate=validate.Regexp(
                     r"^([0-9]+|\*)/([1-9]|1[0-2]|\*)/([1-9]|1[0-9]|2[0-9]|3[0-1]|\*)$|"
                     r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
@@ -326,9 +328,11 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             "format_options": fields.Str(validate=validate.Length(min=1)),
             "gramps_id": fields.Str(validate=validate.Length(min=1)),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
-            "page": fields.Integer(missing=0, validate=validate.Range(min=1)),
-            "pagesize": fields.Integer(missing=20, validate=validate.Range(min=1)),
+            "locale": fields.Str(
+                load_default=None, validate=validate.Length(min=1, max=5)
+            ),
+            "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
+            "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
             "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
@@ -349,9 +353,9 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                 fields.Str(validate=validate.Length(min=1))
             ),
             "sort": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "soundex": fields.Boolean(missing=False),
-            "strip": fields.Boolean(missing=False),
-            "filemissing": fields.Boolean(missing=False),
+            "soundex": fields.Boolean(load_default=False),
+            "strip": fields.Boolean(load_default=False),
+            "filemissing": fields.Boolean(load_default=False),
         },
         location="query",
     )

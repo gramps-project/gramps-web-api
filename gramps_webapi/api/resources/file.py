@@ -45,7 +45,7 @@ class MediaFileResource(ProtectedResource):
 
     @use_args(
         {
-            "download": fields.Boolean(missing=False),
+            "download": fields.Boolean(load_default=False),
             "jwt": fields.String(required=False),
         },
         location="query",
@@ -67,7 +67,7 @@ class MediaFileResource(ProtectedResource):
 
     @use_args(
         {
-            "uploadmissing": fields.Boolean(missing=False),
+            "uploadmissing": fields.Boolean(load_default=False),
         },
         location="query",
     )

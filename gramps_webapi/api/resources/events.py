@@ -87,10 +87,12 @@ class EventSpanResource(ProtectedResource, GrampsJSONEncoder):
 
     @use_args(
         {
-            "as_age": fields.Boolean(missing=True),
-            "locale": fields.Str(missing=None, validate=validate.Length(min=1, max=5)),
+            "as_age": fields.Boolean(load_default=True),
+            "locale": fields.Str(
+                load_default=None, validate=validate.Length(min=1, max=5)
+            ),
             "precision": fields.Integer(
-                missing=2, validate=validate.Range(min=1, max=3)
+                load_default=2, validate=validate.Range(min=1, max=3)
             ),
         },
         location="query",
