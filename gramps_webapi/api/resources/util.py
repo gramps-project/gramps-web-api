@@ -53,6 +53,7 @@ from gramps.gen.lib import (
 )
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.lib.serialize import from_json, to_json
+from gramps.gen.relationship import get_relationship_calculator
 from gramps.gen.soundex import soundex
 from gramps.gen.utils.db import (
     get_birth_or_fallback,
@@ -1102,3 +1103,28 @@ def get_missing_media_file_handles(
     objects = [db_handle.get_media_from_handle(handle) for handle in handles]
     objects_missing = filter_missing_files(objects)
     return [obj.handle for obj in objects_missing]
+
+
+def get_one_relationship(
+    db_handle: DbReadBase,
+    person1: Person,
+    person2: Person,
+    depth: int,
+    locale: GrampsLocale = glocale,
+) -> Tuple[str, int, int]:
+    """Get a relationship string and the number of generations between the people."""
+    calc = get_relationship_calculator(reinit=True, clocale=locale)
+    # the relationship calculation can be slow when depth is set to a large value
+    # even when the relationship path is short. To avoid this, we are iterating
+    # trying once with depth = 5
+    if depth > 5:
+        calc.set_depth(5)
+        rel_string, dist_orig, dist_other = calc.get_one_relationship(
+            db_handle, person1, person2, extra_info=True, olocale=locale
+        )
+        if dist_orig > -1:
+            return rel_string, dist_orig, dist_other
+    calc.set_depth(depth)
+    return calc.get_one_relationship(
+        db_handle, person1, person2, extra_info=True, olocale=locale
+    )

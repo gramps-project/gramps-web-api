@@ -30,7 +30,7 @@ from ..util import use_args
 from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
-from .util import get_person_by_handle
+from .util import get_one_relationship, get_person_by_handle
 
 
 class RelationResource(ProtectedResource, GrampsJSONEncoder):
@@ -57,11 +57,12 @@ class RelationResource(ProtectedResource, GrampsJSONEncoder):
             abort(404)
 
         locale = get_locale_for_language(args["locale"], default=True)
-        calc = get_relationship_calculator(reinit=True, clocale=locale)
-        calc.set_depth(args["depth"])
-
-        data = calc.get_one_relationship(
-            db_handle, person1, person2, extra_info=True, olocale=locale
+        data = get_one_relationship(
+            db_handle=db_handle,
+            person1=person1,
+            person2=person2,
+            depth=args["depth"],
+            locale=locale,
         )
         return self.response(
             200,
