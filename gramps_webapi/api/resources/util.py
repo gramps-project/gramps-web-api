@@ -1116,14 +1116,15 @@ def get_one_relationship(
     calc = get_relationship_calculator(reinit=True, clocale=locale)
     # the relationship calculation can be slow when depth is set to a large value
     # even when the relationship path is short. To avoid this, we are iterating
-    # over depth values and only continue when no path is found.
-    for _depth in sorted({3, 10, depth}):
-        if _depth > depth:
-            break
-        calc.set_depth(_depth)
+    # trying once with depth = 5
+    if depth > 5:
+        calc.set_depth(5)
         rel_string, dist_orig, dist_other = calc.get_one_relationship(
             db_handle, person1, person2, extra_info=True, olocale=locale
         )
         if dist_orig > -1:
-            break
-    return rel_string, dist_orig, dist_other
+            return rel_string, dist_orig, dist_other
+    calc.set_depth(depth)
+    return calc.get_one_relationship(
+        db_handle, person1, person2, extra_info=True, olocale=locale
+    )
