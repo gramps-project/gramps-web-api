@@ -10,10 +10,10 @@ The documentation of the current state of the API can be browsed with Swagger:
 
 The project is still under development, so API changes should be expected.
 
-## Demo Server
-
-A demo server is available at https://gramps-webapi-demo.herokuapp.com/api/metadata
-
 ## Documentation
 
 The project's documentation is hosted at https://gramps-project.github.io/web/.
+
+## Demo Server
+
+See the documentation site for a link to the demo server.
