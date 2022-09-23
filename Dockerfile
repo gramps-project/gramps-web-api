@@ -40,7 +40,7 @@ RUN wget https://github.com/gramps-project/addons/archive/refs/heads/master.zip 
 
 # install OpenCV
 RUN python3 -m pip install --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
-    opencv-python
+    opencv-python numpy
 
 # install gunicorn
 RUN python3 -m pip install --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
