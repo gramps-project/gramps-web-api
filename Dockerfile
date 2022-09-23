@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
   poppler-utils ffmpeg libavcodec-extra \
   unzip \
   libpq-dev postgresql-client postgresql-client-common python3-psycopg2 \
+  libgl1-mesa-dev libgtk2.0-dev \
   && rm -rf /var/lib/apt/lists/*
 
 # set locale
@@ -40,7 +41,7 @@ RUN wget https://github.com/gramps-project/addons/archive/refs/heads/master.zip 
 
 # install OpenCV
 RUN python3 -m pip install --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
-    opencv-python numpy
+    opencv-python
 
 # install gunicorn
 RUN python3 -m pip install --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
