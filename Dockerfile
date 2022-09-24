@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
   poppler-utils ffmpeg libavcodec-extra \
   unzip \
   libpq-dev postgresql-client postgresql-client-common python3-psycopg2 \
-  libgl1-mesa-dev libgtk2.0-dev \
+  libgl1-mesa-dev libgtk2.0-dev libatlas-base-dev \
   && rm -rf /var/lib/apt/lists/*
 
 # set locale
