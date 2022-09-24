@@ -1,0 +1,25 @@
+name: Deploy Swagger to GitHub Pages
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  swagger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: move
+        run: mv gramps_webapi/data/apispec.yaml apispec.yaml
+      - name: Generate Swagger UI
+        uses: Legion2/swagger-ui-action@v1
+        with:
+          output: swagger-ui
+          spec-file: apispec.yaml
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: swagger-ui
