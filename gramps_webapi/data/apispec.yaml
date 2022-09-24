@@ -7367,7 +7367,7 @@ definitions:
         description: "The place type."
         type: string
         example: "City"
-      place_ref_list:
+      placeref_list:
         description: "A list of references to other places."
         type: array
         items:
