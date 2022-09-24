@@ -6,7 +6,7 @@ This project provides a RESTful web API to query and manipulate a [Gramps](https
 
 The documentation of the current state of the API can be browsed with Swagger:
 
-[Gramps API docs](https://generator.swagger.io/?url=https://raw.githubusercontent.com/gramps-project/web-api/master/gramps_webapi/data/apispec.yaml)
+[Gramps API docs](https://gramps-project.github.io/gramps-webapi/)
 
 The project is still under development, so API changes should be expected.
 
