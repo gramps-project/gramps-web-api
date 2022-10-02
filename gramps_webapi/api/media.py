@@ -88,6 +88,7 @@ class MediaHandler:
             upload_file_s3(
                 bucket_name, stream, checksum, mime, endpoint_url=endpoint_url
             )
+            return
         base_dir = self.base_dir or get_media_base_dir()
         if path is not None:
             if Path(path).is_absolute():
