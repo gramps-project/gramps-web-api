@@ -40,18 +40,18 @@ def image_thumbnail(image: Image, size: int, square: bool = False) -> Image:
 
     If `square` is true, the image is cropped to a centered square.
     """
+    img = ImageOps.exif_transpose(image)
     if square:
         # don't enlarge image: square size is at most shorter (!) side's length
-        size_orig = min(image.size)
+        size_orig = min(img.size)
         size_square = min(size_orig, size)
         return ImageOps.fit(
-            image,
+            img,
             (size_square, size_square),
             bleed=0.0,
             centering=(0.5, 0.5),
             method=Image.BICUBIC,
         )
-    img = image.copy()
     img.thumbnail((size, size))
     return img
 
