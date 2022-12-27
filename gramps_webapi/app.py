@@ -21,6 +21,7 @@
 
 import logging
 import os
+from typing import Any, Dict, Optional
 
 from flask import Flask, abort, g, send_from_directory
 from flask_compress import Compress
@@ -29,7 +30,7 @@ from flask_jwt_extended import JWTManager
 
 from .api import api_blueprint
 from .api.cache import thumbnail_cache
-from .api.resources.token import limiter
+from .api.ratelimiter import limiter
 from .api.search import SearchIndexer
 from .auth import SQLAuth
 from .config import DefaultConfig, DefaultConfigJWT
@@ -37,7 +38,9 @@ from .const import API_PREFIX, ENV_CONFIG_FILE
 from .dbmanager import WebDbManager
 
 
-def create_app(db_manager=None):
+def create_app(
+    db_manager: Optional[WebDbManager] = None, config: Optional[Dict[str, Any]] = None
+):
     """Flask application factory."""
     app = Flask(__name__)
 
@@ -96,6 +99,10 @@ def create_app(db_manager=None):
     app.config["MEDIA_BASE_DIR"] = app.config.get("MEDIA_BASE_DIR") or os.getenv(
         "MEDIA_BASE_DIR"
     )
+
+    # update config from dictionary if present
+    if config:
+        app.config.update(**config)
 
     # instantiate DB manager
     if db_manager is None:

@@ -46,8 +46,7 @@ class TestUser(unittest.TestCase):
         self.dbman = CLIDbManager(DbState())
         _, _name = self.dbman.create_new_db_cli(self.name, dbid="sqlite")
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
-            self.app = create_app()
-        self.app.config["TESTING"] = True
+            self.app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
         self.client = self.app.test_client()
         sqlauth = self.app.config["AUTH_PROVIDER"]
         sqlauth.create_table()
@@ -703,8 +702,7 @@ class TestUserCreateOwner(unittest.TestCase):
         self.dbman = CLIDbManager(DbState())
         _, _name = self.dbman.create_new_db_cli(self.name, dbid="sqlite")
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
-            self.app = create_app()
-        self.app.config["TESTING"] = True
+            self.app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
         self.client = self.app.test_client()
         sqlauth = self.app.config["AUTH_PROVIDER"]
         sqlauth.create_table()

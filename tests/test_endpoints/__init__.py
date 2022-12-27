@@ -67,8 +67,9 @@ def setUpModule():
 
     test_db = ExampleDbSQLite()
     with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EXAMPLE_GRAMPS_AUTH_CONFIG}):
-        test_app = create_app(db_manager=test_db)
-    test_app.config["TESTING"] = True
+        test_app = create_app(
+            db_manager=test_db, config={"TESTING": True, "RATELIMIT_ENABLED": False}
+        )
     TEST_CLIENT = test_app.test_client()
     search_index = test_app.config["SEARCH_INDEXER"]
     db = test_db.get_db().db

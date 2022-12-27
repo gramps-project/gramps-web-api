@@ -53,8 +53,7 @@ class TestPerson(unittest.TestCase):
         cls.dbman = CLIDbManager(DbState())
         _, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
-            cls.app = create_app()
-        cls.app.config["TESTING"] = True
+            cls.app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
         cls.client = cls.app.test_client()
         sqlauth = cls.app.config["AUTH_PROVIDER"]
         sqlauth.create_table()
@@ -94,6 +93,7 @@ class TestPerson(unittest.TestCase):
         rv = self.client.post(
             "/api/token/", json={"username": "user", "password": "123"}
         )
+        assert rv.status_code == 200
         token = rv.json["access_token"]
         rv = self.client.get(
             "/api/people/" + it["handle"] + "?profile=all",
@@ -114,6 +114,7 @@ class TestPerson(unittest.TestCase):
         rv = self.client.post(
             "/api/token/", json={"username": "user", "password": "123"}
         )
+        assert rv.status_code == 200
         token_user = rv.json["access_token"]
         rv = self.client.post(
             "/api/token/", json={"username": "admin", "password": "123"}
@@ -159,6 +160,7 @@ class TestPerson(unittest.TestCase):
         rv = self.client.post(
             "/api/token/", json={"username": "user", "password": "123"}
         )
+        assert rv.status_code == 200
         refresh_token = rv.json["refresh_token"]
         access_token = rv.json["access_token"]
         # incorrectly send access token instead of refresh token!
