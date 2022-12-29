@@ -19,22 +19,15 @@
 
 """User administration resources."""
 
-import datetime
-from gettext import gettext as _
 
-from flask import abort, current_app, jsonify, render_template
-from flask_jwt_extended import create_access_token, get_jwt, get_jwt_identity
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
+from flask import abort, current_app, jsonify
 from webargs import fields
 
 from ...auth.const import PERM_EDIT_SETTINGS, PERM_VIEW_SETTINGS
 from ...const import DB_CONFIG_ALLOWED_KEYS
 from ..auth import require_permissions
 from ..util import use_args
-from . import ProtectedResource, Resource
-
-limiter = Limiter(key_func=get_remote_address)
+from . import ProtectedResource
 
 
 class ConfigsResource(ProtectedResource):

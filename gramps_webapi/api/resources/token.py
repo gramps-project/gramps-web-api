@@ -19,7 +19,6 @@
 
 """Authentication endpoint blueprint."""
 
-import datetime
 from typing import Iterable
 
 from flask import abort, current_app
@@ -28,15 +27,12 @@ from flask_jwt_extended import (
     create_refresh_token,
     get_jwt_identity,
 )
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 from webargs import fields, validate
 
 from ...auth.const import CLAIM_LIMITED_SCOPE, SCOPE_CREATE_OWNER
+from ..ratelimiter import limiter
 from ..util import use_args
 from . import RefreshProtectedResource, Resource
-
-limiter = Limiter(key_func=get_remote_address)
 
 
 def get_tokens(user_id: str, permissions: Iterable[str], include_refresh: bool = False):
