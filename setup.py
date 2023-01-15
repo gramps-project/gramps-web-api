@@ -48,6 +48,7 @@ REQUIREMENTS = [
     "ffmpeg-python",
     "boto3",
     "alembic",
+    "celery[redis]",
 ]
 
 setup(

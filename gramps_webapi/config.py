@@ -21,6 +21,7 @@
 
 import datetime
 import os
+from typing import Dict
 
 
 class DefaultConfig(object):
@@ -44,6 +45,7 @@ class DefaultConfig(object):
     }
     POSTGRES_USER = None
     POSTGRES_PASSWORD = None
+    CELERY_CONFIG: Dict[str, str] = {}
 
 
 class DefaultConfigJWT(object):

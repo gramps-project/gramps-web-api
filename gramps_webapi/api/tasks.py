@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2021-2022      David Straub
+# Copyright (C) 2021-2023      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -20,12 +20,14 @@
 
 from gettext import gettext as _
 
+from celery import shared_task
 from flask import abort, current_app
 
 from .emails import email_confirm_email, email_new_user, email_reset_pw
 from .util import get_config, send_email
 
 
+@shared_task()
 def send_email_reset_password(email: str, token: str):
     """Send an email for password reset."""
     base_url = get_config("BASE_URL").rstrip("/")
@@ -34,6 +36,7 @@ def send_email_reset_password(email: str, token: str):
     send_email(subject=subject, body=body, to=[email])
 
 
+@shared_task()
 def send_email_confirm_email(email: str, token: str):
     """Send an email to confirm an e-mail address."""
     base_url = get_config("BASE_URL").rstrip("/")
@@ -42,6 +45,7 @@ def send_email_confirm_email(email: str, token: str):
     send_email(subject=subject, body=body, to=[email])
 
 
+@shared_task()
 def send_email_new_user(username: str, fullname: str, email: str):
     """Send an email to owners to notify of a new registered user."""
     base_url = get_config("BASE_URL").rstrip("/")
@@ -57,6 +61,7 @@ def send_email_new_user(username: str, fullname: str, email: str):
         send_email(subject=subject, body=body, to=emails)
 
 
+@shared_task()
 def search_reindex_full() -> None:
     """Rebuild the search index."""
     indexer = current_app.config["SEARCH_INDEXER"]
