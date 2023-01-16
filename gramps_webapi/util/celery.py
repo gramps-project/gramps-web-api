@@ -4,9 +4,10 @@ from celery import Task
 from celery import current_app as current_celery_app
 
 
-def make_celery(app):
+def create_celery(app):
     """App factory for celery."""
     celery = current_celery_app
+    celery.conf.name = app.import_name
     celery.conf.update(app.config["CELERY_CONFIG"])
 
     class ContextTask(Task):

@@ -35,7 +35,7 @@ from webargs import fields
 
 from ...auth.const import PERM_IMPORT_FILE
 from ..auth import require_permissions
-from ..tasks import search_reindex_full
+from ..tasks import make_task_response, run_task, search_reindex_full
 from ..util import get_db_handle, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
@@ -121,5 +121,7 @@ class ImporterFileResource(ProtectedResource):
         if not importers:
             abort(HTTPStatus.NOT_FOUND)
         run_import(db_handle, request.stream, extension.lower())
-        search_reindex_full()
+        task = run_task(search_reindex_full)
+        if task:
+            return make_task_response(task)
         return Response(status=201)

@@ -18,13 +18,30 @@
 
 """Execute tasks."""
 
+from http import HTTPStatus
 from gettext import gettext as _
+from typing import Callable, Optional
 
 from celery import shared_task
+from celery.result import AsyncResult
 from flask import abort, current_app
 
 from .emails import email_confirm_email, email_new_user, email_reset_pw
 from .util import get_config, send_email
+
+
+def run_task(task: Callable, **kwargs) -> Optional[AsyncResult]:
+    """Send a task to the task queue or run immediately if no queue set up."""
+    if not current_app.config["CELERY_CONFIG"]:
+        return task(**kwargs)
+    return task.delay(**kwargs)
+
+
+def make_task_response(task: AsyncResult):
+    """Make a 202 response with the location of the task status endpoint."""
+    url = f"/api/tasks/{task.id}"
+    payload = {"task": {"href": url, "id": task.id}}
+    return payload, HTTPStatus.ACCEPTED
 
 
 @shared_task()

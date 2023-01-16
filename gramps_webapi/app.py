@@ -36,6 +36,7 @@ from .auth import SQLAuth
 from .config import DefaultConfig, DefaultConfigJWT
 from .const import API_PREFIX, ENV_CONFIG_FILE
 from .dbmanager import WebDbManager
+from .util.celery import create_celery
 
 
 def create_app(
@@ -150,6 +151,9 @@ def create_app(
     # register the API blueprint
     app.register_blueprint(api_blueprint)
     limiter.init_app(app)
+
+    # instantiate celery
+    create_celery(app)
 
     # close DB after every request
     @app.teardown_appcontext

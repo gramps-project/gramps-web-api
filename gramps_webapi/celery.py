@@ -1,7 +1,7 @@
 """Celery task scheduler."""
 
 from .app import create_app
-from .util.celery import make_celery
+from .util.celery import create_celery
 
 
-celery = make_celery(app=create_app())
+celery = create_celery(app=create_app())
