@@ -416,6 +416,8 @@ paths:
       responses:
         201:
           description: "OK: e-mail successfully sent."
+        202:
+          description: "Accepted: e-mail will be sent in the background."
         404:
           description: "Not found: user does not exist or has no e-mail address."
         422:
@@ -501,6 +503,32 @@ paths:
           description: "Forbidden: missing authorization."
         405:
           description: "Method Not Allowed: No authorization provider configured."
+
+##############################################################################
+# Endpoint - Tasks
+##############################################################################
+
+  /tasks/{task_id}:
+    parameters:
+      - name: task_id
+        in: path
+        required: true
+        type: string
+        description: "The task ID."
+    get:
+      tags:
+      - tasks
+      summary: "Return information about a task."
+      operationId: getTask
+      security:
+        - Bearer: []
+      responses:
+        200:
+          description: "OK: Successful operation."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid token."
 
 ##############################################################################
 # Endpoint - Config
@@ -6090,6 +6118,8 @@ paths:
       responses:
         201:
           description: "OK: resource created."
+        202:
+          description: "Accepted: file will be imported in the background."
         401:
           description: "Unauthorized: Missing authorization header."
         404:
