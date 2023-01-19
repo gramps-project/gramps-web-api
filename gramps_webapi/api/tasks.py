@@ -33,7 +33,8 @@ from .util import get_config, send_email
 def run_task(task: Callable, **kwargs) -> Optional[AsyncResult]:
     """Send a task to the task queue or run immediately if no queue set up."""
     if not current_app.config["CELERY_CONFIG"]:
-        return task(**kwargs)
+        with current_app.app_context():
+            return task(**kwargs)
     return task.delay(**kwargs)
 
 
@@ -78,7 +79,7 @@ def send_email_new_user(username: str, fullname: str, email: str):
         send_email(subject=subject, body=body, to=emails)
 
 
-@shared_task()
+# @shared_task()
 def search_reindex_full() -> None:
     """Rebuild the search index."""
     indexer = current_app.config["SEARCH_INDEXER"]
