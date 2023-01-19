@@ -79,10 +79,12 @@ def send_email_new_user(username: str, fullname: str, email: str):
         send_email(subject=subject, body=body, to=emails)
 
 
-# @shared_task()
+@shared_task()
 def search_reindex_full() -> None:
     """Rebuild the search index."""
+    print(current_app)
     indexer = current_app.config["SEARCH_INDEXER"]
+    print(current_app.config["DB_MANAGER"].path)
     db = current_app.config["DB_MANAGER"].get_db().db
     try:
         indexer.reindex_full(db)

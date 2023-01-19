@@ -29,4 +29,4 @@ jobs:
           pip list
       - name: Test with pytest
         run: |
-          pytest tests/test_endpoints/test_importers.py
+          pytest tests/test_endpoints/test_importers.py -s
