@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         python-version: [3.8, 3.9, '3.10']
@@ -28,5 +28,4 @@ jobs:
           pip install .
           pip list
       - name: Test with pytest
-        run: |
-          pytest tests/test_endpoints/test_importers.py -s
+        run: pytest
