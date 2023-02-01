@@ -30,7 +30,7 @@ RUN mkdir /app/db && mkdir /app/media && mkdir /app/indexdir && mkdir /app/users
 RUN mkdir /app/thumbnail_cache
 RUN mkdir /app/tmp
 RUN chmod -R g=u /app
-RUN mkdir -p /data/gramps/gramps$GRAMPS_VERSION
+RUN mkdir -p /data/gramps/gramps$GRAMPS_VERSION/plugins
 RUN chmod -R g=u /data
 ENV USER_DB_URI=sqlite:////app/users/users.sqlite
 ENV MEDIA_BASE_DIR=/app/media
