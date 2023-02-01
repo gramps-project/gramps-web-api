@@ -21,6 +21,7 @@ ENV LANG en_US.utf8
 ENV LC_ALL en_US.utf8
 
 ENV GRAMPS_API_CONFIG=/app/config/config.cfg
+ENV GRAMPSHOME=/data
 
 # create directories
 RUN mkdir /app/src &&  mkdir /app/config && touch /app/config/config.cfg
