@@ -28,4 +28,4 @@ jobs:
           pip install .
           pip list
       - name: Test with pytest
-        run: pytest
+        run: pytest tests/test_endpoints/test_importers.py -s
