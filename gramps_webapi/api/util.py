@@ -25,6 +25,7 @@ import os
 import smtplib
 import socket
 from email.message import EmailMessage
+from email.utils import make_msgid
 from http import HTTPStatus
 from typing import BinaryIO, Optional, Sequence
 
@@ -185,6 +186,7 @@ def send_email(
         from_email = get_config("DEFAULT_FROM_EMAIL")
     msg["From"] = from_email
     msg["To"] = ", ".join(to)
+    msg["Message-ID"] = make_msgid()
 
     host = get_config("EMAIL_HOST")
     port = int(get_config("EMAIL_PORT"))
