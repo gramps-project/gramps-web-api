@@ -14,7 +14,10 @@ def create_celery(app):
         """Celery task which is aware of the flask app context."""
 
         def __call__(self, *args, **kwargs):
-            return self.run(*args, **kwargs)
+            if self.request.called_directly:
+                return self.run(*args, **kwargs)
+            with app.app_context():
+                return self.run(*args, **kwargs)
 
     celery.Task = ContextTask
     return celery
