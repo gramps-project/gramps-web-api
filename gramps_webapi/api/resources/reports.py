@@ -151,10 +151,10 @@ def validate_options(report: Dict, report_options: Dict, allow_file: bool = Fals
         if isinstance(report["options_help"][option][2], type([])):
             option_list = []
             for item in report["options_help"][option][2]:
-                if "\t" in item:
-                    option_list.append(item.split("\t")[0])
-                else:
-                    option_list.append(item)
+                # Some option specs include a comment part after a tab, e.g. to give the name of a family
+                # associated with a family ID. It's the part before the tab that's a valid value.
+                # Some tab-separated specs also have a colon before the tab.
+                option_list.append(item.split("\t")[0].rstrip(":"))
             if report_options[option] not in option_list:
                 abort(422)
             continue
