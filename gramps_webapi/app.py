@@ -59,6 +59,9 @@ def create_app(
     if os.getenv(ENV_CONFIG_FILE):
         app.config.from_envvar(ENV_CONFIG_FILE)
 
+    # use prefixed environment variables if exist
+    app.config.from_prefixed_env(prefix="GRAMPSWEB")
+
     # if tree is missing, try to get it from the env or fail
     app.config["TREE"] = app.config.get("TREE") or os.getenv("TREE")
     if not app.config.get("TREE"):

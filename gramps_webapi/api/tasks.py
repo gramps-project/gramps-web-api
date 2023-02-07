@@ -18,6 +18,7 @@
 
 """Execute tasks."""
 
+import os
 from http import HTTPStatus
 from gettext import gettext as _
 from typing import Callable, Optional
@@ -28,6 +29,7 @@ from flask import abort, current_app
 
 from .emails import email_confirm_email, email_new_user, email_reset_pw
 from .util import get_config, send_email
+from .resources.util import run_import
 
 
 def run_task(task: Callable, **kwargs) -> Optional[AsyncResult]:
@@ -79,8 +81,7 @@ def send_email_new_user(username: str, fullname: str, email: str):
         send_email(subject=subject, body=body, to=emails)
 
 
-@shared_task()
-def search_reindex_full() -> None:
+def _search_reindex_full() -> None:
     """Rebuild the search index."""
     indexer = current_app.config["SEARCH_INDEXER"]
     db = current_app.config["DB_MANAGER"].get_db().db
@@ -88,3 +89,22 @@ def search_reindex_full() -> None:
         indexer.reindex_full(db)
     finally:
         db.close()
+
+
+@shared_task()
+def search_reindex_full() -> None:
+    """Rebuild the search index."""
+    return _search_reindex_full()
+
+
+@shared_task()
+def import_file(file_name: str, extension: str, delete: bool = True):
+    """Import a file."""
+    db_handle = current_app.config["DB_MANAGER"].get_db().db
+    run_import(
+        db_handle=db_handle,
+        file_name=file_name,
+        extension=extension.lower(),
+        delete=delete,
+    )
+    _search_reindex_full()
