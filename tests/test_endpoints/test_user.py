@@ -23,6 +23,8 @@ import re
 import unittest
 from unittest.mock import patch
 
+import pytest
+from celery.result import AsyncResult
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
@@ -36,6 +38,7 @@ from gramps_webapi.auth.const import (
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
 from . import BASE_URL
+from .util import fetch_header
 
 
 class TestUser(unittest.TestCase):
@@ -178,6 +181,7 @@ class TestUser(unittest.TestCase):
     def test_reset_password(self):
         with patch("smtplib.SMTP_SSL") as mock_smtp:
             rv = self.client.post(BASE_URL + "/users/user/password/reset/trigger/")
+            assert rv.status_code == 201
             context = mock_smtp.return_value
             context.send_message.assert_called()
             name, args, kwargs = context.method_calls.pop(0)
@@ -750,3 +754,59 @@ class TestUserCreateOwner(unittest.TestCase):
         assert self.app.config["AUTH_PROVIDER"].get_number_users() == 1
         rv = self.client.get(f"{BASE_URL}/token/create_owner/")
         assert rv.status_code == 405
+
+
+@pytest.mark.usefixtures("celery_session_app")
+@pytest.mark.usefixtures("celery_session_worker")
+class TestUserCelery(unittest.TestCase):
+    """Test cases for the /api/user endpoints, using celery."""
+
+    def setUp(self):
+        self.name = "Test Web API"
+        self.dbman = CLIDbManager(DbState())
+        _, _name = self.dbman.create_new_db_cli(self.name, dbid="sqlite")
+        with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
+            self.app = create_app(
+                config={
+                    "TESTING": True,
+                    "RATELIMIT_ENABLED": False,
+                    "CELERY_CONFIG": {
+                        "broker_url": "redis://",
+                        "result_backend": "redis://",
+                    },
+                }
+            )
+        self.client = self.app.test_client()
+        sqlauth = self.app.config["AUTH_PROVIDER"]
+        sqlauth.create_table()
+        sqlauth.add_user(
+            name="user", password="123", email="test@example.com", role=ROLE_MEMBER
+        )
+        sqlauth.add_user(
+            name="owner", password="123", email="owner@example.com", role=ROLE_OWNER
+        )
+        self.assertTrue(self.app.testing)
+        self.ctx = self.app.test_request_context()
+        self.ctx.push()
+
+    def tearDown(self):
+        self.ctx.pop()
+        self.dbman.remove_database(self.name)
+
+    def test_reset_password_celery(self):
+        rv = self.client.post(BASE_URL + "/users/user/password/reset/trigger/")
+        assert rv.status_code == 202
+        assert "task" in rv.json
+        url = rv.json["task"]["href"]
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "user", "password": "123"}
+        )
+        token = rv.json["access_token"]
+        from time import sleep
+
+        sleep(5)
+        rv = self.client.get(
+            url,
+            headers={"Authorization": "Bearer {}".format(token)},
+        )
+        assert rv.status_code == 200

@@ -44,6 +44,8 @@ from ...auth.const import (
 from ..auth import require_permissions
 from ..ratelimiter import limiter
 from ..tasks import (
+    make_task_response,
+    run_task,
     send_email_confirm_email,
     send_email_new_user,
     send_email_reset_password,
@@ -216,7 +218,7 @@ class UserRegisterResource(Resource):
             # email has to be confirmed within 1h
             expires_delta=datetime.timedelta(hours=1),
         )
-        send_email_confirm_email(email=args["email"], token=token)
+        run_task(send_email_confirm_email, email=args["email"], token=token)
         return "", 201
 
 
@@ -308,9 +310,11 @@ class UserTriggerResetPasswordResource(Resource):
             expires_delta=datetime.timedelta(hours=1),
         )
         try:
-            send_email_reset_password(email=email, token=token)
+            task = run_task(send_email_reset_password, email=email, token=token)
         except ValueError:
             abort(500)
+        if task:
+            return make_task_response(task)
         return "", 201
 
 
@@ -392,7 +396,8 @@ class UserConfirmEmailResource(LimitedScopeProtectedResource):
         if current_details["role"] == ROLE_UNCONFIRMED:
             # otherwise it has been confirmed already
             auth_provider.modify_user(name=username, role=ROLE_DISABLED)
-            send_email_new_user(
+            run_task(
+                send_email_new_user,
                 username=username,
                 fullname=current_details.get("full_name", ""),
                 email=claims["email"],

@@ -170,3 +170,6 @@ LOCALE_MAP = {
     "uk": "uk_UA",
     "vi": "vi_VN",
 }
+
+# list of importers (by file extension) that are not allowed
+DISABLED_IMPORTERS = ["gpkg"]

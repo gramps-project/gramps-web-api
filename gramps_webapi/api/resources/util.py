@@ -22,9 +22,10 @@
 
 
 import json
+import os
 from hashlib import sha256
 from http import HTTPStatus
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import gramps
 import jsonschema
@@ -53,8 +54,10 @@ from gramps.gen.lib import (
 )
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.lib.serialize import from_json, to_json
+from gramps.gen.plug import BasePluginManager
 from gramps.gen.relationship import get_relationship_calculator
 from gramps.gen.soundex import soundex
+from gramps.gen.user import User
 from gramps.gen.utils.db import (
     get_birth_or_fallback,
     get_death_or_fallback,
@@ -66,8 +69,8 @@ from gramps.gen.utils.grampslocale import GrampsLocale
 from gramps.gen.utils.id import create_id
 from gramps.gen.utils.place import conv_lat_lon
 
-from ...const import SEX_FEMALE, SEX_MALE, SEX_UNKNOWN
-from ...types import Handle
+from ...const import DISABLED_IMPORTERS, SEX_FEMALE, SEX_MALE, SEX_UNKNOWN
+from ...types import FilenameOrPath, Handle
 from ..media import MediaHandler
 
 pd = PlaceDisplay()
@@ -1128,3 +1131,41 @@ def get_one_relationship(
     return calc.get_one_relationship(
         db_handle, person1, person2, extra_info=True, olocale=locale
     )
+
+
+def get_importers(extension: str = None):
+    """Extract and return list of importers."""
+    importers = []
+    plugin_manager = BasePluginManager.get_instance()
+    for plugin in plugin_manager.get_import_plugins():
+        if extension is not None and extension != plugin.get_extension():
+            continue
+        if extension in DISABLED_IMPORTERS:
+            continue
+        importer = {
+            "name": plugin.get_name(),
+            "description": plugin.get_description(),
+            "extension": plugin.get_extension(),
+            "module": plugin.get_module_name(),
+        }
+        importers.append(importer)
+    return importers
+
+
+def run_import(
+    db_handle: DbReadBase,
+    file_name: FilenameOrPath,
+    extension: str,
+    delete: bool = True,
+) -> None:
+    """Import a file."""
+    plugin_manager = BasePluginManager.get_instance()
+    for plugin in plugin_manager.get_import_plugins():
+        if extension == plugin.get_extension():
+            import_function = plugin.get_import_function()
+            result = import_function(db_handle, str(file_name), User())
+            if delete:
+                os.remove(file_name)
+            if not result:
+                abort(500)
+            return
