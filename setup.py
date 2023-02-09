@@ -30,7 +30,7 @@ with open("gramps_webapi/_version.py") as version_file:
 
 REQUIREMENTS = [
     "Click>=7.0",
-    "Flask>=2.0.0",
+    "Flask>=2.1.0",
     "Flask-Caching>=2.0.0",
     "Flask-Compress",
     "Flask-Cors",
