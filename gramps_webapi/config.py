@@ -42,6 +42,7 @@ class DefaultConfig(object):
         "CACHE_TYPE": "FileSystemCache",
         "CACHE_DIR": "thumbnail_cache",
         "CACHE_THRESHOLD": 1000,
+        "CACHE_DEFAULT_TIMEOUT": 0,
     }
     POSTGRES_USER = None
     POSTGRES_PASSWORD = None
