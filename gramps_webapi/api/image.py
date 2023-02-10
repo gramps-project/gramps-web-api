@@ -232,7 +232,7 @@ def detect_faces(stream: BinaryIO) -> List[Tuple[float, float, float, float]]:
     if cv2.countNonZero(cv_image) == 0:
         print("The input image is empty or contains only zeros.")
 
-    if cv2.checkNan(cv_image):
+    if cv2.countNonZero(cv2.countNonZero(cv_image != cv_image)) > 0:
         print("The input image contains NaN values.")
 
     if cascade.empty():
