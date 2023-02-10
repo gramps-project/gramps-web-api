@@ -223,20 +223,10 @@ def detect_faces(stream: BinaryIO) -> List[Tuple[float, float, float, float]]:
     cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
     if cv_image.dtype != np.uint8:
         cv_image = cv2.convertScaleAbs(cv_image)
-    print("cv_image shape:", cv_image.shape)
-    print("cv_image data type:", cv_image.dtype)
     haarcascade_path = resource_filename(
         "gramps_webapi", "data/haarcascade_frontalface_default.xml"
     )
-    print("haarcascade_path:", haarcascade_path)
     cascade = cv2.CascadeClassifier(haarcascade_path)
-    print("cascade:", cascade)
-    if cascade.empty():
-        print("The cascade classifier is empty.")
-
-    if cascade.getOriginalWindowSize().width != cv_image.dtype:
-        print("The cascade classifier and input image have different data types.")
-
     faces = cascade.detectMultiScale(cv_image, 1.1, 4)
     height, width = cv_image.shape
     return [
