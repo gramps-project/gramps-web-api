@@ -231,12 +231,6 @@ def detect_faces(stream: BinaryIO) -> List[Tuple[float, float, float, float]]:
     print("haarcascade_path:", haarcascade_path)
     cascade = cv2.CascadeClassifier(haarcascade_path)
     print("cascade:", cascade)
-    if cv2.countNonZero(cv_image) == 0:
-        print("The input image is empty or contains only zeros.")
-
-    if cv2.countNonZero(cv2.countNonZero(cv_image != cv_image)) > 0:
-        print("The input image contains NaN values.")
-
     if cascade.empty():
         print("The cascade classifier is empty.")
 
