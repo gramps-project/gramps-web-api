@@ -25,6 +25,7 @@ import shutil
 import os
 import tempfile
 from pathlib import Path
+from pkg_resources import resource_filename
 from typing import BinaryIO, Callable, List, Tuple
 
 import ffmpeg
@@ -220,8 +221,8 @@ def detect_faces(stream: BinaryIO) -> List[Tuple[float, float, float, float]]:
     file_bytes = np.asarray(bytearray(stream.read()), dtype=np.uint8)
     cv_image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
-    haarcascade_path = os.path.join(
-        cv2.data.haarcascades, "haarcascade_frontalface_default.xml"
+    haarcascade_path = resource_filename(
+        "gramps_webapi", "data/haarcascade_frontalface_default.xml"
     )
     cascade = cv2.CascadeClassifier(haarcascade_path)
     faces = cascade.detectMultiScale(cv_image, 1.1, 4)
