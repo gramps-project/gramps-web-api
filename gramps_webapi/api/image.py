@@ -221,6 +221,8 @@ def detect_faces(stream: BinaryIO) -> List[Tuple[float, float, float, float]]:
     file_bytes = np.asarray(bytearray(stream.read()), dtype=np.uint8)
     cv_image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+    if cv_image.dtype != np.uint8:
+        cv_image = cv2.convertScaleAbs(cv_image)
     print("cv_image shape:", cv_image.shape)
     print("cv_image data type:", cv_image.dtype)
     haarcascade_path = resource_filename(
