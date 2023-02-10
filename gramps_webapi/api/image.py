@@ -229,6 +229,18 @@ def detect_faces(stream: BinaryIO) -> List[Tuple[float, float, float, float]]:
     print("haarcascade_path:", haarcascade_path)
     cascade = cv2.CascadeClassifier(haarcascade_path)
     print("cascade:", cascade)
+    if cv2.countNonZero(cv_image) == 0:
+        print("The input image is empty or contains only zeros.")
+
+    if cv2.checkNan(cv_image):
+        print("The input image contains NaN values.")
+
+    if cascade.empty():
+        print("The cascade classifier is empty.")
+
+    if cascade.getOriginalWindowSize().width != cv_image.dtype:
+        print("The cascade classifier and input image have different data types.")
+
     faces = cascade.detectMultiScale(cv_image, 1.1, 4)
     height, width = cv_image.shape
     return [
