@@ -20,4 +20,4 @@ jobs:
           pip install .
           pip list
       - name: Test with pytest
-        run: pytest tests/test_endpoints/test_file.py -s
+        run: pytest
