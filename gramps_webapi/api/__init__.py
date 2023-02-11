@@ -61,7 +61,7 @@ from .resources.places import PlaceResource, PlacesResource
 from .resources.relations import RelationResource, RelationsResource
 from .resources.reports import ReportFileResource, ReportResource, ReportsResource
 from .resources.repositories import RepositoriesResource, RepositoryResource
-from .resources.search import SearchResource
+from .resources.search import SearchIndexResource, SearchResource
 from .resources.sources import SourceResource, SourcesResource
 from .resources.tags import TagResource, TagsResource
 from .resources.tasks import TaskResource
@@ -268,6 +268,7 @@ register_endpt(
 )
 # Search
 register_endpt(SearchResource, "/search/", "search")
+register_endpt(SearchIndexResource, "/search/index/", "search_index")
 
 # Config
 register_endpt(

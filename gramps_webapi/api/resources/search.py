@@ -21,15 +21,21 @@
 
 from typing import Dict
 
-from flask import current_app
+from flask import current_app, Response
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 
-from ...auth.const import PERM_VIEW_PRIVATE
-from ..auth import has_permissions
+from ...auth.const import PERM_TRIGGER_REINDEX, PERM_VIEW_PRIVATE
+from ..auth import has_permissions, require_permissions
+from ..tasks import (
+    make_task_response,
+    run_task,
+    search_reindex_incremental,
+    search_reindex_full,
+)
 from ..util import get_db_handle, get_locale_for_language, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
@@ -130,3 +136,25 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
             # filter out hits without object (i.e. if handle failed)
             hits = [hit for hit in hits if "object" in hit]
         return self.response(200, payload=hits or [], args=args, total_items=total)
+
+
+class SearchIndexResource(ProtectedResource):
+    """Resource to trigger a search reindex."""
+
+    @use_args(
+        {
+            "full": fields.Boolean(load_default=False),
+        },
+        location="query",
+    )
+    def post(self, args: Dict):
+        """Trigger a reindex."""
+        require_permissions([PERM_TRIGGER_REINDEX])
+        if args["full"]:
+            task_func = search_reindex_full
+        else:
+            task_func = search_reindex_incremental
+        task = run_task(task_func)
+        if task:
+            return make_task_response(task)
+        return Response(status=201)

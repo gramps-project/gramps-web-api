@@ -418,6 +418,11 @@ paths:
           description: "OK: e-mail successfully sent."
         202:
           description: "Accepted: e-mail will be sent in the background."
+          schema:
+            type: object
+            properties:
+              task:
+                $ref: "#/definitions/TaskReference"
         404:
           description: "Not found: user does not exist or has no e-mail address."
         422:
@@ -5004,7 +5009,7 @@ paths:
       tags:
       - translations
       summary: "Get a translation in a specific language."
-      operationId: getTranslation
+      operationId: postTranslation
       security:
         - Bearer: []
       parameters:
@@ -5648,6 +5653,38 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+  /search/index/:
+    post:
+      tags:
+      - search
+      summary: "Trigger a reindex of the search index."
+      operationId: reindexSearch
+      security:
+        - Bearer: []
+      parameters:
+      - name: full
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Perform a full or incremental (default) reindex."
+      responses:
+        201:
+          description: "OK: Successful operation."
+        202:
+          description: "Accepted: reindex will be performed in the background."
+          schema:
+            type: object
+            properties:
+              task:
+                $ref: "#/definitions/TaskReference"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        403:
+          description: "Unauthorized: insufficient permissions."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
 ##############################################################################
 # Endpoint - Reports
@@ -6120,6 +6157,11 @@ paths:
           description: "OK: resource created."
         202:
           description: "Accepted: file will be imported in the background."
+          schema:
+            type: object
+            properties:
+              task:
+                $ref: "#/definitions/TaskReference"
         401:
           description: "Unauthorized: Missing authorization header."
         404:
@@ -9519,3 +9561,20 @@ definitions:
         description: "The object value supporting the fact."
         type: string
         example: "21 years, 8 months, 11 days"
+
+
+##############################################################################
+# Model - TaskReference
+##############################################################################
+
+  TaskReference:
+    type: object
+    properties:
+      href:
+        description: "The URL of the task detail endpoint."
+        type: string
+        example: "https://grampsweb.example.com/api/tasks/b9ed86ea-1c6b-400a-bb70-af9cb11bdf13"
+      id:
+        description: "The unique identifier for a task."
+        type: string
+        example: "b9ed86ea-1c6b-400a-bb70-af9cb11bdf13"
