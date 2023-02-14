@@ -98,6 +98,17 @@ def search_reindex_full() -> None:
 
 
 @shared_task()
+def search_reindex_incremental() -> None:
+    """Run an incremental reindex of the search index."""
+    indexer = current_app.config["SEARCH_INDEXER"]
+    db = current_app.config["DB_MANAGER"].get_db().db
+    try:
+        indexer.search_reindex_incremental(db)
+    finally:
+        db.close()
+
+
+@shared_task()
 def import_file(file_name: str, extension: str, delete: bool = True):
     """Import a file."""
     db_handle = current_app.config["DB_MANAGER"].get_db().db

@@ -43,6 +43,7 @@ PERM_DEL_OBJ = "DeleteObject"
 PERM_IMPORT_FILE = "ImportFile"
 PERM_VIEW_SETTINGS = "ViewSettings"
 PERM_EDIT_SETTINGS = "EditSettings"
+PERM_TRIGGER_REINDEX = "TriggerReindex"
 
 PERMISSIONS = {
     ROLE_OWNER: {
@@ -59,6 +60,7 @@ PERMISSIONS = {
         PERM_IMPORT_FILE,
         PERM_VIEW_SETTINGS,
         PERM_EDIT_SETTINGS,
+        PERM_TRIGGER_REINDEX,
     },
     ROLE_EDITOR: {
         PERM_EDIT_OWN_USER,
