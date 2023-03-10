@@ -22,6 +22,8 @@
 from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
 
+from ...auth.const import PERM_EDIT_NAME_GROUP
+from ..auth import require_permissions
 from ..util import get_db_handle
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
@@ -57,6 +59,7 @@ class NameGroupsResource(ProtectedResource, GrampsJSONEncoder):
 
     def post(self, surname: str = None, group: str = None) -> Response:
         """Set a name group mapping."""
+        require_permissions([PERM_EDIT_NAME_GROUP])
         db_handle = self.db_handle
         if surname is None or group is None or len(surname) == 0 or len(group) == 0:
             abort(400)

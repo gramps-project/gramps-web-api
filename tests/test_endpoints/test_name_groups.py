@@ -21,6 +21,8 @@
 
 import unittest
 
+from gramps_webapi.auth.const import ROLE_MEMBER
+
 from . import BASE_URL, get_test_client
 from .checks import check_conforms_to_schema, check_requires_token, check_success
 from .util import fetch_header
@@ -83,6 +85,12 @@ class TestNameGroupsSurnameGroup(unittest.TestCase):
         self.assertEqual(rv.status_code, 400)
         rv = self.client.post(TEST_URL + "Stephen/", headers=header)
         self.assertEqual(rv.status_code, 404)
+
+    def test_post_name_groups_surname_insufficient_authorization(self):
+        """Test adding a mapping."""
+        header = fetch_header(self.client, role=ROLE_MEMBER)
+        rv = self.client.post(TEST_URL + "Stephen/Steven", headers=header)
+        self.assertEqual(rv.status_code, 403)
 
     def test_post_name_groups_surname_add_mapping(self):
         """Test adding a mapping."""

@@ -44,6 +44,7 @@ PERM_IMPORT_FILE = "ImportFile"
 PERM_VIEW_SETTINGS = "ViewSettings"
 PERM_EDIT_SETTINGS = "EditSettings"
 PERM_TRIGGER_REINDEX = "TriggerReindex"
+PERM_EDIT_NAME_GROUP = "EditNameGroup"
 
 PERMISSIONS = {
     ROLE_OWNER: {
@@ -61,6 +62,7 @@ PERMISSIONS = {
         PERM_VIEW_SETTINGS,
         PERM_EDIT_SETTINGS,
         PERM_TRIGGER_REINDEX,
+        PERM_EDIT_NAME_GROUP,
     },
     ROLE_EDITOR: {
         PERM_EDIT_OWN_USER,
@@ -68,6 +70,7 @@ PERMISSIONS = {
         PERM_EDIT_OBJ,
         PERM_ADD_OBJ,
         PERM_DEL_OBJ,
+        PERM_EDIT_NAME_GROUP,
     },
     ROLE_CONTRIBUTOR: {
         PERM_EDIT_OWN_USER,
