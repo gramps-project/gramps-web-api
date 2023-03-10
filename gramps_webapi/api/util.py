@@ -93,6 +93,11 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
         return self.db.set_name_group_mapping(name, group)
 
 
+def get_db_manager() -> WebDbManager:
+    """Get an appropriate WebDbManager instance."""
+    return current_app.config["DB_MANAGER"]
+
+
 def get_db_handle(readonly: bool = True) -> DbReadBase:
     """Open the database and get the current instance.
 
@@ -106,7 +111,7 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
     if readonly and "dbstate" not in g:
         # cache the DbState instance for the duration of
         # the request
-        dbmgr: WebDbManager = current_app.config["DB_MANAGER"]
+        dbmgr = get_db_manager()
         g.dbstate = dbmgr.get_db()
     if not has_permissions({PERM_VIEW_PRIVATE}):
         if not readonly:
@@ -118,7 +123,7 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
     if not readonly and "dbstate_write" not in g:
         # cache the DbState instance for the duration of
         # the request
-        dbmgr = current_app.config["DB_MANAGER"]
+        dbmgr = get_db_manager()
         g.dbstate_write = dbmgr.get_db(readonly=False)
     if not readonly:
         return g.dbstate_write.db
@@ -232,7 +237,9 @@ def make_cache_key_thumbnails(*args, **kwargs):
     # checksum in the DB
     checksum = obj.checksum
 
-    cache_key = checksum + request.path + arg_hash
+    dbmgr = get_db_manager()
+
+    cache_key = checksum + request.path + arg_hash + dbmgr.dirname
 
     return cache_key
 
