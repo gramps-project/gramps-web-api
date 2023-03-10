@@ -63,8 +63,6 @@ class TokenResource(Resource):
     def post(self, args):
         """Post username and password to fetch a token."""
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            return self.get_dummy_tokens()
         if "username" not in args or "password" not in args:
             abort(401)
         if not auth_provider.authorized(args.get("username"), args.get("password")):
@@ -75,11 +73,6 @@ class TokenResource(Resource):
             user_id=user_id, permissions=permissions, include_refresh=True
         )
 
-    @staticmethod
-    def get_dummy_tokens():
-        """Return dummy access and refresh token."""
-        return {"access_token": 1, "refresh_token": 1}
-
 
 class TokenRefreshResource(RefreshProtectedResource):
     """Resource for refreshing a JWT."""
@@ -88,8 +81,6 @@ class TokenRefreshResource(RefreshProtectedResource):
     def post(self):
         """Fetch a fresh token."""
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            return self.get_dummy_token()
         user_id = get_jwt_identity()
         try:
             username = auth_provider.get_name(user_id)
@@ -99,11 +90,6 @@ class TokenRefreshResource(RefreshProtectedResource):
         return get_tokens(
             user_id=user_id, permissions=permissions, include_refresh=False
         )
-
-    @staticmethod
-    def get_dummy_token():
-        """Return dummy access token."""
-        return {"access_token": 1}
 
 
 class TokenCreateOwnerResource(Resource):
