@@ -29,49 +29,46 @@ from flask_jwt_extended.exceptions import NoAuthorizationError
 from ..auth.const import CLAIM_LIMITED_SCOPE
 
 
-def jwt_required_ifauth(func):
-    """Check JWT unless authentication is disabled.
+def jwt_required(func):
+    """Check JWT.
 
     Raise if claims include limited_scope key.
     """
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        if not current_app.config.get("DISABLE_AUTH"):
-            verify_jwt_in_request()
-            claims = get_jwt()
-            if claims.get(CLAIM_LIMITED_SCOPE):
-                raise NoAuthorizationError
+        verify_jwt_in_request()
+        claims = get_jwt()
+        if claims.get(CLAIM_LIMITED_SCOPE):
+            raise NoAuthorizationError
         return func(*args, **kwargs)
 
     return wrapper
 
 
-def jwt_limited_scope_required_ifauth(func):
-    """Check JWT unless authentication is disabled.
+def jwt_limited_scope_required(func):
+    """Check JWT.
 
     Raise if claims do not include limited_scope key.
     """
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        if not current_app.config.get("DISABLE_AUTH"):
-            verify_jwt_in_request()
-            claims = get_jwt()
-            if not claims.get(CLAIM_LIMITED_SCOPE):
-                raise NoAuthorizationError
+        verify_jwt_in_request()
+        claims = get_jwt()
+        if not claims.get(CLAIM_LIMITED_SCOPE):
+            raise NoAuthorizationError
         return func(*args, **kwargs)
 
     return wrapper
 
 
-def jwt_refresh_token_required_ifauth(func):
-    """Check JWT unless authentication is disabled."""
+def jwt_refresh_token_required(func):
+    """Check JWT."""
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        if not current_app.config.get("DISABLE_AUTH"):
-            verify_jwt_in_request(refresh=True)
+        verify_jwt_in_request(refresh=True)
         return func(*args, **kwargs)
 
     return wrapper
@@ -79,8 +76,6 @@ def jwt_refresh_token_required_ifauth(func):
 
 def has_permissions(scope: Iterable[str]) -> bool:
     """Check a set of permissions and return False if any are missing."""
-    if current_app.config.get("DISABLE_AUTH"):
-        return True
     claims = get_jwt()
     user_permissions = set(claims.get("permissions", []))
     required_permissions = set(scope)

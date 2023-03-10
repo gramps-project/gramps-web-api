@@ -22,9 +22,9 @@
 from flask.views import MethodView
 
 from ..auth import (
-    jwt_limited_scope_required_ifauth,
-    jwt_refresh_token_required_ifauth,
-    jwt_required_ifauth,
+    jwt_limited_scope_required,
+    jwt_refresh_token_required,
+    jwt_required,
 )
 
 
@@ -35,16 +35,16 @@ class Resource(MethodView):
 class ProtectedResource(Resource):
     """Resource requiring JWT authentication."""
 
-    decorators = [jwt_required_ifauth]
+    decorators = [jwt_required]
 
 
 class RefreshProtectedResource(Resource):
     """Resource requiring a JWT refresh token."""
 
-    decorators = [jwt_refresh_token_required_ifauth]
+    decorators = [jwt_refresh_token_required]
 
 
 class LimitedScopeProtectedResource(Resource):
     """Resource requiring JWT authentication with limited scope."""
 
-    decorators = [jwt_limited_scope_required_ifauth]
+    decorators = [jwt_limited_scope_required]

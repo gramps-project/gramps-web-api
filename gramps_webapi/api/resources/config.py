@@ -37,8 +37,6 @@ class ConfigsResource(ProtectedResource):
         """Get all config settings."""
         require_permissions([PERM_VIEW_SETTINGS])
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            abort(405)
         return jsonify(auth_provider.config_get_all()), 200
 
 
@@ -49,8 +47,6 @@ class ConfigResource(ProtectedResource):
         """Get a config setting."""
         require_permissions([PERM_VIEW_SETTINGS])
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            abort(405)
         if key not in DB_CONFIG_ALLOWED_KEYS:
             abort(404)
         val = auth_provider.config_get(key)
@@ -68,8 +64,6 @@ class ConfigResource(ProtectedResource):
         """Update a config setting."""
         require_permissions([PERM_EDIT_SETTINGS])
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            abort(405)
         try:
             auth_provider.config_set(key=key, value=args["value"])
         except ValueError:
@@ -80,8 +74,6 @@ class ConfigResource(ProtectedResource):
         """Delete a config setting."""
         require_permissions([PERM_EDIT_SETTINGS])
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            abort(405)
         try:
             if auth_provider.config_get(key=key) is None:
                 abort(404)

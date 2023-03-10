@@ -60,8 +60,6 @@ class UserChangeBase(ProtectedResource):
     def prepare_edit(self, user_name: str):
         """Cheks to do before processing the request."""
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            abort(405)
         if user_name == "-":
             require_permissions([PERM_EDIT_OWN_USER])
             user_id = get_jwt_identity()
@@ -81,8 +79,6 @@ class UsersResource(ProtectedResource):
         """Get users' details."""
         require_permissions([PERM_VIEW_OTHER_USER])
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            abort(405)
         return jsonify(auth_provider.get_all_user_details()), 200
 
 
@@ -92,8 +88,6 @@ class UserResource(UserChangeBase):
     def get(self, user_name: str):
         """Get a user's details."""
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            abort(405)
         if user_name == "-":
             user_id = get_jwt_identity()
             try:
@@ -144,8 +138,6 @@ class UserResource(UserChangeBase):
             # Adding a new user does not make sense for "own" user
             abort(404)
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            abort(405)
         require_permissions([PERM_ADD_USER])
         try:
             auth_provider.add_user(
@@ -165,8 +157,6 @@ class UserResource(UserChangeBase):
             # Deleting the own user is currently not allowed
             abort(404)
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            abort(405)
         require_permissions([PERM_DEL_USER])
         try:
             auth_provider.delete_user(name=user_name)
@@ -193,8 +183,6 @@ class UserRegisterResource(Resource):
             # Registering a new user does not make sense for "own" user
             abort(404)
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            abort(405)
         # do not allow registration if no admin account exists!
         if auth_provider.get_number_users(roles=(ROLE_OWNER,)) == 0:
             abort(405)
@@ -240,8 +228,6 @@ class UserCreateOwnerResource(LimitedScopeProtectedResource):
             # User name - is not allowed
             abort(404)
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            abort(405)
         if auth_provider.get_number_users() > 0:
             # there is already a user in the user DB
             abort(405)
@@ -328,8 +314,6 @@ class UserResetPasswordResource(LimitedScopeProtectedResource):
     def post(self, args):
         """Post new password."""
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            abort(405)
         if args["new_password"] == "":
             abort(400)
         claims = get_jwt()
@@ -352,8 +336,6 @@ class UserResetPasswordResource(LimitedScopeProtectedResource):
     def get(self):
         """Reset password form."""
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            abort(405)
         user_id = get_jwt_identity()
         try:
             username = auth_provider.get_name(user_id)
@@ -377,8 +359,6 @@ class UserConfirmEmailResource(LimitedScopeProtectedResource):
     def get(self):
         """Show email confirmation dialog."""
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            abort(405)
         user_id = get_jwt_identity()
         try:
             username = auth_provider.get_name(user_id)

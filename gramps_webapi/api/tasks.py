@@ -74,8 +74,6 @@ def send_email_new_user(username: str, fullname: str, email: str):
     )
     subject = _("New registered user")
     auth = current_app.config.get("AUTH_PROVIDER")
-    if auth is None:
-        abort(405)
     emails = auth.get_owner_emails()
     if emails:
         send_email(subject=subject, body=body, to=emails)

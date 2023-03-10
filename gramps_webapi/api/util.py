@@ -244,7 +244,7 @@ def get_config(key: str) -> Optional[str]:
     Else, uses the app.config dictionary.
     """
     auth = current_app.config.get("AUTH_PROVIDER")
-    if auth is not None and key in DB_CONFIG_ALLOWED_KEYS:
+    if key in DB_CONFIG_ALLOWED_KEYS:
         val = auth.config_get(key)
         if val is not None:
             return val

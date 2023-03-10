@@ -113,9 +113,6 @@ class TokenCreateOwnerResource(Resource):
     def get(self):
         """Get a token."""
         auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider is None:
-            # auth is disabled!
-            abort(405)
         if auth_provider.get_all_user_details():
             # users already exist!
             abort(405)

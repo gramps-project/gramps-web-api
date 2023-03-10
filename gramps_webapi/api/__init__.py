@@ -25,7 +25,7 @@ from flask import Blueprint, current_app
 from webargs import fields, validate
 
 from ..const import API_PREFIX
-from .auth import jwt_required_ifauth
+from .auth import jwt_required
 from .cache import thumbnail_cache
 from .media import MediaHandler
 from .resources.base import Resource
@@ -306,7 +306,7 @@ register_endpt(
 
 # Thumbnails
 @api_blueprint.route("/media/<string:handle>/thumbnail/<int:size>")
-@jwt_required_ifauth
+@jwt_required
 @use_args(
     {
         "square": fields.Boolean(load_default=False),
@@ -325,7 +325,7 @@ def get_thumbnail(args, handle, size):
 @api_blueprint.route(
     "/media/<string:handle>/cropped/<int:x1>/<int:y1>/<int:x2>/<int:y2>"
 )
-@jwt_required_ifauth
+@jwt_required
 @use_args(
     {
         "square": fields.Boolean(load_default=False),
@@ -344,7 +344,7 @@ def get_cropped(args, handle: str, x1: int, y1: int, x2: int, y2: int):
 @api_blueprint.route(
     "/media/<string:handle>/cropped/<int:x1>/<int:y1>/<int:x2>/<int:y2>/thumbnail/<int:size>"
 )
-@jwt_required_ifauth
+@jwt_required
 @use_args(
     {
         "square": fields.Boolean(load_default=False),
