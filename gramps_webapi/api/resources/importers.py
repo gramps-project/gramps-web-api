@@ -42,7 +42,7 @@ class ImportersResource(ProtectedResource, GrampsJSONEncoder):
     @use_args({}, location="query")
     def get(self, args: Dict[str, Any]) -> Response:
         """Get all available importer attributes."""
-        get_db_handle()
+        get_db_handle()  # needed to load plugins
         return self.response(200, get_importers())
 
 
@@ -52,7 +52,7 @@ class ImporterResource(ProtectedResource, GrampsJSONEncoder):
     @use_args({}, location="query")
     def get(self, args: Dict[str, Any], extension: str) -> Response:
         """Get specific report attributes."""
-        get_db_handle()
+        get_db_handle()  # needed to load plugins
         importers = get_importers(extension)
         if not importers:
             abort(404)
@@ -71,6 +71,7 @@ class ImporterFileResource(ProtectedResource):
     def post(self, args: Dict, extension: str) -> Response:
         """Import file."""
         require_permissions([PERM_IMPORT_FILE])
+        get_db_handle()  # needed to load plugins
         request_stream = request.stream
         with tempfile.NamedTemporaryFile(delete=False) as ftmp:
             ftmp.write(request_stream.read())
