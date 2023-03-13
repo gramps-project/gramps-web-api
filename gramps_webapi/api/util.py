@@ -30,6 +30,7 @@ from http import HTTPStatus
 from typing import BinaryIO, Optional, Sequence
 
 from flask import abort, current_app, g, jsonify, make_response, request
+from flask_jwt_extended import get_jwt
 from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
@@ -93,9 +94,24 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
         return self.db.set_name_group_mapping(name, group)
 
 
-def get_db_manager() -> WebDbManager:
+def get_db_manager(tree: Optional[str]) -> WebDbManager:
     """Get an appropriate WebDbManager instance."""
-    return current_app.config["DB_MANAGER"]
+    return WebDbManager(
+        dirname=tree,
+        username=current_app.config["POSTGRES_USER"],
+        password=current_app.config["POSTGRES_PASSWORD"],
+        create_if_missing=False,
+    )
+
+
+def get_tree_from_jwt() -> Optional[str]:
+    """Get the tree ID from the token.
+
+    Needs request context.
+    """
+    claims = get_jwt()
+    tree = claims.get("tree")
+    return tree
 
 
 def get_db_handle(readonly: bool = True) -> DbReadBase:
@@ -111,7 +127,8 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
     if readonly and "dbstate" not in g:
         # cache the DbState instance for the duration of
         # the request
-        dbmgr = get_db_manager()
+        tree = get_tree_from_jwt()
+        dbmgr = get_db_manager(tree)
         g.dbstate = dbmgr.get_db()
     if not has_permissions({PERM_VIEW_PRIVATE}):
         if not readonly:
@@ -123,24 +140,11 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
     if not readonly and "dbstate_write" not in g:
         # cache the DbState instance for the duration of
         # the request
-        dbmgr = get_db_manager()
+        tree = get_tree_from_jwt()
+        dbmgr = get_db_manager(tree)
         g.dbstate_write = dbmgr.get_db(readonly=False)
     if not readonly:
         return g.dbstate_write.db
-    return g.dbstate.db
-
-
-def _get_db_handle_readonly(readonly: bool = True) -> DbReadBase:
-    """Open the database in read-only mode and get the current instance."""
-    if "dbstate" not in g:
-        # cache the DbState instance for the duration of
-        # the request
-        dbmgr: WebDbManager = current_app.config["DB_MANAGER"]
-        g.dbstate = dbmgr.get_db()
-    if not has_permissions({PERM_VIEW_PRIVATE}):
-        # if we're not authorized to view private records,
-        # return a proxy DB instead of the real one
-        return ModifiedPrivateProxyDb(g.dbstate.db)
     return g.dbstate.db
 
 
@@ -229,7 +233,8 @@ def make_cache_key_thumbnails(*args, **kwargs):
 
     # get media checksum
     handle = kwargs["handle"]
-    db_handle = get_db_handle()
+    tree = get_tree_from_jwt()
+    db_handle = get_db_handle(tree)
     try:
         obj = db_handle.get_media_from_handle(handle)
     except HandleError:
@@ -237,7 +242,7 @@ def make_cache_key_thumbnails(*args, **kwargs):
     # checksum in the DB
     checksum = obj.checksum
 
-    dbmgr = get_db_manager()
+    dbmgr = get_db_manager(tree)
 
     cache_key = checksum + request.path + arg_hash + dbmgr.dirname
 

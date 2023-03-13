@@ -65,12 +65,13 @@ def user(ctx):
 @click.option("--fullname", help="Full name", default="")
 @click.option("--email", help="E-mail address", default=None)
 @click.option("--role", help="User role", default=0, type=int)
+@click.option("--tree", help="Tree", default=None)
 @click.pass_context
-def user_add(ctx, name, password, fullname, email, role):
+def user_add(ctx, name, password, fullname, email, role, tree):
     LOG.info("Adding user {} ...".format(name))
     auth = ctx.obj
     auth.create_table()
-    auth.add_user(name, password, fullname, email, role)
+    auth.add_user(name, password, fullname, email, role, tree)
 
 
 @user.command("delete")

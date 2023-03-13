@@ -30,7 +30,7 @@ from webargs import fields
 from ...auth.const import PERM_IMPORT_FILE
 from ..auth import require_permissions
 from ..tasks import import_file, make_task_response, run_task
-from ..util import get_db_handle, use_args
+from ..util import get_db_handle, get_tree_from_jwt, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .util import get_importers
@@ -79,8 +79,10 @@ class ImporterFileResource(ProtectedResource):
         importers = get_importers(extension.lower())
         if not importers:
             abort(HTTPStatus.NOT_FOUND)
+        tree = get_tree_from_jwt()
         task = run_task(
             import_file,
+            tree=tree,
             file_name=tmp_file_name,
             extension=extension.lower(),
             delete=True,

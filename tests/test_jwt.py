@@ -30,6 +30,7 @@ from gramps.gen.lib import Person, Surname
 from gramps_webapi.app import create_app
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
+from gramps_webapi.dbmanager import WebDbManager
 
 
 def _add_person(gender, first_name, surname, trans, db, private=False):
@@ -59,7 +60,8 @@ class TestPerson(unittest.TestCase):
         sqlauth.create_table()
         sqlauth.add_user(name="user", password="123", role=ROLE_GUEST)
         sqlauth.add_user(name="admin", password="123", role=ROLE_OWNER)
-        dbstate = cls.app.config["DB_MANAGER"].get_db(force_unlock=True)
+        db_manager = WebDbManager(cls.name, create_if_missing=False)
+        dbstate = db_manager.get_db(force_unlock=True)
         with DbTxn("Add test objects", dbstate.db) as trans:
             _add_person(Person.MALE, "John", "Allen", trans, dbstate.db)
             _add_person(

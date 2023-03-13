@@ -26,6 +26,7 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Optional
 
 TEST_GRAMPSHOME = tempfile.mkdtemp()
 os.environ["GRAMPSHOME"] = TEST_GRAMPSHOME
@@ -106,19 +107,13 @@ class ExampleDbInMemory(ExampleDbBase):
 class ExampleDbSQLite(ExampleDbBase, WebDbManager):
     """Gramps SQLite example database handler.
 
-    Usage:
-    ```
-    exampledb = ExampleDbSQLite()
-    app = create_app(db_manager = exampledb)
-    ```
-
     Instantiation should occur during test fixture setup, which should
     insure the temporary Gramps user directory structure was created.
     The database will be imported under there, and when testing is done
     the test fixture teardown is responsible for cleanup.
     """
 
-    def __init__(self, name: str = None) -> None:
+    def __init__(self, name: Optional[str] = None) -> None:
         """Prepare and import the example DB."""
         ExampleDbBase.__init__(self)
         self.db_path = os.path.join(os.environ["GRAMPSHOME"], "gramps", "grampsdb")
@@ -129,5 +124,8 @@ class ExampleDbSQLite(ExampleDbBase, WebDbManager):
         user = User()
         smgr = CLIManager(dbstate, True, user)
         smgr.do_reg_plugins(dbstate, uistate=None)
-        self.path, self.name = dbman.import_new_db(self.path, User())
+        self.path, import_name = dbman.import_new_db(self.path, User())
+        self.name = name or import_name
+        if name != import_name:
+            dbman.rename_database(os.path.join(self.path, "name.txt"), self.name)
         WebDbManager.__init__(self, self.name)
