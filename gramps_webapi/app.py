@@ -69,27 +69,24 @@ def create_app(
 
     # if secret key is missing, try to get it from the env
     app.config["SECRET_KEY"] = app.config["SECRET_KEY"] or os.getenv("SECRET_KEY")
-    # still not found? Fail, unless auth is disabled
-    if not app.config.get("SECRET_KEY") and not app.config.get("DISABLE_AUTH"):
+    # still not found? Fail
+    if not app.config.get("SECRET_KEY"):
         raise ValueError("SECRET_KEY must be specified")
 
-    if app.config.get("DISABLE_AUTH"):
-        pass
-    else:
-        # load JWT default settings
-        app.config.from_object(DefaultConfigJWT)
+    # load JWT default settings
+    app.config.from_object(DefaultConfigJWT)
 
-        # instantiate JWT manager
-        JWTManager(app)
+    # instantiate JWT manager
+    JWTManager(app)
 
-        # instantiate and store auth provider
-        # if DB URI is missing, try to get it from the env or fail
-        app.config["USER_DB_URI"] = app.config.get("USER_DB_URI") or os.getenv(
-            "USER_DB_URI"
-        )
-        if not app.config.get("USER_DB_URI"):
-            raise ValueError("USER_DB_URI must be specified")
-        app.config["AUTH_PROVIDER"] = SQLAuth(db_uri=app.config["USER_DB_URI"])
+    # instantiate and store auth provider
+    # if DB URI is missing, try to get it from the env or fail
+    app.config["USER_DB_URI"] = app.config.get("USER_DB_URI") or os.getenv(
+        "USER_DB_URI"
+    )
+    if not app.config.get("USER_DB_URI"):
+        raise ValueError("USER_DB_URI must be specified")
+    app.config["AUTH_PROVIDER"] = SQLAuth(db_uri=app.config["USER_DB_URI"])
 
     # if postgresql user/password is missing, try to get  it from the env
     app.config["POSTGRES_USER"] = app.config["POSTGRES_USER"] or os.getenv(

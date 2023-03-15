@@ -3,6 +3,12 @@ Pipfile.lock
 .venv
 *.ipynb
 
+indexdir/
+indexdir_empty/
+thumbnail_cache/
+*.gramps
+*.sqlite
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
