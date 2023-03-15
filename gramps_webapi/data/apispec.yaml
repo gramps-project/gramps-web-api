@@ -4631,6 +4631,8 @@ paths:
               $ref: "#/definitions/NameGroupMapping"
         401:
           description: "Unauthorized: Missing authorization header."
+        403:
+          description: "Unauthorized: insufficient permissions."
 
 
   /name-groups/{surname}:
