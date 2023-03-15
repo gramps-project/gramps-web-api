@@ -156,7 +156,7 @@ paths:
           schema:
             $ref: "#/definitions/JWTAccessToken"
         405:
-          description: "Method Not Allowed: A user already exists or authentication disabled."
+          description: "Method Not Allowed: A user already exists."
 
 
 ##############################################################################
@@ -324,7 +324,7 @@ paths:
         401:
           description: "Unauthorized: Missing authorization header."
         405:
-          description: "Method Not Allowed: authentication disabled or owner account missing."
+          description: "Method Not Allowed: owner account missing."
         409:
           description: "Conflict: user already exists."
         422:
@@ -364,7 +364,7 @@ paths:
         403:
           description: "Forbidden: wrong token."
         405:
-          description: "Method Not Allowed: a user already exists or authentication disabled."
+          description: "Method Not Allowed: a user already exists."
         422:
           description: "Unprocessable Entity: Invalid token."
 
