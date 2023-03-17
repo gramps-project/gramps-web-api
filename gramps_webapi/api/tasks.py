@@ -102,7 +102,7 @@ def search_reindex_incremental(tree) -> None:
     db_manager = get_db_manager(tree)
     db = db_manager.get_db().db
     try:
-        indexer.search_reindex_incremental(db)
+        indexer.index_incremental(db)
     finally:
         db.close()
 
