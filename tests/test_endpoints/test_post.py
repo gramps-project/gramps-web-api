@@ -30,6 +30,7 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.dbstate import DbState
 
+from gramps_webapi.api.util import get_search_indexer
 from gramps_webapi.app import create_app
 from gramps_webapi.auth.const import (
     ROLE_CONTRIBUTOR,
@@ -584,18 +585,19 @@ class TestObjectCreation(unittest.TestCase):
     def test_search_locked(self):
         """Torture test for search with manually locked index."""
         headers = get_headers(self.client, "admin", "123")
-        indexer = self.app.config["SEARCH_INDEXER"]
-        label = make_handle()
-        content = {"text": {"_class": "StyledText", "string": label}}
-        with indexer.index(overwrite=False).writer() as writer:
-            for _ in range(10):
-                # write 10 objects while index is locked
-                rv = self.client.post(
-                    "/api/notes/",
-                    json=content,
-                    headers=headers,
-                )
-                self.assertEqual(rv.status_code, 201)
+        with self.app.app_context():
+            indexer = get_search_indexer()
+            label = make_handle()
+            content = {"text": {"_class": "StyledText", "string": label}}
+            with indexer.index(overwrite=False).writer() as writer:
+                for _ in range(10):
+                    # write 10 objects while index is locked
+                    rv = self.client.post(
+                        "/api/notes/",
+                        json=content,
+                        headers=headers,
+                    )
+                    self.assertEqual(rv.status_code, 201)
         sleep(2)  # give the async writer time to flush
         rv = self.client.get(f"/api/search/?query={label}", headers=headers)
         self.assertEqual(rv.status_code, 200)

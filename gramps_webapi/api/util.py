@@ -44,6 +44,7 @@ from ..auth.const import PERM_VIEW_PRIVATE
 from ..const import DB_CONFIG_ALLOWED_KEYS, LOCALE_MAP
 from ..dbmanager import WebDbManager
 from .auth import has_permissions
+from .search import SearchIndexer
 
 
 class Parser(FlaskParser):
@@ -146,6 +147,13 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
     if not readonly:
         return g.dbstate_write.db
     return g.dbstate.db
+
+
+def get_search_indexer() -> SearchIndexer:
+    """Get the search indexer for the tree."""
+    base_dir = current_app.config["SEARCH_INDEX_DIR"]
+    index_dir = base_dir  # os.path.join(base_dir, tree)
+    return SearchIndexer(index_dir=index_dir)
 
 
 def get_media_base_dir():

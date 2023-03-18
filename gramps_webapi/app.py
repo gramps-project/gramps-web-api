@@ -105,9 +105,6 @@ def create_app(config: Optional[Dict[str, Any]] = None):
 
     thumbnail_cache.init_app(app, config=app.config["THUMBNAIL_CACHE_CONFIG"])
 
-    # search indexer
-    app.config["SEARCH_INDEXER"] = SearchIndexer(app.config["SEARCH_INDEX_DIR"])
-
     # enable CORS for /api/... resources
     if app.config.get("CORS_ORIGINS"):
         CORS(

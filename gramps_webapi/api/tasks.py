@@ -28,7 +28,7 @@ from flask import abort, current_app
 
 from .emails import email_confirm_email, email_new_user, email_reset_pw
 from .resources.util import run_import
-from .util import get_config, get_db_manager, send_email
+from .util import get_config, get_db_manager, send_email, get_search_indexer
 
 
 def run_task(task: Callable, **kwargs) -> Optional[AsyncResult]:
@@ -80,7 +80,7 @@ def send_email_new_user(username: str, fullname: str, email: str):
 
 def _search_reindex_full(tree) -> None:
     """Rebuild the search index."""
-    indexer = current_app.config["SEARCH_INDEXER"]
+    indexer = get_search_indexer()
     db_manager = get_db_manager(tree)
     db = db_manager.get_db().db
     try:
@@ -98,11 +98,11 @@ def search_reindex_full(tree) -> None:
 @shared_task()
 def search_reindex_incremental(tree) -> None:
     """Run an incremental reindex of the search index."""
-    indexer = current_app.config["SEARCH_INDEXER"]
+    indexer = get_search_indexer()
     db_manager = get_db_manager(tree)
     db = db_manager.get_db().db
     try:
-        indexer.index_incremental(db)
+        indexer.reindex_incremental(db)
     finally:
         db.close()
 

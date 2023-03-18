@@ -25,7 +25,7 @@ import os
 import click
 from whoosh.index import LockError
 
-from .api.util import get_db_manager
+from .api.util import get_db_manager, get_search_indexer
 from .app import create_app
 from .auth import SQLAuth
 from .const import ENV_CONFIG_FILE
@@ -94,6 +94,7 @@ def search(ctx, tree):
     app = ctx.obj["app"]
     with app.app_context():
         ctx.obj["db_manager"] = get_db_manager(tree=tree)
+        ctx.obj["search_indexer"] = get_search_indexer()
 
 
 @search.command("index-full")
@@ -102,7 +103,7 @@ def index_full(ctx):
     LOG.info("Rebuilding search index ...")
     app = ctx.obj["app"]
     db_manager = ctx.obj["db_manager"]
-    indexer = app.config["SEARCH_INDEXER"]
+    indexer = ctx.obj["search_indexer"]
     db = db_manager.get_db().db
     try:
         indexer.reindex_full(db)
@@ -120,7 +121,7 @@ def index_full(ctx):
 def index_incremental(ctx):
     app = ctx.obj["app"]
     db_manager = ctx.obj["db_manager"]
-    indexer = app.config["SEARCH_INDEXER"]
+    indexer = ctx.obj["search_indexer"]
     db = db_manager.get_db().db
     try:
         indexer.reindex_incremental(db)

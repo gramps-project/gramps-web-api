@@ -36,7 +36,13 @@ from ..tasks import (
     search_reindex_full,
     search_reindex_incremental,
 )
-from ..util import get_db_handle, get_locale_for_language, get_tree_from_jwt, use_args
+from ..util import (
+    get_db_handle,
+    get_locale_for_language,
+    get_search_indexer,
+    get_tree_from_jwt,
+    use_args,
+)
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .util import (
@@ -112,7 +118,7 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
     )
     def get(self, args: Dict):
         """Get search result."""
-        searcher = current_app.config["SEARCH_INDEXER"]
+        searcher = get_search_indexer()
         total, hits = searcher.search(
             query=args["query"],
             page=args["page"],

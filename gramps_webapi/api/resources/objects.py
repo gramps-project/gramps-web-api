@@ -31,7 +31,7 @@ from gramps.gen.lib.serialize import from_json
 from ...auth.const import PERM_ADD_OBJ, PERM_EDIT_OBJ
 from ..auth import require_permissions
 from ..search import SearchIndexer
-from ..util import get_db_handle
+from ..util import get_db_handle, get_search_indexer
 from . import ProtectedResource
 from .util import add_object, fix_object_dict, transaction_to_json, validate_object_dict
 
@@ -75,14 +75,16 @@ class CreateObjectsResource(ProtectedResource):
                     abort(400)
             trans_dict = transaction_to_json(trans)
         # update search index
-        indexer: SearchIndexer = current_app.config["SEARCH_INDEXER"]
+        indexer: SearchIndexer = get_search_indexer()
         with indexer.get_writer(overwrite=False, use_async=True) as writer:
             for _trans_dict in trans_dict:
                 handle = _trans_dict["handle"]
                 class_name = _trans_dict["_class"]
                 indexer.add_or_update_object(writer, handle, db_handle, class_name)
         res = Response(
-            response=json.dumps(trans_dict), status=201, mimetype="application/json",
+            response=json.dumps(trans_dict),
+            status=201,
+            mimetype="application/json",
         )
         res.headers.add("X-Total-Count", len(trans_dict))
         return res
