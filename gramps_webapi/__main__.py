@@ -21,6 +21,8 @@
 
 import logging
 import os
+import subprocess
+import sys
 
 import click
 from whoosh.index import LockError
@@ -83,6 +85,16 @@ def user_del(ctx, name):
     LOG.info("Deleting user {} ...".format(name))
     auth = ctx.obj["auth"]
     auth.delete_user(name)
+
+
+@user.command("migrate")
+@click.pass_context
+def migrate_db(ctx):
+    auth = ctx.obj["auth"]
+    cmd = [sys.executable, "-m", "alembic", "upgrade", "head"]
+    env = os.environ.copy()
+    env["GRAMPSWEB_USER_DB_URI"] = auth.db_uri
+    subprocess.run(cmd, env=env, check=True)
 
 
 @cli.group("search", help="Manage the full-text search index.")
