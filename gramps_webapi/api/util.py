@@ -27,12 +27,14 @@ import socket
 from email.message import EmailMessage
 from email.utils import make_msgid
 from http import HTTPStatus
-from typing import BinaryIO, Optional, Sequence
+from typing import BinaryIO, List, Optional, Sequence, Tuple
 
 from flask import abort, current_app, g, jsonify, make_response, request
 from flask_jwt_extended import get_jwt
+from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
+from gramps.gen.dbstate import DbState
 from gramps.gen.errors import HandleError
 from gramps.gen.proxy import PrivateProxyDb
 from gramps.gen.utils.file import expand_media_path
@@ -269,3 +271,10 @@ def get_config(key: str) -> Optional[str]:
         if val is not None:
             return val
     return current_app.config.get(key)
+
+
+def list_trees() -> List[Tuple[str, str]]:
+    """Get a list of tree dirnames and names."""
+    dbstate = DbState()
+    dbman = CLIDbManager(dbstate)
+    return dbman.current_names

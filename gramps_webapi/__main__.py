@@ -27,7 +27,8 @@ import sys
 import click
 from whoosh.index import LockError
 
-from .api.util import get_db_manager, get_search_indexer
+
+from .api.util import get_db_manager, get_search_indexer, list_trees
 from .app import create_app
 from .auth import SQLAuth
 from .const import ENV_CONFIG_FILE
@@ -144,6 +145,24 @@ def index_incremental(ctx):
     finally:
         db.close()
     LOG.info("Done updating search index.")
+
+
+@cli.group("tree", help="Manage trees.")
+@click.pass_context
+def tree(ctx):
+    pass
+
+
+@tree.command("list")
+@click.pass_context
+def tree_list(ctx):
+    tree_details = list_trees()
+    print(f"{'Tree ID':>36}  {'Name':<}")
+    for details in tree_details:
+        name = details[0]
+        path = details[1]
+        dirname = os.path.basename(path)
+        print(f"{dirname:>36}  {name:<}")
 
 
 if __name__ == "__main__":
