@@ -80,7 +80,7 @@ def send_email_new_user(username: str, fullname: str, email: str):
 
 def _search_reindex_full(tree) -> None:
     """Rebuild the search index."""
-    indexer = get_search_indexer()
+    indexer = get_search_indexer(tree)
     db_manager = get_db_manager(tree)
     db = db_manager.get_db().db
     try:
@@ -95,16 +95,21 @@ def search_reindex_full(tree) -> None:
     return _search_reindex_full(tree)
 
 
-@shared_task()
-def search_reindex_incremental(tree) -> None:
+def _search_reindex_incremental(tree) -> None:
     """Run an incremental reindex of the search index."""
-    indexer = get_search_indexer()
+    indexer = get_search_indexer(tree)
     db_manager = get_db_manager(tree)
     db = db_manager.get_db().db
     try:
         indexer.reindex_incremental(db)
     finally:
         db.close()
+
+
+@shared_task()
+def search_reindex_incremental(tree) -> None:
+    """Run an incremental reindex of the search index."""
+    return _search_reindex_incremental(tree)
 
 
 @shared_task()
@@ -118,4 +123,4 @@ def import_file(tree: str, file_name: str, extension: str, delete: bool = True):
         extension=extension.lower(),
         delete=delete,
     )
-    _search_reindex_full(tree)
+    _search_reindex_incremental(tree)

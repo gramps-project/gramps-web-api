@@ -118,7 +118,8 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
     )
     def get(self, args: Dict):
         """Get search result."""
-        searcher = get_search_indexer()
+        tree = get_tree_from_jwt()
+        searcher = get_search_indexer(tree)
         total, hits = searcher.search(
             query=args["query"],
             page=args["page"],

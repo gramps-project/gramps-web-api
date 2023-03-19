@@ -30,7 +30,7 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.dbstate import DbState
 
-from gramps_webapi.api.util import get_search_indexer
+from gramps_webapi.api.util import get_db_manager, get_search_indexer
 from gramps_webapi.app import create_app
 from gramps_webapi.auth.const import (
     ROLE_CONTRIBUTOR,
@@ -39,6 +39,7 @@ from gramps_webapi.auth.const import (
     ROLE_OWNER,
 )
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
+from gramps_webapi.dbmanager import WebDbManager
 
 _ = glocale.translation.gettext
 
@@ -586,7 +587,9 @@ class TestObjectCreation(unittest.TestCase):
         """Torture test for search with manually locked index."""
         headers = get_headers(self.client, "admin", "123")
         with self.app.app_context():
-            indexer = get_search_indexer()
+            db_manager = WebDbManager(name=self.name, create_if_missing=False)
+            tree = db_manager.dirname
+            indexer = get_search_indexer(tree)
             label = make_handle()
             content = {"text": {"_class": "StyledText", "string": label}}
             with indexer.index(overwrite=False).writer() as writer:

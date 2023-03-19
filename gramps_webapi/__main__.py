@@ -94,7 +94,7 @@ def search(ctx, tree):
     app = ctx.obj["app"]
     with app.app_context():
         ctx.obj["db_manager"] = get_db_manager(tree=tree)
-        ctx.obj["search_indexer"] = get_search_indexer()
+        ctx.obj["search_indexer"] = get_search_indexer(tree=tree)
 
 
 @search.command("index-full")

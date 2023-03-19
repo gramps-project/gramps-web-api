@@ -33,7 +33,7 @@ from gramps.gen.merge.diff import diff_items
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ..auth import require_permissions
 from ..search import SearchIndexer
-from ..util import get_db_handle, get_search_indexer
+from ..util import get_db_handle, get_search_indexer, get_tree_from_jwt
 from . import ProtectedResource
 from .util import transaction_to_json
 
@@ -74,7 +74,8 @@ class TransactionsResource(ProtectedResource):
                     abort(400)
             trans_dict = transaction_to_json(trans)
         # update search index
-        indexer: SearchIndexer = get_search_indexer()
+        tree = get_tree_from_jwt()
+        indexer: SearchIndexer = get_search_indexer(tree)
         with indexer.get_writer(overwrite=False, use_async=True) as writer:
             for _trans_dict in trans_dict:
                 handle = _trans_dict["handle"]
