@@ -102,9 +102,7 @@ class MediaHandlerS3(MediaHandlerBase):
     @property
     def endpoint_url(self) -> Optional[str]:
         """Get the endpoint URL (or None)."""
-        return current_app.config.get("AWS_ENDPOINT_URL") or os.getenv(
-            "AWS_ENDPOINT_URL"
-        )
+        return os.getenv("AWS_ENDPOINT_URL")
 
     @property
     def bucket_name(self) -> str:
@@ -115,19 +113,21 @@ class MediaHandlerS3(MediaHandlerBase):
         """Get the cached object keys."""
         if os.path.isfile(self.CACHE_FILENAME):
             with open(self.CACHE_FILENAME, "r", encoding="utf-8") as f_cache:
-                keys = f_cache.read.splitlines()
+                keys = f_cache.read().splitlines()
                 if keys:
                     return set(keys)
         return set()
 
     def _cache_add_key(self, key: str) -> None:
         """Add a key to the cache."""
+        with open(self.CACHE_FILENAME, "a", encoding="utf-8") as f_cache:
+            f_cache.write(f"{key}\n")
 
     def _cache_set(self, keys: List[str]) -> None:
         """Add a key to the cache."""
         with open(self.CACHE_FILENAME, "w", encoding="utf-8") as f_cache:
             for key in keys:
-                f_cache.write(key)
+                f_cache.write(f"{key}\n")
 
     @property
     def remote_keys(self) -> Set[str]:
