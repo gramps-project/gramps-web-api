@@ -6,3 +6,4 @@ mypy
 pydocstyle
 pre-commit
 celery[pytest]
+moto[s3]
