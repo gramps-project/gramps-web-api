@@ -146,13 +146,20 @@ def upload_file_s3(
     )
 
 
-def filter_existing_files_s3(
+def list_object_keys(
     bucket_name: str,
-    objects: List[Media],
     endpoint_url: Optional[str] = None,
-) -> List[Media]:
-    """Given a list of media objects, return the ones with existing files."""
+) -> List[str]:
+    """List all objects keys in a bucket.
+
+    Fetches 1000 objects at a time.
+    """
     client = get_client(endpoint_url)
-    contents = client.list_objects(Bucket=bucket_name)["Contents"]
-    bucket_checksums = set(obj["Key"] for obj in contents)
-    return [obj for obj in objects if obj.checksum in bucket_checksums]
+    keys = []
+    paginator = client.get_paginator("list_objects_v2")
+    response_iterator = paginator.paginate(Bucket=bucket_name)
+    for response in response_iterator:
+        if "Contents" in response:
+            contents = response["Contents"]
+            keys += [obj["Key"] for obj in contents]
+    return keys
