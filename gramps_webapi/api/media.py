@@ -91,8 +91,6 @@ class MediaHandlerLocal(MediaHandlerBase):
 class MediaHandlerS3(MediaHandlerBase):
     """Generic handler for object storage media files."""
 
-    CACHE_FILENAME = "s3_key_cache"
-
     def __init__(self, base_dir: str):
         """Initialize given a base dir or URL."""
         if not base_dir.startswith(PREFIX_S3):
@@ -109,34 +107,10 @@ class MediaHandlerS3(MediaHandlerBase):
         """Get the bucket name."""
         return self.base_dir[len(PREFIX_S3) :]
 
-    def _cache_get_keys(self) -> Set[str]:
-        """Get the cached object keys."""
-        if os.path.isfile(self.CACHE_FILENAME):
-            with open(self.CACHE_FILENAME, "r", encoding="utf-8") as f_cache:
-                keys = f_cache.read().splitlines()
-                if keys:
-                    return set(keys)
-        return set()
-
-    def _cache_add_key(self, key: str) -> None:
-        """Add a key to the cache."""
-        with open(self.CACHE_FILENAME, "a", encoding="utf-8") as f_cache:
-            f_cache.write(f"{key}\n")
-
-    def _cache_set(self, keys: List[str]) -> None:
-        """Add a key to the cache."""
-        with open(self.CACHE_FILENAME, "w", encoding="utf-8") as f_cache:
-            for key in keys:
-                f_cache.write(f"{key}\n")
-
     @property
     def remote_keys(self) -> Set[str]:
         """Return the set of all object keys that are known to exist on remote."""
-        keys = self._cache_get_keys()
-        if keys:
-            return keys
         keys = list_object_keys(self.bucket_name, endpoint_url=self.endpoint_url)
-        self._cache_set(keys)
         return set(keys)
 
     def get_file_handler(self, handle) -> ObjectStorageFileHandler:
@@ -156,7 +130,6 @@ class MediaHandlerS3(MediaHandlerBase):
         upload_file_s3(
             self.bucket_name, stream, checksum, mime, endpoint_url=self.endpoint_url
         )
-        self._cache_add_key(checksum)
 
     def filter_existing_files(self, objects: List[Media]) -> List[Media]:
         """Given a list of media objects, return the ones with existing files."""

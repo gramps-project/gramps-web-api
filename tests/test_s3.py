@@ -35,10 +35,6 @@ BUCKET = "test-s3-bucket"
 URL = f"s3://{BUCKET}"
 
 
-def teardown_module():
-    os.remove("s3_key_cache")
-
-
 @pytest.fixture
 def bucket():
     with mock_s3():
@@ -62,6 +58,4 @@ def test_upload(bucket):
     assert handler.remote_keys == {checksum}
     img, checksum2 = get_image(1)
     handler.upload_file(img, checksum2, "image/jpeg")
-    assert handler.remote_keys == {checksum, checksum2}
-    os.remove("s3_key_cache")
     assert handler.remote_keys == {checksum, checksum2}
