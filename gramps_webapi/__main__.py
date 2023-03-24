@@ -23,6 +23,7 @@ import logging
 import os
 import subprocess
 import sys
+import warnings
 
 import click
 from whoosh.index import LockError
@@ -44,6 +45,11 @@ def cli(ctx, config):
     """Gramps web API command line interface."""
     if config:
         os.environ[ENV_CONFIG_FILE] = os.path.abspath(config)
+    # suppress flask-limiter warning
+    warnings.filterwarnings(
+        "ignore",
+        message=".*https://flask-limiter.readthedocs.io#configuring-a-storage-backend.*",
+    )
     ctx.obj = {"app": create_app()}
 
 
@@ -73,6 +79,7 @@ def user(ctx):
 @click.option("--tree", help="Tree ID", default=None)
 @click.pass_context
 def user_add(ctx, name, password, fullname, email, role, tree):
+    """Add a user."""
     LOG.error("Adding user {} ...".format(name))
     auth = ctx.obj["auth"]
     auth.create_table()
@@ -83,14 +90,25 @@ def user_add(ctx, name, password, fullname, email, role, tree):
 @click.argument("name")
 @click.pass_context
 def user_del(ctx, name):
+    """Delete a user."""
     LOG.info("Deleting user {} ...".format(name))
     auth = ctx.obj["auth"]
     auth.delete_user(name)
 
 
+@user.command("fill-tree")
+@click.argument("tree")
+@click.pass_context
+def fill_tree(ctx, tree):
+    """Set the Tree ID for users where it is missing."""
+    auth = ctx.obj["auth"]
+    auth.fill_tree(tree)
+
+
 @user.command("migrate")
 @click.pass_context
 def migrate_db(ctx):
+    """Upgrade the user database schema, if required."""
     auth = ctx.obj["auth"]
     cmd = [sys.executable, "-m", "alembic", "upgrade", "head"]
     env = os.environ.copy()
@@ -113,6 +131,7 @@ def search(ctx, tree):
 @search.command("index-full")
 @click.pass_context
 def index_full(ctx):
+    """Perform a full reindex."""
     LOG.info("Rebuilding search index ...")
     app = ctx.obj["app"]
     db_manager = ctx.obj["db_manager"]
@@ -132,6 +151,7 @@ def index_full(ctx):
 @search.command("index-incremental")
 @click.pass_context
 def index_incremental(ctx):
+    """Perform an incremental reindex."""
     app = ctx.obj["app"]
     db_manager = ctx.obj["db_manager"]
     indexer = ctx.obj["search_indexer"]
@@ -156,6 +176,7 @@ def tree(ctx):
 @tree.command("list")
 @click.pass_context
 def tree_list(ctx):
+    """List existing trees and their IDs."""
     tree_details = list_trees()
     print(f"{'Tree ID':>36}  {'Name':<}")
     for details in tree_details:

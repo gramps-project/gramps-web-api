@@ -28,6 +28,7 @@ import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError, StatementError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.sql.functions import coalesce
 
 from ..const import DB_CONFIG_ALLOWED_KEYS
 from .const import PERMISSIONS, ROLE_OWNER
@@ -217,6 +218,15 @@ class SQLAuth:
             if roles is not None:
                 query = query.filter(User.role.in_(roles))
             return query.count()
+
+    def fill_tree(self, tree: str) -> None:
+        """Fill the tree column with a tree ID, if empty."""
+        with self.session_scope() as session:
+            (
+                session.query(User)
+                .filter(coalesce(User.tree, "") == "")  # treat "" and NULL equally
+                .update({User.tree: tree}, synchronize_session=False)
+            )
 
     def config_get(self, key: str) -> Optional[str]:
         """Get a single config item."""
