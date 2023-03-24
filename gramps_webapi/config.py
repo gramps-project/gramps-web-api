@@ -47,6 +47,8 @@ class DefaultConfig(object):
     POSTGRES_USER = None
     POSTGRES_PASSWORD = None
     CELERY_CONFIG: Dict[str, str] = {}
+    MEDIA_BASE_DIR = ""
+    MEDIA_PREFIX_TREE = False
 
 
 class DefaultConfigJWT(object):

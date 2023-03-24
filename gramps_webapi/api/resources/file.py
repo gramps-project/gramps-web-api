@@ -25,7 +25,7 @@ import os
 from http import HTTPStatus
 from typing import Dict
 
-from flask import Response, abort, current_app, request
+from flask import Response, abort, request
 from gramps.gen.db import DbTxn
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Media
@@ -34,8 +34,8 @@ from webargs import fields
 from ...auth.const import PERM_EDIT_OBJ
 from ..auth import require_permissions
 from ..file import process_file
-from ..media import MediaHandler
-from ..util import get_db_handle, use_args
+from ..media import get_media_handler
+from ..util import get_db_handle, get_tree_from_jwt, use_args
 from . import ProtectedResource
 from .util import transaction_to_json, update_object
 
@@ -57,8 +57,8 @@ class MediaFileResource(ProtectedResource):
             obj = db_handle.get_media_from_handle(handle)
         except HandleError:
             abort(HTTPStatus.NOT_FOUND)
-        base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
-        handler = MediaHandler(base_dir).get_file_handler(handle)
+        tree = get_tree_from_jwt()
+        handler = get_media_handler(tree).get_file_handler(handle)
         download = bool(args.get("download"))
         filename = os.path.basename(obj.path)
         return handler.send_file(
@@ -87,8 +87,8 @@ class MediaFileResource(ProtectedResource):
         if not mime:
             abort(HTTPStatus.NOT_ACCEPTABLE)
         checksum, f = process_file(request.stream)
-        base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
-        media_handler = MediaHandler(base_dir)
+        tree = get_tree_from_jwt()
+        media_handler = get_media_handler(tree)
         if checksum == obj.checksum:
             file_handler = media_handler.get_file_handler(handle)
             if not args.get("uploadmissing") or file_handler.file_exists():

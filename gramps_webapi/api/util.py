@@ -37,7 +37,6 @@ from gramps.gen.db.base import DbReadBase
 from gramps.gen.dbstate import DbState
 from gramps.gen.errors import HandleError
 from gramps.gen.proxy import PrivateProxyDb
-from gramps.gen.utils.file import expand_media_path
 from gramps.gen.utils.grampslocale import GrampsLocale
 from marshmallow import RAISE
 from webargs.flaskparser import FlaskParser
@@ -156,12 +155,6 @@ def get_search_indexer(tree: str) -> SearchIndexer:
     base_dir = current_app.config["SEARCH_INDEX_DIR"]
     index_dir = os.path.join(base_dir, tree)
     return SearchIndexer(index_dir=index_dir)
-
-
-def get_media_base_dir():
-    """Get the media base directory set in the database."""
-    db = get_db_handle()
-    return expand_media_path(db.get_mediapath(), db)
 
 
 def get_locale_for_language(language: str, default: bool = False) -> GrampsLocale:

@@ -27,7 +27,7 @@ from webargs import fields, validate
 from ..const import API_PREFIX
 from .auth import jwt_required
 from .cache import thumbnail_cache
-from .media import MediaHandler
+from .media import get_media_handler
 from .resources.base import Resource
 from .resources.bookmarks import BookmarkResource, BookmarksResource
 from .resources.citations import CitationResource, CitationsResource
@@ -72,11 +72,10 @@ from .resources.timeline import (
     TimelinePeopleResource,
 )
 from .resources.token import (
+    TokenCreateOwnerResource,
     TokenRefreshResource,
     TokenResource,
-    TokenCreateOwnerResource,
 )
-from .resources.token import TokenRefreshResource, TokenResource
 from .resources.transactions import TransactionsResource
 from .resources.translations import TranslationResource, TranslationsResource
 from .resources.types import (
@@ -97,7 +96,7 @@ from .resources.user import (
     UsersResource,
     UserTriggerResetPasswordResource,
 )
-from .util import make_cache_key_thumbnails, use_args
+from .util import get_tree_from_jwt, make_cache_key_thumbnails, use_args
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
 
@@ -317,8 +316,8 @@ register_endpt(
 @thumbnail_cache.cached(make_cache_key=make_cache_key_thumbnails)
 def get_thumbnail(args, handle, size):
     """Get a file's thumbnail."""
-    base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
-    handler = MediaHandler(base_dir).get_file_handler(handle)
+    tree = get_tree_from_jwt()
+    handler = get_media_handler(tree).get_file_handler(handle)
     return handler.send_thumbnail(size=size, square=args["square"])
 
 
@@ -336,8 +335,8 @@ def get_thumbnail(args, handle, size):
 @thumbnail_cache.cached(make_cache_key=make_cache_key_thumbnails)
 def get_cropped(args, handle: str, x1: int, y1: int, x2: int, y2: int):
     """Get the thumbnail of a cropped file."""
-    base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
-    handler = MediaHandler(base_dir).get_file_handler(handle)
+    tree = get_tree_from_jwt()
+    handler = get_media_handler(tree).get_file_handler(handle)
     return handler.send_cropped(x1=x1, y1=y1, x2=x2, y2=y2, square=args["square"])
 
 
@@ -357,8 +356,8 @@ def get_thumbnail_cropped(
     args, handle: str, x1: int, y1: int, x2: int, y2: int, size: int
 ):
     """Get the thumbnail of a cropped file."""
-    base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
-    handler = MediaHandler(base_dir).get_file_handler(handle)
+    tree = get_tree_from_jwt()
+    handler = get_media_handler(tree).get_file_handler(handle)
     return handler.send_thumbnail_cropped(
         size=size, x1=x1, y1=y1, x2=x2, y2=y2, square=args["square"]
     )

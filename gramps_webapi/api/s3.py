@@ -44,17 +44,30 @@ def get_client(endpoint_url: Optional[str] = None):
     )
 
 
+def get_object_name(checksum: str, prefix: Optional[str] = None):
+    """Get the object name."""
+    if prefix:
+        return f"{prefix.rstrip('/')}/{checksum}"
+    return checksum
+
+
 class ObjectStorageFileHandler(FileHandler):
     """Handler for files on object storage (e.g. S3)."""
 
     URL_LIFETIME = 3600
 
-    def __init__(self, handle, bucket_name: str, endpoint_url: Optional[str] = None):
+    def __init__(
+        self,
+        handle,
+        bucket_name: str,
+        prefix: Optional[str] = None,
+        endpoint_url: Optional[str] = None,
+    ):
         """Initialize self given a handle and media base directory."""
         super().__init__(handle)
         self.client = get_client(endpoint_url)
         self.bucket_name = bucket_name
-        self.object_name = self.checksum
+        self.object_name = get_object_name(checksum=self.checksum, prefix=prefix)
 
     def _get_presigned_url(
         self, expires_in: float, download: bool = False, filename: str = ""
@@ -135,14 +148,16 @@ def upload_file_s3(
     stream: BinaryIO,
     checksum: str,
     mime: str,
+    prefix: Optional[str] = None,
     endpoint_url: Optional[str] = None,
 ) -> None:
     """Upload a file from a stream, returning the file path."""
     if not mime:
         raise ValueError("Missing MIME type")
     client = get_client(endpoint_url)
+    object_name = get_object_name(checksum=checksum, prefix=prefix)
     client.upload_fileobj(
-        stream, bucket_name, checksum, ExtraArgs={"ContentType": mime}
+        stream, bucket_name, object_name, ExtraArgs={"ContentType": mime}
     )
 
 

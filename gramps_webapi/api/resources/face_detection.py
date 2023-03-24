@@ -22,12 +22,16 @@
 
 from http import HTTPStatus
 
-from flask import Response, abort, current_app
+from flask import Response, abort
 from gramps.gen.errors import HandleError
 
 from ..cache import thumbnail_cache
-from ..media import MediaHandler
-from ..util import get_db_handle, make_cache_key_thumbnails
+from ..media import get_media_handler
+from ..util import (
+    get_db_handle,
+    get_tree_from_jwt,
+    make_cache_key_thumbnails,
+)
 from . import ProtectedResource
 
 
@@ -42,6 +46,6 @@ class MediaFaceDetectionResource(ProtectedResource):
             obj = db_handle.get_media_from_handle(handle)
         except HandleError:
             abort(HTTPStatus.NOT_FOUND)
-        base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
-        handler = MediaHandler(base_dir).get_file_handler(handle)
+        tree = get_tree_from_jwt()
+        handler = get_media_handler(tree).get_file_handler(handle)
         return handler.get_face_regions(etag=obj.checksum)

@@ -71,7 +71,8 @@ from gramps.gen.utils.place import conv_lat_lon
 
 from ...const import DISABLED_IMPORTERS, SEX_FEMALE, SEX_MALE, SEX_UNKNOWN
 from ...types import FilenameOrPath, Handle
-from ..media import MediaHandler
+from ..media import get_media_handler
+from ..util import get_tree_from_jwt
 
 pd = PlaceDisplay()
 _ = glocale.translation.gettext
@@ -1092,8 +1093,8 @@ def hash_object(obj: GrampsObject) -> str:
 
 def filter_missing_files(objects: List[Media]) -> List[Media]:
     """Filter media objects returning only ones where the file is missing."""
-    base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
-    handler = MediaHandler(base_dir)
+    tree = get_tree_from_jwt()
+    handler = get_media_handler(tree)
     objects_existing = handler.filter_existing_files(objects)
     handles_existing = set(obj.handle for obj in objects_existing)
     return [obj for obj in objects if obj.handle not in handles_existing]
