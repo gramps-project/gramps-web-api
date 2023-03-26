@@ -30,6 +30,7 @@ from whoosh.index import LockError
 
 
 from .api.util import get_db_manager, get_search_indexer, list_trees
+from .dbmanager import WebDbManager
 from .app import create_app
 from .auth import SQLAuth
 from .const import ENV_CONFIG_FILE
@@ -121,7 +122,10 @@ def migrate_db(ctx):
 @click.pass_context
 def search(ctx, tree):
     app = ctx.obj["app"]
-    tree = tree or app.config["TREE"]
+    if not tree:
+        # needed for backwards compatibility!
+        dbmgr = WebDbManager(name=app.config["TREE"], create_if_missing=False)
+        tree = dbmgr.dirname
     with app.app_context():
         ctx.obj["db_manager"] = get_db_manager(tree=tree)
         ctx.obj["search_indexer"] = get_search_indexer(tree=tree)

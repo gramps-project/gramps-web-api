@@ -150,7 +150,7 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
         )
         assert result.exit_code == 0
 
-    def test_search_reindex_incremental(self):
+    def test_search_reindex_full(self):
         tree = WebDbManager(name=self.name).dirname
         result = self.runner.invoke(
             cli,
@@ -160,6 +160,32 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
                 "search",
                 "--tree",
                 tree,
+                "index-full",
+            ],
+        )
+        assert result.exit_code == 0
+
+    def test_search_reindex_incremental_notree(self):
+        tree = WebDbManager(name=self.name).dirname
+        result = self.runner.invoke(
+            cli,
+            [
+                "--config",
+                self.config_file.name,
+                "search",
+                "index-incremental",
+            ],
+        )
+        assert result.exit_code == 0
+
+    def test_search_reindex_full_notree(self):
+        tree = WebDbManager(name=self.name).dirname
+        result = self.runner.invoke(
+            cli,
+            [
+                "--config",
+                self.config_file.name,
+                "search",
                 "index-full",
             ],
         )
