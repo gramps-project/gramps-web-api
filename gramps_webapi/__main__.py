@@ -120,9 +120,8 @@ def migrate_db(ctx):
 @click.option("--tree", help="Tree ID", default=None)
 @click.pass_context
 def search(ctx, tree):
-    if not tree:
-        raise ValueError("Tree ID is required.")
     app = ctx.obj["app"]
+    tree = tree or app.config["TREE"]
     with app.app_context():
         ctx.obj["db_manager"] = get_db_manager(tree=tree)
         ctx.obj["search_indexer"] = get_search_indexer(tree=tree)
