@@ -21,6 +21,7 @@
 
 import logging
 import os
+import warnings
 from typing import Any, Dict, Optional
 
 from flask import Flask, abort, g, send_from_directory
@@ -37,6 +38,39 @@ from .config import DefaultConfig, DefaultConfigJWT
 from .const import API_PREFIX, ENV_CONFIG_FILE
 from .dbmanager import WebDbManager
 from .util.celery import create_celery
+
+
+def deprecated_config_from_env(app):
+    """Add deprecated config from environment variables.
+
+    This function will be removed eventually!
+    """
+    options = [
+        "TREE",
+        "SECRET_KEY",
+        "USER_DB_URI",
+        "POSTGRES_USER",
+        "POSTGRES_PASSWORD",
+        "MEDIA_BASE_DIR",
+        "SEARCH_INDEX_DIR",
+        "EMAIL_HOST",
+        "EMAIL_PORT",
+        "EMAIL_HOST_USER",
+        "EMAIL_HOST_PASSWORD",
+        "DEFAULT_FROM_EMAIL",
+        "BASE_URL",
+        "STATIC_PATH",
+    ]
+    for option in options:
+        value = os.getenv(option)
+        if value:
+            app.config[option] = value
+            warnings.warn(
+                f"Setting the `{value}` config option via the `{value}` environment"
+                " variable is deprecated and will stop working in the future."
+                f" Please use `GRAMPSWEB_{value}` instead."
+            )
+    return app
 
 
 def create_app(config: Optional[Dict[str, Any]] = None):
@@ -57,19 +91,21 @@ def create_app(config: Optional[Dict[str, Any]] = None):
     if os.getenv(ENV_CONFIG_FILE):
         app.config.from_envvar(ENV_CONFIG_FILE)
 
+    # use unprefixed environment variables if exist - deprecated!
+    deprecated_config_from_env(app)
+
     # use prefixed environment variables if exist
     app.config.from_prefixed_env(prefix="GRAMPSWEB")
 
-    # if tree is missing, try to get it from the env or fail
-    app.config["TREE"] = app.config.get("TREE") or os.getenv("TREE")
-    if not app.config.get("TREE"):
-        raise ValueError("TREE must be specified")
+    # update config from dictionary if present
+    if config:
+        app.config.update(**config)
 
-    # if secret key is missing, try to get it from the env
-    app.config["SECRET_KEY"] = app.config["SECRET_KEY"] or os.getenv("SECRET_KEY")
-    # still not found? Fail
-    if not app.config.get("SECRET_KEY"):
-        raise ValueError("SECRET_KEY must be specified")
+    # fail if required config option is missing
+    required_options = ["TREE", "SECRET_KEY", "USER_DB_URI"]
+    for option in required_options:
+        if not app.config.get(option):
+            raise ValueError(f"{option} must be specified")
 
     # load JWT default settings
     app.config.from_object(DefaultConfigJWT)
@@ -77,31 +113,7 @@ def create_app(config: Optional[Dict[str, Any]] = None):
     # instantiate JWT manager
     JWTManager(app)
 
-    # instantiate and store auth provider
-    # if DB URI is missing, try to get it from the env or fail
-    app.config["USER_DB_URI"] = app.config.get("USER_DB_URI") or os.getenv(
-        "USER_DB_URI"
-    )
-    if not app.config.get("USER_DB_URI"):
-        raise ValueError("USER_DB_URI must be specified")
     app.config["AUTH_PROVIDER"] = SQLAuth(db_uri=app.config["USER_DB_URI"])
-
-    # if postgresql user/password is missing, try to get  it from the env
-    app.config["POSTGRES_USER"] = app.config["POSTGRES_USER"] or os.getenv(
-        "POSTGRES_USER"
-    )
-    app.config["POSTGRES_PASSWORD"] = app.config["POSTGRES_PASSWORD"] or os.getenv(
-        "POSTGRES_PASSWORD"
-    )
-
-    # try setting media basedir from environment
-    app.config["MEDIA_BASE_DIR"] = app.config.get("MEDIA_BASE_DIR") or os.getenv(
-        "MEDIA_BASE_DIR"
-    )
-
-    # update config from dictionary if present
-    if config:
-        app.config.update(**config)
 
     thumbnail_cache.init_app(app, config=app.config["THUMBNAIL_CACHE_CONFIG"])
 
