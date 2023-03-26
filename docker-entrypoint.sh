@@ -34,7 +34,7 @@ fi
 
 # Run migrations for user database, if any
 cd /app/src/
-GRAMPS_API_CONFIG=/app/config/config.cfg python3 -m alembic upgrade head
+python3 -m gramps_webapi --config /app/config/config.cfg user migrate
 cd /app/
 
 exec "$@"
