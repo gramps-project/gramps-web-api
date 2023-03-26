@@ -24,14 +24,15 @@
 """Database manager class."""
 
 import os
+import uuid
 
 from typing import Optional
 
-from gramps.cli.clidbman import CLIDbManager
+from gramps.cli.clidbman import CLIDbManager, NAME_FILE
 from gramps.cli.user import User
 from gramps.gen.config import config
-from gramps.gen.db.dbconst import DBLOCKFN, DBMODE_R, DBMODE_W
-from gramps.gen.db.utils import get_dbid_from_path
+from gramps.gen.db.dbconst import DBBACKEND, DBLOCKFN, DBMODE_R, DBMODE_W
+from gramps.gen.db.utils import make_database, get_dbid_from_path
 from gramps.gen.dbstate import DbState
 
 from .dbloader import WebDbSessionManager
@@ -44,42 +45,90 @@ class WebDbManager:
 
     def __init__(
         self,
-        name: str,
+        name: Optional[str] = None,
+        dirname: Optional[str] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
         create_if_missing: bool = True,
     ) -> None:
-        """Initialize given a family tree name."""
-        self.name = name
+        """Initialize given a family tree name or subdirectory name (path)."""
+        if dirname:
+            self.dirname = dirname
+            self.name = self._get_name(dirname=dirname) or name
+        else:
+            if name:
+                self.name = name
+                self.dirname = self._get_dirname(name=name)
+            else:
+                raise ValueError("One of (name, dirname) must be specified.")
+        self.dirname = dirname or self._get_dirname(name=name or "")
         self.username = username
         self.password = password
         self.create_if_missing = create_if_missing
         self.path = self._get_path()
         self._check_backend()
 
-    def _get_path(self) -> str:
+    @property
+    def dbdir(self) -> str:
+        """Get the Gramps database directory's path."""
+        return config.get("database.path")
+
+    @staticmethod
+    def make_dirname():
+        """Make a new database directory name."""
+        return str(uuid.uuid4())
+
+    def _get_name(self, dirname: str) -> str:
+        """Get the database name."""
+        dirpath = os.path.join(self.dbdir, dirname)
+        path_name = os.path.join(dirpath, NAME_FILE)
+        if os.path.isfile(path_name):
+            with open(path_name, "r", encoding="utf8") as name_file:
+                name = name_file.readline().strip()
+        else:
+            return ""
+        return name
+
+    def _get_dirname(self, name: str) -> str:
         """Get the path of the family tree database."""
         dbstate = DbState()  # dbstate instance used only for this method
         dbman = CLIDbManager(dbstate)
-        path = dbman.get_family_tree_path(self.name)
+        path = dbman.get_family_tree_path(name)
         if path is None:
-            if self.create_if_missing:
-                return self._create()
-            raise ValueError(
-                f"Database path for family tree '{self.name}' not found"
-                f" in database directory {config.get('database.path')}"
-            )
+            return self.make_dirname()
+        return os.path.basename(path)
+
+    def _get_path(self) -> str:
+        """Get the path of the family tree database."""
+        path = os.path.join(self.dbdir, self.dirname)
+        if not os.path.isdir(path):
+            if not self.create_if_missing:
+                raise ValueError(
+                    f"Database path '{self.dirname}'"
+                    f"for family tree '{self.name}' not found"
+                    f" in database directory {self.dbdir}"
+                )
+            self._create(path=path)
         return path
 
-    def _create(self) -> str:
-        """Create SQLite database.
+    def _create(self, path: str, dbid: str = "sqlite") -> None:
+        """Create new database."""
+        if not self.name:
+            raise ValueError("Cannot create database if name not specified.")
+        os.mkdir(path)
 
-        Returns the database path as string.
-        """
-        dbstate = DbState()  # dbstate instance used only for this method
-        dbman = CLIDbManager(dbstate)
-        path, _ = dbman.create_new_db_cli(title=self.name, dbid="sqlite")
-        return path
+        # create name file
+        path_name = os.path.join(path, NAME_FILE)
+        with open(path_name, "w", encoding="utf8") as name_file:
+            name_file.write(self.name)
+
+        # create database
+        make_database(dbid)
+
+        # create dbid file
+        backend_path = os.path.join(path, DBBACKEND)
+        with open(backend_path, "w", encoding="utf8") as backend_file:
+            backend_file.write(dbid)
 
     def _check_backend(self) -> None:
         """Check that the backend is among the allowed backends."""

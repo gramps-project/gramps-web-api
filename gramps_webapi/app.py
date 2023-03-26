@@ -39,9 +39,7 @@ from .dbmanager import WebDbManager
 from .util.celery import create_celery
 
 
-def create_app(
-    db_manager: Optional[WebDbManager] = None, config: Optional[Dict[str, Any]] = None
-):
+def create_app(config: Optional[Dict[str, Any]] = None):
     """Flask application factory."""
     app = Flask(__name__)
 
@@ -105,21 +103,7 @@ def create_app(
     if config:
         app.config.update(**config)
 
-    # instantiate DB manager
-    if db_manager is None:
-        app.config["DB_MANAGER"] = WebDbManager(
-            name=app.config["TREE"],
-            username=app.config["POSTGRES_USER"],
-            password=app.config["POSTGRES_PASSWORD"],
-            create_if_missing=True,
-        )
-    else:
-        app.config["DB_MANAGER"] = db_manager
-
     thumbnail_cache.init_app(app, config=app.config["THUMBNAIL_CACHE_CONFIG"])
-
-    # search indexer
-    app.config["SEARCH_INDEXER"] = SearchIndexer(app.config["SEARCH_INDEX_DIR"])
 
     # enable CORS for /api/... resources
     if app.config.get("CORS_ORIGINS"):

@@ -31,9 +31,11 @@ from jsonschema import RefResolver
 from pkg_resources import resource_filename
 
 import gramps_webapi.app
+from gramps_webapi.api.util import get_search_indexer
 from gramps_webapi.app import create_app
 from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_GUEST, ROLE_MEMBER, ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EXAMPLE_GRAMPS_AUTH_CONFIG
+from gramps_webapi.dbmanager import WebDbManager
 from tests import TEST_GRAMPSHOME, ExampleDbSQLite
 
 with open(resource_filename("gramps_webapi", "data/apispec.yaml")) as file_handle:
@@ -65,16 +67,10 @@ def setUpModule():
     """Test module setup."""
     global TEST_CLIENT, TEST_OBJECT_COUNTS
 
-    test_db = ExampleDbSQLite()
+    test_db = ExampleDbSQLite(name="example_gramps")
     with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EXAMPLE_GRAMPS_AUTH_CONFIG}):
-        test_app = create_app(
-            db_manager=test_db, config={"TESTING": True, "RATELIMIT_ENABLED": False}
-        )
+        test_app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
     TEST_CLIENT = test_app.test_client()
-    search_index = test_app.config["SEARCH_INDEXER"]
-    db = test_db.get_db().db
-    search_index.reindex_full(db)
-    db.close()
     sqlauth = test_app.config["AUTH_PROVIDER"]
     sqlauth.create_table()
     for role in TEST_USERS:
@@ -83,8 +79,13 @@ def setUpModule():
             password=TEST_USERS[role]["password"],
             role=role,
         )
-
-    db_state = test_app.config["DB_MANAGER"].get_db()
+    db_manager = WebDbManager(name=test_db.name, create_if_missing=False)
+    db_state = db_manager.get_db()
+    with test_app.app_context():
+        tree = db_manager.dirname
+        search_index = get_search_indexer(tree)
+        db = db_state.db
+        search_index.reindex_full(db)
     TEST_OBJECT_COUNTS = {
         "people": db_state.db.get_number_of_people(),
         "families": db_state.db.get_number_of_families(),
@@ -103,4 +104,4 @@ def setUpModule():
 def tearDownModule():
     """Test module tear down."""
     if TEST_GRAMPSHOME and os.path.isdir(TEST_GRAMPSHOME):
-        shutil.rmtree(TEST_GRAMPSHOME)
+        pass  # shutil.rmtree(TEST_GRAMPSHOME)

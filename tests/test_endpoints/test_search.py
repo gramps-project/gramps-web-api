@@ -27,6 +27,7 @@ from urllib.parse import quote
 
 from gramps_webapi.api.search import SearchIndexer
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
+from gramps_webapi.dbmanager import WebDbManager
 
 from . import BASE_URL, get_test_client
 from .checks import (
@@ -48,7 +49,7 @@ class TestSearchEngine(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
         cls.index_dir = tempfile.mkdtemp()
-        cls.dbmgr = cls.client.application.config["DB_MANAGER"]
+        cls.dbmgr = WebDbManager(name="example_gramps", create_if_missing=False)
         cls.search = SearchIndexer(cls.index_dir)
         db = cls.dbmgr.get_db().db
         cls.search.reindex_full(db)
@@ -152,7 +153,8 @@ class TestSearch(unittest.TestCase):
         )
         self.assertEqual(len(rv.json), 1)
         self.assertEqual(
-            [hit["handle"] for hit in rv.json], ["b39fe3f390e30bd2b99"],
+            [hit["handle"] for hit in rv.json],
+            ["b39fe3f390e30bd2b99"],
         )
         count = rv.headers.pop("X-Total-Count")
         self.assertEqual(count, "2")
@@ -161,7 +163,8 @@ class TestSearch(unittest.TestCase):
         )
         self.assertEqual(len(rv.json), 1)
         self.assertEqual(
-            [hit["handle"] for hit in rv.json], ["b39fe2e143d1e599450"],
+            [hit["handle"] for hit in rv.json],
+            ["b39fe2e143d1e599450"],
         )
         count = rv.headers.pop("X-Total-Count")
         self.assertEqual(count, "2")

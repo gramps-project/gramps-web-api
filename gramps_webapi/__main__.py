@@ -21,10 +21,16 @@
 
 import logging
 import os
+import subprocess
+import sys
+import warnings
 
 import click
 from whoosh.index import LockError
 
+
+from .api.util import get_db_manager, get_search_indexer, list_trees
+from .dbmanager import WebDbManager
 from .app import create_app
 from .auth import SQLAuth
 from .const import ENV_CONFIG_FILE
@@ -40,61 +46,100 @@ def cli(ctx, config):
     """Gramps web API command line interface."""
     if config:
         os.environ[ENV_CONFIG_FILE] = os.path.abspath(config)
-    ctx.obj = create_app()
+    # suppress flask-limiter warning
+    warnings.filterwarnings(
+        "ignore",
+        message=".*https://flask-limiter.readthedocs.io#configuring-a-storage-backend.*",
+    )
+    ctx.obj = {"app": create_app()}
 
 
 @cli.command("run")
 @click.option("-p", "--port", help="Port to use (default: 5000)", default=5000)
+@click.option("--tree", help="Tree ID", default=None)
 @click.pass_context
-def run(ctx, port):
+def run(ctx, port, tree):
     """Run the app."""
-    app = ctx.obj
+    app = ctx.obj["app"]
     app.run(port=port, threaded=True)
 
 
 @cli.group("user", help="Manage users.")
 @click.pass_context
 def user(ctx):
-    app = ctx.obj
-    ctx.obj = SQLAuth(db_uri=app.config["USER_DB_URI"])
+    app = ctx.obj["app"]
+    ctx.obj["auth"] = SQLAuth(db_uri=app.config["USER_DB_URI"])
 
 
 @user.command("add")
 @click.argument("name")
-@click.argument("password")
+@click.argument("password", required=True)
 @click.option("--fullname", help="Full name", default="")
 @click.option("--email", help="E-mail address", default=None)
 @click.option("--role", help="User role", default=0, type=int)
+@click.option("--tree", help="Tree ID", default=None)
 @click.pass_context
-def user_add(ctx, name, password, fullname, email, role):
-    LOG.info("Adding user {} ...".format(name))
-    auth = ctx.obj
+def user_add(ctx, name, password, fullname, email, role, tree):
+    """Add a user."""
+    LOG.error("Adding user {} ...".format(name))
+    auth = ctx.obj["auth"]
     auth.create_table()
-    auth.add_user(name, password, fullname, email, role)
+    auth.add_user(name, password, fullname, email, role, tree)
 
 
 @user.command("delete")
 @click.argument("name")
 @click.pass_context
 def user_del(ctx, name):
+    """Delete a user."""
     LOG.info("Deleting user {} ...".format(name))
-    auth = ctx.obj
+    auth = ctx.obj["auth"]
     auth.delete_user(name)
 
 
-@cli.group("search", help="Manage the full-text search index.")
+@user.command("fill-tree")
+@click.argument("tree")
 @click.pass_context
-def search(ctx):
-    pass
+def fill_tree(ctx, tree):
+    """Set the Tree ID for users where it is missing."""
+    auth = ctx.obj["auth"]
+    auth.fill_tree(tree)
+
+
+@user.command("migrate")
+@click.pass_context
+def migrate_db(ctx):
+    """Upgrade the user database schema, if required."""
+    auth = ctx.obj["auth"]
+    cmd = [sys.executable, "-m", "alembic", "upgrade", "head"]
+    env = os.environ.copy()
+    env["GRAMPSWEB_USER_DB_URI"] = auth.db_uri
+    subprocess.run(cmd, env=env, check=True)
+
+
+@cli.group("search", help="Manage the full-text search index.")
+@click.option("--tree", help="Tree ID", default=None)
+@click.pass_context
+def search(ctx, tree):
+    app = ctx.obj["app"]
+    if not tree:
+        # needed for backwards compatibility!
+        dbmgr = WebDbManager(name=app.config["TREE"], create_if_missing=False)
+        tree = dbmgr.dirname
+    with app.app_context():
+        ctx.obj["db_manager"] = get_db_manager(tree=tree)
+        ctx.obj["search_indexer"] = get_search_indexer(tree=tree)
 
 
 @search.command("index-full")
 @click.pass_context
 def index_full(ctx):
+    """Perform a full reindex."""
     LOG.info("Rebuilding search index ...")
-    app = ctx.obj
-    indexer = app.config["SEARCH_INDEXER"]
-    db = app.config["DB_MANAGER"].get_db().db
+    app = ctx.obj["app"]
+    db_manager = ctx.obj["db_manager"]
+    indexer = ctx.obj["search_indexer"]
+    db = db_manager.get_db().db
     try:
         indexer.reindex_full(db)
     except LockError:
@@ -109,10 +154,11 @@ def index_full(ctx):
 @search.command("index-incremental")
 @click.pass_context
 def index_incremental(ctx):
-    LOG.info("Updating search index ...")
-    app = ctx.obj
-    indexer = app.config["SEARCH_INDEXER"]
-    db = app.config["DB_MANAGER"].get_db().db
+    """Perform an incremental reindex."""
+    app = ctx.obj["app"]
+    db_manager = ctx.obj["db_manager"]
+    indexer = ctx.obj["search_indexer"]
+    db = db_manager.get_db().db
     try:
         indexer.reindex_incremental(db)
     except LockError:
@@ -122,6 +168,25 @@ def index_incremental(ctx):
     finally:
         db.close()
     LOG.info("Done updating search index.")
+
+
+@cli.group("tree", help="Manage trees.")
+@click.pass_context
+def tree(ctx):
+    pass
+
+
+@tree.command("list")
+@click.pass_context
+def tree_list(ctx):
+    """List existing trees and their IDs."""
+    tree_details = list_trees()
+    print(f"{'Tree ID':>36}  {'Name':<}")
+    for details in tree_details:
+        name = details[0]
+        path = details[1]
+        dirname = os.path.basename(path)
+        print(f"{dirname:>36}  {name:<}")
 
 
 if __name__ == "__main__":

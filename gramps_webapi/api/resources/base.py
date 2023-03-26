@@ -36,7 +36,13 @@ from webargs import fields, validate
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ..auth import require_permissions
 from ..search import SearchIndexer
-from ..util import get_db_handle, get_locale_for_language, use_args
+from ..util import (
+    get_db_handle,
+    get_locale_for_language,
+    get_search_indexer,
+    get_tree_from_jwt,
+    use_args,
+)
 from . import ProtectedResource, Resource
 from .delete import delete_object
 from .emit import GrampsJSONEncoder
@@ -245,7 +251,8 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             self.db_handle_writable, handle, self.gramps_class_name
         )
         # update search index
-        indexer: SearchIndexer = current_app.config["SEARCH_INDEXER"]
+        tree = get_tree_from_jwt()
+        indexer: SearchIndexer = get_search_indexer(tree)
         with indexer.get_writer(overwrite=False, use_async=True) as writer:
             indexer.delete_object(writer, handle)
         return self.response(200, trans_dict, total_items=len(trans_dict))
@@ -272,7 +279,8 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
                 abort(400)
             trans_dict = transaction_to_json(trans)
         # update search index
-        indexer: SearchIndexer = current_app.config["SEARCH_INDEXER"]
+        tree = get_tree_from_jwt()
+        indexer: SearchIndexer = get_search_indexer(tree)
         with indexer.get_writer(overwrite=False, use_async=True) as writer:
             for _trans_dict in trans_dict:
                 handle = _trans_dict["handle"]
@@ -423,7 +431,8 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                 abort(400)
             trans_dict = transaction_to_json(trans)
         # update search index
-        indexer: SearchIndexer = current_app.config["SEARCH_INDEXER"]
+        tree = get_tree_from_jwt()
+        indexer: SearchIndexer = get_search_indexer(tree)
         with indexer.get_writer(overwrite=False, use_async=True) as writer:
             for _trans_dict in trans_dict:
                 handle = _trans_dict["handle"]

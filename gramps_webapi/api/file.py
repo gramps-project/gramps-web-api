@@ -34,7 +34,7 @@ from gramps_webapi.const import MIME_JPEG
 
 from ..types import FilenameOrPath
 from .image import LocalFileThumbnailHandler, detect_faces
-from .util import get_db_handle, get_media_base_dir
+from .util import get_db_handle
 
 
 class FileHandler:
@@ -102,10 +102,10 @@ class FileHandler:
 class LocalFileHandler(FileHandler):
     """Handler for local files."""
 
-    def __init__(self, handle, base_dir=None):
+    def __init__(self, handle, base_dir):
         """Initialize self given a handle and media base directory."""
         super().__init__(handle)
-        self.base_dir = base_dir or get_media_base_dir()
+        self.base_dir = base_dir
         if not os.path.isdir(self.base_dir):
             raise ValueError(f"Directory {self.base_dir} does not exist")
         if os.path.isabs(self.path):

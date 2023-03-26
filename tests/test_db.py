@@ -20,6 +20,7 @@
 """Tests for the `gramps_webapi.dbmanager` module."""
 
 import unittest
+import uuid
 
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.db.utils import make_database
@@ -60,10 +61,29 @@ class TestWebDbManagerCreate(unittest.TestCase):
         dbmgr = WebDbManager(name, create_if_missing=True)
         dbstate = DbState()
         assert dbmgr.path
+        assert dbmgr.name == name
+        assert dbmgr.dirname
+        dbman = CLIDbManager(dbstate)
+        # assert dirname is valid UUIDv4
+        uuid.UUID(dbmgr.dirname, version=4)
+        dbman.remove_database(name)
+
+    def test_create_dirname(self):
+        name = "Test Web Db Manager 3"
+        dbmgr = WebDbManager(dirname="my_dirname", name=name, create_if_missing=True)
+        dbstate = DbState()
+        assert dbmgr.path
+        assert dbmgr.name == name
+        assert dbmgr.dirname == "my_dirname"
         dbman = CLIDbManager(dbstate)
         dbman.remove_database(name)
 
     def test_dont_create(self):
-        name = "Test Web Db Manager 3"
+        name = "Test Web Db Manager 4"
         with self.assertRaises(ValueError):
             dbmgr = WebDbManager(name, create_if_missing=False)
+
+    def test_dont_create_dirname(self):
+        name = "Test Web Db Manager 5"
+        with self.assertRaises(ValueError):
+            dbmgr = WebDbManager(dirname="my_dirname_2", create_if_missing=False)

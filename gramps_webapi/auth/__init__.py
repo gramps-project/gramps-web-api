@@ -28,6 +28,7 @@ import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError, StatementError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.sql.functions import coalesce
 
 from ..const import DB_CONFIG_ALLOWED_KEYS
 from .const import PERMISSIONS, ROLE_OWNER
@@ -70,6 +71,7 @@ class SQLAuth:
         fullname: str = None,
         email: str = None,
         role: int = None,
+        tree: str = None,
     ):
         """Add a user."""
         if name == "":
@@ -85,6 +87,7 @@ class SQLAuth:
                     email=email,
                     pwhash=hash_password(password),
                     role=role,
+                    tree=tree,
                 )
                 session.add(user)
         except IntegrityError:
@@ -109,6 +112,15 @@ class SQLAuth:
                 raise ValueError("User ID {} not found".format(guid))
         return user_name
 
+    def get_tree(self, guid: str) -> Optional[str]:
+        """Get the tree of an existing user by GUID."""
+        with self.session_scope() as session:
+            try:
+                tree = session.query(User.tree).filter_by(id=guid).scalar()
+            except StatementError as exc:
+                raise ValueError(f"User ID {guid} not found") from exc
+        return tree
+
     def delete_user(self, name: str) -> None:
         """Delete an existing user."""
         with self.session_scope() as session:
@@ -125,6 +137,7 @@ class SQLAuth:
         fullname: str = None,
         email: str = None,
         role: int = None,
+        tree: str = None,
     ) -> None:
         """Modify an existing user."""
         with self.session_scope() as session:
@@ -139,6 +152,8 @@ class SQLAuth:
                 user.email = email
             if role is not None:
                 user.role = role
+            if tree is not None:
+                user.tree = tree
 
     def authorized(self, username: str, password: str) -> bool:
         """Return true if the user can be authenticated."""
@@ -164,6 +179,7 @@ class SQLAuth:
             "email": user.email,
             "full_name": user.fullname,
             "role": user.role,
+            "tree": user.tree,
         }
 
     def get_user_details(self, username: str) -> Optional[Dict[str, Any]]:
@@ -202,6 +218,15 @@ class SQLAuth:
             if roles is not None:
                 query = query.filter(User.role.in_(roles))
             return query.count()
+
+    def fill_tree(self, tree: str) -> None:
+        """Fill the tree column with a tree ID, if empty."""
+        with self.session_scope() as session:
+            (
+                session.query(User)
+                .filter(coalesce(User.tree, "") == "")  # treat "" and NULL equally
+                .update({User.tree: tree}, synchronize_session=False)
+            )
 
     def config_get(self, key: str) -> Optional[str]:
         """Get a single config item."""
@@ -248,6 +273,7 @@ class User(Base):
     fullname = sa.Column(sa.String)
     pwhash = sa.Column(sa.String, nullable=False)
     role = sa.Column(sa.Integer, default=0)
+    tree = sa.Column(sa.String, index=True)
 
     def __repr__(self):
         """Return string representation of instance."""

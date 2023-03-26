@@ -33,7 +33,11 @@ def get_url():
     if os.getenv(ENV_CONFIG_FILE):
         app.config.from_envvar(ENV_CONFIG_FILE)
 
-    url = app.config.get("USER_DB_URI") or os.getenv("USER_DB_URI")
+    url = (
+        app.config.get("USER_DB_URI")
+        or os.getenv("USER_DB_URI")
+        or os.getenv("GRAMPSWEB_USER_DB_URI")
+    )
 
     if not url:
         raise ValueError("No user DB URI found")

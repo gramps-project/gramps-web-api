@@ -27,14 +27,16 @@ import socket
 from email.message import EmailMessage
 from email.utils import make_msgid
 from http import HTTPStatus
-from typing import BinaryIO, Optional, Sequence
+from typing import BinaryIO, List, Optional, Sequence, Tuple
 
 from flask import abort, current_app, g, jsonify, make_response, request
+from flask_jwt_extended import get_jwt
+from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
+from gramps.gen.dbstate import DbState
 from gramps.gen.errors import HandleError
 from gramps.gen.proxy import PrivateProxyDb
-from gramps.gen.utils.file import expand_media_path
 from gramps.gen.utils.grampslocale import GrampsLocale
 from marshmallow import RAISE
 from webargs.flaskparser import FlaskParser
@@ -43,6 +45,7 @@ from ..auth.const import PERM_VIEW_PRIVATE
 from ..const import DB_CONFIG_ALLOWED_KEYS, LOCALE_MAP
 from ..dbmanager import WebDbManager
 from .auth import has_permissions
+from .search import SearchIndexer
 
 
 class Parser(FlaskParser):
@@ -93,6 +96,26 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
         return self.db.set_name_group_mapping(name, group)
 
 
+def get_db_manager(tree: Optional[str]) -> WebDbManager:
+    """Get an appropriate WebDbManager instance."""
+    return WebDbManager(
+        dirname=tree,
+        username=current_app.config["POSTGRES_USER"],
+        password=current_app.config["POSTGRES_PASSWORD"],
+        create_if_missing=False,
+    )
+
+
+def get_tree_from_jwt() -> Optional[str]:
+    """Get the tree ID from the token.
+
+    Needs request context.
+    """
+    claims = get_jwt()
+    tree = claims.get("tree")
+    return tree
+
+
 def get_db_handle(readonly: bool = True) -> DbReadBase:
     """Open the database and get the current instance.
 
@@ -106,7 +129,8 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
     if readonly and "dbstate" not in g:
         # cache the DbState instance for the duration of
         # the request
-        dbmgr: WebDbManager = current_app.config["DB_MANAGER"]
+        tree = get_tree_from_jwt()
+        dbmgr = get_db_manager(tree)
         g.dbstate = dbmgr.get_db()
     if not has_permissions({PERM_VIEW_PRIVATE}):
         if not readonly:
@@ -118,31 +142,19 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
     if not readonly and "dbstate_write" not in g:
         # cache the DbState instance for the duration of
         # the request
-        dbmgr = current_app.config["DB_MANAGER"]
+        tree = get_tree_from_jwt()
+        dbmgr = get_db_manager(tree)
         g.dbstate_write = dbmgr.get_db(readonly=False)
     if not readonly:
         return g.dbstate_write.db
     return g.dbstate.db
 
 
-def _get_db_handle_readonly(readonly: bool = True) -> DbReadBase:
-    """Open the database in read-only mode and get the current instance."""
-    if "dbstate" not in g:
-        # cache the DbState instance for the duration of
-        # the request
-        dbmgr: WebDbManager = current_app.config["DB_MANAGER"]
-        g.dbstate = dbmgr.get_db()
-    if not has_permissions({PERM_VIEW_PRIVATE}):
-        # if we're not authorized to view private records,
-        # return a proxy DB instead of the real one
-        return ModifiedPrivateProxyDb(g.dbstate.db)
-    return g.dbstate.db
-
-
-def get_media_base_dir():
-    """Get the media base directory set in the database."""
-    db = get_db_handle()
-    return expand_media_path(db.get_mediapath(), db)
+def get_search_indexer(tree: str) -> SearchIndexer:
+    """Get the search indexer for the tree."""
+    base_dir = current_app.config["SEARCH_INDEX_DIR"]
+    index_dir = os.path.join(base_dir, tree)
+    return SearchIndexer(index_dir=index_dir)
 
 
 def get_locale_for_language(language: str, default: bool = False) -> GrampsLocale:
@@ -224,7 +236,8 @@ def make_cache_key_thumbnails(*args, **kwargs):
 
     # get media checksum
     handle = kwargs["handle"]
-    db_handle = get_db_handle()
+    tree = get_tree_from_jwt()
+    db_handle = get_db_handle(tree)
     try:
         obj = db_handle.get_media_from_handle(handle)
     except HandleError:
@@ -232,7 +245,9 @@ def make_cache_key_thumbnails(*args, **kwargs):
     # checksum in the DB
     checksum = obj.checksum
 
-    cache_key = checksum + request.path + arg_hash
+    dbmgr = get_db_manager(tree)
+
+    cache_key = checksum + request.path + arg_hash + dbmgr.dirname
 
     return cache_key
 
@@ -249,3 +264,10 @@ def get_config(key: str) -> Optional[str]:
         if val is not None:
             return val
     return current_app.config.get(key)
+
+
+def list_trees() -> List[Tuple[str, str]]:
+    """Get a list of tree dirnames and names."""
+    dbstate = DbState()
+    dbman = CLIDbManager(dbstate)
+    return dbman.current_names

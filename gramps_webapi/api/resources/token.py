@@ -19,7 +19,7 @@
 
 """Authentication endpoint blueprint."""
 
-from typing import Iterable
+from typing import Optional, Iterable
 
 from flask import abort, current_app
 from flask_jwt_extended import (
@@ -33,13 +33,20 @@ from ...auth.const import CLAIM_LIMITED_SCOPE, SCOPE_CREATE_OWNER
 from ..ratelimiter import limiter
 from ..util import use_args
 from . import RefreshProtectedResource, Resource
+from ...dbmanager import WebDbManager
 
 
-def get_tokens(user_id: str, permissions: Iterable[str], include_refresh: bool = False):
+def get_tokens(
+    user_id: str,
+    permissions: Iterable[str],
+    tree_id: Optional[str] = None,
+    include_refresh: bool = False,
+):
     """Create access token (and refresh token if desired)."""
-    access_token = create_access_token(
-        identity=str(user_id), additional_claims={"permissions": list(permissions)}
-    )
+    claims = {"permissions": list(permissions)}
+    if tree_id:
+        claims["tree"] = tree_id
+    access_token = create_access_token(identity=str(user_id), additional_claims=claims)
     if not include_refresh:
         return {"access_token": access_token}
     refresh_token = create_refresh_token(identity=str(user_id))
@@ -47,6 +54,17 @@ def get_tokens(user_id: str, permissions: Iterable[str], include_refresh: bool =
         "access_token": access_token,
         "refresh_token": refresh_token,
     }
+
+
+def get_tree_id(guid: str) -> str:
+    """Get the appropriate tree ID for a user."""
+    auth_provider = current_app.config.get("AUTH_PROVIDER")
+    tree_id = auth_provider.get_tree(guid)
+    if not tree_id:
+        # needed for backwards compatibility!
+        dbmgr = WebDbManager(name=current_app.config["TREE"], create_if_missing=False)
+        tree_id = dbmgr.dirname
+    return tree_id
 
 
 class TokenResource(Resource):
@@ -69,8 +87,12 @@ class TokenResource(Resource):
             abort(403)
         permissions = auth_provider.get_permissions(args["username"])
         user_id = auth_provider.get_guid(args["username"])
+        tree_id = get_tree_id(user_id)
         return get_tokens(
-            user_id=user_id, permissions=permissions, include_refresh=True
+            user_id=user_id,
+            permissions=permissions,
+            tree_id=tree_id,
+            include_refresh=True,
         )
 
 
@@ -87,8 +109,12 @@ class TokenRefreshResource(RefreshProtectedResource):
         except ValueError:
             abort(401)
         permissions = auth_provider.get_permissions(username)
+        tree_id = get_tree_id(user_id)
         return get_tokens(
-            user_id=user_id, permissions=permissions, include_refresh=False
+            user_id=user_id,
+            permissions=permissions,
+            tree_id=tree_id,
+            include_refresh=False,
         )
 
 

@@ -148,7 +148,7 @@ class SearchIndexer:
     def __init__(self, index_dir=FilenameOrPath):
         """Initialize given an index dir path."""
         self.index_dir = Path(index_dir)
-        self.index_dir.mkdir(exist_ok=True)
+        self.index_dir.mkdir(parents=True, exist_ok=True)
         # query parser for all (public + private) content
         self.query_parser_all = MultifieldParser(
             ["text", "text_private"], schema=self.SCHEMA

@@ -24,7 +24,7 @@ import uuid
 from http import HTTPStatus
 from typing import Dict
 
-from flask import Response, abort, current_app, request
+from flask import Response, abort, request
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import DbTxn
 from gramps.gen.lib import Media
@@ -33,7 +33,8 @@ from gramps.gen.utils.grampslocale import GrampsLocale
 from ...auth.const import PERM_ADD_OBJ
 from ..auth import require_permissions
 from ..file import process_file
-from ..media import MediaHandler
+from ..media import get_media_handler
+from ..util import get_tree_from_jwt
 from .base import (
     GrampsObjectProtectedResource,
     GrampsObjectResourceHelper,
@@ -79,8 +80,8 @@ class MediaObjectsResource(GrampsObjectsProtectedResource, MediaObjectResourceHe
         if not mime:
             abort(HTTPStatus.NOT_ACCEPTABLE)
         checksum, f = process_file(request.stream)
-        base_dir = current_app.config.get("MEDIA_BASE_DIR", "")
-        media_handler = MediaHandler(base_dir)
+        tree = get_tree_from_jwt()
+        media_handler = get_media_handler(tree)
         media_handler.upload_file(f, checksum, mime)
         path = media_handler.get_default_filename(checksum, mime)
         db_handle = self.db_handle_writable

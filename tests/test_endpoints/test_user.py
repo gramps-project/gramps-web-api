@@ -255,6 +255,7 @@ class TestUser(unittest.TestCase):
                 "email": "test@example.com",
                 "role": ROLE_MEMBER,
                 "full_name": None,
+                "tree": None,
             },
         )
         # user cannot view others
@@ -276,6 +277,7 @@ class TestUser(unittest.TestCase):
                 "email": "test@example.com",
                 "role": ROLE_MEMBER,
                 "full_name": None,
+                "tree": None,
             },
         )
 
@@ -338,6 +340,7 @@ class TestUser(unittest.TestCase):
                 "email": "test@example.com",
                 "role": ROLE_MEMBER,
                 "full_name": "My Name",
+                "tree": None,
             },
         )
         # user cannot change others
@@ -366,6 +369,7 @@ class TestUser(unittest.TestCase):
                 "email": "test@example.com",
                 "role": ROLE_MEMBER,
                 "full_name": "His Name",
+                "tree": None,
             },
         )
 
@@ -441,6 +445,7 @@ class TestUser(unittest.TestCase):
                 "role": ROLE_MEMBER,
                 "full_name": "New Name",
                 "name": "new_user",
+                "tree": None,
             },
         )
         # check token for new user
@@ -510,6 +515,7 @@ class TestUser(unittest.TestCase):
                     "role": ROLE_UNCONFIRMED,
                     "full_name": "New Name",
                     "name": "new_user_2",
+                    "tree": None,
                 },
             )
             # new user cannot get token
@@ -572,6 +578,7 @@ class TestUser(unittest.TestCase):
                     "role": ROLE_DISABLED,
                     "full_name": "New Name",
                     "name": "new_user_3",
+                    "tree": None,
                 },
             )
             # try getting list of people with email confirmation token

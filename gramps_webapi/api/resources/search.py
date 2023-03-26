@@ -21,7 +21,7 @@
 
 from typing import Dict
 
-from flask import current_app, Response
+from flask import Response, current_app
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
@@ -33,10 +33,16 @@ from ..auth import has_permissions, require_permissions
 from ..tasks import (
     make_task_response,
     run_task,
-    search_reindex_incremental,
     search_reindex_full,
+    search_reindex_incremental,
 )
-from ..util import get_db_handle, get_locale_for_language, use_args
+from ..util import (
+    get_db_handle,
+    get_locale_for_language,
+    get_search_indexer,
+    get_tree_from_jwt,
+    use_args,
+)
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .util import (
@@ -112,7 +118,8 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
     )
     def get(self, args: Dict):
         """Get search result."""
-        searcher = current_app.config["SEARCH_INDEXER"]
+        tree = get_tree_from_jwt()
+        searcher = get_search_indexer(tree)
         total, hits = searcher.search(
             query=args["query"],
             page=args["page"],
@@ -150,11 +157,12 @@ class SearchIndexResource(ProtectedResource):
     def post(self, args: Dict):
         """Trigger a reindex."""
         require_permissions([PERM_TRIGGER_REINDEX])
+        tree = get_tree_from_jwt()
         if args["full"]:
             task_func = search_reindex_full
         else:
             task_func = search_reindex_incremental
-        task = run_task(task_func)
+        task = run_task(task_func, tree=tree)
         if task:
             return make_task_response(task)
         return Response(status=201)
