@@ -1,19 +1,6 @@
 #!/bin/sh
 set -e
 
-# Use Gramps.js frontend
-if [ -n "$GRAMPSJS_VERSION" ]
-then
-    # Download if necessary
-    if ! [ -d "/app/static/grampsjs-${GRAMPSJS_VERSION}" ]
-    then
-        wget "https://github.com/DavidMStraub/Gramps.js/releases/download/${GRAMPSJS_VERSION}/grampsjs-${GRAMPSJS_VERSION}.tar.gz"
-        tar -xzf "grampsjs-${GRAMPSJS_VERSION}.tar.gz"
-        mv "grampsjs-${GRAMPSJS_VERSION}" static/
-    fi
-    export STATIC_PATH="/app/static/grampsjs-${GRAMPSJS_VERSION}"
-fi
-
 # create random flask secret key
 if [ ! -s /app/secret/secret ]
 then
