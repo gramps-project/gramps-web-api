@@ -31,6 +31,7 @@ from webargs import fields, validate
 from ...auth.const import PERM_TRIGGER_REINDEX, PERM_VIEW_PRIVATE
 from ..auth import has_permissions, require_permissions
 from ..tasks import (
+    AsyncResult,
     make_task_response,
     run_task,
     search_reindex_full,
@@ -163,6 +164,6 @@ class SearchIndexResource(ProtectedResource):
         else:
             task_func = search_reindex_incremental
         task = run_task(task_func, tree=tree)
-        if task:
+        if isinstance(task, AsyncResult):
             return make_task_response(task)
         return Response(status=201)

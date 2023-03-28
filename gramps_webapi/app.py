@@ -155,11 +155,11 @@ def create_app(config: Optional[Dict[str, Any]] = None):
     @app.teardown_appcontext
     def close_db(exception) -> None:
         """Close the database."""
-        dbstate = g.pop("dbstate", None)
-        if dbstate and dbstate.is_open():
-            dbstate.db.close()
-        dbstate_write = g.pop("dbstate_write", None)
-        if dbstate_write and dbstate_write.is_open():
-            dbstate_write.db.close()
+        db = g.pop("db", None)
+        if db and db.is_open():
+            db.close()
+        db_write = g.pop("db_write", None)
+        if db_write and db_write.is_open():
+            db_write.close()
 
     return app

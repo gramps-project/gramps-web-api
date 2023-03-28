@@ -28,12 +28,16 @@ RUN mkdir /app/src &&  mkdir /app/config && touch /app/config/config.cfg
 RUN mkdir /app/static && touch /app/static/index.html
 RUN mkdir /app/db && mkdir /app/media && mkdir /app/indexdir && mkdir /app/users
 RUN mkdir /app/thumbnail_cache
+RUN mkdir /app/cache && /app/cache/reports && /app/cache/export
 RUN mkdir /app/tmp
 RUN mkdir -p /root/.gramps/gramps$GRAMPS_VERSION
-ENV USER_DB_URI=sqlite:////app/users/users.sqlite
-ENV MEDIA_BASE_DIR=/app/media
-ENV SEARCH_INDEX_DIR=/app/indexdir
-ENV STATIC_PATH=/app/static
+# set config options
+ENV GRAMPSWEB_USER_DB_URI=sqlite:////app/users/users.sqlite
+ENV GRAMPSWEB_MEDIA_BASE_DIR=/app/media
+ENV GRAMPSWEB_SEARCH_INDEX_DIR=/app/indexdir
+ENV GRAMPSWEB_THUMBNAIL_CACHE_CONFIG__CACHE_DIR=/app/thumbnail_cache
+ENV GRAMPSWEB_REPORT_DIR=/app/cache/reports
+ENV GRAMPSWEB_EXPORT_DIR=/app/cache/export
 
 # install PostgreSQL addon
 RUN wget https://github.com/gramps-project/addons/archive/refs/heads/master.zip \
