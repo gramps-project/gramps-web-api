@@ -5,6 +5,7 @@
 # Copyright (C) 2008      Gary Burton
 # Copyright (C) 2008      Robert Cheramy <robert@cheramy.net>
 # Copyright (C) 2020      Christopher Horn
+# Copyright (C) 2023      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
