@@ -130,7 +130,7 @@ class TestSearch(unittest.TestCase):
     def test_get_search_expected_result_unicode(self):
         """Test expected result querying for a Unicode decoded string."""
         # 斎藤 is transliterated as Zhai Teng
-        rv = check_success(self, TEST_URL + f"?query={quote('Zhai Teng type:person')}")
+        rv = check_success(self, TEST_URL + f"?query={quote('Zhai Teng type:person') }")
         self.assertEqual(len(rv), 1)
         self.assertIn("object", rv[0])
         print(rv[0]["object"])
