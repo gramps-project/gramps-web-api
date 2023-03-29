@@ -43,6 +43,7 @@ from gramps.gen.proxy import (
 from gramps.gen.user import User
 from gramps.gen.utils.resourcepath import ResourcePath
 
+from ..const import DISABLED_EXPORTERS
 from .util import get_locale_for_language
 
 _ = glocale.translation.gettext
@@ -193,6 +194,8 @@ def get_exporters(extension: str = None):
     plugin_manager = BasePluginManager.get_instance()
     for plugin in plugin_manager.get_export_plugins():
         if extension is not None and extension != plugin.get_extension():
+            continue
+        if extension in DISABLED_EXPORTERS:
             continue
         exporter = {
             "name": plugin.get_name(),

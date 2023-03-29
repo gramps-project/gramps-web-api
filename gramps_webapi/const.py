@@ -173,3 +173,6 @@ LOCALE_MAP = {
 
 # list of importers (by file extension) that are not allowed
 DISABLED_IMPORTERS = ["gpkg"]
+
+# list of exporters (by file extension) that are not allowed
+DISABLED_EXPORTERS = ["gpkg"]
