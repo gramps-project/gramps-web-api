@@ -195,7 +195,7 @@ def get_exporters(extension: str = None):
     for plugin in plugin_manager.get_export_plugins():
         if extension is not None and extension != plugin.get_extension():
             continue
-        if extension in DISABLED_EXPORTERS:
+        if plugin.get_extension() in DISABLED_EXPORTERS:
             continue
         exporter = {
             "name": plugin.get_name(),
