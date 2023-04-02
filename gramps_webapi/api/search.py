@@ -22,11 +22,12 @@
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple
 
 from flask import current_app
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.lib import Name, Place
+from unidecode import unidecode
 from whoosh import index
 from whoosh.fields import BOOLEAN, DATETIME, ID, TEXT, Schema
 from whoosh.qparser import FieldsPlugin, MultifieldParser, QueryParser
@@ -72,10 +73,28 @@ def object_to_strings(obj) -> Tuple[str, str]:
                             private_strings += grandchild_obj.get_text_data_list()
                         else:
                             strings += grandchild_obj.get_text_data_list()
-    # discard duplicate strings but keep order
-    strings = OrderedDict.fromkeys(strings)
-    private_strings = OrderedDict.fromkeys(private_strings)
-    return " ".join(strings), " ".join(private_strings)
+    return process_strings(strings), process_strings(private_strings)
+
+
+def process_strings(strings: Sequence[str]) -> str:
+    """Process a list of strings to a joined string.
+
+    Removes duplicates and adds transliterated strings for strings containing
+    unicode characters.
+    """
+
+    def generator():
+        all_strings = set()
+        for string in strings:
+            if string not in all_strings:
+                all_strings.add(string)
+                yield string
+                decoded_string = unidecode(string)
+                if decoded_string != string and decoded_string not in all_strings:
+                    all_strings.add(decoded_string)
+                    yield decoded_string
+
+    return " ".join(generator())
 
 
 def obj_strings_from_handle(
