@@ -33,7 +33,13 @@ from pkg_resources import resource_filename
 import gramps_webapi.app
 from gramps_webapi.api.util import get_search_indexer
 from gramps_webapi.app import create_app
-from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_GUEST, ROLE_MEMBER, ROLE_OWNER
+from gramps_webapi.auth.const import (
+    ROLE_ADMIN,
+    ROLE_EDITOR,
+    ROLE_GUEST,
+    ROLE_MEMBER,
+    ROLE_OWNER,
+)
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EXAMPLE_GRAMPS_AUTH_CONFIG
 from gramps_webapi.dbmanager import WebDbManager
 from tests import TEST_GRAMPSHOME, ExampleDbSQLite
@@ -46,6 +52,7 @@ API_RESOLVER = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHE
 BASE_URL = "/api"
 
 TEST_USERS = {
+    ROLE_ADMIN: {"name": "admin", "password": "ghi"},
     ROLE_OWNER: {"name": "owner", "password": "123"},
     ROLE_EDITOR: {"name": "editor", "password": "abc"},
     ROLE_MEMBER: {"name": "member", "password": "456"},

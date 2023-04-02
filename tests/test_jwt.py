@@ -124,7 +124,7 @@ class TestPerson(unittest.TestCase):
         token_admin = rv.json["access_token"]
         rv = self.client.get(
             "/api/people/",
-            headers={"Authorization": "Bearer {}".format(token_user)},
+            headers={"Authorization": f"Bearer {token_user}"},
         )
         assert len(rv.json) == 1
         rv = self.client.get(

@@ -19,7 +19,7 @@
 
 """Authentication endpoint blueprint."""
 
-from typing import Optional, Iterable
+from typing import Iterable, Optional
 
 from flask import abort, current_app
 from flask_jwt_extended import (
@@ -29,11 +29,11 @@ from flask_jwt_extended import (
 )
 from webargs import fields, validate
 
-from ...auth.const import CLAIM_LIMITED_SCOPE, SCOPE_CREATE_OWNER
+from ...auth import SQLAuth
+from ...auth.const import CLAIM_LIMITED_SCOPE, SCOPE_CREATE_ADMIN
 from ..ratelimiter import limiter
-from ..util import use_args
+from ..util import get_tree_id, use_args
 from . import RefreshProtectedResource, Resource
-from ...dbmanager import WebDbManager
 
 
 def get_tokens(
@@ -54,17 +54,6 @@ def get_tokens(
         "access_token": access_token,
         "refresh_token": refresh_token,
     }
-
-
-def get_tree_id(guid: str) -> str:
-    """Get the appropriate tree ID for a user."""
-    auth_provider = current_app.config.get("AUTH_PROVIDER")
-    tree_id = auth_provider.get_tree(guid)
-    if not tree_id:
-        # needed for backwards compatibility!
-        dbmgr = WebDbManager(name=current_app.config["TREE"], create_if_missing=False)
-        tree_id = dbmgr.dirname
-    return tree_id
 
 
 class TokenResource(Resource):
@@ -119,19 +108,19 @@ class TokenRefreshResource(RefreshProtectedResource):
 
 
 class TokenCreateOwnerResource(Resource):
-    """Resource for getting a token that allows creating an owner account."""
+    """Resource for getting a token that allows creating a site owner account."""
 
     @limiter.limit("1/second")
     def get(self):
         """Get a token."""
-        auth_provider = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider.get_all_user_details():
+        auth_provider: SQLAuth = current_app.config.get("AUTH_PROVIDER")
+        if auth_provider.get_all_user_details(tree=None):
             # users already exist!
             abort(405)
         token = create_access_token(
-            identity="owner",
+            identity="admin",
             additional_claims={
-                CLAIM_LIMITED_SCOPE: SCOPE_CREATE_OWNER,
+                CLAIM_LIMITED_SCOPE: SCOPE_CREATE_ADMIN,
             },
         )
         return {"access_token": token}

@@ -190,10 +190,17 @@ class SQLAuth:
                 return None
             return self._get_user_detail(user)
 
-    def get_all_user_details(self) -> List[Dict[str, Any]]:
-        """Return details about all users."""
+    def get_all_user_details(self, tree: Optional[str]) -> List[Dict[str, Any]]:
+        """Return details about all users.
+
+        If tree is None, return all users regardless of tree.
+        If tree is not None, only return users of given tree.
+        """
         with self.session_scope() as session:
-            users = session.query(User).all()
+            query = session.query(User)
+            if tree:
+                query = query.filter(sa.or_(User.tree == tree, User.tree.is_(None)))
+            users = query.all()
             return [self._get_user_detail(user) for user in users]
 
     def get_permissions(self, username: str) -> Set[str]:
@@ -202,21 +209,25 @@ class SQLAuth:
             user = session.query(User).filter_by(name=username).one()
             return PERMISSIONS[user.role]
 
-    def get_owner_emails(self) -> List[str]:
-        """Get e-mail addresses of all owners."""
+    def get_owner_emails(self, tree: str) -> List[str]:
+        """Get e-mail addresses of all tree owners."""
         with self.session_scope() as session:
-            owners = session.query(User).filter_by(role=ROLE_OWNER).all()
+            owners = session.query(User).filter_by(tree=tree, role=ROLE_OWNER).all()
             return [user.email for user in owners if user.email]
 
-    def get_number_users(self, roles: Optional[Sequence[int]] = None) -> int:
+    def get_number_users(
+        self, tree: Optional[str] = None, roles: Optional[Sequence[int]] = None
+    ) -> int:
         """Get the number of users in the database.
 
-        Optionally, provide an iterable of numeric roles.
+        Optionally, provide an iterable of numeric roles and/or a tree ID.
         """
         with self.session_scope() as session:
             query = session.query(User)
             if roles is not None:
                 query = query.filter(User.role.in_(roles))
+            if tree is not None:
+                query = query.filter_by(tree=tree)
             return query.count()
 
     def fill_tree(self, tree: str) -> None:
