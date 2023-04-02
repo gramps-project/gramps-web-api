@@ -28,7 +28,7 @@ RUN mkdir /app/src &&  mkdir /app/config && touch /app/config/config.cfg
 RUN mkdir /app/static && touch /app/static/index.html
 RUN mkdir /app/db && mkdir /app/media && mkdir /app/indexdir && mkdir /app/users
 RUN mkdir /app/thumbnail_cache
-RUN mkdir /app/cache && /app/cache/reports && /app/cache/export
+RUN mkdir /app/cache && mkdir /app/cache/reports && mkdir /app/cache/export
 RUN mkdir /app/tmp
 RUN mkdir -p /root/.gramps/gramps$GRAMPS_VERSION
 # set config options
