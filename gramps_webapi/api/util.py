@@ -116,6 +116,28 @@ def get_tree_from_jwt() -> Optional[str]:
     return tree
 
 
+def get_db_outside_request(tree: str, view_private: bool, readonly: bool) -> DbReadBase:
+    """Open the database and get the current instance.
+
+    Called before every request.
+
+    If a user is not authorized to view private records,
+    returns a proxy DB instance.
+
+    If `readonly` is false, locks the database during the request.
+    """
+    dbmgr = get_db_manager(tree)
+    dbstate = dbmgr.get_db(readonly=readonly)
+    if not view_private:
+        if not readonly:
+            # requesting write access on a private proxy DB is impossible & forbidden!
+            abort(HTTPStatus.FORBIDDEN)
+        # if we're not authorized to view private records,
+        # return a proxy DB instead of the real one
+        return ModifiedPrivateProxyDb(dbstate.db)
+    return dbstate.db
+
+
 def get_db_handle(readonly: bool = True) -> DbReadBase:
     """Open the database and get the current instance.
 
@@ -126,28 +148,39 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
 
     If `readonly` is false, locks the database during the request.
     """
-    if readonly and "dbstate" not in g:
-        # cache the DbState instance for the duration of
+    view_private = has_permissions({PERM_VIEW_PRIVATE})
+    tree = get_tree_from_jwt()
+
+    if readonly and "db" not in g:
+        # cache the db instance for the duration of
         # the request
-        tree = get_tree_from_jwt()
-        dbmgr = get_db_manager(tree)
-        g.dbstate = dbmgr.get_db()
-    if not has_permissions({PERM_VIEW_PRIVATE}):
+        db = get_db_outside_request(
+            tree=tree,
+            view_private=view_private,
+            readonly=True,
+        )
+        g.db = db
+
+    if not view_private:
         if not readonly:
             # requesting write access on a private proxy DB is impossible & forbidden!
             abort(HTTPStatus.FORBIDDEN)
-        # if we're not authorized to view private records,
-        # return a proxy DB instead of the real one
-        return ModifiedPrivateProxyDb(g.dbstate.db)
-    if not readonly and "dbstate_write" not in g:
+        return ModifiedPrivateProxyDb(g.db)
+
+    if not readonly and "db_write" not in g:
         # cache the DbState instance for the duration of
         # the request
-        tree = get_tree_from_jwt()
-        dbmgr = get_db_manager(tree)
-        g.dbstate_write = dbmgr.get_db(readonly=False)
+        # cache the db instance for the duration of
+        # the request
+        db_write = get_db_outside_request(
+            tree=tree,
+            view_private=view_private,
+            readonly=False,
+        )
+        g.db_write = db_write
     if not readonly:
-        return g.dbstate_write.db
-    return g.dbstate.db
+        return g.db_write
+    return g.db
 
 
 def get_search_indexer(tree: str) -> SearchIndexer:

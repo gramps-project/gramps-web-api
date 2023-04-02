@@ -6,6 +6,8 @@ Pipfile.lock
 indexdir/
 indexdir_empty/
 thumbnail_cache/
+export_cache/
+report_cache/
 *.gramps
 *.sqlite
 

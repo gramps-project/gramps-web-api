@@ -35,6 +35,7 @@ from .resources.config import ConfigResource, ConfigsResource
 from .resources.events import EventResource, EventSpanResource, EventsResource
 from .resources.exporters import (
     ExporterFileResource,
+    ExporterFileResultResource,
     ExporterResource,
     ExportersResource,
 )
@@ -206,6 +207,12 @@ register_endpt(FactsResource, "/facts/", "facts")
 # Exporters
 register_endpt(
     ExporterFileResource, "/exporters/<string:extension>/file", "exporter-file"
+)
+# Exporters
+register_endpt(
+    ExporterFileResultResource,
+    "/exporters/<string:extension>/file/processed/<string:filename>",
+    "exporter-file-result",
 )
 register_endpt(ExporterResource, "/exporters/<string:extension>", "exporter")
 register_endpt(ExportersResource, "/exporters/", "exporters")

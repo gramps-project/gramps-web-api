@@ -44,6 +44,7 @@ from ...auth.const import (
 from ..auth import require_permissions
 from ..ratelimiter import limiter
 from ..tasks import (
+    AsyncResult,
     make_task_response,
     run_task,
     send_email_confirm_email,
@@ -299,7 +300,7 @@ class UserTriggerResetPasswordResource(Resource):
             task = run_task(send_email_reset_password, email=email, token=token)
         except ValueError:
             abort(500)
-        if task:
+        if isinstance(task, AsyncResult):
             return make_task_response(task)
         return "", 201
 

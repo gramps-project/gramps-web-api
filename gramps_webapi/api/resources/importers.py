@@ -29,7 +29,7 @@ from webargs import fields
 
 from ...auth.const import PERM_IMPORT_FILE
 from ..auth import require_permissions
-from ..tasks import import_file, make_task_response, run_task
+from ..tasks import AsyncResult, import_file, make_task_response, run_task
 from ..util import get_db_handle, get_tree_from_jwt, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
@@ -87,6 +87,6 @@ class ImporterFileResource(ProtectedResource):
             extension=extension.lower(),
             delete=True,
         )
-        if task:
+        if isinstance(task, AsyncResult):
             return make_task_response(task)
         return Response(status=201)

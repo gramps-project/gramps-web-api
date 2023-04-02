@@ -21,7 +21,6 @@
 
 import json
 import os
-import tempfile
 import uuid
 from pathlib import Path
 from typing import Dict
@@ -114,10 +113,8 @@ def run_report(
                     "Can not find {} in MIME_TYPES".format(file_type)
                 )
                 abort(500)
-            if current_app.config.get("REPORT_DIR"):
-                report_path = current_app.config.get("REPORT_DIR")
-            else:
-                report_path = tempfile.gettempdir()
+            report_path = current_app.config.get("REPORT_DIR")
+            os.makedirs(report_path, exist_ok=True)
             file_name = os.path.join(
                 report_path, "{}{}".format(uuid.uuid4(), file_type)
             )

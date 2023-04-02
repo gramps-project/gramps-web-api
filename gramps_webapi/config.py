@@ -20,7 +20,7 @@
 """Default configuration settings."""
 
 import datetime
-import os
+from pathlib import Path
 from typing import Dict
 
 
@@ -40,7 +40,7 @@ class DefaultConfig(object):
     STATIC_PATH = "static"
     THUMBNAIL_CACHE_CONFIG = {
         "CACHE_TYPE": "FileSystemCache",
-        "CACHE_DIR": "thumbnail_cache",
+        "CACHE_DIR": str(Path.cwd() / "thumbnail_cache"),
         "CACHE_THRESHOLD": 1000,
         "CACHE_DEFAULT_TIMEOUT": 0,
     }
@@ -49,6 +49,8 @@ class DefaultConfig(object):
     CELERY_CONFIG: Dict[str, str] = {}
     MEDIA_BASE_DIR = ""
     MEDIA_PREFIX_TREE = False
+    REPORT_DIR = str(Path.cwd() / "report_cache")
+    EXPORT_DIR = str(Path.cwd() / "export_cache")
 
 
 class DefaultConfigJWT(object):

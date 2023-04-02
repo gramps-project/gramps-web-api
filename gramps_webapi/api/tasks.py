@@ -20,18 +20,25 @@
 
 from gettext import gettext as _
 from http import HTTPStatus
-from typing import Callable, Optional
+from typing import Any, Callable, Dict, Union
 
 from celery import shared_task
 from celery.result import AsyncResult
-from flask import abort, current_app
+from flask import current_app
 
 from .emails import email_confirm_email, email_new_user, email_reset_pw
+from .export import prepare_options, run_export
 from .resources.util import run_import
-from .util import get_config, get_db_manager, send_email, get_search_indexer
+from .util import (
+    get_config,
+    get_db_manager,
+    get_search_indexer,
+    send_email,
+    get_db_outside_request,
+)
 
 
-def run_task(task: Callable, **kwargs) -> Optional[AsyncResult]:
+def run_task(task: Callable, **kwargs) -> Union[AsyncResult, Any]:
     """Send a task to the task queue or run immediately if no queue set up."""
     if not current_app.config["CELERY_CONFIG"]:
         with current_app.app_context():
@@ -124,3 +131,21 @@ def import_file(tree: str, file_name: str, extension: str, delete: bool = True):
         delete=delete,
     )
     _search_reindex_incremental(tree)
+
+
+@shared_task()
+def export_db(
+    tree: str, extension: str, options: Dict, view_private: bool
+) -> Dict[str, str]:
+    """Export a database."""
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=view_private, readonly=True
+    )
+    prepared_options = prepare_options(db_handle, options)
+    file_name, file_type = run_export(db_handle, extension, prepared_options)
+    extension = file_type.lstrip(".")
+    return {
+        "file_name": file_name,
+        "file_type": file_type,
+        "url": f"/exporters/{extension}/file/processed/{file_name}",
+    }
