@@ -240,7 +240,10 @@ class UserRegisterResource(Resource):
             abort(404)
         auth_provider: SQLAuth = current_app.config.get("AUTH_PROVIDER")
         # do not allow registration if no tree owner account exists!
-        if auth_provider.get_number_users(tree=args["tree"], roles=(ROLE_OWNER,)) == 0:
+        if (
+            auth_provider.get_number_users(tree=args.get("tree"), roles=(ROLE_OWNER,))
+            == 0
+        ):
             abort(405)
         try:
             auth_provider.add_user(
@@ -248,7 +251,7 @@ class UserRegisterResource(Resource):
                 password=args["password"],
                 email=args["email"],
                 fullname=args["full_name"],
-                tree=args["tree"],
+                tree=args.get("tree"),
                 role=ROLE_UNCONFIRMED,
             )
         except ValueError:
@@ -276,7 +279,7 @@ class UserCreateOwnerResource(LimitedScopeProtectedResource):
             "email": fields.Str(required=True),
             "full_name": fields.Str(required=True),
             "password": fields.Str(required=True),
-            "tree": fields.Str(required=True),
+            "tree": fields.Str(required=False),
         },
         location="json",
     )
@@ -298,7 +301,7 @@ class UserCreateOwnerResource(LimitedScopeProtectedResource):
             password=args["password"],
             email=args["email"],
             fullname=args["full_name"],
-            tree=args["tree"],
+            tree=args.get("tree"),
             role=ROLE_ADMIN,
         )
         return "", 201
