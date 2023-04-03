@@ -108,9 +108,9 @@ class TestSQLAuth(unittest.TestCase):
         sqlauth.add_user("user3", "123", role=3)
         sqlauth.add_user("user4", "123", role=4)
         assert sqlauth.get_number_users() == 4
-        assert sqlauth.get_number_users((1,)) == 2
-        assert sqlauth.get_number_users((2,)) == 0
-        assert sqlauth.get_number_users((1, 3)) == 3
+        assert sqlauth.get_number_users(roles=(1,)) == 2
+        assert sqlauth.get_number_users(roles=(2,)) == 0
+        assert sqlauth.get_number_users(roles=(1, 3)) == 3
 
 
 class TestConfig(unittest.TestCase):
