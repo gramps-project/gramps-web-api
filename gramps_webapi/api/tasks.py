@@ -147,5 +147,5 @@ def export_db(
     return {
         "file_name": file_name,
         "file_type": file_type,
-        "url": f"/exporters/{extension}/file/processed/{file_name}",
+        "url": f"/api/exporters/{extension}/file/processed/{file_name}",
     }

@@ -19,6 +19,7 @@
 
 """Background task resources."""
 
+import json
 from http import HTTPStatus
 
 from celery.result import AsyncResult
@@ -35,4 +36,8 @@ class TaskResource(ProtectedResource):
         task = AsyncResult(task_id)
         if task is None:
             abort(HTTPStatus.NOT_FOUND)
-        return {"state": task.state, "info": str(task.info)}
+        return {
+            "state": task.state,
+            "info": str(task.info),
+            "result": json.dumps(task.result),
+        }
