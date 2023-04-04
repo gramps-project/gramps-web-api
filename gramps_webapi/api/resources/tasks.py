@@ -36,8 +36,15 @@ class TaskResource(ProtectedResource):
         task = AsyncResult(task_id)
         if task is None:
             abort(HTTPStatus.NOT_FOUND)
+
+        def serialize_or_str(obj):
+            try:
+                return json.dumps(obj)
+            except TypeError:
+                return str(obj)
+
         return {
             "state": task.state,
-            "info": str(task.info),
-            "result": json.dumps(task.result),
+            "info": serialize_or_str(task.info),
+            "result": serialize_or_str(task.result),
         }
