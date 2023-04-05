@@ -39,6 +39,7 @@ from ...auth.const import (
     PERM_EDIT_OTHER_USER,
     PERM_EDIT_OWN_USER,
     PERM_EDIT_USER_ROLE,
+    PERM_MAKE_ADMIN,
     PERM_VIEW_OTHER_TREE_USER,
     PERM_VIEW_OTHER_USER,
     ROLE_ADMIN,
@@ -152,6 +153,9 @@ class UserResource(UserChangeBase):
         """Update a user's details."""
         auth_provider, user_name, other_tree = self.prepare_edit(user_name)
         if "role" in args:
+            if args["role"] >= ROLE_ADMIN:
+                # only admins can elevate users to admins
+                require_permissions([PERM_MAKE_ADMIN])
             if other_tree:
                 require_permissions([PERM_EDIT_OTHER_TREE_USER_ROLE])
             else:
@@ -180,6 +184,9 @@ class UserResource(UserChangeBase):
             # Adding a new user does not make sense for "own" user
             abort(404)
         auth_provider: SQLAuth = current_app.config.get("AUTH_PROVIDER")
+        if args["role"] >= ROLE_ADMIN:
+            # only admins can create new admin users
+            require_permissions([PERM_MAKE_ADMIN])
         tree = get_tree_from_jwt()
         if not args.get("tree") or tree == args.get("tree"):
             require_permissions([PERM_ADD_USER])

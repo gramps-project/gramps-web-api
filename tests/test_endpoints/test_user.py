@@ -669,6 +669,13 @@ class TestUser(unittest.TestCase):
         )
         assert rv.status_code == 200
         token_owner = rv.json["access_token"]
+        # get admin token
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "admin", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_admin = rv.json["access_token"]
         # add user
         rv = self.client.post(
             BASE_URL + "/users/user_change_role/",
@@ -707,6 +714,20 @@ class TestUser(unittest.TestCase):
             BASE_URL + "/users/user_change_role/",
             headers={"Authorization": f"Bearer {token_owner}"},
             json={"role": ROLE_OWNER},
+        )
+        assert rv.status_code == 200
+        # owner cannot change user role to admin
+        rv = self.client.put(
+            BASE_URL + "/users/user_change_role/",
+            headers={"Authorization": f"Bearer {token_owner}"},
+            json={"role": ROLE_ADMIN},
+        )
+        assert rv.status_code == 403
+        # amin can
+        rv = self.client.put(
+            BASE_URL + "/users/user_change_role/",
+            headers={"Authorization": f"Bearer {token_admin}"},
+            json={"role": ROLE_ADMIN},
         )
         assert rv.status_code == 200
 
