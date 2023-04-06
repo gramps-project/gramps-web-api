@@ -35,6 +35,7 @@ RUN mkdir -p /root/.gramps/gramps$GRAMPS_VERSION
 ENV GRAMPSWEB_USER_DB_URI=sqlite:////app/users/users.sqlite
 ENV GRAMPSWEB_MEDIA_BASE_DIR=/app/media
 ENV GRAMPSWEB_SEARCH_INDEX_DIR=/app/indexdir
+ENV GRAMPSWEB_STATIC_PATH=/app/static
 ENV GRAMPSWEB_THUMBNAIL_CACHE_CONFIG__CACHE_DIR=/app/thumbnail_cache
 ENV GRAMPSWEB_REPORT_DIR=/app/cache/reports
 ENV GRAMPSWEB_EXPORT_DIR=/app/cache/export
