@@ -66,9 +66,9 @@ def deprecated_config_from_env(app):
         if value:
             app.config[option] = value
             warnings.warn(
-                f"Setting the `{value}` config option via the `{value}` environment"
+                f"Setting the `{option}` config option via the `{option}` environment"
                 " variable is deprecated and will stop working in the future."
-                f" Please use `GRAMPSWEB_{value}` instead."
+                f" Please use `GRAMPSWEB_{option}` instead."
             )
     return app
 
