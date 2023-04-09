@@ -107,6 +107,9 @@ def create_app(config: Optional[Dict[str, Any]] = None):
         if not app.config.get(option):
             raise ValueError(f"{option} must be specified")
 
+    # create database if missing
+    WebDbManager(name=app.config["TREE"], create_if_missing=True)
+
     # load JWT default settings
     app.config.from_object(DefaultConfigJWT)
 
