@@ -20,7 +20,7 @@
 
 from gettext import gettext as _
 from http import HTTPStatus
-from typing import Any, Callable, Dict, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 from celery import shared_task
 from celery.result import AsyncResult
@@ -28,13 +28,15 @@ from flask import current_app
 
 from .emails import email_confirm_email, email_new_user, email_reset_pw
 from .export import prepare_options, run_export
+from .report import run_report
 from .resources.util import run_import
 from .util import (
     get_config,
     get_db_manager,
+    get_db_outside_request,
+    get_locale_for_language,
     get_search_indexer,
     send_email,
-    get_db_outside_request,
 )
 
 
@@ -148,4 +150,29 @@ def export_db(
         "file_name": file_name,
         "file_type": file_type,
         "url": f"/api/exporters/{extension}/file/processed/{file_name}",
+    }
+
+
+@shared_task()
+def generate_report(
+    tree: str,
+    report_id: str,
+    options: Dict,
+    view_private: bool,
+    locale: Optional[str] = None,
+) -> Dict[str, str]:
+    """Generate a Gramps report."""
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=view_private, readonly=True
+    )
+    file_name, file_type = run_report(
+        db_handle=db_handle,
+        report_id=report_id,
+        report_options=options,
+        language=locale,
+    )
+    return {
+        "file_name": file_name,
+        "file_type": file_type,
+        "url": f"/api/reports/{report_id}/file/processed/{file_name}",
     }

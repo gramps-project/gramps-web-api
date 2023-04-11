@@ -23,7 +23,6 @@
 
 import mimetypes
 import os
-import tempfile
 import uuid
 from pathlib import Path
 from typing import Dict

@@ -5782,6 +5782,100 @@ paths:
           description: "Not Found: Report id not found."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
+    post:
+      tags:
+      - reports
+      summary: "Get a specific report."
+      operationId: postReportFile
+      security:
+        - Bearer: []
+      parameters:
+      - name: report_id
+        in: path
+        required: true
+        type: string
+        description: "The report identifier."
+      - name: options
+        in: query
+        required: false
+        type: string
+        description: >
+          The report options. Must be provided in JSON format.
+
+
+          There are a core set of options common to all reports, and then sometimes additional options
+          specific to a given report. A few reports do not have defaults for all options and require
+          some be specified in order to run properly.
+
+
+          If no _off_ option for report output file format is provided then pdf will be used as a fallback.
+          The _of_ option for output file is rejected by this endpoint as the report file is ephemeral.
+      responses:
+        201:
+          description: "OK: report file generated."
+          schema:
+            type: object
+            properties:
+              file_name:
+                description: "The file name of the generated report."
+                type: string
+                example: 8fa0232e-d06b-40a9-a5e1-ee26ee2f970f.pdf
+              file_type:
+                description: "The extension name of the generated report file."
+                type: string
+                example: .pdf
+              url:
+                description: "The URL of the exported file."
+                type: string
+                example: /reports/ancestor_report/file/processed/8fa0232e-d06b-40a9-a5e1-ee26ee2f970f.pdf
+        202:
+          description: "Accepted: report will be generated in the background."
+          schema:
+            type: object
+            properties:
+              task:
+                $ref: "#/definitions/TaskReference"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Report id not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
+
+
+  /reports/{report_id}/file/processed/{filename}:
+    get:
+      tags:
+      - reports
+      summary: "Download the generated report file."
+      operationId: getProcessedReportFile
+      security:
+        - Bearer: []
+      parameters:
+      - name: report_id
+        in: path
+        required: true
+        type: string
+        description: "The report identifier."
+      - name: filename
+        in: path
+        required: true
+        type: string
+        description: "The file name of the generated file."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: file
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Exporter not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
 ##############################################################################
@@ -9557,6 +9651,7 @@ definitions:
         description: "The version number of the report."
         type: string
         example: "1.0"
+
 
 ##############################################################################
 # Model - ReportHelpOption

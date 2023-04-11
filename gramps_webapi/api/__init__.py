@@ -60,7 +60,12 @@ from .resources.objects import CreateObjectsResource
 from .resources.people import PeopleResource, PersonResource
 from .resources.places import PlaceResource, PlacesResource
 from .resources.relations import RelationResource, RelationsResource
-from .resources.reports import ReportFileResource, ReportResource, ReportsResource
+from .resources.reports import (
+    ReportFileResource,
+    ReportFileResultResource,
+    ReportResource,
+    ReportsResource,
+)
 from .resources.repositories import RepositoriesResource, RepositoryResource
 from .resources.search import SearchIndexResource, SearchResource
 from .resources.sources import SourceResource, SourcesResource
@@ -202,13 +207,17 @@ register_endpt(LivingResource, "/living/<string:handle>", "living")
 register_endpt(ReportFileResource, "/reports/<string:report_id>/file", "report-file")
 register_endpt(ReportResource, "/reports/<string:report_id>", "report")
 register_endpt(ReportsResource, "/reports/", "reports")
+register_endpt(
+    ReportFileResultResource,
+    "/reports/<string:report_id>/file/processed/<string:filename>",
+    "report-file-result",
+)
 # Facts
 register_endpt(FactsResource, "/facts/", "facts")
 # Exporters
 register_endpt(
     ExporterFileResource, "/exporters/<string:extension>/file", "exporter-file"
 )
-# Exporters
 register_endpt(
     ExporterFileResultResource,
     "/exporters/<string:extension>/file/processed/<string:filename>",

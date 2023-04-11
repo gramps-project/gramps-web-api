@@ -200,11 +200,13 @@ class ExporterFileResultResource(ProtectedResource, GrampsJSONEncoder):
 
         file_type = match.group(2)
         file_path = os.path.join(export_path, filename)
+        if not os.path.isfile(file_path):
+            abort(404)
+        date_lastmod = time.localtime(os.path.getmtime(file_path))
         buffer = get_buffer_for_file(file_path, delete=True)
         mime_type = "application/octet-stream"
         if file_type != ".pl" and file_type in mimetypes.types_map:
             mime_type = mimetypes.types_map[file_type]
-        date_lastmod = time.localtime(os.path.getmtime(file_path))
         date_str = time.strftime("%Y%m%d%H%M%S", date_lastmod)
         download_name = f"gramps-web-export-{date_str}{file_type}"
         return send_file(buffer, mimetype=mime_type, download_name=download_name)
