@@ -5769,6 +5769,12 @@ paths:
 
           If no _off_ option for report output file format is provided then pdf will be used as a fallback.
           The _of_ option for output file is rejected by this endpoint as the report file is ephemeral.
+      - name: locale
+        in: query
+        required: false
+        type: string
+        default: "current locale"
+        description: "The language code of the locale to use for the report."
       responses:
         200:
           description: "OK: Successful operation."
@@ -5810,6 +5816,12 @@ paths:
 
           If no _off_ option for report output file format is provided then pdf will be used as a fallback.
           The _of_ option for output file is rejected by this endpoint as the report file is ephemeral.
+      - name: locale
+        in: query
+        required: false
+        type: string
+        default: "current locale"
+        description: "The language code of the locale to use for the report."
       responses:
         201:
           description: "OK: report file generated."
