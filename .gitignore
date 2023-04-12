@@ -1,3 +1,5 @@
+*_cache
+
 Pipfile
 Pipfile.lock
 .venv

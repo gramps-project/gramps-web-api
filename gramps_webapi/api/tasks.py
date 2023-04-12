@@ -72,7 +72,7 @@ def send_email_confirm_email(email: str, token: str):
 
 
 @shared_task()
-def send_email_new_user(username: str, fullname: str, email: str):
+def send_email_new_user(username: str, fullname: str, email: str, tree: str):
     """Send an email to owners to notify of a new registered user."""
     base_url = get_config("BASE_URL").rstrip("/")
     body = email_new_user(
@@ -80,7 +80,7 @@ def send_email_new_user(username: str, fullname: str, email: str):
     )
     subject = _("New registered user")
     auth = current_app.config.get("AUTH_PROVIDER")
-    emails = auth.get_owner_emails()
+    emails = auth.get_owner_emails(tree=tree)
     if emails:
         send_email(subject=subject, body=body, to=emails)
 

@@ -304,3 +304,14 @@ def list_trees() -> List[Tuple[str, str]]:
     dbstate = DbState()
     dbman = CLIDbManager(dbstate)
     return dbman.current_names
+
+
+def get_tree_id(guid: str) -> str:
+    """Get the appropriate tree ID for a user."""
+    auth_provider = current_app.config.get("AUTH_PROVIDER")
+    tree_id = auth_provider.get_tree(guid)
+    if not tree_id:
+        # needed for backwards compatibility!
+        dbmgr = WebDbManager(name=current_app.config["TREE"], create_if_missing=False)
+        tree_id = dbmgr.dirname
+    return tree_id

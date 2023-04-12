@@ -28,8 +28,8 @@ from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
 from gramps_webapi.auth.const import (
+    ROLE_ADMIN,
     ROLE_MEMBER,
-    ROLE_OWNER,
 )
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
@@ -52,7 +52,7 @@ class TestConfig(unittest.TestCase):
             name="user", password="123", email="test1@example.com", role=ROLE_MEMBER
         )
         sqlauth.add_user(
-            name="admin", password="123", email="test2@example.com", role=ROLE_OWNER
+            name="admin", password="123", email="test2@example.com", role=ROLE_ADMIN
         )
         self.ctx = self.app.test_request_context()
         self.ctx.push()
