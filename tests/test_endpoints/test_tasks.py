@@ -27,6 +27,7 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
+from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
@@ -51,9 +52,9 @@ class TestTask(unittest.TestCase):
                 }
             )
         cls.client = cls.app.test_client()
-        sqlauth = cls.app.config["AUTH_PROVIDER"]
-        sqlauth.create_table()
-        sqlauth.add_user(name="user", password="123", role=ROLE_GUEST)
+        with cls.app.app_context():
+            user_db.create_all()
+            add_user(name="user", password="123", role=ROLE_GUEST)
 
     @classmethod
     def tearDownClass(cls):

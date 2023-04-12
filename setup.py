@@ -36,6 +36,7 @@ REQUIREMENTS = [
     "Flask-Cors",
     "Flask-JWT-Extended>=4.2.1, !=4.4.0, !=4.4.1",
     "Flask-Limiter>=2.9.0",
+    "Flask-SQLAlchemy",
     "marshmallow>=3.13.0",
     "webargs",
     "SQLAlchemy",

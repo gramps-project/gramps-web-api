@@ -23,6 +23,7 @@
 from flask import abort, current_app, jsonify
 from webargs import fields
 
+from ...auth import config_delete, config_get, config_get_all, config_set
 from ...auth.const import PERM_EDIT_SETTINGS, PERM_VIEW_SETTINGS
 from ...const import DB_CONFIG_ALLOWED_KEYS
 from ..auth import require_permissions
@@ -36,8 +37,7 @@ class ConfigsResource(ProtectedResource):
     def get(self):
         """Get all config settings."""
         require_permissions([PERM_VIEW_SETTINGS])
-        auth_provider = current_app.config.get("AUTH_PROVIDER")
-        return jsonify(auth_provider.config_get_all()), 200
+        return jsonify(config_get_all()), 200
 
 
 class ConfigResource(ProtectedResource):
@@ -46,10 +46,9 @@ class ConfigResource(ProtectedResource):
     def get(self, key: str):
         """Get a config setting."""
         require_permissions([PERM_VIEW_SETTINGS])
-        auth_provider = current_app.config.get("AUTH_PROVIDER")
         if key not in DB_CONFIG_ALLOWED_KEYS:
             abort(404)
-        val = auth_provider.config_get(key)
+        val = config_get(key)
         if val is None:
             abort(404)
         return jsonify(val), 200
@@ -63,9 +62,8 @@ class ConfigResource(ProtectedResource):
     def put(self, args, key: str):
         """Update a config setting."""
         require_permissions([PERM_EDIT_SETTINGS])
-        auth_provider = current_app.config.get("AUTH_PROVIDER")
         try:
-            auth_provider.config_set(key=key, value=args["value"])
+            config_set(key=key, value=args["value"])
         except ValueError:
             abort(404)  # key not allowed
         return "", 200
@@ -73,11 +71,10 @@ class ConfigResource(ProtectedResource):
     def delete(self, key: str):
         """Delete a config setting."""
         require_permissions([PERM_EDIT_SETTINGS])
-        auth_provider = current_app.config.get("AUTH_PROVIDER")
         try:
-            if auth_provider.config_get(key=key) is None:
+            if config_get(key=key) is None:
                 abort(404)
         except ValueError:
             abort(404)
-        auth_provider.config_delete(key=key)
+        config_delete(key=key)
         return "", 200

@@ -41,6 +41,7 @@ from gramps.gen.utils.grampslocale import GrampsLocale
 from marshmallow import RAISE
 from webargs.flaskparser import FlaskParser
 
+from ..auth import config_get, get_tree
 from ..auth.const import PERM_VIEW_PRIVATE
 from ..const import DB_CONFIG_ALLOWED_KEYS, LOCALE_MAP
 from ..dbmanager import WebDbManager
@@ -291,9 +292,8 @@ def get_config(key: str) -> Optional[str]:
     If exists, returns the config item from the database.
     Else, uses the app.config dictionary.
     """
-    auth = current_app.config.get("AUTH_PROVIDER")
     if key in DB_CONFIG_ALLOWED_KEYS:
-        val = auth.config_get(key)
+        val = config_get(key)
         if val is not None:
             return val
     return current_app.config.get(key)
@@ -308,8 +308,7 @@ def list_trees() -> List[Tuple[str, str]]:
 
 def get_tree_id(guid: str) -> str:
     """Get the appropriate tree ID for a user."""
-    auth_provider = current_app.config.get("AUTH_PROVIDER")
-    tree_id = auth_provider.get_tree(guid)
+    tree_id = get_tree(guid)
     if not tree_id:
         # needed for backwards compatibility!
         dbmgr = WebDbManager(name=current_app.config["TREE"], create_if_missing=False)

@@ -32,7 +32,7 @@ from whoosh.index import LockError
 from .api.util import get_db_manager, get_search_indexer, list_trees
 from .dbmanager import WebDbManager
 from .app import create_app
-from .auth import SQLAuth
+from .auth import add_user, delete_user, fill_tree, user_db
 from .const import ENV_CONFIG_FILE
 
 logging.basicConfig()
@@ -68,7 +68,6 @@ def run(ctx, port, tree):
 @click.pass_context
 def user(ctx):
     app = ctx.obj["app"]
-    ctx.obj["auth"] = SQLAuth(db_uri=app.config["USER_DB_URI"])
 
 
 @user.command("add")
@@ -81,10 +80,11 @@ def user(ctx):
 @click.pass_context
 def user_add(ctx, name, password, fullname, email, role, tree):
     """Add a user."""
-    LOG.error("Adding user {} ...".format(name))
-    auth = ctx.obj["auth"]
-    auth.create_table()
-    auth.add_user(name, password, fullname, email, role, tree)
+    LOG.error(f"Adding user {name} ...")
+    app = ctx.obj["app"]
+    with app.app_context():
+        user_db.create_all()
+        add_user(name, password, fullname, email, role, tree)
 
 
 @user.command("delete")
@@ -92,28 +92,30 @@ def user_add(ctx, name, password, fullname, email, role, tree):
 @click.pass_context
 def user_del(ctx, name):
     """Delete a user."""
-    LOG.info("Deleting user {} ...".format(name))
-    auth = ctx.obj["auth"]
-    auth.delete_user(name)
+    LOG.info(f"Deleting user {name} ...")
+    app = ctx.obj["app"]
+    with app.app_context():
+        delete_user(name)
 
 
 @user.command("fill-tree")
 @click.argument("tree")
 @click.pass_context
-def fill_tree(ctx, tree):
+def cmd_fill_tree(ctx, tree):
     """Set the Tree ID for users where it is missing."""
-    auth = ctx.obj["auth"]
-    auth.fill_tree(tree)
+    app = ctx.obj["app"]
+    with app.app_context():
+        fill_tree(tree)
 
 
 @user.command("migrate")
 @click.pass_context
 def migrate_db(ctx):
     """Upgrade the user database schema, if required."""
-    auth = ctx.obj["auth"]
+    app = ctx.obj["app"]
     cmd = [sys.executable, "-m", "alembic", "upgrade", "head"]
     env = os.environ.copy()
-    env["GRAMPSWEB_USER_DB_URI"] = auth.db_uri
+    env["GRAMPSWEB_USER_DB_URI"] = app.config["USER_DB_URI"]
     subprocess.run(cmd, env=env, check=True)
 
 

@@ -26,6 +26,7 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
+from gramps_webapi.auth import user_db
 from gramps_webapi.auth.const import ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
@@ -152,8 +153,8 @@ class TestTokenCreateOwner(unittest.TestCase):
             cls.app = create_app()
         cls.app.config["TESTING"] = True
         cls.client = cls.app.test_client()
-        sqlauth = cls.app.config["AUTH_PROVIDER"]
-        sqlauth.create_table()
+        with cls.app.app_context():
+            user_db.create_all()
 
     @classmethod
     def tearDownClass(cls):

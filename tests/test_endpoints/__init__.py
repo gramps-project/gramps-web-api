@@ -33,6 +33,7 @@ from pkg_resources import resource_filename
 import gramps_webapi.app
 from gramps_webapi.api.util import get_search_indexer
 from gramps_webapi.app import create_app
+from gramps_webapi.auth import user_db, add_user
 from gramps_webapi.auth.const import (
     ROLE_ADMIN,
     ROLE_EDITOR,
@@ -78,14 +79,14 @@ def setUpModule():
     with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EXAMPLE_GRAMPS_AUTH_CONFIG}):
         test_app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
     TEST_CLIENT = test_app.test_client()
-    sqlauth = test_app.config["AUTH_PROVIDER"]
-    sqlauth.create_table()
-    for role in TEST_USERS:
-        sqlauth.add_user(
-            name=TEST_USERS[role]["name"],
-            password=TEST_USERS[role]["password"],
-            role=role,
-        )
+    with test_app.app_context():
+        user_db.create_all()
+        for role in TEST_USERS:
+            add_user(
+                name=TEST_USERS[role]["name"],
+                password=TEST_USERS[role]["password"],
+                role=role,
+            )
     db_manager = WebDbManager(name=test_db.name, create_if_missing=False)
     db_state = db_manager.get_db()
     with test_app.app_context():

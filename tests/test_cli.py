@@ -32,6 +32,7 @@ from gramps_webapi.__main__ import cli
 from gramps_webapi.app import create_app
 from gramps_webapi.const import ENV_CONFIG_FILE
 from gramps_webapi.dbmanager import WebDbManager
+from gramps_webapi.auth import get_user_details
 
 
 class TestCLI(unittest.TestCase):
@@ -72,7 +73,8 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
             ["--config", self.config_file.name, "user", "add", "userName1", "pw1"],
         )
         assert result.exit_code == 0
-        details = self.app.config["AUTH_PROVIDER"].get_user_details("userName1")
+        with self.app.app_context():
+            details = get_user_details("userName1")
         assert details == {
             "name": "userName1",
             "role": 0,
@@ -103,7 +105,8 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
             ],
         )
         assert result.exit_code == 0
-        details = self.app.config["AUTH_PROVIDER"].get_user_details("userName2")
+        with self.app.app_context():
+            details = get_user_details("userName2")
         assert details == {
             "name": "userName2",
             "full_name": "FullName2",
@@ -117,7 +120,8 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
             cli, ["--config", self.config_file.name, "user", "add", "user", "123"]
         )
         assert result.exit_code == 0
-        assert self.app.config["AUTH_PROVIDER"].get_user_details("user")
+        with self.app.app_context():
+            assert get_user_details("user")
         # try adding again
         result = self.runner.invoke(
             cli, ["--config", self.config_file.name, "user", "add", "user", "123"]
@@ -128,7 +132,8 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
             ["--config", self.config_file.name, "user", "delete", "user"],
         )
         assert result.exit_code == 0
-        assert not self.app.config["AUTH_PROVIDER"].get_user_details("user")
+        with self.app.app_context():
+            assert not get_user_details("user")
         # try deleting again
         result = self.runner.invoke(
             cli, ["--config", self.config_file.name, "user", "delete", "user"]

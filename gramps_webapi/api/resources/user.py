@@ -23,11 +23,22 @@ import datetime
 from gettext import gettext as _
 from typing import Tuple
 
-from flask import abort, current_app, jsonify, render_template
+from flask import abort, jsonify, render_template
 from flask_jwt_extended import create_access_token, get_jwt, get_jwt_identity
 from webargs import fields
 
-from ...auth import SQLAuth
+from ...auth import (
+    add_user,
+    authorized,
+    delete_user,
+    get_all_user_details,
+    get_guid,
+    get_name,
+    get_number_users,
+    get_pwhash,
+    get_user_details,
+    modify_user,
+)
 from ...auth.const import (
     CLAIM_LIMITED_SCOPE,
     PERM_ADD_OTHER_TREE_USER,
@@ -67,20 +78,19 @@ from . import LimitedScopeProtectedResource, ProtectedResource, Resource
 class UserChangeBase(ProtectedResource):
     """Base class for user change endpoints."""
 
-    def prepare_edit(self, user_name: str) -> Tuple[SQLAuth, str, bool]:
+    def prepare_edit(self, user_name: str) -> Tuple[str, bool]:
         """Cheks to do before processing the request."""
-        auth_provider: SQLAuth = current_app.config.get("AUTH_PROVIDER")
         if user_name == "-":
             require_permissions([PERM_EDIT_OWN_USER])
             user_id = get_jwt_identity()
             try:
-                user_name = auth_provider.get_name(user_id)
+                user_name = get_name(user_id)
             except ValueError:
                 abort(401)
             other_tree = False
         else:
             try:
-                user_id = auth_provider.get_guid(user_name)
+                user_id = get_guid(user_name)
             except ValueError():
                 abort(404)
             source_tree = get_tree_from_jwt()
@@ -91,7 +101,7 @@ class UserChangeBase(ProtectedResource):
             else:
                 require_permissions([PERM_EDIT_OTHER_TREE_USER])
                 other_tree = True
-        return auth_provider, user_name, other_tree
+        return user_name, other_tree
 
 
 class UsersResource(ProtectedResource):
@@ -99,14 +109,13 @@ class UsersResource(ProtectedResource):
 
     def get(self):
         """Get users' details."""
-        auth_provider: SQLAuth = current_app.config.get("AUTH_PROVIDER")
         if has_permissions([PERM_VIEW_OTHER_TREE_USER]):
             # return all users from all trees
-            return jsonify(auth_provider.get_all_user_details(tree=None)), 200
+            return jsonify(get_all_user_details(tree=None)), 200
         require_permissions([PERM_VIEW_OTHER_USER])
         tree = get_tree_from_jwt()
         # return only this tree's users
-        return jsonify(auth_provider.get_all_user_details(tree=tree)), 200
+        return jsonify(get_all_user_details(tree=tree)), 200
 
 
 class UserResource(UserChangeBase):
@@ -114,12 +123,11 @@ class UserResource(UserChangeBase):
 
     def get(self, user_name: str):
         """Get a user's details."""
-        auth_provider: SQLAuth = current_app.config.get("AUTH_PROVIDER")
         if user_name == "-":
             # own user
             user_id = get_jwt_identity()
             try:
-                user_name = auth_provider.get_name(user_id)
+                user_name = get_name(user_id)
             except ValueError:
                 abort(401)
         else:
@@ -127,7 +135,7 @@ class UserResource(UserChangeBase):
         if user_name != "_" and not has_permissions([PERM_VIEW_OTHER_TREE_USER]):
             # check if this is our tree
             try:
-                user_id = auth_provider.get_guid(user_name)
+                user_id = get_guid(user_name)
             except ValueError:
                 abort(404)
             source_tree = get_tree_from_jwt()
@@ -135,7 +143,7 @@ class UserResource(UserChangeBase):
             if source_tree != destination_tree:
                 # user lives in other tree, not allowed to view
                 abort(403)
-        details = auth_provider.get_user_details(user_name)
+        details = get_user_details(user_name)
         if details is None:
             # user does not exist
             abort(404)
@@ -151,7 +159,7 @@ class UserResource(UserChangeBase):
     )
     def put(self, args, user_name: str):
         """Update a user's details."""
-        auth_provider, user_name, other_tree = self.prepare_edit(user_name)
+        user_name, other_tree = self.prepare_edit(user_name)
         if "role" in args:
             if args["role"] >= ROLE_ADMIN:
                 # only admins can elevate users to admins
@@ -160,7 +168,7 @@ class UserResource(UserChangeBase):
                 require_permissions([PERM_EDIT_OTHER_TREE_USER_ROLE])
             else:
                 require_permissions([PERM_EDIT_USER_ROLE])
-        auth_provider.modify_user(
+        modify_user(
             name=user_name,
             email=args.get("email"),
             fullname=args.get("full_name"),
@@ -183,7 +191,6 @@ class UserResource(UserChangeBase):
         if user_name == "-":
             # Adding a new user does not make sense for "own" user
             abort(404)
-        auth_provider: SQLAuth = current_app.config.get("AUTH_PROVIDER")
         if args["role"] >= ROLE_ADMIN:
             # only admins can create new admin users
             require_permissions([PERM_MAKE_ADMIN])
@@ -193,7 +200,7 @@ class UserResource(UserChangeBase):
         else:
             require_permissions([PERM_ADD_OTHER_TREE_USER])
         try:
-            auth_provider.add_user(
+            add_user(
                 name=user_name,
                 password=args["password"],
                 email=args["email"],
@@ -211,10 +218,8 @@ class UserResource(UserChangeBase):
         if user_name == "-":
             # Deleting the own user is currently not allowed
             abort(404)
-        auth_provider: SQLAuth = current_app.config.get("AUTH_PROVIDER")
-
         try:
-            user_id = auth_provider.get_guid(name=user_name)
+            user_id = get_guid(name=user_name)
         except ValueError:
             abort(404)  # user not found
         source_tree = get_tree_from_jwt()
@@ -223,7 +228,7 @@ class UserResource(UserChangeBase):
             require_permissions([PERM_DEL_USER])
         else:
             require_permissions([PERM_DEL_OTHER_TREE_USER])
-        auth_provider.delete_user(name=user_name)
+        delete_user(name=user_name)
         return "", 200
 
 
@@ -245,15 +250,11 @@ class UserRegisterResource(Resource):
         if user_name == "-":
             # Registering a new user does not make sense for "own" user
             abort(404)
-        auth_provider: SQLAuth = current_app.config.get("AUTH_PROVIDER")
         # do not allow registration if no tree owner account exists!
-        if (
-            auth_provider.get_number_users(tree=args.get("tree"), roles=(ROLE_OWNER,))
-            == 0
-        ):
+        if get_number_users(tree=args.get("tree"), roles=(ROLE_OWNER,)) == 0:
             abort(405)
         try:
-            auth_provider.add_user(
+            add_user(
                 name=user_name,
                 password=args["password"],
                 email=args["email"],
@@ -263,7 +264,7 @@ class UserRegisterResource(Resource):
             )
         except ValueError:
             abort(409)
-        user_id = auth_provider.get_guid(name=user_name)
+        user_id = get_guid(name=user_name)
         token = create_access_token(
             identity=str(user_id),
             additional_claims={
@@ -295,15 +296,14 @@ class UserCreateOwnerResource(LimitedScopeProtectedResource):
         if user_name == "-":
             # User name - is not allowed
             abort(404)
-        auth_provider: SQLAuth = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider.get_number_users() > 0:
+        if get_number_users() > 0:
             # there is already a user in the user DB
             abort(405)
         claims = get_jwt()
         if claims[CLAIM_LIMITED_SCOPE] != SCOPE_CREATE_ADMIN:
             # This is a wrong token!
             abort(403)
-        auth_provider.add_user(
+        add_user(
             name=user_name,
             password=args["password"],
             email=args["email"],
@@ -326,12 +326,12 @@ class UserChangePasswordResource(UserChangeBase):
     )
     def post(self, args, user_name: str):
         """Post new password."""
-        auth_provider, user_name, _ = self.prepare_edit(user_name)
+        user_name, _ = self.prepare_edit(user_name)
         if len(args["new_password"]) == "":
             abort(400)
-        if not auth_provider.authorized(user_name, args["old_password"]):
+        if not authorized(user_name, args["old_password"]):
             abort(403)
-        auth_provider.modify_user(name=user_name, password=args["new_password"])
+        modify_user(name=user_name, password=args["new_password"])
         return "", 201
 
 
@@ -344,21 +344,20 @@ class UserTriggerResetPasswordResource(Resource):
         if user_name == "-":
             # password reset trigger not make sense for "own" user since not logged in
             abort(404)
-        auth_provider = current_app.config.get("AUTH_PROVIDER")
-        details = auth_provider.get_user_details(user_name)
+        details = get_user_details(user_name)
         if details is None:
             # user does not exist!
             abort(404)
         email = details["email"]
         if email is None:
             abort(404)
-        user_id = auth_provider.get_guid(name=user_name)
+        user_id = get_guid(name=user_name)
         token = create_access_token(
             identity=str(user_id),
             # the hash of the existing password is stored in the token in order
             # to make sure the rest token can only be used once
             additional_claims={
-                "old_hash": auth_provider.get_pwhash(user_name),
+                "old_hash": get_pwhash(user_name),
                 CLAIM_LIMITED_SCOPE: SCOPE_RESET_PW,
             },
             # password reset has to be triggered within 1h
@@ -382,7 +381,6 @@ class UserResetPasswordResource(LimitedScopeProtectedResource):
     )
     def post(self, args):
         """Post new password."""
-        auth_provider = current_app.config.get("AUTH_PROVIDER")
         if args["new_password"] == "":
             abort(400)
         claims = get_jwt()
@@ -391,23 +389,22 @@ class UserResetPasswordResource(LimitedScopeProtectedResource):
             abort(403)
         user_id = get_jwt_identity()
         try:
-            username = auth_provider.get_name(user_id)
+            username = get_name(user_id)
         except ValueError:
             abort(401)
         # the old PW hash is stored in the reset JWT to check if the token has
         # been used already
-        if claims["old_hash"] != auth_provider.get_pwhash(username):
+        if claims["old_hash"] != get_pwhash(username):
             # the one-time token has been used before!
             abort(409)
-        auth_provider.modify_user(name=username, password=args["new_password"])
+        modify_user(name=username, password=args["new_password"])
         return "", 201
 
     def get(self):
         """Reset password form."""
-        auth_provider = current_app.config.get("AUTH_PROVIDER")
         user_id = get_jwt_identity()
         try:
-            username = auth_provider.get_name(user_id)
+            username = get_name(user_id)
         except ValueError:
             abort(401)
         claims = get_jwt()
@@ -416,7 +413,7 @@ class UserResetPasswordResource(LimitedScopeProtectedResource):
             abort(403)
         # the old PW hash is stored in the reset JWT to check if the token has
         # been used already
-        if claims["old_hash"] != auth_provider.get_pwhash(username):
+        if claims["old_hash"] != get_pwhash(username):
             # the one-time token has been used before!
             return render_template("reset_password_error.html", username=username)
         return render_template("reset_password.html", username=username)
@@ -427,24 +424,23 @@ class UserConfirmEmailResource(LimitedScopeProtectedResource):
 
     def get(self):
         """Show email confirmation dialog."""
-        auth_provider = current_app.config.get("AUTH_PROVIDER")
         user_id = get_jwt_identity()
         try:
-            username = auth_provider.get_name(user_id)
+            username = get_name(user_id)
         except ValueError:
             abort(401)
         claims = get_jwt()
         if claims[CLAIM_LIMITED_SCOPE] != SCOPE_CONF_EMAIL:
             # This is a wrong token!
             abort(403)
-        current_details = auth_provider.get_user_details(username)
+        current_details = get_user_details(username)
         # the email is stored in the JWT
         if claims["email"] != current_details.get("email"):
             # This is a wrong token!
             abort(403)
         if current_details["role"] == ROLE_UNCONFIRMED:
             # otherwise it has been confirmed already
-            auth_provider.modify_user(name=username, role=ROLE_DISABLED)
+            modify_user(name=username, role=ROLE_DISABLED)
             tree = get_tree_from_jwt()
             run_task(
                 send_email_new_user,
