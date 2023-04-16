@@ -186,6 +186,16 @@ class TestReportsReportIdFile(unittest.TestCase):
         )
         self.assertEqual(rv.mimetype, types_map[".odt"])
 
+    def test_get_reports_report_localized_content(self):
+        """Test that localized output works."""
+        rv = check_success(
+            self,
+            TEST_URL + 'ancestor_report/file?options={"off": "tex"}&locale=de',
+            full=True,
+        )
+        contents = rv.get_data(as_text=True)
+        assert "Ahnentafel für" in contents
+
     def test_get_reports_report_id_file_one_of_each(self):
         """Test one of each available report."""
         # note some reports have unidentified mandatory options with no defaults
@@ -201,6 +211,33 @@ class TestReportsReportIdFile(unittest.TestCase):
             rv = self.client.get(
                 TEST_URL + report["id"] + "/file" + options, headers=header
             )
+            if rv.status_code != 200:
+                bad_reports.append(report["id"])
+        self.assertEqual(bad_reports, [])
+
+    def test_post_reports_report_id_file_one_of_each(self):
+        """Test one of each available report using POST."""
+        # note some reports have unidentified mandatory options with no defaults
+        test_options = {
+            "familylines_graph": '?options={"gidlist": "I0044"}',
+            "place_report": '?options={"places": "P0863"}',
+        }
+        rv_set = check_success(self, TEST_URL)
+        bad_reports = []
+        header = fetch_header(self.client)
+        for report in rv_set:
+            options = test_options.get(report["id"]) or ""
+            rv = self.client.post(
+                TEST_URL + report["id"] + "/file" + options, headers=header
+            )
+            if rv.status_code != 201:
+                bad_reports.append(report["id"])
+            assert (
+                rv.json["url"]
+                == TEST_URL + report["id"] + "/file/processed/" + rv.json["file_name"]
+            )
+            assert rv.json["file_name"].endswith(rv.json["file_type"])
+            rv = self.client.get(rv.json["url"], headers=header)
             if rv.status_code != 200:
                 bad_reports.append(report["id"])
         self.assertEqual(bad_reports, [])
