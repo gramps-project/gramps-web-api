@@ -28,6 +28,7 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
+from gramps_webapi.auth import user_db, add_user
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
@@ -41,10 +42,10 @@ class TestRateLimits(unittest.TestCase):
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
             cls.app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": True})
         cls.client = cls.app.test_client()
-        sqlauth = cls.app.config["AUTH_PROVIDER"]
-        sqlauth.create_table()
-        sqlauth.add_user(name="user", password="123", role=ROLE_GUEST)
-        sqlauth.add_user(name="admin", password="123", role=ROLE_OWNER)
+        with cls.app.app_context():
+            user_db.create_all()
+            add_user(name="user", password="123", role=ROLE_GUEST)
+            add_user(name="admin", password="123", role=ROLE_OWNER)
 
     @classmethod
     def tearDownClass(cls):

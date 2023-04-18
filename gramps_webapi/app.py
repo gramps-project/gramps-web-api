@@ -33,7 +33,7 @@ from .api import api_blueprint
 from .api.cache import thumbnail_cache
 from .api.ratelimiter import limiter
 from .api.search import SearchIndexer
-from .auth import SQLAuth
+from .auth import user_db
 from .config import DefaultConfig, DefaultConfigJWT
 from .const import API_PREFIX, ENV_CONFIG_FILE
 from .dbmanager import WebDbManager
@@ -116,7 +116,8 @@ def create_app(config: Optional[Dict[str, Any]] = None):
     # instantiate JWT manager
     JWTManager(app)
 
-    app.config["AUTH_PROVIDER"] = SQLAuth(db_uri=app.config["USER_DB_URI"])
+    app.config["SQLALCHEMY_DATABASE_URI"] = app.config["USER_DB_URI"]
+    user_db.init_app(app)
 
     thumbnail_cache.init_app(app, config=app.config["THUMBNAIL_CACHE_CONFIG"])
 
@@ -154,7 +155,7 @@ def create_app(config: Optional[Dict[str, Any]] = None):
     # instantiate celery
     create_celery(app)
 
-    # close DB after every request
+    # close Gramps DB after every request
     @app.teardown_appcontext
     def close_db(exception) -> None:
         """Close the database."""
@@ -164,5 +165,13 @@ def create_app(config: Optional[Dict[str, Any]] = None):
         db_write = g.pop("db_write", None)
         if db_write and db_write.is_open():
             db_write.close()
+
+    # close user DB after every request
+    @app.teardown_request
+    def close_user_db(exception) -> None:
+        """Close the user database."""
+        if exception:
+            user_db.session.rollback()  # pylint: disable=no-member
+        user_db.session.remove()  # pylint: disable=no-member
 
     return app

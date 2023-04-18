@@ -27,6 +27,7 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
+from gramps_webapi.auth import user_db, add_user
 from gramps_webapi.auth.const import (
     ROLE_ADMIN,
     ROLE_MEMBER,
@@ -46,14 +47,14 @@ class TestConfig(unittest.TestCase):
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
             self.app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
         self.client = self.app.test_client()
-        sqlauth = self.app.config["AUTH_PROVIDER"]
-        sqlauth.create_table()
-        sqlauth.add_user(
-            name="user", password="123", email="test1@example.com", role=ROLE_MEMBER
-        )
-        sqlauth.add_user(
-            name="admin", password="123", email="test2@example.com", role=ROLE_ADMIN
-        )
+        with self.app.app_context():
+            user_db.create_all()
+            add_user(
+                name="user", password="123", email="test1@example.com", role=ROLE_MEMBER
+            )
+            add_user(
+                name="admin", password="123", email="test2@example.com", role=ROLE_ADMIN
+            )
         self.ctx = self.app.test_request_context()
         self.ctx.push()
         rv = self.client.post(

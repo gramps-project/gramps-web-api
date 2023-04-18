@@ -29,7 +29,13 @@ from flask_jwt_extended import (
 )
 from webargs import fields, validate
 
-from ...auth import SQLAuth
+from ...auth import (
+    get_all_user_details,
+    get_permissions,
+    get_guid,
+    authorized,
+    get_name,
+)
 from ...auth.const import CLAIM_LIMITED_SCOPE, SCOPE_CREATE_ADMIN
 from ..ratelimiter import limiter
 from ..util import get_tree_id, use_args
@@ -69,13 +75,12 @@ class TokenResource(Resource):
     )
     def post(self, args):
         """Post username and password to fetch a token."""
-        auth_provider = current_app.config.get("AUTH_PROVIDER")
         if "username" not in args or "password" not in args:
             abort(401)
-        if not auth_provider.authorized(args.get("username"), args.get("password")):
+        if not authorized(args.get("username"), args.get("password")):
             abort(403)
-        permissions = auth_provider.get_permissions(args["username"])
-        user_id = auth_provider.get_guid(args["username"])
+        permissions = get_permissions(args["username"])
+        user_id = get_guid(args["username"])
         tree_id = get_tree_id(user_id)
         return get_tokens(
             user_id=user_id,
@@ -91,13 +96,12 @@ class TokenRefreshResource(RefreshProtectedResource):
     @limiter.limit("1/second")
     def post(self):
         """Fetch a fresh token."""
-        auth_provider = current_app.config.get("AUTH_PROVIDER")
         user_id = get_jwt_identity()
         try:
-            username = auth_provider.get_name(user_id)
+            username = get_name(user_id)
         except ValueError:
             abort(401)
-        permissions = auth_provider.get_permissions(username)
+        permissions = get_permissions(username)
         tree_id = get_tree_id(user_id)
         return get_tokens(
             user_id=user_id,
@@ -113,8 +117,7 @@ class TokenCreateOwnerResource(Resource):
     @limiter.limit("1/second")
     def get(self):
         """Get a token."""
-        auth_provider: SQLAuth = current_app.config.get("AUTH_PROVIDER")
-        if auth_provider.get_all_user_details(tree=None):
+        if get_all_user_details(tree=None):
             # users already exist!
             abort(405)
         token = create_access_token(

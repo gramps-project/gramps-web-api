@@ -27,6 +27,7 @@ import pytest
 from moto import mock_s3
 
 from gramps_webapi.app import create_app
+from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EXAMPLE_GRAMPS_AUTH_CONFIG
 from gramps_webapi.dbmanager import WebDbManager
@@ -51,13 +52,13 @@ class TestS3(unittest.TestCase):
         ):
             test_app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
         cls.client = test_app.test_client()
-        sqlauth = test_app.config["AUTH_PROVIDER"]
-        sqlauth.create_table()
-        sqlauth.add_user(
-            name="owner",
-            password="owner",
-            role=ROLE_OWNER,
-        )
+        with test_app.app_context():
+            user_db.create_all()
+            add_user(
+                name="owner",
+                password="owner",
+                role=ROLE_OWNER,
+            )
         db_manager = WebDbManager(name=test_db.name, create_if_missing=False)
 
     @mock_s3

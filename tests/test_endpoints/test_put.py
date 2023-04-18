@@ -30,6 +30,7 @@ from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
+from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import (
     ROLE_CONTRIBUTOR,
     ROLE_EDITOR,
@@ -64,13 +65,13 @@ class TestObjectUpdate(unittest.TestCase):
             cls.app = create_app()
         cls.app.config["TESTING"] = True
         cls.client = cls.app.test_client()
-        sqlauth = cls.app.config["AUTH_PROVIDER"]
-        sqlauth.create_table()
-        sqlauth.add_user(name="user", password="123", role=ROLE_GUEST)
-        sqlauth.add_user(name="contributor", password="123", role=ROLE_CONTRIBUTOR)
-        sqlauth.add_user(name="admin", password="123", role=ROLE_OWNER)
-        sqlauth.add_user(name="editor", password="123", role=ROLE_EDITOR)
-        sqlauth.add_user(name="member", password="123", role=ROLE_MEMBER)
+        with cls.app.app_context():
+            user_db.create_all()
+            add_user(name="user", password="123", role=ROLE_GUEST)
+            add_user(name="contributor", password="123", role=ROLE_CONTRIBUTOR)
+            add_user(name="admin", password="123", role=ROLE_OWNER)
+            add_user(name="editor", password="123", role=ROLE_EDITOR)
+            add_user(name="member", password="123", role=ROLE_MEMBER)
 
     @classmethod
     def tearDownClass(cls):

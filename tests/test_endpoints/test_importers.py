@@ -28,6 +28,7 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
+from gramps_webapi.auth import user_db, add_user
 from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EMPTY_GRAMPS_AUTH_CONFIG
 
@@ -111,14 +112,14 @@ class TestImportersExtensionFile(unittest.TestCase):
             cls.test_app = create_app()
         cls.test_app.config["TESTING"] = True
         cls.client = cls.test_app.test_client()
-        sqlauth = cls.test_app.config["AUTH_PROVIDER"]
-        sqlauth.create_table()
-        for role in TEST_USERS:
-            sqlauth.add_user(
-                name=TEST_USERS[role]["name"],
-                password=TEST_USERS[role]["password"],
-                role=role,
-            )
+        with cls.test_app.app_context():
+            user_db.create_all()
+            for role in TEST_USERS:
+                add_user(
+                    name=TEST_USERS[role]["name"],
+                    password=TEST_USERS[role]["password"],
+                    role=role,
+                )
 
     @classmethod
     def tearDownClass(cls):

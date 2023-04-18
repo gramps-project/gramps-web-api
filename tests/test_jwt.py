@@ -28,6 +28,7 @@ from gramps.gen.dbstate import DbState
 from gramps.gen.lib import Person, Surname
 
 from gramps_webapi.app import create_app
+from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 from gramps_webapi.dbmanager import WebDbManager
@@ -56,10 +57,10 @@ class TestPerson(unittest.TestCase):
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
             cls.app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
         cls.client = cls.app.test_client()
-        sqlauth = cls.app.config["AUTH_PROVIDER"]
-        sqlauth.create_table()
-        sqlauth.add_user(name="user", password="123", role=ROLE_GUEST)
-        sqlauth.add_user(name="admin", password="123", role=ROLE_OWNER)
+        with cls.app.app_context():
+            user_db.create_all()
+            add_user(name="user", password="123", role=ROLE_GUEST)
+            add_user(name="admin", password="123", role=ROLE_OWNER)
         db_manager = WebDbManager(cls.name, create_if_missing=False)
         dbstate = db_manager.get_db(force_unlock=True)
         with DbTxn("Add test objects", dbstate.db) as trans:

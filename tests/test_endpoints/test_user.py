@@ -30,6 +30,7 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
+from gramps_webapi.auth import add_user, get_number_users, user_db
 from gramps_webapi.auth.const import (
     ROLE_ADMIN,
     ROLE_DISABLED,
@@ -54,17 +55,17 @@ class TestUser(unittest.TestCase):
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
             self.app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
         self.client = self.app.test_client()
-        sqlauth = self.app.config["AUTH_PROVIDER"]
-        sqlauth.create_table()
-        sqlauth.add_user(
-            name="user", password="123", email="test@example.com", role=ROLE_MEMBER
-        )
-        sqlauth.add_user(
-            name="owner", password="123", email="owner@example.com", role=ROLE_OWNER
-        )
-        sqlauth.add_user(
-            name="admin", password="123", email="admin@example.com", role=ROLE_ADMIN
-        )
+        with self.app.app_context():
+            user_db.create_all()
+            add_user(
+                name="user", password="123", email="test@example.com", role=ROLE_MEMBER
+            )
+            add_user(
+                name="owner", password="123", email="owner@example.com", role=ROLE_OWNER
+            )
+            add_user(
+                name="admin", password="123", email="admin@example.com", role=ROLE_ADMIN
+            )
         self.assertTrue(self.app.testing)
         self.ctx = self.app.test_request_context()
         self.ctx.push()
@@ -742,8 +743,8 @@ class TestUserCreateOwner(unittest.TestCase):
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
             self.app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
         self.client = self.app.test_client()
-        sqlauth = self.app.config["AUTH_PROVIDER"]
-        sqlauth.create_table()
+        with self.app.app_context():
+            user_db.create_all()
         self.ctx = self.app.test_request_context()
         self.ctx.push()
 
@@ -755,7 +756,8 @@ class TestUserCreateOwner(unittest.TestCase):
         rv = self.client.get(f"{BASE_URL}/token/create_owner/")
         assert rv.status_code == 200
         token = rv.json["access_token"]
-        assert self.app.config["AUTH_PROVIDER"].get_number_users() == 0
+        with self.app.app_context():
+            assert get_number_users() == 0
         # data missing
         rv = self.client.post(
             f"{BASE_URL}/users/tree_owner/create_owner/",
@@ -773,7 +775,8 @@ class TestUserCreateOwner(unittest.TestCase):
             },
         )
         assert rv.status_code == 201
-        assert self.app.config["AUTH_PROVIDER"].get_number_users() == 1
+        with self.app.app_context():
+            assert get_number_users() == 1
         # try posting again
         rv = self.client.post(
             f"{BASE_URL}/users/tree_owner_2/create_owner/",
@@ -785,7 +788,8 @@ class TestUserCreateOwner(unittest.TestCase):
             },
         )
         assert rv.status_code == 405
-        assert self.app.config["AUTH_PROVIDER"].get_number_users() == 1
+        with self.app.app_context():
+            assert get_number_users() == 1
         rv = self.client.get(f"{BASE_URL}/token/create_owner/")
         assert rv.status_code == 405
 
@@ -811,14 +815,14 @@ class TestUserCelery(unittest.TestCase):
                 }
             )
         self.client = self.app.test_client()
-        sqlauth = self.app.config["AUTH_PROVIDER"]
-        sqlauth.create_table()
-        sqlauth.add_user(
-            name="user", password="123", email="test@example.com", role=ROLE_MEMBER
-        )
-        sqlauth.add_user(
-            name="owner", password="123", email="owner@example.com", role=ROLE_OWNER
-        )
+        with self.app.app_context():
+            user_db.create_all()
+            add_user(
+                name="user", password="123", email="test@example.com", role=ROLE_MEMBER
+            )
+            add_user(
+                name="owner", password="123", email="owner@example.com", role=ROLE_OWNER
+            )
         self.assertTrue(self.app.testing)
         self.ctx = self.app.test_request_context()
         self.ctx.push()
