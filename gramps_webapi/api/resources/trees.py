@@ -21,6 +21,7 @@
 
 import os
 import re
+import uuid
 from typing import Dict, Optional
 
 from flask import abort
@@ -81,6 +82,20 @@ class TreesResource(ProtectedResource):
         tree_ids = [user_tree_id]
         return [get_tree_details(tree_id) for tree_id in tree_ids]
 
+    @use_args(
+        {
+            "name": fields.Str(required=True),
+        },
+        location="json",
+    )
+    def post(self, args):
+        """Create a new tree."""
+        require_permissions([PERM_ADD_TREE])
+        tree_id = str(uuid.uuid4())
+        # TODO dbid
+        WebDbManager(dirname=tree_id, name=args["name"], create_if_missing=True)
+        return "", 201
+
 
 class TreeResource(ProtectedResource):
     """Resource for a single tree."""
@@ -108,18 +123,3 @@ class TreeResource(ProtectedResource):
             abort(404)
         # TODO
         return "", 200
-
-    @use_args(
-        {
-            "name": fields.Str(required=True),
-        },
-        location="json",
-    )
-    def post(self, args, tree_id: str):
-        """Create a new tree."""
-        require_permissions([PERM_ADD_TREE])
-        validate_tree_id(tree_id)
-        if tree_exists(tree_id):
-            abort(409)
-        WebDbManager(dirname=tree_id, name=args["name"], create_if_missing=True)
-        return "", 201

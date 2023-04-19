@@ -99,14 +99,14 @@ class TestTrees(unittest.TestCase):
         token = rv.json["access_token"]
         # wrong parameter name
         rv = self.client.post(
-            BASE_URL + "/trees/id1",
+            BASE_URL + "/trees/",
             headers={"Authorization": f"Bearer {token}"},
             json={"value": "some name"},
         )
         assert rv.status_code == 422
         # missing authorization
         rv = self.client.post(
-            BASE_URL + "/trees/id1",
+            BASE_URL + "/trees/",
             headers={"Authorization": f"Bearer {token}"},
             json={"name": "some name"},
         )
@@ -115,23 +115,9 @@ class TestTrees(unittest.TestCase):
             BASE_URL + "/token/", json={"username": "admin", "password": "123"}
         )
         token = rv.json["access_token"]
-        # exists
-        rv = self.client.post(
-            BASE_URL + f"/trees/{self.tree}",
-            headers={"Authorization": f"Bearer {token}"},
-            json={"name": "some name"},
-        )
-        assert rv.status_code == 409
-        # invalid
-        rv = self.client.post(
-            BASE_URL + "/trees/..",
-            headers={"Authorization": f"Bearer {token}"},
-            json={"name": "some name"},
-        )
-        assert rv.status_code == 422
         # OK
         rv = self.client.post(
-            BASE_URL + "/trees/newtree",
+            BASE_URL + "/trees/",
             headers={"Authorization": f"Bearer {token}"},
             json={"name": "some name"},
         )
