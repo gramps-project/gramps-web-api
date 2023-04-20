@@ -26,7 +26,7 @@
 import os
 import uuid
 
-from typing import Optional
+from typing import Optional, Tuple
 
 from gramps.cli.clidbman import CLIDbManager, NAME_FILE
 from gramps.cli.user import User
@@ -166,3 +166,15 @@ class WebDbManager:
             self.path, mode=mode, username=self.username, password=self.password
         )
         return dbstate
+
+    def rename_database(self, new_name: str) -> Tuple[str, str]:
+        """Rename the database by writing the new value to the name.txt file.
+
+        Returns old_name, new_name.
+        """
+        filepath = os.path.join(self.dbdir, self.dirname, NAME_FILE)
+        with open(filepath, "r", encoding="utf8") as name_file:
+            old_name = name_file.read()
+        with open(filepath, "w", encoding="utf8") as name_file:
+            name_file.write(new_name)
+        return old_name, new_name

@@ -6611,7 +6611,14 @@ paths:
         201:
           description: "OK: resource created."
           schema:
-            $ref: "#/definitions/Tree"
+            type: object
+            properties:
+              name:
+                description: "The tree name."
+                type: string
+              tree_id:
+                description: "The tree ID."
+                type: string
         401:
           description: "Unauthorized: Missing authorization header."
         404:
@@ -6646,6 +6653,12 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid token."
     put:
+      parameters:
+        - name: tree_id
+          in: path
+          required: true
+          type: string
+          description: "The tree ID."
       tags:
       - trees
       summary: "Update details about a tree."
@@ -6655,6 +6668,15 @@ paths:
       responses:
         200:
           description: "OK: Successful operation."
+          schema:
+            type: object
+            properties:
+              old_name:
+                description: "The old tree name."
+                type: string
+              new_name:
+                description: "The new tree name."
+                type: string
         401:
           description: "Unauthorized: Missing authorization header."
         403:

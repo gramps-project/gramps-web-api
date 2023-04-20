@@ -122,3 +122,37 @@ class TestTrees(unittest.TestCase):
             json={"name": "some name"},
         )
         assert rv.status_code == 201
+        assert rv.json["tree_id"]
+        assert rv.json["name"] == "some name"
+
+    def test_rename_tree(self):
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "admin", "password": "123"}
+        )
+        token = rv.json["access_token"]
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        token_owner = rv.json["access_token"]
+        rv = self.client.post(
+            BASE_URL + "/trees/",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"name": "my old name"},
+        )
+        assert rv.status_code == 201
+        tree_id = rv.json["tree_id"]
+        # missing authorization
+        rv = self.client.put(
+            BASE_URL + f"/trees/{tree_id}",
+            headers={"Authorization": f"Bearer {token_owner}"},
+            json={"name": "my new name"},
+        )
+        assert rv.status_code == 403
+        # OK
+        rv = self.client.put(
+            BASE_URL + f"/trees/{tree_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"name": "my new name"},
+        )
+        assert rv.status_code == 200
+        assert rv.json == {"old_name": "my old name", "new_name": "my new name"}

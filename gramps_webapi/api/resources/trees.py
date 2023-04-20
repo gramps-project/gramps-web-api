@@ -24,7 +24,7 @@ import re
 import uuid
 from typing import Dict, Optional
 
-from flask import abort
+from flask import abort, current_app
 from gramps.gen.config import config
 from webargs import fields
 from werkzeug.security import safe_join
@@ -93,8 +93,8 @@ class TreesResource(ProtectedResource):
         require_permissions([PERM_ADD_TREE])
         tree_id = str(uuid.uuid4())
         # TODO dbid
-        WebDbManager(dirname=tree_id, name=args["name"], create_if_missing=True)
-        return "", 201
+        dbmgr = WebDbManager(dirname=tree_id, name=args["name"], create_if_missing=True)
+        return {"name": args["name"], "tree_id": dbmgr.dirname}, 201
 
 
 class TreeResource(ProtectedResource):
@@ -109,7 +109,13 @@ class TreeResource(ProtectedResource):
             abort(403)
         return get_tree_details(tree_id)
 
-    def put(self, tree_id: str):
+    @use_args(
+        {
+            "name": fields.Str(required=True),
+        },
+        location="json",
+    )
+    def put(self, args, tree_id: str):
         """Modify a tree."""
         user_tree_id = get_tree_from_jwt() or get_single_tree_id()
         if tree_id == user_tree_id:
@@ -121,5 +127,5 @@ class TreeResource(ProtectedResource):
             dbmgr = WebDbManager(dirname=tree_id, create_if_missing=False)
         except ValueError:
             abort(404)
-        # TODO
-        return "", 200
+        old_name, new_name = dbmgr.rename_database(new_name=args["name"])
+        return {"old_name": old_name, "new_name": new_name}
