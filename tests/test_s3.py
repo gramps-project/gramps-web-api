@@ -49,30 +49,30 @@ def test_mediahandler(bucket):
     handler = MediaHandler(URL)
     assert handler.endpoint_url is None
     assert handler.bucket_name == BUCKET
-    assert handler.remote_keys == set()
+    assert handler.get_remote_keys() == set()
 
 
 def test_upload(bucket):
     handler = MediaHandler(URL)
     img, checksum = get_image(0)
-    assert handler.remote_keys == set()
+    assert handler.get_remote_keys() == set()
     handler.upload_file(img, checksum, "image/jpeg")
-    assert handler.remote_keys == {checksum}
+    assert handler.get_remote_keys() == {checksum}
     img, checksum2 = get_image(1)
     handler.upload_file(img, checksum2, "image/jpeg")
-    assert handler.remote_keys == {checksum, checksum2}
+    assert handler.get_remote_keys() == {checksum, checksum2}
 
 
 def test_upload_prefix(bucket):
     handler = MediaHandler(URL_PREFIX)
     img, checksum = get_image(0)
-    assert handler.remote_keys == set()
+    assert handler.get_remote_keys() == set()
     handler.upload_file(img, checksum, "image/jpeg")
-    assert handler.remote_keys == {checksum}
+    assert handler.get_remote_keys() == {checksum}
     keys = list_object_keys(handler.bucket_name, handler.endpoint_url)
     assert keys == [f"mytree/{checksum}"]
     img, checksum2 = get_image(1)
     handler.upload_file(img, checksum2, "image/jpeg")
-    assert handler.remote_keys == {checksum, checksum2}
+    assert handler.get_remote_keys() == {checksum, checksum2}
     keys = list_object_keys(handler.bucket_name, handler.endpoint_url)
     assert sorted(keys) == sorted([f"mytree/{checksum}", f"mytree/{checksum2}"])

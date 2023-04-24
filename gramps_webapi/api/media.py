@@ -122,8 +122,7 @@ class MediaHandlerS3(MediaHandlerBase):
             return None
         return splitted[1].rstrip("/")
 
-    @property
-    def remote_keys(self) -> Set[str]:
+    def get_remote_keys(self) -> Set[str]:
         """Return the set of all object keys that are known to exist on remote."""
         keys = list_object_keys(self.bucket_name, endpoint_url=self.endpoint_url)
         return set(removeprefix(key, self.prefix or "").lstrip("/") for key in keys)
@@ -158,7 +157,8 @@ class MediaHandlerS3(MediaHandlerBase):
         """Given a list of media objects, return the ones with existing files."""
         # for S3, we use the bucket-level list of handles to avoid having
         # to do many GETs that are more expensive than one LIST
-        return [obj for obj in objects if obj.checksum in self.remote_keys]
+        remote_keys = self.get_remote_keys()
+        return [obj for obj in objects if obj.checksum in remote_keys]
 
 
 def MediaHandler(base_dir: Optional[str]) -> MediaHandlerBase:
