@@ -111,6 +111,13 @@ def create_app(config: Optional[Dict[str, Any]] = None):
         # create database if missing (only in single-tree mode)
         WebDbManager(name=app.config["TREE"], create_if_missing=True)
 
+    if app.config["TREE"] == TREE_MULTI and not app.config["MEDIA_PREFIX_TREE"]:
+        warnings.warn(
+            "You have enabled multi-tree support, but `MEDIA_PREFIX_TREE` is "
+            "set to `False`. This is strongly discouraged as it exposes media "
+            "files to users belonging to different trees!"
+        )
+
     # load JWT default settings
     app.config.from_object(DefaultConfigJWT)
 
