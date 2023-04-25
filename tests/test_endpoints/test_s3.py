@@ -53,13 +53,15 @@ class TestS3(unittest.TestCase):
             test_app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
         cls.client = test_app.test_client()
         with test_app.app_context():
+            db_manager = WebDbManager(name=test_db.name, create_if_missing=False)
+            tree = db_manager.dirname
             user_db.create_all()
             add_user(
                 name="owner",
                 password="owner",
                 role=ROLE_OWNER,
+                tree=tree,
             )
-        db_manager = WebDbManager(name=test_db.name, create_if_missing=False)
 
     @mock_s3
     def test_upload_new_media(self):

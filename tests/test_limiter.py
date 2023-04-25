@@ -19,6 +19,7 @@
 
 """Tests for rate limited endpoints."""
 
+import os
 import unittest
 from unittest.mock import patch
 
@@ -38,14 +39,15 @@ class TestRateLimits(unittest.TestCase):
     def setUpClass(cls):
         cls.name = "Test Web API"
         cls.dbman = CLIDbManager(DbState())
-        _, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        dbpath, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        tree = os.path.basename(dbpath)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
             cls.app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": True})
-        cls.client = cls.app.test_client()
+            cls.client = cls.app.test_client()
         with cls.app.app_context():
             user_db.create_all()
-            add_user(name="user", password="123", role=ROLE_GUEST)
-            add_user(name="admin", password="123", role=ROLE_OWNER)
+            add_user(name="user", password="123", role=ROLE_GUEST, tree=tree)
+            add_user(name="admin", password="123", role=ROLE_OWNER, tree=tree)
 
     @classmethod
     def tearDownClass(cls):

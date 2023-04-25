@@ -81,16 +81,18 @@ def setUpModule():
     TEST_CLIENT = test_app.test_client()
     with test_app.app_context():
         user_db.create_all()
-        for role in TEST_USERS:
-            add_user(
-                name=TEST_USERS[role]["name"],
-                password=TEST_USERS[role]["password"],
-                role=role,
-            )
-    db_manager = WebDbManager(name=test_db.name, create_if_missing=False)
-    db_state = db_manager.get_db()
-    with test_app.app_context():
+        db_manager = WebDbManager(name=test_db.name, create_if_missing=False)
         tree = db_manager.dirname
+
+        for role, user in TEST_USERS.items():
+            add_user(
+                name=user["name"],
+                password=user["password"],
+                role=role,
+                tree=tree,
+            )
+
+        db_state = db_manager.get_db()
         search_index = get_search_indexer(tree)
         db = db_state.db
         search_index.reindex_full(db)

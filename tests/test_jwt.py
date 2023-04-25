@@ -22,6 +22,7 @@
 import unittest
 from unittest.mock import patch
 
+import pytest
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.db import DbTxn
 from gramps.gen.dbstate import DbState
@@ -57,11 +58,16 @@ class TestPerson(unittest.TestCase):
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
             cls.app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
         cls.client = cls.app.test_client()
+        db_manager = WebDbManager(cls.name, create_if_missing=False)
+        tree = db_manager.dirname
         with cls.app.app_context():
             user_db.create_all()
-            add_user(name="user", password="123", role=ROLE_GUEST)
-            add_user(name="admin", password="123", role=ROLE_OWNER)
-        db_manager = WebDbManager(cls.name, create_if_missing=False)
+            add_user(name="user", password="123", role=ROLE_GUEST, tree=tree)
+            add_user(name="admin", password="123", role=ROLE_OWNER, tree=tree)
+            add_user(name="user_notree", password="123", role=ROLE_GUEST)
+            add_user(
+                name="user_othertree", password="123", role=ROLE_GUEST, tree="othertree"
+            )
         dbstate = db_manager.get_db(force_unlock=True)
         with DbTxn("Add test objects", dbstate.db) as trans:
             _add_person(Person.MALE, "John", "Allen", trans, dbstate.db)
@@ -83,11 +89,16 @@ class TestPerson(unittest.TestCase):
             "/api/token/", json={"username": "user", "password": "123"}
         )
         token = rv.json["access_token"]
+        rv = self.client.post(
+            "/api/token/", json={"username": "user_othertree", "password": "123"}
+        )
+        token_othertree = rv.json["access_token"]
         rv = self.client.get(
             "/api/people/",
             headers={"Authorization": "Bearer {}".format(token)},
         )
         assert rv.status_code == 200
+        assert len(rv.json) == 1
         it = rv.json[0]
         rv = self.client.get("/api/people/" + it["handle"] + "?profile=all")
         # no authorization header!
@@ -112,6 +123,12 @@ class TestPerson(unittest.TestCase):
         assert rv.json["private"] == False
         assert rv.json["birth_ref_index"] == -1
         assert rv.json["death_ref_index"] == -1
+        with pytest.raises(ValueError):
+            # this won't work as the other tree does not actually exist!
+            rv = self.client.get(
+                "/api/people/",
+                headers={"Authorization": f"Bearer {token_othertree}"},
+            )
 
     def test_person_endpoint_privacy(self):
         rv = self.client.post(
@@ -147,6 +164,11 @@ class TestPerson(unittest.TestCase):
             "/api/token/", json={"username": "unknown", "password": "123"}
         )
         # wrong user
+        assert rv.status_code == 403
+        rv = self.client.post(
+            "/api/token/", json={"username": "user_notree", "password": "123"}
+        )
+        # user without tree but multi-tree mode
         assert rv.status_code == 403
         rv = self.client.post(
             "/api/token/", json={"username": "user", "password": "123"}

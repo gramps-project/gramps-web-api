@@ -35,7 +35,7 @@ from .api.ratelimiter import limiter
 from .api.search import SearchIndexer
 from .auth import user_db
 from .config import DefaultConfig, DefaultConfigJWT
-from .const import API_PREFIX, ENV_CONFIG_FILE
+from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI
 from .dbmanager import WebDbManager
 from .util.celery import create_celery
 
@@ -107,8 +107,9 @@ def create_app(config: Optional[Dict[str, Any]] = None):
         if not app.config.get(option):
             raise ValueError(f"{option} must be specified")
 
-    # create database if missing
-    WebDbManager(name=app.config["TREE"], create_if_missing=True)
+    if app.config["TREE"] != TREE_MULTI:
+        # create database if missing (only in single-tree mode)
+        WebDbManager(name=app.config["TREE"], create_if_missing=True)
 
     # load JWT default settings
     app.config.from_object(DefaultConfigJWT)

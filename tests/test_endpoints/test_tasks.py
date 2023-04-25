@@ -19,6 +19,7 @@
 
 """Tests for the /api/tasks endpoint."""
 
+import os
 import unittest
 from unittest.mock import patch
 
@@ -39,7 +40,8 @@ class TestTask(unittest.TestCase):
     def setUpClass(cls):
         cls.name = "Test Web API"
         cls.dbman = CLIDbManager(DbState())
-        _, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        dirpath, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        tree = os.path.basename(dirpath)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
             cls.app = create_app(
                 config={
@@ -54,7 +56,7 @@ class TestTask(unittest.TestCase):
         cls.client = cls.app.test_client()
         with cls.app.app_context():
             user_db.create_all()
-            add_user(name="user", password="123", role=ROLE_GUEST)
+            add_user(name="user", password="123", role=ROLE_GUEST, tree=tree)
 
     @classmethod
     def tearDownClass(cls):

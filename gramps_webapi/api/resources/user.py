@@ -23,7 +23,7 @@ import datetime
 from gettext import gettext as _
 from typing import Tuple
 
-from flask import abort, jsonify, render_template
+from flask import abort, current_app, jsonify, render_template
 from flask_jwt_extended import create_access_token, get_jwt, get_jwt_identity
 from webargs import fields
 
@@ -50,6 +50,7 @@ from ...auth.const import (
     PERM_EDIT_OTHER_USER,
     PERM_EDIT_OWN_USER,
     PERM_EDIT_USER_ROLE,
+    PERM_EDIT_USER_TREE,
     PERM_MAKE_ADMIN,
     PERM_VIEW_OTHER_TREE_USER,
     PERM_VIEW_OTHER_USER,
@@ -61,6 +62,7 @@ from ...auth.const import (
     SCOPE_CREATE_ADMIN,
     SCOPE_RESET_PW,
 )
+from ...const import TREE_MULTI
 from ..auth import has_permissions, require_permissions
 from ..ratelimiter import limiter
 from ..tasks import (
@@ -71,7 +73,7 @@ from ..tasks import (
     send_email_new_user,
     send_email_reset_password,
 )
-from ..util import get_tree_from_jwt, get_tree_id, use_args
+from ..util import get_tree_from_jwt, get_tree_id, tree_exists, use_args
 from . import LimitedScopeProtectedResource, ProtectedResource, Resource
 
 
@@ -154,6 +156,7 @@ class UserResource(UserChangeBase):
             "email": fields.Str(required=False),
             "full_name": fields.Str(required=False),
             "role": fields.Int(required=False),
+            "tree": fields.Str(required=False),
         },
         location="json",
     )
@@ -168,11 +171,16 @@ class UserResource(UserChangeBase):
                 require_permissions([PERM_EDIT_OTHER_TREE_USER_ROLE])
             else:
                 require_permissions([PERM_EDIT_USER_ROLE])
+        if "tree" in args:
+            require_permissions([PERM_EDIT_USER_TREE])
+            if not tree_exists(args["tree"]):
+                abort(422)
         modify_user(
             name=user_name,
             email=args.get("email"),
             fullname=args.get("full_name"),
             role=args.get("role"),
+            tree=args.get("tree"),
         )
         return "", 200
 
@@ -199,6 +207,8 @@ class UserResource(UserChangeBase):
             require_permissions([PERM_ADD_USER])
         else:
             require_permissions([PERM_ADD_OTHER_TREE_USER])
+            if not tree_exists(args["tree"]):
+                abort(422)
         try:
             add_user(
                 name=user_name,
@@ -250,9 +260,14 @@ class UserRegisterResource(Resource):
         if user_name == "-":
             # Registering a new user does not make sense for "own" user
             abort(404)
+        if not args.get("tree") and current_app.config["TREE"] == TREE_MULTI:
+            # if multi-tree is enabled, tree is required
+            abort(422)
         # do not allow registration if no tree owner account exists!
         if get_number_users(tree=args.get("tree"), roles=(ROLE_OWNER,)) == 0:
             abort(405)
+        if "tree" in args and not tree_exists(args["tree"]):
+            abort(422)
         try:
             add_user(
                 name=user_name,
@@ -292,10 +307,11 @@ class UserCreateOwnerResource(LimitedScopeProtectedResource):
         location="json",
     )
     def post(self, args, user_name: str):
-        """Create a user with owner permissions."""
+        """Create a user with admin permissions."""
         if user_name == "-":
             # User name - is not allowed
             abort(404)
+        # FIXME what about multi-tree
         if get_number_users() > 0:
             # there is already a user in the user DB
             abort(405)
@@ -303,6 +319,8 @@ class UserCreateOwnerResource(LimitedScopeProtectedResource):
         if claims[CLAIM_LIMITED_SCOPE] != SCOPE_CREATE_ADMIN:
             # This is a wrong token!
             abort(403)
+        if "tree" in args and not tree_exists(args["tree"]):
+            abort(422)
         add_user(
             name=user_name,
             password=args["password"],

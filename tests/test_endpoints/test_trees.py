@@ -48,10 +48,18 @@ class TestTrees(unittest.TestCase):
         with self.app.app_context():
             user_db.create_all()
             add_user(
-                name="owner", password="123", email="owner@example.com", role=ROLE_OWNER
+                name="owner",
+                password="123",
+                email="owner@example.com",
+                role=ROLE_OWNER,
+                tree=self.tree,
             )
             add_user(
-                name="admin", password="123", email="admin@example.com", role=ROLE_ADMIN
+                name="admin",
+                password="123",
+                email="admin@example.com",
+                role=ROLE_ADMIN,
+                tree=self.tree,
             )
         self.assertTrue(self.app.testing)
         self.ctx = self.app.test_request_context()

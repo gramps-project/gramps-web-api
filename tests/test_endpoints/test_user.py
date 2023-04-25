@@ -50,21 +50,50 @@ class TestUser(unittest.TestCase):
     def setUp(self):
         self.name = "Test Web API"
         self.dbman = CLIDbManager(DbState())
-        dbpath, _name = self.dbman.create_new_db_cli(self.name, dbid="sqlite")
+        dbpath, _ = self.dbman.create_new_db_cli(self.name, dbid="sqlite")
         self.tree = os.path.basename(dbpath)
+        dbpath2, _ = self.dbman.create_new_db_cli("Test Web API 2", dbid="sqlite")
+        self.tree = os.path.basename(dbpath)
+        self.tree2 = os.path.basename(dbpath2)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
             self.app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
         self.client = self.app.test_client()
         with self.app.app_context():
             user_db.create_all()
             add_user(
-                name="user", password="123", email="test@example.com", role=ROLE_MEMBER
+                name="user",
+                password="123",
+                email="test@example.com",
+                role=ROLE_MEMBER,
+                tree=self.tree,
             )
             add_user(
-                name="owner", password="123", email="owner@example.com", role=ROLE_OWNER
+                name="user2",
+                password="123",
+                email="test2@example.com",
+                role=ROLE_MEMBER,
+                tree=self.tree2,
             )
             add_user(
-                name="admin", password="123", email="admin@example.com", role=ROLE_ADMIN
+                name="owner",
+                password="123",
+                email="owner@example.com",
+                role=ROLE_OWNER,
+                tree=self.tree,
+            )
+            add_user(
+                name="owner2",
+                password="123",
+                email="owner2@example.com",
+                role=ROLE_OWNER,
+                tree=self.tree2,
+            )
+            add_user(
+                name="admin",
+                password="123",
+                email="admin@example.com",
+                role=ROLE_ADMIN,
+                tree=self.tree,
             )
         self.assertTrue(self.app.testing)
         self.ctx = self.app.test_request_context()
@@ -262,7 +291,7 @@ class TestUser(unittest.TestCase):
                 "email": "test@example.com",
                 "role": ROLE_MEMBER,
                 "full_name": None,
-                "tree": None,
+                "tree": self.tree,
             },
         )
         # user cannot view others
@@ -284,7 +313,35 @@ class TestUser(unittest.TestCase):
                 "email": "test@example.com",
                 "role": ROLE_MEMBER,
                 "full_name": None,
-                "tree": None,
+                "tree": self.tree,
+            },
+        )
+        # owner cannot view other tree
+        rv = self.client.get(
+            BASE_URL + "/users/user2/",
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 403
+        # admin can view other tree
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "admin", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_admin = rv.json["access_token"]
+        rv = self.client.get(
+            BASE_URL + "/users/user2/",
+            headers={"Authorization": f"Bearer {token_admin}"},
+        )
+        assert rv.status_code == 200
+        self.assertEqual(
+            rv.json,
+            {
+                "name": "user2",
+                "email": "test2@example.com",
+                "role": ROLE_MEMBER,
+                "full_name": None,
+                "tree": self.tree2,
             },
         )
 
@@ -347,7 +404,7 @@ class TestUser(unittest.TestCase):
                 "email": "test@example.com",
                 "role": ROLE_MEMBER,
                 "full_name": "My Name",
-                "tree": None,
+                "tree": self.tree,
             },
         )
         # user cannot change others
@@ -376,7 +433,7 @@ class TestUser(unittest.TestCase):
                 "email": "test@example.com",
                 "role": ROLE_MEMBER,
                 "full_name": "His Name",
-                "tree": None,
+                "tree": self.tree,
             },
         )
 
@@ -471,15 +528,26 @@ class TestUser(unittest.TestCase):
                     "role": ROLE_OWNER,
                     "full_name": "My Name",
                     "password": "abc",
+                    "tree": self.tree,
                 },
             )
             assert rv.status_code == 422
+            # missing tree
+            rv = self.client.post(
+                BASE_URL + "/users/new_user_2/register/",
+                json={
+                    "email": "new_2@example.com",
+                    "full_name": "My Name",
+                    "password": "abc",
+                },
+            )
             # missing password
             rv = self.client.post(
                 BASE_URL + "/users/new_user_2/register/",
                 json={
                     "email": "new_2@example.com",
                     "full_name": "My Name",
+                    "tree": self.tree,
                 },
             )
             assert rv.status_code == 422
@@ -490,6 +558,7 @@ class TestUser(unittest.TestCase):
                     "email": "new_2@example.com",
                     "full_name": "New Name",
                     "password": "abc",
+                    "tree": self.tree,
                 },
             )
             assert rv.status_code == 409
@@ -500,6 +569,7 @@ class TestUser(unittest.TestCase):
                     "email": "new_2@example.com",
                     "full_name": "New Name",
                     "password": "abc",
+                    "tree": self.tree,
                 },
             )
             assert rv.status_code == 201
@@ -522,7 +592,7 @@ class TestUser(unittest.TestCase):
                     "role": ROLE_UNCONFIRMED,
                     "full_name": "New Name",
                     "name": "new_user_2",
-                    "tree": None,
+                    "tree": self.tree,
                 },
             )
             # new user cannot get token
@@ -539,6 +609,7 @@ class TestUser(unittest.TestCase):
                     "email": "new_3@example.com",
                     "full_name": "New Name",
                     "password": "abc",
+                    "tree": self.tree,
                 },
             )
             assert rv.status_code == 201
@@ -585,7 +656,7 @@ class TestUser(unittest.TestCase):
                     "role": ROLE_DISABLED,
                     "full_name": "New Name",
                     "name": "new_user_3",
-                    "tree": None,
+                    "tree": self.tree,
                 },
             )
             # try getting list of people with email confirmation token
@@ -724,7 +795,13 @@ class TestUser(unittest.TestCase):
             json={"role": ROLE_ADMIN},
         )
         assert rv.status_code == 403
-        # amin can
+        # admin can
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "admin", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_admin = rv.json["access_token"]
         rv = self.client.put(
             BASE_URL + "/users/user_change_role/",
             headers={"Authorization": f"Bearer {token_admin}"},
@@ -802,7 +879,8 @@ class TestUserCelery(unittest.TestCase):
     def setUp(self):
         self.name = "Test Web API"
         self.dbman = CLIDbManager(DbState())
-        _, _name = self.dbman.create_new_db_cli(self.name, dbid="sqlite")
+        dbpath, _name = self.dbman.create_new_db_cli(self.name, dbid="sqlite")
+        self.tree = os.path.basename(dbpath)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
             self.app = create_app(
                 config={
@@ -818,10 +896,18 @@ class TestUserCelery(unittest.TestCase):
         with self.app.app_context():
             user_db.create_all()
             add_user(
-                name="user", password="123", email="test@example.com", role=ROLE_MEMBER
+                name="user",
+                password="123",
+                email="test@example.com",
+                role=ROLE_MEMBER,
+                tree=self.tree,
             )
             add_user(
-                name="owner", password="123", email="owner@example.com", role=ROLE_OWNER
+                name="owner",
+                password="123",
+                email="owner@example.com",
+                role=ROLE_OWNER,
+                tree=self.tree,
             )
         self.assertTrue(self.app.testing)
         self.ctx = self.app.test_request_context()
@@ -839,6 +925,7 @@ class TestUserCelery(unittest.TestCase):
         rv = self.client.post(
             BASE_URL + "/token/", json={"username": "user", "password": "123"}
         )
+        assert rv.status_code == 200
         token = rv.json["access_token"]
         from time import sleep
 
