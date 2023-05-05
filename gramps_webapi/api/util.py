@@ -44,7 +44,7 @@ from marshmallow import RAISE
 from webargs.flaskparser import FlaskParser
 from werkzeug.security import safe_join
 
-from ..auth import config_get, get_tree
+from ..auth import config_get, get_tree, get_tree_usage, set_tree_usage
 from ..auth.const import PERM_VIEW_PRIVATE
 from ..const import DB_CONFIG_ALLOWED_KEYS, LOCALE_MAP, TREE_MULTI
 from ..dbmanager import WebDbManager
@@ -274,7 +274,7 @@ def make_cache_key_thumbnails(*args, **kwargs):
     # get media checksum
     handle = kwargs["handle"]
     tree = get_tree_from_jwt()
-    db_handle = get_db_handle(tree)
+    db_handle = get_db_handle()
     try:
         obj = db_handle.get_media_from_handle(handle)
     except HandleError:
@@ -337,3 +337,27 @@ def tree_exists(tree_id: str) -> bool:
     if not os.path.isfile(dbid_path):
         return False
     return True
+
+
+def update_usage_people() -> int:
+    """Update the usage of people."""
+    tree = get_tree_from_jwt()
+    db_handle = get_db_handle()
+    usage_people = db_handle.get_number_of_people()
+    set_tree_usage(tree, usage_people=usage_people)
+    return usage_people
+
+
+def check_quota_people(to_add: int) -> None:
+    """Check whether the quota allows adding `to_add` people and abort if not."""
+    tree = get_tree_from_jwt()
+    usage_dict = get_tree_usage(tree)
+    if not usage_dict or usage_dict.get("usage_people") is None:
+        update_usage_people()
+    usage_dict = get_tree_usage(tree)
+    usage = usage_dict["usage_people"]
+    quota = usage_dict.get("quota_people")
+    if quota is None:
+        return
+    if usage + to_add > quota:
+        abort(405)

@@ -27,13 +27,13 @@ from typing import Any, Dict, List, Optional, Sequence, Set
 import sqlalchemy as sa
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError, StatementError
+from sqlalchemy.orm import mapped_column, relationship
 from sqlalchemy.sql.functions import coalesce
 
 from ..const import DB_CONFIG_ALLOWED_KEYS
 from .const import PERMISSIONS, ROLE_OWNER
 from .passwords import hash_password, verify_password
 from .sql_guid import GUID
-
 
 user_db = SQLAlchemy()
 
@@ -264,6 +264,60 @@ def config_delete(key: str) -> None:
         user_db.session.commit()  # pylint: disable=no-member
 
 
+def get_tree_usage(tree: str) -> Optional[Dict[str, int]]:
+    """Get tree usage info."""
+    query = user_db.session.query(Tree)  # pylint: disable=no-member
+    tree_obj = query.filter_by(id=tree).scalar()
+    if tree_obj is None:
+        return None
+    return {
+        "quota_media": tree_obj.quota_media,
+        "quota_people": tree_obj.quota_people,
+        "usage_media": tree_obj.usage_media,
+        "usage_people": tree_obj.usage_people,
+    }
+
+
+def set_tree_usage(
+    tree: str,
+    usage_media: Optional[int] = None,
+    usage_people: Optional[int] = None,
+) -> None:
+    """Set the tree usage data."""
+    if usage_media is None and usage_people is None:
+        return
+    query = user_db.session.query(Tree)  # pylint: disable=no-member
+    tree_obj = query.filter_by(id=tree).scalar()
+    if not tree_obj:
+        tree_obj = Tree(id=tree)
+    if usage_media is not None:
+        tree_obj.usage_media = usage_media
+    if usage_people is not None:
+        tree_obj.usage_people = usage_people
+    user_db.session.add(tree_obj)  # pylint: disable=no-member
+    user_db.session.commit()  # pylint: disable=no-member
+
+
+def set_tree_quota(
+    tree: str,
+    quota_media: Optional[int] = None,
+    quota_people: Optional[int] = None,
+) -> None:
+    """Set the tree quotas."""
+    if quota_media is None and quota_people is None:
+        return
+    query = user_db.session.query(Tree)  # pylint: disable=no-member
+    tree_obj = query.filter_by(id=tree).scalar()
+    if not tree_obj:
+        tree_obj = Tree(id=tree)
+    if quota_media is not None:
+        tree_obj.quota_media = quota_media
+    if quota_people is not None:
+        tree_obj.quota_people = quota_people
+    user_db.session.add(tree_obj)  # pylint: disable=no-member
+    user_db.session.commit()  # pylint: disable=no-member
+
+
 class User(user_db.Model):
     """User table class for sqlalchemy."""
 
@@ -294,3 +348,19 @@ class Config(user_db.Model):
     def __repr__(self):
         """Return string representation of instance."""
         return f"<Config(key='{self.key}', value='{self.value}')>"
+
+
+class Tree(user_db.Model):
+    """Config table class for sqlalchemy."""
+
+    __tablename__ = "trees"
+
+    id = sa.Column(sa.String, primary_key=True)
+    quota_media = sa.Column(sa.Integer)
+    quota_people = sa.Column(sa.Integer)
+    usage_media = sa.Column(sa.Integer)
+    usage_people = sa.Column(sa.Integer)
+
+    def __repr__(self):
+        """Return string representation of instance."""
+        return f"<Tree(id='{self.id}')>"

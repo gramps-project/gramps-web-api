@@ -24,14 +24,19 @@ from typing import Sequence
 
 from flask import Response, abort, current_app, request
 from gramps.gen.db import DbTxn
-from gramps.gen.lib import Family
+from gramps.gen.lib import Family, Person
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.lib.serialize import from_json
 
 from ...auth.const import PERM_ADD_OBJ, PERM_EDIT_OBJ
 from ..auth import require_permissions
 from ..search import SearchIndexer
-from ..util import get_db_handle, get_search_indexer, get_tree_from_jwt
+from ..util import (
+    check_quota_people,
+    get_db_handle,
+    get_search_indexer,
+    get_tree_from_jwt,
+)
 from . import ProtectedResource
 from .util import add_object, fix_object_dict, transaction_to_json, validate_object_dict
 
@@ -66,6 +71,8 @@ class CreateObjectsResource(ProtectedResource):
             require_permissions([PERM_EDIT_OBJ])
         if not objects:
             abort(400)
+        number_new_people = sum(isinstance(obj, Person) for obj in objects)
+        check_quota_people(to_add=number_new_people)
         db_handle = get_db_handle(readonly=False)
         with DbTxn("Add objects", db_handle) as trans:
             for obj in objects:

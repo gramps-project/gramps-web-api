@@ -33,14 +33,17 @@ from gramps.gen.lib.serialize import from_json
 from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 
+from ...auth import get_tree_usage, set_tree_usage
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ..auth import require_permissions
 from ..search import SearchIndexer
 from ..util import (
+    check_quota_people,
     get_db_handle,
     get_locale_for_language,
     get_search_indexer,
     get_tree_from_jwt,
+    update_usage_people,
     use_args,
 )
 from . import ProtectedResource, Resource
@@ -250,6 +253,9 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         trans_dict = delete_object(
             self.db_handle_writable, handle, self.gramps_class_name
         )
+        # update usage
+        if self.gramps_class_name == "Person":
+            update_usage_people()
         # update search index
         tree = get_tree_from_jwt()
         indexer: SearchIndexer = get_search_indexer(tree)
@@ -420,6 +426,9 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
     def post(self) -> Response:
         """Post a new object."""
         require_permissions([PERM_ADD_OBJ])
+        # check quota
+        if self.gramps_class_name == "Person":
+            check_quota_people(to_add=1)
         obj = self._parse_object()
         if not obj:
             abort(400)
@@ -430,6 +439,9 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             except ValueError:
                 abort(400)
             trans_dict = transaction_to_json(trans)
+        # update usage
+        if self.gramps_class_name == "Person":
+            update_usage_people()
         # update search index
         tree = get_tree_from_jwt()
         indexer: SearchIndexer = get_search_indexer(tree)

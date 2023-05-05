@@ -33,7 +33,7 @@ from gramps.gen.utils.grampslocale import GrampsLocale
 from ...auth.const import PERM_ADD_OBJ
 from ..auth import require_permissions
 from ..file import process_file
-from ..media import get_media_handler
+from ..media import check_quota_media, get_media_handler, update_usage_media
 from ..util import get_tree_from_jwt
 from .base import (
     GrampsObjectProtectedResource,
@@ -79,7 +79,8 @@ class MediaObjectsResource(GrampsObjectsProtectedResource, MediaObjectResourceHe
         mime = request.content_type
         if not mime:
             abort(HTTPStatus.NOT_ACCEPTABLE)
-        checksum, f = process_file(request.stream)
+        checksum, size, f = process_file(request.stream)
+        check_quota_media(to_add=size)
         tree = get_tree_from_jwt()
         media_handler = get_media_handler(tree)
         media_handler.upload_file(f, checksum, mime)
@@ -95,4 +96,5 @@ class MediaObjectsResource(GrampsObjectsProtectedResource, MediaObjectResourceHe
             except ValueError:
                 abort(400)
             trans_dict = transaction_to_json(trans)
+        update_usage_media()
         return self.response(201, trans_dict, total_items=len(trans_dict))

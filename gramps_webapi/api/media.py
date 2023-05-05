@@ -4,15 +4,20 @@ import os
 from pathlib import Path
 from typing import BinaryIO, List, Optional, Set
 
-from flask import current_app
+from flask import abort, current_app
 from gramps.gen.lib import Media
 from gramps.gen.utils.file import expand_media_path
 
+from ..auth import get_tree_usage, set_tree_usage
 from ..types import FilenameOrPath
 from ..util import get_extension
 from .file import FileHandler, LocalFileHandler, upload_file_local
-from .s3 import ObjectStorageFileHandler, list_object_keys, upload_file_s3
-from .util import get_db_handle
+from .s3 import (
+    ObjectStorageFileHandler,
+    get_object_keys_size,
+    upload_file_s3,
+)
+from .util import get_db_handle, get_tree_from_jwt
 
 
 PREFIX_S3 = "s3://"
@@ -60,6 +65,10 @@ class MediaHandlerBase:
         """Given a list of media objects, return the ones with existing files."""
         raise NotImplementedError
 
+    def get_media_size(self) -> int:
+        """Return the total disk space used by all existing media objects."""
+        raise NotImplementedError
+
 
 class MediaHandlerLocal(MediaHandlerBase):
     """Handler for local media files."""
@@ -80,7 +89,7 @@ class MediaHandlerLocal(MediaHandlerBase):
             if Path(path).is_absolute():
                 # Don't allow absolute paths! This will raise
                 # if path is not relative to base_dir
-                rel_path: FilenameOrPath = Path(path).relative_to(base_dir)
+                rel_path: FilenameOrPath = Path(path).relative_to(self.base_dir)
             else:
                 rel_path = path
             upload_file_local(self.base_dir, rel_path, stream)
@@ -93,6 +102,29 @@ class MediaHandlerLocal(MediaHandlerBase):
         return [
             obj for obj in objects if self.get_file_handler(obj.handle).file_exists()
         ]
+
+    def get_media_size(self) -> int:
+        """Return the total disk space used by all existing media objects.
+
+        Only works with a request context.
+        """
+        if not os.path.isdir(self.base_dir):
+            raise ValueError(f"Directory {self.base_dir} does not exist")
+        size = 0
+        paths_seen = set()
+        db_handle = get_db_handle()
+        for obj in db_handle.iter_media():
+            path = obj.path
+            if os.path.isabs(path):
+                if Path(self.base_dir).resolve() not in Path(path).resolve().parents:
+                    continue  # file outside base dir - ignore
+            else:
+                path = os.path.join(self.base_dir, path)
+            if Path(path).is_file() and path not in paths_seen:
+                file_size = os.path.getsize(path)
+                size += file_size
+                paths_seen.add(path)
+        return size
 
 
 class MediaHandlerS3(MediaHandlerBase):
@@ -124,7 +156,9 @@ class MediaHandlerS3(MediaHandlerBase):
 
     def get_remote_keys(self) -> Set[str]:
         """Return the set of all object keys that are known to exist on remote."""
-        keys = list_object_keys(self.bucket_name, endpoint_url=self.endpoint_url)
+        keys = get_object_keys_size(
+            self.bucket_name, prefix=self.prefix, endpoint_url=self.endpoint_url
+        )
         return set(removeprefix(key, self.prefix or "").lstrip("/") for key in keys)
 
     def get_file_handler(self, handle) -> ObjectStorageFileHandler:
@@ -160,6 +194,17 @@ class MediaHandlerS3(MediaHandlerBase):
         remote_keys = self.get_remote_keys()
         return [obj for obj in objects if obj.checksum in remote_keys]
 
+    def get_media_size(self) -> int:
+        """Return the total disk space used by all existing media objects."""
+        db_handle = get_db_handle()
+        keys = set(obj.checksum for obj in db_handle.iter_media())
+        keys_size = get_object_keys_size(
+            bucket_name=self.bucket_name,
+            prefix=self.prefix,
+            endpoint_url=self.endpoint_url,
+        )
+        return sum(keys_size.get(key, 0) for key in keys)
+
 
 def MediaHandler(base_dir: Optional[str]) -> MediaHandlerBase:
     """Return an appropriate media handler."""
@@ -193,3 +238,27 @@ def get_media_handler(tree: Optional[str] = None) -> MediaHandlerBase:
             # construct subdirectory using OS dependent path join
             base_dir = os.path.join(base_dir, prefix)
     return MediaHandler(base_dir)
+
+
+def update_usage_media() -> int:
+    """Update the usage of media."""
+    tree = get_tree_from_jwt()
+    media_handler = get_media_handler(tree=tree)
+    usage_media = media_handler.get_media_size()
+    set_tree_usage(tree, usage_media=usage_media)
+    return usage_media
+
+
+def check_quota_media(to_add: int) -> None:
+    """Check whether the quota allows adding `to_add` bytes and abort if not."""
+    tree = get_tree_from_jwt()
+    usage_dict = get_tree_usage(tree)
+    if not usage_dict or usage_dict.get("usage_media") is None:
+        update_usage_media()
+    usage_dict = get_tree_usage(tree)
+    usage = usage_dict["usage_media"]
+    quota = usage_dict.get("quota_media")
+    if quota is None:
+        return
+    if usage + to_add > quota:
+        abort(405)

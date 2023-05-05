@@ -31,9 +31,9 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.dbstate import DbState
 
-from gramps_webapi.api.util import get_db_manager, get_search_indexer
+from gramps_webapi.api.util import get_search_indexer
 from gramps_webapi.app import create_app
-from gramps_webapi.auth import add_user, user_db
+from gramps_webapi.auth import add_user, set_tree_quota, user_db
 from gramps_webapi.auth.const import (
     ROLE_CONTRIBUTOR,
     ROLE_EDITOR,
@@ -77,6 +77,7 @@ class TestObjectCreation(unittest.TestCase):
                 name="contributor", password="123", role=ROLE_CONTRIBUTOR, tree=tree
             )
             add_user(name="editor", password="123", role=ROLE_EDITOR, tree=tree)
+            set_tree_quota(tree, quota_people=3)
 
     @classmethod
     def tearDownClass(cls):
@@ -164,6 +165,11 @@ class TestObjectCreation(unittest.TestCase):
         }
         objects = [person, birth]
         headers = get_headers(self.client, "admin", "123")
+        rv = self.client.get("/api/people/", headers=headers)
+        handles = [obj["handle"] for obj in rv.json]
+        # delete existing people
+        for handle in handles:
+            self.client.delete(f"/api/people/{handle}", headers=headers)
         rv = self.client.post("/api/objects/", json=objects, headers=headers)
         self.assertEqual(rv.status_code, 201)
         # check return value
@@ -427,6 +433,11 @@ class TestObjectCreation(unittest.TestCase):
             "gender": 1,
         }
         headers = get_headers(self.client, "admin", "123")
+        rv = self.client.get("/api/people/", headers=headers)
+        handles = [obj["handle"] for obj in rv.json]
+        # delete existing people
+        for handle in handles:
+            self.client.delete(f"/api/people/{handle}", headers=headers)
         rv = self.client.post("/api/people/", json=person, headers=headers)
         self.assertEqual(rv.status_code, 201)
         rv = self.client.get(f"/api/people/{handle_person}", headers=headers)
@@ -612,3 +623,86 @@ class TestObjectCreation(unittest.TestCase):
         data = rv.json
         # check all 10 exist in the index
         self.assertEqual(len(data), 10)
+
+    def test_add_people_quota(self):
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.get("/api/people/", headers=headers)
+        handles = [obj["handle"] for obj in rv.json]
+        # delete existing people
+        for handle in handles:
+            self.client.delete(f"/api/people/{handle}", headers=headers)
+        person = {
+            "primary_name": {
+                "first_name": "Person1",
+            },
+            "gender": 1,
+        }
+        rv = self.client.post("/api/people/", json=person, headers=headers)
+        assert rv.status_code == 201
+        rv = self.client.get("/api/people/", headers=headers)
+        assert len(rv.json) == 1
+        person = {
+            "primary_name": {
+                "first_name": "Person2",
+            },
+            "gender": 1,
+        }
+        rv = self.client.post("/api/people/", json=person, headers=headers)
+        assert rv.status_code == 201
+        rv = self.client.get("/api/people/", headers=headers)
+        assert len(rv.json) == 2
+        person = {
+            "primary_name": {
+                "first_name": "Person3",
+            },
+            "gender": 1,
+        }
+        rv = self.client.post("/api/people/", json=person, headers=headers)
+        assert rv.status_code == 201
+        rv = self.client.get("/api/people/", headers=headers)
+        assert len(rv.json) == 3
+        person = {
+            "primary_name": {
+                "first_name": "Person4",
+            },
+            "gender": 1,
+        }
+        rv = self.client.post("/api/people/", json=person, headers=headers)
+        assert rv.status_code == 405
+        rv = self.client.get("/api/people/", headers=headers)
+        assert len(rv.json) == 3
+        rv = self.client.get("/api/people/", headers=headers)
+        handles = [obj["handle"] for obj in rv.json]
+        # delete existing people
+        for handle in handles:
+            self.client.delete(f"/api/people/{handle}", headers=headers)
+
+    def test_add_people_quota_objects(self):
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.get("/api/people/", headers=headers)
+        handles = [obj["handle"] for obj in rv.json]
+        # delete existing people
+        for handle in handles:
+            self.client.delete(f"/api/people/{handle}", headers=headers)
+        people = [
+            {
+                "_class": "Person",
+                "primary_name": {
+                    "_class": "Name",
+                    "first_name": f"Person{i}",
+                },
+                "gender": 1,
+            }
+            for i in range(4)
+        ]
+        rv = self.client.post("/api/objects/", json=people[:3], headers=headers)
+        assert rv.status_code == 201
+        rv = self.client.get("/api/people/", headers=headers)
+        assert len(rv.json) == 3
+        rv = self.client.get("/api/people/", headers=headers)
+        handles = [obj["handle"] for obj in rv.json]
+        # delete existing people
+        for handle in handles:
+            self.client.delete(f"/api/people/{handle}", headers=headers)
+        rv = self.client.post("/api/objects/", json=people[:4], headers=headers)
+        assert rv.status_code == 405

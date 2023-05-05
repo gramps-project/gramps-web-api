@@ -60,6 +60,10 @@ class FileHandler:
         """Return a binary file object."""
         raise NotImplementedError
 
+    def get_file_size(self) -> int:
+        """Return the file size in bytes."""
+        raise NotImplementedError
+
     def file_exists(self) -> bool:
         """Check if the file exists."""
         raise NotImplementedError
@@ -140,6 +144,17 @@ class LocalFileHandler(FileHandler):
             stream = BytesIO(f.read())
         return stream
 
+    def get_file_size(self) -> int:
+        """Return the file size in bytes.
+
+        Assumes the file exists!
+        """
+        try:
+            self._check_path()
+        except ValueError:
+            abort(403)
+        return os.path.getsize(self.path_abs)
+
     def send_file(
         self, etag: Optional[str] = None, download: bool = False, filename: str = ""
     ):
@@ -215,13 +230,14 @@ def get_checksum(fp) -> str:
     return md5sum
 
 
-def process_file(stream: Union[Any, BinaryIO]) -> Tuple[str, BinaryIO]:
+def process_file(stream: Union[Any, BinaryIO]) -> Tuple[str, int, BinaryIO]:
     """Process a file from a stream that has a read method."""
     fp = BytesIO()
     fp.write(stream.read())
     fp.seek(0)
     checksum = get_checksum(fp)
+    size = fp.tell()
     if not checksum:
         raise IOError("Unable to process file.")
     fp.seek(0)
-    return checksum, fp
+    return checksum, size, fp

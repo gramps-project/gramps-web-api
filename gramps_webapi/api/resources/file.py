@@ -34,7 +34,7 @@ from webargs import fields
 from ...auth.const import PERM_EDIT_OBJ
 from ..auth import require_permissions
 from ..file import process_file
-from ..media import get_media_handler
+from ..media import check_quota_media, get_media_handler, update_usage_media
 from ..util import get_db_handle, get_tree_from_jwt, use_args
 from . import ProtectedResource
 from .util import transaction_to_json, update_object
@@ -86,21 +86,28 @@ class MediaFileResource(ProtectedResource):
         mime = request.content_type
         if not mime:
             abort(HTTPStatus.NOT_ACCEPTABLE)
-        checksum, f = process_file(request.stream)
+        checksum, size, f = process_file(request.stream)
         tree = get_tree_from_jwt()
         media_handler = get_media_handler(tree)
+        file_handler = media_handler.get_file_handler(handle)
         if checksum == obj.checksum:
-            file_handler = media_handler.get_file_handler(handle)
             if not args.get("uploadmissing") or file_handler.file_exists():
                 # don't allow PUTting if the file didn't change
                 abort(HTTPStatus.CONFLICT)
             # we're uploading a missing file!
+            # new size will add to the quota
+            check_quota_media(to_add=size)
             # use existing path
             path = obj.get_path()
             media_handler.upload_file(f, checksum, mime, path=path)
             return Response(status=200)
         if args.get("uploadmissing"):
             abort(HTTPStatus.CONFLICT)
+        # we're updating an existing file
+        size_old = file_handler.get_file_size()
+        size_delta = size - size_old
+        if size_delta > 0:
+            check_quota_media(to_add=size_delta)
         media_handler.upload_file(f, checksum, mime)
         obj.set_checksum(checksum)
         path = media_handler.get_default_filename(checksum, mime)
@@ -114,6 +121,7 @@ class MediaFileResource(ProtectedResource):
             except ValueError:
                 abort(400)
             trans_dict = transaction_to_json(trans)
+        update_usage_media()
         return Response(
             response=json.dumps(trans_dict), status=200, mimetype="application/json"
         )

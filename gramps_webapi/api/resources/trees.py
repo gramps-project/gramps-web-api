@@ -29,7 +29,13 @@ from gramps.gen.config import config
 from webargs import fields
 from werkzeug.security import safe_join
 
-from ...auth.const import PERM_ADD_TREE, PERM_EDIT_OTHER_TREE, PERM_EDIT_TREE
+from ...auth import get_tree_usage, set_tree_quota
+from ...auth.const import (
+    PERM_ADD_TREE,
+    PERM_EDIT_OTHER_TREE,
+    PERM_EDIT_TREE,
+    PERM_EDIT_TREE_QUOTA,
+)
 from ...const import TREE_MULTI
 from ...dbmanager import WebDbManager
 from ..auth import require_permissions
@@ -46,7 +52,8 @@ def get_tree_details(tree_id: str) -> Dict[str, str]:
         dbmgr = WebDbManager(dirname=tree_id, create_if_missing=False)
     except ValueError:
         abort(404)
-    return {"name": dbmgr.name, "id": tree_id}
+    usage = get_tree_usage(tree_id) or {}
+    return {"name": dbmgr.name, "id": tree_id, **usage}
 
 
 def get_tree_path(tree_id: str) -> Optional[str]:
@@ -98,30 +105,54 @@ class TreeResource(ProtectedResource):
 
     def get(self, tree_id: str):
         """Get info about a tree."""
-        validate_tree_id(tree_id)
-        user_tree_id = get_tree_from_jwt()
-        if tree_id != user_tree_id:
-            # only allowed to see details about our own tree
-            abort(403)
+        if tree_id == "-":
+            # own tree
+            tree_id = get_tree_from_jwt()
+        else:
+            validate_tree_id(tree_id)
+            user_tree_id = get_tree_from_jwt()
+            if tree_id != user_tree_id:
+                # only allowed to see details about our own tree
+                abort(403)
         return get_tree_details(tree_id)
 
     @use_args(
         {
-            "name": fields.Str(required=True),
+            "name": fields.Str(required=False, load_default=None),
+            "quota_media": fields.Integer(required=False),
+            "quota_people": fields.Integer(required=False),
         },
         location="json",
     )
     def put(self, args, tree_id: str):
         """Modify a tree."""
-        user_tree_id = get_tree_from_jwt()
-        if tree_id == user_tree_id:
+        if tree_id == "-":
+            # own tree
+            tree_id = get_tree_from_jwt()
             require_permissions([PERM_EDIT_TREE])
         else:
-            require_permissions([PERM_EDIT_OTHER_TREE])
-            validate_tree_id(tree_id)
+            user_tree_id = get_tree_from_jwt()
+            if tree_id == user_tree_id:
+                require_permissions([PERM_EDIT_TREE])
+            else:
+                require_permissions([PERM_EDIT_OTHER_TREE])
+                validate_tree_id(tree_id)
         try:
             dbmgr = WebDbManager(dirname=tree_id, create_if_missing=False)
         except ValueError:
             abort(404)
-        old_name, new_name = dbmgr.rename_database(new_name=args["name"])
-        return {"old_name": old_name, "new_name": new_name}
+        rv = {}
+        if args["name"]:
+            old_name, new_name = dbmgr.rename_database(new_name=args["name"])
+            rv.update({"old_name": old_name, "new_name": new_name})
+        if args.get("quota_media") is not None or args.get("quota_people") is not None:
+            require_permissions([PERM_EDIT_TREE_QUOTA])
+            set_tree_quota(
+                tree=tree_id,
+                quota_media=args.get("quota_media"),
+                quota_people=args.get("quota_people"),
+            )
+            for quota in ["quota_media", "quota_people"]:
+                if args.get(quota) is not None:
+                    rv.update({quota: args[quota]})
+        return rv

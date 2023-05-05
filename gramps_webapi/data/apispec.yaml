@@ -851,6 +851,8 @@ paths:
           description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
+        405:
+          description: "Method Not Allowed: Quota exceeded."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -3456,6 +3458,8 @@ paths:
           description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
+        405:
+          description: "Method Not Allowed: Quota exceeded."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -3637,6 +3641,8 @@ paths:
           description: "Bad Request: Malformed request could not be parsed."
         401:
           description: "Unauthorized: Missing authorization header."
+        405:
+          description: "Method Not Allowed: Quota exceeded."
         409:
           description: "Conflict: Uploaded file identical to existing file or has wrong checksum for missing file."
         422:
@@ -6580,7 +6586,7 @@ paths:
       tags:
       - trees
       summary: "Return information about multiple trees."
-      operationId: getTree
+      operationId: getTrees
       security:
         - Bearer: []
       responses:
@@ -6600,7 +6606,6 @@ paths:
         in: body
         required: true
         description: "The name of the tree."
-        type: string
       tags:
       - trees
       summary: "Create a new empty tree."
@@ -10034,3 +10039,19 @@ definitions:
         description: "The ID of the tree."
         type: string
         example: "b9ed86ea-1c6b-400a-bb70-af9cb11bdf13"
+      quota_media:
+        description: "The maxium size of media objects."
+        type: integer
+        example: 1000000
+      quota_people:
+        description: "The maxium number of people."
+        type: integer
+        example: 250
+      usage_media:
+        description: "The current size of media objects."
+        type: integer
+        example: 2048
+      usage_people:
+        description: "The current number of people."
+        type: integer
+        example: 96
