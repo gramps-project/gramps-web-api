@@ -33,7 +33,12 @@ from gramps.gen.merge.diff import diff_items
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ..auth import require_permissions
 from ..search import SearchIndexer
-from ..util import get_db_handle, get_search_indexer, get_tree_from_jwt
+from ..util import (
+    check_quota_people,
+    get_db_handle,
+    get_search_indexer,
+    get_tree_from_jwt,
+)
 from . import ProtectedResource
 from .util import transaction_to_json
 
@@ -50,6 +55,10 @@ class TransactionsResource(ProtectedResource):
         if not payload:
             abort(400)  # disallow empty payload
         db_handle = get_db_handle(readonly=False)
+        new_people = sum(
+            item["type"] == "add" and item["_class"] == "Person" for item in payload
+        )
+        check_quota_people(to_add=new_people)
         with DbTxn("Raw transaction", db_handle) as trans:
             for item in payload:
                 try:
