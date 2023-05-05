@@ -19,6 +19,7 @@
 
 """Tests updating objects."""
 
+import os
 import unittest
 import uuid
 from copy import deepcopy
@@ -60,18 +61,21 @@ class TestObjectUpdate(unittest.TestCase):
     def setUpClass(cls):
         cls.name = "Test Web API"
         cls.dbman = CLIDbManager(DbState())
-        cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        dbpath, _ = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        tree = os.path.basename(dbpath)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
             cls.app = create_app()
         cls.app.config["TESTING"] = True
         cls.client = cls.app.test_client()
         with cls.app.app_context():
             user_db.create_all()
-            add_user(name="user", password="123", role=ROLE_GUEST)
-            add_user(name="contributor", password="123", role=ROLE_CONTRIBUTOR)
-            add_user(name="admin", password="123", role=ROLE_OWNER)
-            add_user(name="editor", password="123", role=ROLE_EDITOR)
-            add_user(name="member", password="123", role=ROLE_MEMBER)
+            add_user(name="user", password="123", role=ROLE_GUEST, tree=tree)
+            add_user(
+                name="contributor", password="123", role=ROLE_CONTRIBUTOR, tree=tree
+            )
+            add_user(name="admin", password="123", role=ROLE_OWNER, tree=tree)
+            add_user(name="editor", password="123", role=ROLE_EDITOR, tree=tree)
+            add_user(name="member", password="123", role=ROLE_MEMBER, tree=tree)
 
     @classmethod
     def tearDownClass(cls):

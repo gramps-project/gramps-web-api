@@ -35,7 +35,7 @@ from .api.ratelimiter import limiter
 from .api.search import SearchIndexer
 from .auth import user_db
 from .config import DefaultConfig, DefaultConfigJWT
-from .const import API_PREFIX, ENV_CONFIG_FILE
+from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI
 from .dbmanager import WebDbManager
 from .util.celery import create_celery
 
@@ -107,8 +107,16 @@ def create_app(config: Optional[Dict[str, Any]] = None):
         if not app.config.get(option):
             raise ValueError(f"{option} must be specified")
 
-    # create database if missing
-    WebDbManager(name=app.config["TREE"], create_if_missing=True)
+    if app.config["TREE"] != TREE_MULTI:
+        # create database if missing (only in single-tree mode)
+        WebDbManager(name=app.config["TREE"], create_if_missing=True)
+
+    if app.config["TREE"] == TREE_MULTI and not app.config["MEDIA_PREFIX_TREE"]:
+        warnings.warn(
+            "You have enabled multi-tree support, but `MEDIA_PREFIX_TREE` is "
+            "set to `False`. This is strongly discouraged as it exposes media "
+            "files to users belonging to different trees!"
+        )
 
     # load JWT default settings
     app.config.from_object(DefaultConfigJWT)

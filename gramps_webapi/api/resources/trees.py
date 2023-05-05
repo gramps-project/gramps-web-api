@@ -30,6 +30,7 @@ from webargs import fields
 from werkzeug.security import safe_join
 
 from ...auth.const import PERM_ADD_TREE, PERM_EDIT_OTHER_TREE, PERM_EDIT_TREE
+from ...const import TREE_MULTI
 from ...dbmanager import WebDbManager
 from ..auth import require_permissions
 from ..util import get_tree_from_jwt, use_args
@@ -66,18 +67,12 @@ def validate_tree_id(tree_id: str) -> None:
         abort(422)
 
 
-def get_single_tree_id() -> str:
-    """Get the tree ID in the case of using app.config['TREE']."""
-    dbmgr = WebDbManager(name=current_app.config["TREE"], create_if_missing=False)
-    return dbmgr.dirname
-
-
 class TreesResource(ProtectedResource):
     """Resource for getting info about trees."""
 
     def get(self):
         """Get info about all trees."""
-        user_tree_id = get_tree_from_jwt() or get_single_tree_id()
+        user_tree_id = get_tree_from_jwt()
         # only allowed to see details about our own tree
         tree_ids = [user_tree_id]
         return [get_tree_details(tree_id) for tree_id in tree_ids]
@@ -90,9 +85,10 @@ class TreesResource(ProtectedResource):
     )
     def post(self, args):
         """Create a new tree."""
+        if current_app.config["TREE"] != TREE_MULTI:
+            abort(405)
         require_permissions([PERM_ADD_TREE])
         tree_id = str(uuid.uuid4())
-        # TODO dbid
         dbmgr = WebDbManager(dirname=tree_id, name=args["name"], create_if_missing=True)
         return {"name": args["name"], "tree_id": dbmgr.dirname}, 201
 
@@ -103,7 +99,7 @@ class TreeResource(ProtectedResource):
     def get(self, tree_id: str):
         """Get info about a tree."""
         validate_tree_id(tree_id)
-        user_tree_id = get_tree_from_jwt() or get_single_tree_id()
+        user_tree_id = get_tree_from_jwt()
         if tree_id != user_tree_id:
             # only allowed to see details about our own tree
             abort(403)
@@ -117,7 +113,7 @@ class TreeResource(ProtectedResource):
     )
     def put(self, args, tree_id: str):
         """Modify a tree."""
-        user_tree_id = get_tree_from_jwt() or get_single_tree_id()
+        user_tree_id = get_tree_from_jwt()
         if tree_id == user_tree_id:
             require_permissions([PERM_EDIT_TREE])
         else:

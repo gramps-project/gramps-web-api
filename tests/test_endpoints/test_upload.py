@@ -19,8 +19,8 @@
 
 """Tests uploading media files POST."""
 
+import os
 import hashlib
-import random
 import shutil
 import tempfile
 import unittest
@@ -61,7 +61,8 @@ class TestUpload(unittest.TestCase):
     def setUpClass(cls):
         cls.name = "Test Web API"
         cls.dbman = CLIDbManager(DbState())
-        cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        dirpath, _ = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        tree = os.path.basename(dirpath)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
             cls.app = create_app()
         cls.app.config["TESTING"] = True
@@ -70,8 +71,8 @@ class TestUpload(unittest.TestCase):
         cls.client = cls.app.test_client()
         with cls.app.app_context():
             user_db.create_all()
-            add_user(name="user", password="123", role=ROLE_GUEST)
-            add_user(name="admin", password="123", role=ROLE_OWNER)
+            add_user(name="user", password="123", role=ROLE_GUEST, tree=tree)
+            add_user(name="admin", password="123", role=ROLE_OWNER, tree=tree)
 
     @classmethod
     def tearDownClass(cls):

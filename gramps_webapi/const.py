@@ -27,6 +27,9 @@ from pkg_resources import resource_filename
 
 from ._version import __version__ as VERSION
 
+# the value of the TREE config option that enables multi-tree support
+TREE_MULTI = "*"
+
 # files
 TEST_CONFIG = resource_filename("gramps_webapi", "data/test.cfg")
 TEST_AUTH_CONFIG = resource_filename("gramps_webapi", "data/test_auth.cfg")

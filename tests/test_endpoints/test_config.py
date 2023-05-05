@@ -19,6 +19,7 @@
 
 """Tests for the `gramps_webapi.api.resources.user` module."""
 
+import os
 import re
 import unittest
 from unittest.mock import patch
@@ -43,17 +44,26 @@ class TestConfig(unittest.TestCase):
     def setUp(self):
         self.name = "Test Web API"
         self.dbman = CLIDbManager(DbState())
-        _, _name = self.dbman.create_new_db_cli(self.name, dbid="sqlite")
+        dirpath, _name = self.dbman.create_new_db_cli(self.name, dbid="sqlite")
+        tree = os.path.basename(dirpath)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
             self.app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
         self.client = self.app.test_client()
         with self.app.app_context():
             user_db.create_all()
             add_user(
-                name="user", password="123", email="test1@example.com", role=ROLE_MEMBER
+                name="user",
+                password="123",
+                email="test1@example.com",
+                role=ROLE_MEMBER,
+                tree=tree,
             )
             add_user(
-                name="admin", password="123", email="test2@example.com", role=ROLE_ADMIN
+                name="admin",
+                password="123",
+                email="test2@example.com",
+                role=ROLE_ADMIN,
+                tree=tree,
             )
         self.ctx = self.app.test_request_context()
         self.ctx.push()

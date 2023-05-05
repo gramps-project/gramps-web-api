@@ -31,19 +31,22 @@ from typing import BinaryIO, List, Optional, Sequence, Tuple
 
 from flask import abort, current_app, g, jsonify, make_response, request
 from flask_jwt_extended import get_jwt
-from gramps.cli.clidbman import CLIDbManager
+from gramps.cli.clidbman import NAME_FILE, CLIDbManager
+from gramps.gen.config import config
 from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
+from gramps.gen.db.dbconst import DBBACKEND
 from gramps.gen.dbstate import DbState
 from gramps.gen.errors import HandleError
 from gramps.gen.proxy import PrivateProxyDb
 from gramps.gen.utils.grampslocale import GrampsLocale
 from marshmallow import RAISE
 from webargs.flaskparser import FlaskParser
+from werkzeug.security import safe_join
 
 from ..auth import config_get, get_tree
 from ..auth.const import PERM_VIEW_PRIVATE
-from ..const import DB_CONFIG_ALLOWED_KEYS, LOCALE_MAP
+from ..const import DB_CONFIG_ALLOWED_KEYS, LOCALE_MAP, TREE_MULTI
 from ..dbmanager import WebDbManager
 from .auth import has_permissions
 from .search import SearchIndexer
@@ -310,7 +313,27 @@ def get_tree_id(guid: str) -> str:
     """Get the appropriate tree ID for a user."""
     tree_id = get_tree(guid)
     if not tree_id:
-        # needed for backwards compatibility!
+        if current_app.config["TREE"] == TREE_MULTI:
+            # multi-tree support enabled but user has no tree ID: forbidden!
+            abort(403)
+        # needed for backwards compatibility: single-tree mode but user without tree ID
         dbmgr = WebDbManager(name=current_app.config["TREE"], create_if_missing=False)
         tree_id = dbmgr.dirname
     return tree_id
+
+
+def tree_exists(tree_id: str) -> bool:
+    """Check if a tree exists."""
+    dbdir = config.get("database.path")
+    dir_path = safe_join(dbdir, tree_id)
+    if not dir_path:
+        return False
+    if not os.path.isdir(dir_path):
+        return False
+    name_path = os.path.join(dir_path, NAME_FILE)
+    if not os.path.isfile(name_path):
+        return False
+    dbid_path = os.path.join(dir_path, DBBACKEND)
+    if not os.path.isfile(dbid_path):
+        return False
+    return True

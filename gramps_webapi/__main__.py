@@ -33,7 +33,7 @@ from .api.util import get_db_manager, get_search_indexer, list_trees
 from .dbmanager import WebDbManager
 from .app import create_app
 from .auth import add_user, delete_user, fill_tree, user_db
-from .const import ENV_CONFIG_FILE
+from .const import ENV_CONFIG_FILE, TREE_MULTI
 
 logging.basicConfig()
 LOG = logging.getLogger("gramps_webapi")
@@ -125,6 +125,8 @@ def migrate_db(ctx):
 def search(ctx, tree):
     app = ctx.obj["app"]
     if not tree:
+        if app.config["TREE"] == TREE_MULTI:
+            raise ValueError("`tree` is required when multi-tree support is enabled.")
         # needed for backwards compatibility!
         dbmgr = WebDbManager(name=app.config["TREE"], create_if_missing=False)
         tree = dbmgr.dirname
