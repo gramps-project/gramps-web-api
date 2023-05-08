@@ -247,6 +247,10 @@ def send_email(
             smtp = smtplib.SMTP_SSL(host=host, port=port, timeout=10)
         else:
             smtp = smtplib.SMTP(host=host, port=port, timeout=10)
+            smtp.ehlo()
+            if port != 25:
+                smtp.starttls()
+                smtp.ehlo()
         if user:
             smtp.login(user, password)
         smtp.send_message(msg)
