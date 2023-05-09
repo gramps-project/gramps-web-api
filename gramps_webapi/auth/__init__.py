@@ -67,7 +67,7 @@ def add_user(
         raise ValueError("Invalid or existing user") from exc
 
 
-def get_guid(name: str) -> None:
+def get_guid(name: str) -> str:
     """Get the GUID of an existing user by username."""
     query = user_db.session.query(User.id)  # pylint: disable=no-member
     user_id = query.filter_by(name=name).scalar()
@@ -76,7 +76,7 @@ def get_guid(name: str) -> None:
     return user_id
 
 
-def get_name(guid: str) -> None:
+def get_name(guid: str) -> str:
     """Get the username of an existing user by GUID."""
     try:
         query = user_db.session.query(User.name)  # pylint: disable=no-member

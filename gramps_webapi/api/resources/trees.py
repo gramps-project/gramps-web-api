@@ -78,9 +78,7 @@ class TreesResource(ProtectedResource):
         return [get_tree_details(tree_id) for tree_id in tree_ids]
 
     @use_args(
-        {
-            "name": fields.Str(required=True),
-        },
+        {"name": fields.Str(required=True)},
         location="json",
     )
     def post(self, args):
@@ -89,7 +87,13 @@ class TreesResource(ProtectedResource):
             abort(405)
         require_permissions([PERM_ADD_TREE])
         tree_id = str(uuid.uuid4())
-        dbmgr = WebDbManager(dirname=tree_id, name=args["name"], create_if_missing=True)
+        backend = current_app.config["NEW_DB_BACKEND"]
+        dbmgr = WebDbManager(
+            dirname=tree_id,
+            name=args["name"],
+            create_if_missing=True,
+            create_backend=backend,
+        )
         return {"name": args["name"], "tree_id": dbmgr.dirname}, 201
 
 

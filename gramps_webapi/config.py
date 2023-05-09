@@ -46,11 +46,14 @@ class DefaultConfig(object):
     }
     POSTGRES_USER = None
     POSTGRES_PASSWORD = None
+    POSTGRES_HOST = "localhost"
+    POSTGRES_PORT = "5432"
     CELERY_CONFIG: Dict[str, str] = {}
     MEDIA_BASE_DIR = ""
     MEDIA_PREFIX_TREE = False
     REPORT_DIR = str(Path.cwd() / "report_cache")
     EXPORT_DIR = str(Path.cwd() / "export_cache")
+    NEW_DB_BACKEND = "sqlite"
 
 
 class DefaultConfigJWT(object):

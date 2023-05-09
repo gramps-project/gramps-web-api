@@ -28,6 +28,7 @@ from flask import Flask, abort, g, send_from_directory
 from flask_compress import Compress
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
+from gramps.gen.config import config as gramps_config
 
 from .api import api_blueprint
 from .api.cache import thumbnail_cache
@@ -117,6 +118,11 @@ def create_app(config: Optional[Dict[str, Any]] = None):
             "set to `False`. This is strongly discouraged as it exposes media "
             "files to users belonging to different trees!"
         )
+
+    if app.config["TREE"] == TREE_MULTI and app.config["NEW_DB_BACKEND"] != "sqlite":
+        # needed in case a new postgres tree is to be created
+        gramps_config.set("database.host", app.config["POSTGRES_HOST"])
+        gramps_config.set("database.port", app.config["POSTGRES_PORT"])
 
     # load JWT default settings
     app.config.from_object(DefaultConfigJWT)
