@@ -33,8 +33,8 @@ from gramps.gen.dbstate import DbState
 from PIL import Image
 
 from gramps_webapi.app import create_app
-from gramps_webapi.auth import add_user, user_db
-from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
+from gramps_webapi.auth import add_user, set_tree_quota, user_db
+from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER, ROLE_ADMIN
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
 
@@ -52,8 +52,10 @@ def get_image(color):
     image.save(image_file, "png")
     image_file.seek(0)
     checksum = hashlib.md5(image_file.getbuffer()).hexdigest()
+    image_file.read()
+    size = image_file.tell()
     image_file.seek(0)
-    return image_file, checksum
+    return image_file, checksum, size
 
 
 class TestUpload(unittest.TestCase):
@@ -81,7 +83,7 @@ class TestUpload(unittest.TestCase):
 
     def test_upload_new_media(self):
         """Add new media object."""
-        img, checksum = get_image(0)
+        img, checksum, size = get_image(0)
         # try as guest - not allowed
         headers = get_headers(self.client, "user", "123")
         rv = self.client.post(
@@ -110,7 +112,7 @@ class TestUpload(unittest.TestCase):
 
     def test_update_media_file(self):
         """Update a media file."""
-        img, checksum = get_image(1)
+        img, checksum, size = get_image(1)
         # create
         headers = get_headers(self.client, "admin", "123")
         rv = self.client.post(
@@ -124,7 +126,7 @@ class TestUpload(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         etag = rv.headers["ETag"]
         self.assertEqual(etag, checksum)
-        new_img, new_checksum = get_image(2)
+        new_img, new_checksum, new_size = get_image(2)
         self.assertNotEqual(checksum, new_checksum)  # just to be sure
         # try with wrong checksum in If-Match!
         rv = self.client.put(
@@ -161,7 +163,7 @@ class TestUpload(unittest.TestCase):
 
     def test_upload_missing_file(self):
         """Upload a missing media file."""
-        img, checksum = get_image(3)
+        img, checksum, size = get_image(3)
         # create
         headers = get_headers(self.client, "admin", "123")
         rv = self.client.post(
@@ -198,3 +200,58 @@ class TestUpload(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         rv = self.client.get(f"/api/media/{handle}/file", headers=headers)
         self.assertEqual(rv.status_code, 200)
+
+
+class TestUploadWithQuota(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.name = "Test Web API"
+        cls.dbman = CLIDbManager(DbState())
+        dirpath, _ = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        tree = os.path.basename(dirpath)
+        with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
+            cls.app = create_app()
+        cls.app.config["TESTING"] = True
+        cls.media_base_dir = tempfile.mkdtemp()
+        cls.app.config["MEDIA_BASE_DIR"] = cls.media_base_dir
+        cls.client = cls.app.test_client()
+        with cls.app.app_context():
+            user_db.create_all()
+            add_user(name="user", password="123", role=ROLE_GUEST, tree=tree)
+            add_user(name="admin", password="123", role=ROLE_ADMIN, tree=tree)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.dbman.remove_database(cls.name)
+        shutil.rmtree(cls.media_base_dir)
+
+    def test_upload_new_media(self):
+        """Add new media object."""
+        img, checksum, size = get_image(0)
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post(
+            "/api/media/", data=img.read(), headers=headers, content_type="image/jpeg"
+        )
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.get("/api/trees/-", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        assert rv.json["usage_media"] == size
+        tree = rv.json["id"]
+        img, checksum, size2 = get_image(1)
+        data = {"quota_media": size + size2}
+        rv = self.client.put("/api/trees/-", json=data, headers=headers)
+        assert rv.status_code == 200
+        assert rv.json == data
+        rv = self.client.post(
+            "/api/media/", data=img.read(), headers=headers, content_type="image/jpeg"
+        )
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.get("/api/trees/-", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        assert rv.json["usage_media"] == size + size2
+        assert rv.json["quota_media"] == size + size2
+        img, checksum, size = get_image(2)
+        rv = self.client.post(
+            "/api/media/", data=img.read(), headers=headers, content_type="image/jpeg"
+        )
+        assert rv.status_code == 405

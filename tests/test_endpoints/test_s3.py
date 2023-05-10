@@ -69,7 +69,7 @@ class TestS3(unittest.TestCase):
         boto3.resource("s3", region_name="us-east-1").create_bucket(
             Bucket="test-bucket"
         )
-        img, checksum = get_image(0)
+        img, checksum, size = get_image(0)
         headers = get_headers(self.client, "owner", "owner")
         rv = self.client.post(
             "/api/media/", data=img.read(), headers=headers, content_type="image/jpeg"

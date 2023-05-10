@@ -28,7 +28,7 @@ import pytest
 from moto import mock_s3
 
 from gramps_webapi.api.media import MediaHandler
-from gramps_webapi.api.s3 import list_object_keys
+from gramps_webapi.api.s3 import get_object_keys_size
 from .test_endpoints.test_upload import get_image
 
 
@@ -54,25 +54,29 @@ def test_mediahandler(bucket):
 
 def test_upload(bucket):
     handler = MediaHandler(URL)
-    img, checksum = get_image(0)
+    img, checksum, size = get_image(0)
     assert handler.get_remote_keys() == set()
     handler.upload_file(img, checksum, "image/jpeg")
     assert handler.get_remote_keys() == {checksum}
-    img, checksum2 = get_image(1)
+    img, checksum2, size = get_image(1)
     handler.upload_file(img, checksum2, "image/jpeg")
     assert handler.get_remote_keys() == {checksum, checksum2}
 
 
 def test_upload_prefix(bucket):
     handler = MediaHandler(URL_PREFIX)
-    img, checksum = get_image(0)
+    img, checksum, size = get_image(0)
     assert handler.get_remote_keys() == set()
     handler.upload_file(img, checksum, "image/jpeg")
     assert handler.get_remote_keys() == {checksum}
-    keys = list_object_keys(handler.bucket_name, handler.endpoint_url)
+    keys = list(
+        get_object_keys_size(handler.bucket_name, "mytree", handler.endpoint_url).keys()
+    )
     assert keys == [f"mytree/{checksum}"]
-    img, checksum2 = get_image(1)
+    img, checksum2, size = get_image(1)
     handler.upload_file(img, checksum2, "image/jpeg")
     assert handler.get_remote_keys() == {checksum, checksum2}
-    keys = list_object_keys(handler.bucket_name, handler.endpoint_url)
+    keys = list(
+        get_object_keys_size(handler.bucket_name, "mytree", handler.endpoint_url).keys()
+    )
     assert sorted(keys) == sorted([f"mytree/{checksum}", f"mytree/{checksum2}"])

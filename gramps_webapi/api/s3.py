@@ -19,7 +19,7 @@
 
 """Object storage (e.g. S3) handling utilities."""
 
-from typing import BinaryIO, List, Optional
+from typing import BinaryIO, Dict, Optional
 
 import boto3
 from botocore.exceptions import ClientError
@@ -108,6 +108,13 @@ class ObjectStorageFileHandler(FileHandler):
         except ClientError:
             return False
 
+    def get_file_size(self) -> int:
+        """Return the file size in bytes."""
+        self.client.head_object(Bucket=self.bucket_name, Key=self.object_name)
+        response = self.client.head_object(Bucket=self.bucket_name, Key=key)
+        file_size = response["ContentLength"]
+        return file_size
+
     def send_file(
         self, etag: Optional[str] = None, download: bool = False, filename: str = ""
     ):
@@ -161,20 +168,30 @@ def upload_file_s3(
     )
 
 
-def list_object_keys(
+def get_object_keys_size(
     bucket_name: str,
+    prefix: Optional[str] = None,
     endpoint_url: Optional[str] = None,
-) -> List[str]:
-    """List all objects keys in a bucket.
+) -> Dict[str, int]:
+    """Return a dictionary with key and size of all objects in a bucket.
 
     Fetches 1000 objects at a time.
     """
     client = get_client(endpoint_url)
-    keys = []
+    keys = {}
     paginator = client.get_paginator("list_objects_v2")
-    response_iterator = paginator.paginate(Bucket=bucket_name)
+    if prefix:
+        response_iterator = paginator.paginate(Bucket=bucket_name, Prefix=f"{prefix}/")
+    else:
+        response_iterator = paginator.paginate(Bucket=bucket_name)
     for response in response_iterator:
         if "Contents" in response:
             contents = response["Contents"]
-            keys += [obj["Key"] for obj in contents]
+            keys.update(
+                {
+                    obj["Key"]: obj["Size"]
+                    for obj in contents
+                    if not prefix or obj["Key"].startswith(f"{prefix}/")
+                }
+            )
     return keys
