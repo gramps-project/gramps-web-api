@@ -186,7 +186,7 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
 class ExporterFileResultResource(ProtectedResource, GrampsJSONEncoder):
     """Export file result resource."""
 
-    def get(self, filename: str) -> Response:
+    def get(self, extension: str, filename: str) -> Response:
         """Get the processed file."""
         export_path = current_app.config.get("EXPORT_DIR")
 
