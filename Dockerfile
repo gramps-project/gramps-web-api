@@ -43,7 +43,10 @@ ENV GRAMPSWEB_EXPORT_DIR=/app/cache/export
 # install PostgreSQL addon
 RUN wget https://github.com/gramps-project/addons/archive/refs/heads/master.zip \
     && unzip -p master.zip addons-master/gramps$GRAMPS_VERSION/download/PostgreSQL.addon.tgz | \
-    tar -xvz -C /root/.gramps/gramps$GRAMPS_VERSION/plugins && rm master.zip
+    tar -xvz -C /root/.gramps/gramps$GRAMPS_VERSION/plugins \
+    && unzip -p master.zip addons-master/gramps$GRAMPS_VERSION/download/SharedPostgreSQL.addon.tgz | \
+    tar -xvz -C /root/.gramps/gramps$GRAMPS_VERSION/plugins \
+    && rm master.zip
 
 # install gunicorn
 RUN python3 -m pip install --no-cache-dir --extra-index-url https://www.piwheels.org/simple \

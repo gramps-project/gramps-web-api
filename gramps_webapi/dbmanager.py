@@ -41,7 +41,7 @@ from .dbloader import WebDbSessionManager
 class WebDbManager:
     """Database manager class based on Gramps CLI."""
 
-    ALLOWED_DB_BACKENDS = ["sqlite", "postgresql"]
+    ALLOWED_DB_BACKENDS = ["sqlite", "postgresql", "sharedpostgresql"]
 
     def __init__(
         self,
@@ -50,6 +50,7 @@ class WebDbManager:
         username: Optional[str] = None,
         password: Optional[str] = None,
         create_if_missing: bool = True,
+        create_backend: str = "sqlite",
     ) -> None:
         """Initialize given a family tree name or subdirectory name (path)."""
         if dirname:
@@ -65,6 +66,7 @@ class WebDbManager:
         self.username = username
         self.password = password
         self.create_if_missing = create_if_missing
+        self.create_backend = create_backend
         self.path = self._get_path()
         self._check_backend()
 
@@ -111,8 +113,13 @@ class WebDbManager:
             self._create(path=path)
         return path
 
-    def _create(self, path: str, dbid: str = "sqlite") -> None:
+    def _create(self, path: str) -> None:
         """Create new database."""
+        if self.create_backend not in self.ALLOWED_DB_BACKENDS:
+            raise ValueError(
+                f"Database backend '{self.create_backend}' not supported for new tree."
+            )
+
         if not self.name:
             raise ValueError("Cannot create database if name not specified.")
         os.mkdir(path)
@@ -123,12 +130,12 @@ class WebDbManager:
             name_file.write(self.name)
 
         # create database
-        make_database(dbid)
+        make_database(self.create_backend)
 
         # create dbid file
         backend_path = os.path.join(path, DBBACKEND)
         with open(backend_path, "w", encoding="utf8") as backend_file:
-            backend_file.write(dbid)
+            backend_file.write(self.create_backend)
 
     def _check_backend(self) -> None:
         """Check that the backend is among the allowed backends."""
