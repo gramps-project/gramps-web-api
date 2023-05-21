@@ -45,3 +45,8 @@ class TestMediaArchiv(unittest.TestCase):
             headers=headers,
         )
         assert rv.status_code == 201
+        assert "file_name" in rv.json
+        assert "file_size" in rv.json
+        assert "url" in rv.json
+        rv = self.client.get(rv.json["url"], headers=headers)
+        assert rv.status_code == 200

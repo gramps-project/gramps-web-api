@@ -33,7 +33,7 @@ from .resources.bookmarks import BookmarkResource, BookmarksResource
 from .resources.citations import CitationResource, CitationsResource
 from .resources.config import ConfigResource, ConfigsResource
 from .resources.events import EventResource, EventSpanResource, EventsResource
-from .resources.export_media import MediaArchiveResource
+from .resources.export_media import MediaArchiveFileResource, MediaArchiveResource
 from .resources.exporters import (
     ExporterFileResource,
     ExporterFileResultResource,
@@ -323,10 +323,18 @@ register_endpt(
     "media_face_detection",
 )
 
+# Media export
 register_endpt(
     MediaArchiveResource,
     "/media/archive/",
     "media_archive",
+)
+
+# Media export
+register_endpt(
+    MediaArchiveFileResource,
+    "/media/archive/<string:filename>",
+    "media_archive_filename",
 )
 
 

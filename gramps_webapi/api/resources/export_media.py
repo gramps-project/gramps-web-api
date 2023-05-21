@@ -54,6 +54,10 @@ class MediaArchiveResource(ProtectedResource):
             return make_task_response(task)
         return jsonify(task), 201
 
+
+class MediaArchiveFileResource(ProtectedResource):
+    """Resource for downloading an archive of media files."""
+
     def get(self, filename: str) -> Response:
         """Download an archive of media files."""
         export_path = current_app.config["EXPORT_DIR"]
