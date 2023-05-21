@@ -18,6 +18,8 @@
 
 """Execute tasks."""
 
+import os
+import uuid
 from gettext import gettext as _
 from http import HTTPStatus
 from typing import Any, Callable, Dict, Optional, Union
@@ -29,6 +31,7 @@ from flask import current_app
 from ..auth import get_owner_emails
 from .emails import email_confirm_email, email_new_user, email_reset_pw
 from .export import prepare_options, run_export
+from .media import get_media_handler
 from .report import run_report
 from .resources.util import run_import
 from .util import (
@@ -174,4 +177,26 @@ def generate_report(
         "file_name": file_name,
         "file_type": file_type,
         "url": f"/api/reports/{report_id}/file/processed/{file_name}",
+    }
+
+
+@shared_task()
+def export_media(tree: str, view_private: bool) -> Dict[str, Union[str, int]]:
+    """Export media files."""
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=view_private, readonly=True
+    )
+    media_handler = get_media_handler(db_handle, tree=tree)
+    export_path = current_app.config["EXPORT_DIR"]
+    os.makedirs(export_path, exist_ok=True)
+    file_name = f"{uuid.uuid4()}.zip"
+    zip_filename = os.path.join(export_path, file_name)
+    media_handler.create_file_archive(
+        db_handle=db_handle, zip_filename=zip_filename, include_private=view_private
+    )
+    file_size = os.path.getsize(zip_filename)
+    return {
+        "file_name": file_name,
+        "url": f"/api/media/archive/{file_name}",
+        "file_size": file_size,
     }

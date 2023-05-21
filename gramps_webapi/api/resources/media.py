@@ -82,7 +82,7 @@ class MediaObjectsResource(GrampsObjectsProtectedResource, MediaObjectResourceHe
         checksum, size, f = process_file(request.stream)
         check_quota_media(to_add=size)
         tree = get_tree_from_jwt()
-        media_handler = get_media_handler(tree)
+        media_handler = get_media_handler(self.db_handle, tree)
         media_handler.upload_file(f, checksum, mime)
         path = media_handler.get_default_filename(checksum, mime)
         db_handle = self.db_handle_writable
