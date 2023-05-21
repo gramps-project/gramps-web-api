@@ -41,10 +41,10 @@ user_db = SQLAlchemy()
 def add_user(
     name: str,
     password: str,
-    fullname: str = None,
-    email: str = None,
-    role: int = None,
-    tree: str = None,
+    fullname: Optional[str] = None,
+    email: Optional[str] = None,
+    role: Optional[int] = None,
+    tree: Optional[str] = None,
 ):
     """Add a user."""
     if name == "":
@@ -110,12 +110,12 @@ def delete_user(name: str) -> None:
 
 def modify_user(
     name: str,
-    name_new: str = None,
-    password: str = None,
-    fullname: str = None,
-    email: str = None,
-    role: int = None,
-    tree: str = None,
+    name_new: Optional[str] = None,
+    password: Optional[str] = None,
+    fullname: Optional[str] = None,
+    email: Optional[str] = None,
+    role: Optional[int] = None,
+    tree: Optional[str] = None,
 ) -> None:
     """Modify an existing user."""
     query = user_db.session.query(User)  # pylint: disable=no-member

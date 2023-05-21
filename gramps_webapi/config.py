@@ -54,6 +54,7 @@ class DefaultConfig(object):
     REPORT_DIR = str(Path.cwd() / "report_cache")
     EXPORT_DIR = str(Path.cwd() / "export_cache")
     NEW_DB_BACKEND = "sqlite"
+    RATE_LIMIT_MEDIA_ARCHIVE = "1 per day"
 
 
 class DefaultConfigJWT(object):

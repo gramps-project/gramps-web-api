@@ -27,14 +27,21 @@ from flask import Response, abort, current_app, jsonify, send_file
 
 from ...auth.const import PERM_VIEW_PRIVATE
 from ..auth import has_permissions
+from ..ratelimiter import limiter_per_user
 from ..tasks import AsyncResult, export_media, make_task_response, run_task
 from ..util import get_buffer_for_file, get_tree_from_jwt
 from . import ProtectedResource
 
 
+def get_limit() -> str:
+    """Get the rate limit string."""
+    return current_app.config["RATE_LIMIT_MEDIA_ARCHIVE"]
+
+
 class MediaArchiveResource(ProtectedResource):
     """Resource for downloading an archive of media files."""
 
+    @limiter_per_user.limit(get_limit)
     def post(self) -> Response:
         """Create an archive of media files."""
         tree = get_tree_from_jwt()
