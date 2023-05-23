@@ -809,6 +809,49 @@ class TestUser(unittest.TestCase):
         )
         assert rv.status_code == 200
 
+    def test_add_users(self):
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "owner", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_owner = rv.json["access_token"]
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "admin", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_admin = rv.json["access_token"]
+        # other tree - not allowed
+        users = [{"name": "new_user_1", "tree": self.tree2}]
+        rv = self.client.post(
+            BASE_URL + "/users/",
+            json=users,
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 403
+        users = [{"name": "new_user_1", "tree": "not_exists"}]
+        rv = self.client.post(
+            BASE_URL + "/users/",
+            json=users,
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 422
+        # OK - same tree
+        users = [{"name": "new_user_1"}]
+        rv = self.client.post(
+            BASE_URL + "/users/",
+            json=users,
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 201
+        rv = self.client.get(
+            BASE_URL + "/users/new_user_1/",
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 200
+        assert rv.json["tree"] == self.tree
+
 
 class TestUserCreateOwner(unittest.TestCase):
     """Test cases for the /api/user/create_owner endpoint."""

@@ -23,12 +23,13 @@ import datetime
 from gettext import gettext as _
 from typing import Tuple
 
-from flask import abort, current_app, jsonify, render_template
+from flask import abort, current_app, jsonify, render_template, request
 from flask_jwt_extended import create_access_token, get_jwt, get_jwt_identity
 from webargs import fields
 
 from ...auth import (
     add_user,
+    add_users,
     authorized,
     delete_user,
     get_all_user_details,
@@ -93,7 +94,7 @@ class UserChangeBase(ProtectedResource):
         else:
             try:
                 user_id = get_guid(user_name)
-            except ValueError():
+            except ValueError:
                 abort(404)
             source_tree = get_tree_from_jwt()
             destination_tree = get_tree_id(user_id)
@@ -118,6 +119,27 @@ class UsersResource(ProtectedResource):
         tree = get_tree_from_jwt()
         # return only this tree's users
         return jsonify(get_all_user_details(tree=tree)), 200
+
+    def post(self):
+        """Add one or more users."""
+        users = request.json
+        if not users:
+            abort(422)
+        require_permissions([PERM_ADD_USER])
+        tree = get_tree_from_jwt()
+        for user_dict in users:
+            if user_dict.get("tree"):
+                if not tree_exists(user_dict["tree"]):
+                    abort(422)
+                if user_dict["tree"] != tree:
+                    require_permissions([PERM_ADD_OTHER_TREE_USER])
+            else:
+                user_dict["tree"] = tree
+        try:
+            add_users(users)
+        except ValueError:
+            abort(409)
+        return "", 201
 
 
 class UserResource(UserChangeBase):
