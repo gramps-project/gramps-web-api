@@ -47,5 +47,5 @@ class MediaFaceDetectionResource(ProtectedResource):
         except HandleError:
             abort(HTTPStatus.NOT_FOUND)
         tree = get_tree_from_jwt()
-        handler = get_media_handler(tree).get_file_handler(handle)
+        handler = get_media_handler(db_handle, tree).get_file_handler(handle)
         return handler.get_face_regions(etag=obj.checksum)

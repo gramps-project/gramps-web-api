@@ -3827,6 +3827,54 @@ paths:
           description: "Not Found: Media item not found."
 
 
+
+  /media/archive/:
+    post:
+      tags:
+      - media
+      summary: "Create an archive of media files."
+      operationId: postMediaArchive
+      security:
+        - Bearer: []
+      responses:
+        201:
+          description: "OK: media archive created"
+        202:
+          description: "Accepted: media archive will be created in the background."
+          schema:
+            type: object
+            properties:
+              task:
+                $ref: "#/definitions/TaskReference"
+        401:
+          description: "Unauthorized: Missing authorization header."
+
+  /media/archive/{filename}:
+    get:
+      tags:
+      - media
+      summary: "Download the generated media archive."
+      operationId: getMediaArchive
+      security:
+        - Bearer: []
+      parameters:
+      - name: filename
+        in: path
+        required: true
+        type: string
+        description: "The file name of the generated file."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: file
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 ##############################################################################
 # Endpoint - Notes
 ##############################################################################

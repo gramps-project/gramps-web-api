@@ -1,10 +1,31 @@
+#
+# Gramps Web API - A RESTful API for the Gramps genealogy program
+#
+# Copyright (C) 2021-2023      David Straub
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+
 """Generic media handler."""
 
 import os
+import zipfile
 from pathlib import Path
 from typing import BinaryIO, List, Optional, Set
 
 from flask import abort, current_app
+from gramps.gen.db.base import DbReadBase
 from gramps.gen.lib import Media
 from gramps.gen.utils.file import expand_media_path
 
@@ -69,6 +90,12 @@ class MediaHandlerBase:
         """Return the total disk space used by all existing media objects."""
         raise NotImplementedError
 
+    def create_file_archive(
+        self, db_handle: DbReadBase, zip_filename: FilenameOrPath, include_private: bool
+    ) -> None:
+        """Create a ZIP archive on disk containing all media files."""
+        raise NotImplementedError
+
 
 class MediaHandlerLocal(MediaHandlerBase):
     """Handler for local media files."""
@@ -125,6 +152,31 @@ class MediaHandlerLocal(MediaHandlerBase):
                 size += file_size
                 paths_seen.add(path)
         return size
+
+    def create_file_archive(
+        self, db_handle: DbReadBase, zip_filename: FilenameOrPath, include_private: bool
+    ) -> None:
+        """Create a ZIP archive on disk containing all media files."""
+        if not os.path.isdir(self.base_dir):
+            raise ValueError(f"Directory {self.base_dir} does not exist")
+        paths_seen = set()
+        with zipfile.ZipFile(zip_filename, "w") as zip_file:
+            for obj in db_handle.iter_media():
+                if not include_private and obj.private:
+                    continue
+                path = obj.path
+                if os.path.isabs(path):
+                    if (
+                        Path(self.base_dir).resolve()
+                        not in Path(path).resolve().parents
+                    ):
+                        continue  # file outside base dir - ignore
+                else:
+                    path = os.path.join(self.base_dir, path)
+                rel_path = os.path.relpath(path, self.base_dir)
+                if Path(path).is_file() and path not in paths_seen:
+                    zip_file.write(path, arcname=rel_path)
+                    paths_seen.add(path)
 
 
 class MediaHandlerS3(MediaHandlerBase):
@@ -205,6 +257,24 @@ class MediaHandlerS3(MediaHandlerBase):
         )
         return sum(keys_size.get(key, 0) for key in keys)
 
+    def create_file_archive(
+        self, db_handle: DbReadBase, zip_filename: FilenameOrPath, include_private: bool
+    ) -> None:
+        """Create a ZIP archive on disk containing all media files."""
+        remote_keys = self.get_remote_keys()
+        with zipfile.ZipFile(zip_filename, "w") as zip_file:
+            for obj in db_handle.iter_media():
+                if not include_private and obj.private:
+                    continue
+                if obj.checksum not in remote_keys:
+                    continue
+                media_path = obj.path
+                if os.path.isabs(media_path):
+                    continue  # ignore absolute paths
+                file_handler = self.get_file_handler(obj.handle)
+                fobj = file_handler.get_file_object()
+                zip_file.writestr(media_path, fobj.read())
+
 
 def MediaHandler(base_dir: Optional[str]) -> MediaHandlerBase:
     """Return an appropriate media handler."""
@@ -213,7 +283,9 @@ def MediaHandler(base_dir: Optional[str]) -> MediaHandlerBase:
     return MediaHandlerLocal(base_dir=base_dir or "")
 
 
-def get_media_handler(tree: Optional[str] = None) -> MediaHandlerBase:
+def get_media_handler(
+    db_handle: DbReadBase, tree: Optional[str] = None
+) -> MediaHandlerBase:
     """Get an appropriate media handler instance.
 
     Requires the flask app context and constructs base dir from config.
@@ -232,8 +304,7 @@ def get_media_handler(tree: Optional[str] = None) -> MediaHandlerBase:
     else:
         if not base_dir:
             # use media base dir set in Gramps DB as fallback
-            db = get_db_handle()
-            base_dir = expand_media_path(db.get_mediapath(), db)
+            base_dir = expand_media_path(db_handle.get_mediapath(), db_handle)
         if prefix:
             # construct subdirectory using OS dependent path join
             base_dir = os.path.join(base_dir, prefix)
@@ -243,7 +314,8 @@ def get_media_handler(tree: Optional[str] = None) -> MediaHandlerBase:
 def update_usage_media() -> int:
     """Update the usage of media."""
     tree = get_tree_from_jwt()
-    media_handler = get_media_handler(tree=tree)
+    db_handle = get_db_handle()
+    media_handler = get_media_handler(db_handle, tree=tree)
     usage_media = media_handler.get_media_size()
     set_tree_usage(tree, usage_media=usage_media)
     return usage_media
