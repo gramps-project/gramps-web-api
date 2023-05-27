@@ -24,13 +24,11 @@ from typing import BinaryIO, Dict, Optional
 import boto3
 from botocore.exceptions import ClientError
 from flask import current_app, redirect, send_file
-from gramps.gen.lib import Media
+from gramps.gen.db.base import DbReadBase
 
+from ..const import MIME_JPEG
 from .file import FileHandler
 from .image import ThumbnailHandler
-from ..const import MIME_JPEG
-
-from gramps_webapi.util import get_extension
 
 
 def get_client(endpoint_url: Optional[str] = None):
@@ -60,11 +58,12 @@ class ObjectStorageFileHandler(FileHandler):
         self,
         handle,
         bucket_name: str,
+        db_handle: DbReadBase,
         prefix: Optional[str] = None,
         endpoint_url: Optional[str] = None,
     ):
         """Initialize self given a handle and media base directory."""
-        super().__init__(handle)
+        super().__init__(handle, db_handle=db_handle)
         self.client = get_client(endpoint_url)
         self.bucket_name = bucket_name
         self.object_name = get_object_name(checksum=self.checksum, prefix=prefix)

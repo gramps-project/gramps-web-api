@@ -23,9 +23,10 @@ import hashlib
 import os
 from io import BytesIO
 from pathlib import Path
-from typing import Any, BinaryIO, List, Optional, Tuple, Union
+from typing import Any, BinaryIO, Optional, Tuple, Union
 
 from flask import abort, jsonify, make_response, send_file, send_from_directory
+from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Media
 from werkzeug.datastructures import FileStorage
@@ -34,14 +35,14 @@ from gramps_webapi.const import MIME_JPEG
 
 from ..types import FilenameOrPath
 from .image import LocalFileThumbnailHandler, detect_faces
-from .util import get_db_handle
 
 
 class FileHandler:
     """Generic handler for a single media file."""
 
-    def __init__(self, handle):
+    def __init__(self, handle, db_handle: DbReadBase):
         """Initialize self."""
+        self.db_handle = db_handle
         self.handle = handle
         self.media = self._get_media_object()
         self.mime = self.media.mime
@@ -50,9 +51,8 @@ class FileHandler:
 
     def _get_media_object(self) -> Optional[Media]:
         """Get the media object from the database."""
-        db_handle = get_db_handle()
         try:
-            return db_handle.get_media_from_handle(self.handle)
+            return self.db_handle.get_media_from_handle(self.handle)
         except HandleError:
             return None
 
@@ -106,9 +106,9 @@ class FileHandler:
 class LocalFileHandler(FileHandler):
     """Handler for local files."""
 
-    def __init__(self, handle, base_dir):
+    def __init__(self, handle, base_dir, db_handle: DbReadBase):
         """Initialize self given a handle and media base directory."""
-        super().__init__(handle)
+        super().__init__(handle, db_handle=db_handle)
         self.base_dir = base_dir
         if not os.path.isdir(self.base_dir):
             raise ValueError(f"Directory {self.base_dir} does not exist")

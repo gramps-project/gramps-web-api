@@ -58,7 +58,9 @@ class MediaFileResource(ProtectedResource):
         except HandleError:
             abort(HTTPStatus.NOT_FOUND)
         tree = get_tree_from_jwt()
-        handler = get_media_handler(db_handle, tree).get_file_handler(handle)
+        handler = get_media_handler(db_handle, tree).get_file_handler(
+            handle, db_handle=db_handle
+        )
         download = bool(args.get("download"))
         filename = os.path.basename(obj.path)
         return handler.send_file(
@@ -89,7 +91,7 @@ class MediaFileResource(ProtectedResource):
         checksum, size, f = process_file(request.stream)
         tree = get_tree_from_jwt()
         media_handler = get_media_handler(db_handle, tree)
-        file_handler = media_handler.get_file_handler(handle)
+        file_handler = media_handler.get_file_handler(handle, db_handle=db_handle)
         if checksum == obj.checksum:
             if not args.get("uploadmissing") or file_handler.file_exists():
                 # don't allow PUTting if the file didn't change

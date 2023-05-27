@@ -1096,7 +1096,7 @@ def filter_missing_files(objects: List[Media]) -> List[Media]:
     tree = get_tree_from_jwt()
     db_handle = get_db_handle()
     handler = get_media_handler(db_handle, tree=tree)
-    objects_existing = handler.filter_existing_files(objects)
+    objects_existing = handler.filter_existing_files(objects, db_handle=db_handle)
     handles_existing = set(obj.handle for obj in objects_existing)
     return [obj for obj in objects if obj.handle not in handles_existing]
 
