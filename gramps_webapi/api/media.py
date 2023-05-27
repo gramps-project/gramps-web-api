@@ -58,7 +58,7 @@ class MediaHandlerBase:
         """Initialize given a base dir or URL."""
         self.base_dir = base_dir or ""
 
-    def get_file_handler(self, handle) -> FileHandler:
+    def get_file_handler(self, handle, db_handle: DbReadBase) -> FileHandler:
         """Get an appropriate file handler."""
         raise NotImplementedError
 
@@ -82,7 +82,9 @@ class MediaHandlerBase:
         """Upload a file from a stream."""
         raise NotImplementedError
 
-    def filter_existing_files(self, objects: List[Media]) -> List[Media]:
+    def filter_existing_files(
+        self, objects: List[Media], db_handle: DbReadBase
+    ) -> List[Media]:
         """Given a list of media objects, return the ones with existing files."""
         raise NotImplementedError
 
@@ -100,9 +102,9 @@ class MediaHandlerBase:
 class MediaHandlerLocal(MediaHandlerBase):
     """Handler for local media files."""
 
-    def get_file_handler(self, handle) -> LocalFileHandler:
+    def get_file_handler(self, handle, db_handle: DbReadBase) -> LocalFileHandler:
         """Get a local file handler."""
-        return LocalFileHandler(handle, base_dir=self.base_dir)
+        return LocalFileHandler(handle, base_dir=self.base_dir, db_handle=db_handle)
 
     def upload_file(
         self,
@@ -124,10 +126,14 @@ class MediaHandlerLocal(MediaHandlerBase):
             rel_path = self.get_default_filename(checksum, mime)
             upload_file_local(self.base_dir, rel_path, stream)
 
-    def filter_existing_files(self, objects: List[Media]) -> List[Media]:
+    def filter_existing_files(
+        self, objects: List[Media], db_handle: DbReadBase
+    ) -> List[Media]:
         """Given a list of media objects, return the ones with existing files."""
         return [
-            obj for obj in objects if self.get_file_handler(obj.handle).file_exists()
+            obj
+            for obj in objects
+            if self.get_file_handler(obj.handle, db_handle=db_handle).file_exists()
         ]
 
     def get_media_size(self) -> int:
@@ -213,11 +219,14 @@ class MediaHandlerS3(MediaHandlerBase):
         )
         return set(removeprefix(key, self.prefix or "").lstrip("/") for key in keys)
 
-    def get_file_handler(self, handle) -> ObjectStorageFileHandler:
+    def get_file_handler(
+        self, handle, db_handle: DbReadBase
+    ) -> ObjectStorageFileHandler:
         """Get an S3 file handler."""
         return ObjectStorageFileHandler(
             handle,
             bucket_name=self.bucket_name,
+            db_handle=db_handle,
             prefix=self.prefix,
             endpoint_url=self.endpoint_url,
         )
@@ -239,7 +248,9 @@ class MediaHandlerS3(MediaHandlerBase):
             endpoint_url=self.endpoint_url,
         )
 
-    def filter_existing_files(self, objects: List[Media]) -> List[Media]:
+    def filter_existing_files(
+        self, objects: List[Media], db_handle: DbReadBase
+    ) -> List[Media]:
         """Given a list of media objects, return the ones with existing files."""
         # for S3, we use the bucket-level list of handles to avoid having
         # to do many GETs that are more expensive than one LIST
@@ -271,7 +282,7 @@ class MediaHandlerS3(MediaHandlerBase):
                 media_path = obj.path
                 if os.path.isabs(media_path):
                     continue  # ignore absolute paths
-                file_handler = self.get_file_handler(obj.handle)
+                file_handler = self.get_file_handler(obj.handle, db_handle=db_handle)
                 fobj = file_handler.get_file_object()
                 zip_file.writestr(media_path, fobj.read())
 

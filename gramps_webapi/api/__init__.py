@@ -353,7 +353,9 @@ def get_thumbnail(args, handle, size):
     """Get a file's thumbnail."""
     tree = get_tree_from_jwt()
     db_handle = get_db_handle()
-    handler = get_media_handler(db_handle, tree=tree).get_file_handler(handle)
+    handler = get_media_handler(db_handle, tree=tree).get_file_handler(
+        handle, db_handle=db_handle
+    )
     return handler.send_thumbnail(size=size, square=args["square"])
 
 
@@ -373,7 +375,9 @@ def get_cropped(args, handle: str, x1: int, y1: int, x2: int, y2: int):
     """Get the thumbnail of a cropped file."""
     tree = get_tree_from_jwt()
     db_handle = get_db_handle()
-    handler = get_media_handler(db_handle, tree=tree).get_file_handler(handle)
+    handler = get_media_handler(db_handle, tree=tree).get_file_handler(
+        handle, db_handle=db_handle
+    )
     return handler.send_cropped(x1=x1, y1=y1, x2=x2, y2=y2, square=args["square"])
 
 
@@ -395,7 +399,9 @@ def get_thumbnail_cropped(
     """Get the thumbnail of a cropped file."""
     tree = get_tree_from_jwt()
     db_handle = get_db_handle()
-    handler = get_media_handler(db_handle, tree=tree).get_file_handler(handle)
+    handler = get_media_handler(db_handle, tree=tree).get_file_handler(
+        handle, db_handle=db_handle
+    )
     return handler.send_thumbnail_cropped(
         size=size, x1=x1, y1=y1, x2=x2, y2=y2, square=args["square"]
     )
