@@ -19,10 +19,11 @@
 
 """Define methods of providing authentication for users."""
 
+import secrets
 import uuid
 from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, Sequence, Set
+from typing import Any, Dict, List, Optional, Sequence, Set, Union
 
 import sqlalchemy as sa
 from flask_sqlalchemy import SQLAlchemy
@@ -65,6 +66,38 @@ def add_user(
         user_db.session.commit()  # pylint: disable=no-member
     except IntegrityError as exc:
         raise ValueError("Invalid or existing user") from exc
+
+
+def add_users(
+    data: List[Dict[str, Union[str, int]]],
+    allow_id: bool = False,
+    require_password: bool = False,
+    allow_admin: bool = False,
+):
+    """Add multiple users."""
+    if not data:
+        raise ValueError("No data provided.")
+    for user in data:
+        if not user.get("name"):
+            raise ValueError("Username must not be empty")
+        if require_password and not user.get("password"):
+            raise ValueError("Password must not be empty")
+        if "id" in user and not allow_id:
+            raise ValueError("User ID must not be specified")
+        if not allow_admin and user.get("role", 0) > ROLE_OWNER:
+            raise ValueError("Insufficient permissions to create admin role")
+        if "id" not in user:
+            user["id"] = uuid.uuid4()
+        if not user.get("password"):
+            # generate random password
+            user["password"] = secrets.token_urlsafe(16)
+        user["pwhash"] = hash_password(user.pop("password"))
+        try:
+            user_obj = User(**user)
+            user_db.session.add(user_obj)  # pylint: disable=no-member
+        except IntegrityError as exc:
+            raise ValueError("Invalid or existing user") from exc
+    user_db.session.commit()  # pylint: disable=no-member
 
 
 def get_guid(name: str) -> str:
