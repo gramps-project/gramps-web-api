@@ -20,11 +20,12 @@
 
 """Importers Plugin API resource."""
 
-import tempfile
+import os
+import uuid
 from http import HTTPStatus
 from typing import Any, Dict
 
-from flask import Response, abort, request
+from flask import Response, abort, current_app, request
 from webargs import fields
 
 from ...auth.const import PERM_IMPORT_FILE
@@ -73,9 +74,13 @@ class ImporterFileResource(ProtectedResource):
         require_permissions([PERM_IMPORT_FILE])
         get_db_handle()  # needed to load plugins
         request_stream = request.stream
-        with tempfile.NamedTemporaryFile(delete=False) as ftmp:
+        # we use EXPORT_DIR as location to store the temporary file
+        export_path = current_app.config["EXPORT_DIR"]
+        os.makedirs(export_path, exist_ok=True)
+        file_name = f"{uuid.uuid4()}.{extension}"
+        file_path = os.path.join(export_path, file_name)
+        with open(file_path, "w+b") as ftmp:
             ftmp.write(request_stream.read())
-            tmp_file_name = ftmp.name
         importers = get_importers(extension.lower())
         if not importers:
             abort(HTTPStatus.NOT_FOUND)
@@ -83,7 +88,7 @@ class ImporterFileResource(ProtectedResource):
         task = run_task(
             import_file,
             tree=tree,
-            file_name=tmp_file_name,
+            file_name=file_path,
             extension=extension.lower(),
             delete=True,
         )
