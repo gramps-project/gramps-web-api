@@ -135,8 +135,24 @@ class UsersResource(ProtectedResource):
                     require_permissions([PERM_ADD_OTHER_TREE_USER])
             else:
                 user_dict["tree"] = tree
+        users = [
+            {
+                "name": user_dict.get("name"),
+                "email": user_dict.get("email"),
+                # user correct argument name for full name
+                "fullname": user_dict.get("full_name"),
+                "role": user_dict.get("role", 0),
+                "tree": user_dict.get("tree"),
+            }
+            for user_dict in users
+        ]
         try:
-            add_users(users)
+            add_users(
+                users,
+                allow_id=False,
+                require_password=False,
+                allow_admin=has_permissions([PERM_MAKE_ADMIN]),
+            )
         except ValueError:
             abort(409)
         return "", 201
