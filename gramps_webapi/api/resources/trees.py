@@ -85,7 +85,11 @@ class TreesResource(ProtectedResource):
         return [get_tree_details(tree_id) for tree_id in tree_ids]
 
     @use_args(
-        {"name": fields.Str(required=True)},
+        {
+            "name": fields.Str(required=True),
+            "quota_media": fields.Integer(required=False),
+            "quota_people": fields.Integer(required=False),
+        },
         location="json",
     )
     def post(self, args):
@@ -101,7 +105,13 @@ class TreesResource(ProtectedResource):
             create_if_missing=True,
             create_backend=backend,
         )
-        return {"name": args["name"], "tree_id": dbmgr.dirname}, 201
+        if args.get("quota_media") or args.get("quota_people"):
+            set_tree_quota(
+                tree=tree_id,
+                quota_media=args.get("quota_media"),
+                quota_people=args.get("quota_people"),
+            )
+        return get_tree_details(tree_id), 201
 
 
 class TreeResource(ProtectedResource):
