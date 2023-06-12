@@ -6696,6 +6696,16 @@ paths:
         in: body
         required: true
         description: "The name of the tree."
+      - name: quota_media
+        in: body
+        type: integer
+        required: true
+        description: "The maxium size of media objects."
+      - name: quota_people
+        in: body
+        type: integer
+        required: true
+        description: "The maxium number of people."
       tags:
       - trees
       summary: "Create a new empty tree."
@@ -6706,14 +6716,7 @@ paths:
         201:
           description: "OK: resource created."
           schema:
-            type: object
-            properties:
-              name:
-                description: "The tree name."
-                type: string
-              tree_id:
-                description: "The tree ID."
-                type: string
+            $ref: "#/definitions/Tree"
         401:
           description: "Unauthorized: Missing authorization header."
         404:
@@ -6754,6 +6757,16 @@ paths:
           required: true
           type: string
           description: "The tree ID."
+        - name: quota_media
+          in: body
+          type: integer
+          required: true
+          description: "The maxium size of media objects."
+        - name: quota_people
+          in: body
+          type: integer
+          required: true
+          description: "The maxium number of people."
       tags:
       - trees
       summary: "Update details about a tree."
