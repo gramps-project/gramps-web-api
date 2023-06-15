@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-2023      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -109,6 +109,25 @@ class TestTransactionResource(unittest.TestCase):
         obj_dict = rv.json
         self.assertEqual(obj_dict["handle"], handle)
         self.assertEqual(obj_dict["text"]["string"], "My first note.")
+        # undo add
+        rv = self.client.post(
+            "/api/transactions/?undo=1", json=trans_dict, headers=headers
+        )
+        assert rv.status_code == 200
+        trans_dict = rv.json
+        self.assertEqual(len(trans_dict), 1)
+        self.assertEqual(trans_dict[0]["handle"], handle)
+        self.assertEqual(trans_dict[0]["type"], "delete")
+        self.assertEqual(trans_dict[0]["_class"], "Note")
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 404)
+        # undo undo
+        rv = self.client.post(
+            "/api/transactions/?undo=1", json=trans_dict, headers=headers
+        )
+        assert rv.status_code == 200
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
         # update
         obj_new = deepcopy(obj)
         obj_new["gramps_id"] = "N2"
@@ -123,11 +142,27 @@ class TestTransactionResource(unittest.TestCase):
         ]
         rv = self.client.post("/api/transactions/", json=trans, headers=headers)
         self.assertEqual(rv.status_code, 200)
+        trans_dict = rv.json
         rv = self.client.get(f"/api/notes/{handle}", headers=headers)
         self.assertEqual(rv.status_code, 200)
         obj_dict = rv.json
         self.assertEqual(obj_dict["handle"], handle)
         self.assertEqual(obj_dict["gramps_id"], "N2")
+        # undo update
+        rv = self.client.post(
+            "/api/transactions/?undo=1", json=trans_dict, headers=headers
+        )
+        assert rv.status_code == 200
+        trans_dict = rv.json
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        obj_dict = rv.json
+        self.assertEqual(obj_dict["handle"], handle)
+        self.assertEqual(obj_dict["gramps_id"], "N1")
+        # undo undo
+        rv = self.client.post(
+            "/api/transactions/?undo=1", json=trans_dict, headers=headers
+        )
         # delete
         trans = [
             {
@@ -140,8 +175,70 @@ class TestTransactionResource(unittest.TestCase):
         ]
         rv = self.client.post("/api/transactions/", json=trans, headers=headers)
         self.assertEqual(rv.status_code, 200)
+        trans_dict = rv.json
         rv = self.client.get(f"/api/notes/{handle}", headers=headers)
         self.assertEqual(rv.status_code, 404)
+        # undo delete
+        rv = self.client.post(
+            "/api/transactions/?undo=1", json=trans_dict, headers=headers
+        )
+        self.assertEqual(rv.status_code, 200)
+        trans_dict = rv.json
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        # undo undo
+        rv = self.client.post(
+            "/api/transactions/?undo=1", json=trans_dict, headers=headers
+        )
+
+    def test_family_undo(self):
+        """Undo update and subequent deletion of a single note."""
+        father = {
+            "_class": "Person",
+            "handle": make_handle(),
+            "gramps_id": "P1",
+        }
+        mother = {
+            "_class": "Person",
+            "handle": make_handle(),
+            "gramps_id": "P2",
+        }
+        family = {
+            "_class": "Family",
+            "handle": make_handle(),
+            "gramps_id": "F1",
+            "father_handle": father["handle"],
+            "mother_handle": mother["handle"],
+        }
+        headers = get_headers(self.client, "editor", "123")
+        # add objects
+        rv = self.client.post("/api/people/", json=father, headers=headers)
+        assert rv.status_code == 201
+        rv = self.client.post("/api/people/", json=mother, headers=headers)
+        assert rv.status_code == 201
+        rv = self.client.post("/api/families/", json=family, headers=headers)
+        assert rv.status_code == 201
+        trans_dict = rv.json
+        rv = self.client.get(f"/api/people/{father['handle']}", headers=headers)
+        assert rv.status_code == 200
+        assert rv.json["family_list"] == [family["handle"]]
+        rv = self.client.get(f"/api/people/{mother['handle']}", headers=headers)
+        assert rv.status_code == 200
+        assert rv.json["family_list"] == [family["handle"]]
+        rv = self.client.get(f"/api/families/{family['handle']}", headers=headers)
+        assert rv.status_code == 200
+        # undo family post should delete the family and update the people
+        rv = self.client.post(
+            "/api/transactions/?undo=1", json=trans_dict, headers=headers
+        )
+        rv = self.client.get(f"/api/people/{father['handle']}", headers=headers)
+        assert rv.status_code == 200
+        assert rv.json["family_list"] == []
+        rv = self.client.get(f"/api/people/{mother['handle']}", headers=headers)
+        assert rv.status_code == 200
+        assert rv.json["family_list"] == []
+        rv = self.client.get(f"/api/families/{family['handle']}", headers=headers)
+        assert rv.status_code == 404
 
     def test_modify_two(self):
         """Modify two objects simultaneously."""

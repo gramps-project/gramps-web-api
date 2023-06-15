@@ -70,7 +70,7 @@ from gramps.gen.utils.id import create_id
 from gramps.gen.utils.place import conv_lat_lon
 
 from ...const import DISABLED_IMPORTERS, SEX_FEMALE, SEX_MALE, SEX_UNKNOWN
-from ...types import FilenameOrPath, Handle
+from ...types import FilenameOrPath, Handle, TransactionJson
 from ..media import get_media_handler
 from ..util import get_db_handle, get_tree_from_jwt
 
@@ -1059,7 +1059,7 @@ def _fix_parent_handles(
             db_handle.commit_person(person, trans)
 
 
-def transaction_to_json(transaction: DbTxn) -> List[Dict[str, Any]]:
+def transaction_to_json(transaction: DbTxn) -> TransactionJson:
     """Return a JSON representation of a database transaction."""
     out = []
     for recno in transaction.get_recnos(reverse=False):
@@ -1083,6 +1083,22 @@ def transaction_to_json(transaction: DbTxn) -> List[Dict[str, Any]]:
         }
         out.append(item)
     return out
+
+
+def reverse_transaction(transaction_list: TransactionJson) -> TransactionJson:
+    """Reverse a JSON representation of a database transaction."""
+    transaction_reversed = []
+    type_reversed = {"add": "delete", "delete": "add", "update": "update"}
+    for item in reversed(transaction_list):
+        item_reversed = {
+            "type": type_reversed[item["type"]],
+            "handle": item["handle"],
+            "_class": item["_class"],
+            "old": item["new"],
+            "new": item["old"],
+        }
+        transaction_reversed.append(item_reversed)
+    return transaction_reversed
 
 
 def hash_object(obj: GrampsObject) -> str:

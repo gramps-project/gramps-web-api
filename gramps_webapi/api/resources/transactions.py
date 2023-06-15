@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2021      David Straub
+# Copyright (C) 2021-2023      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -29,6 +29,7 @@ from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, TXNADD, TXNDEL, TXNUPD
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.serialize import from_json, to_json
 from gramps.gen.merge.diff import diff_items
+from webargs import fields
 
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ..auth import require_permissions
@@ -38,9 +39,10 @@ from ..util import (
     get_db_handle,
     get_search_indexer,
     get_tree_from_jwt,
+    use_args,
 )
 from . import ProtectedResource
-from .util import transaction_to_json
+from .util import reverse_transaction, transaction_to_json
 
 trans_code = {"delete": TXNDEL, "add": TXNADD, "update": TXNUPD}
 
@@ -48,17 +50,30 @@ trans_code = {"delete": TXNDEL, "add": TXNADD, "update": TXNUPD}
 class TransactionsResource(ProtectedResource):
     """Resource for raw database transactions."""
 
-    def post(self) -> Response:
+    @use_args(
+        {
+            "undo": fields.Boolean(load_default=False),
+        },
+        location="query",
+    )
+    def post(self, args) -> Response:
         """Post the transaction."""
         require_permissions([PERM_ADD_OBJ, PERM_EDIT_OBJ, PERM_DEL_OBJ])
         payload = request.json
         if not payload:
             abort(400)  # disallow empty payload
+        is_undo = args["undo"]
+        if is_undo:
+            payload = reverse_transaction(payload)
         db_handle = get_db_handle(readonly=False)
-        new_people = sum(
+        num_people_deleted = sum(
+            item["type"] == "delete" and item["_class"] == "Person" for item in payload
+        )
+        num_people_added = sum(
             item["type"] == "add" and item["_class"] == "Person" for item in payload
         )
-        check_quota_people(to_add=new_people)
+        num_people_new = num_people_added - num_people_deleted
+        check_quota_people(to_add=num_people_new)
         with DbTxn("Raw transaction", db_handle) as trans:
             for item in payload:
                 try:

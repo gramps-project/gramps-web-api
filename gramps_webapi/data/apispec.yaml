@@ -4475,6 +4475,11 @@ paths:
       consumes:
         - application/json
       parameters:
+        - name: undo
+          in: query
+          required: false
+          type: boolean
+          description: "If true, apply the inverse of the transaction."
         - in: body
           name: source
           description: The database transaction
