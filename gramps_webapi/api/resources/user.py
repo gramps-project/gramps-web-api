@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-2023      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -61,6 +61,7 @@ from ...auth.const import (
     ROLE_UNCONFIRMED,
     SCOPE_CONF_EMAIL,
     SCOPE_CREATE_ADMIN,
+    SCOPE_CREATE_OWNER,
     SCOPE_RESET_PW,
 )
 from ...const import TREE_MULTI
@@ -349,24 +350,41 @@ class UserCreateOwnerResource(LimitedScopeProtectedResource):
         if user_name == "-":
             # User name - is not allowed
             abort(404)
-        # FIXME what about multi-tree
-        if get_number_users() > 0:
-            # there is already a user in the user DB
-            abort(405)
         claims = get_jwt()
-        if claims[CLAIM_LIMITED_SCOPE] != SCOPE_CREATE_ADMIN:
-            # This is a wrong token!
-            abort(403)
         if "tree" in args and not tree_exists(args["tree"]):
             abort(422)
-        add_user(
-            name=user_name,
-            password=args["password"],
-            email=args["email"],
-            fullname=args["full_name"],
-            tree=args.get("tree"),
-            role=ROLE_ADMIN,
-        )
+        if claims[CLAIM_LIMITED_SCOPE] == SCOPE_CREATE_ADMIN:
+            if get_number_users() > 0:
+                # there is already a user in the user DB
+                abort(405)
+            add_user(
+                name=user_name,
+                password=args["password"],
+                email=args["email"],
+                fullname=args["full_name"],
+                tree=args.get("tree"),
+                role=ROLE_ADMIN,
+            )
+        elif claims[CLAIM_LIMITED_SCOPE] == SCOPE_CREATE_OWNER:
+            tree = claims["tree"]
+            if "tree" in args and args["tree"] != tree:
+                abort(422)
+            if not tree_exists(tree_id=tree):
+                abort(422)
+            if get_number_users(tree=tree) > 0:
+                # there is already a user in this tree
+                abort(405)
+            add_user(
+                name=user_name,
+                password=args["password"],
+                email=args["email"],
+                fullname=args["full_name"],
+                tree=tree,
+                role=ROLE_OWNER,
+            )
+        else:
+            # This is a wrong token!
+            abort(403)
         return "", 201
 
 

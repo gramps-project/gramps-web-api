@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-2023      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -22,6 +22,7 @@
 import unittest
 from unittest.mock import patch
 
+from flask_jwt_extended.utils import decode_token
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
@@ -29,8 +30,10 @@ from gramps_webapi.app import create_app
 from gramps_webapi.auth import user_db
 from gramps_webapi.auth.const import ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
+from gramps_webapi.dbmanager import WebDbManager
 
 from . import BASE_URL, TEST_USERS, get_test_client
+from .util import fetch_header
 
 
 class TestToken(unittest.TestCase):
@@ -81,6 +84,20 @@ class TestToken(unittest.TestCase):
     def test_create_owner_response(self):
         """Test response to create_owner."""
         rv = self.client.get(f"{BASE_URL}/token/create_owner/")
+        self.assertEqual(rv.status_code, 405)
+
+    def test_create_owner_post_response(self):
+        """Test response to create_owner."""
+        rv = self.client.post(f"{BASE_URL}/token/create_owner/")
+        self.assertEqual(rv.status_code, 405)
+
+    def test_create_owner_tree_response(self):
+        """Test response to create_owner."""
+        headers = fetch_header(self.client)
+        rv = self.client.get(f"{BASE_URL}/trees/-", headers=headers)
+        assert rv.status_code == 200
+        tree = rv.json["id"]
+        rv = self.client.post(f"{BASE_URL}/token/create_owner/", json={"tree": tree})
         self.assertEqual(rv.status_code, 405)
 
 
@@ -155,14 +172,58 @@ class TestTokenCreateOwner(unittest.TestCase):
         cls.client = cls.app.test_client()
         with cls.app.app_context():
             user_db.create_all()
+            db_manager = WebDbManager(name=cls.name, create_if_missing=False)
+            cls.tree_id = db_manager.dirname
 
     @classmethod
     def tearDownClass(cls):
         cls.dbman.remove_database(cls.name)
 
-    def test_create_owner_response(self):
+    def test_create_admin_response_get(self):
         """Test response to create_owner."""
-        # FIXME requires tree
         rv = self.client.get(f"{BASE_URL}/token/create_owner/")
         self.assertEqual(rv.status_code, 200)
         self.assertIn("access_token", rv.json)
+        encoded_token = rv.json["access_token"]
+        with self.app.app_context():
+            token = decode_token(encoded_token)
+        assert token["limited_scope"] == "create_admin"
+
+    def test_create_admin_response_post(self):
+        """Test response to create_owner."""
+        rv = self.client.post(f"{BASE_URL}/token/create_owner/")
+        self.assertEqual(rv.status_code, 201)
+        self.assertIn("access_token", rv.json)
+        encoded_token = rv.json["access_token"]
+        with self.app.app_context():
+            token = decode_token(encoded_token)
+        assert token["limited_scope"] == "create_admin"
+
+    def test_create_admin_response_post_tree_wrong(self):
+        """Test response to create_owner."""
+        rv = self.client.post(
+            f"{BASE_URL}/token/create_owner/", json={"tree": "idontexist"}
+        )
+        self.assertEqual(rv.status_code, 404)
+
+    def test_create_admin_response_post_tree_empty_string(self):
+        """Test response to create_owner."""
+        rv = self.client.post(f"{BASE_URL}/token/create_owner/", json={"tree": ""})
+        self.assertEqual(rv.status_code, 201)
+        self.assertIn("access_token", rv.json)
+        encoded_token = rv.json["access_token"]
+        with self.app.app_context():
+            token = decode_token(encoded_token)
+        assert token["limited_scope"] == "create_admin"
+
+    def test_create_admin_response_post_tree(self):
+        """Test response to create_owner."""
+        rv = self.client.post(
+            f"{BASE_URL}/token/create_owner/", json={"tree": self.tree_id}
+        )
+        self.assertEqual(rv.status_code, 201)
+        self.assertIn("access_token", rv.json)
+        encoded_token = rv.json["access_token"]
+        with self.app.app_context():
+            token = decode_token(encoded_token)
+        assert token["limited_scope"] == "create_owner"

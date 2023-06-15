@@ -145,13 +145,20 @@ paths:
           description: "Unprocessable Entity: Invalid token."
 
   /token/create_owner/:
-    get:
+    post:
       tags:
       - authentication
-      summary: "Obtain a JWT access token that allows creating an owner account if no other user exists yet."
+      summary: "Obtain a JWT access token that allows creating an admin or owner account if no other user exists yet."
       operationId: getTokenCreateOwner
+      parameters:
+      - name: tree
+        in: body
+        required: false
+        type: string
+        description: "If present, request a token for creating a tree owner. Otherwise, request a token for creating a site admin."
+        example: 0de59650-9bc5-4ee8-957d-4c3eb0851981
       responses:
-        200:
+        201:
           description: "OK: Successful operation."
           schema:
             $ref: "#/definitions/JWTAccessToken"
@@ -376,27 +383,30 @@ paths:
     post:
       tags:
       - users
-      summary: "Create an owner account if no other user exists yet."
+      summary: "Create an admin or owner account if no other user exists yet."
       operationId: createOwner
       parameters:
       - name: user_name
         in: path
         required: true
         type: string
-        description: "The user name for the owner account."
+        description: "The user name for the account."
       - name: user_details
         in: body
         schema:
           type: object
           properties:
             email:
-              description: "The owner's e-mail address."
+              description: "The new user's e-mail address."
               type: string
             full_name:
-              description: "The owner's full name."
+              description: "The new user's full name."
               type: string
             password:
-              description: "The owner's password."
+              description: "The new user's password."
+              type: string
+            tree:
+              description: "The new user's tree (optional)."
               type: string
       responses:
         201:

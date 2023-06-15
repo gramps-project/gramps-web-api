@@ -30,7 +30,14 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
-from gramps_webapi.auth import add_user, get_number_users, user_db
+from gramps_webapi.auth import (
+    add_user,
+    delete_user,
+    get_all_user_details,
+    get_number_users,
+    get_user_details,
+    user_db,
+)
 from gramps_webapi.auth.const import (
     ROLE_ADMIN,
     ROLE_DISABLED,
@@ -39,6 +46,7 @@ from gramps_webapi.auth.const import (
     ROLE_UNCONFIRMED,
 )
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
+from gramps_webapi.dbmanager import WebDbManager
 
 from . import BASE_URL
 from .util import fetch_header
@@ -122,7 +130,7 @@ class TestUser(unittest.TestCase):
         token = rv.json["access_token"]
         rv = self.client.post(
             BASE_URL + "/users/-/password/change",
-            headers={"Authorization": "Bearer {}".format(token)},
+            headers={"Authorization": f"Bearer {token}"},
             json={"old_password": "012", "new_password": "456"},
         )
         assert rv.status_code == 403
@@ -135,7 +143,7 @@ class TestUser(unittest.TestCase):
         token = rv.json["access_token"]
         rv = self.client.post(
             BASE_URL + "/users/-/password/change",
-            headers={"Authorization": "Bearer {}".format(token)},
+            headers={"Authorization": f"Bearer {token}"},
             json={"old_password": "123", "new_password": "456"},
         )
         assert rv.status_code == 201
@@ -194,13 +202,13 @@ class TestUser(unittest.TestCase):
         token = rv.json["access_token"]
         rv = self.client.post(
             BASE_URL + "/users/-/password/change",
-            headers={"Authorization": "Bearer {}".format(token)},
+            headers={"Authorization": f"Bearer {token}"},
             json={"old_password": "123", "new_password": "456"},
         )
         assert rv.status_code == 201
         rv = self.client.post(
             BASE_URL + "/users/-/password/change",
-            headers={"Authorization": "Bearer {}".format(token)},
+            headers={"Authorization": f"Bearer {token}"},
             json={"old_password": "123", "new_password": "456"},
         )
         assert rv.status_code == 403
@@ -238,21 +246,21 @@ class TestUser(unittest.TestCase):
         # try empty PW!
         rv = self.client.post(
             BASE_URL + "/users/-/password/reset/",
-            headers={"Authorization": "Bearer {}".format(token)},
+            headers={"Authorization": f"Bearer {token}"},
             json={"new_password": ""},
         )
         self.assertEqual(rv.status_code, 400)
         # now that should work
         rv = self.client.post(
             BASE_URL + "/users/-/password/reset/",
-            headers={"Authorization": "Bearer {}".format(token)},
+            headers={"Authorization": f"Bearer {token}"},
             json={"new_password": "789"},
         )
         self.assertEqual(rv.status_code, 201)
         # try again with the same token!
         rv = self.client.post(
             BASE_URL + "/users/-/password/reset/",
-            headers={"Authorization": "Bearer {}".format(token)},
+            headers={"Authorization": f"Bearer {token}"},
             json={"new_password": "789"},
         )
         self.assertEqual(rv.status_code, 409)
@@ -630,7 +638,7 @@ class TestUser(unittest.TestCase):
             # now that should work
             rv = self.client.get(
                 BASE_URL + "/users/-/email/confirm/",
-                headers={"Authorization": "Bearer {}".format(token)},
+                headers={"Authorization": f"Bearer {token}"},
             )
             self.assertEqual(rv.status_code, 200)
             # check return template
@@ -663,7 +671,7 @@ class TestUser(unittest.TestCase):
             # this should not be allowed!
             rv = self.client.get(
                 BASE_URL + "/people/",
-                headers={"Authorization": "Bearer {}".format(token)},
+                headers={"Authorization": f"Bearer {token}"},
             )
             self.assertEqual(rv.status_code, 401)
 
@@ -865,14 +873,23 @@ class TestUserCreateOwner(unittest.TestCase):
         self.client = self.app.test_client()
         with self.app.app_context():
             user_db.create_all()
+            db_manager = WebDbManager(name=self.name, create_if_missing=False)
+            self.tree = db_manager.dirname
         self.ctx = self.app.test_request_context()
         self.ctx.push()
+
+    def _delete_users(self):
+        """Delete existing users."""
+        users = get_all_user_details(tree=None)
+        for user in users:
+            delete_user(name=user["name"])
 
     def tearDown(self):
         self.ctx.pop()
         self.dbman.remove_database(self.name)
 
-    def test_create_owner(self):
+    def test_create_admin(self):
+        self._delete_users()
         rv = self.client.get(f"{BASE_URL}/token/create_owner/")
         assert rv.status_code == 200
         token = rv.json["access_token"]
@@ -880,14 +897,30 @@ class TestUserCreateOwner(unittest.TestCase):
             assert get_number_users() == 0
         # data missing
         rv = self.client.post(
-            f"{BASE_URL}/users/tree_owner/create_owner/",
-            headers={"Authorization": "Bearer {}".format(token)},
+            f"{BASE_URL}/users/site_admin/create_owner/",
+            headers={"Authorization": f"Bearer {token}"},
             json={"full_name": "My Name"},
         )
         assert rv.status_code == 422
+        with self.app.app_context():
+            assert get_number_users() == 0
+        # non-existing tree
         rv = self.client.post(
-            f"{BASE_URL}/users/tree_owner/create_owner/",
-            headers={"Authorization": "Bearer {}".format(token)},
+            f"{BASE_URL}/users/site_admin/create_owner/",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "password": "123",
+                "email": "test@example.com",
+                "full_name": "My Name",
+                "tree": "some_tree",
+            },
+        )
+        assert rv.status_code == 422
+        with self.app.app_context():
+            assert get_number_users() == 0
+        rv = self.client.post(
+            f"{BASE_URL}/users/site_admin/create_owner/",
+            headers={"Authorization": f"Bearer {token}"},
             json={
                 "password": "123",
                 "email": "test@example.com",
@@ -897,10 +930,73 @@ class TestUserCreateOwner(unittest.TestCase):
         assert rv.status_code == 201
         with self.app.app_context():
             assert get_number_users() == 1
+            assert get_user_details("site_admin")["role"] == ROLE_ADMIN
+        # try posting again
+        rv = self.client.post(
+            f"{BASE_URL}/users/site_admin_2/create_owner/",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "password": "123",
+                "email": "test@example.com",
+                "full_name": "My Name",
+            },
+        )
+        assert rv.status_code == 405
+        with self.app.app_context():
+            assert get_number_users() == 1
+        rv = self.client.get(f"{BASE_URL}/token/create_owner/")
+        assert rv.status_code == 405
+
+    def test_create_owner(self):
+        self._delete_users()
+        rv = self.client.post(
+            f"{BASE_URL}/token/create_owner/", json={"tree": self.tree}
+        )
+        assert rv.status_code == 201
+        token = rv.json["access_token"]
+        with self.app.app_context():
+            assert get_number_users() == 0
+        # data missing
+        rv = self.client.post(
+            f"{BASE_URL}/users/tree_owner/create_owner/",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"full_name": "My Name"},
+        )
+        assert rv.status_code == 422
+        with self.app.app_context():
+            assert get_number_users() == 0
+        # non-existing tree
+        rv = self.client.post(
+            f"{BASE_URL}/users/tree_owner/create_owner/",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "password": "123",
+                "email": "test@example.com",
+                "full_name": "My Name",
+                "tree": "some_tree",
+            },
+        )
+        assert rv.status_code == 422
+        with self.app.app_context():
+            assert get_number_users() == 0
+        rv = self.client.post(
+            f"{BASE_URL}/users/tree_owner/create_owner/",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "password": "123",
+                "email": "test@example.com",
+                "full_name": "My Name",
+            },
+        )
+        assert rv.status_code == 201
+        with self.app.app_context():
+            assert get_number_users() == 1
+            assert get_user_details("tree_owner")["role"] == ROLE_OWNER
+            assert get_user_details("tree_owner")["tree"] == self.tree
         # try posting again
         rv = self.client.post(
             f"{BASE_URL}/users/tree_owner_2/create_owner/",
-            headers={"Authorization": "Bearer {}".format(token)},
+            headers={"Authorization": f"Bearer {token}"},
             json={
                 "password": "123",
                 "email": "test@example.com",
@@ -975,6 +1071,6 @@ class TestUserCelery(unittest.TestCase):
         sleep(5)
         rv = self.client.get(
             url,
-            headers={"Authorization": "Bearer {}".format(token)},
+            headers={"Authorization": f"Bearer {token}"},
         )
         assert rv.status_code == 200
