@@ -29,11 +29,12 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import gramps
 import jsonschema
-from flask import abort, current_app
+from flask import current_app
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import KEY_TO_CLASS_MAP, DbTxn
 from gramps.gen.db.base import DbReadBase, DbWriteBase
 from gramps.gen.db.dbconst import TXNADD, TXNDEL, TXNUPD
+from gramps.gen.db.utils import import_as_dict
 from gramps.gen.display.name import NameDisplay
 from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
@@ -72,7 +73,7 @@ from gramps.gen.utils.place import conv_lat_lon
 from ...const import DISABLED_IMPORTERS, SEX_FEMALE, SEX_MALE, SEX_UNKNOWN
 from ...types import FilenameOrPath, Handle
 from ..media import get_media_handler
-from ..util import get_db_handle, get_tree_from_jwt
+from ..util import abort_with_message, get_db_handle, get_tree_from_jwt
 
 pd = PlaceDisplay()
 _ = glocale.translation.gettext
@@ -797,7 +798,7 @@ def add_object(
     """
     if db_handle.readonly:
         # adding objects is forbidden on a read-only db!
-        abort(HTTPStatus.FORBIDDEN)
+        abort_with_message(HTTPStatus.FORBIDDEN, "Forbidden: database is read-only")
     obj_class = obj.__class__.__name__.lower()
     if fail_if_exists:
         if has_handle(db_handle, obj):
@@ -988,7 +989,7 @@ def update_object(
     """
     if db_handle.readonly:
         # updating objects is forbidden on a read-only db!
-        abort(HTTPStatus.FORBIDDEN)
+        abort_with_message(HTTPStatus.FORBIDDEN, "Forbidden: database is read-only")
     obj_class = obj.__class__.__name__.lower()
     if not has_handle(db_handle, obj):
         raise ValueError("Cannot be used for new objects.")
@@ -1169,5 +1170,26 @@ def run_import(
             if delete:
                 os.remove(file_name)
             if not result:
-                abort(500)
+                abort_with_message(500, "Import failed")
             return
+
+
+def dry_run_import(
+    file_name: FilenameOrPath,
+) -> Optional[Dict[str, int]]:
+    """Import a file into an in-memory database and returns object counts."""
+    db_handle: DbReadBase = import_as_dict(filename=file_name, user=User())
+    if db_handle is None:
+        return None
+    return {
+        "people": db_handle.get_number_of_people(),
+        "families": db_handle.get_number_of_families(),
+        "sources": db_handle.get_number_of_sources(),
+        "citations": db_handle.get_number_of_citations(),
+        "events": db_handle.get_number_of_events(),
+        "media": db_handle.get_number_of_media(),
+        "places": db_handle.get_number_of_places(),
+        "repositories": db_handle.get_number_of_repositories(),
+        "notes": db_handle.get_number_of_notes(),
+        "tags": db_handle.get_number_of_tags(),
+    }

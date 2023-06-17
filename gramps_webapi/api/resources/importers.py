@@ -25,13 +25,13 @@ import uuid
 from http import HTTPStatus
 from typing import Any, Dict
 
-from flask import Response, abort, current_app, request
+from flask import Response, current_app, request
 from webargs import fields
 
 from ...auth.const import PERM_IMPORT_FILE
 from ..auth import require_permissions
 from ..tasks import AsyncResult, import_file, make_task_response, run_task
-from ..util import get_db_handle, get_tree_from_jwt, use_args
+from ..util import abort_with_message, get_db_handle, get_tree_from_jwt, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .util import get_importers
@@ -56,7 +56,7 @@ class ImporterResource(ProtectedResource, GrampsJSONEncoder):
         get_db_handle()  # needed to load plugins
         importers = get_importers(extension)
         if not importers:
-            abort(404)
+            abort_with_message(404, f"Importer for extension {extension} not found")
         return self.response(200, importers[0])
 
 
@@ -81,9 +81,13 @@ class ImporterFileResource(ProtectedResource):
         file_path = os.path.join(export_path, file_name)
         with open(file_path, "w+b") as ftmp:
             ftmp.write(request_stream.read())
+        if os.path.getsize(file_path) == 0:
+            abort_with_message(400, "Imported file is empty")
         importers = get_importers(extension.lower())
         if not importers:
-            abort(HTTPStatus.NOT_FOUND)
+            abort_with_message(
+                HTTPStatus.NOT_FOUND, f"Importer for extension {extension} not found"
+            )
         tree = get_tree_from_jwt()
         task = run_task(
             import_file,

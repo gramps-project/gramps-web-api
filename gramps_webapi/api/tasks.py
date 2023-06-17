@@ -33,8 +33,9 @@ from .emails import email_confirm_email, email_new_user, email_reset_pw
 from .export import prepare_options, run_export
 from .media import get_media_handler
 from .report import run_report
-from .resources.util import run_import
+from .resources.util import dry_run_import, run_import
 from .util import (
+    check_quota_people,
     get_config,
     get_db_manager,
     get_db_outside_request,
@@ -126,6 +127,10 @@ def search_reindex_incremental(tree) -> None:
 @shared_task()
 def import_file(tree: str, file_name: str, extension: str, delete: bool = True):
     """Import a file."""
+    object_counts = dry_run_import(file_name=file_name)
+    if object_counts is None:
+        raise ValueError(f"Failed importing {file_name}")
+    check_quota_people(to_add=object_counts["people"], tree=tree)
     db_manager = get_db_manager(tree)
     db_handle = db_manager.get_db().db
     run_import(
