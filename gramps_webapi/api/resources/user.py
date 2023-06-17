@@ -305,6 +305,12 @@ class UserRegisterResource(Resource):
         # do not allow registration if no tree owner account exists!
         if get_number_users(tree=args.get("tree"), roles=(ROLE_OWNER,)) == 0:
             abort(405)
+        if (
+            "tree" in args
+            and current_app.config["TREE"] != TREE_MULTI
+            and args["tree"] != current_app.config["TREE"]
+        ):
+            abort(422)
         if "tree" in args and not tree_exists(args["tree"]):
             abort(422)
         try:
@@ -352,6 +358,12 @@ class UserCreateOwnerResource(LimitedScopeProtectedResource):
             abort(404)
         claims = get_jwt()
         if "tree" in args and not tree_exists(args["tree"]):
+            abort(422)
+        if (
+            "tree" in args
+            and current_app.config["TREE"] != TREE_MULTI
+            and args["tree"] != current_app.config["TREE"]
+        ):
             abort(422)
         if claims[CLAIM_LIMITED_SCOPE] == SCOPE_CREATE_ADMIN:
             if get_number_users() > 0:

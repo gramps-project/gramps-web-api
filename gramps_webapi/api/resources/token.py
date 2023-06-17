@@ -37,6 +37,7 @@ from ...auth import (
     get_permissions,
 )
 from ...auth.const import CLAIM_LIMITED_SCOPE, SCOPE_CREATE_ADMIN, SCOPE_CREATE_OWNER
+from ...const import TREE_MULTI
 from ..ratelimiter import limiter
 from ..util import get_tree_id, tree_exists, use_args
 from . import RefreshProtectedResource, Resource
@@ -139,6 +140,12 @@ class TokenCreateOwnerResource(Resource):
     def post(self, args):
         """Get a token."""
         tree = args.get("tree")
+        if (
+            tree
+            and current_app.config["TREE"] != TREE_MULTI
+            and tree != current_app.config["TREE"]
+        ):
+            abort(403)
         if tree and not tree_exists(tree):
             abort(404)
         if get_all_user_details(tree=tree):
