@@ -127,11 +127,13 @@ class TestTrees(unittest.TestCase):
         rv = self.client.post(
             BASE_URL + "/trees/",
             headers={"Authorization": f"Bearer {token}"},
-            json={"name": "some name"},
+            json={"name": "some name", "quota_media": 1000000},
         )
         assert rv.status_code == 201
-        assert rv.json["tree_id"]
+        assert rv.json["id"]
         assert rv.json["name"] == "some name"
+        assert rv.json["quota_media"] == 1000000
+        assert rv.json["quota_people"] is None
 
     def test_rename_tree(self):
         rv = self.client.post(
@@ -148,7 +150,7 @@ class TestTrees(unittest.TestCase):
             json={"name": "my old name"},
         )
         assert rv.status_code == 201
-        tree_id = rv.json["tree_id"]
+        tree_id = rv.json["id"]
         # missing authorization
         rv = self.client.put(
             BASE_URL + f"/trees/{tree_id}",
