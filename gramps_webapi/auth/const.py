@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020-2022      David Straub
+# Copyright (C) 2020-2023      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -117,3 +117,4 @@ CLAIM_LIMITED_SCOPE = "limited_scope"
 SCOPE_RESET_PW = "reset_password"
 SCOPE_CONF_EMAIL = "confirm_email"
 SCOPE_CREATE_ADMIN = "create_admin"
+SCOPE_CREATE_OWNER = "create_owner"

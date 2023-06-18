@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-2023      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -30,15 +30,16 @@ from flask_jwt_extended import (
 from webargs import fields, validate
 
 from ...auth import (
-    get_all_user_details,
-    get_permissions,
-    get_guid,
     authorized,
+    get_all_user_details,
+    get_guid,
     get_name,
+    get_permissions,
 )
-from ...auth.const import CLAIM_LIMITED_SCOPE, SCOPE_CREATE_ADMIN
+from ...auth.const import CLAIM_LIMITED_SCOPE, SCOPE_CREATE_ADMIN, SCOPE_CREATE_OWNER
+from ...const import TREE_MULTI
 from ..ratelimiter import limiter
-from ..util import get_tree_id, use_args
+from ..util import get_tree_id, tree_exists, use_args
 from . import RefreshProtectedResource, Resource
 
 
@@ -112,11 +113,12 @@ class TokenRefreshResource(RefreshProtectedResource):
 
 
 class TokenCreateOwnerResource(Resource):
-    """Resource for getting a token that allows creating a site owner account."""
+    """Resource for getting a token that allows creating a site admin or tree owner account."""
 
     @limiter.limit("1/second")
     def get(self):
         """Get a token."""
+        # This GET method is deprecated and only kept for backward compatibility!
         if get_all_user_details(tree=None):
             # users already exist!
             abort(405)
@@ -127,3 +129,34 @@ class TokenCreateOwnerResource(Resource):
             },
         )
         return {"access_token": token}
+
+    @limiter.limit("1/second")
+    @use_args(
+        {
+            "tree": fields.Str(required=False),
+        },
+        location="json",
+    )
+    def post(self, args):
+        """Get a token."""
+        tree = args.get("tree")
+        if (
+            tree
+            and current_app.config["TREE"] != TREE_MULTI
+            and tree != current_app.config["TREE"]
+        ):
+            abort(403)
+        if tree and not tree_exists(tree):
+            abort(404)
+        if get_all_user_details(tree=tree):
+            # users already exist!
+            abort(405)
+        if tree:
+            claims = {
+                CLAIM_LIMITED_SCOPE: SCOPE_CREATE_OWNER,
+                "tree": tree,
+            }
+        else:
+            claims = {CLAIM_LIMITED_SCOPE: SCOPE_CREATE_ADMIN}
+        token = create_access_token(identity="owner", additional_claims=claims)
+        return {"access_token": token}, 201
