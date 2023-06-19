@@ -37,7 +37,6 @@ from .resources.util import dry_run_import, run_import
 from .util import (
     check_quota_people,
     get_config,
-    get_db_manager,
     get_db_outside_request,
     get_search_indexer,
     send_email,
@@ -93,8 +92,7 @@ def send_email_new_user(username: str, fullname: str, email: str, tree: str):
 def _search_reindex_full(tree) -> None:
     """Rebuild the search index."""
     indexer = get_search_indexer(tree)
-    db_manager = get_db_manager(tree)
-    db = db_manager.get_db().db
+    db = get_db_outside_request(tree=tree, view_private=True, readonly=True)
     try:
         indexer.reindex_full(db)
     finally:
@@ -110,8 +108,7 @@ def search_reindex_full(tree) -> None:
 def _search_reindex_incremental(tree) -> None:
     """Run an incremental reindex of the search index."""
     indexer = get_search_indexer(tree)
-    db_manager = get_db_manager(tree)
-    db = db_manager.get_db().db
+    db = get_db_outside_request(tree=tree, view_private=True, readonly=True)
     try:
         indexer.reindex_incremental(db)
     finally:
@@ -131,8 +128,7 @@ def import_file(tree: str, file_name: str, extension: str, delete: bool = True):
     if object_counts is None:
         raise ValueError(f"Failed importing {file_name}")
     check_quota_people(to_add=object_counts["people"], tree=tree)
-    db_manager = get_db_manager(tree)
-    db_handle = db_manager.get_db().db
+    db_handle = get_db_outside_request(tree=tree, view_private=True, readonly=True)
     run_import(
         db_handle=db_handle,
         file_name=file_name,

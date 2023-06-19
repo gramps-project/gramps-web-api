@@ -29,9 +29,10 @@ from gramps.gen.config import config
 from webargs import fields
 from werkzeug.security import safe_join
 
-from ...auth import get_tree_usage, set_tree_quota
+from ...auth import disable_enable_tree, get_tree_usage, set_tree_quota
 from ...auth.const import (
     PERM_ADD_TREE,
+    PERM_DISABLE_TREE,
     PERM_EDIT_OTHER_TREE,
     PERM_EDIT_TREE,
     PERM_EDIT_TREE_QUOTA,
@@ -170,3 +171,36 @@ class TreeResource(ProtectedResource):
                 if args.get(quota) is not None:
                     rv.update({quota: args[quota]})
         return rv
+
+
+class DisableEnableTreeResource(ProtectedResource):
+    """Base class for disabling or enabling a tree."""
+
+    def _post_disable_enable_tree(self, tree_id: str, disabled: bool):
+        """Disable or enable a tree."""
+        if current_app.config["TREE"] != TREE_MULTI:
+            abort(405)
+        if tree_id == "-":
+            # own tree
+            tree_id = get_tree_from_jwt()
+        if not tree_exists(tree_id):
+            abort(404)
+        require_permissions([PERM_DISABLE_TREE])
+        disable_enable_tree(tree=tree_id, disabled=disabled)
+        return "", 201
+
+
+class DisableTreeResource(DisableEnableTreeResource):
+    """Resource for disabling a tree."""
+
+    def post(self, tree_id: str):
+        """Disable a tree."""
+        return self._post_disable_enable_tree(tree_id=tree_id, disabled=True)
+
+
+class EnableTreeResource(DisableEnableTreeResource):
+    """Resource for enabling a tree."""
+
+    def post(self, tree_id: str):
+        """Disable a tree."""
+        return self._post_disable_enable_tree(tree_id=tree_id, disabled=False)

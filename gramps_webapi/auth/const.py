@@ -41,6 +41,7 @@ PERM_EDIT_USER_TREE = "EditUserTree"
 PERM_EDIT_OTHER_TREE = "EditOtherTree"
 PERM_ADD_TREE = "AddTree"
 PERM_EDIT_TREE_QUOTA = "EditTreeQuota"
+PERM_DISABLE_TREE = "DisableTree"
 
 # User permissions
 PERM_ADD_USER = "AddUser"
@@ -110,6 +111,7 @@ PERMISSIONS[ROLE_ADMIN] = PERMISSIONS[ROLE_OWNER] | {
     PERM_EDIT_OTHER_TREE,
     PERM_EDIT_TREE_QUOTA,
     PERM_ADD_TREE,
+    PERM_DISABLE_TREE,
 }
 
 # keys/values for user claims
