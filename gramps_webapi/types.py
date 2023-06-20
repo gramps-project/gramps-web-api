@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-2023      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -20,8 +20,9 @@
 """Custom types."""
 
 from pathlib import Path
-from typing import NewType, Union
+from typing import Any, Dict, List, NewType, Union
 
 Handle = NewType("Handle", str)
 GrampsId = NewType("GrampsId", str)
 FilenameOrPath = Union[str, Path]
+TransactionJson = List[Dict[str, Any]]
