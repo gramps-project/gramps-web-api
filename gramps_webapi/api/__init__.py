@@ -85,7 +85,12 @@ from .resources.token import (
 )
 from .resources.transactions import TransactionsResource
 from .resources.translations import TranslationResource, TranslationsResource
-from .resources.trees import TreeResource, TreesResource
+from .resources.trees import (
+    DisableTreeResource,
+    EnableTreeResource,
+    TreeResource,
+    TreesResource,
+)
 from .resources.types import (
     CustomTypeResource,
     CustomTypesResource,
@@ -167,6 +172,8 @@ register_endpt(TagsResource, "/tags/", "tags")
 # Trees
 register_endpt(TreeResource, "/trees/<string:tree_id>", "tree")
 register_endpt(TreesResource, "/trees/", "trees")
+register_endpt(DisableTreeResource, "/trees/<string:tree_id>/disable", "disable_tree")
+register_endpt(EnableTreeResource, "/trees/<string:tree_id>/enable", "enable_tree")
 # Types
 register_endpt(CustomTypeResource, "/types/custom/<string:datatype>", "custom-type")
 register_endpt(CustomTypesResource, "/types/custom/", "custom-types")

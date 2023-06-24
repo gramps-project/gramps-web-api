@@ -351,6 +351,26 @@ def set_tree_quota(
     user_db.session.commit()  # pylint: disable=no-member
 
 
+def disable_enable_tree(tree: str, disabled: bool) -> None:
+    """Disable or enable a tree."""
+    query = user_db.session.query(Tree)  # pylint: disable=no-member
+    tree_obj = query.filter_by(id=tree).scalar()
+    if not tree_obj:
+        tree_obj = Tree(id=tree)
+    tree_obj.enabled = 0 if disabled else 1
+    user_db.session.add(tree_obj)  # pylint: disable=no-member
+    user_db.session.commit()  # pylint: disable=no-member
+
+
+def is_tree_disabled(tree: str) -> bool:
+    """Check if tree is disabled."""
+    query = user_db.session.query(Tree)  # pylint: disable=no-member
+    tree_obj = query.filter_by(id=tree).scalar()
+    if not tree_obj:
+        return False
+    return tree_obj.enabled == 0
+
+
 class User(user_db.Model):
     """User table class for sqlalchemy."""
 
@@ -393,6 +413,7 @@ class Tree(user_db.Model):
     quota_people = sa.Column(sa.Integer)
     usage_media = sa.Column(sa.Integer)
     usage_people = sa.Column(sa.Integer)
+    enabled = sa.Column(sa.Integer, default=1, server_default="1")
 
     def __repr__(self):
         """Return string representation of instance."""

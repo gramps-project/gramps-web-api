@@ -166,3 +166,97 @@ class TestTrees(unittest.TestCase):
         )
         assert rv.status_code == 200
         assert rv.json == {"old_name": "my old name", "new_name": "my new name"}
+
+    def test_disable_tree(self):
+        # fetch tokens
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token_owner = rv.json["access_token"]
+        token_owner_refresh = rv.json["refresh_token"]
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "admin", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token_admin = rv.json["access_token"]
+        # owner can't disable
+        rv = self.client.post(
+            BASE_URL + f"/trees/{self.tree}/disable",
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 403
+        # admin can disable
+        rv = self.client.post(
+            BASE_URL + f"/trees/{self.tree}/disable",
+            headers={"Authorization": f"Bearer {token_admin}"},
+        )
+        assert rv.status_code == 201
+        # token does not work
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        assert rv.status_code == 503
+        rv = self.client.post(
+            BASE_URL + "/token/refresh/",
+            headers={"Authorization": f"Bearer {token_owner_refresh}"},
+        )
+        assert rv.status_code == 503
+        rv = self.client.post(
+            BASE_URL + f"/trees/{self.tree}/enable",
+            headers={"Authorization": f"Bearer {token_admin}"},
+        )
+        assert rv.status_code == 201
+        # works again
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        assert rv.status_code == 200
+        rv = self.client.post(
+            BASE_URL + "/token/refresh/",
+            headers={"Authorization": f"Bearer {token_owner_refresh}"},
+        )
+        assert rv.status_code == 200
+        # and disable again
+        rv = self.client.post(
+            BASE_URL + f"/trees/{self.tree}/disable",
+            headers={"Authorization": f"Bearer {token_admin}"},
+        )
+        assert rv.status_code == 201
+        # token does not work
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        assert rv.status_code == 503
+        rv = self.client.post(
+            BASE_URL + "/token/refresh/",
+            headers={"Authorization": f"Bearer {token_owner_refresh}"},
+        )
+        assert rv.status_code == 503
+        rv = self.client.post(
+            BASE_URL + f"/trees/{self.tree}/enable",
+            headers={"Authorization": f"Bearer {token_admin}"},
+        )
+        assert rv.status_code == 201
+        # works again
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        assert rv.status_code == 200
+        rv = self.client.post(
+            BASE_URL + "/token/refresh/",
+            headers={"Authorization": f"Bearer {token_owner_refresh}"},
+        )
+        assert rv.status_code == 200
+
+    def test_disable_nonexistant_tree(self):
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "admin", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token_admin = rv.json["access_token"]
+        rv = self.client.post(
+            BASE_URL + "/trees/idontexist/disable",
+            headers={"Authorization": f"Bearer {token_admin}"},
+        )
+        assert rv.status_code == 404

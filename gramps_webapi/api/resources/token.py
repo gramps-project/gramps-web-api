@@ -35,6 +35,7 @@ from ...auth import (
     get_guid,
     get_name,
     get_permissions,
+    is_tree_disabled,
 )
 from ...auth.const import CLAIM_LIMITED_SCOPE, SCOPE_CREATE_ADMIN, SCOPE_CREATE_OWNER
 from ...const import TREE_MULTI
@@ -80,9 +81,11 @@ class TokenResource(Resource):
             abort(401)
         if not authorized(args.get("username"), args.get("password")):
             abort(403)
-        permissions = get_permissions(args["username"])
         user_id = get_guid(args["username"])
         tree_id = get_tree_id(user_id)
+        if is_tree_disabled(tree=tree_id):
+            abort(503)
+        permissions = get_permissions(args["username"])
         return get_tokens(
             user_id=user_id,
             permissions=permissions,
@@ -102,8 +105,10 @@ class TokenRefreshResource(RefreshProtectedResource):
             username = get_name(user_id)
         except ValueError:
             abort(401)
-        permissions = get_permissions(username)
         tree_id = get_tree_id(user_id)
+        if is_tree_disabled(tree=tree_id):
+            abort(503)
+        permissions = get_permissions(username)
         return get_tokens(
             user_id=user_id,
             permissions=permissions,
