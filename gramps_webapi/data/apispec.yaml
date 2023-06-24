@@ -8,7 +8,7 @@ info:
 
 
     * More about Gramps and the numerous features it provides for genealogists can be found at https://gramps-project.org
-  version: "0.7.0"  # make sure to match this version with the one in _version.py
+  version: "1.0.0"  # make sure to match this version with the one in _version.py
   license:
     name: "GNU Affero General Public License v3.0"
     url: "http://www.gnu.org/licenses/agpl-3.0.html"
@@ -9433,6 +9433,18 @@ definitions:
         $ref: "#/definitions/ObjectCounts"
       researcher:
         $ref: "#/definitions/Researcher"
+      server:
+        description: "Information about the server setup."
+        type: object
+        properties:
+          multi_tree:
+            description: "Indicates whether the server is enabled to host multiple family tree databases."
+            type: boolean
+            example: false
+          task_queue:
+            description: "Indicates whether the server is using a task queue for long running operations."
+            type: boolean
+            example: false
       surnames:
         description: "A list of all surnames found in the database."
         type: array
