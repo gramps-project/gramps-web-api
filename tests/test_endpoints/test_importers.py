@@ -21,6 +21,7 @@
 """Tests for the /api/importers endpoints."""
 
 import io
+import os
 import unittest
 from unittest.mock import patch
 
@@ -28,7 +29,7 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
-from gramps_webapi.auth import user_db, add_user
+from gramps_webapi.auth import add_user, set_tree_quota, user_db
 from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EMPTY_GRAMPS_AUTH_CONFIG
 
@@ -100,7 +101,7 @@ class TestImportersExtensionFile(unittest.TestCase):
         """Test class setup."""
         cls.name = "empty"
         cls.dbman = CLIDbManager(DbState())
-        _, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        cls.dbpath, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
         cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
         with patch.dict(
             "os.environ",
@@ -112,6 +113,7 @@ class TestImportersExtensionFile(unittest.TestCase):
             cls.test_app = create_app()
         cls.test_app.config["TESTING"] = True
         cls.client = cls.test_app.test_client()
+        cls.tree = os.path.basename(cls.dbpath)
         with cls.test_app.app_context():
             user_db.create_all()
             for role in TEST_USERS:
@@ -148,10 +150,13 @@ class TestImportersExtensionFile(unittest.TestCase):
             data=None,
             headers=headers,
         )
-        assert rv.status_code == 500
+        assert rv.status_code == 400
+        assert "error" in rv.json
+        assert "empty" in rv.json["error"]["message"]
 
     def test_importers_example_data(self):
         """Test importing example.gramps."""
+        os.remove(os.path.join(self.dbpath, "sqlite.db"))
         example_db = ExampleDbInMemory()
         file_obj = io.BytesIO()
         with open(example_db.path, "rb") as f:
@@ -184,3 +189,28 @@ class TestImportersExtensionFile(unittest.TestCase):
         # everything doubled
         rv = check_success(self, f"{BASE_URL}/people/")
         assert len(rv) == 2 * 2157
+
+    def test_importers_example_data_quota(self):
+        """Test importing example.gramps with a quota."""
+        os.remove(os.path.join(self.dbpath, "sqlite.db"))
+        with self.test_app.app_context():
+            set_tree_quota(self.tree, quota_people=2000)
+        example_db = ExampleDbInMemory()
+        file_obj = io.BytesIO()
+        with open(example_db.path, "rb") as f:
+            file_obj.write(f.read())
+        file_obj.seek(0)
+        headers = fetch_header(self.client, role=ROLE_OWNER)
+        # database has no people
+        rv = check_success(self, f"{BASE_URL}/people/")
+        assert len(rv) == 0
+        rv = self.client.post(
+            f"{TEST_URL}gramps/file",
+            data=file_obj,
+            headers=headers,
+        )
+        assert rv.status_code == 405
+        rv = check_success(self, f"{BASE_URL}/people/")
+        assert len(rv) == 0
+        with self.test_app.app_context():
+            set_tree_quota(self.tree, quota_people=None)

@@ -21,6 +21,7 @@
 
 import hashlib
 import io
+import json
 import os
 import smtplib
 import socket
@@ -29,7 +30,7 @@ from email.utils import make_msgid
 from http import HTTPStatus
 from typing import BinaryIO, List, Optional, Sequence, Tuple
 
-from flask import abort, current_app, g, jsonify, make_response, request
+from flask import Response, abort, current_app, g, jsonify, make_response, request
 from flask_jwt_extended import get_jwt
 from gramps.cli.clidbman import NAME_FILE, CLIDbManager
 from gramps.gen.config import config
@@ -58,8 +59,16 @@ class Parser(FlaskParser):
 
     def handle_error(self, error, req, schema, *, error_status_code, error_headers):
         status_code = error_status_code or self.DEFAULT_VALIDATION_STATUS
+        pretty_message = "".join([c for c in str(error.messages) if c not in "{}[]()'"])
+        payload = {
+            "error": {
+                "code": status_code,
+                "message": pretty_message,
+                "messages": error.messages,
+            }
+        }
         abort(
-            make_response(jsonify(error.messages), status_code),
+            make_response(jsonify(payload), status_code),
             exc=error,
             messages=error.messages,
             schema=schema,
@@ -135,7 +144,9 @@ def get_db_outside_request(tree: str, view_private: bool, readonly: bool) -> DbR
     if not view_private:
         if not readonly:
             # requesting write access on a private proxy DB is impossible & forbidden!
-            abort(HTTPStatus.FORBIDDEN)
+            abort_with_message(
+                HTTPStatus.FORBIDDEN, "Cannot write to a private proxy database"
+            )
         # if we're not authorized to view private records,
         # return a proxy DB instead of the real one
         return ModifiedPrivateProxyDb(dbstate.db)
@@ -168,7 +179,9 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
     if not view_private:
         if not readonly:
             # requesting write access on a private proxy DB is impossible & forbidden!
-            abort(HTTPStatus.FORBIDDEN)
+            abort_with_message(
+                HTTPStatus.FORBIDDEN, "Cannot write to a private proxy database"
+            )
         return ModifiedPrivateProxyDb(g.db)
 
     if not readonly and "db_write" not in g:
@@ -218,7 +231,7 @@ def get_buffer_for_file(filename: str, delete=True, not_found=False) -> BinaryIO
     except FileNotFoundError:
         if not_found:
             raise FileNotFoundError
-        abort(500)
+        abort_with_message(500, "File not found")
     if delete:
         os.remove(filename)
     return buffer
@@ -282,7 +295,7 @@ def make_cache_key_thumbnails(*args, **kwargs):
     try:
         obj = db_handle.get_media_from_handle(handle)
     except HandleError:
-        abort(404)
+        abort_with_message(404, f"Handle {handle} not found")
     # checksum in the DB
     checksum = obj.checksum
 
@@ -319,7 +332,7 @@ def get_tree_id(guid: str) -> str:
     if not tree_id:
         if current_app.config["TREE"] == TREE_MULTI:
             # multi-tree support enabled but user has no tree ID: forbidden!
-            abort(403)
+            abort_with_message(403, "Forbidden")
         # needed for backwards compatibility: single-tree mode but user without tree ID
         dbmgr = WebDbManager(name=current_app.config["TREE"], create_if_missing=False)
         tree_id = dbmgr.dirname
@@ -343,25 +356,42 @@ def tree_exists(tree_id: str) -> bool:
     return True
 
 
-def update_usage_people() -> int:
+def update_usage_people(tree: Optional[str] = None) -> int:
     """Update the usage of people."""
-    tree = get_tree_from_jwt()
-    db_handle = get_db_handle()
+    if not tree:
+        tree = get_tree_from_jwt()
+    db_handle = get_db_outside_request(
+        tree=tree,
+        view_private=True,
+        readonly=True,
+    )
     usage_people = db_handle.get_number_of_people()
     set_tree_usage(tree, usage_people=usage_people)
     return usage_people
 
 
-def check_quota_people(to_add: int) -> None:
+def check_quota_people(to_add: int, tree: Optional[str] = None) -> None:
     """Check whether the quota allows adding `to_add` people and abort if not."""
-    tree = get_tree_from_jwt()
+    if not tree:
+        tree = get_tree_from_jwt()
     usage_dict = get_tree_usage(tree)
     if not usage_dict or usage_dict.get("usage_people") is None:
-        update_usage_people()
+        update_usage_people(tree=tree)
     usage_dict = get_tree_usage(tree)
     usage = usage_dict["usage_people"]
     quota = usage_dict.get("quota_people")
     if quota is None:
         return
     if usage + to_add > quota:
-        abort(405)
+        abort_with_message(405, "Not allowed by people quota")
+
+
+def abort_with_message(status: int, message: str):
+    """Abort with a JSON response."""
+    payload = {"error": {"code": status, "message": message}}
+    response = Response(
+        response=json.dumps(payload),
+        status=status,
+        mimetype="application/json",
+    )
+    abort(response)

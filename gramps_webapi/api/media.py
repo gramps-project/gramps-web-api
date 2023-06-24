@@ -38,7 +38,7 @@ from .s3 import (
     get_object_keys_size,
     upload_file_s3,
 )
-from .util import get_db_handle, get_tree_from_jwt
+from .util import abort_with_message, get_db_handle, get_tree_from_jwt
 
 
 PREFIX_S3 = "s3://"
@@ -332,9 +332,10 @@ def update_usage_media() -> int:
     return usage_media
 
 
-def check_quota_media(to_add: int) -> None:
+def check_quota_media(to_add: int, tree: Optional[str] = None) -> None:
     """Check whether the quota allows adding `to_add` bytes and abort if not."""
-    tree = get_tree_from_jwt()
+    if not tree:
+        tree = get_tree_from_jwt()
     usage_dict = get_tree_usage(tree)
     if not usage_dict or usage_dict.get("usage_media") is None:
         update_usage_media()
@@ -344,4 +345,4 @@ def check_quota_media(to_add: int) -> None:
     if quota is None:
         return
     if usage + to_add > quota:
-        abort(405)
+        abort_with_message(405, "Not allowed by media quota")
