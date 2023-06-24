@@ -9433,6 +9433,18 @@ definitions:
         $ref: "#/definitions/ObjectCounts"
       researcher:
         $ref: "#/definitions/Researcher"
+      server:
+        description: "Information about the server setup."
+        type: object
+        properties:
+          multi_tree:
+            description: "Indicates whether the server is enabled to host multiple family tree databases."
+            type: boolean
+            example: false
+          task_queue:
+            description: "Indicates whether the server is using a task queue for long running operations."
+            type: boolean
+            example: false
       surnames:
         description: "A list of all surnames found in the database."
         type: array
