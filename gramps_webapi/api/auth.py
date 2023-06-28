@@ -22,11 +22,11 @@
 from functools import wraps
 from typing import Iterable
 
+from flask import abort
 from flask_jwt_extended import get_jwt, verify_jwt_in_request
 from flask_jwt_extended.exceptions import NoAuthorizationError
 
 from ..auth.const import CLAIM_LIMITED_SCOPE
-from .util import abort_with_message
 
 
 def jwt_required(func):
@@ -88,4 +88,4 @@ def has_permissions(scope: Iterable[str]) -> bool:
 def require_permissions(scope: Iterable[str]) -> None:
     """Require a set of permissions or fail with a 403."""
     if not has_permissions(scope):
-        abort_with_message(403, "Insufficient permissions")
+        abort(403)
