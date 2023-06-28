@@ -43,7 +43,7 @@ from gramps.gen.user import User
 from gramps.gen.utils.resourcepath import ResourcePath
 
 from ..const import DISABLED_EXPORTERS
-from .util import get_locale_for_language
+from .util import abort_with_message, get_locale_for_language
 
 _ = glocale.translation.gettext
 
@@ -229,35 +229,35 @@ def prepare_options(db_handle: DbReadBase, args: Dict):
         if args["gramps_id"] is not None:
             gramps_id = args["gramps_id"]
             if db_handle.get_person_from_gramps_id(gramps_id) is None:
-                abort(422)
+                abort_with_message(422, "Person with this Gramps ID not found")
         else:
             try:
                 person = db_handle.get_person_from_handle(args["handle"])
             except HandleError:
-                abort(422)
+                abort_with_message(422, "Person with this handle not found")
             gramps_id = person.gramps_id
         try:
             options.set_person_filter(args["person"], gramps_id)
-        except ValueError:
-            abort(422)
+        except ValueError as exc:
+            abort_with_message(422, str(exc))
     if args["event"] is not None:
         try:
             options.set_event_filter(args["event"])
-        except ValueError:
-            abort(422)
+        except ValueError as exc:
+            abort_with_message(422, str(exc))
     if args["note"] is not None:
         try:
             options.set_note_filter(args["note"])
-        except ValueError:
-            abort(422)
+        except ValueError as exc:
+            abort_with_message(422, str(exc))
     try:
         options.set_proxy_order(args["sequence"])
-    except ValueError:
-        abort(422)
+    except ValueError as exc:
+        abort_with_message(422, str(exc))
     if args["locale"] is not None:
         options.locale = get_locale_for_language(args["locale"])
         if options.locale is None:
-            abort(422)
+            abort_with_message(422, "Locale not found")
     return options
 
 
@@ -276,6 +276,6 @@ def run_export(db_handle: DbReadBase, extension: str, options):
             export_function = plugin.get_export_function()
             result = export_function(db_handle, file_path, User(), options)
             if not result:
-                abort(500)
+                abort_with_message(500, "Export function failed")
             return file_name, "." + extension
-    abort(404)  # exporter not found
+    abort_with_message(404, "Exporter not found")  # exporter not found

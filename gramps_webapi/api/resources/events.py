@@ -31,7 +31,7 @@ from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 
 from ...types import Handle
-from ..util import get_db_handle, get_locale_for_language, use_args
+from ..util import abort_with_message, get_db_handle, get_locale_for_language, use_args
 from . import ProtectedResource
 from .base import (
     GrampsObjectProtectedResource,
@@ -62,7 +62,7 @@ class EventResourceHelper(GrampsObjectResourceHelper):
                 obj.extended["place"] = get_place_by_handle(db_handle, obj.place)
         if "profile" in args:
             if "families" in args["profile"] or "events" in args["profile"]:
-                abort(422)
+                abort_with_message(422, "profile contains invalid keys")
             obj.profile = get_event_profile_for_object(
                 db_handle, obj, args["profile"], locale=locale
             )

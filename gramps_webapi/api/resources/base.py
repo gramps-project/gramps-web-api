@@ -53,6 +53,7 @@ from .filters import apply_filter
 from .match import match_dates
 from .sort import sort_objects
 from .util import (
+    abort_with_message,
     add_object,
     fix_object_dict,
     get_backlinks,
@@ -83,7 +84,9 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
             obj.backlinks = get_backlinks(self.db_handle, obj.handle)
         if args.get("soundex"):
             if self.gramps_class_name not in ["Person", "Family"]:
-                abort(422)
+                abort_with_message(
+                    422, f"Option soundex is not allowed for {self.gramps_class_name}"
+                )
             obj.soundex = get_soundex(self.db_handle, obj, self.gramps_class_name)
         obj = self.object_extend(obj, args, locale=locale)
         if args.get("profile") and (
@@ -147,17 +150,17 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
         """Parse the object."""
         obj_dict = request.json
         if obj_dict is None:
-            abort(400)
+            abort_with_message(400, "Empty object")
         if "_class" not in obj_dict:
             obj_dict["_class"] = self.gramps_class_name
         elif obj_dict["_class"] != self.gramps_class_name:
-            abort(400)
+            abort_with_message(400, "Wrong object type")
         try:
             obj_dict = fix_object_dict(obj_dict)
-        except ValueError:
-            abort(400)
+        except ValueError as exc:
+            abort_with_message(400, str(exc))
         if not validate_object_dict(obj_dict):
-            abort(400)
+            abort_with_message(400, "Schema validation failed")
         return from_json(json.dumps(obj_dict))
 
     def has_handle(self, handle: str) -> bool:
@@ -249,7 +252,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         get_etag = hash_object(obj)
         for etag in request.if_match:
             if etag != get_etag:
-                abort(412)
+                abort_with_message(412, "Resource does not match provided ETag")
         trans_dict = delete_object(
             self.db_handle_writable, handle, self.gramps_class_name
         )
@@ -273,16 +276,16 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         get_etag = hash_object(obj_old)
         for etag in request.if_match:
             if etag != get_etag:
-                abort(412)
+                abort_with_message(412, "Resource does not match provided ETag")
         obj = self._parse_object()
         if not obj:
-            abort(400)
+            abort_with_message(400, "Empty object")
         db_handle = self.db_handle_writable
         with DbTxn("Edit object", db_handle) as trans:
             try:
                 update_object(db_handle, obj, trans)
-            except ValueError:
-                abort(400)
+            except ValueError as exc:
+                abort_with_message(400, str(exc))
             trans_dict = transaction_to_json(trans)
         # update search index
         tree = get_tree_from_jwt()
@@ -431,13 +434,13 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             check_quota_people(to_add=1)
         obj = self._parse_object()
         if not obj:
-            abort(400)
+            abort_with_message(400, "Empty object")
         db_handle = self.db_handle_writable
         with DbTxn("Add objects", db_handle) as trans:
             try:
                 add_object(db_handle, obj, trans, fail_if_exists=True)
-            except ValueError:
-                abort(400)
+            except ValueError as exc:
+                abort_with_message(400, str(exc))
             trans_dict = transaction_to_json(trans)
         # update usage
         if self.gramps_class_name == "Person":
