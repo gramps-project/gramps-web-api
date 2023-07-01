@@ -49,14 +49,12 @@ class TestImporterMedia(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Test class setup."""
-        cls.name = "empty"
+        cls.name = "empty-import-media"
         cls.tmp_dir = tempfile.mkdtemp()
         cls.db_dir = os.path.join(cls.tmp_dir, "db")
         os.mkdir(cls.db_dir)
         cls.export_dir = os.path.join(cls.tmp_dir, "export")
         os.mkdir(cls.export_dir)
-        cls.old_grampshome = os.environ["GRAMPSHOME"]
-        os.environ["GRAMPSHOME"] = cls.db_dir
         cls.media_dir = os.path.join(cls.tmp_dir, "media")
         os.mkdir(cls.media_dir)
         cls.dbman = CLIDbManager(DbState())
@@ -86,7 +84,7 @@ class TestImporterMedia(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp_dir)
-        os.environ["GRAMPSHOME"] = cls.old_grampshome
+        cls.dbman.remove_database(cls.name)
 
     def test_import_media(self):
         """Test that importers are loaded also for a fresh db."""
