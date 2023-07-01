@@ -33,7 +33,7 @@ from .emails import email_confirm_email, email_new_user, email_reset_pw
 from .export import prepare_options, run_export
 from .media import get_media_handler
 from .report import run_report
-from .resources.util import dry_run_import, run_import
+from .resources.util import dry_run_import, run_import, run_import_media_archive
 from .util import (
     check_quota_people,
     get_config,
@@ -201,3 +201,17 @@ def export_media(tree: str, view_private: bool) -> Dict[str, Union[str, int]]:
         "url": f"/api/media/archive/{file_name}",
         "file_size": file_size,
     }
+
+
+@shared_task()
+def import_media_archive(tree: str, file_name: str, delete: bool = True):
+    """Import a media archive."""
+    # check_quota_people(to_add=object_counts["people"], tree=tree)
+    db_handle = get_db_outside_request(tree=tree, view_private=True, readonly=True)
+    result = run_import_media_archive(
+        tree=tree,
+        db_handle=db_handle,
+        file_name=file_name,
+        delete=delete,
+    )
+    return result

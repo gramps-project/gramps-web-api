@@ -3927,6 +3927,29 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+  /media/archive/upload/zip:
+    post:
+      tags:
+      - media
+      summary: "Upload a zipped media file archive."
+      operationId: uploadMediaFileArchive
+      security:
+        - Bearer: []
+      responses:
+        201:
+          description: "OK: Successful operation."
+        202:
+          description: "Accepted: import will be processed in the background."
+          schema:
+            type: object
+            properties:
+              task:
+                $ref: "#/definitions/TaskReference"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        403:
+          description: "Unauthorized: insufficient permissions."
+
 ##############################################################################
 # Endpoint - Notes
 ##############################################################################

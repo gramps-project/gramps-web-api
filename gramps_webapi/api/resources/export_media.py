@@ -17,7 +17,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""Endpoint for up- and downloading media files."""
+"""Endpoint for creating and downloading media archives."""
 
 import os
 import re
