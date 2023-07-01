@@ -55,6 +55,7 @@ class TestImporterMedia(unittest.TestCase):
         os.mkdir(cls.db_dir)
         cls.export_dir = os.path.join(cls.tmp_dir, "export")
         os.mkdir(cls.export_dir)
+        cls.old_grampshome = os.environ["GRAMPSHOME"]
         os.environ["GRAMPSHOME"] = cls.db_dir
         cls.media_dir = os.path.join(cls.tmp_dir, "media")
         os.mkdir(cls.media_dir)
@@ -85,6 +86,7 @@ class TestImporterMedia(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp_dir)
+        os.environ["GRAMPSHOME"] = cls.old_grampshome
 
     def test_import_media(self):
         """Test that importers are loaded also for a fresh db."""
