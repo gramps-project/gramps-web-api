@@ -84,7 +84,6 @@ class TestImporterMedia(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        cls.dbman.remove_database(cls.name)
         shutil.rmtree(cls.tmp_dir)
 
     def test_import_media(self):
