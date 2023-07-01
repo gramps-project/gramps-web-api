@@ -158,7 +158,7 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
         try:
             obj_dict = fix_object_dict(obj_dict)
         except ValueError as exc:
-            abort_with_message(400, str(exc))
+            abort_with_message(400, "Error while processing object")
         if not validate_object_dict(obj_dict):
             abort_with_message(400, "Schema validation failed")
         return from_json(json.dumps(obj_dict))
@@ -285,7 +285,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             try:
                 update_object(db_handle, obj, trans)
             except ValueError as exc:
-                abort_with_message(400, str(exc))
+                abort_with_message(400, "Error while updating object")
             trans_dict = transaction_to_json(trans)
         # update search index
         tree = get_tree_from_jwt()
@@ -440,7 +440,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             try:
                 add_object(db_handle, obj, trans, fail_if_exists=True)
             except ValueError as exc:
-                abort_with_message(400, str(exc))
+                abort_with_message(400, "Error while adding object")
             trans_dict = transaction_to_json(trans)
         # update usage
         if self.gramps_class_name == "Person":

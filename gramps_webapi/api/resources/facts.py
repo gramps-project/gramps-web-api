@@ -32,7 +32,7 @@ from gramps.gen.user import User
 from gramps.plugins.lib.librecords import find_records
 from webargs import fields, validate
 
-from ..util import get_db_handle, get_locale_for_language, use_args
+from ..util import abort_with_message, get_db_handle, get_locale_for_language, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -57,12 +57,12 @@ def get_person_filter(db_handle: DbReadBase, args: Dict) -> Union[GenericFilter,
     if args["gramps_id"]:
         gramps_id = args["gramps_id"]
         if db_handle.get_person_from_gramps_id(gramps_id) is None:
-            abort(422)
+            abort_with_message(422, "Person with this Gramps ID not found")
     else:
         try:
             person = db_handle.get_person_from_handle(args["handle"])
         except HandleError:
-            abort(422)
+            abort_with_message(422, "Person with this handle not found")
         gramps_id = person.gramps_id
 
     person_filter = filters.GenericFilter()

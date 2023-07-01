@@ -35,7 +35,7 @@ from ...auth.const import PERM_EDIT_OBJ
 from ..auth import require_permissions
 from ..file import process_file
 from ..media import check_quota_media, get_media_handler, update_usage_media
-from ..util import get_db_handle, get_tree_from_jwt, use_args
+from ..util import abort_with_message, get_db_handle, get_tree_from_jwt, use_args
 from . import ProtectedResource
 from .util import transaction_to_json, update_object
 
@@ -84,10 +84,10 @@ class MediaFileResource(ProtectedResource):
         checksum_old = obj.checksum
         for etag in request.if_match:
             if etag != checksum_old:
-                abort(412)
+                abort_with_message(412, "ETag mismatch. Resource has been modified.")
         mime = request.content_type
         if not mime:
-            abort(HTTPStatus.NOT_ACCEPTABLE)
+            abort_with_message(HTTPStatus.NOT_ACCEPTABLE, "Media type not recognized")
         checksum, size, f = process_file(request.stream)
         tree = get_tree_from_jwt()
         media_handler = get_media_handler(db_handle, tree)
@@ -95,7 +95,10 @@ class MediaFileResource(ProtectedResource):
         if checksum == obj.checksum:
             if not args.get("uploadmissing") or file_handler.file_exists():
                 # don't allow PUTting if the file didn't change
-                abort(HTTPStatus.CONFLICT)
+                abort_with_message(
+                    HTTPStatus.CONFLICT,
+                    "Uploaded file has the same checksum as the existing media object",
+                )
             # we're uploading a missing file!
             # new size will add to the quota
             check_quota_media(to_add=size)
@@ -104,7 +107,9 @@ class MediaFileResource(ProtectedResource):
             media_handler.upload_file(f, checksum, mime, path=path)
             return Response(status=200)
         if args.get("uploadmissing"):
-            abort(HTTPStatus.CONFLICT)
+            abort_with_message(
+                HTTPStatus.CONFLICT, "Uploaded file has the wrong checksum"
+            )
         # we're updating an existing file
         size_old = file_handler.get_file_size()
         size_delta = size - size_old
@@ -117,11 +122,10 @@ class MediaFileResource(ProtectedResource):
         obj.set_mime_type(mime)
         db_handle_writable = get_db_handle(readonly=False)
         with DbTxn("Update media object", db_handle_writable) as trans:
-            update_object(db_handle_writable, obj, trans)
             try:
-                pass  # update_object(db_handle_writable, obj, trans)
-            except ValueError:
-                abort(400)
+                update_object(db_handle_writable, obj, trans)
+            except (AttributeError, ValueError) as exc:
+                abort_with_message(400, "Error while updating object")
             trans_dict = transaction_to_json(trans)
         update_usage_media()
         return Response(

@@ -242,14 +242,14 @@ def validate_options(report: Dict, report_options: Dict, allow_file: bool = Fals
                 abort(422)
             continue
         if not isinstance(report_options[option], str):
-            abort(422)
+            abort_with_message(422, "Report options must be provided as strings")
         if "A number" in report["options_help"][option][2]:
             try:
                 float(report_options[option])
             except ValueError:
-                abort(422)
+                abort_with_message(422, "Cannot convert option string to number")
         if "Size in cm" in report["options_help"][option][2]:
             try:
                 float(report_options[option])
             except ValueError:
-                abort(422)
+                abort_with_message(422, "Cannot convert option string to number")

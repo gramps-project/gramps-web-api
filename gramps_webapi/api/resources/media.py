@@ -34,7 +34,7 @@ from ...auth.const import PERM_ADD_OBJ
 from ..auth import require_permissions
 from ..file import process_file
 from ..media import check_quota_media, get_media_handler, update_usage_media
-from ..util import get_tree_from_jwt
+from ..util import abort_with_message, get_tree_from_jwt
 from .base import (
     GrampsObjectProtectedResource,
     GrampsObjectResourceHelper,
@@ -78,7 +78,7 @@ class MediaObjectsResource(GrampsObjectsProtectedResource, MediaObjectResourceHe
         require_permissions([PERM_ADD_OBJ])
         mime = request.content_type
         if not mime:
-            abort(HTTPStatus.NOT_ACCEPTABLE)
+            abort_with_message(HTTPStatus.NOT_ACCEPTABLE, "Media type not recognized")
         checksum, size, f = process_file(request.stream)
         check_quota_media(to_add=size)
         tree = get_tree_from_jwt()
@@ -93,8 +93,8 @@ class MediaObjectsResource(GrampsObjectsProtectedResource, MediaObjectResourceHe
         with DbTxn("Add object", db_handle) as trans:
             try:
                 add_object(db_handle, obj, trans)
-            except ValueError:
-                abort(400)
+            except ValueError as exc:
+                abort_with_message(400, "Error while adding object")
             trans_dict = transaction_to_json(trans)
         update_usage_media()
         return self.response(201, trans_dict, total_items=len(trans_dict))

@@ -29,7 +29,7 @@ from gramps.gen.filters import GenericFilter
 from marshmallow import Schema
 from webargs import ValidationError, fields, validate
 
-from ..util import use_args
+from ..util import abort_with_message, use_args
 from ...const import GRAMPS_NAMESPACES
 from ...types import Handle
 from . import ProtectedResource
@@ -148,9 +148,9 @@ def apply_filter(
     try:
         filter_parms = FilterSchema().load(json.loads(args["rules"]))
     except json.JSONDecodeError:
-        abort(400)
+        abort_with_message(400, "Error decoding JSON")
     except ValidationError:
-        abort(422)
+        abort_with_message(422, "Filter does not adhere to schema")
 
     filter_object = build_filter(filter_parms, namespace)
     return filter_object.apply(db_handle, id_list=handles)

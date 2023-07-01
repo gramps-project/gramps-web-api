@@ -75,7 +75,13 @@ from ..tasks import (
     send_email_new_user,
     send_email_reset_password,
 )
-from ..util import get_tree_from_jwt, get_tree_id, tree_exists, use_args
+from ..util import (
+    abort_with_message,
+    get_tree_from_jwt,
+    get_tree_id,
+    tree_exists,
+    use_args,
+)
 from . import LimitedScopeProtectedResource, ProtectedResource, Resource
 
 
@@ -90,13 +96,13 @@ class UserChangeBase(ProtectedResource):
             try:
                 user_name = get_name(user_id)
             except ValueError:
-                abort(401)
+                abort_with_message(401, "User not found for token ID")
             other_tree = False
         else:
             try:
                 user_id = get_guid(user_name)
             except ValueError:
-                abort(404)
+                abort_with_message(404, "User with this name does not exist")
             source_tree = get_tree_from_jwt()
             destination_tree = get_tree_id(user_id)
             if source_tree == destination_tree:
@@ -125,13 +131,13 @@ class UsersResource(ProtectedResource):
         """Add one or more users."""
         users = request.json
         if not users:
-            abort(422)
+            abort_with_message(422, "Empty payload")
         require_permissions([PERM_ADD_USER])
         tree = get_tree_from_jwt()
         for user_dict in users:
             if user_dict.get("tree"):
                 if not tree_exists(user_dict["tree"]):
-                    abort(422)
+                    abort_with_message(422, "Tree does not exist")
                 if user_dict["tree"] != tree:
                     require_permissions([PERM_ADD_OTHER_TREE_USER])
             else:
@@ -155,7 +161,7 @@ class UsersResource(ProtectedResource):
                 allow_admin=has_permissions([PERM_MAKE_ADMIN]),
             )
         except ValueError:
-            abort(409)
+            abort_with_message(409, "Clash with existing username or password")
         return "", 201
 
 
@@ -170,7 +176,7 @@ class UserResource(UserChangeBase):
             try:
                 user_name = get_name(user_id)
             except ValueError:
-                abort(401)
+                abort_with_message(401, "User not found for token ID")
         else:
             require_permissions([PERM_VIEW_OTHER_USER])
         if user_name != "_" and not has_permissions([PERM_VIEW_OTHER_TREE_USER]):
@@ -178,16 +184,16 @@ class UserResource(UserChangeBase):
             try:
                 user_id = get_guid(user_name)
             except ValueError:
-                abort(404)
+                abort_with_message(404, "User with this name does not exist")
             source_tree = get_tree_from_jwt()
             destination_tree = get_tree_id(user_id)
             if source_tree != destination_tree:
                 # user lives in other tree, not allowed to view
-                abort(403)
+                abort_with_message(403, "Not authorized to view other users' details")
         details = get_user_details(user_name)
         if details is None:
             # user does not exist
-            abort(404)
+            abort_with_message(404, "User does not exist")
         return jsonify(details), 200
 
     @use_args(
@@ -213,7 +219,7 @@ class UserResource(UserChangeBase):
         if "tree" in args:
             require_permissions([PERM_EDIT_USER_TREE])
             if not tree_exists(args["tree"]):
-                abort(422)
+                abort_with_message(422, "Tree does not exist")
         modify_user(
             name=user_name,
             email=args.get("email"),
@@ -247,7 +253,7 @@ class UserResource(UserChangeBase):
         else:
             require_permissions([PERM_ADD_OTHER_TREE_USER])
             if not tree_exists(args["tree"]):
-                abort(422)
+                abort_with_message(422, "Tree does not exist")
         try:
             add_user(
                 name=user_name,
@@ -259,7 +265,7 @@ class UserResource(UserChangeBase):
                 tree=args.get("tree") or tree,
             )
         except ValueError:
-            abort(409)
+            abort_with_message(409, "Clash with existing username or password")
         return "", 201
 
     def delete(self, user_name: str):
@@ -301,18 +307,18 @@ class UserRegisterResource(Resource):
             abort(404)
         if not args.get("tree") and current_app.config["TREE"] == TREE_MULTI:
             # if multi-tree is enabled, tree is required
-            abort(422)
+            abort_with_message(422, "tree is required")
         # do not allow registration if no tree owner account exists!
         if get_number_users(tree=args.get("tree"), roles=(ROLE_OWNER,)) == 0:
-            abort(405)
+            abort_with_message(405, "Registration is disabled")
         if (
             "tree" in args
             and current_app.config["TREE"] != TREE_MULTI
             and args["tree"] != current_app.config["TREE"]
         ):
-            abort(422)
+            abort_with_message(422, "Not allowed in single-tree setup")
         if "tree" in args and not tree_exists(args["tree"]):
-            abort(422)
+            abort_with_message(422, "Tree does not exist")
         try:
             add_user(
                 name=user_name,
@@ -323,7 +329,7 @@ class UserRegisterResource(Resource):
                 role=ROLE_UNCONFIRMED,
             )
         except ValueError:
-            abort(409)
+            abort_with_message(409, "Clash with existing username or password")
         user_id = get_guid(name=user_name)
         token = create_access_token(
             identity=str(user_id),
@@ -358,17 +364,17 @@ class UserCreateOwnerResource(LimitedScopeProtectedResource):
             abort(404)
         claims = get_jwt()
         if "tree" in args and not tree_exists(args["tree"]):
-            abort(422)
+            abort_with_message(422, "Tree does not exist")
         if (
             "tree" in args
             and current_app.config["TREE"] != TREE_MULTI
             and args["tree"] != current_app.config["TREE"]
         ):
-            abort(422)
+            abort_with_message(422, "Not allowed in single-tree setup")
         if claims[CLAIM_LIMITED_SCOPE] == SCOPE_CREATE_ADMIN:
             if get_number_users() > 0:
                 # there is already a user in the user DB
-                abort(405)
+                abort(405, "Users already exist")
             add_user(
                 name=user_name,
                 password=args["password"],
@@ -380,12 +386,11 @@ class UserCreateOwnerResource(LimitedScopeProtectedResource):
         elif claims[CLAIM_LIMITED_SCOPE] == SCOPE_CREATE_OWNER:
             tree = claims["tree"]
             if "tree" in args and args["tree"] != tree:
-                abort(422)
+                abort_with_message(422, "Not allowed for this tree")
             if not tree_exists(tree_id=tree):
-                abort(422)
+                abort_with_message(422, "Tree does not exist")
             if get_number_users(tree=tree) > 0:
-                # there is already a user in this tree
-                abort(405)
+                abort_with_message(405, "Users already exist")
             add_user(
                 name=user_name,
                 password=args["password"],
@@ -395,8 +400,7 @@ class UserCreateOwnerResource(LimitedScopeProtectedResource):
                 role=ROLE_OWNER,
             )
         else:
-            # This is a wrong token!
-            abort(403)
+            abort_with_message(403, "Wrong token")
         return "", 201
 
 
@@ -414,9 +418,9 @@ class UserChangePasswordResource(UserChangeBase):
         """Post new password."""
         user_name, _ = self.prepare_edit(user_name)
         if len(args["new_password"]) == "":
-            abort(400)
+            abort_with_message(400, "Empty password provided")
         if not authorized(user_name, args["old_password"]):
-            abort(403)
+            abort_with_message(403, "Old password incorrect")
         modify_user(name=user_name, password=args["new_password"])
         return "", 201
 
@@ -452,7 +456,7 @@ class UserTriggerResetPasswordResource(Resource):
         try:
             task = run_task(send_email_reset_password, email=email, token=token)
         except ValueError:
-            abort(500)
+            abort_with_message(500, "Error while trying to send e-mail")
         if isinstance(task, AsyncResult):
             return make_task_response(task)
         return "", 201
@@ -468,21 +472,21 @@ class UserResetPasswordResource(LimitedScopeProtectedResource):
     def post(self, args):
         """Post new password."""
         if args["new_password"] == "":
-            abort(400)
+            abort_with_message(400, "Empty password provided")
         claims = get_jwt()
         if claims[CLAIM_LIMITED_SCOPE] != SCOPE_RESET_PW:
             # This is a wrong token!
-            abort(403)
+            abort_with_message(403, "Wrong token")
         user_id = get_jwt_identity()
         try:
             username = get_name(user_id)
         except ValueError:
-            abort(401)
+            abort_with_message(401, "User not found for token ID")
         # the old PW hash is stored in the reset JWT to check if the token has
         # been used already
         if claims["old_hash"] != get_pwhash(username):
             # the one-time token has been used before!
-            abort(409)
+            abort_with_message(409, "This token can only be used once")
         modify_user(name=username, password=args["new_password"])
         return "", 201
 
@@ -492,11 +496,11 @@ class UserResetPasswordResource(LimitedScopeProtectedResource):
         try:
             username = get_name(user_id)
         except ValueError:
-            abort(401)
+            abort_with_message(401, "User not found for token ID")
         claims = get_jwt()
         if claims[CLAIM_LIMITED_SCOPE] != SCOPE_RESET_PW:
             # This is a wrong token!
-            abort(403)
+            abort_with_message(403, "Wrong token")
         # the old PW hash is stored in the reset JWT to check if the token has
         # been used already
         if claims["old_hash"] != get_pwhash(username):
@@ -514,16 +518,16 @@ class UserConfirmEmailResource(LimitedScopeProtectedResource):
         try:
             username = get_name(user_id)
         except ValueError:
-            abort(401)
+            abort_with_message(401, "User not found for token ID")
         claims = get_jwt()
         if claims[CLAIM_LIMITED_SCOPE] != SCOPE_CONF_EMAIL:
             # This is a wrong token!
-            abort(403)
+            abort_with_message(403, "Wrong token")
         current_details = get_user_details(username)
         # the email is stored in the JWT
         if claims["email"] != current_details.get("email"):
             # This is a wrong token!
-            abort(403)
+            abort_with_message(403, "Wrong token")
         if current_details["role"] == ROLE_UNCONFIRMED:
             # otherwise it has been confirmed already
             modify_user(name=username, role=ROLE_DISABLED)
