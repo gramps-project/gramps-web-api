@@ -374,7 +374,7 @@ class UserCreateOwnerResource(LimitedScopeProtectedResource):
         if claims[CLAIM_LIMITED_SCOPE] == SCOPE_CREATE_ADMIN:
             if get_number_users() > 0:
                 # there is already a user in the user DB
-                abort(405, "Users already exist")
+                abort_with_message(405, "Users already exist")
             add_user(
                 name=user_name,
                 password=args["password"],

@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-2023 David Straub
 # Copyright (C) 2020      Christopher Horn
 #
 # This program is free software; you can redistribute it and/or modify
@@ -29,6 +29,7 @@ from gramps.gen.lib import Note
 from gramps.gen.utils.grampslocale import GrampsLocale
 
 from ..html import get_note_html
+from ..util import abort_with_message
 from .base import (
     GrampsObjectProtectedResource,
     GrampsObjectResourceHelper,
@@ -59,7 +60,7 @@ class NoteResourceHelper(GrampsObjectResourceHelper):
                 try:
                     format_options = json.loads(args["format_options"])
                 except json.JSONDecodeError:
-                    abort(400)
+                    abort_with_message(400, "Error parsing format options")
             else:
                 format_options = None
             obj.formatted = {

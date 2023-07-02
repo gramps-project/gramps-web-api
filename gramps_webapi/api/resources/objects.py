@@ -52,9 +52,9 @@ class CreateObjectsResource(ProtectedResource):
             try:
                 obj_dict = fix_object_dict(obj_dict)
             except ValueError:
-                abort(400)
+                abort_with_message(400, "Error processing objects")
             if not validate_object_dict(obj_dict):
-                abort(400)
+                abort_with_message(400, "Validation error while processing objects")
             obj = from_json(json.dumps(obj_dict))
             objects.append(obj)
         return objects
@@ -70,7 +70,7 @@ class CreateObjectsResource(ProtectedResource):
             # members' Person objects as well
             require_permissions([PERM_EDIT_OBJ])
         if not objects:
-            abort(400)
+            abort_with_message(400, "Empty payload")
         number_new_people = sum(isinstance(obj, Person) for obj in objects)
         check_quota_people(to_add=number_new_people)
         db_handle = get_db_handle(readonly=False)
@@ -79,7 +79,7 @@ class CreateObjectsResource(ProtectedResource):
                 try:
                     add_object(db_handle, obj, trans, fail_if_exists=True)
                 except ValueError:
-                    abort(400)
+                    abort_with_message(400, "Error while adding object")
             trans_dict = transaction_to_json(trans)
         # update search index
         tree = get_tree_from_jwt()

@@ -28,7 +28,7 @@ from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 
-from ..util import get_locale_for_language, use_args
+from ..util import abort_with_message, get_locale_for_language, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -71,7 +71,7 @@ class TranslationResource(ProtectedResource, GrampsJSONEncoder):
         try:
             strings = json.loads(args["strings"])
         except json.JSONDecodeError:
-            abort(400)
+            abort_with_message(400, "Error parsing strings")
         return self._get_or_post(strings=strings, language=language)
 
     @use_args(

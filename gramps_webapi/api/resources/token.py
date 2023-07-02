@@ -40,7 +40,7 @@ from ...auth import (
 from ...auth.const import CLAIM_LIMITED_SCOPE, SCOPE_CREATE_ADMIN, SCOPE_CREATE_OWNER
 from ...const import TREE_MULTI
 from ..ratelimiter import limiter
-from ..util import get_tree_id, tree_exists, use_args
+from ..util import abort_with_message, get_tree_id, tree_exists, use_args
 from . import RefreshProtectedResource, Resource
 
 
@@ -78,13 +78,13 @@ class TokenResource(Resource):
     def post(self, args):
         """Post username and password to fetch a token."""
         if "username" not in args or "password" not in args:
-            abort(401)
+            abort_with_message(401, "Missing username or password")
         if not authorized(args.get("username"), args.get("password")):
-            abort(403)
+            abort_with_message(403, "Invalid username or password")
         user_id = get_guid(args["username"])
         tree_id = get_tree_id(user_id)
         if is_tree_disabled(tree=tree_id):
-            abort(503)
+            abort_with_message(503, "This tree is temporarily disabled")
         permissions = get_permissions(args["username"])
         return get_tokens(
             user_id=user_id,
@@ -104,10 +104,10 @@ class TokenRefreshResource(RefreshProtectedResource):
         try:
             username = get_name(user_id)
         except ValueError:
-            abort(401)
+            abort_with_message(401, "User not found for token ID")
         tree_id = get_tree_id(user_id)
         if is_tree_disabled(tree=tree_id):
-            abort(503)
+            abort_with_message(503, "This tree is temporarily disabled")
         permissions = get_permissions(username)
         return get_tokens(
             user_id=user_id,
@@ -126,7 +126,7 @@ class TokenCreateOwnerResource(Resource):
         # This GET method is deprecated and only kept for backward compatibility!
         if get_all_user_details(tree=None):
             # users already exist!
-            abort(405)
+            abort_with_message(405, "Users already exist")
         token = create_access_token(
             identity="admin",
             additional_claims={
@@ -150,12 +150,12 @@ class TokenCreateOwnerResource(Resource):
             and current_app.config["TREE"] != TREE_MULTI
             and tree != current_app.config["TREE"]
         ):
-            abort(403)
+            abort_with_message(403, "Not allowed in single-tree setup")
         if tree and not tree_exists(tree):
             abort(404)
         if get_all_user_details(tree=tree):
             # users already exist!
-            abort(405)
+            abort_with_message(405, "Users already exist")
         if tree:
             claims = {
                 CLAIM_LIMITED_SCOPE: SCOPE_CREATE_OWNER,
