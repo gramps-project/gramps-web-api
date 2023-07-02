@@ -32,6 +32,7 @@ from ...auth.const import PERM_ADD_OBJ, PERM_EDIT_OBJ
 from ..auth import require_permissions
 from ..search import SearchIndexer
 from ..util import (
+    abort_with_message,
     check_quota_people,
     get_db_handle,
     get_search_indexer,
