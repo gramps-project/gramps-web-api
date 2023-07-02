@@ -85,6 +85,16 @@ from ..util import (
 from . import LimitedScopeProtectedResource, ProtectedResource, Resource
 
 
+def handle_409(user_name):
+    """Handle a clash with e-mail or username when creating a user."""
+    try:
+        get_guid(name=user_name)
+    except ValueError:
+        # user name not found: we know the e-mail caused the clash
+        abort_with_message(409, "A user with this e-mail address already exists")
+    abort_with_message(409, "This username is already taken")
+
+
 class UserChangeBase(ProtectedResource):
     """Base class for user change endpoints."""
 
@@ -265,7 +275,7 @@ class UserResource(UserChangeBase):
                 tree=args.get("tree") or tree,
             )
         except ValueError:
-            abort_with_message(409, "Clash with existing username or password")
+            handle_409(user_name)
         return "", 201
 
     def delete(self, user_name: str):
@@ -329,7 +339,7 @@ class UserRegisterResource(Resource):
                 role=ROLE_UNCONFIRMED,
             )
         except ValueError:
-            abort_with_message(409, "Clash with existing username or password")
+            handle_409(user_name)
         user_id = get_guid(name=user_name)
         token = create_access_token(
             identity=str(user_id),
@@ -391,14 +401,18 @@ class UserCreateOwnerResource(LimitedScopeProtectedResource):
                 abort_with_message(422, "Tree does not exist")
             if get_number_users(tree=tree) > 0:
                 abort_with_message(405, "Users already exist")
-            add_user(
-                name=user_name,
-                password=args["password"],
-                email=args["email"],
-                fullname=args["full_name"],
-                tree=tree,
-                role=ROLE_OWNER,
-            )
+
+            try:
+                add_user(
+                    name=user_name,
+                    password=args["password"],
+                    email=args["email"],
+                    fullname=args["full_name"],
+                    tree=tree,
+                    role=ROLE_OWNER,
+                )
+            except ValueError:
+                handle_409(user_name)
         else:
             abort_with_message(403, "Wrong token")
         return "", 201
