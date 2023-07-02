@@ -160,8 +160,8 @@ class UsersResource(ProtectedResource):
                 require_password=False,
                 allow_admin=has_permissions([PERM_MAKE_ADMIN]),
             )
-        except ValueError:
-            abort_with_message(409, "Clash with existing username or password")
+        except ValueError as exc:
+            abort_with_message(409, str(exc))
         return "", 201
 
 
@@ -264,8 +264,8 @@ class UserResource(UserChangeBase):
                 # use posting user's tree unless explicitly specified
                 tree=args.get("tree") or tree,
             )
-        except ValueError:
-            abort_with_message(409, "Clash with existing username or password")
+        except ValueError as exc:
+            abort_with_message(409, str(exc))
         return "", 201
 
     def delete(self, user_name: str):
@@ -328,8 +328,8 @@ class UserRegisterResource(Resource):
                 tree=args.get("tree"),
                 role=ROLE_UNCONFIRMED,
             )
-        except ValueError:
-            abort_with_message(409, "Clash with existing username or password")
+        except ValueError as exc:
+            abort_with_message(409, str(exc))
         user_id = get_guid(name=user_name)
         token = create_access_token(
             identity=str(user_id),
@@ -391,14 +391,18 @@ class UserCreateOwnerResource(LimitedScopeProtectedResource):
                 abort_with_message(422, "Tree does not exist")
             if get_number_users(tree=tree) > 0:
                 abort_with_message(405, "Users already exist")
-            add_user(
-                name=user_name,
-                password=args["password"],
-                email=args["email"],
-                fullname=args["full_name"],
-                tree=tree,
-                role=ROLE_OWNER,
-            )
+            try:
+                add_user(
+                    name=user_name,
+                    password=args["password"],
+                    email=args["email"],
+                    fullname=args["full_name"],
+                    tree=tree,
+                    role=ROLE_OWNER,
+                )
+            except ValueError as exc:
+                abort_with_message(409, str(exc))
+
         else:
             abort_with_message(403, "Wrong token")
         return "", 201
