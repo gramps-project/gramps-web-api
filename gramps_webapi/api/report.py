@@ -43,6 +43,7 @@ from gramps.gen.utils.grampslocale import GrampsLocale
 from gramps.gen.utils.resourcepath import ResourcePath
 
 from ..const import MIME_TYPES, REPORT_DEFAULTS, REPORT_FILTERS
+from .util import abort_with_message
 
 _EXTENSION_MAP = {".gvpdf": ".pdf", ".gspdf": ".pdf"}
 
@@ -191,7 +192,7 @@ def run_report(
             file_type = _EXTENSION_MAP.get(file_type) or file_type
             if file_type not in MIME_TYPES:
                 current_app.logger.error(f"Cannot find {file_type} in MIME_TYPES")
-                abort(500)
+                abort_with_message(500, f"MIME type {file_type} not found")
             report_path = current_app.config.get("REPORT_DIR")
             os.makedirs(report_path, exist_ok=True)
             file_name = f"{uuid.uuid4()}{file_type}"
@@ -241,14 +242,14 @@ def validate_options(report: Dict, report_options: Dict, allow_file: bool = Fals
                 abort(422)
             continue
         if not isinstance(report_options[option], str):
-            abort(422)
+            abort_with_message(422, "Report options must be provided as strings")
         if "A number" in report["options_help"][option][2]:
             try:
                 float(report_options[option])
             except ValueError:
-                abort(422)
+                abort_with_message(422, "Cannot convert option string to number")
         if "Size in cm" in report["options_help"][option][2]:
             try:
                 float(report_options[option])
             except ValueError:
-                abort(422)
+                abort_with_message(422, "Cannot convert option string to number")

@@ -40,7 +40,7 @@ from ...auth.const import (
 from ...const import TREE_MULTI
 from ...dbmanager import WebDbManager
 from ..auth import require_permissions
-from ..util import get_tree_from_jwt, use_args
+from ..util import abort_with_message, get_tree_from_jwt, use_args
 from . import ProtectedResource
 
 # legal tree dirnames
@@ -72,7 +72,7 @@ def tree_exists(tree_id: str) -> bool:
 def validate_tree_id(tree_id: str) -> None:
     """Raise an error if the tree ID has an illegal format."""
     if not TREE_ID_REGEX.match(tree_id):
-        abort(422)
+        abort_with_message(422, "Invalid tree ID")
 
 
 class TreesResource(ProtectedResource):
@@ -96,7 +96,7 @@ class TreesResource(ProtectedResource):
     def post(self, args):
         """Create a new tree."""
         if current_app.config["TREE"] != TREE_MULTI:
-            abort(405)
+            abort_with_message(405, "Not allowed in single-tree setup")
         require_permissions([PERM_ADD_TREE])
         tree_id = str(uuid.uuid4())
         backend = current_app.config["NEW_DB_BACKEND"]
@@ -128,7 +128,7 @@ class TreeResource(ProtectedResource):
             user_tree_id = get_tree_from_jwt()
             if tree_id != user_tree_id:
                 # only allowed to see details about our own tree
-                abort(403)
+                abort_with_message(403, "Not authorized to view other trees")
         return get_tree_details(tree_id)
 
     @use_args(
@@ -179,7 +179,7 @@ class DisableEnableTreeResource(ProtectedResource):
     def _post_disable_enable_tree(self, tree_id: str, disabled: bool):
         """Disable or enable a tree."""
         if current_app.config["TREE"] != TREE_MULTI:
-            abort(405)
+            abort_with_message(405, "Not allowed in single-tree setup")
         if tree_id == "-":
             # own tree
             tree_id = get_tree_from_jwt()

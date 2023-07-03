@@ -22,10 +22,10 @@
 import json
 from typing import Dict
 
-from flask import Response, abort, current_app, request
+from flask import Response, request
 from gramps.gen.db import DbTxn
 from gramps.gen.db.base import DbReadBase
-from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, TXNADD, TXNDEL, TXNUPD
+from gramps.gen.db.dbconst import TXNADD, TXNDEL, TXNUPD
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.serialize import from_json, to_json
 from gramps.gen.merge.diff import diff_items
@@ -35,6 +35,7 @@ from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ..auth import require_permissions
 from ..search import SearchIndexer
 from ..util import (
+    abort_with_message,
     check_quota_people,
     get_db_handle,
     get_search_indexer,
@@ -61,7 +62,7 @@ class TransactionsResource(ProtectedResource):
         require_permissions([PERM_ADD_OBJ, PERM_EDIT_OBJ, PERM_DEL_OBJ])
         payload = request.json
         if not payload:
-            abort(400)  # disallow empty payload
+            abort_with_message(400, "Empty payload")
         is_undo = args["undo"]
         if is_undo:
             payload = reverse_transaction(payload)
@@ -82,7 +83,7 @@ class TransactionsResource(ProtectedResource):
                     handle = item["handle"]
                     old_data = item["old"]
                     if not self.old_unchanged(db_handle, class_name, handle, old_data):
-                        abort(409)  # object has changed!
+                        abort_with_message(409, "Object has changed")
                     new_data = item["new"]
                     if new_data:
                         new_obj = from_json(json.dumps(new_data))
@@ -93,9 +94,9 @@ class TransactionsResource(ProtectedResource):
                     elif trans_type == "update":
                         self.handle_commit(trans, class_name, new_obj)
                     else:
-                        abort(400)  # unexpected type
+                        abort_with_message(400, "Unexpected transaction type")
                 except (KeyError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
-                    abort(400)
+                    abort_with_message(400, "Error while processing transaction")
             trans_dict = transaction_to_json(trans)
         # update search index
         tree = get_tree_from_jwt()
@@ -129,7 +130,7 @@ class TransactionsResource(ProtectedResource):
     def handle_add(self, trans: DbTxn, class_name: str, obj) -> None:
         """Handle an add action."""
         if class_name != "Tag" and not obj.gramps_id:
-            abort(400)  # gramps ID missing!
+            abort_with_message(400, "Gramps ID missing")
         self.handle_commit(trans, class_name, obj)
 
     def old_unchanged(

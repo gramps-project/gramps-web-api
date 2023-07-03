@@ -22,7 +22,7 @@
 from functools import wraps
 from typing import Iterable
 
-from flask import abort, current_app
+from flask import abort
 from flask_jwt_extended import get_jwt, verify_jwt_in_request
 from flask_jwt_extended.exceptions import NoAuthorizationError
 

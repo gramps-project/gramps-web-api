@@ -37,7 +37,13 @@ from ...auth.const import PERM_VIEW_PRIVATE
 from ..auth import has_permissions
 from ..export import get_exporters, prepare_options, run_export
 from ..tasks import AsyncResult, export_db, make_task_response, run_task
-from ..util import get_buffer_for_file, get_db_handle, get_tree_from_jwt, use_args
+from ..util import (
+    abort_with_message,
+    get_buffer_for_file,
+    get_db_handle,
+    get_tree_from_jwt,
+    use_args,
+)
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -196,7 +202,7 @@ class ExporterFileResultResource(ProtectedResource, GrampsJSONEncoder):
         )
         match = regex.match(filename)
         if not match:
-            abort(422)
+            abort_with_message(422, "Invalid filename")
 
         file_type = match.group(2)
         file_path = os.path.join(export_path, filename)

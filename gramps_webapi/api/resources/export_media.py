@@ -29,7 +29,7 @@ from ...auth.const import PERM_VIEW_PRIVATE
 from ..auth import has_permissions
 from ..ratelimiter import limiter_per_user
 from ..tasks import AsyncResult, export_media, make_task_response, run_task
-from ..util import get_buffer_for_file, get_tree_from_jwt
+from ..util import abort_with_message, get_buffer_for_file, get_tree_from_jwt
 from . import ProtectedResource
 
 
@@ -67,7 +67,7 @@ class MediaArchiveFileResource(ProtectedResource):
         )
         match = regex.match(filename)
         if not match:
-            abort(422)
+            abort_with_message(422, "Invalid filename")
 
         file_path = os.path.join(export_path, filename)
         if not os.path.isfile(file_path):

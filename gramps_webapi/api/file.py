@@ -35,6 +35,7 @@ from gramps_webapi.const import MIME_JPEG
 
 from ..types import FilenameOrPath
 from .image import LocalFileThumbnailHandler, detect_faces
+from .util import abort_with_message
 
 
 class FileHandler:
@@ -94,7 +95,7 @@ class FileHandler:
                 regions = detect_faces(fobj)
             except ImportError:
                 # numpy or opencv missing
-                abort(501)
+                abort_with_message(501, "OpenCV is not installed")
         else:
             regions = []
         res = make_response(jsonify(regions))
@@ -139,7 +140,7 @@ class LocalFileHandler(FileHandler):
         try:
             self._check_path()
         except ValueError:
-            abort(403)
+            abort_with_message(403, "File access not allowed")
         with open(self.path_abs, "rb") as f:
             stream = BytesIO(f.read())
         return stream
@@ -152,7 +153,7 @@ class LocalFileHandler(FileHandler):
         try:
             self._check_path()
         except ValueError:
-            abort(403)
+            abort_with_message(403, "File access not allowed")
         return os.path.getsize(self.path_abs)
 
     def send_file(
@@ -177,7 +178,7 @@ class LocalFileHandler(FileHandler):
         try:
             self._check_path()
         except ValueError:
-            abort(403)
+            abort_with_message(403, "File access not allowed")
         thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
         buffer = thumb.get_cropped(x1=x1, y1=y1, x2=x2, y2=y2, square=square)
         return send_file(buffer, mimetype=MIME_JPEG)
@@ -187,7 +188,7 @@ class LocalFileHandler(FileHandler):
         try:
             self._check_path()
         except ValueError:
-            abort(403)
+            abort_with_message(403, "File access not allowed")
         thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
         buffer = thumb.get_thumbnail(size=size, square=square)
         return send_file(buffer, mimetype=MIME_JPEG)
@@ -199,7 +200,7 @@ class LocalFileHandler(FileHandler):
         try:
             self._check_path()
         except ValueError:
-            abort(403)
+            abort_with_message(403, "File access not allowed")
         thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
         buffer = thumb.get_thumbnail_cropped(
             size=size, x1=x1, y1=y1, x2=x2, y2=y2, square=square

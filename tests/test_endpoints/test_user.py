@@ -492,6 +492,7 @@ class TestUser(unittest.TestCase):
             },
         )
         assert rv.status_code == 409
+        assert rv.json["error"]["message"] == "User already exists"
         # OK
         rv = self.client.post(
             BASE_URL + "/users/new_user/",
@@ -570,6 +571,7 @@ class TestUser(unittest.TestCase):
                 },
             )
             assert rv.status_code == 409
+            assert rv.json["error"]["message"] == "User already exists"
             # OK
             rv = self.client.post(
                 BASE_URL + "/users/new_user_2/register/",

@@ -43,6 +43,7 @@ from gramps.gen.proxy import PrivateProxyDb
 from gramps.gen.utils.grampslocale import GrampsLocale
 from marshmallow import RAISE
 from webargs.flaskparser import FlaskParser
+from werkzeug.exceptions import HTTPException
 from werkzeug.security import safe_join
 
 from ..auth import config_get, get_tree, get_tree_usage, set_tree_usage
@@ -394,4 +395,6 @@ def abort_with_message(status: int, message: str):
         status=status,
         mimetype="application/json",
     )
-    abort(response)
+    exc = HTTPException(response=response, description=message)
+    exc.code = status
+    raise exc
