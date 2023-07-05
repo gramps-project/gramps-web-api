@@ -64,7 +64,7 @@ class TestImporterMedia(unittest.TestCase):
             "os.environ",
             {
                 ENV_CONFIG_FILE: TEST_EMPTY_GRAMPS_AUTH_CONFIG,
-                "GRAMPSWEB_TREE": "empty",
+                "GRAMPSWEB_TREE": cls.name,
             },
         ):
             cls.test_app = create_app(
