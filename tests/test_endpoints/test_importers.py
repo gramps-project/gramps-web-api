@@ -107,7 +107,7 @@ class TestImportersExtensionFile(unittest.TestCase):
             "os.environ",
             {
                 ENV_CONFIG_FILE: TEST_EMPTY_GRAMPS_AUTH_CONFIG,
-                "TREE": "empty",
+                "TREE": cls.name,
             },
         ):
             cls.test_app = create_app()

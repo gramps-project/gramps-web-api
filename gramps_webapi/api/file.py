@@ -132,7 +132,10 @@ class LocalFileHandler(FileHandler):
 
     def file_exists(self) -> bool:
         """Check if the file exists."""
-        self._check_path()
+        try:
+            self._check_path()
+        except ValueError:
+            return False
         return Path(self.path_abs).is_file()
 
     def get_file_object(self) -> BinaryIO:

@@ -46,6 +46,7 @@ from .resources.families import FamiliesResource, FamilyResource
 from .resources.file import MediaFileResource
 from .resources.filters import FilterResource, FiltersResource, FiltersResources
 from .resources.holidays import HolidayResource, HolidaysResource
+from .resources.import_media import MediaUploadZipResource
 from .resources.importers import (
     ImporterFileResource,
     ImporterResource,
@@ -342,6 +343,13 @@ register_endpt(
     MediaArchiveFileResource,
     "/media/archive/<string:filename>",
     "media_archive_filename",
+)
+
+# Media import
+register_endpt(
+    MediaUploadZipResource,
+    "/media/archive/upload/zip",
+    "media_archive_upload_zip",
 )
 
 

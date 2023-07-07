@@ -88,7 +88,7 @@ class MediaHandlerBase:
         """Given a list of media objects, return the ones with existing files."""
         raise NotImplementedError
 
-    def get_media_size(self) -> int:
+    def get_media_size(self, db_handle: Optional[DbReadBase] = None) -> int:
         """Return the total disk space used by all existing media objects."""
         raise NotImplementedError
 
@@ -136,16 +136,17 @@ class MediaHandlerLocal(MediaHandlerBase):
             if self.get_file_handler(obj.handle, db_handle=db_handle).file_exists()
         ]
 
-    def get_media_size(self) -> int:
+    def get_media_size(self, db_handle: Optional[DbReadBase] = None) -> int:
         """Return the total disk space used by all existing media objects.
 
         Only works with a request context.
         """
+        if not db_handle:
+            db_handle = get_db_handle()
         if not os.path.isdir(self.base_dir):
             raise ValueError(f"Directory {self.base_dir} does not exist")
         size = 0
         paths_seen = set()
-        db_handle = get_db_handle()
         for obj in db_handle.iter_media():
             path = obj.path
             if os.path.isabs(path):
@@ -257,9 +258,10 @@ class MediaHandlerS3(MediaHandlerBase):
         remote_keys = self.get_remote_keys()
         return [obj for obj in objects if obj.checksum in remote_keys]
 
-    def get_media_size(self) -> int:
+    def get_media_size(self, db_handle: Optional[DbReadBase] = None) -> int:
         """Return the total disk space used by all existing media objects."""
-        db_handle = get_db_handle()
+        if not db_handle:
+            db_handle = get_db_handle()
         keys = set(obj.checksum for obj in db_handle.iter_media())
         keys_size = get_object_keys_size(
             bucket_name=self.bucket_name,
