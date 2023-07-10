@@ -40,6 +40,7 @@ from .util import (
     get_db_outside_request,
     get_search_indexer,
     send_email,
+    update_usage_people,
 )
 
 
@@ -135,6 +136,7 @@ def import_file(tree: str, file_name: str, extension: str, delete: bool = True):
         extension=extension.lower(),
         delete=delete,
     )
+    update_usage_people(tree=tree)
     _search_reindex_incremental(tree)
 
 
@@ -206,7 +208,6 @@ def export_media(tree: str, view_private: bool) -> Dict[str, Union[str, int]]:
 @shared_task()
 def import_media_archive(tree: str, file_name: str, delete: bool = True):
     """Import a media archive."""
-    # check_quota_people(to_add=object_counts["people"], tree=tree)
     db_handle = get_db_outside_request(tree=tree, view_private=True, readonly=True)
     result = run_import_media_archive(
         tree=tree,
