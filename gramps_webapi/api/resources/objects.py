@@ -37,6 +37,7 @@ from ..util import (
     get_db_handle,
     get_search_indexer,
     get_tree_from_jwt,
+    update_usage_people,
 )
 from . import ProtectedResource
 from .util import add_object, fix_object_dict, transaction_to_json, validate_object_dict
@@ -82,6 +83,8 @@ class CreateObjectsResource(ProtectedResource):
                 except ValueError:
                     abort_with_message(400, "Error while adding object")
             trans_dict = transaction_to_json(trans)
+        if number_new_people:
+            update_usage_people()
         # update search index
         tree = get_tree_from_jwt()
         indexer: SearchIndexer = get_search_indexer(tree)

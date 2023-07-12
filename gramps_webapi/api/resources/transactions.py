@@ -40,6 +40,7 @@ from ..util import (
     get_db_handle,
     get_search_indexer,
     get_tree_from_jwt,
+    update_usage_people,
     use_args,
 )
 from . import ProtectedResource
@@ -98,6 +99,8 @@ class TransactionsResource(ProtectedResource):
                 except (KeyError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
                     abort_with_message(400, "Error while processing transaction")
             trans_dict = transaction_to_json(trans)
+        if num_people_new:
+            update_usage_people()
         # update search index
         tree = get_tree_from_jwt()
         indexer: SearchIndexer = get_search_indexer(tree)
