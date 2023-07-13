@@ -122,7 +122,7 @@ def create_app(config: Optional[Dict[str, Any]] = None):
     if app.config["TREE"] == TREE_MULTI and app.config["NEW_DB_BACKEND"] != "sqlite":
         # needed in case a new postgres tree is to be created
         gramps_config.set("database.host", app.config["POSTGRES_HOST"])
-        gramps_config.set("database.port", app.config["POSTGRES_PORT"])
+        gramps_config.set("database.port", str(app.config["POSTGRES_PORT"]))
 
     # load JWT default settings
     app.config.from_object(DefaultConfigJWT)
