@@ -125,7 +125,13 @@ class UsersResource(ProtectedResource):
         require_permissions([PERM_VIEW_OTHER_USER])
         tree = get_tree_from_jwt()
         # return only this tree's users
-        return jsonify(get_all_user_details(tree=tree)), 200
+        # only include treeless users in single-tree setup
+        is_single = current_app.config["TREE"] != TREE_MULTI
+        details = get_all_user_details(tree=tree, include_treeless=is_single)
+        return (
+            jsonify(details),
+            200,
+        )
 
     def post(self):
         """Add one or more users."""

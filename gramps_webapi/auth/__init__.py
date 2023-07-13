@@ -213,15 +213,22 @@ def get_user_details(username: str) -> Optional[Dict[str, Any]]:
     return _get_user_detail(user)
 
 
-def get_all_user_details(tree: Optional[str]) -> List[Dict[str, Any]]:
+def get_all_user_details(
+    tree: Optional[str], include_treeless=False
+) -> List[Dict[str, Any]]:
     """Return details about all users.
 
     If tree is None, return all users regardless of tree.
     If tree is not None, only return users of given tree.
+
+    If include_treeless is True, include also users with empty tree ID.
     """
     query = user_db.session.query(User)  # pylint: disable=no-member
     if tree:
-        query = query.filter(sa.or_(User.tree == tree, User.tree.is_(None)))
+        if include_treeless:
+            query = query.filter(sa.or_(User.tree == tree, User.tree.is_(None)))
+        else:
+            query = query.filter(User.tree == tree)
     users = query.all()
     return [_get_user_detail(user) for user in users]
 

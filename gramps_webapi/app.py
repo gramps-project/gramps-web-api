@@ -80,11 +80,6 @@ def create_app(config: Optional[Dict[str, Any]] = None):
 
     app.logger.setLevel(logging.INFO)
 
-    # when using gunicorn, make sure flask log messages are shown
-    gunicorn_logger = logging.getLogger("gunicorn.error")
-    app.logger.handlers = gunicorn_logger.handlers
-    app.logger.setLevel(gunicorn_logger.level)
-
     # load default config
     app.config.from_object(DefaultConfig)
 
