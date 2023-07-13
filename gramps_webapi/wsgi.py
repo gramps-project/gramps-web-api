@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-2023      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -17,6 +17,13 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 
+import logging
+
 from .app import create_app
 
 app = create_app()
+
+# when using gunicorn, make sure flask log messages are shown
+gunicorn_logger = logging.getLogger("gunicorn.error")
+app.logger.handlers = gunicorn_logger.handlers
+app.logger.setLevel(gunicorn_logger.level)
