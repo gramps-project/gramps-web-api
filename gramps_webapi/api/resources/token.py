@@ -153,7 +153,11 @@ class TokenCreateOwnerResource(Resource):
             abort_with_message(403, "Not allowed in single-tree setup")
         if tree and not tree_exists(tree):
             abort(404)
-        if get_all_user_details(tree=tree):
+        if get_all_user_details(
+            # only include treeless users in single-tree setup
+            tree=tree,
+            include_treeless=current_app.config["TREE"] != TREE_MULTI,
+        ):
             # users already exist!
             abort_with_message(405, "Users already exist")
         if tree:
