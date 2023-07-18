@@ -425,7 +425,7 @@ class Tree(user_db.Model):
     id = sa.Column(sa.String, primary_key=True)
     quota_media = sa.Column(sa.Integer)
     quota_people = sa.Column(sa.Integer)
-    usage_media = sa.Column(sa.Integer)
+    usage_media = sa.Column(sa.BigInteger)
     usage_people = sa.Column(sa.Integer)
     enabled = sa.Column(sa.Integer, default=1, server_default="1")
 
