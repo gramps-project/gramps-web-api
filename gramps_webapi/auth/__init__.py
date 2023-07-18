@@ -423,7 +423,7 @@ class Tree(user_db.Model):
     __tablename__ = "trees"
 
     id = sa.Column(sa.String, primary_key=True)
-    quota_media = sa.Column(sa.Integer)
+    quota_media = sa.Column(sa.BigInteger)
     quota_people = sa.Column(sa.Integer)
     usage_media = sa.Column(sa.BigInteger)
     usage_people = sa.Column(sa.Integer)
