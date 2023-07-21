@@ -80,7 +80,13 @@ class ImporterFileResource(ProtectedResource):
         file_name = f"{uuid.uuid4()}.{extension}"
         file_path = os.path.join(export_path, file_name)
         with open(file_path, "w+b") as ftmp:
-            ftmp.write(request_stream.read())
+            chunk_size = 4 * 1024  # reading in 4 KB chunks
+            while True:
+                chunk = request_stream.read(chunk_size)
+                if not chunk:
+                    break
+                ftmp.write(chunk)
+
         if os.path.getsize(file_path) == 0:
             abort_with_message(400, "Imported file is empty")
         importers = get_importers(extension.lower())
