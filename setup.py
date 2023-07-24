@@ -39,7 +39,7 @@ REQUIREMENTS = [
     "Flask-SQLAlchemy",
     "marshmallow>=3.13.0",
     "webargs",
-    "SQLAlchemy",
+    "SQLAlchemy>=2.0.0",
     "pdf2image",
     "Pillow",
     "bleach>=5.0.0",
