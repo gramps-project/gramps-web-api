@@ -43,7 +43,7 @@ from gramps.gen.utils.grampslocale import GrampsLocale
 from gramps.gen.utils.resourcepath import ResourcePath
 
 from ..const import MIME_TYPES, REPORT_DEFAULTS, REPORT_FILTERS
-from .util import abort_with_message, check_fix_default_person
+from .util import abort_with_message
 
 _EXTENSION_MAP = {".gvpdf": ".pdf", ".gspdf": ".pdf"}
 
@@ -80,7 +80,6 @@ def get_report_profile(
 
 def get_reports(db_handle: DbReadBase, report_id: str = None):
     """Extract and return report attributes and options."""
-    check_fix_default_person(db_handle)
     reload_custom_filters()
     plugin_manager = BasePluginManager.get_instance()
     reports = []
