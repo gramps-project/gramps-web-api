@@ -90,6 +90,11 @@ class TransactionsResource(ProtectedResource):
                         new_obj = from_json(json.dumps(new_data))
                     if trans_type == "delete":
                         self.handle_delete(trans, class_name, handle)
+                        if (
+                            class_name == "Person"
+                            and handle == db_handle.get_default_handle()
+                        ):
+                            db_handle.set_default_person_handle(None)
                     elif trans_type == "add":
                         self.handle_add(trans, class_name, new_obj)
                     elif trans_type == "update":
