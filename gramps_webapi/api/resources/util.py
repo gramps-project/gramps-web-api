@@ -1303,3 +1303,24 @@ def run_import_media_archive(
         "uploaded": len(to_upload) - num_failures,
         "failures": num_failures,
     }
+
+
+def check_fix_default_person(db_handle: Union[DbReadBase, DbWriteBase]) -> None:
+    """If the db is writable, check if the default person still exists.
+
+    If it doesn't exist, set the default person to None.
+    """
+    if not isinstance(db_handle, DbWriteBase):
+        # not writable
+        return None
+    handle = db_handle.get_default_handle()
+    if not handle:
+        # default person is already empty
+        return None
+    if db_handle.has_person_handle(handle):
+        # default person exists
+        return None
+    # OK, we have a problem - default person is not empty but does not exist
+    # - set to empty
+    db_handle.set_default_person_handle(None)
+    return None

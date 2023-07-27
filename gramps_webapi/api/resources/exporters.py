@@ -46,6 +46,7 @@ from ..util import (
 )
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .util import check_fix_default_person
 
 
 class ExportersResource(ProtectedResource, GrampsJSONEncoder):
@@ -118,6 +119,8 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
         exporters = get_exporters(extension)
         if not exporters:
             abort(404)
+        if has_permissions({PERM_EDIT_OBJ}):
+            check_fix_default_person(get_db_handle(readonly=False))
         tree = get_tree_from_jwt()
         # remove JWT from args
         options = {k: v for k, v in args.items() if k != "jwt"}
