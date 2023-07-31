@@ -346,7 +346,7 @@ def check_quota_media(to_add: int, tree: Optional[str] = None) -> None:
         tree = get_tree_from_jwt()
     usage_dict = get_tree_usage(tree)
     if not usage_dict or usage_dict.get("usage_media") is None:
-        update_usage_media()
+        update_usage_media(tree=tree)
     usage_dict = get_tree_usage(tree)
     usage = usage_dict["usage_media"]
     quota = usage_dict.get("quota_media")
