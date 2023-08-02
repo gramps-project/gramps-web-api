@@ -38,7 +38,12 @@ from .s3 import (
     get_object_keys_size,
     upload_file_s3,
 )
-from .util import abort_with_message, get_db_handle, get_tree_from_jwt
+from .util import (
+    abort_with_message,
+    get_db_handle,
+    get_tree_from_jwt,
+    get_db_outside_request,
+)
 
 
 PREFIX_S3 = "s3://"
@@ -324,10 +329,11 @@ def get_media_handler(
     return MediaHandler(base_dir)
 
 
-def update_usage_media() -> int:
+def update_usage_media(tree: Optional[str] = None) -> int:
     """Update the usage of media."""
-    tree = get_tree_from_jwt()
-    db_handle = get_db_handle()
+    if not tree:
+        tree = get_tree_from_jwt()
+    db_handle = get_db_outside_request(tree=tree, view_private=True, readonly=True)
     media_handler = get_media_handler(db_handle, tree=tree)
     usage_media = media_handler.get_media_size()
     set_tree_usage(tree, usage_media=usage_media)
@@ -340,7 +346,7 @@ def check_quota_media(to_add: int, tree: Optional[str] = None) -> None:
         tree = get_tree_from_jwt()
     usage_dict = get_tree_usage(tree)
     if not usage_dict or usage_dict.get("usage_media") is None:
-        update_usage_media()
+        update_usage_media(tree=tree)
     usage_dict = get_tree_usage(tree)
     usage = usage_dict["usage_media"]
     quota = usage_dict.get("quota_media")
