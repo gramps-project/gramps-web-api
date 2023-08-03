@@ -33,7 +33,7 @@ from typing import Dict
 from flask import Response, abort, current_app, jsonify, send_file
 from webargs import fields, validate
 
-from ...auth.const import PERM_VIEW_PRIVATE
+from ...auth.const import PERM_EDIT_OBJ, PERM_VIEW_PRIVATE
 from ..auth import has_permissions
 from ..export import get_exporters, prepare_options, run_export
 from ..tasks import AsyncResult, export_db, make_task_response, run_task
@@ -178,8 +178,10 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
         """Get export file."""
         db_handle = get_db_handle()
         exporters = get_exporters(extension)
-        if exporters == []:
+        if not exporters:
             abort(404)
+        if has_permissions({PERM_EDIT_OBJ}):
+            check_fix_default_person(get_db_handle(readonly=False))
         options = prepare_options(db_handle, args)
         file_name, file_type = run_export(db_handle, extension, options)
         export_path = current_app.config.get("EXPORT_DIR")
