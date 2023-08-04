@@ -490,3 +490,18 @@ class TestExportersExtensionFile(unittest.TestCase):
 
     # Note we do not test include_media and include_witness options as they are
     # present to support the third party gedcom2 export plugin
+
+
+class TestExportersExtensionFilePost(unittest.TestCase):
+    """Test cases for the /api/exporters/{extension}/file POST endpoint."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_export_xml(self):
+        """Test the XML export."""
+        header = fetch_header(self.client)
+        res = self.client.post(f"{TEST_URL}gramps/file", headers=header)
+        assert res.status_code == 201
