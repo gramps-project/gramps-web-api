@@ -66,12 +66,12 @@ def add_user(
         user_db.session.commit()  # pylint: disable=no-member
     except IntegrityError as exc:
         reason = str(exc.orig.args)
-        if ".name" in reason:
+        if "name" in reason:
             message = "User already exists"
-        elif ".email" in reason:
+        elif "email" in reason:
             message = "E-mail already exists"
         else:
-            message = "Database error while trying to add user"
+            message = "Unexpected database error while trying to add user"
         raise ValueError(message) from exc
 
 
