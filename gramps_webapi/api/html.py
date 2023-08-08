@@ -113,9 +113,11 @@ def build_link_factory(link_format: Optional[str] = None) -> Optional[Callable]:
             ref = handle
             func = db_handle.method("get_%s_from_handle", obj_class)
             obj = func(ref)
+            if obj is None:
+                return ""
             gramps_id = obj.gramps_id
         else:
-            raise ValueError("Unexpected property: {}".format(prop))
+            raise ValueError(f"Unexpected property: {prop}")
         return link_format.format(
             obj_class=obj_class.lower(), gramps_id=gramps_id, handle=ref
         )
