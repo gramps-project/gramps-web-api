@@ -40,6 +40,7 @@ from gramps.gen.db.dbconst import DBBACKEND
 from gramps.gen.dbstate import DbState
 from gramps.gen.errors import HandleError
 from gramps.gen.proxy import PrivateProxyDb
+from gramps.gen.proxy.private import sanitize_media
 from gramps.gen.utils.grampslocale import GrampsLocale
 from marshmallow import RAISE
 from webargs.flaskparser import FlaskParser
@@ -108,6 +109,36 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
     def set_name_group_mapping(self, name, group):
         """Set a name group mapping."""
         return self.db.set_name_group_mapping(name, group)
+
+    # the below methods are to fix a bug in Gramps.
+    # can be removed once bug is fixed in Gramps and version
+    # requirement is updated.
+    def get_media_from_handle(self, handle):
+        """
+        Finds an Object in the database from the passed Gramps ID.
+        If no such Object exists, None is returned.
+        """
+        media = self.db.get_media_from_handle(handle)
+        if media and not media.get_privacy():
+            return _sanitize_media_patched(self.db, media)
+        return None
+
+    def get_media_from_gramps_id(self, val):
+        """
+        Finds a Media in the database from the passed Gramps ID.
+        If no such Media exists, None is returned.
+        """
+        obj = self.db.get_media_from_gramps_id(val)
+        if obj and not obj.get_privacy():
+            return _sanitize_media_patched(self.db, obj)
+        return None
+
+
+def _sanitize_media_patched(db, media):
+    """Patched sanitize_media function."""
+    obj = sanitize_media(db, media)
+    obj.set_checksum(media.get_checksum())
+    return obj
 
 
 def get_db_manager(tree: Optional[str]) -> WebDbManager:
