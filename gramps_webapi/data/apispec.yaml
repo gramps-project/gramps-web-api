@@ -4513,6 +4513,11 @@ paths:
           required: false
           type: boolean
           description: "If true, apply the inverse of the transaction."
+        - name: force
+          in: query
+          required: false
+          type: boolean
+          description: "If true, force applying the transaction even if objects have been modified."
         - in: body
           name: source
           description: The database transaction

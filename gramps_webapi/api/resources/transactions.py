@@ -55,6 +55,7 @@ class TransactionsResource(ProtectedResource):
     @use_args(
         {
             "undo": fields.Boolean(load_default=False),
+            "force": fields.Boolean(load_default=False),
         },
         location="query",
     )
@@ -83,7 +84,9 @@ class TransactionsResource(ProtectedResource):
                     trans_type = item["type"]
                     handle = item["handle"]
                     old_data = item["old"]
-                    if not self.old_unchanged(db_handle, class_name, handle, old_data):
+                    if not args["force"] and not self.old_unchanged(
+                        db_handle, class_name, handle, old_data
+                    ):
                         abort_with_message(409, "Object has changed")
                     new_data = item["new"]
                     if new_data:
