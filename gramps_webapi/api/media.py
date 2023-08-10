@@ -335,7 +335,7 @@ def update_usage_media(tree: Optional[str] = None) -> int:
         tree = get_tree_from_jwt()
     db_handle = get_db_outside_request(tree=tree, view_private=True, readonly=True)
     media_handler = get_media_handler(db_handle, tree=tree)
-    usage_media = media_handler.get_media_size()
+    usage_media = media_handler.get_media_size(db_handle=db_handle)
     set_tree_usage(tree, usage_media=usage_media)
     return usage_media
 
