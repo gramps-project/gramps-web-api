@@ -21,19 +21,21 @@
 
 
 import io
-import shutil
 import os
+import shutil
 import tempfile
 from pathlib import Path
-from pkg_resources import resource_filename
 from typing import BinaryIO, Callable, List, Tuple
 
 import ffmpeg
 from pdf2image import convert_from_path
 from PIL import Image, ImageOps
+from pkg_resources import resource_filename
 
 from gramps_webapi.const import MIME_PDF
 from gramps_webapi.types import FilenameOrPath
+
+from .util import abort_with_message
 
 
 def image_thumbnail(image: Image, size: int, square: bool = False) -> Image:
@@ -208,8 +210,11 @@ class LocalFileThumbnailHandler(ThumbnailHandler):
     def __init__(self, path: FilenameOrPath, mime_type: str) -> None:
         """Initialize self given a path and MIME type."""
         self.path = Path(path)
-        with open(self.path, "rb") as f:
-            stream = io.BytesIO(f.read())
+        try:
+            with open(self.path, "rb") as f:
+                stream = io.BytesIO(f.read())
+        except FileNotFoundError:
+            abort_with_message(404, "Media file not found")
         super().__init__(stream=stream, mime_type=mime_type)
 
 

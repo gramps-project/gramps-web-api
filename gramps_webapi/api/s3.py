@@ -29,6 +29,7 @@ from gramps.gen.db.base import DbReadBase
 from ..const import MIME_JPEG
 from .file import FileHandler
 from .image import ThumbnailHandler
+from .util import abort_with_message
 
 
 def get_client(endpoint_url: Optional[str] = None):
@@ -91,9 +92,20 @@ class ObjectStorageFileHandler(FileHandler):
         return response
 
     def _download_fileobj(self) -> BinaryIO:
-        current_app.logger.error(f"s3://{self.bucket_name}/{self.object_name}")
-        response = self.client.get_object(Bucket=self.bucket_name, Key=self.object_name)
-        return response["Body"]
+        """Download a binary file object."""
+        try:
+            response = self.client.get_object(
+                Bucket=self.bucket_name, Key=self.object_name
+            )
+            return response["Body"]
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] == "NoSuchKey":
+                abort_with_message(404, "Media file not found")
+            else:
+                abort_with_message(
+                    500, f"Error retrieving media file: {exc.response['Error']['Code']}"
+                )
+            raise  # will never trigger - just to make mypy happy
 
     def get_file_object(self) -> BinaryIO:
         """Return a binary file object."""

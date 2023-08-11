@@ -144,8 +144,11 @@ class LocalFileHandler(FileHandler):
             self._check_path()
         except ValueError:
             abort_with_message(403, "File access not allowed")
-        with open(self.path_abs, "rb") as f:
-            stream = BytesIO(f.read())
+        try:
+            with open(self.path_abs, "rb") as f:
+                stream = BytesIO(f.read())
+        except FileNotFoundError:
+            abort_with_message(404, "Media file not found")
         return stream
 
     def get_file_size(self) -> int:
