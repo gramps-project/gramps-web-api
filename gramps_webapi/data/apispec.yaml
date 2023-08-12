@@ -6701,6 +6701,13 @@ paths:
       operationId: getMetadata
       security:
         - Bearer: []
+      parameters:
+      - name: surnames
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "If true, also include the surname list in the result."
       responses:
         200:
           description: "OK: Successful operation."
