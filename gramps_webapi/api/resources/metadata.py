@@ -109,7 +109,7 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
             "server": {"multi_tree": is_multi_tree, "task_queue": has_task_queue},
         }
         if args["surnames"]:
-            result["surnames"] = (db_handle.get_surname_list(),)
+            result["surnames"] = db_handle.get_surname_list()
         data = db_handle.get_summary()
         db_version_key = GRAMPS_LOCALE.translation.sgettext("Database version")
         db_module_key = GRAMPS_LOCALE.translation.sgettext("Database module version")
