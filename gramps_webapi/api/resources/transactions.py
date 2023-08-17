@@ -87,6 +87,8 @@ class TransactionsResource(ProtectedResource):
                     if not args["force"] and not self.old_unchanged(
                         db_handle, class_name, handle, old_data
                     ):
+                        if num_people_added or num_people_deleted:
+                            update_usage_people()
                         abort_with_message(409, "Object has changed")
                     new_data = item["new"]
                     if new_data:
@@ -103,8 +105,12 @@ class TransactionsResource(ProtectedResource):
                     elif trans_type == "update":
                         self.handle_commit(trans, class_name, new_obj)
                     else:
+                        if num_people_added or num_people_deleted:
+                            update_usage_people()
                         abort_with_message(400, "Unexpected transaction type")
                 except (KeyError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
+                    if num_people_added or num_people_deleted:
+                        update_usage_people()
                     abort_with_message(400, "Error while processing transaction")
             trans_dict = transaction_to_json(trans)
         if num_people_new:
