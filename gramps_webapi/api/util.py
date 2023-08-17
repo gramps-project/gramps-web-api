@@ -36,12 +36,25 @@ from gramps.cli.clidbman import NAME_FILE, CLIDbManager
 from gramps.gen.config import config
 from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
-from gramps.gen.db.dbconst import DBBACKEND
+from gramps.gen.db.dbconst import (
+    DBBACKEND,
+    KEY_TO_NAME_MAP,
+    PERSON_KEY,
+    FAMILY_KEY,
+    SOURCE_KEY,
+    EVENT_KEY,
+    MEDIA_KEY,
+    PLACE_KEY,
+    REPOSITORY_KEY,
+    NOTE_KEY,
+    CITATION_KEY,
+)
 from gramps.gen.dbstate import DbState
 from gramps.gen.errors import HandleError
 from gramps.gen.proxy import PrivateProxyDb
 from gramps.gen.proxy.private import sanitize_media
 from gramps.gen.utils.grampslocale import GrampsLocale
+from gramps.plugins.db.dbapi.dbapi import DBAPI
 from marshmallow import RAISE
 from webargs.flaskparser import FlaskParser
 from werkzeug.exceptions import HTTPException
@@ -89,6 +102,7 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
         """Initialize self."""
         super().__init__(*args, **kwargs)
         self.name_formats = self.db.name_formats
+        self.is_dbapi = isinstance(self.basedb, DBAPI)
 
     def get_dbname(self):
         """Get the name of the database."""
@@ -132,6 +146,98 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
         if obj and not obj.get_privacy():
             return _sanitize_media_patched(self.db, obj)
         return None
+
+    def _iter_handles(self, obj_key):
+        """
+        Return an iterator over handles in the database
+        """
+        table = KEY_TO_NAME_MAP[obj_key]
+        sql = "SELECT handle FROM %s WHERE private=0" % table
+        self.basedb.dbapi.execute(sql)
+        rows = self.basedb.dbapi.fetchall()
+        for row in rows:
+            yield row[0]
+
+    def iter_person_handles(self):
+        """
+        Return an iterator over database handles, one handle for each Person in
+        the database.
+        """
+        if self.is_dbapi:
+            return self._iter_handles(PERSON_KEY)
+        return filter(self.include_person, self.db.iter_person_handles())
+
+    def iter_family_handles(self):
+        """
+        Return an iterator over database handles, one handle for each Family in
+        the database.
+        """
+        if self.is_dbapi:
+            return self._iter_handles(FAMILY_KEY)
+        return filter(self.include_family, self.db.iter_family_handles())
+
+    def iter_event_handles(self):
+        """
+        Return an iterator over database handles, one handle for each Event in
+        the database.
+        """
+        if self.is_dbapi:
+            return self._iter_handles(EVENT_KEY)
+        return filter(self.include_event, self.db.iter_event_handles())
+
+    def iter_source_handles(self):
+        """
+        Return an iterator over database handles, one handle for each Source in
+        the database.
+        """
+        if self.is_dbapi:
+            return self._iter_handles(SOURCE_KEY)
+        return filter(self.include_source, self.db.iter_source_handles())
+
+    def iter_citation_handles(self):
+        """
+        Return an iterator over database handles, one handle for each Citation
+        in the database.
+        """
+        if self.is_dbapi:
+            return self._iter_handles(CITATION_KEY)
+        return filter(self.include_citation, self.db.iter_citation_handles())
+
+    def iter_place_handles(self):
+        """
+        Return an iterator over database handles, one handle for each Place in
+        the database.
+        """
+        if self.is_dbapi:
+            return self._iter_handles(PLACE_KEY)
+        return filter(self.include_place, self.db.iter_place_handles())
+
+    def iter_media_handles(self):
+        """
+        Return an iterator over database handles, one handle for each Media
+        Object in the database.
+        """
+        if self.is_dbapi:
+            return self._iter_handles(MEDIA_KEY)
+        return filter(self.include_media, self.db.iter_media_handles())
+
+    def iter_repository_handles(self):
+        """
+        Return an iterator over database handles, one handle for each
+        Repository in the database.
+        """
+        if self.is_dbapi:
+            return self._iter_handles(REPOSITORY_KEY)
+        return filter(self.include_repository, self.db.iter_repository_handles())
+
+    def iter_note_handles(self):
+        """
+        Return an iterator over database handles, one handle for each Note in
+        the database.
+        """
+        if self.is_dbapi:
+            return self._iter_handles(NOTE_KEY)
+        return filter(self.include_note, self.db.iter_note_handles())
 
 
 def _sanitize_media_patched(db, media):
