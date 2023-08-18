@@ -1,0 +1,25 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run: Gramps-webapi",
+            "type": "python",
+            "request": "launch",
+            "module": "gramps_webapi",
+            "env": {
+                "FLASK_APP": "app.py",
+                "FLASK_DEBUG": "1"
+            },
+            "args": [
+                "--config",
+                "${workspaceFolder}/var/local_dev.cfg",
+                "run"
+            ],
+            "jinja": true,
+            "justMyCode": true
+        }
+    ]
+}
