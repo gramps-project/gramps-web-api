@@ -51,8 +51,6 @@ REQUIREMENTS = [
     "alembic",
     "celery[redis]",
     "Unidecode",
-    # the following is necessary due to https://github.com/python/importlib_metadata/issues/411
-    'importlib-metadata == 4.13.0; python_version == "3.7"',
 ]
 
 setup(
