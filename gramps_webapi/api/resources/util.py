@@ -970,10 +970,8 @@ def _get_class_name(super_name, key_name) -> str:
         return "PlaceName"
     if key_name in ["primary_name", "alternate_names"]:
         return "Name"
-    if (
-        key_name == "attribute_list"
-        and super_name == "Citation"
-        or super_name == "Source"
+    if key_name == "attribute_list" and (
+        super_name == "Citation" or super_name == "Source"
     ):
         return "SrcAttribute"
     elif key_name == "attribute_list":
