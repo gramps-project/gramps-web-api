@@ -218,8 +218,12 @@ def upload_file_local(
     base_dir: FilenameOrPath, rel_path: FilenameOrPath, stream: BinaryIO
 ) -> None:
     """Upload a file from a stream, returning the file path."""
+    path = os.path.join(base_dir, rel_path)
+    path_dir = os.path.dirname(path)
+    # create folders if necessary
+    os.makedirs(path_dir, exist_ok=True)
     fs = FileStorage(stream)
-    fs.save(os.path.join(base_dir, rel_path))
+    fs.save(path)
 
 
 def get_checksum(fp) -> str:
