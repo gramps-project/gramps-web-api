@@ -10206,11 +10206,11 @@ definitions:
         example: "11"
       start:
         description: The starting number for the segment location.
-        type: int
+        type: integer
         example: 56950055
       stop:
         description: The ending number for the segment location.
-        type: int
+        type: integer
         example: 64247327
       side:
         description: Whether the match is one the maternal (M), paternal (P), or unkown (U) side.
@@ -10222,7 +10222,7 @@ definitions:
         example: 10.9
       SNPs:
         description: Number of matching SNPs (Single Nucleotide Polymorphisms) in the segment.
-        type: int
+        type: integer
         example: 1404
       comment:
         description: A comment about the segment
