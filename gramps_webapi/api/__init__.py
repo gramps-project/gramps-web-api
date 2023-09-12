@@ -60,6 +60,7 @@ from .resources.name_groups import NameGroupsResource
 from .resources.notes import NoteResource, NotesResource
 from .resources.objects import CreateObjectsResource
 from .resources.people import PeopleResource, PersonResource
+from .resources.dna import PersonDnaMatchesResource
 from .resources.places import PlaceResource, PlacesResource
 from .resources.relations import RelationResource, RelationsResource
 from .resources.reports import (
@@ -133,6 +134,11 @@ register_endpt(
     PersonTimelineResource, "/people/<string:handle>/timeline", "person-timeline"
 )
 register_endpt(PersonResource, "/people/<string:handle>", "person")
+register_endpt(
+    PersonDnaMatchesResource,
+    "/people/<string:handle>/dna/matches",
+    "person-dna-matches",
+)
 register_endpt(PeopleResource, "/people/", "people")
 # Families
 register_endpt(

@@ -1265,6 +1265,40 @@ paths:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
+
+  /people/{handle}/dna/matches:
+    get:
+      tags:
+      - people
+      summary: "Get DNA matches for a specific person."
+      operationId: getPersonDnaMatches
+      security:
+        - Bearer: []
+      parameters:
+      - name: handle
+        in: path
+        required: true
+        type: string
+        minLength: 8
+        description: "The unique identifier for a person."
+      - name: locale
+        in: query
+        required: false
+        type: string
+        description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/DnaMatch"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
+
 ##############################################################################
 # Endpoint - Families
 ##############################################################################
@@ -10129,6 +10163,70 @@ definitions:
         description: "Type of the event."
         type: string
         example: "Birth"
+
+
+##############################################################################
+# Model - DnaMatch
+##############################################################################
+
+  DnaMatch:
+    type: object
+    properties:
+      handle:
+        description: The handle of the matching person.
+        type: string
+        example: 9BXKQC1PVLPYFMD6IX
+      relation:
+        description: The relationship to the matching person
+        type: string
+        example: "first cousin"
+      ancestor_handles:
+        description: The handles of the latest common ancestors
+        type: array
+        items:
+          type: string
+          example: ORFKQC4KLWEGTGR19L
+      segments:
+        description: Details about each maching chromosome segment.
+        type: array
+        items:
+          $ref: "#/definitions/DnaSegment"
+
+
+##############################################################################
+# Model - DnaSegment
+##############################################################################
+
+  DnaSegment:
+    type: object
+    properties:
+      chromosome:
+        description: The handle of the matching person.
+        type: string
+        example: "11"
+      start:
+        description: The starting number for the segment location.
+        type: int
+        example: 56950055
+      stop:
+        description: The ending number for the segment location.
+        type: int
+        example: 64247327
+      side:
+        description: Whether the match is one the maternal (M), paternal (P), or unkown (U) side.
+        type: string
+        example: P
+      cM:
+        description: The Genetic Distance (otherwise known as the number of centiMorgans) in the segment.
+        type: number
+        example: 10.9
+      SNPs:
+        description: Number of matching SNPs (Single Nucleotide Polymorphisms) in the segment.
+        type: int
+        example: 1404
+      comment:
+        description: A comment about the segment
+        type: string
 
 ##############################################################################
 # Model - TimelinePersonProfile
