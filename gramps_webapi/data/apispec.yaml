@@ -10186,6 +10186,13 @@ definitions:
         items:
           type: string
           example: ORFKQC4KLWEGTGR19L
+      ancestor_profiles:
+        description: The profiles of the latest common ancestors
+        type: array
+        items:
+          type: array
+          items:
+            $ref: "#/definitions/PersonProfile"
       segments:
         description: Details about each maching chromosome segment.
         type: array

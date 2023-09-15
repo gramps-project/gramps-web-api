@@ -34,6 +34,7 @@ from webargs import fields, validate
 
 from ...types import Handle
 from ..util import get_db_handle, get_locale_for_language, use_args
+from .util import get_person_profile_for_handle
 from . import ProtectedResource
 
 SIDE_UNKNOWN = "U"
@@ -129,12 +130,18 @@ def get_match_data(
     else:
         rel_string = rel_strings[0]
         ancestor_handles = common_ancestors[0]
-
+    ancestor_profiles = [
+        get_person_profile_for_handle(
+            db_handle=db_handle, handle=handle, args=[], locale=locale
+        )
+        for handle in ancestor_handles
+    ]
     return {
         "handle": association.ref,
         "segments": segments,
         "relation": rel_string,
         "ancestor_handles": ancestor_handles,
+        "ancestor_profiles": ancestor_profiles,
     }
 
 
