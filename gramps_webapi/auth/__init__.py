@@ -28,7 +28,6 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Union
 import sqlalchemy as sa
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError, StatementError
-from sqlalchemy.orm import mapped_column, relationship
 from sqlalchemy.sql.functions import coalesce
 
 from ..const import DB_CONFIG_ALLOWED_KEYS
