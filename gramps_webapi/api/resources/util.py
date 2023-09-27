@@ -421,6 +421,7 @@ def get_person_profile_for_object(
         "death": death,
         "name_given": name_display.display_given(person),
         "name_surname": person.primary_name.get_surname(),
+        "name_suffix": person.primary_name.get_suffix(),
     }
     if "all" in args or "span" in args:
         options.append("span")
