@@ -573,6 +573,7 @@ class TestPeople(unittest.TestCase):
                                 "handle": "914KQCNJ9TMDQMDL81",
                                 "name_given": "Jane",
                                 "name_surname": "Adams",
+                                "name_suffix": "",
                                 "sex": "F",
                             }
                         ],
@@ -610,6 +611,7 @@ class TestPeople(unittest.TestCase):
                             "handle": "FR6KQCRONQWR69LFUI",
                             "name_given": "William",
                             "name_surname": "Adams",
+                            "name_suffix": "",
                             "sex": "M",
                         },
                         "gramps_id": "F0204",
@@ -645,6 +647,7 @@ class TestPeople(unittest.TestCase):
                             "handle": "OS6KQCDBW36VIRF98Z",
                             "name_given": "Eleanor",
                             "name_surname": "Aguilar",
+                            "name_suffix": "",
                             "sex": "F",
                         },
                         "relationship": "Married",
@@ -654,6 +657,7 @@ class TestPeople(unittest.TestCase):
                 "handle": "OS6KQCDBW36VIRF98Z",
                 "name_given": "Eleanor",
                 "name_surname": "Aguilar",
+                "name_suffix": "",
                 "primary_parent_family": {
                     "children": [
                         {
@@ -679,6 +683,7 @@ class TestPeople(unittest.TestCase):
                             "handle": "OS6KQCDBW36VIRF98Z",
                             "name_given": "Eleanor",
                             "name_surname": "Aguilar",
+                            "name_suffix": "",
                             "sex": "F",
                         }
                     ],
@@ -706,6 +711,7 @@ class TestPeople(unittest.TestCase):
                         "handle": "4GCKQC20GMQLO6N77C",
                         "name_given": "John",
                         "name_surname": "Aguilar",
+                        "name_suffix": "",
                         "sex": "M",
                     },
                     "gramps_id": "F0704",
@@ -733,6 +739,7 @@ class TestPeople(unittest.TestCase):
                                     "handle": "OS6KQCDBW36VIRF98Z",
                                     "name_given": "Eleanor",
                                     "name_surname": "Aguilar",
+                                    "name_suffix": "",
                                     "sex": "F",
                                 }
                             ],
@@ -754,6 +761,7 @@ class TestPeople(unittest.TestCase):
                                 "handle": "4GCKQC20GMQLO6N77C",
                                 "name_given": "John",
                                 "name_surname": "Aguilar",
+                                "name_suffix": "",
                                 "sex": "M",
                             },
                             "gramps_id": "F0704",
@@ -779,6 +787,7 @@ class TestPeople(unittest.TestCase):
                                     "handle": "914KQCNJ9TMDQMDL81",
                                     "name_given": "Jane",
                                     "name_surname": "Adams",
+                                    "name_suffix": "",
                                     "sex": "F",
                                 }
                             ],
@@ -800,6 +809,7 @@ class TestPeople(unittest.TestCase):
                                 "handle": "FR6KQCRONQWR69LFUI",
                                 "name_given": "William",
                                 "name_surname": "Adams",
+                                "name_suffix": "",
                                 "sex": "M",
                             },
                             "gramps_id": "F0204",
@@ -826,6 +836,7 @@ class TestPeople(unittest.TestCase):
                                 "handle": "OS6KQCDBW36VIRF98Z",
                                 "name_given": "Eleanor",
                                 "name_surname": "Aguilar",
+                                "name_suffix": "",
                                 "sex": "F",
                             },
                             "relationship": "Married",
@@ -1093,6 +1104,7 @@ class TestPeopleHandle(unittest.TestCase):
                 "handle": "0PWJQCZYFXOS0HGREE",
                 "name_given": "Mary Grace Elizabeth",
                 "name_surname": "Warner",
+                "name_suffix": "",
                 "sex": "F",
             },
         )

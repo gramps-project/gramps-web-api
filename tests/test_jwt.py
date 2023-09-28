@@ -119,6 +119,7 @@ class TestPerson(unittest.TestCase):
         assert rv.json["gramps_id"] == "person001"
         assert rv.json["profile"]["name_given"] == "John"
         assert rv.json["profile"]["name_surname"] == "Allen"
+        assert rv.json["profile"]["name_suffix"] == ""
         assert rv.json["gender"] == 1  # male
         assert rv.json["private"] == False
         assert rv.json["birth_ref_index"] == -1

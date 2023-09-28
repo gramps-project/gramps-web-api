@@ -440,6 +440,7 @@ class TestFamilies(unittest.TestCase):
                         "handle": "cc82060516c6c141500",
                         "name_given": "صالح",
                         "name_surname": "",
+                        "name_suffix": "",
                         "sex": "M",
                     }
                 ],
@@ -469,6 +470,7 @@ class TestFamilies(unittest.TestCase):
                     "handle": "cc82060504445ab6deb",
                     "name_given": "أحمد",
                     "name_surname": "",
+                    "name_suffix": "",
                     "sex": "M",
                 },
                 "gramps_id": "F0745",
@@ -488,6 +490,7 @@ class TestFamilies(unittest.TestCase):
                     "handle": "cc8206050980ea622d0",
                     "name_given": "العباسة",
                     "name_surname": "الفضل",
+                    "name_suffix": "",
                     "sex": "F",
                 },
                 "references": {
@@ -509,6 +512,7 @@ class TestFamilies(unittest.TestCase):
                             "handle": "cc82060504445ab6deb",
                             "name_given": "أحمد",
                             "name_surname": "",
+                            "name_suffix": "",
                             "sex": "M",
                         },
                         {
@@ -523,6 +527,7 @@ class TestFamilies(unittest.TestCase):
                             "handle": "cc8206050980ea622d0",
                             "name_given": "العباسة",
                             "name_surname": "الفضل",
+                            "name_suffix": "",
                             "sex": "F",
                         },
                         {
@@ -537,6 +542,7 @@ class TestFamilies(unittest.TestCase):
                             "handle": "cc82060516c6c141500",
                             "name_given": "صالح",
                             "name_surname": "",
+                            "name_suffix": "",
                             "sex": "M",
                         },
                     ]
@@ -792,6 +798,7 @@ class TestFamiliesHandle(unittest.TestCase):
                         "handle": "1GWJQCGOOZ8FJW3YK9",
                         "name_given": "Stephen Gerard",
                         "name_surname": "Garner",
+                        "name_suffix": "",
                         "sex": "M",
                     },
                     {
@@ -809,6 +816,7 @@ class TestFamiliesHandle(unittest.TestCase):
                         "handle": "IGWJQCSVT8NXTFXOFJ",
                         "name_given": "Daniel Patrick",
                         "name_surname": "Garner",
+                        "name_suffix": "",
                         "sex": "M",
                     },
                 ],
@@ -840,6 +848,7 @@ class TestFamiliesHandle(unittest.TestCase):
                     "handle": "KLTJQC70XVZJSPQ43U",
                     "name_given": "Gerard Stephen",
                     "name_surname": "Garner",
+                    "name_suffix": "",
                     "sex": "M",
                 },
                 "gramps_id": "F0033",
@@ -868,6 +877,7 @@ class TestFamiliesHandle(unittest.TestCase):
                     "handle": "JFWJQCRREDFKZLDKVD",
                     "name_given": "Elizabeth",
                     "name_surname": "George",
+                    "name_suffix": "",
                     "sex": "F",
                 },
                 "references": {
@@ -884,6 +894,7 @@ class TestFamiliesHandle(unittest.TestCase):
                             "handle": "1GWJQCGOOZ8FJW3YK9",
                             "name_given": "Stephen Gerard",
                             "name_surname": "Garner",
+                            "name_suffix": "",
                             "sex": "M",
                         },
                         {
@@ -898,6 +909,7 @@ class TestFamiliesHandle(unittest.TestCase):
                             "handle": "IGWJQCSVT8NXTFXOFJ",
                             "name_given": "Daniel Patrick",
                             "name_surname": "Garner",
+                            "name_suffix": "",
                             "sex": "M",
                         },
                         {
@@ -912,6 +924,7 @@ class TestFamiliesHandle(unittest.TestCase):
                             "handle": "JFWJQCRREDFKZLDKVD",
                             "name_given": "Elizabeth",
                             "name_surname": "George",
+                            "name_suffix": "",
                             "sex": "F",
                         },
                         {
@@ -926,6 +939,7 @@ class TestFamiliesHandle(unittest.TestCase):
                             "handle": "KLTJQC70XVZJSPQ43U",
                             "name_given": "Gerard Stephen",
                             "name_surname": "Garner",
+                            "name_suffix": "",
                             "sex": "M",
                         },
                     ]
