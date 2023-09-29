@@ -129,7 +129,7 @@ def get_match_data(
         ancestor_handles = []
     else:
         rel_string = rel_strings[0]
-        ancestor_handles = common_ancestors[0]
+        ancestor_handles = list(dict.fromkeys(common_ancestors[0]))  # make unique
     ancestor_profiles = [
         get_person_profile_for_handle(
             db_handle=db_handle, handle=handle, args=[], locale=locale
