@@ -108,9 +108,8 @@ def build_link_factory(link_format: Optional[str] = None) -> Optional[Callable]:
         if prop == "gramps_id":
             gramps_id = handle
             func = db_handle.method("get_%s_from_gramps_id", obj_class)
-            try:
-                obj = func(gramps_id)
-            except HandleError:
+            obj = func(gramps_id)
+            if not obj:
                 return ""
             ref = obj.handle
         elif prop == "handle":
