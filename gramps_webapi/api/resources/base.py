@@ -21,9 +21,9 @@
 
 import json
 from abc import abstractmethod
-from typing import Dict, List, Sequence
+from typing import Dict, List
 
-from flask import Response, abort, current_app, request
+from flask import Response, abort, request
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import DbTxn
 from gramps.gen.db.base import DbReadBase
@@ -33,8 +33,8 @@ from gramps.gen.lib.serialize import from_json
 from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 
-from ...auth import get_tree_usage, set_tree_usage
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
+from ...const import GRAMPS_OBJECT_PLURAL
 from ..auth import require_permissions
 from ..search import SearchIndexer
 from ..util import (
@@ -55,10 +55,10 @@ from .sort import sort_objects
 from .util import (
     abort_with_message,
     add_object,
+    filter_missing_files,
     fix_object_dict,
     get_backlinks,
     get_extended_attributes,
-    get_missing_media_file_handles,
     get_reference_profile_for_object,
     get_soundex,
     hash_object,
@@ -109,18 +109,18 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
         return obj
 
     def sort_objects(
-        self, objs: List[str], args: Dict, locale: GrampsLocale = glocale
+        self, objects: List[GrampsObject], args: Dict, locale: GrampsLocale = glocale
     ) -> List:
         """Sort the list of objects as needed."""
         return sort_objects(
-            self.db_handle, self.gramps_class_name, objs, args, locale=locale
+            self.db_handle, self.gramps_class_name, objects, args, locale=locale
         )
 
-    def match_dates(self, handles: List[str], date: str):
+    def match_dates(self, objects: List[GrampsObject], date: str) -> List[GrampsObject]:
         """If supported filter objects using date mask."""
         if self.gramps_class_name in ["Event", "Media", "Citation"]:
-            return match_dates(self.db_handle, self.gramps_class_name, handles, date)
-        return handles
+            return match_dates(objects, date)
+        return objects
 
     @property
     def db_handle(self) -> DbReadBase:
@@ -387,41 +387,54 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                 200, [self.full_object(obj, args, locale=locale)], args, total_items=1
             )
 
-        query_method = self.db_handle.method("get_%s_handles", self.gramps_class_name)
-        if self.gramps_class_name in ["Event", "Repository", "Note"]:
-            handles = query_method()
-        else:
+        # load all objects to memory
+        objects_name = GRAMPS_OBJECT_PLURAL[self.gramps_class_name]
+        iter_objects_method = self.db_handle.method("iter_%s", objects_name)
+        objects = list(iter_objects_method())
+
+        # for all objects except events, repos, and notes, Gramps supports
+        # a database-backed default sort order. Use that if no sort order
+        # requested.
+        if "sort" not in args and self.gramps_class_name not in [
+            "Event",
+            "Repository",
+            "Note",
+        ]:
+            query_method = self.db_handle.method(
+                "get_%s_handles", self.gramps_class_name
+            )
             handles = query_method(sort_handles=True, locale=locale)
+            handle_index = {handle: index for index, handle in enumerate(handles)}
+            # sort objects by the sorted handle order
+            objects = sorted(
+                objects, key=lambda obj: handle_index.get(obj.handle, len(handles) + 1)
+            )
 
         if "filter" in args or "rules" in args:
+            handles = [obj.handle for obj in objects]
             handles = apply_filter(
                 self.db_handle, args, self.gramps_class_name, handles
             )
+            objects = [obj for obj in objects if obj.handle in set(handles)]
 
         if self.gramps_class_name == "Media" and args.get("filemissing"):
-            handles = get_missing_media_file_handles(self.db_handle, handles)
+            objects = filter_missing_files(objects)
 
         if args["dates"]:
-            handles = self.match_dates(handles, args["dates"])
+            objects = self.match_dates(objects, args["dates"])
 
         if "sort" in args:
-            handles = self.sort_objects(handles, args["sort"], locale=locale)
+            objects = self.sort_objects(objects, args["sort"], locale=locale)
 
-        total_items = len(handles)
+        total_items = len(objects)
 
         if args["page"] > 0:
             offset = (args["page"] - 1) * args["pagesize"]
-            handles = handles[offset : offset + args["pagesize"]]
+            objects = objects[offset : offset + args["pagesize"]]
 
-        query_method = self.db_handle.method(
-            "get_%s_from_handle", self.gramps_class_name
-        )
         return self.response(
             200,
-            [
-                self.full_object(query_method(handle), args, locale=locale)
-                for handle in handles
-            ],
+            [self.full_object(obj, args, locale=locale) for obj in objects],
             args,
             total_items=total_items,
         )
@@ -439,7 +452,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         with DbTxn("Add objects", db_handle) as trans:
             try:
                 add_object(db_handle, obj, trans, fail_if_exists=True)
-            except ValueError as exc:
+            except ValueError:
                 abort_with_message(400, "Error while adding object")
             trans_dict = transaction_to_json(trans)
         # update usage

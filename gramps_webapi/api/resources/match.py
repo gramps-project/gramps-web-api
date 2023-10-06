@@ -18,13 +18,12 @@
 #
 
 """Matching utilities."""
+
 from typing import List
 
-from gramps.gen.db.base import DbReadBase
 from gramps.gen.lib import Date
 from gramps.gen.lib.date import gregorian
-
-from ...types import Handle
+from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 
 
 def match_date(date: Date, mask: str) -> bool:
@@ -54,7 +53,8 @@ def match_date_range(date: Date, start_date: Date, end_date: Date) -> bool:
 
 
 def match_dates(
-    db_handle: DbReadBase, gramps_class_name: str, handles: List[Handle], date_mask: str
+    objects: List[GrampsObject],
+    date_mask: str,
 ):
     """Match dates based on a date mask or range."""
     check_range = False
@@ -72,16 +72,14 @@ def match_dates(
         else:
             end_date = None
 
-    query_method = db_handle.method("get_%s_from_handle", gramps_class_name)
     result = []
-    for handle in handles:
-        obj = query_method(handle)
+    for obj in objects:
         date = obj.get_date_object()
         if date.is_valid():
             if check_range:
                 if match_date_range(date, start_date, end_date):
-                    result.append(handle)
+                    result.append(obj)
             else:
                 if match_date(date, date_mask):
-                    result.append(handle)
+                    result.append(obj)
     return result

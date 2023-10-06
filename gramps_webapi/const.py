@@ -81,6 +81,20 @@ PRIMARY_GRAMPS_OBJECTS = {
     "Tag": lib.Tag,
 }
 
+# needed for iter_%s methods
+GRAMPS_OBJECT_PLURAL = {
+    "Person": "people",
+    "Family": "families",
+    "Event": "events",
+    "Place": "places",
+    "Citation": "citations",
+    "Source": "sources",
+    "Repository": "repositories",
+    "Media": "media",
+    "Note": "notes",
+    "Tag": "tags",
+}
+
 # To map endpoints to Gramps objects
 GRAMPS_NAMESPACES = {
     "people": "Person",
