@@ -25,6 +25,7 @@ from typing import Callable, Optional
 
 import bleach
 from bleach.css_sanitizer import CSSSanitizer
+from gramps.gen.errors import HandleError
 from gramps.gen.lib import Note, NoteType, StyledText
 from gramps.plugins.lib.libhtml import Html
 from gramps.plugins.lib.libhtmlbackend import HtmlBackend, process_spaces
@@ -108,12 +109,15 @@ def build_link_factory(link_format: Optional[str] = None) -> Optional[Callable]:
             gramps_id = handle
             func = db_handle.method("get_%s_from_gramps_id", obj_class)
             obj = func(gramps_id)
+            if not obj:
+                return ""
             ref = obj.handle
         elif prop == "handle":
             ref = handle
             func = db_handle.method("get_%s_from_handle", obj_class)
-            obj = func(ref)
-            if obj is None:
+            try:
+                obj = func(ref)
+            except HandleError:
                 return ""
             gramps_id = obj.gramps_id
         else:
