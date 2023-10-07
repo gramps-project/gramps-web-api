@@ -395,20 +395,16 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         # for all objects except events, repos, and notes, Gramps supports
         # a database-backed default sort order. Use that if no sort order
         # requested.
-        if "sort" not in args and self.gramps_class_name not in [
-            "Event",
-            "Repository",
-            "Note",
-        ]:
-            query_method = self.db_handle.method(
-                "get_%s_handles", self.gramps_class_name
-            )
+        query_method = self.db_handle.method("get_%s_handles", self.gramps_class_name)
+        if self.gramps_class_name in ["Event", "Repository", "Note"]:
+            handles = query_method()
+        else:
             handles = query_method(sort_handles=True, locale=locale)
-            handle_index = {handle: index for index, handle in enumerate(handles)}
-            # sort objects by the sorted handle order
-            objects = sorted(
-                objects, key=lambda obj: handle_index.get(obj.handle, len(handles) + 1)
-            )
+        handle_index = {handle: index for index, handle in enumerate(handles)}
+        # sort objects by the sorted handle order
+        objects = sorted(
+            objects, key=lambda obj: handle_index.get(obj.handle, len(handles) + 1)
+        )
 
         if "filter" in args or "rules" in args:
             handles = [obj.handle for obj in objects]
