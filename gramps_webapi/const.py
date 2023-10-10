@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020-2022      David Straub
+# Copyright (C) 2020-2023      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -79,6 +79,20 @@ PRIMARY_GRAMPS_OBJECTS = {
     "Media": lib.Media,
     "Note": lib.Note,
     "Tag": lib.Tag,
+}
+
+# needed for iter_%s methods
+GRAMPS_OBJECT_PLURAL = {
+    "Person": "people",
+    "Family": "families",
+    "Event": "events",
+    "Place": "places",
+    "Citation": "citations",
+    "Source": "sources",
+    "Repository": "repositories",
+    "Media": "media",
+    "Note": "notes",
+    "Tag": "tags",
 }
 
 # To map endpoints to Gramps objects
