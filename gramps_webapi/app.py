@@ -76,27 +76,22 @@ def deprecated_config_from_env(app):
 
 def create_app(config: Optional[Dict[str, Any]] = None):
     """Flask application factory."""
-    provided_cfg_path = os.getenv(ENV_CONFIG_FILE)
-    if provided_cfg_path:
-        app = Flask(
-            __name__,
-            # flask_sqlalchemy tries writing to `instance_path` on startup, so use cfg's dir
-            instance_path=os.path.abspath(os.path.join(provided_cfg_path, os.pardir)),
-            # since `instance_path` is set, could also:
-#           instance_relative_config=True,
-        )
-    else:
-        app = Flask(__name__) # infer `instance_path` (probably under `/var` in venv)
+    app = Flask(
+        __name__,
+        # flask_sqlalchemy tries writing to `instance_path` on startup, so use CWD
+        instance_path=os.getcwd(),
+        # since `instance_path` is set, could also:
+#       instance_relative_config=True,
+    )
 
     app.logger.setLevel(logging.INFO)
 
     # load default config
     app.config.from_object(DefaultConfig)
 
-    # overwrite with user config file -- `silent` allows this to fail,
-    # in case someone wants to use individual env. vars for config,
-    # but also wants to set the env. var to `/exists/fake.cfg` i.e. just to change the dir
-    app.config.from_pyfile(provided_cfg_path, silent=True)
+    # overwrite with user config file
+    if os.getenv(ENV_CONFIG_FILE):
+        app.config.from_envvar(ENV_CONFIG_FILE)
 
     # use unprefixed environment variables if exist - deprecated!
     deprecated_config_from_env(app)
