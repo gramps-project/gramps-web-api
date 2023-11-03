@@ -124,6 +124,7 @@ class TestOcr(unittest.TestCase):
             f"{TEST_URL}{handle}/ocr?lang=eng&format=boxes", headers=headers
         )
         assert rv.status_code == 201
+        data = rv.json
         assert "char" in data
         assert "O" in data["char"]
         assert "C" in data["char"]
