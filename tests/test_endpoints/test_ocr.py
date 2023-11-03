@@ -77,12 +77,12 @@ class TestOcr(unittest.TestCase):
         # create image
         image = Image.new("RGB", (300, 100), "white")
         draw = ImageDraw.Draw(image)
-        try:
-            font = ImageFont.truetype("Helvetica.ttf", 18)
-        except OSError:
-            font = ImageFont.truetype("Arial.ttf", 18)
-        except OSError:
-            font = ImageFont.truetype("DejaVuSans", 18)
+        for font_name in ["Helvetica.ttf", "Arial.ttf", "DejaVuSans"]:
+            try:
+                font = ImageFont.truetype(font_name, 18)
+                break
+            except OSError:
+                pass
         draw.text((10, 10), "OCR Demo", font=font, fill="black")
 
         # post image
