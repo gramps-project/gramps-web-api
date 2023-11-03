@@ -51,6 +51,7 @@ REQUIREMENTS = [
     "alembic",
     "celery[redis]",
     "Unidecode",
+    "pytesseract",
 ]
 
 setup(

@@ -32,6 +32,7 @@ from .resources.base import Resource
 from .resources.bookmarks import BookmarkResource, BookmarksResource
 from .resources.citations import CitationResource, CitationsResource
 from .resources.config import ConfigResource, ConfigsResource
+from .resources.dna import PersonDnaMatchesResource
 from .resources.events import EventResource, EventSpanResource, EventsResource
 from .resources.export_media import MediaArchiveFileResource, MediaArchiveResource
 from .resources.exporters import (
@@ -59,8 +60,8 @@ from .resources.name_formats import NameFormatsResource
 from .resources.name_groups import NameGroupsResource
 from .resources.notes import NoteResource, NotesResource
 from .resources.objects import CreateObjectsResource
+from .resources.ocr import MediaOcrResource
 from .resources.people import PeopleResource, PersonResource
-from .resources.dna import PersonDnaMatchesResource
 from .resources.places import PlaceResource, PlacesResource
 from .resources.relations import RelationResource, RelationsResource
 from .resources.reports import (
@@ -335,6 +336,12 @@ register_endpt(
     MediaFaceDetectionResource,
     "/media/<string:handle>/face_detection",
     "media_face_detection",
+)
+# OCR
+register_endpt(
+    MediaOcrResource,
+    "/media/<string:handle>/ocr",
+    "media_ocr",
 )
 
 # Media export

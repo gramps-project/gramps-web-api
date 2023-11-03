@@ -25,10 +25,12 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, BinaryIO, Optional, Tuple, Union
 
-from flask import abort, jsonify, make_response, send_file, send_from_directory
+import pytesseract
+from flask import jsonify, make_response, send_file, send_from_directory
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Media
+from PIL import Image
 from werkzeug.datastructures import FileStorage
 
 from gramps_webapi.const import MIME_JPEG
@@ -102,6 +104,30 @@ class FileHandler:
         if etag:
             res.headers["ETag"] = etag
         return res
+
+    def get_ocr(self, lang: str, output_format: str = "string"):
+        """Return regions containing faces."""
+        if not self.mime.startswith("image"):
+            return {}
+        try:
+            pytesseract.get_tesseract_version()
+        except pytesseract.TesseractNotFoundError:
+            abort_with_message(501, "Tesseract is not installed")
+        fobj = self.get_file_object()
+        image = Image.open(fobj)
+        if output_format == "string":
+            data = {"string": pytesseract.image_to_string(image, lang=lang)}
+        elif output_format == "boxes":
+            data = pytesseract.image_to_boxes(image, lang=lang, output_type="dict")
+        elif output_format == "data":
+            data = pytesseract.image_to_data(image, lang=lang, output_type="dict")
+        elif output_format == "hocr":
+            data = pytesseract.image_to_pdf_or_hocr(
+                image, lang=lang, extension="hocr"
+            ).decode("utf-8")
+        else:
+            raise ValueError(f"Unknown output format: {output_format}")
+        return data
 
 
 class LocalFileHandler(FileHandler):

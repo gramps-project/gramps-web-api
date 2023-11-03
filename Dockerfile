@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
   libpq-dev postgresql-client postgresql-client-common python3-psycopg2 \
   libgl1-mesa-dev libgtk2.0-dev libatlas-base-dev \
   libopencv-dev python3-opencv \
+  tesseract-ocr tesseract-ocr-all \
   && rm -rf /var/lib/apt/lists/*
 
 # set locale
