@@ -116,7 +116,7 @@ class FileHandler:
         fobj = self.get_file_object()
         image = Image.open(fobj)
         if output_format == "string":
-            data = {"string": pytesseract.image_to_string(image, lang=lang)}
+            data = pytesseract.image_to_string(image, lang=lang)
         elif output_format == "boxes":
             data = pytesseract.image_to_boxes(image, lang=lang, output_type="dict")
         elif output_format == "data":
