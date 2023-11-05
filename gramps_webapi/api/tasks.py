@@ -216,3 +216,17 @@ def import_media_archive(tree: str, file_name: str, delete: bool = True):
         delete=delete,
     )
     return result
+
+
+@shared_task()
+def media_ocr(
+    tree: str, handle: str, view_private: bool, lang: str, output_format: str = "string"
+):
+    """Perform text recognition (OCR) on a media object."""
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=view_private, readonly=True
+    )
+    handler = get_media_handler(db_handle, tree).get_file_handler(
+        handle, db_handle=db_handle
+    )
+    return handler.get_ocr(lang=lang, output_format=output_format)

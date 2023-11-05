@@ -20,6 +20,7 @@
 
 """Metadata API resource."""
 
+import pytesseract
 from flask import Response, current_app
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.const import ENV, GRAMPS_LOCALE
@@ -71,6 +72,16 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
         is_multi_tree = current_app.config["TREE"] == TREE_MULTI
         has_task_queue = bool(current_app.config["CELERY_CONFIG"])
 
+        try:
+            pytesseract.get_tesseract_version()
+            has_ocr = True
+            ocr_languages = [
+                lang for lang in pytesseract.get_languages() if lang != "osd"
+            ]
+        except pytesseract.TesseractNotFoundError:
+            has_ocr = False
+            ocr_languages = []
+
         result = {
             "database": {
                 "id": db_handle.get_dbid(),
@@ -106,7 +117,12 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 "tags": db_handle.get_number_of_tags(),
             },
             "researcher": db_handle.get_researcher(),
-            "server": {"multi_tree": is_multi_tree, "task_queue": has_task_queue},
+            "server": {
+                "multi_tree": is_multi_tree,
+                "task_queue": has_task_queue,
+                "ocr": has_ocr,
+                "ocr_languages": ocr_languages,
+            },
         }
         if args["surnames"]:
             result["surnames"] = db_handle.get_surname_list()

@@ -3767,6 +3767,57 @@ paths:
         501:
           description: "Not Implemented: Server does not support face detection."
 
+  /media/{handle}/ocr:
+    parameters:
+    - name: handle
+      in: path
+      required: true
+      type: string
+      minLength: 8
+      description: "The unique identifier for a media item."
+    - name: lang
+      in: query
+      required: true
+      type: string
+      description: "A tesseract language identifier."
+      example: "eng"
+    - name: format
+      in: query
+      required: false
+      type: string
+      enum:
+        - string
+        - data
+        - boxes
+        - hocr
+      description: "Requested output format. Defaults to 'string'."
+    post:
+      tags:
+      - media
+      summary: "Perform text recognition (OCR) on the image."
+      operationId: postMediaItemOCR
+      security:
+        - Bearer: []
+      responses:
+        201:
+          description: "OK: Successful operation."
+        202:
+          description: "Accepted: text recognition will be peerformed in the background."
+          schema:
+            type: object
+            properties:
+              task:
+                $ref: "#/definitions/TaskReference"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Media item not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+        501:
+          description: "Not Implemented: Server does not support text recognition."
+
+
   /media/{handle}/thumbnail/{size}:
     get:
       tags:
@@ -9518,6 +9569,19 @@ definitions:
             description: "Indicates whether the server is using a task queue for long running operations."
             type: boolean
             example: false
+          has_ocr:
+            description: "Indicates whether the server supports text recognition (OCR)."
+            type: boolean
+            example: false
+          ocr_languages:
+            description: "List of supported OCR languages (tesseract language codes)."
+            type: array
+            items:
+              type: string
+            example:
+              - eng
+              - deu
+
       surnames:
         description: "A list of all surnames found in the database."
         type: array
