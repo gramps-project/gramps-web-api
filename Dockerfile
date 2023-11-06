@@ -50,12 +50,12 @@ RUN wget https://github.com/gramps-project/addons/archive/refs/heads/master.zip 
     && rm master.zip
 
 # install gunicorn
-RUN python3 -m pip install --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
+RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
     gunicorn
 
 # copy package source and install
 COPY . /app/src
-RUN python3 -m pip install --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
+RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
     /app/src
 
 EXPOSE 5000
