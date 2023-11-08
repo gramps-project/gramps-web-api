@@ -428,7 +428,7 @@ class Timeline:
         if page > 0:
             offset = (page - 1) * pagesize
             events = events[offset : offset + pagesize]
-        for (event, person_object, relationship, role) in events:
+        for event, person_object, relationship, role in events:
             label = self.locale.translation.sgettext(str(event.type))
             if (
                 person_object
@@ -436,7 +436,7 @@ class Timeline:
                 and self.anchor_person.handle != person_object.handle
                 and relationship not in ["self", "", None]
             ):
-                label = f"{label} ({relationship.title()})"
+                label = f"{label} ({self.locale.translation.sgettext(relationship.title())})"
 
             try:
                 obj = self.db_handle.get_place_from_handle(event.place)
@@ -479,7 +479,7 @@ class Timeline:
                 "description": event.description,
                 "gramps_id": event.gramps_id,
                 "handle": event.handle,
-                "label": self.locale.translation.sgettext(label),
+                "label": label,
                 "media": [x.ref for x in event.media_list],
                 "person": person,
                 "place": place,
