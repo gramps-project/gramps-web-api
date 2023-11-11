@@ -343,8 +343,8 @@ class UserRegisterResource(Resource):
                 "email": args["email"],
                 CLAIM_LIMITED_SCOPE: SCOPE_CONF_EMAIL,
             },
-            # email has to be confirmed within 1h
-            expires_delta=datetime.timedelta(hours=1),
+            # link does not expire
+            expires_delta=False,
         )
         run_task(send_email_confirm_email, email=args["email"], token=token)
         return "", 201
