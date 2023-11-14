@@ -34,12 +34,7 @@ from ...const import MIME_TYPES
 from ..auth import has_permissions
 from ..report import check_report_id_exists, get_reports, run_report
 from ..tasks import AsyncResult, generate_report, make_task_response, run_task
-from ..util import (
-    get_buffer_for_file,
-    get_db_handle,
-    get_tree_from_jwt,
-    use_args,
-)
+from ..util import get_buffer_for_file, get_db_handle, get_tree_from_jwt, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .util import check_fix_default_person
@@ -48,24 +43,30 @@ from .util import check_fix_default_person
 class ReportsResource(ProtectedResource, GrampsJSONEncoder):
     """Reports resource."""
 
-    @use_args({}, location="query")
+    @use_args({"include_help": fields.Boolean(load_default=False)}, location="query")
     def get(self, args: Dict) -> Response:
         """Get all available report attributes."""
         if has_permissions({PERM_EDIT_OBJ}):
             check_fix_default_person(get_db_handle(readonly=False))
-        reports = get_reports(get_db_handle())
+        reports = get_reports(
+            get_db_handle(), include_options_help=args["include_help"]
+        )
         return self.response(200, reports)
 
 
 class ReportResource(ProtectedResource, GrampsJSONEncoder):
     """Report resource."""
 
-    @use_args({}, location="query")
+    @use_args({"include_help": fields.Boolean(load_default=True)}, location="query")
     def get(self, args: Dict, report_id: str) -> Response:
         """Get specific report attributes."""
         if has_permissions({PERM_EDIT_OBJ}):
             check_fix_default_person(get_db_handle(readonly=False))
-        reports = get_reports(get_db_handle(), report_id=report_id)
+        reports = get_reports(
+            get_db_handle(),
+            report_id=report_id,
+            include_options_help=args["include_help"],
+        )
         if not reports:
             abort(404)
         return self.response(200, reports[0])

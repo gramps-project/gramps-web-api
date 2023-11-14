@@ -58,6 +58,14 @@ class TestReports(unittest.TestCase):
         """Test invalid parameters and values."""
         check_invalid_semantics(self, TEST_URL + "?test=1")
 
+    def test_get_reports_validate_semantics_without_help(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(self, TEST_URL + "?include_help")
+
+    def test_get_reports_without_help(self):
+        """Test invalid parameters and values."""
+        check_success(self, TEST_URL + "?include_help=0")
+
 
 class TestReportsReportId(unittest.TestCase):
     """Test cases for the /api/reports/{report_id} endpoint."""
@@ -82,6 +90,14 @@ class TestReportsReportId(unittest.TestCase):
     def test_get_reports_report_id_validate_semantics(self):
         """Test invalid parameters and values."""
         check_invalid_semantics(self, TEST_URL + "ancestor_report?test=1")
+
+    def test_get_report_id_validate_semantics_without_help(self):
+        """Test invalid parameters and values."""
+        check_invalid_semantics(self, TEST_URL + "ancestor_report?include_help")
+
+    def test_get_report_id_without_help(self):
+        """Test invalid parameters and values."""
+        check_success(self, TEST_URL + "ancestor_report?include_help=0")
 
 
 class TestReportsReportIdFile(unittest.TestCase):

@@ -5924,6 +5924,13 @@ paths:
       operationId: getAllReports
       security:
         - Bearer: []
+      parameters:
+      - name: include_help
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether the report options help should be included."
       responses:
         200:
           description: "OK: Successful operation."
@@ -5951,6 +5958,12 @@ paths:
         required: true
         type: string
         description: "The report identifier."
+      - name: include_help
+        in: query
+        required: false
+        type: boolean
+        default: true
+        description: "Indicates whether the report options help should be included."
       responses:
         200:
           description: "OK: Successful operation."
