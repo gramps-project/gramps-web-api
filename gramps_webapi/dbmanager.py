@@ -25,14 +25,13 @@
 
 import os
 import uuid
-
 from typing import Optional, Tuple
 
-from gramps.cli.clidbman import CLIDbManager, NAME_FILE
+from gramps.cli.clidbman import NAME_FILE, CLIDbManager
 from gramps.cli.user import User
 from gramps.gen.config import config
 from gramps.gen.db.dbconst import DBBACKEND, DBLOCKFN, DBMODE_R, DBMODE_W
-from gramps.gen.db.utils import make_database, get_dbid_from_path
+from gramps.gen.db.utils import get_dbid_from_path, make_database
 from gramps.gen.dbstate import DbState
 
 from .dbloader import WebDbSessionManager
@@ -51,6 +50,7 @@ class WebDbManager:
         password: Optional[str] = None,
         create_if_missing: bool = True,
         create_backend: str = "sqlite",
+        ignore_lock: bool = False,
     ) -> None:
         """Initialize given a family tree name or subdirectory name (path)."""
         if dirname:
@@ -67,6 +67,7 @@ class WebDbManager:
         self.password = password
         self.create_if_missing = create_if_missing
         self.create_backend = create_backend
+        self.ignore_lock = ignore_lock
         self.path = self._get_path()
         self._check_backend()
 
@@ -154,7 +155,11 @@ class WebDbManager:
         if os.path.exists(os.path.join(self.path, DBLOCKFN)):
             os.unlink(os.path.join(self.path, DBLOCKFN))
 
-    def get_db(self, readonly: bool = True, force_unlock: bool = False) -> DbState:
+    def get_db(
+        self,
+        readonly: bool = True,
+        force_unlock: bool = False,
+    ) -> DbState:
         """Open the database and return a dbstate instance.
 
         If `readonly` is `True` (default), write operations will fail (note,
@@ -170,7 +175,11 @@ class WebDbManager:
             self.break_lock()
         mode = DBMODE_R if readonly else DBMODE_W
         smgr.open_activate(
-            self.path, mode=mode, username=self.username, password=self.password
+            self.path,
+            mode=mode,
+            username=self.username,
+            password=self.password,
+            ignore_lock=self.ignore_lock,
         )
         return dbstate
 

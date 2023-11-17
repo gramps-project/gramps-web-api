@@ -50,7 +50,11 @@ TREE_ID_REGEX = re.compile(r"^[a-zA-Z0-9_-]+$")
 def get_tree_details(tree_id: str) -> Dict[str, str]:
     """Get details about a tree."""
     try:
-        dbmgr = WebDbManager(dirname=tree_id, create_if_missing=False)
+        dbmgr = WebDbManager(
+            dirname=tree_id,
+            create_if_missing=False,
+            ignore_lock=current_app.config["IGNORE_DB_LOCK"],
+        )
     except ValueError:
         abort(404)
     usage = get_tree_usage(tree_id) or {}
@@ -100,7 +104,7 @@ class TreesResource(ProtectedResource):
         require_permissions([PERM_ADD_TREE])
         tree_id = str(uuid.uuid4())
         backend = current_app.config["NEW_DB_BACKEND"]
-        dbmgr = WebDbManager(
+        WebDbManager(
             dirname=tree_id,
             name=args["name"],
             create_if_missing=True,
@@ -153,7 +157,11 @@ class TreeResource(ProtectedResource):
                 require_permissions([PERM_EDIT_OTHER_TREE])
                 validate_tree_id(tree_id)
         try:
-            dbmgr = WebDbManager(dirname=tree_id, create_if_missing=False)
+            dbmgr = WebDbManager(
+                dirname=tree_id,
+                create_if_missing=False,
+                ignore_lock=current_app.config["IGNORE_DB_LOCK"],
+            )
         except ValueError:
             abort(404)
         rv = {}

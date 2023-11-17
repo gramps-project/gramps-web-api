@@ -36,7 +36,6 @@ from gramps.gen.plug import BasePluginManager
 from gramps.gen.recentfiles import recent_files
 from gramps.gen.utils.config import get_researcher
 
-
 _ = glocale.translation.gettext
 
 LOG = logging.getLogger(__name__)
@@ -106,9 +105,17 @@ class WebDbSessionManager:
         # set readonly correctly again
         self.dbstate.db.readonly = mode == DBMODE_R
 
-    def open_activate(self, filename, mode, username=None, password=None):
+    def open_activate(
+        self,
+        filename,
+        mode,
+        username=None,
+        password=None,
+        ignore_lock: bool = False,
+    ):
         """Open and make a family tree active."""
-        check_lock(dir_name=filename, mode=mode)
+        if not ignore_lock:
+            check_lock(dir_name=filename, mode=mode)
         self.read_file(filename, mode, username, password)
         # Attempt to figure out the database title
         title = get_title(filename)

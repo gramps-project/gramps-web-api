@@ -105,7 +105,11 @@ def create_app(config: Optional[Dict[str, Any]] = None):
 
     if app.config["TREE"] != TREE_MULTI:
         # create database if missing (only in single-tree mode)
-        WebDbManager(name=app.config["TREE"], create_if_missing=True)
+        WebDbManager(
+            name=app.config["TREE"],
+            create_if_missing=True,
+            ignore_lock=app.config["IGNORE_DB_LOCK"],
+        )
 
     if app.config["TREE"] == TREE_MULTI and not app.config["MEDIA_PREFIX_TREE"]:
         warnings.warn(

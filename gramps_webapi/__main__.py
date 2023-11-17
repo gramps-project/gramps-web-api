@@ -28,12 +28,11 @@ import warnings
 import click
 from whoosh.index import LockError
 
-
 from .api.util import get_db_manager, get_search_indexer, list_trees
-from .dbmanager import WebDbManager
 from .app import create_app
 from .auth import add_user, delete_user, fill_tree, user_db
 from .const import ENV_CONFIG_FILE, TREE_MULTI
+from .dbmanager import WebDbManager
 
 logging.basicConfig()
 LOG = logging.getLogger("gramps_webapi")
@@ -128,7 +127,11 @@ def search(ctx, tree):
         if app.config["TREE"] == TREE_MULTI:
             raise ValueError("`tree` is required when multi-tree support is enabled.")
         # needed for backwards compatibility!
-        dbmgr = WebDbManager(name=app.config["TREE"], create_if_missing=False)
+        dbmgr = WebDbManager(
+            name=app.config["TREE"],
+            create_if_missing=False,
+            ignore_lock=app.config["IGNORE_DB_LOCK"],
+        )
         tree = dbmgr.dirname
     with app.app_context():
         ctx.obj["db_manager"] = get_db_manager(tree=tree)
