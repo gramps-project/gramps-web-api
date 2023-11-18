@@ -71,7 +71,14 @@ class WebDbSessionManager:
         self._pmgr = BasePluginManager.get_instance()
         self.user = user
 
-    def read_file(self, filename, mode: str, username: str, password: str):
+    def read_file(
+        self,
+        filename,
+        mode: str,
+        username: str,
+        password: str,
+        force_schema_upgrade: bool = False,
+    ):
         """Open a database from a file."""
         if (
             mode == DBMODE_W
@@ -94,13 +101,16 @@ class WebDbSessionManager:
         self.dbstate.change_database(db)
         self.dbstate.db.disable_signals()
 
-        # always use DMODE_R in load to avoid writing a lock file
+        # always use DMODE_R in load to avoid writing a lock file,
+        # unless when upgrading the db
+        mode_load = DBMODE_W if force_schema_upgrade else DBMODE_R
         self.dbstate.db.load(
             filename,
-            callback=None,
-            mode=DBMODE_R,
+            callback=self.user.callback,
+            mode=mode_load,
             username=username,
             password=password,
+            force_schema_upgrade=force_schema_upgrade,
         )
         # set readonly correctly again
         self.dbstate.db.readonly = mode == DBMODE_R

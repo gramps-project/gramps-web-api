@@ -194,3 +194,17 @@ class WebDbManager:
         with open(filepath, "w", encoding="utf8") as name_file:
             name_file.write(new_name)
         return old_name, new_name
+
+    def upgrade_if_needed(self):
+        """Upgrade the Gramps database schema if needed."""
+        dbstate = DbState()
+        user = User()
+        smgr = WebDbSessionManager(dbstate, user)
+        smgr.do_reg_plugins(dbstate, uistate=None)
+        smgr.read_file(
+            self.path,
+            mode=DBMODE_W,
+            username=self.username,
+            password=self.password,
+            force_schema_upgrade=True,
+        )

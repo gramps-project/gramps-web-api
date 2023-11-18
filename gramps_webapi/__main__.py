@@ -196,6 +196,29 @@ def tree_list(ctx):
         print(f"{dirname:>36}  {name:<}")
 
 
+@cli.group("grampsdb", help="Manage a Gramps daabase.")
+@click.option("--tree", help="Tree ID", default=None)
+@click.pass_context
+def grampsdb(ctx, tree):
+    app = ctx.obj["app"]
+    if not tree:
+        if app.config["TREE"] == TREE_MULTI:
+            raise ValueError("`tree` is required when multi-tree support is enabled.")
+        # needed for backwards compatibility!
+        dbmgr = WebDbManager(name=app.config["TREE"], create_if_missing=False)
+        tree = dbmgr.dirname
+    with app.app_context():
+        ctx.obj["db_manager"] = get_db_manager(tree=tree)
+
+
+@grampsdb.command("migrate")
+@click.pass_context
+def migrate_gramps_db(ctx):
+    """Upgrade the Gramps database schema, if required."""
+    dbmgr = ctx.obj["db_manager"]
+    dbmgr.upgrade_if_needed()
+
+
 if __name__ == "__main__":
     LOG.setLevel(logging.INFO)
 
