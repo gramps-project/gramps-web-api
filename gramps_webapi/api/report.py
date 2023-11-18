@@ -21,6 +21,7 @@
 """Functions for running Gramps reports."""
 
 import os
+import sys
 import uuid
 from pathlib import Path
 from typing import Dict, Optional
@@ -28,10 +29,26 @@ from typing import Dict, Optional
 from flask import abort, current_app
 from gramps.cli.plug import CommandLineReport
 from gramps.cli.user import User
+from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
+from gramps.gen.display.name import displayer as name_displayer
 from gramps.gen.filters import reload_custom_filters
 from gramps.gen.plug import BasePluginManager
 from gramps.gen.plug.docgen import PaperStyle
+from gramps.gen.plug.menu import (
+    BooleanOption,
+    DestinationOption,
+    EnumeratedListOption,
+    FamilyOption,
+    MediaOption,
+    NoteOption,
+    NumberOption,
+    Option,
+    PersonListOption,
+    PersonOption,
+    StringOption,
+    TextOption,
+)
 from gramps.gen.plug.report import (
     CATEGORY_BOOK,
     CATEGORY_DRAW,
@@ -45,26 +62,29 @@ from gramps.gen.utils.resourcepath import ResourcePath
 from ..const import MIME_TYPES, REPORT_DEFAULTS, REPORT_FILTERS
 from .util import abort_with_message
 
+_ = glocale.translation.gettext
+
 _EXTENSION_MAP = {".gvpdf": ".pdf", ".gspdf": ".pdf"}
 
 
 def get_report_profile(
-    db_handle: DbReadBase, plugin_manager: BasePluginManager, report_data
+    db_handle: DbReadBase,
+    plugin_manager: BasePluginManager,
+    report_data,
+    include_options_help: bool = True,
 ):
     """Extract and return report attributes and options."""
     module = plugin_manager.load_plugin(report_data)
     option_class = getattr(module, report_data.optionclass)
-    report = CommandLineReport(
-        db_handle, report_data.name, report_data.category, option_class, {}
+    report = ModifiedCommandLineReport(
+        db_handle,
+        report_data.name,
+        report_data.category,
+        option_class,
+        {},
+        include_options_help=include_options_help,
     )
-    options_help = report.options_help
-    if REPORT_FILTERS:
-        for report_type in REPORT_FILTERS:
-            for item in options_help["off"][2]:
-                if item[: len(report_type)] == report_type:
-                    del options_help["off"][2][options_help["off"][2].index(item)]
-                    break
-    return {
+    result = {
         "authors": report_data.authors,
         "authors_email": report_data.authors_email,
         "category": report_data.category,
@@ -72,13 +92,24 @@ def get_report_profile(
         "id": report_data.id,
         "name": report_data.name,
         "options_dict": report.options_dict,
-        "options_help": options_help,
         "report_modes": report_data.report_modes,
         "version": report_data.version,
     }
+    if include_options_help:
+        options_help = report.options_help
+        if REPORT_FILTERS:
+            for report_type in REPORT_FILTERS:
+                for item in options_help["off"][2]:
+                    if item[: len(report_type)] == report_type:
+                        del options_help["off"][2][options_help["off"][2].index(item)]
+                        break
+        result["options_help"] = options_help
+    return result
 
 
-def get_reports(db_handle: DbReadBase, report_id: str = None):
+def get_reports(
+    db_handle: DbReadBase, report_id: str = None, include_options_help: bool = True
+):
     """Extract and return report attributes and options."""
     reload_custom_filters()
     plugin_manager = BasePluginManager.get_instance()
@@ -88,7 +119,12 @@ def get_reports(db_handle: DbReadBase, report_id: str = None):
             continue
         if report_data.category not in REPORT_DEFAULTS:
             continue
-        report = get_report_profile(db_handle, plugin_manager, report_data)
+        report = get_report_profile(
+            db_handle,
+            plugin_manager,
+            report_data,
+            include_options_help=include_options_help,
+        )
         reports.append(report)
     return reports
 
@@ -101,6 +137,124 @@ def check_report_id_exists(report_id: str) -> bool:
         if report_data.id == report_id:
             return True
     return False
+
+
+class ModifiedCommandLineReport(CommandLineReport):
+    """Patched version of gramps.cli.plug.CommandLineReport.
+
+    Avoids calling get_person_from_handle (individual database
+    calls) on every person in the database."""
+
+    def __init__(self, *args, **kwargs):
+        """Initialize report."""
+        self._name_dict = {}
+        self.include_options_help = kwargs.pop("include_options_help", True)
+        super().__init__(*args, **kwargs)
+
+    def _get_name_dict(self):
+        """Get a dictionary with all names in the database and cache it."""
+        if not self._name_dict:
+            self._name_dict = {
+                person.handle: {
+                    "gramps_id": person.gramps_id,
+                    "name": name_displayer.display(person),
+                }
+                for person in self.database.iter_people()
+            }
+        return self._name_dict
+
+    def init_report_options_help(self):
+        """
+        Initialize help for the options that are defined by each report.
+        (And also any docgen options, if defined by the docgen.)
+        """
+        if not self.include_options_help:
+            return
+        if not hasattr(self.option_class, "menu"):
+            return
+        menu = self.option_class.menu
+
+        for name in menu.get_all_option_names():
+            option = menu.get_option_by_name(name)
+            self.options_help[name] = ["", option.get_help()]
+
+            if isinstance(option, PersonOption):
+                name_dict = self._get_name_dict()
+                handles = self.database.get_person_handles(True)
+                id_list = [
+                    f"{name_dict[handle]['gramps_id']}\t{name_dict[handle]['name']}"
+                    for handle in handles
+                ]
+                self.options_help[name].append(id_list)
+            elif isinstance(option, FamilyOption):
+                id_list = []
+                name_dict = self._get_name_dict()
+                for family in self.database.iter_families():
+                    mname = ""
+                    fname = ""
+                    mhandle = family.get_mother_handle()
+                    if mhandle:
+                        mname = name_dict.get(mhandle, {}).get("name", "")
+                    fhandle = family.get_father_handle()
+                    if fhandle:
+                        fname = name_dict.get(fhandle, {}).get("name", "")
+                    # Translators: needed for French, Hebrew and Arabic
+                    text = _(f"{family.gramps_id}:\t{fname}, {mname}")
+                    id_list.append(text)
+                self.options_help[name].append(id_list)
+            elif isinstance(option, NoteOption):
+                id_list = []
+                for note in self.database.iter_notes():
+                    id_list.append(note.get_gramps_id())
+                self.options_help[name].append(id_list)
+            elif isinstance(option, MediaOption):
+                id_list = []
+                for mobject in self.database.iter_media():
+                    id_list.append(mobject.get_gramps_id())
+                self.options_help[name].append(id_list)
+            elif isinstance(option, PersonListOption):
+                self.options_help[name].append("")
+            elif isinstance(option, NumberOption):
+                self.options_help[name].append("A number")
+            elif isinstance(option, BooleanOption):
+                self.options_help[name].append(["False", "True"])
+            elif isinstance(option, DestinationOption):
+                self.options_help[name].append("A file system path")
+            elif isinstance(option, StringOption):
+                self.options_help[name].append("Any text")
+            elif isinstance(option, TextOption):
+                self.options_help[name].append(
+                    "A list of text values. Each entry in the list "
+                    "represents one line of text."
+                )
+            elif isinstance(option, EnumeratedListOption):
+                ilist = []
+                for value, description in option.get_items():
+                    tabs = "\t"
+                    try:
+                        tabs = "\t\t" if len(value) < 10 else "\t"
+                    except TypeError:  # Value is a number, use just one tab.
+                        pass
+                    val = "%s%s%s" % (value, tabs, description)
+                    ilist.append(val)
+                self.options_help[name].append(ilist)
+            elif isinstance(option, Option):
+                self.options_help[name].append(option.get_help())
+            else:
+                print(_("Unknown option: %s") % option, file=sys.stderr)
+                print(
+                    _("   Valid options are:")
+                    + _(", ").join(list(self.options_dict.keys())),  # Arabic OK
+                    file=sys.stderr,
+                )
+                print(
+                    _(
+                        "   Use '%(donottranslate)s' to see description "
+                        "and acceptable values"
+                    )
+                    % {"donottranslate": "show=option"},
+                    file=sys.stderr,
+                )
 
 
 def cl_report_new(
@@ -116,7 +270,9 @@ def cl_report_new(
 
     Derived from gramps.cli.plug.cl_report.
     """
-    clr = CommandLineReport(database, name, category, options_class, options_str_dict)
+    clr = ModifiedCommandLineReport(
+        database, name, category, options_class, options_str_dict
+    )
     if category in [CATEGORY_TEXT, CATEGORY_DRAW, CATEGORY_BOOK]:
         if clr.doc_options:
             clr.option_class.handler.doc = clr.format(
