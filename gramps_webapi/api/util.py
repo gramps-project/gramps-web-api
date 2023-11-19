@@ -37,17 +37,17 @@ from gramps.gen.config import config
 from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.db.dbconst import (
+    CITATION_KEY,
     DBBACKEND,
-    KEY_TO_NAME_MAP,
-    PERSON_KEY,
-    FAMILY_KEY,
-    SOURCE_KEY,
     EVENT_KEY,
+    FAMILY_KEY,
+    KEY_TO_NAME_MAP,
     MEDIA_KEY,
+    NOTE_KEY,
+    PERSON_KEY,
     PLACE_KEY,
     REPOSITORY_KEY,
-    NOTE_KEY,
-    CITATION_KEY,
+    SOURCE_KEY,
 )
 from gramps.gen.dbstate import DbState
 from gramps.gen.errors import HandleError
@@ -254,6 +254,7 @@ def get_db_manager(tree: Optional[str]) -> WebDbManager:
         username=current_app.config["POSTGRES_USER"],
         password=current_app.config["POSTGRES_PASSWORD"],
         create_if_missing=False,
+        ignore_lock=current_app.config["IGNORE_DB_LOCK"],
     )
 
 
@@ -472,7 +473,11 @@ def get_tree_id(guid: str) -> str:
             # multi-tree support enabled but user has no tree ID: forbidden!
             abort_with_message(403, "Forbidden")
         # needed for backwards compatibility: single-tree mode but user without tree ID
-        dbmgr = WebDbManager(name=current_app.config["TREE"], create_if_missing=False)
+        dbmgr = WebDbManager(
+            name=current_app.config["TREE"],
+            create_if_missing=False,
+            ignore_lock=current_app.config["IGNORE_DB_LOCK"],
+        )
         tree_id = dbmgr.dirname
     return tree_id
 
