@@ -520,7 +520,7 @@ class TestPeople(unittest.TestCase):
                     "age": "unknown",
                     "citations": 0,
                     "confidence": 0,
-                    "date": "after 1760-02-00",
+                    "date": "after 1760-02",
                     "place": "Plattsburgh, Clinton, NY, USA",
                     "summary": "Death - Aguilar, Eleanor",
                     "type": "Death",
@@ -540,7 +540,7 @@ class TestPeople(unittest.TestCase):
                         "age": "unknown",
                         "citations": 0,
                         "confidence": 0,
-                        "date": "after 1760-02-00",
+                        "date": "after 1760-02",
                         "place": "Plattsburgh, Clinton, NY, USA",
                         "role": "Primary",
                         "summary": "Death - Aguilar, Eleanor",
@@ -636,7 +636,7 @@ class TestPeople(unittest.TestCase):
                                 "age": "unknown",
                                 "citations": 0,
                                 "confidence": 0,
-                                "date": "after 1760-02-00",
+                                "date": "after 1760-02",
                                 "place": "Plattsburgh, Clinton, NY, USA",
                                 "summary": "Death - Aguilar, Eleanor",
                                 "type": "Death",
@@ -670,7 +670,7 @@ class TestPeople(unittest.TestCase):
                                 "age": "unknown",
                                 "citations": 0,
                                 "confidence": 0,
-                                "date": "after 1760-02-00",
+                                "date": "after 1760-02",
                                 "place": "Plattsburgh, Clinton, NY, USA",
                                 "summary": "Death - Aguilar, Eleanor",
                                 "type": "Death",
@@ -697,7 +697,7 @@ class TestPeople(unittest.TestCase):
                             "age": "unknown",
                             "citations": 0,
                             "confidence": 0,
-                            "date": "before 1745-02-00",
+                            "date": "before 1745-02",
                             "place": "Wooster, OH, USA",
                             "summary": "Death - Aguilar, John",
                             "type": "Death",
@@ -724,7 +724,7 @@ class TestPeople(unittest.TestCase):
                                         "type": "Birth",
                                     },
                                     "death": {
-                                        "date": "after 1760-02-00",
+                                        "date": "after 1760-02",
                                         "place": "Plattsburgh, Clinton, NY, USA",
                                         "summary": "Death - Aguilar, Eleanor",
                                         "type": "Death",
@@ -745,7 +745,7 @@ class TestPeople(unittest.TestCase):
                                     "type": "Birth",
                                 },
                                 "death": {
-                                    "date": "before 1745-02-00",
+                                    "date": "before 1745-02",
                                     "place": "Wooster, OH, USA",
                                     "summary": "Death - Aguilar, John",
                                     "type": "Death",
@@ -817,7 +817,7 @@ class TestPeople(unittest.TestCase):
                                     "type": "Birth",
                                 },
                                 "death": {
-                                    "date": "after 1760-02-00",
+                                    "date": "after 1760-02",
                                     "place": "Plattsburgh, Clinton, NY, USA",
                                     "summary": "Death - Aguilar, Eleanor",
                                     "type": "Death",
@@ -842,7 +842,7 @@ class TestPeople(unittest.TestCase):
         self.assertEqual(rv[0]["profile"]["birth"]["age"], "0 Tage")
         self.assertEqual(rv[0]["profile"]["birth"]["type"], "Geburt")
         self.assertEqual(rv[0]["profile"]["families"][0]["relationship"], "Verheiratet")
-        self.assertEqual(rv[0]["profile"]["events"][2]["type"], "Hochzeit")
+        self.assertEqual(rv[0]["profile"]["events"][2]["type"], "Heirat")
 
     def test_get_people_parameter_backlinks_validate_semantics(self):
         """Test invalid backlinks parameter and values."""
