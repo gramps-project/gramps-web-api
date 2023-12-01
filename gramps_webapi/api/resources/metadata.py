@@ -137,4 +137,5 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 result["database"]["module"] = data[item]
             elif item == db_schema_key:
                 result["database"]["schema"] = data[item]
+        result["database"]["actual_schema"] = db_handle.get_schema_version()
         return self.response(200, result)

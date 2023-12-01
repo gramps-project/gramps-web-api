@@ -29,6 +29,7 @@ from gramps.gen.config import config
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.const import PLUGINS_DIR, USER_PLUGINS
 from gramps.gen.db.dbconst import DBBACKEND, DBLOCKFN, DBMODE_R, DBMODE_W
+from gramps.gen.db.exceptions import DbUpgradeRequiredError
 from gramps.gen.db.utils import make_database
 from gramps.gen.dbstate import DbState
 from gramps.gen.display.name import displayer as name_displayer
@@ -114,6 +115,11 @@ class WebDbSessionManager:
         )
         # set readonly correctly again
         self.dbstate.db.readonly = mode == DBMODE_R
+
+        # but do check the necessity of schema upgrade!
+        dbversion = self.dbstate.db.get_schema_version()
+        if not self.dbstate.db.readonly and dbversion < self.dbstate.db.VERSION[0]:
+            raise DbUpgradeRequiredError(dbversion, self.dbstate.db.VERSION[0])
 
     def open_activate(
         self,

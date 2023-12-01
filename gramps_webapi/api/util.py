@@ -49,6 +49,7 @@ from gramps.gen.db.dbconst import (
     REPOSITORY_KEY,
     SOURCE_KEY,
 )
+from gramps.gen.db.exceptions import DbUpgradeRequiredError
 from gramps.gen.dbstate import DbState
 from gramps.gen.errors import HandleError
 from gramps.gen.proxy import PrivateProxyDb
@@ -279,7 +280,13 @@ def get_db_outside_request(tree: str, view_private: bool, readonly: bool) -> DbR
     If `readonly` is false, locks the database during the request.
     """
     dbmgr = get_db_manager(tree)
-    dbstate = dbmgr.get_db(readonly=readonly)
+    try:
+        dbstate = dbmgr.get_db(readonly=readonly)
+    except DbUpgradeRequiredError:
+        abort_with_message(
+            HTTPStatus.INTERNAL_SERVER_ERROR,
+            "The Gramps database needs a schema upgrade",
+        )
     if not view_private:
         if not readonly:
             # requesting write access on a private proxy DB is impossible & forbidden!
