@@ -6894,6 +6894,8 @@ paths:
             $ref: "#/definitions/Tree"
         401:
           description: "Unauthorized: Missing authorization header."
+        403:
+          description: "Unauthorized: insufficient permissions."
         404:
           description: "Not found: tree does not exist."
         422:

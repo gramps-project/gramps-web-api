@@ -22,7 +22,7 @@
 import os
 import re
 import uuid
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from flask import abort, current_app
 from gramps.gen.config import config
@@ -36,11 +36,12 @@ from ...auth.const import (
     PERM_EDIT_OTHER_TREE,
     PERM_EDIT_TREE,
     PERM_EDIT_TREE_QUOTA,
+    PERM_VIEW_OTHER_TREE,
 )
 from ...const import TREE_MULTI
 from ...dbmanager import WebDbManager
-from ..auth import require_permissions
-from ..util import abort_with_message, get_tree_from_jwt, use_args
+from ..auth import has_permissions, require_permissions
+from ..util import abort_with_message, get_tree_from_jwt, use_args, list_trees
 from . import ProtectedResource
 
 # legal tree dirnames
@@ -79,14 +80,23 @@ def validate_tree_id(tree_id: str) -> None:
         abort_with_message(422, "Invalid tree ID")
 
 
+def get_tree_ids() -> List[str]:
+    """Get a list of all existing tree IDs."""
+    tree_details = list_trees()
+    return [os.path.basename(details[1]) for details in tree_details]
+
+
 class TreesResource(ProtectedResource):
     """Resource for getting info about trees."""
 
     def get(self):
         """Get info about all trees."""
-        user_tree_id = get_tree_from_jwt()
-        # only allowed to see details about our own tree
-        tree_ids = [user_tree_id]
+        if has_permissions([PERM_VIEW_OTHER_TREE]):
+            tree_ids = get_tree_ids()
+        else:
+            # only allowed to see details about our own tree
+            user_tree_id = get_tree_from_jwt()
+            tree_ids = [user_tree_id]
         return [get_tree_details(tree_id) for tree_id in tree_ids]
 
     @use_args(
@@ -129,10 +139,11 @@ class TreeResource(ProtectedResource):
             tree_id = get_tree_from_jwt()
         else:
             validate_tree_id(tree_id)
-            user_tree_id = get_tree_from_jwt()
-            if tree_id != user_tree_id:
-                # only allowed to see details about our own tree
-                abort_with_message(403, "Not authorized to view other trees")
+            if not has_permissions([PERM_VIEW_OTHER_TREE]):
+                user_tree_id = get_tree_from_jwt()
+                if tree_id != user_tree_id:
+                    # only allowed to see details about our own tree
+                    abort_with_message(403, "Not authorized to view other trees")
         return get_tree_details(tree_id)
 
     @use_args(
