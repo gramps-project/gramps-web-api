@@ -95,7 +95,7 @@ class TestTrees(unittest.TestCase):
         assert rv.status_code == 200
         trees = rv.json
         # owner can see only one tree
-        assert trees == {"id": self.tree, "name": self.name}
+        assert trees == [{"id": self.tree, "name": self.name}]
 
     def test_get_tree(self):
         rv = self.client.post(
