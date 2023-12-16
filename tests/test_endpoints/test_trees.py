@@ -69,7 +69,7 @@ class TestTrees(unittest.TestCase):
         self.ctx.pop()
         self.dbman.remove_database(self.name)
 
-    def test_list_trees(self):
+    def test_list_trees_admin(self):
         rv = self.client.post(
             BASE_URL + "/token/", json={"username": "admin", "password": "123"}
         )
@@ -78,21 +78,49 @@ class TestTrees(unittest.TestCase):
             BASE_URL + "/trees/", headers={"Authorization": f"Bearer {token}"}
         )
         assert rv.status_code == 200
-        assert rv.json == [{"name": self.name, "id": self.tree}]
+        trees = rv.json
+        trees_dict = {tree["id"]: tree["name"] for tree in trees}
+        assert trees_dict[self.tree] == self.name
+        # admin can see more trees
+        assert len(trees) > 1
+
+    def test_list_trees_owner(self):
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        token = rv.json["access_token"]
+        rv = self.client.get(
+            BASE_URL + "/trees/", headers={"Authorization": f"Bearer {token}"}
+        )
+        assert rv.status_code == 200
+        trees = rv.json
+        # owner can see only one tree
+        assert trees == [{"id": self.tree, "name": self.name}]
 
     def test_get_tree(self):
         rv = self.client.post(
             BASE_URL + "/token/", json={"username": "admin", "password": "123"}
         )
         token = rv.json["access_token"]
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        token_owner = rv.json["access_token"]
         rv = self.client.get(
             BASE_URL + "/trees/..", headers={"Authorization": f"Bearer {token}"}
         )
         assert rv.status_code == 422
+        # owner should get a 403 for non existing tree - not authorized
+        rv = self.client.get(
+            BASE_URL + "/trees/notexist",
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 403
+        # admin should get 404 thouogh
         rv = self.client.get(
             BASE_URL + "/trees/notexist", headers={"Authorization": f"Bearer {token}"}
         )
-        assert rv.status_code == 403
+        assert rv.status_code == 404
         rv = self.client.get(
             BASE_URL + f"/trees/{self.tree}",
             headers={"Authorization": f"Bearer {token}"},
