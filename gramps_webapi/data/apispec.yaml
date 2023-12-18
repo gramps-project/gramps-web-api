@@ -4964,6 +4964,67 @@ paths:
           description: "Not Found: Bookmark type not found."
 
 
+  /bookmarks/{namespace}/{handle}:
+    put:
+      tags:
+      - bookmarks
+      summary: "Add a bookmark to a given category."
+      operationId: addBookmark
+      security:
+        - Bearer: []
+      parameters:
+      - name: namespace
+        in: path
+        required: true
+        type: string
+        description: "The namespace or category for the bookmarks."
+      - name: handle
+        in: path
+        required: true
+        type: string
+        description: "The object's handle."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              type: string
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Bookmark type or handle not found."
+    delete:
+      tags:
+      - bookmarks
+      summary: "Delte a bookmark from a given category."
+      operationId: deleteBookmark
+      security:
+        - Bearer: []
+      parameters:
+      - name: namespace
+        in: path
+        required: true
+        type: string
+        description: "The namespace or category for the bookmarks."
+      - name: handle
+        in: path
+        required: true
+        type: string
+        description: "The object's handle."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              type: string
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Not Found: Bookmark type not found or bookmark does not exist."
+
+
 ##############################################################################
 # Endpoint - Filters
 ##############################################################################

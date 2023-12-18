@@ -29,7 +29,11 @@ from .auth import jwt_required
 from .cache import thumbnail_cache
 from .media import get_media_handler
 from .resources.base import Resource
-from .resources.bookmarks import BookmarkResource, BookmarksResource
+from .resources.bookmarks import (
+    BookmarkResource,
+    BookmarksResource,
+    BookmarkEditResource,
+)
 from .resources.citations import CitationResource, CitationsResource
 from .resources.config import ConfigResource, ConfigsResource
 from .resources.dna import PersonDnaMatchesResource
@@ -202,6 +206,11 @@ register_endpt(NameGroupsResource, "/name-groups/", "name-groups")
 # Bookmarks
 register_endpt(BookmarkResource, "/bookmarks/<string:namespace>", "bookmark")
 register_endpt(BookmarksResource, "/bookmarks/", "bookmarks")
+register_endpt(
+    BookmarkEditResource,
+    "/bookmarks/<string:namespace>/<string:handle>",
+    "bookmark_edit",
+)
 # Filters
 register_endpt(FilterResource, "/filters/<string:namespace>/<string:name>", "filter")
 register_endpt(FiltersResource, "/filters/<string:namespace>", "filters-namespace")

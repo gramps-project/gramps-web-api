@@ -21,7 +21,7 @@
 
 import unittest
 
-from . import BASE_URL, get_test_client
+from . import BASE_URL, get_test_client, ROLE_MEMBER
 from .checks import (
     check_conforms_to_schema,
     check_invalid_semantics,
@@ -29,6 +29,7 @@ from .checks import (
     check_resource_missing,
     check_success,
 )
+from .util import fetch_header
 
 TEST_URL = BASE_URL + "/bookmarks/"
 
@@ -78,3 +79,62 @@ class TestBookmarksNameSpace(unittest.TestCase):
     def test_get_bookmarks_namespace_validate_semantics(self):
         """Test invalid parameters and values."""
         check_invalid_semantics(self, TEST_URL + "families?query")
+
+    def test_add_and_remove_bookmarks(self):
+        for namespace in [
+            "citations",
+            "events",
+            "families",
+            "media",
+            "notes",
+            "people",
+            "places",
+            "repositories",
+            "sources",
+        ]:
+            # fetch bookmarks
+            rv = check_success(self, f"{TEST_URL}{namespace}")
+            original = rv
+
+            # find an object that is not bookmarked
+            rv = check_success(self, f"{BASE_URL}/{namespace}/")
+            for obj in rv:
+                if obj["handle"] not in original:
+                    new_handle = obj["handle"]
+                    break
+
+            # add bookmark
+            header = fetch_header(self.client)
+            header_member = fetch_header(self.client, role=ROLE_MEMBER)
+
+            # this shouldn't work
+            rv = self.client.put(
+                f"{TEST_URL}{namespace}/{new_handle}", headers=header_member
+            )
+            assert rv.status_code == 403
+            rv = check_success(self, f"{TEST_URL}{namespace}")
+            assert rv == original
+
+            # this should work
+            rv = self.client.put(f"{TEST_URL}{namespace}/{new_handle}", headers=header)
+            assert rv.status_code == 200
+            rv = check_success(self, f"{TEST_URL}{namespace}")
+            assert rv == original + [new_handle]
+
+            # delete again
+
+            # this shouldn't work
+            rv = self.client.delete(
+                f"{TEST_URL}{namespace}/{new_handle}", headers=header_member
+            )
+            assert rv.status_code == 403
+            rv = check_success(self, f"{TEST_URL}{namespace}")
+            assert rv == original + [new_handle]
+
+            # this should work
+            rv = self.client.delete(
+                f"{TEST_URL}{namespace}/{new_handle}", headers=header
+            )
+            assert rv.status_code == 200
+            rv = check_success(self, f"{TEST_URL}{namespace}")
+            assert rv == original
