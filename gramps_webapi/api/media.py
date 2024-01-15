@@ -273,6 +273,12 @@ class MediaHandlerS3(MediaHandlerBase):
             prefix=self.prefix,
             endpoint_url=self.endpoint_url,
         )
+        # remove prefix if needed
+        if self.prefix:
+            keys_size = {
+                removeprefix(key, self.prefix).lstrip("/"): size
+                for key, size in keys_size.items()
+            }
         return sum(keys_size.get(key, 0) for key in keys)
 
     def create_file_archive(
