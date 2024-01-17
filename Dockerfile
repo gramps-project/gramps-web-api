@@ -47,6 +47,8 @@ RUN wget https://github.com/gramps-project/addons/archive/refs/heads/master.zip 
     tar -xvz -C /root/.gramps/gramps$GRAMPS_VERSION/plugins \
     && unzip -p master.zip addons-master/gramps$GRAMPS_VERSION/download/SharedPostgreSQL.addon.tgz | \
     tar -xvz -C /root/.gramps/gramps$GRAMPS_VERSION/plugins \
+    && unzip -p master.zip addons-master/gramps$GRAMPS_VERSION/download/FilterRules.addon.tgz | \
+    tar -xvz -C /root/.gramps/gramps$GRAMPS_VERSION/plugins \
     && rm master.zip
 
 # install gunicorn
