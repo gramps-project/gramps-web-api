@@ -607,6 +607,14 @@ def get_media_profile_for_handle(
     return get_media_profile_for_object(db_handle, obj, args, locale=locale)
 
 
+def catch_handle_error(method, handle):
+    """Execute method on handle and return an empty dict on HandleError."""
+    try:
+        return method(handle)
+    except HandleError:
+        return {}
+
+
 def get_extended_attributes(
     db_handle: DbReadBase, obj: GrampsObject, args: Optional[Dict] = None
 ) -> Dict:
@@ -620,50 +628,55 @@ def get_extended_attributes(
         obj, "child_ref_list"
     ):
         result["children"] = [
-            db_handle.get_person_from_handle(child_ref.ref)
+            catch_handle_error(db_handle.get_person_from_handle, child_ref.ref)
             for child_ref in obj.child_ref_list
         ]
     if (do_all or "citation_list" in args["extend"]) and hasattr(obj, "citation_list"):
         result["citations"] = [
-            db_handle.get_citation_from_handle(handle) for handle in obj.citation_list
+            catch_handle_error(db_handle.get_citation_from_handle, handle)
+            for handle in obj.citation_list
         ]
     if (do_all or "event_ref_list" in args["extend"]) and hasattr(
         obj, "event_ref_list"
     ):
         result["events"] = [
-            db_handle.get_event_from_handle(event_ref.ref)
+            catch_handle_error(db_handle.get_event_from_handle, event_ref.ref)
             for event_ref in obj.event_ref_list
         ]
     if (do_all or "media_list" in args["extend"]) and hasattr(obj, "media_list"):
         result["media"] = [
-            db_handle.get_media_from_handle(media_ref.ref)
+            catch_handle_error(db_handle.get_media_from_handle, media_ref.ref)
             for media_ref in obj.media_list
         ]
     if (do_all or "note_list" in args["extend"]) and hasattr(obj, "note_list"):
         result["notes"] = [
-            db_handle.get_note_from_handle(handle) for handle in obj.note_list
+            catch_handle_error(db_handle.get_note_from_handle, handle)
+            for handle in obj.note_list
         ]
     if (do_all or "person_ref_list" in args["extend"]) and hasattr(
         obj, "person_ref_list"
     ):
         result["people"] = [
-            db_handle.get_person_from_handle(person_ref.ref)
+            catch_handle_error(db_handle.get_person_from_handle, person_ref.ref)
             for person_ref in obj.person_ref_list
         ]
     if (do_all or "reporef_list" in args["extend"]) and hasattr(obj, "reporef_list"):
         result["repositories"] = [
-            db_handle.get_repository_from_handle(repo_ref.ref)
+            catch_handle_error(db_handle.get_repository_from_handle, repo_ref.ref)
             for repo_ref in obj.reporef_list
         ]
     if (do_all or "tag_list" in args["extend"]) and hasattr(obj, "tag_list"):
         result["tags"] = [
-            db_handle.get_tag_from_handle(handle) for handle in obj.tag_list
+            catch_handle_error(db_handle.get_tag_from_handle, handle)
+            for handle in obj.tag_list
         ]
     if (do_all or "backlinks" in args["extend"]) and hasattr(obj, "backlinks"):
         result["backlinks"] = {}
         for class_name, backlinks in obj.backlinks.items():
             result["backlinks"][class_name] = [
-                db_handle.method("get_%s_from_handle", class_name.upper())(handle)
+                catch_handle_error(
+                    db_handle.method("get_%s_from_handle", class_name.upper()), handle
+                )
                 for handle in backlinks
             ]
     return result
