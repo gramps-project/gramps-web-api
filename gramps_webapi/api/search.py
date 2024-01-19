@@ -57,7 +57,7 @@ def object_to_strings(obj) -> Tuple[str, str]:
     text_data_child_list = obj.get_text_data_child_list()
     if isinstance(obj, Place) and obj.name not in text_data_child_list:
         # fix necessary for Gramps 5.1
-        # (see https://github.com/gramps-project/gramps-webapi/issues/245)
+        # (see https://github.com/gramps-project/gramps-web-api/issues/245)
         text_data_child_list.append(obj.name)
     for child_obj in text_data_child_list:
         if hasattr(child_obj, "get_text_data_list"):
