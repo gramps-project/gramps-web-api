@@ -1,25 +1,17 @@
 # Gramps Web API
 
-RESTful web API for [Gramps](https://gramps-project.org).
+This is the repository for **Gramps Web API**, a Python REST API for [Gramps](https://gramps-project.org).
 
-**Users of *Gramps Web*, please see the [Gramps Web documentation site](https://www.grampsweb.org/) for details on setup, usage, where to get help, and how to contribute.**
+It allows to query and manipulate a [Gramps](https://gramps-project.org) family tree database via the web.
 
-## Description
+Gramps Web API is the backend of [Gramps Web](https://www.grampsweb.org/), a genealogy web app based on Gramps, but can also be used as backend for other tools.
 
-This project provides a RESTful web API to query and manipulate a [Gramps](https://gramps-project.org) family tree database. It can serve e.g. as backend for a web app. Gramps Web API is the backend powering [Gramps Web](https://www.grampsweb.org/).
+## More information
 
-## API documentation
+- API documentation for Gramps Web API: https://gramps-project.github.io/gramps-web-api/
+- Developer documentation for Gramps Web API: https://www.grampsweb.org/dev-backend/
+- Documentation for Gramps Web: https://www.grampsweb.org
 
-The documentation of the current state of the API can be browsed with Swagger:
+## Related projects
 
-[Gramps API docs](https://gramps-project.github.io/gramps-web-api/)
-
-The project is still under development, so API changes should be expected.
-
-## Developer documentation
-
-The project's development documentation is hosted at https://www.grampsweb.org/dev-backend/.
-
-## Demo Server
-
-See the documentation site for a link to the demo server.
+- Gramps Web frontend repository: https://github.com/gramps-project/gramps-web
