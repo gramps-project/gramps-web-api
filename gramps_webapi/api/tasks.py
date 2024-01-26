@@ -32,8 +32,9 @@ from ..auth import get_owner_emails
 from .emails import email_confirm_email, email_new_user, email_reset_pw
 from .export import prepare_options, run_export
 from .media import get_media_handler
+from .media_importer import MediaImporter
 from .report import run_report
-from .resources.util import dry_run_import, run_import, run_import_media_archive
+from .resources.util import dry_run_import, run_import
 from .util import (
     check_quota_people,
     get_config,
@@ -209,12 +210,13 @@ def export_media(tree: str, view_private: bool) -> Dict[str, Union[str, int]]:
 def import_media_archive(tree: str, file_name: str, delete: bool = True):
     """Import a media archive."""
     db_handle = get_db_outside_request(tree=tree, view_private=True, readonly=True)
-    result = run_import_media_archive(
+    importer = MediaImporter(
         tree=tree,
         db_handle=db_handle,
         file_name=file_name,
         delete=delete,
     )
+    result = importer.run()
     return result
 
 
