@@ -41,7 +41,7 @@ from ...auth.const import (
 from ...const import TREE_MULTI
 from ...dbmanager import WebDbManager
 from ..auth import has_permissions, require_permissions
-from ..util import abort_with_message, get_tree_from_jwt, use_args, list_trees
+from ..util import abort_with_message, get_tree_from_jwt, list_trees, use_args
 from . import ProtectedResource
 
 # legal tree dirnames
@@ -119,6 +119,7 @@ class TreesResource(ProtectedResource):
             name=args["name"],
             create_if_missing=True,
             create_backend=backend,
+            ignore_lock=current_app.config["IGNORE_DB_LOCK"],
         )
         if args.get("quota_media") or args.get("quota_people"):
             set_tree_quota(
