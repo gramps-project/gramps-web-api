@@ -29,6 +29,7 @@ from celery.result import AsyncResult
 from flask import current_app
 
 from ..auth import get_owner_emails
+from .check import check_database
 from .emails import email_confirm_email, email_new_user, email_reset_pw
 from .export import prepare_options, run_export
 from .media import get_media_handler
@@ -230,3 +231,10 @@ def media_ocr(
         handle, db_handle=db_handle
     )
     return handler.get_ocr(lang=lang, output_format=output_format)
+
+
+@shared_task()
+def check_repair_database(tree: str):
+    """Check and repair a Gramps database (tree)"""
+    db_handle = get_db_outside_request(tree=tree, view_private=True, readonly=False)
+    return check_database(db_handle)

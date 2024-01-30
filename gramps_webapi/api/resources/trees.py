@@ -24,7 +24,7 @@ import re
 import uuid
 from typing import Dict, List, Optional
 
-from flask import abort, current_app
+from flask import abort, current_app, jsonify
 from gramps.gen.config import config
 from webargs import fields
 from werkzeug.security import safe_join
@@ -36,11 +36,13 @@ from ...auth.const import (
     PERM_EDIT_OTHER_TREE,
     PERM_EDIT_TREE,
     PERM_EDIT_TREE_QUOTA,
+    PERM_REPAIR_TREE,
     PERM_VIEW_OTHER_TREE,
 )
 from ...const import TREE_MULTI
 from ...dbmanager import WebDbManager
 from ..auth import has_permissions, require_permissions
+from ..tasks import AsyncResult, check_repair_database, make_task_response, run_task
 from ..util import abort_with_message, get_tree_from_jwt, list_trees, use_args
 from . import ProtectedResource
 
@@ -224,3 +226,26 @@ class EnableTreeResource(DisableEnableTreeResource):
     def post(self, tree_id: str):
         """Disable a tree."""
         return self._post_disable_enable_tree(tree_id=tree_id, disabled=False)
+
+
+class CheckTreeResource(ProtectedResource):
+    """Resource for checking & repairing a Gramps database."""
+
+    def post(self, tree_id: str):
+        """Check & repair a Gramps database (tree)."""
+        require_permissions([PERM_REPAIR_TREE])
+        user_tree_id = get_tree_from_jwt()
+        if tree_id == "-":
+            # own tree
+            tree_id = user_tree_id
+        else:
+            validate_tree_id(tree_id)
+            if tree_id != user_tree_id:
+                abort_with_message(403, "Not allowed to repair other trees")
+        task = run_task(
+            check_repair_database,
+            tree=tree_id,
+        )
+        if isinstance(task, AsyncResult):
+            return make_task_response(task)
+        return jsonify(task), 201

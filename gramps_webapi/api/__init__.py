@@ -30,9 +30,9 @@ from .cache import thumbnail_cache
 from .media import get_media_handler
 from .resources.base import Resource
 from .resources.bookmarks import (
+    BookmarkEditResource,
     BookmarkResource,
     BookmarksResource,
-    BookmarkEditResource,
 )
 from .resources.citations import CitationResource, CitationsResource
 from .resources.config import ConfigResource, ConfigsResource
@@ -93,6 +93,7 @@ from .resources.token import (
 from .resources.transactions import TransactionsResource
 from .resources.translations import TranslationResource, TranslationsResource
 from .resources.trees import (
+    CheckTreeResource,
     DisableTreeResource,
     EnableTreeResource,
     TreeResource,
@@ -186,6 +187,7 @@ register_endpt(TreeResource, "/trees/<string:tree_id>", "tree")
 register_endpt(TreesResource, "/trees/", "trees")
 register_endpt(DisableTreeResource, "/trees/<string:tree_id>/disable", "disable_tree")
 register_endpt(EnableTreeResource, "/trees/<string:tree_id>/enable", "enable_tree")
+register_endpt(CheckTreeResource, "/trees/<string:tree_id>/repair", "repair_tree")
 # Types
 register_endpt(CustomTypeResource, "/types/custom/<string:datatype>", "custom-type")
 register_endpt(CustomTypesResource, "/types/custom/", "custom-types")
