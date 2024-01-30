@@ -216,7 +216,7 @@ def import_media_archive(tree: str, file_name: str, delete: bool = True):
         file_name=file_name,
         delete=delete,
     )
-    result = importer.run()
+    result = importer()
     return result
 
 
