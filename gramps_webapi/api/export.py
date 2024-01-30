@@ -55,7 +55,7 @@ LIVING_FILTERS = {
     "ExcludeAll": LivingProxyDb.MODE_EXCLUDE_ALL,
 }
 
-mimetypes.init()
+# mimetypes.init()
 
 
 # ExportOptions derived from WriterOptionBox, review of the database
