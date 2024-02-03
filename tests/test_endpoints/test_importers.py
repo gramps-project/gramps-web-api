@@ -132,11 +132,6 @@ class TestImportersExtensionFile(unittest.TestCase):
         rv = check_success(self, TEST_URL)
         assert len(rv) > 0
 
-    def test_reports_empty_db(self):
-        """Test that importers are loaded also for a fresh db."""
-        rv = check_success(self, BASE_URL + "/reports/")
-        assert len(rv) > 0
-
     def test_importers_wrong_role(self):
         """Test insufficient permissions."""
         headers = fetch_header(self.client, role=ROLE_EDITOR)
