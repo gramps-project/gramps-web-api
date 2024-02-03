@@ -31,7 +31,7 @@ from sqlalchemy.exc import IntegrityError, StatementError
 from sqlalchemy.sql.functions import coalesce
 
 from ..const import DB_CONFIG_ALLOWED_KEYS
-from .const import PERMISSIONS, ROLE_OWNER
+from .const import PERMISSIONS, ROLE_ADMIN, ROLE_OWNER
 from .passwords import hash_password, verify_password
 from .sql_guid import GUID
 
@@ -239,11 +239,18 @@ def get_permissions(username: str) -> Set[str]:
     return PERMISSIONS[user.role]
 
 
-def get_owner_emails(tree: str) -> List[str]:
-    """Get e-mail addresses of all tree owners."""
+def get_owner_emails(tree: str, include_admins: bool = False) -> List[str]:
+    """Get e-mail addresses of all tree owners (and optionally include site admins)."""
     query = user_db.session.query(User)  # pylint: disable=no-member
-    owners = query.filter_by(tree=tree, role=ROLE_OWNER).all()
-    return [user.email for user in owners if user.email]
+    if include_admins:
+        users = (
+            query.filter_by(tree=tree)
+            .filter(sa.or_(User.role == ROLE_OWNER, User.role == ROLE_ADMIN))
+            .all()
+        )
+    else:
+        users = query.filter_by(tree=tree, role=ROLE_OWNER).all()
+    return [user.email for user in users if user.email]
 
 
 def get_number_users(

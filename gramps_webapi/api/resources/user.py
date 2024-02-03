@@ -558,12 +558,15 @@ class UserConfirmEmailResource(LimitedScopeProtectedResource):
             # otherwise it has been confirmed already
             modify_user(name=username, role=ROLE_DISABLED)
             tree = get_tree_from_jwt()
+            is_multi = current_app.config["TREE"] == TREE_MULTI
             run_task(
                 send_email_new_user,
                 username=username,
                 fullname=current_details.get("full_name", ""),
                 email=claims["email"],
                 tree=tree,
+                # for single-tree setups, send e-mail also to admins
+                include_admins=not is_multi,
             )
         title = _("E-mail address confirmation")
         message = _("Thank you for confirming your e-mail address.")
