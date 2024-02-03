@@ -32,6 +32,7 @@ from gramps.cli.user import User
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.display.name import displayer as name_displayer
+from gramps.gen.errors import HandleError
 from gramps.gen.filters import reload_custom_filters
 from gramps.gen.plug import BasePluginManager
 from gramps.gen.plug.docgen import PaperStyle
@@ -76,14 +77,21 @@ def get_report_profile(
     """Extract and return report attributes and options."""
     module = plugin_manager.load_plugin(report_data)
     option_class = getattr(module, report_data.optionclass)
-    report = ModifiedCommandLineReport(
-        db_handle,
-        report_data.name,
-        report_data.category,
-        option_class,
-        {},
-        include_options_help=include_options_help,
-    )
+    try:
+        report = ModifiedCommandLineReport(
+            db_handle,
+            report_data.name,
+            report_data.category,
+            option_class,
+            {},
+            include_options_help=include_options_help,
+        )
+        options_dict = report.options_dict
+    except HandleError:
+        # HandleError can happen in particular on an empty database
+        # when there is no person yet
+        report = None
+        options_dict = {}
     result = {
         "authors": report_data.authors,
         "authors_email": report_data.authors_email,
@@ -91,11 +99,11 @@ def get_report_profile(
         "description": report_data.description,
         "id": report_data.id,
         "name": report_data.name,
-        "options_dict": report.options_dict,
+        "options_dict": options_dict,
         "report_modes": report_data.report_modes,
         "version": report_data.version,
     }
-    if include_options_help:
+    if include_options_help and report is not None:
         options_help = report.options_help
         if REPORT_FILTERS:
             for report_type in REPORT_FILTERS:
