@@ -22,8 +22,6 @@
 
 import unittest
 
-from gramps.gen.utils.config import config
-
 from . import BASE_URL, get_test_client
 from .checks import (
     check_conforms_to_schema,
@@ -47,9 +45,6 @@ class TestTimelinesPeople(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Test class setup."""
-
-        config.set("preferences.date-format", 0)
-
         cls.client = get_test_client()
 
     def test_get_timelines_people_requires_token(self):
