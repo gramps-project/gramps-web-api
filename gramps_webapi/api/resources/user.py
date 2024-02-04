@@ -21,7 +21,7 @@
 
 import datetime
 from gettext import gettext as _
-from typing import Tuple
+from typing import Optional, Tuple
 
 from flask import abort, current_app, jsonify, render_template, request
 from flask_jwt_extended import create_access_token, get_jwt, get_jwt_identity
@@ -296,6 +296,22 @@ class UserResource(UserChangeBase):
 class UserRegisterResource(Resource):
     """Resource for registering a new user."""
 
+    def _is_disabled(self, tree: Optional[str]) -> bool:
+        """Check if the registration is disabled."""
+        if current_app.config["REGISTRATION_DISABLED"]:
+            return True
+        # check if there are tree owners or, in a single-tree setup,
+        # tree admins
+        if current_app.config["TREE"] == TREE_MULTI:
+            roles = (ROLE_OWNER,)
+        else:
+            roles = (ROLE_OWNER, ROLE_ADMIN)
+        if get_number_users(tree=tree, roles=roles) == 0:
+            # no users authorized to enable new accounts:
+            # registration disabled
+            return True
+        return False
+
     @limiter.limit("1/second")
     @use_args(
         {
@@ -315,7 +331,7 @@ class UserRegisterResource(Resource):
             # if multi-tree is enabled, tree is required
             abort_with_message(422, "tree is required")
         # do not allow registration if no tree owner account exists!
-        if get_number_users(tree=args.get("tree"), roles=(ROLE_OWNER,)) == 0:
+        if self._is_disabled(tree=args.get("tree")):
             abort_with_message(405, "Registration is disabled")
         if (
             "tree" in args
@@ -542,12 +558,15 @@ class UserConfirmEmailResource(LimitedScopeProtectedResource):
             # otherwise it has been confirmed already
             modify_user(name=username, role=ROLE_DISABLED)
             tree = get_tree_from_jwt()
+            is_multi = current_app.config["TREE"] == TREE_MULTI
             run_task(
                 send_email_new_user,
                 username=username,
                 fullname=current_details.get("full_name", ""),
                 email=claims["email"],
                 tree=tree,
+                # for single-tree setups, send e-mail also to admins
+                include_admins=not is_multi,
             )
         title = _("E-mail address confirmation")
         message = _("Thank you for confirming your e-mail address.")
