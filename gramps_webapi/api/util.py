@@ -396,13 +396,15 @@ def send_email(
     use_tls = get_config("EMAIL_USE_TLS")
     try:
         if use_tls:
-            smtp = smtplib.SMTP_SSL(host=host, port=port, timeout=10)
-        else:
-            smtp = smtplib.SMTP(host=host, port=port, timeout=10)
-            smtp.ehlo()
-            if port != 25:
+            if port == 465:
+                smtp = smtplib.SMTP_SSL(host=host, port=port, timeout=10)
+            else:
+                smtp = smtplib.SMTP(host=host, port=port, timeout=10)
+                smtp.ehlo()
                 smtp.starttls()
                 smtp.ehlo()
+        else:
+            smtp = smtplib.SMTP(host=host, port=port, timeout=10)
         if user:
             smtp.login(user, password)
         smtp.send_message(msg)
