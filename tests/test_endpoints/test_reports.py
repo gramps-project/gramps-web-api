@@ -19,12 +19,23 @@
 
 """Tests for the /api/reports endpoints using example_gramps."""
 
+import os
 import unittest
 from mimetypes import types_map
+from unittest.mock import patch
 
-from gramps_webapi.const import REPORT_DEFAULTS
+from gramps.cli.clidbman import CLIDbManager
+from gramps.gen.dbstate import DbState
 
-from . import BASE_URL, get_test_client
+from gramps_webapi.app import create_app
+from gramps_webapi.auth import add_user, user_db
+from gramps_webapi.const import (
+    ENV_CONFIG_FILE,
+    REPORT_DEFAULTS,
+    TEST_EMPTY_GRAMPS_AUTH_CONFIG,
+)
+
+from . import BASE_URL, TEST_USERS, get_test_client
 from .checks import (
     check_conforms_to_schema,
     check_invalid_semantics,
@@ -257,3 +268,43 @@ class TestReportsReportIdFile(unittest.TestCase):
             if rv.status_code != 200:
                 bad_reports.append(report["id"])
         self.assertEqual(bad_reports, [])
+
+
+class TestReportsEmptyDatabase(unittest.TestCase):
+    """Test cases for the /api/reports/ endpoint with an empty database."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.name = "empty2"
+        cls.dbman = CLIDbManager(DbState())
+        cls.dbpath, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        with patch.dict(
+            "os.environ",
+            {
+                ENV_CONFIG_FILE: TEST_EMPTY_GRAMPS_AUTH_CONFIG,
+                "TREE": cls.name,
+            },
+        ):
+            cls.test_app = create_app()
+        cls.test_app.config["TESTING"] = True
+        cls.client = cls.test_app.test_client()
+        cls.tree = os.path.basename(cls.dbpath)
+        with cls.test_app.app_context():
+            user_db.create_all()
+            for role in TEST_USERS:
+                add_user(
+                    name=TEST_USERS[role]["name"],
+                    password=TEST_USERS[role]["password"],
+                    role=role,
+                )
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.dbman.remove_database(cls.name)
+
+    def test_reports_empty_db(self):
+        """Test that importers are loaded also for a fresh db."""
+        rv = check_success(self, TEST_URL)
+        assert len(rv) > 0

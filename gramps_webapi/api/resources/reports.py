@@ -37,7 +37,6 @@ from ..tasks import AsyncResult, generate_report, make_task_response, run_task
 from ..util import get_buffer_for_file, get_db_handle, get_tree_from_jwt, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
-from .util import check_fix_default_person
 
 
 class ReportsResource(ProtectedResource, GrampsJSONEncoder):
@@ -46,8 +45,6 @@ class ReportsResource(ProtectedResource, GrampsJSONEncoder):
     @use_args({"include_help": fields.Boolean(load_default=False)}, location="query")
     def get(self, args: Dict) -> Response:
         """Get all available report attributes."""
-        if has_permissions({PERM_EDIT_OBJ}):
-            check_fix_default_person(get_db_handle(readonly=False))
         reports = get_reports(
             get_db_handle(), include_options_help=args["include_help"]
         )
@@ -60,8 +57,6 @@ class ReportResource(ProtectedResource, GrampsJSONEncoder):
     @use_args({"include_help": fields.Boolean(load_default=True)}, location="query")
     def get(self, args: Dict, report_id: str) -> Response:
         """Get specific report attributes."""
-        if has_permissions({PERM_EDIT_OBJ}):
-            check_fix_default_person(get_db_handle(readonly=False))
         reports = get_reports(
             get_db_handle(),
             report_id=report_id,
@@ -96,9 +91,6 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
         if "of" in report_options:
             abort(422)
 
-        if has_permissions({PERM_EDIT_OBJ}):
-            check_fix_default_person(get_db_handle(readonly=False))
-
         file_name, file_type = run_report(
             db_handle=get_db_handle(),
             report_id=report_id,
@@ -130,8 +122,6 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
                 abort(400)
         if "of" in report_options:
             abort(422)
-        if has_permissions({PERM_EDIT_OBJ}):
-            check_fix_default_person(get_db_handle(readonly=False))
         tree = get_tree_from_jwt()
         task = run_task(
             generate_report,

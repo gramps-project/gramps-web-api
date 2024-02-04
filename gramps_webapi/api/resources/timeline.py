@@ -21,11 +21,12 @@
 from typing import Dict, List, Optional, Set, Tuple, Union
 
 from flask import abort
+from gramps.gen.config import config
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
-from gramps.gen.lib import Date, Event, EventRef, EventType, Person, Span
+from gramps.gen.lib import Date, Event, EventType, Person, Span
 from gramps.gen.relationship import get_relationship_calculator
 from gramps.gen.utils.alive import probably_alive_range
 from gramps.gen.utils.db import (
@@ -473,7 +474,8 @@ class Timeline:
                         if not age:
                             age = person_age
                     person["age"] = person_age
-
+            date_format = config.get("preferences.date-format")
+            self.locale.date_displayer.set_format(date_format)
             profile = {
                 "date": self.locale.date_displayer.display(event.date),
                 "description": event.description,
