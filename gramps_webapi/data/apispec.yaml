@@ -7058,6 +7058,38 @@ paths:
         405:
           description: "Method Not Allowed in single-tree setup."
 
+  /trees/{tree_id}/repair:
+    parameters:
+      - name: tree_id
+        in: path
+        required: true
+        type: string
+        description: "The tree ID."
+    post:
+      tags:
+      - trees
+      summary: "Check & repair a tree's Gramps database."
+      operationId: repairTree
+      security:
+        - Bearer: []
+      responses:
+        201:
+          description: "OK: Successful operation."
+        202:
+          description: "Accepted: task will be run in the background."
+          schema:
+            type: object
+            properties:
+              task:
+                $ref: "#/definitions/TaskReference"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        403:
+          description: "Unauthorized: insufficient permissions."
+        422:
+          description: "Invalid: malformed tree ID."
+
+
 
 ##############################################################################
 # Model definitions
