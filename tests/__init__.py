@@ -28,6 +28,8 @@ import unittest
 from pathlib import Path
 from typing import Optional
 
+import pkg_resources
+
 TEST_GRAMPSHOME = tempfile.mkdtemp()
 os.environ["GRAMPSHOME"] = TEST_GRAMPSHOME
 
@@ -52,9 +54,9 @@ class ExampleDbBase:
         """Initialize self."""
         for path in USER_DIRLIST:
             os.makedirs(path, exist_ok=True)
+        os.environ["GRAMPS_RESOURCES"] = pkg_resources.resource_filename("gramps", "")
         _resources = ResourcePath()
         doc_dir = _resources.doc_dir
-        os.environ["GRAMPS_RESOURCES"] = str(Path(_resources.data_dir).parent)
         self.path = os.path.join(doc_dir, "example", "gramps", "example.gramps")
         if os.path.isfile(self.path):
             self.is_zipped = False
