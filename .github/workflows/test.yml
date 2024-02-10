@@ -17,7 +17,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip wheel
           pip install pycairo PyGObject pytest PyYAML jsonschema pyICU
-          pip install git+https://github.com/gramps-project/gramps.git@maintenance/gramps52
+          pip install git+https://github.com/gramps-project/gramps.git@maintenance/gramps52#egg=gramps
           pip install -r requirements-dev.txt
           pip install .
           pip list
