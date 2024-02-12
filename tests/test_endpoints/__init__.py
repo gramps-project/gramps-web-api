@@ -77,7 +77,14 @@ def setUpModule():
 
     test_db = ExampleDbSQLite(name="example_gramps")
     with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EXAMPLE_GRAMPS_AUTH_CONFIG}):
-        test_app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
+
+        test_app = create_app(
+            config={
+                "TESTING": True,
+                "RATELIMIT_ENABLED": False,
+                "MEDIA_BASE_DIR": f"{os.environ['GRAMPS_RESOURCES']}/doc/gramps/example/gramps",
+            }
+        )
     TEST_CLIENT = test_app.test_client()
     with test_app.app_context():
         user_db.create_all()
