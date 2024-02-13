@@ -547,3 +547,9 @@ def abort_with_message(status: int, message: str):
     exc = HTTPException(response=response, description=message)
     exc.code = status
     raise exc
+
+
+def upgrade_gramps_database(tree: str) -> None:
+    """Upgrade the Gramps database for a tree."""
+    dbmgr = get_db_manager(tree=tree)
+    dbmgr.upgrade_if_needed()
