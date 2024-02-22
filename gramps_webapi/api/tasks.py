@@ -61,6 +61,13 @@ def make_task_response(task: AsyncResult):
     return payload, HTTPStatus.ACCEPTED
 
 
+def clip_progress(x: float) -> float:
+    """Clip the progress to [0, 1), else return -1."""
+    if x < 0 or x >= 1:
+        return -1
+    return x
+
+
 @shared_task()
 def send_email_reset_password(email: str, token: str):
     """Send an email for password reset."""
@@ -94,20 +101,31 @@ def send_email_new_user(
         send_email(subject=subject, body=body, to=emails)
 
 
-def _search_reindex_full(tree) -> None:
+def _search_reindex_full(tree, progress_cb: Optional[Callable] = None) -> None:
     """Rebuild the search index."""
     indexer = get_search_indexer(tree)
     db = get_db_outside_request(tree=tree, view_private=True, readonly=True)
     try:
-        indexer.reindex_full(db)
+        indexer.reindex_full(db, progress_cb=progress_cb)
     finally:
         db.close()
 
 
-@shared_task()
-def search_reindex_full(tree) -> None:
+@shared_task(bind=True)
+def search_reindex_full(self, tree) -> None:
     """Rebuild the search index."""
-    return _search_reindex_full(tree)
+
+    def progress_cb(current: int, total: int):
+        self.update_state(
+            state="PROGRESS",
+            meta={
+                "current": current,
+                "total": total,
+                "progress": clip_progress(current / total),
+            },
+        )
+
+    return _search_reindex_full(tree, progress_cb=progress_cb)
 
 
 def _search_reindex_incremental(tree) -> None:

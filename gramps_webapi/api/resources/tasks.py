@@ -47,4 +47,5 @@ class TaskResource(ProtectedResource):
             "state": task.state,
             "info": serialize_or_str(task.info),
             "result": serialize_or_str(task.result),
+            "result_object": task.result,
         }

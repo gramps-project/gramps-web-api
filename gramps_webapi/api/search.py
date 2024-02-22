@@ -19,25 +19,25 @@
 
 """Full-text search utilities."""
 
-from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Generator, List, Optional, Sequence, Tuple
 
 from flask import current_app
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.lib import Name, Place
+from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from unidecode import unidecode
 from whoosh import index
 from whoosh.fields import BOOLEAN, DATETIME, ID, TEXT, Schema
-from whoosh.qparser import FieldsPlugin, MultifieldParser, QueryParser
+from whoosh.qparser import MultifieldParser, QueryParser
 from whoosh.qparser.dateparse import DateParserPlugin
 from whoosh.query import Term
 from whoosh.searching import Hit
 from whoosh.sorting import FieldFacet
 from whoosh.writing import AsyncWriter
 
-from ..const import PRIMARY_GRAMPS_OBJECTS
+from ..const import GRAMPS_OBJECT_PLURAL, PRIMARY_GRAMPS_OBJECTS
 from ..types import FilenameOrPath
 
 
@@ -103,6 +103,13 @@ def obj_strings_from_handle(
     """Return object strings from a handle and Gramps class name."""
     query_method = db_handle.method("get_%s_from_handle", class_name)
     obj = query_method(handle)
+    return obj_strings_from_object(db_handle=db_handle, class_name=class_name, obj=obj)
+
+
+def obj_strings_from_object(
+    db_handle: DbReadBase, class_name: str, obj: GrampsObject
+) -> Optional[Dict[str, Any]]:
+    """Return object strings from a handle and Gramps class name."""
     obj_string, obj_string_private = object_to_strings(obj)
     private = hasattr(obj, "private") and obj.private
     if obj_string:
@@ -122,9 +129,10 @@ def iter_obj_strings(
 ) -> Generator[Dict[str, Any], None, None]:
     """Iterate over object strings in the whole database."""
     for class_name in PRIMARY_GRAMPS_OBJECTS:
-        iter_method = db_handle.method("iter_%s_handles", class_name)
-        for handle in iter_method():
-            obj_strings = obj_strings_from_handle(db_handle, class_name, handle)
+        plural_name = GRAMPS_OBJECT_PLURAL[class_name]
+        iter_method = db_handle.method("iter_%s", plural_name)
+        for obj in iter_method():
+            obj_strings = obj_strings_from_object(db_handle, class_name, obj)
             if obj_strings:
                 yield obj_strings
 
@@ -198,10 +206,31 @@ class SearchIndexer:
                 "Failed adding object {}".format(obj_dict["handle"])
             )
 
-    def reindex_full(self, db_handle: DbReadBase):
+    def _get_total_number_of_objects(self, db_handle):
+        """Get the total number of searchable objects in the database."""
+        return (
+            db_handle.get_number_of_people()
+            + db_handle.get_number_of_families()
+            + db_handle.get_number_of_sources()
+            + db_handle.get_number_of_citations()
+            + db_handle.get_number_of_events()
+            + db_handle.get_number_of_media()
+            + db_handle.get_number_of_places()
+            + db_handle.get_number_of_repositories()
+            + db_handle.get_number_of_notes()
+            + db_handle.get_number_of_tags()
+        )
+
+    def reindex_full(
+        self, db_handle: DbReadBase, progress_cb: Optional[Callable] = None
+    ):
         """Reindex the whole database."""
+        if progress_cb:
+            total = self._get_total_number_of_objects(db_handle)
         with self.index(overwrite=True).writer() as writer:
-            for obj_dict in iter_obj_strings(db_handle):
+            for i, obj_dict in enumerate(iter_obj_strings(db_handle)):
+                if progress_cb:
+                    progress_cb(current=i, total=total)
                 self._add_obj_strings(writer, obj_dict)
 
     def _get_object_timestamps(self):
