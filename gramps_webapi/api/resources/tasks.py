@@ -43,9 +43,17 @@ class TaskResource(ProtectedResource):
             except TypeError:
                 return str(obj)
 
+        def serializable_or_str(obj):
+            try:
+                json.dumps(obj)
+                return obj
+            except TypeError:
+                return str(obj)
+
         return {
             "state": task.state,
+            "result_object": serializable_or_str(task.result),
+            # kept for backward compatibility
             "info": serialize_or_str(task.info),
             "result": serialize_or_str(task.result),
-            "result_object": task.result,
         }
