@@ -211,8 +211,8 @@ def generate_report(
     }
 
 
-@shared_task()
-def export_media(tree: str, view_private: bool) -> Dict[str, Union[str, int]]:
+@shared_task(bind=True)
+def export_media(self, tree: str, view_private: bool) -> Dict[str, Union[str, int]]:
     """Export media files."""
     db_handle = get_db_outside_request(
         tree=tree, view_private=view_private, readonly=True
@@ -223,7 +223,10 @@ def export_media(tree: str, view_private: bool) -> Dict[str, Union[str, int]]:
     file_name = f"{uuid.uuid4()}.zip"
     zip_filename = os.path.join(export_path, file_name)
     media_handler.create_file_archive(
-        db_handle=db_handle, zip_filename=zip_filename, include_private=view_private
+        db_handle=db_handle,
+        zip_filename=zip_filename,
+        include_private=view_private,
+        progress_cb=progress_callback_count(self),
     )
     file_size = os.path.getsize(zip_filename)
     return {

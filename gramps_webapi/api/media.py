@@ -22,9 +22,9 @@
 import os
 import zipfile
 from pathlib import Path
-from typing import BinaryIO, List, Optional, Set
+from typing import BinaryIO, Callable, List, Optional, Set
 
-from flask import abort, current_app
+from flask import current_app
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.lib import Media
 from gramps.gen.utils.file import expand_media_path
@@ -33,18 +33,13 @@ from ..auth import get_tree_usage, set_tree_usage
 from ..types import FilenameOrPath
 from ..util import get_extension
 from .file import FileHandler, LocalFileHandler, upload_file_local
-from .s3 import (
-    ObjectStorageFileHandler,
-    get_object_keys_size,
-    upload_file_s3,
-)
+from .s3 import ObjectStorageFileHandler, get_object_keys_size, upload_file_s3
 from .util import (
     abort_with_message,
     get_db_handle,
-    get_tree_from_jwt,
     get_db_outside_request,
+    get_tree_from_jwt,
 )
-
 
 PREFIX_S3 = "s3://"
 
@@ -98,7 +93,11 @@ class MediaHandlerBase:
         raise NotImplementedError
 
     def create_file_archive(
-        self, db_handle: DbReadBase, zip_filename: FilenameOrPath, include_private: bool
+        self,
+        db_handle: DbReadBase,
+        zip_filename: FilenameOrPath,
+        include_private: bool,
+        progress_cb: Optional[Callable] = None,
     ) -> None:
         """Create a ZIP archive on disk containing all media files."""
         raise NotImplementedError
@@ -166,14 +165,23 @@ class MediaHandlerLocal(MediaHandlerBase):
         return size
 
     def create_file_archive(
-        self, db_handle: DbReadBase, zip_filename: FilenameOrPath, include_private: bool
+        self,
+        db_handle: DbReadBase,
+        zip_filename: FilenameOrPath,
+        include_private: bool,
+        progress_cb: Optional[Callable] = None,
     ) -> None:
         """Create a ZIP archive on disk containing all media files."""
         if not os.path.isdir(self.base_dir):
             raise ValueError(f"Directory {self.base_dir} does not exist")
         paths_seen = set()
+        if progress_cb:
+            total = db_handle.get_number_of_media()
         with zipfile.ZipFile(zip_filename, "w") as zip_file:
-            for obj in db_handle.iter_media():
+            for i, obj in enumerate(db_handle.iter_media()):
+                if progress_cb:
+                    progress_cb(current=i, total=total)
+
                 if not include_private and obj.private:
                     continue
                 path = obj.path
@@ -282,12 +290,20 @@ class MediaHandlerS3(MediaHandlerBase):
         return sum(keys_size.get(key, 0) for key in keys)
 
     def create_file_archive(
-        self, db_handle: DbReadBase, zip_filename: FilenameOrPath, include_private: bool
+        self,
+        db_handle: DbReadBase,
+        zip_filename: FilenameOrPath,
+        include_private: bool,
+        progress_cb: Optional[Callable] = None,
     ) -> None:
         """Create a ZIP archive on disk containing all media files."""
         remote_keys = self.get_remote_keys()
+        if progress_cb:
+            total = db_handle.get_number_of_media()
         with zipfile.ZipFile(zip_filename, "w") as zip_file:
-            for obj in db_handle.iter_media():
+            for i, obj in enumerate(db_handle.iter_media()):
+                if progress_cb:
+                    progress_cb(current=i, total=total)
                 if not include_private and obj.private:
                     continue
                 if obj.checksum not in remote_keys:
