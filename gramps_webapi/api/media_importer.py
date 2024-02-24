@@ -1,16 +1,14 @@
 """Class for handling the import of a media ZIP archive."""
 
-import json
 import os
 import shutil
 import tempfile
 import zipfile
-from typing import Dict, List, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 from gramps.gen.db import DbTxn
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.lib import Media
-from gramps.gen.lib.serialize import to_json
 
 from ..auth import set_tree_usage
 from ..types import FilenameOrPath
@@ -158,10 +156,14 @@ class MediaImporter:
         self,
         to_upload: Dict[str, Tuple[str, int]],
         missing_files: MissingFiles,
+        progress_cb: Optional[Callable] = None,
     ) -> int:
         """Upload identified files and return the number of failures."""
         num_failures = 0
-        for checksum, (file_path, file_size) in to_upload.items():
+        total = len(to_upload)
+        for i, (checksum, (file_path, file_size)) in enumerate(to_upload.items()):
+            if progress_cb:
+                progress_cb(current=i, total=total)
             for obj_details in missing_files[checksum]:
                 with open(file_path, "rb") as f:
                     try:
@@ -189,7 +191,9 @@ class MediaImporter:
         usage_media = self.media_handler.get_media_size(db_handle=self.db_handle)
         set_tree_usage(self.tree, usage_media=usage_media)
 
-    def __call__(self, fix_missing_checksums: bool = True) -> Dict[str, int]:
+    def __call__(
+        self, fix_missing_checksums: bool = True, progress_cb: Optional[Callable] = None
+    ) -> Dict[str, int]:
         """Import a media archive file."""
         missing_files = self._identify_missing_files()
 
@@ -229,7 +233,9 @@ class MediaImporter:
         upload_size = sum(file_size for (_, file_size) in to_upload.values())
         check_quota_media(to_add=upload_size, tree=self.tree)
 
-        num_failures = self._upload_files(to_upload, missing_files)
+        num_failures = self._upload_files(
+            to_upload, missing_files, progress_cb=progress_cb
+        )
 
         self._delete_temporary_directory(temp_dir)
         self._update_media_usage()

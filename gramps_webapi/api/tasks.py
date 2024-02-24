@@ -233,8 +233,8 @@ def export_media(tree: str, view_private: bool) -> Dict[str, Union[str, int]]:
     }
 
 
-@shared_task()
-def import_media_archive(tree: str, file_name: str, delete: bool = True):
+@shared_task(bind=True)
+def import_media_archive(self, tree: str, file_name: str, delete: bool = True):
     """Import a media archive."""
     db_handle = get_db_outside_request(tree=tree, view_private=True, readonly=True)
     importer = MediaImporter(
@@ -243,7 +243,7 @@ def import_media_archive(tree: str, file_name: str, delete: bool = True):
         file_name=file_name,
         delete=delete,
     )
-    result = importer()
+    result = importer(progress_cb=progress_callback_count(self))
     return result
 
 
