@@ -112,21 +112,26 @@ def _search_reindex_full(tree, progress_cb: Optional[Callable] = None) -> None:
         db.close()
 
 
-def progress_callback_count(self, current: int, total: int):
-    self.update_state(
-        state="PROGRESS",
-        meta={
-            "current": current,
-            "total": total,
-            "progress": clip_progress(current / total),
-        },
-    )
+def progress_callback_count(self) -> Callable:
+    def callback(current: int, total: int) -> None:
+        if total == 0:
+            return
+        self.update_state(
+            state="PROGRESS",
+            meta={
+                "current": current,
+                "total": total,
+                "progress": clip_progress(current / total),
+            },
+        )
+
+    return callback
 
 
 @shared_task(bind=True)
 def search_reindex_full(self, tree) -> None:
     """Rebuild the search index."""
-    return _search_reindex_full(tree, progress_cb=progress_callback_count)
+    return _search_reindex_full(tree, progress_cb=progress_callback_count(self))
 
 
 def _search_reindex_incremental(tree, progress_cb: Optional[Callable] = None) -> None:
@@ -134,15 +139,15 @@ def _search_reindex_incremental(tree, progress_cb: Optional[Callable] = None) ->
     indexer = get_search_indexer(tree)
     db = get_db_outside_request(tree=tree, view_private=True, readonly=True)
     try:
-        indexer.reindex_incremental(db, progress_cb=progress_callback_count)
+        indexer.reindex_incremental(db, progress_cb=progress_cb)
     finally:
         db.close()
 
 
-@shared_task()
-def search_reindex_incremental(tree) -> None:
+@shared_task(bind=True)
+def search_reindex_incremental(self, tree) -> None:
     """Run an incremental reindex of the search index."""
-    return _search_reindex_incremental(tree)
+    return _search_reindex_incremental(tree, progress_cb=progress_callback_count(self))
 
 
 @shared_task()
@@ -256,11 +261,11 @@ def media_ocr(
     return handler.get_ocr(lang=lang, output_format=output_format)
 
 
-@shared_task()
-def check_repair_database(tree: str):
+@shared_task(bind=True)
+def check_repair_database(self, tree: str):
     """Check and repair a Gramps database (tree)"""
     db_handle = get_db_outside_request(tree=tree, view_private=True, readonly=False)
-    return check_database(db_handle)
+    return check_database(db_handle, progress_cb=progress_callback_count(self))
 
 
 @shared_task()

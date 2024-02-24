@@ -138,7 +138,9 @@ def search(ctx, tree):
         ctx.obj["search_indexer"] = get_search_indexer(tree=tree)
 
 
-def progress_callback_count(current: int, total: int):
+def progress_callback_count(current: int, total: int) -> None:
+    if total == 0:
+        return
     pct = int(100 * current / total)
     pct_prev = int(100 * (current - 1) / total)
     if current == 0 or pct != pct_prev:
