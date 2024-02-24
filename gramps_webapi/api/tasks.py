@@ -112,29 +112,29 @@ def _search_reindex_full(tree, progress_cb: Optional[Callable] = None) -> None:
         db.close()
 
 
+def progress_callback_count(self, current: int, total: int):
+    self.update_state(
+        state="PROGRESS",
+        meta={
+            "current": current,
+            "total": total,
+            "progress": clip_progress(current / total),
+        },
+    )
+
+
 @shared_task(bind=True)
 def search_reindex_full(self, tree) -> None:
     """Rebuild the search index."""
-
-    def progress_cb(current: int, total: int):
-        self.update_state(
-            state="PROGRESS",
-            meta={
-                "current": current,
-                "total": total,
-                "progress": clip_progress(current / total),
-            },
-        )
-
-    return _search_reindex_full(tree, progress_cb=progress_cb)
+    return _search_reindex_full(tree, progress_cb=progress_callback_count)
 
 
-def _search_reindex_incremental(tree) -> None:
+def _search_reindex_incremental(tree, progress_cb: Optional[Callable] = None) -> None:
     """Run an incremental reindex of the search index."""
     indexer = get_search_indexer(tree)
     db = get_db_outside_request(tree=tree, view_private=True, readonly=True)
     try:
-        indexer.reindex_incremental(db)
+        indexer.reindex_incremental(db, progress_cb=progress_callback_count)
     finally:
         db.close()
 
