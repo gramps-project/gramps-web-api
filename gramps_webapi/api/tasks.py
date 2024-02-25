@@ -283,7 +283,7 @@ def check_repair_database(self, tree: str):
     return check_database(db_handle, progress_cb=progress_callback_count(self))
 
 
-@shared_task()
-def upgrade_database_schema(tree: str):
+@shared_task(bind=True)
+def upgrade_database_schema(self, tree: str):
     """Upgrade a Gramps database (tree) schema."""
-    return upgrade_gramps_database(tree=tree)
+    return upgrade_gramps_database(tree=tree, task=self)

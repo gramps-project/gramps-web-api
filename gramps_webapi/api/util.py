@@ -638,7 +638,7 @@ def abort_with_message(status: int, message: str):
     raise exc
 
 
-def upgrade_gramps_database(tree: str) -> None:
+def upgrade_gramps_database(tree: str, task: Optional[Task] = None) -> None:
     """Upgrade the Gramps database for a tree."""
     dbmgr = get_db_manager(tree=tree)
-    dbmgr.upgrade_if_needed()
+    dbmgr.upgrade_if_needed(user=UserTaskProgress(task=task))
