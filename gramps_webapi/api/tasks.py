@@ -112,7 +112,7 @@ def _search_reindex_full(tree, progress_cb: Optional[Callable] = None) -> None:
         db.close()
 
 
-def progress_callback_count(self) -> Callable:
+def progress_callback_count(self, title: str = "", message: str = "") -> Callable:
     def callback(current: int, total: int) -> None:
         if total == 0:
             return
@@ -122,6 +122,8 @@ def progress_callback_count(self) -> Callable:
                 "current": current,
                 "total": total,
                 "progress": clip_progress(current / total),
+                "title": title,
+                "message": message,
             },
         )
 
@@ -131,7 +133,10 @@ def progress_callback_count(self) -> Callable:
 @shared_task(bind=True)
 def search_reindex_full(self, tree) -> None:
     """Rebuild the search index."""
-    return _search_reindex_full(tree, progress_cb=progress_callback_count(self))
+    return _search_reindex_full(
+        tree,
+        progress_cb=progress_callback_count(self, title="Updating search index..."),
+    )
 
 
 def _search_reindex_incremental(tree, progress_cb: Optional[Callable] = None) -> None:
@@ -147,11 +152,14 @@ def _search_reindex_incremental(tree, progress_cb: Optional[Callable] = None) ->
 @shared_task(bind=True)
 def search_reindex_incremental(self, tree) -> None:
     """Run an incremental reindex of the search index."""
-    return _search_reindex_incremental(tree, progress_cb=progress_callback_count(self))
+    return _search_reindex_incremental(
+        tree,
+        progress_cb=progress_callback_count(self, title="Updating search index..."),
+    )
 
 
-@shared_task()
-def import_file(tree: str, file_name: str, extension: str, delete: bool = True):
+@shared_task(bind=True)
+def import_file(self, tree: str, file_name: str, extension: str, delete: bool = True):
     """Import a file."""
     object_counts = dry_run_import(file_name=file_name)
     if object_counts is None:
@@ -163,9 +171,13 @@ def import_file(tree: str, file_name: str, extension: str, delete: bool = True):
         file_name=file_name,
         extension=extension.lower(),
         delete=delete,
+        task=self,
     )
     update_usage_people(tree=tree)
-    _search_reindex_incremental(tree)
+    _search_reindex_incremental(
+        tree,
+        progress_cb=progress_callback_count(self, title="Updating search index..."),
+    )
 
 
 @shared_task(bind=True)
