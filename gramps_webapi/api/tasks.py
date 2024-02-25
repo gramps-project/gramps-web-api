@@ -168,16 +168,16 @@ def import_file(tree: str, file_name: str, extension: str, delete: bool = True):
     _search_reindex_incremental(tree)
 
 
-@shared_task()
+@shared_task(bind=True)
 def export_db(
-    tree: str, extension: str, options: Dict, view_private: bool
+    self, tree: str, extension: str, options: Dict, view_private: bool
 ) -> Dict[str, str]:
     """Export a database."""
     db_handle = get_db_outside_request(
         tree=tree, view_private=view_private, readonly=True
     )
     prepared_options = prepare_options(db_handle, options)
-    file_name, file_type = run_export(db_handle, extension, prepared_options)
+    file_name, file_type = run_export(db_handle, extension, prepared_options, task=self)
     extension = file_type.lstrip(".")
     return {
         "file_name": file_name,

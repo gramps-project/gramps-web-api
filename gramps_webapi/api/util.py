@@ -30,6 +30,7 @@ from email.utils import make_msgid
 from http import HTTPStatus
 from typing import BinaryIO, List, Optional, Sequence, Tuple
 
+from celery import Task
 from flask import Response, abort, current_app, g, jsonify, make_response, request
 from flask_jwt_extended import get_jwt
 from gramps.cli.clidbman import NAME_FILE, CLIDbManager
@@ -54,6 +55,7 @@ from gramps.gen.dbstate import DbState
 from gramps.gen.errors import HandleError
 from gramps.gen.proxy import PrivateProxyDb
 from gramps.gen.proxy.private import sanitize_media
+from gramps.gen.user import UserBase
 from gramps.gen.utils.grampslocale import GrampsLocale
 from gramps.plugins.db.dbapi.dbapi import DBAPI
 from marshmallow import RAISE
@@ -239,6 +241,93 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
         if self.is_dbapi:
             return self._iter_handles(NOTE_KEY)
         return filter(self.include_note, self.db.iter_note_handles())
+
+
+class UserTaskProgress(UserBase):
+    """Web API specific implementation of `gramps.gen.user.UserBase`.
+
+    Needed for implementing progress displays. This has nothing
+    to do with Gramps Web API user management."""
+
+    def __init__(self, task: Task):
+        """Init."""
+        UserBase.__init__(
+            self, callback=self._callback, error=None, uistate=None, dbstate=None
+        )
+        self.task = task
+        self.steps = 0
+        self.current_step = 0
+        self.progress_title = ""
+        self.progress_message = ""
+
+    def _callback(self, percentage, text=None):
+        """Report only the percentage."""
+        if percentage >= 0 and percentage < 100:
+            self.task.update_state(
+                state="PROGRESS",
+                meta={
+                    "progress": percentage / 100,
+                },
+            )
+
+    def _report_progress(self) -> None:
+        """Report the progress in the task result."""
+        if self.steps == 0:
+            progress = -1
+        else:
+            progress = self.current_step / self.steps
+            if progress < 0 or progress >= 1:
+                progress = -1
+        self.task.update_state(
+            state="PROGRESS",
+            meta={
+                "current": self.current_step,
+                "total": self.steps,
+                "progress": progress,
+                "title": self.progress_title,
+                "message": self.progress_message,
+            },
+        )
+
+    def begin_progress(self, title: str, message: str, steps: int) -> None:
+        """Start showing a progress indicator to the user."""
+        self.steps = steps
+        self.current_step = 0
+        self.progress_title = title or ""
+        self.progress_message = message or ""
+        self._report_progress()
+
+    def step_progress(self) -> None:
+        """Advance the progress meter."""
+        self.current_step += 1
+        self._report_progress()
+
+    def end_progress(self) -> None:
+        """Stop showing the progress indicator to the user."""
+        # do nothing - celery will handle task completion status itself
+
+    def prompt(self, *args, **kwargs):
+        """Prompt the user with a message to select an alternative."""
+        # Not needed for Web API
+        return True
+
+    def warn(self, title: str, warning: str = "") -> None:
+        """Warn the user."""
+
+    def notify_error(self, title: str, error: str = "") -> None:
+        """Notify the user of an error."""
+        abort_with_message(HTTPStatus.INTERNAL_SERVER_ERROR, f"{title}\n\n{error}")
+
+    def notify_db_error(self, error: str) -> None:
+        """Notify the user of a DB error."""
+        self.notify_error(title="Low level database corruption detected", error=error)
+
+    def notify_db_repair(self, error: str) -> None:
+        """Notify the user their DB might need repair."""
+        self.notify_error(title="Error detected in database.", error=error)
+
+    def info(self, msg1, infotext, parent=None, monospaced=False):
+        """Displays information to the user."""
 
 
 def _sanitize_media_patched(db, media):
