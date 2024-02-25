@@ -452,7 +452,7 @@ class TestFamilies(unittest.TestCase):
                         "age": "0 days",
                         "citations": 0,
                         "confidence": 0,
-                        "date": "164-03-00 (Islamic)",
+                        "date": "164-03 (Islamic)",
                         "place": "",
                         "type": "Birth",
                         "summary": "Birth - , أحمد",
@@ -497,7 +497,7 @@ class TestFamilies(unittest.TestCase):
                     "person": [
                         {
                             "birth": {
-                                "date": "164-03-00 (Islamic)",
+                                "date": "164-03 (Islamic)",
                                 "place": "",
                                 "type": "Birth",
                                 "summary": "Birth - , أحمد",

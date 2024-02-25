@@ -98,6 +98,7 @@ from .resources.trees import (
     EnableTreeResource,
     TreeResource,
     TreesResource,
+    UpgradeTreeSchemaResource,
 )
 from .resources.types import (
     CustomTypeResource,
@@ -188,6 +189,9 @@ register_endpt(TreesResource, "/trees/", "trees")
 register_endpt(DisableTreeResource, "/trees/<string:tree_id>/disable", "disable_tree")
 register_endpt(EnableTreeResource, "/trees/<string:tree_id>/enable", "enable_tree")
 register_endpt(CheckTreeResource, "/trees/<string:tree_id>/repair", "repair_tree")
+register_endpt(
+    UpgradeTreeSchemaResource, "/trees/<string:tree_id>/migrate", "migrate_tree"
+)
 # Types
 register_endpt(CustomTypeResource, "/types/custom/<string:datatype>", "custom-type")
 register_endpt(CustomTypesResource, "/types/custom/", "custom-types")

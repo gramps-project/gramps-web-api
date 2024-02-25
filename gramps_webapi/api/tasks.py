@@ -43,6 +43,7 @@ from .util import (
     get_search_indexer,
     send_email,
     update_usage_people,
+    upgrade_gramps_database,
 )
 
 
@@ -260,3 +261,9 @@ def check_repair_database(tree: str):
     """Check and repair a Gramps database (tree)"""
     db_handle = get_db_outside_request(tree=tree, view_private=True, readonly=False)
     return check_database(db_handle)
+
+
+@shared_task()
+def upgrade_database_schema(tree: str):
+    """Upgrade a Gramps database (tree) schema."""
+    return upgrade_gramps_database(tree=tree)

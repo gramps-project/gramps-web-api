@@ -37,12 +37,19 @@ from ...auth.const import (
     PERM_EDIT_TREE,
     PERM_EDIT_TREE_QUOTA,
     PERM_REPAIR_TREE,
+    PERM_UPGRADE_TREE_SCHEMA,
     PERM_VIEW_OTHER_TREE,
 )
 from ...const import TREE_MULTI
 from ...dbmanager import WebDbManager
 from ..auth import has_permissions, require_permissions
-from ..tasks import AsyncResult, check_repair_database, make_task_response, run_task
+from ..tasks import (
+    AsyncResult,
+    check_repair_database,
+    make_task_response,
+    run_task,
+    upgrade_database_schema,
+)
 from ..util import abort_with_message, get_tree_from_jwt, list_trees, use_args
 from . import ProtectedResource
 
@@ -244,6 +251,29 @@ class CheckTreeResource(ProtectedResource):
                 abort_with_message(403, "Not allowed to repair other trees")
         task = run_task(
             check_repair_database,
+            tree=tree_id,
+        )
+        if isinstance(task, AsyncResult):
+            return make_task_response(task)
+        return jsonify(task), 201
+
+
+class UpgradeTreeSchemaResource(ProtectedResource):
+    """Resource for upgrading the schema of a Gramps Gramps database."""
+
+    def post(self, tree_id: str):
+        """Upgrade the schema of a Gramps database (tree)."""
+        require_permissions([PERM_UPGRADE_TREE_SCHEMA])
+        user_tree_id = get_tree_from_jwt()
+        if tree_id == "-":
+            # own tree
+            tree_id = user_tree_id
+        else:
+            validate_tree_id(tree_id)
+            if tree_id != user_tree_id:
+                abort_with_message(403, "Not allowed to upgrade other trees")
+        task = run_task(
+            upgrade_database_schema,
             tree=tree_id,
         )
         if isinstance(task, AsyncResult):
