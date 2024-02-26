@@ -1,19 +1,27 @@
-FROM dmstraub/gramps:5.1.6
+FROM debian:bookworm
 
-ENV GRAMPS_VERSION=51
+ENV DEBIAN_FRONTEND=noninteractive
+ENV GRAMPS_VERSION=52
+
 WORKDIR /app
+
 ENV PYTHONPATH="${PYTHONPATH}:/usr/lib/python3/dist-packages"
 
 # install poppler (needed for PDF thumbnails)
 # ffmpeg (needed for video thumbnails)
 # postgresql client (needed for PostgreSQL backend)
 RUN apt-get update && apt-get install -y \
+  appstream pkg-config libcairo2-dev \
+  gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev \
+  graphviz gir1.2-gexiv2-0.10 gir1.2-osmgpsmap-1.0 \
+  locales gettext wget python3-pip python3-pil \
   poppler-utils ffmpeg libavcodec-extra \
   unzip \
   libpq-dev postgresql-client postgresql-client-common python3-psycopg2 \
   libgl1-mesa-dev libgtk2.0-dev libatlas-base-dev \
   libopencv-dev python3-opencv \
   tesseract-ocr tesseract-ocr-all \
+  && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8 \
   && rm -rf /var/lib/apt/lists/*
 
 # set locale
@@ -31,7 +39,7 @@ RUN mkdir /app/db && mkdir /app/media && mkdir /app/indexdir && mkdir /app/users
 RUN mkdir /app/thumbnail_cache
 RUN mkdir /app/cache && mkdir /app/cache/reports && mkdir /app/cache/export
 RUN mkdir /app/tmp && mkdir /app/persist
-RUN mkdir -p /root/.gramps/gramps$GRAMPS_VERSION
+RUN mkdir -p /root/.gramps/gramps$GRAMPS_VERSION/plugins
 # set config options
 ENV GRAMPSWEB_USER_DB_URI=sqlite:////app/users/users.sqlite
 ENV GRAMPSWEB_MEDIA_BASE_DIR=/app/media
