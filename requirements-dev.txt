@@ -1,5 +1,5 @@
 pytest
-black==19.10b0
+black
 pylint
 flake8
 mypy
@@ -7,3 +7,4 @@ pydocstyle
 pre-commit
 celery[pytest]
 moto[s3]<5.0.0
+PyYAML
