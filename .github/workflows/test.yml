@@ -16,7 +16,6 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip wheel setuptools
-          pip install gramps-desktop[GUI,i18n,image]==5.2.0
           pip install -r requirements-dev.txt
           pip install .
           pip list
