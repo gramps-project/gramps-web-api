@@ -29,6 +29,7 @@ with open("gramps_webapi/_version.py") as version_file:
 
 
 REQUIREMENTS = [
+    "gramps-desktop[GUI,i18n]==5.2.*",
     "Click>=7.0",
     "Flask>=2.1.0",
     "Flask-Caching>=2.0.0",
@@ -42,8 +43,7 @@ REQUIREMENTS = [
     "SQLAlchemy",
     "pdf2image",
     "Pillow",
-    "bleach>=5.0.0",
-    "tinycss2",
+    "bleach[css]>=5.0.0",
     "whoosh",
     "jsonschema",
     "ffmpeg-python",
