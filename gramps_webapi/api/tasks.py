@@ -112,41 +112,54 @@ def _search_reindex_full(tree, progress_cb: Optional[Callable] = None) -> None:
         db.close()
 
 
-@shared_task(bind=True)
-def search_reindex_full(self, tree) -> None:
-    """Rebuild the search index."""
-
-    def progress_cb(current: int, total: int):
+def progress_callback_count(self, title: str = "", message: str = "") -> Callable:
+    def callback(current: int, total: int) -> None:
+        if total == 0:
+            return
         self.update_state(
             state="PROGRESS",
             meta={
                 "current": current,
                 "total": total,
                 "progress": clip_progress(current / total),
+                "title": title,
+                "message": message,
             },
         )
 
-    return _search_reindex_full(tree, progress_cb=progress_cb)
+    return callback
 
 
-def _search_reindex_incremental(tree) -> None:
+@shared_task(bind=True)
+def search_reindex_full(self, tree) -> None:
+    """Rebuild the search index."""
+    return _search_reindex_full(
+        tree,
+        progress_cb=progress_callback_count(self, title="Updating search index..."),
+    )
+
+
+def _search_reindex_incremental(tree, progress_cb: Optional[Callable] = None) -> None:
     """Run an incremental reindex of the search index."""
     indexer = get_search_indexer(tree)
     db = get_db_outside_request(tree=tree, view_private=True, readonly=True)
     try:
-        indexer.reindex_incremental(db)
+        indexer.reindex_incremental(db, progress_cb=progress_cb)
     finally:
         db.close()
 
 
-@shared_task()
-def search_reindex_incremental(tree) -> None:
+@shared_task(bind=True)
+def search_reindex_incremental(self, tree) -> None:
     """Run an incremental reindex of the search index."""
-    return _search_reindex_incremental(tree)
+    return _search_reindex_incremental(
+        tree,
+        progress_cb=progress_callback_count(self, title="Updating search index..."),
+    )
 
 
-@shared_task()
-def import_file(tree: str, file_name: str, extension: str, delete: bool = True):
+@shared_task(bind=True)
+def import_file(self, tree: str, file_name: str, extension: str, delete: bool = True):
     """Import a file."""
     object_counts = dry_run_import(file_name=file_name)
     if object_counts is None:
@@ -158,21 +171,25 @@ def import_file(tree: str, file_name: str, extension: str, delete: bool = True):
         file_name=file_name,
         extension=extension.lower(),
         delete=delete,
+        task=self,
     )
     update_usage_people(tree=tree)
-    _search_reindex_incremental(tree)
+    _search_reindex_incremental(
+        tree,
+        progress_cb=progress_callback_count(self, title="Updating search index..."),
+    )
 
 
-@shared_task()
+@shared_task(bind=True)
 def export_db(
-    tree: str, extension: str, options: Dict, view_private: bool
+    self, tree: str, extension: str, options: Dict, view_private: bool
 ) -> Dict[str, str]:
     """Export a database."""
     db_handle = get_db_outside_request(
         tree=tree, view_private=view_private, readonly=True
     )
     prepared_options = prepare_options(db_handle, options)
-    file_name, file_type = run_export(db_handle, extension, prepared_options)
+    file_name, file_type = run_export(db_handle, extension, prepared_options, task=self)
     extension = file_type.lstrip(".")
     return {
         "file_name": file_name,
@@ -206,8 +223,8 @@ def generate_report(
     }
 
 
-@shared_task()
-def export_media(tree: str, view_private: bool) -> Dict[str, Union[str, int]]:
+@shared_task(bind=True)
+def export_media(self, tree: str, view_private: bool) -> Dict[str, Union[str, int]]:
     """Export media files."""
     db_handle = get_db_outside_request(
         tree=tree, view_private=view_private, readonly=True
@@ -218,7 +235,10 @@ def export_media(tree: str, view_private: bool) -> Dict[str, Union[str, int]]:
     file_name = f"{uuid.uuid4()}.zip"
     zip_filename = os.path.join(export_path, file_name)
     media_handler.create_file_archive(
-        db_handle=db_handle, zip_filename=zip_filename, include_private=view_private
+        db_handle=db_handle,
+        zip_filename=zip_filename,
+        include_private=view_private,
+        progress_cb=progress_callback_count(self),
     )
     file_size = os.path.getsize(zip_filename)
     return {
@@ -228,8 +248,8 @@ def export_media(tree: str, view_private: bool) -> Dict[str, Union[str, int]]:
     }
 
 
-@shared_task()
-def import_media_archive(tree: str, file_name: str, delete: bool = True):
+@shared_task(bind=True)
+def import_media_archive(self, tree: str, file_name: str, delete: bool = True):
     """Import a media archive."""
     db_handle = get_db_outside_request(tree=tree, view_private=True, readonly=True)
     importer = MediaImporter(
@@ -238,7 +258,7 @@ def import_media_archive(tree: str, file_name: str, delete: bool = True):
         file_name=file_name,
         delete=delete,
     )
-    result = importer()
+    result = importer(progress_cb=progress_callback_count(self))
     return result
 
 
@@ -256,14 +276,14 @@ def media_ocr(
     return handler.get_ocr(lang=lang, output_format=output_format)
 
 
-@shared_task()
-def check_repair_database(tree: str):
+@shared_task(bind=True)
+def check_repair_database(self, tree: str):
     """Check and repair a Gramps database (tree)"""
     db_handle = get_db_outside_request(tree=tree, view_private=True, readonly=False)
-    return check_database(db_handle)
+    return check_database(db_handle, progress_cb=progress_callback_count(self))
 
 
-@shared_task()
-def upgrade_database_schema(tree: str):
+@shared_task(bind=True)
+def upgrade_database_schema(self, tree: str):
     """Upgrade a Gramps database (tree) schema."""
-    return upgrade_gramps_database(tree=tree)
+    return upgrade_gramps_database(tree=tree, task=self)

@@ -138,17 +138,26 @@ def search(ctx, tree):
         ctx.obj["search_indexer"] = get_search_indexer(tree=tree)
 
 
+def progress_callback_count(current: int, total: int) -> None:
+    if total == 0:
+        return
+    pct = int(100 * current / total)
+    pct_prev = int(100 * (current - 1) / total)
+    if current == 0 or pct != pct_prev:
+        LOG.info(f"Progress: {pct}%")
+
+
 @search.command("index-full")
 @click.pass_context
 def index_full(ctx):
     """Perform a full reindex."""
     LOG.info("Rebuilding search index ...")
-    app = ctx.obj["app"]
     db_manager = ctx.obj["db_manager"]
     indexer = ctx.obj["search_indexer"]
     db = db_manager.get_db().db
+
     try:
-        indexer.reindex_full(db)
+        indexer.reindex_full(db, progress_cb=progress_callback_count)
     except LockError:
         LOG.warning("Index is locked")
     except:
@@ -162,12 +171,12 @@ def index_full(ctx):
 @click.pass_context
 def index_incremental(ctx):
     """Perform an incremental reindex."""
-    app = ctx.obj["app"]
     db_manager = ctx.obj["db_manager"]
     indexer = ctx.obj["search_indexer"]
     db = db_manager.get_db().db
+
     try:
-        indexer.reindex_incremental(db)
+        indexer.reindex_incremental(db, progress_cb=progress_callback_count)
     except LockError:
         LOG.warning("Index is locked")
     except:

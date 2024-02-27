@@ -35,6 +35,7 @@ from gramps.gen.dbstate import DbState
 from gramps.gen.display.name import displayer as name_displayer
 from gramps.gen.plug import BasePluginManager
 from gramps.gen.recentfiles import recent_files
+from gramps.gen.user import UserBase
 from gramps.gen.utils.config import get_researcher
 
 _ = glocale.translation.gettext
@@ -66,7 +67,7 @@ def get_title(filename: str) -> str:
 class WebDbSessionManager:
     """Session manager derived from `CLIDbLoader` and `CLIManager`."""
 
-    def __init__(self, dbstate: DbState, user):
+    def __init__(self, dbstate: DbState, user: UserBase):
         """Initialize self."""
         self.dbstate = dbstate
         self._pmgr = BasePluginManager.get_instance()

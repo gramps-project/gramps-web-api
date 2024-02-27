@@ -23,12 +23,23 @@
 
 """Check and repair a Gramps database."""
 
+from typing import Callable, Optional
+
 from gramps.gen.db import DbTxn, DbWriteBase
 from gramps.gen.dbstate import DbState
 from gramps.plugins.tool.check import CheckIntegrity
 
 
-def check_database(db_handle: DbWriteBase):
+def check_database(db_handle: DbWriteBase, progress_cb: Optional[Callable] = None):
+    i = 0
+
+    def progress(i):
+        total = 20
+        if progress_cb:
+            progress_cb(current=i, total=total)
+        i += 1
+        return i
+
     with DbTxn("Check Integrity", db_handle, batch=True) as trans:
         db_handle.disable_signals()
         dbstate = DbState()
@@ -39,16 +50,27 @@ def check_database(db_handle: DbWriteBase):
         # then. This is done before fixing encoding and missing photos,
         # since otherwise we will be trying to fix empty records which are
         # then going to be deleted.
+
+        i = progress(i)
         checker.cleanup_empty_objects()
+
+        i = progress(i)
         checker.fix_encoding()
+
+        i = progress(i)
         checker.fix_alt_place_names()
+
+        i = progress(i)
         checker.fix_ctrlchars_in_notes()
         # checker.cleanup_missing_photos(cli=1)  # should not be done on Web API
+
+        i = progress(i)
         checker.cleanup_deleted_name_formats()
 
         prev_total = -1
         total = 0
 
+        i = progress(i)
         while prev_total != total:
             prev_total = total
 
@@ -59,24 +81,50 @@ def check_database(db_handle: DbWriteBase):
 
             total = checker.family_errors()
 
+        i = progress(i)
         checker.fix_duplicated_grampsid()
+
+        i = progress(i)
         checker.check_events()
+
+        i = progress(i)
         checker.check_person_references()
+
+        i = progress(i)
         checker.check_family_references()
+
+        i = progress(i)
         checker.check_place_references()
+
+        i = progress(i)
         checker.check_source_references()
+
+        i = progress(i)
         checker.check_citation_references()
+
+        i = progress(i)
         checker.check_media_references()
+
+        i = progress(i)
         checker.check_repo_references()
+
+        i = progress(i)
         checker.check_note_references()
+
+        i = progress(i)
         checker.check_tag_references()
         # checker.check_checksum()  # should not be done on Web API
+
+        i = progress(i)
         checker.check_media_sourceref()
         # checker.check_note_links()  # requires Gramps 5.2
+
+        i = progress(i)
         checker.check_backlinks()
 
     # rebuilding reference maps needs to be done outside of a transaction
     # to avoid nesting transactions.
+    i = progress(i)
     if checker.bad_backlinks:
         checker.progress.set_pass("Rebuilding reference maps...", 6)
         db_handle.reindex_reference_map(checker.callback)

@@ -23,15 +23,13 @@
 
 import json
 import os
-import shutil
-import tempfile
-import zipfile
 from hashlib import sha256
 from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import gramps
 import jsonschema
+from celery import Task
 from flask import current_app
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import KEY_TO_CLASS_MAP, DbTxn
@@ -69,12 +67,15 @@ from gramps.gen.utils.grampslocale import GrampsLocale
 from gramps.gen.utils.id import create_id
 from gramps.gen.utils.place import conv_lat_lon
 
-from ...auth import set_tree_usage
 from ...const import DISABLED_IMPORTERS, SEX_FEMALE, SEX_MALE, SEX_UNKNOWN
 from ...types import FilenameOrPath, Handle, TransactionJson
-from ..file import get_checksum
-from ..media import check_quota_media, get_media_handler
-from ..util import abort_with_message, get_db_handle, get_tree_from_jwt
+from ..media import get_media_handler
+from ..util import (
+    UserTaskProgress,
+    abort_with_message,
+    get_db_handle,
+    get_tree_from_jwt,
+)
 
 pd = PlaceDisplay()
 _ = glocale.translation.gettext
@@ -936,9 +937,11 @@ def fix_object_dict(object_dict: Dict, class_name: Optional[str] = None):
             d_out[k] = fix_object_dict(v, _get_class_name(class_name, k))
         elif isinstance(v, list):
             d_out[k] = [
-                fix_object_dict(item, _get_class_name(class_name, k))
-                if isinstance(item, dict)
-                else item
+                (
+                    fix_object_dict(item, _get_class_name(class_name, k))
+                    if isinstance(item, dict)
+                    else item
+                )
                 for item in v
             ]
         elif k in ["complete"]:
@@ -1193,13 +1196,18 @@ def run_import(
     file_name: FilenameOrPath,
     extension: str,
     delete: bool = True,
+    task: Optional[Task] = None,
 ) -> None:
     """Import a file."""
     plugin_manager = BasePluginManager.get_instance()
     for plugin in plugin_manager.get_import_plugins():
         if extension == plugin.get_extension():
             import_function = plugin.get_import_function()
-            result = import_function(db_handle, str(file_name), User())
+            if task:
+                user = UserTaskProgress(task=task)
+            else:
+                user = User()
+            result = import_function(db_handle, str(file_name), user)
             if delete:
                 os.remove(file_name)
             if not result:

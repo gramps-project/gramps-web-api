@@ -33,6 +33,7 @@ from gramps.gen.config import config
 from gramps.gen.db.dbconst import DBBACKEND, DBLOCKFN, DBMODE_R, DBMODE_W
 from gramps.gen.db.utils import get_dbid_from_path, make_database
 from gramps.gen.dbstate import DbState
+from gramps.gen.user import UserBase
 
 from .dbloader import WebDbSessionManager
 
@@ -195,11 +196,13 @@ class WebDbManager:
             name_file.write(new_name)
         return old_name, new_name
 
-    def upgrade_if_needed(self):
+    def upgrade_if_needed(
+        self,
+        user: Optional[UserBase] = None,
+    ):
         """Upgrade the Gramps database schema if needed."""
         dbstate = DbState()
-        user = User()
-        smgr = WebDbSessionManager(dbstate, user)
+        smgr = WebDbSessionManager(dbstate, user=user or User())
         smgr.do_reg_plugins(dbstate, uistate=None)
         smgr.read_file(
             self.path,

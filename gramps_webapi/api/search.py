@@ -21,7 +21,7 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, Generator, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Generator, List, Optional, Sequence, Set, Tuple
 
 from flask import current_app
 from gramps.gen.db.base import DbReadBase
@@ -244,7 +244,7 @@ class SearchIndexer:
                 d[class_name].add((fields["handle"], fields["change"]))
         return d
 
-    def _get_update_info(self, db_handle: DbReadBase):
+    def _get_update_info(self, db_handle: DbReadBase) -> Dict[str, Dict[str, Set[str]]]:
         """Get a dictionary with info about changed objects in the db."""
         db_timestamps = get_object_timestamps(db_handle)
         ix_timestamps = self._get_object_timestamps()
@@ -290,21 +290,39 @@ class SearchIndexer:
             return AsyncWriter(idx, delay=0.1)
         return idx.writer()
 
-    def reindex_incremental(self, db_handle: DbReadBase):
+    def reindex_incremental(
+        self, db_handle: DbReadBase, progress_cb: Optional[Callable] = None
+    ):
         """Update the index incrementally."""
         update_info = self._get_update_info(db_handle)
+        total = sum(
+            len(handles)
+            for class_dict in update_info.values()
+            for handles in class_dict.values()
+        )
+        i = 0
+
+        def progress(i):
+            if progress_cb:
+                progress_cb(current=i, total=total)
+            i += 1
+            return i
+
         with self.index(overwrite=False).writer() as writer:
             # delete objects
             for class_name, handles in update_info["deleted"].items():
                 for handle in handles:
+                    i = progress(i)
                     self.delete_object(writer, handle)
             # add objects
             for class_name, handles in update_info["new"].items():
                 for handle in handles:
+                    i = progress(i)
                     self.add_or_update_object(writer, handle, db_handle, class_name)
             # update objects
             for class_name, handles in update_info["updated"].items():
                 for handle in handles:
+                    i = progress(i)
                     self.add_or_update_object(writer, handle, db_handle, class_name)
 
     @staticmethod

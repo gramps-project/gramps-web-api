@@ -25,8 +25,9 @@ import mimetypes
 import os
 import uuid
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
+from celery import Task
 from flask import abort, current_app
 from gramps.gen import filters
 from gramps.gen.const import GRAMPS_LOCALE as glocale
@@ -43,7 +44,7 @@ from gramps.gen.user import User
 from gramps.gen.utils.resourcepath import ResourcePath
 
 from ..const import DISABLED_EXPORTERS
-from .util import abort_with_message, get_locale_for_language
+from .util import UserTaskProgress, abort_with_message, get_locale_for_language
 
 _ = glocale.translation.gettext
 
@@ -261,7 +262,9 @@ def prepare_options(db_handle: DbReadBase, args: Dict):
     return options
 
 
-def run_export(db_handle: DbReadBase, extension: str, options):
+def run_export(
+    db_handle: DbReadBase, extension: str, options, task: Optional[Task] = None
+):
     """Generate the export."""
     export_path = current_app.config.get("EXPORT_DIR")
     os.makedirs(export_path, exist_ok=True)
@@ -274,7 +277,11 @@ def run_export(db_handle: DbReadBase, extension: str, options):
     for plugin in plugin_manager.get_export_plugins():
         if extension == plugin.get_extension():
             export_function = plugin.get_export_function()
-            result = export_function(db_handle, file_path, User(), options)
+            if task:
+                user = UserTaskProgress(task=task)
+            else:
+                user = User()
+            result = export_function(db_handle, file_path, user, options)
             if not result:
                 abort_with_message(500, "Export function failed")
             return file_name, "." + extension
