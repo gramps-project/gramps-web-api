@@ -10589,3 +10589,7 @@ definitions:
         description: "The current number of people."
         type: integer
         example: 96
+      enabled:
+        description: "Whether the tree is enabled."
+        type: boolean
+        example: true
