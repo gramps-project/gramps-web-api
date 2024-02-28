@@ -95,7 +95,7 @@ class TestTrees(unittest.TestCase):
         assert rv.status_code == 200
         trees = rv.json
         # owner can see only one tree
-        assert trees == [{"id": self.tree, "name": self.name}]
+        assert trees == [{"id": self.tree, "name": self.name, "enabled": True}]
 
     def test_get_tree(self):
         rv = self.client.post(
@@ -126,7 +126,7 @@ class TestTrees(unittest.TestCase):
             headers={"Authorization": f"Bearer {token}"},
         )
         assert rv.status_code == 200
-        assert rv.json == {"name": self.name, "id": self.tree}
+        assert rv.json == {"name": self.name, "id": self.tree, "enabled": True}
 
     def test_post_tree(self):
         rv = self.client.post(
@@ -162,6 +162,7 @@ class TestTrees(unittest.TestCase):
         assert rv.json["name"] == "some name"
         assert rv.json["quota_media"] == 1000000
         assert rv.json["quota_people"] is None
+        assert rv.json["enabled"]
 
     def test_rename_tree(self):
         rv = self.client.post(

@@ -29,7 +29,12 @@ from gramps.gen.config import config
 from webargs import fields
 from werkzeug.security import safe_join
 
-from ...auth import disable_enable_tree, get_tree_usage, set_tree_quota
+from ...auth import (
+    disable_enable_tree,
+    get_tree_usage,
+    is_tree_disabled,
+    set_tree_quota,
+)
 from ...auth.const import (
     PERM_ADD_TREE,
     PERM_DISABLE_TREE,
@@ -68,7 +73,8 @@ def get_tree_details(tree_id: str) -> Dict[str, str]:
     except ValueError:
         abort(404)
     usage = get_tree_usage(tree_id) or {}
-    return {"name": dbmgr.name, "id": tree_id, **usage}
+    enabled = not is_tree_disabled(tree=tree_id)
+    return {"name": dbmgr.name, "id": tree_id, **usage, "enabled": enabled}
 
 
 def get_tree_path(tree_id: str) -> Optional[str]:
