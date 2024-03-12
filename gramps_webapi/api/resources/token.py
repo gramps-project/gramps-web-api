@@ -49,12 +49,15 @@ def get_tokens(
     permissions: Iterable[str],
     tree_id: Optional[str] = None,
     include_refresh: bool = False,
+    fresh: bool = False,
 ):
     """Create access token (and refresh token if desired)."""
     claims = {"permissions": list(permissions)}
     if tree_id:
         claims["tree"] = tree_id
-    access_token = create_access_token(identity=str(user_id), additional_claims=claims)
+    access_token = create_access_token(
+        identity=str(user_id), additional_claims=claims, fresh=fresh
+    )
     if not include_refresh:
         return {"access_token": access_token}
     refresh_token = create_refresh_token(identity=str(user_id))
@@ -91,6 +94,7 @@ class TokenResource(Resource):
             permissions=permissions,
             tree_id=tree_id,
             include_refresh=True,
+            fresh=True,
         )
 
 
@@ -99,7 +103,7 @@ class TokenRefreshResource(RefreshProtectedResource):
 
     @limiter.limit("1/second")
     def post(self):
-        """Fetch a fresh token."""
+        """Fetch a new token."""
         user_id = get_jwt_identity()
         try:
             username = get_name(user_id)
@@ -114,6 +118,7 @@ class TokenRefreshResource(RefreshProtectedResource):
             permissions=permissions,
             tree_id=tree_id,
             include_refresh=False,
+            fresh=False,
         )
 
 

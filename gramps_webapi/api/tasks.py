@@ -22,7 +22,7 @@ import os
 import uuid
 from gettext import gettext as _
 from http import HTTPStatus
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from celery import shared_task
 from celery.result import AsyncResult
@@ -35,6 +35,7 @@ from .export import prepare_options, run_export
 from .media import get_media_handler
 from .media_importer import MediaImporter
 from .report import run_report
+from .resources.delete import delete_all_objects
 from .resources.util import dry_run_import, run_import
 from .util import (
     check_quota_people,
@@ -287,3 +288,14 @@ def check_repair_database(self, tree: str):
 def upgrade_database_schema(self, tree: str):
     """Upgrade a Gramps database (tree) schema."""
     return upgrade_gramps_database(tree=tree, task=self)
+
+
+@shared_task(bind=True)
+def delete_objects(self, tree: str, namespaces: Optional[List[str]] = None):
+    """Delete all objects of a given type."""
+    db_handle = get_db_outside_request(tree=tree, view_private=True, readonly=False)
+    delete_all_objects(
+        db_handle=db_handle,
+        namespaces=namespaces,
+        progress_cb=progress_callback_count(self),
+    )

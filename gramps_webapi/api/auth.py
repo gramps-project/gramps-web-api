@@ -46,6 +46,23 @@ def jwt_required(func):
     return wrapper
 
 
+def fresh_jwt_required(func):
+    """Check JWT and require it to be fresh.
+
+    Raise if claims include limited_scope key.
+    """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        verify_jwt_in_request(fresh=True)
+        claims = get_jwt()
+        if claims.get(CLAIM_LIMITED_SCOPE):
+            raise NoAuthorizationError
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
 def jwt_limited_scope_required(func):
     """Check JWT.
 

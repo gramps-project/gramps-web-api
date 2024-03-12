@@ -63,7 +63,7 @@ from .resources.metadata import MetadataResource
 from .resources.name_formats import NameFormatsResource
 from .resources.name_groups import NameGroupsResource
 from .resources.notes import NoteResource, NotesResource
-from .resources.objects import CreateObjectsResource
+from .resources.objects import CreateObjectsResource, DeleteObjectsResource
 from .resources.ocr import MediaOcrResource
 from .resources.people import PeopleResource, PersonResource
 from .resources.places import PlaceResource, PlacesResource
@@ -130,6 +130,7 @@ def register_endpt(resource: Type[Resource], url: str, name: str):
 
 # Objects
 register_endpt(CreateObjectsResource, "/objects/", "objects")
+register_endpt(DeleteObjectsResource, "/objects/delete/", "delete_objects")
 # Transactions
 register_endpt(TransactionsResource, "/transactions/", "transactions")
 # Token

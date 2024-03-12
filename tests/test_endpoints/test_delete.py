@@ -29,7 +29,7 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
-from gramps_webapi.auth import user_db, add_user
+from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import (
     ROLE_CONTRIBUTOR,
     ROLE_EDITOR,
@@ -221,3 +221,142 @@ class TestObjectDeletion(unittest.TestCase):
         # or its text
         rv = self.client.get(f"/api/search/?query={text}", headers=headers)
         self.assertEqual(len(rv.json), 0)
+
+
+class TestDeleteAllObjects(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.name = "Test Web API"
+        cls.dbman = CLIDbManager(DbState())
+        dirpath, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        tree = os.path.basename(dirpath)
+        with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
+            cls.app = create_app()
+        cls.app.config["TESTING"] = True
+        cls.client = cls.app.test_client()
+        with cls.app.app_context():
+            user_db.create_all()
+            add_user(name="user", password="123", role=ROLE_GUEST, tree=tree)
+            add_user(
+                name="contributor", password="123", role=ROLE_CONTRIBUTOR, tree=tree
+            )
+            add_user(name="owner", password="123", role=ROLE_OWNER, tree=tree)
+            add_user(name="editor", password="123", role=ROLE_EDITOR, tree=tree)
+            add_user(name="member", password="123", role=ROLE_MEMBER, tree=tree)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.dbman.remove_database(cls.name)
+
+    def test_delete_permissons(self):
+        headers = get_headers(self.client, "editor", "123")
+        rv = self.client.post("/api/objects/delete/", headers=headers)
+        assert rv.status_code == 403
+        rv = self.client.post("/api/objects/delete/?namespaces=people", headers=headers)
+        assert rv.status_code == 403
+
+    def test_delete_empty(self):
+        headers = get_headers(self.client, "owner", "123")
+        rv = self.client.post("/api/objects/delete/", headers=headers)
+        assert rv.status_code == 200
+        rv = self.client.post("/api/objects/delete/?namespaces=people", headers=headers)
+        assert rv.status_code == 200
+        rv = self.client.post(
+            "/api/objects/delete/?namespaces=people,families", headers=headers
+        )
+        assert rv.status_code == 200
+        rv = self.client.post(
+            "/api/objects/delete/?namespaces=people,cars", headers=headers
+        )
+        assert rv.status_code == 422
+
+    def test_delete_all(self):
+        headers = get_headers(self.client, "owner", "123")
+        for _ in range(3):
+            self.client.post("/api/notes/", json={}, headers=headers)
+        for _ in range(3):
+            self.client.post("/api/people/", json={}, headers=headers)
+        for _ in range(3):
+            self.client.post("/api/families/", json={}, headers=headers)
+        # assert there
+        rv = self.client.get("/api/notes/", headers=headers)
+        assert rv.headers.pop("X-Total-Count") == "3"
+        rv = self.client.get("/api/people/", headers=headers)
+        assert rv.headers.pop("X-Total-Count") == "3"
+        rv = self.client.get("/api/families/", headers=headers)
+        assert rv.headers.pop("X-Total-Count") == "3"
+        # delete
+        rv = self.client.post("/api/objects/delete/", headers=headers)
+        assert rv.status_code == 200
+        # assert gone
+        rv = self.client.get("/api/notes/", headers=headers)
+        assert rv.headers.pop("X-Total-Count") == "0"
+        rv = self.client.get("/api/people/", headers=headers)
+        assert rv.headers.pop("X-Total-Count") == "0"
+        rv = self.client.get("/api/families/", headers=headers)
+        assert rv.headers.pop("X-Total-Count") == "0"
+
+    def test_delete_namespace(self):
+        headers = get_headers(self.client, "owner", "123")
+        for _ in range(3):
+            self.client.post("/api/notes/", json={}, headers=headers)
+        for _ in range(3):
+            self.client.post("/api/people/", json={}, headers=headers)
+        for _ in range(3):
+            self.client.post("/api/families/", json={}, headers=headers)
+        for _ in range(3):
+            self.client.post("/api/events/", json={}, headers=headers)
+        # assert there
+        rv = self.client.get("/api/notes/", headers=headers)
+        assert rv.headers.pop("X-Total-Count") == "3"
+        rv = self.client.get("/api/people/", headers=headers)
+        assert rv.headers.pop("X-Total-Count") == "3"
+        rv = self.client.get("/api/families/", headers=headers)
+        assert rv.headers.pop("X-Total-Count") == "3"
+        rv = self.client.get("/api/events/", headers=headers)
+        assert rv.headers.pop("X-Total-Count") == "3"
+        # delete
+        rv = self.client.post(
+            "/api/objects/delete/?namespaces=notes,families", headers=headers
+        )
+        assert rv.status_code == 200
+        rv = self.client.get("/api/notes/", headers=headers)
+        assert rv.headers.pop("X-Total-Count") == "0"
+        rv = self.client.get("/api/families/", headers=headers)
+        assert rv.headers.pop("X-Total-Count") == "0"
+        rv = self.client.get("/api/people/", headers=headers)
+        assert rv.headers.pop("X-Total-Count") == "3"
+        rv = self.client.get("/api/events/", headers=headers)
+        assert rv.headers.pop("X-Total-Count") == "3"
+        # delete
+        rv = self.client.post("/api/objects/delete/?namespaces=people", headers=headers)
+        assert rv.status_code == 200
+        rv = self.client.get("/api/people/", headers=headers)
+        assert rv.headers.pop("X-Total-Count") == "0"
+        rv = self.client.get("/api/events/", headers=headers)
+        assert rv.headers.pop("X-Total-Count") == "3"
+        rv = self.client.post("/api/objects/delete/?namespaces=events", headers=headers)
+        assert rv.status_code == 200
+        rv = self.client.get("/api/events/", headers=headers)
+        assert rv.headers.pop("X-Total-Count") == "0"
+
+    def test_stale_token(self):
+        # get tokens
+        headers = get_headers(self.client, "owner", "123")
+        rv = self.client.post(
+            "/api/token/", json={"username": "owner", "password": "123"}
+        )
+        access_token = rv.json["access_token"]
+        refresh_token = rv.json["refresh_token"]
+        headers = {"Authorization": f"Bearer {access_token}"}
+        headers_refresh = {"Authorization": f"Bearer {refresh_token}"}
+        rv = self.client.post("/api/objects/delete/", headers=headers)
+        assert rv.status_code == 200
+        rv = self.client.post("/api/objects/delete/", headers=headers)
+        assert rv.status_code == 200
+        rv = self.client.post("/api/token/refresh/", headers=headers_refresh)
+        access_token = rv.json["access_token"]
+        headers = {"Authorization": f"Bearer {access_token}"}
+        rv = self.client.post("/api/objects/delete/", headers=headers)
+        assert rv.status_code == 401
+        assert rv.json == {"message": "Fresh token required"}

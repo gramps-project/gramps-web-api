@@ -76,6 +76,22 @@ def object_to_strings(obj) -> Tuple[str, str]:
     return process_strings(strings), process_strings(private_strings)
 
 
+def get_total_number_of_objects(db_handle: DbReadBase):
+    """Get the total number of searchable objects in the database."""
+    return (
+        db_handle.get_number_of_people()
+        + db_handle.get_number_of_families()
+        + db_handle.get_number_of_sources()
+        + db_handle.get_number_of_citations()
+        + db_handle.get_number_of_events()
+        + db_handle.get_number_of_media()
+        + db_handle.get_number_of_places()
+        + db_handle.get_number_of_repositories()
+        + db_handle.get_number_of_notes()
+        + db_handle.get_number_of_tags()
+    )
+
+
 def process_strings(strings: Sequence[str]) -> str:
     """Process a list of strings to a joined string.
 
@@ -206,27 +222,12 @@ class SearchIndexer:
                 "Failed adding object {}".format(obj_dict["handle"])
             )
 
-    def _get_total_number_of_objects(self, db_handle):
-        """Get the total number of searchable objects in the database."""
-        return (
-            db_handle.get_number_of_people()
-            + db_handle.get_number_of_families()
-            + db_handle.get_number_of_sources()
-            + db_handle.get_number_of_citations()
-            + db_handle.get_number_of_events()
-            + db_handle.get_number_of_media()
-            + db_handle.get_number_of_places()
-            + db_handle.get_number_of_repositories()
-            + db_handle.get_number_of_notes()
-            + db_handle.get_number_of_tags()
-        )
-
     def reindex_full(
         self, db_handle: DbReadBase, progress_cb: Optional[Callable] = None
     ):
         """Reindex the whole database."""
         if progress_cb:
-            total = self._get_total_number_of_objects(db_handle)
+            total = get_total_number_of_objects(db_handle)
         with self.index(overwrite=True).writer() as writer:
             for i, obj_dict in enumerate(iter_obj_strings(db_handle)):
                 if progress_cb:

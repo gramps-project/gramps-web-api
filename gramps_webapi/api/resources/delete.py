@@ -27,7 +27,7 @@
 
 """Functions for deleting objects with references."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from gramps.gen.db import DbTxn, DbWriteBase
 from gramps.gen.utils.db import (
@@ -37,6 +37,8 @@ from gramps.gen.utils.db import (
     get_source_and_citation_referents,
 )
 
+from ...const import GRAMPS_OBJECT_PLURAL
+from ..search import get_total_number_of_objects
 from .util import transaction_to_json
 
 
@@ -333,7 +335,7 @@ def delete_source(db_handle: DbWriteBase, handle: str, trans: DbTxn) -> None:
     citation_list = citation_list[0]
 
     # (1) delete the references to the citation
-    for (citation_handle, refs) in citation_referents_list:
+    for citation_handle, refs in citation_referents_list:
         (
             person_list,
             family_list,
@@ -439,3 +441,26 @@ def delete_object(
         method(db_handle, handle, trans=trans)
         trans_dict = transaction_to_json(trans)
     return trans_dict
+
+
+def delete_all_objects(
+    db_handle: DbWriteBase,
+    namespaces: Optional[List[str]] = None,
+    progress_cb: Optional[Callable] = None,
+) -> List[Dict[str, Any]]:
+    """Delete all objects, optionally restricting to one or more types (namespaces)."""
+    if progress_cb:
+        total = get_total_number_of_objects(db_handle)
+    if namespaces is not None:
+        unknown_namespaces = set(namespaces) - set(GRAMPS_OBJECT_PLURAL.values())
+        if unknown_namespaces:
+            raise ValueError(f"Unknown namespace {unknown_namespaces}")
+    for class_name, namespace in GRAMPS_OBJECT_PLURAL.items():
+        if namespaces is None or namespace in namespaces:
+            with DbTxn(f"Delete {namespaces or 'all objects'}", db_handle) as trans:
+                iter_handles = db_handle.method("iter_%s_handles", class_name)
+                del_method = delete_methods[class_name.lower()]
+                for i, handle in enumerate(iter_handles()):
+                    if progress_cb:
+                        progress_cb(current=i, total=total)
+                    del_method(db_handle=db_handle, handle=handle, trans=trans)
