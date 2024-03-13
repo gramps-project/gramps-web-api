@@ -455,12 +455,14 @@ def delete_all_objects(
         unknown_namespaces = set(namespaces) - set(GRAMPS_OBJECT_PLURAL.values())
         if unknown_namespaces:
             raise ValueError(f"Unknown namespace {unknown_namespaces}")
+    i = 0
     for class_name, namespace in GRAMPS_OBJECT_PLURAL.items():
         if namespaces is None or namespace in namespaces:
             with DbTxn(f"Delete {namespaces or 'all objects'}", db_handle) as trans:
                 iter_handles = db_handle.method("iter_%s_handles", class_name)
                 del_method = delete_methods[class_name.lower()]
-                for i, handle in enumerate(iter_handles()):
+                for handle in iter_handles():
                     if progress_cb:
                         progress_cb(current=i, total=total)
+                    i += 1
                     del_method(db_handle=db_handle, handle=handle, trans=trans)
