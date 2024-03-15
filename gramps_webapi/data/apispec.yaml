@@ -4577,6 +4577,38 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+  /objects/delete/:
+    post:
+      tags:
+      - objects
+      summary: "Delete all objects in the database."
+      operationId: deleteObjects
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      parameters:
+        - name: namespaces
+          in: query
+          required: false
+          type: string
+          description: "A comma delimited list of object types to be deleted."
+          example: people,families,events
+      responses:
+        200:
+          description: "OK: Successful operation."
+        202:
+          description: "Accepted: objects will be deleted in the background."
+          schema:
+            type: object
+            properties:
+              task:
+                $ref: "#/definitions/TaskReference"
+        401:
+          description: "Unauthorized: Missing authorization header or token not fresh."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
 ##############################################################################
 # Endpoint - Transactions

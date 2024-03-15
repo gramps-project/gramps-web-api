@@ -22,15 +22,18 @@
 import json
 from typing import Sequence
 
-from flask import Response, abort, current_app, request
+from flask import Response, jsonify, request
 from gramps.gen.db import DbTxn
 from gramps.gen.lib import Family, Person
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.lib.serialize import from_json
+from webargs import fields, validate
 
-from ...auth.const import PERM_ADD_OBJ, PERM_EDIT_OBJ
+from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ_BATCH, PERM_EDIT_OBJ
+from ...const import GRAMPS_OBJECT_PLURAL
 from ..auth import require_permissions
 from ..search import SearchIndexer
+from ..tasks import AsyncResult, delete_objects, make_task_response, run_task
 from ..util import (
     abort_with_message,
     check_quota_people,
@@ -38,8 +41,9 @@ from ..util import (
     get_search_indexer,
     get_tree_from_jwt,
     update_usage_people,
+    use_args,
 )
-from . import ProtectedResource
+from . import FreshProtectedResource, ProtectedResource
 from .util import add_object, fix_object_dict, transaction_to_json, validate_object_dict
 
 
@@ -100,3 +104,31 @@ class CreateObjectsResource(ProtectedResource):
         )
         res.headers.add("X-Total-Count", len(trans_dict))
         return res
+
+
+class DeleteObjectsResource(FreshProtectedResource):
+    """Resource for deleting multiple objects."""
+
+    @use_args(
+        {
+            "namespaces": fields.DelimitedList(
+                fields.Str(validate=validate.Length(min=1)),
+                validate=validate.ContainsOnly(
+                    choices=list(GRAMPS_OBJECT_PLURAL.values())
+                ),
+            ),
+        },
+        location="query",
+    )
+    def post(self, args) -> Response:
+        """Delete the objects."""
+        require_permissions([PERM_DEL_OBJ_BATCH])
+        tree = get_tree_from_jwt()
+        task = run_task(
+            delete_objects,
+            tree=tree,
+            namespaces=args.get("namespaces") or None,
+        )
+        if isinstance(task, AsyncResult):
+            return make_task_response(task)
+        return jsonify(task), 200
