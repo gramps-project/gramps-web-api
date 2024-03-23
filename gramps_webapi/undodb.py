@@ -109,11 +109,16 @@ class DbUndoSQL(DbUndo):
     """SQL-based undo database."""
 
     def __init__(
-        self, grampsdb: DbWriteBase, dburl: str, tree_id: Optional[int] = None
+        self,
+        grampsdb: DbWriteBase,
+        dburl: str,
+        tree_id: Optional[int] = None,
+        user_id: Optional[str] = None,
     ) -> None:
         DbUndo.__init__(self, grampsdb)
         self._connection_id: Optional[int] = None
         self.tree_id = None
+        self.user_id = None
         self.undodb: List[bytes] = []
         self.engine = create_engine(dburl)
 
@@ -147,7 +152,9 @@ class DbUndoSQL(DbUndo):
     def _make_connection_id(self) -> int:
         """Insert a row into the connection table."""
         with self.session_scope() as session:
-            new_connection = Connection(timestamp=time_ns(), tree_id=self.tree_id)
+            new_connection = Connection(
+                timestamp=time_ns(), tree_id=self.tree_id, user_id=self.user_id
+            )
             session.add(new_connection)
             session.commit()
             return new_connection.id
