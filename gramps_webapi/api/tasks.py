@@ -299,3 +299,4 @@ def delete_objects(self, tree: str, namespaces: Optional[List[str]] = None):
         namespaces=namespaces,
         progress_cb=progress_callback_count(self),
     )
+    update_usage_people(tree=tree)
