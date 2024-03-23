@@ -272,12 +272,16 @@ class TestDeleteAllObjects(unittest.TestCase):
 
     def test_delete_all(self):
         headers = get_headers(self.client, "owner", "123")
+        rv = self.client.get("/api/trees/-", headers=headers)
+        assert rv.json.get("usage_people") is None
         for _ in range(3):
             self.client.post("/api/notes/", json={}, headers=headers)
         for _ in range(3):
             self.client.post("/api/people/", json={}, headers=headers)
         for _ in range(3):
             self.client.post("/api/families/", json={}, headers=headers)
+        rv = self.client.get("/api/trees/-", headers=headers)
+        assert rv.json.get("usage_people") == 3
         # assert there
         rv = self.client.get("/api/notes/", headers=headers)
         assert rv.headers.pop("X-Total-Count") == "3"
@@ -288,6 +292,8 @@ class TestDeleteAllObjects(unittest.TestCase):
         # delete
         rv = self.client.post("/api/objects/delete/", headers=headers)
         assert rv.status_code == 200
+        rv = self.client.get("/api/trees/-", headers=headers)
+        assert rv.json.get("usage_people") == 0
         # assert gone
         rv = self.client.get("/api/notes/", headers=headers)
         assert rv.headers.pop("X-Total-Count") == "0"
@@ -298,6 +304,8 @@ class TestDeleteAllObjects(unittest.TestCase):
 
     def test_delete_namespace(self):
         headers = get_headers(self.client, "owner", "123")
+        rv = self.client.get("/api/trees/-", headers=headers)
+        assert not rv.json.get("usage_people")
         for _ in range(3):
             self.client.post("/api/notes/", json={}, headers=headers)
         for _ in range(3):
@@ -306,6 +314,8 @@ class TestDeleteAllObjects(unittest.TestCase):
             self.client.post("/api/families/", json={}, headers=headers)
         for _ in range(3):
             self.client.post("/api/events/", json={}, headers=headers)
+        rv = self.client.get("/api/trees/-", headers=headers)
+        assert rv.json.get("usage_people") == 3
         # assert there
         rv = self.client.get("/api/notes/", headers=headers)
         assert rv.headers.pop("X-Total-Count") == "3"
@@ -320,6 +330,8 @@ class TestDeleteAllObjects(unittest.TestCase):
             "/api/objects/delete/?namespaces=notes,families", headers=headers
         )
         assert rv.status_code == 200
+        rv = self.client.get("/api/trees/-", headers=headers)
+        assert rv.json.get("usage_people") == 3
         rv = self.client.get("/api/notes/", headers=headers)
         assert rv.headers.pop("X-Total-Count") == "0"
         rv = self.client.get("/api/families/", headers=headers)
@@ -331,6 +343,8 @@ class TestDeleteAllObjects(unittest.TestCase):
         # delete
         rv = self.client.post("/api/objects/delete/?namespaces=people", headers=headers)
         assert rv.status_code == 200
+        rv = self.client.get("/api/trees/-", headers=headers)
+        assert rv.json.get("usage_people") == 0
         rv = self.client.get("/api/people/", headers=headers)
         assert rv.headers.pop("X-Total-Count") == "0"
         rv = self.client.get("/api/events/", headers=headers)
