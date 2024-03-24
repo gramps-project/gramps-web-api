@@ -21,28 +21,31 @@
 
 """SQLite database with undo history."""
 
+import json
 import pickle
 from contextlib import contextmanager
 from time import time_ns
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
+import gramps
+import jsonpatch
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import REFERENCE_KEY, TXNADD, TXNDEL, TXNUPD, DbUndo, DbWriteBase
 from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_CLASS_MAP, KEY_TO_NAME_MAP
 from gramps.gen.db.txn import DbTxn
+from gramps.gen.lib.serialize import to_json
 from sqlalchemy import (
-    LargeBinary,
-    Column,
     BigInteger,
+    Column,
+    ForeignKey,
     Integer,
+    LargeBinary,
+    PrimaryKeyConstraint,
     Text,
     create_engine,
-    ForeignKey,
-    PrimaryKeyConstraint,
 )
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
 
 _ = glocale.translation.gettext
 
@@ -67,6 +70,42 @@ class Change(Base):
 
     connection = relationship("Connection", back_populates="changes")
 
+    def _obj_to_json(self, data):
+        """Convert binary object to a JSON dict."""
+        if data is None:
+            return {}
+        obj_cls = getattr(gramps.gen.lib, self.obj_class)
+        serial_data = pickle.loads(data)
+        obj = obj_cls().unserialize(serial_data)
+        json_string = to_json(obj)
+        return json.loads(json_string)
+
+    def _to_dict(
+        self, old_data: bool = True, new_data: bool = True, patch: bool = True
+    ):
+        """Return a dict representation of the change."""
+
+        data = {
+            "id": self.id,
+            "obj_class": self.obj_class,
+            "trans_type": self.trans_type,
+            "obj_handle": self.obj_handle,
+            "ref_handle": self.ref_handle,
+            "timestamp": self.timestamp / 1e9,
+        }
+        show_patch = patch and self.trans_type == TXNUPD
+        if old_data or show_patch:
+            old = self._obj_to_json(self.old_data)
+        if new_data or show_patch:
+            new = self._obj_to_json(self.new_data)
+        if old_data:
+            data["old_data"] = old
+        if new_data:
+            data["new_data"] = new
+        if show_patch:
+            data["patch"] = jsonpatch.JsonPatch.from_diff(old, new).patch
+        return data
+
 
 class Connection(Base):
     """A connection is a bunch of database transactions grouped together.
@@ -84,6 +123,14 @@ class Connection(Base):
 
     changes = relationship("Change", back_populates="connection")
     transactions = relationship("Transaction", back_populates="connection")
+
+    def _to_dict(self):
+        """Return a dict representation of the connection."""
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "timestamp": self.timestamp / 1e9,
+        }
 
 
 class Transaction(Base):
@@ -103,6 +150,24 @@ class Transaction(Base):
     timestamp = Column(BigInteger, index=True)
 
     connection = relationship("Connection", back_populates="transactions")
+
+    def _to_dict(
+        self, old_data: bool = True, new_data: bool = True, patch: bool = True
+    ):
+        """Return a dict representation of the transaction."""
+        return {
+            "id": self.id,
+            "connection": self.connection._to_dict(),
+            "description": self.description,
+            "first": self.first,
+            "last": self.last,
+            "undo": bool(self.undo),
+            "timestamp": self.timestamp / 1e9,
+            "changes": [
+                change._to_dict(old_data=old_data, new_data=new_data, patch=patch)
+                for change in self.connection.changes
+            ],
+        }
 
 
 class DbUndoSQL(DbUndo):
@@ -443,43 +508,23 @@ class DbUndoSQL(DbUndo):
                         self.db.emit(KEY_TO_NAME_MAP[obj_type] + typ, (handles,))
 
 
-class Cursor:
-    def __init__(self, iterator):
-        self.iterator = iterator
-        self._iter = self.__iter__()
+class DbUndoSQLWeb(DbUndoSQL):
+    """SQL-based undo database with additional methods for Web API."""
 
-    def __enter__(self):
-        return self
-
-    def __iter__(self):
-        for handle, data in self.iterator():
-            yield (handle, data)
-
-    def __next__(self):
-        try:
-            return self._iter.__next__()
-        except StopIteration:
-            return None
-
-    def __exit__(self, *args, **kwargs):
-        pass
-
-    def iter(self):
-        for handle, data in self.iterator():
-            yield (handle, data)
-
-    def first(self):
-        self._iter = self.__iter__()
-        try:
-            return next(self._iter)
-        except:
-            return
-
-    def next(self):
-        try:
-            return next(self._iter)
-        except:
-            return
-
-    def close(self):
-        pass
+    def get_transactions(
+        self, old_data: bool = True, new_data: bool = True, patch: bool = True
+    ) -> List[Dict[str, Any]]:
+        """Get transactions as a JSONifiable list."""
+        with self.session_scope() as session:
+            transactions = (
+                session.query(Transaction)
+                .join(Connection)
+                .join(Change)
+                .filter(Connection.tree_id == self.tree_id)
+                .filter(Change.id >= Transaction.first)
+                .filter(Change.id <= Transaction.last)
+            )
+            return [
+                transaction._to_dict(old_data=old_data, new_data=new_data, patch=patch)
+                for transaction in transactions
+            ]

@@ -40,7 +40,7 @@ from gramps.gen.user import UserBase
 from gramps.gen.utils.config import get_researcher
 from gramps.gen.utils.configmanager import ConfigManager
 
-from .undodb import DbUndoSQL
+from .undodb import DbUndoSQLWeb
 
 _ = glocale.translation.gettext
 
@@ -146,7 +146,7 @@ class WebDbSessionManager:
                 tree_id = db.dbapi.treeid
             else:
                 tree_id = None
-            return DbUndoSQL(
+            return DbUndoSQLWeb(
                 grampsdb=db, dburl=dburl, tree_id=tree_id, user_id=self.user_id
             )
 
