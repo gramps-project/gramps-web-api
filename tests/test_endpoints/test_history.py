@@ -238,3 +238,13 @@ class TestTransactionHistoryResource(unittest.TestCase):
         assert "patch" not in transactions[0]["changes"][0]
         assert "patch" in transactions[1]["changes"][0]
         assert "patch" not in transactions[0]["changes"][0]
+        rv = self.client.get("/api/transactions/history/?pagesize=1", headers=headers)
+        assert rv.status_code == 200
+        transactions = rv.json
+        assert len(transactions) == 1
+        rv = self.client.get(
+            "/api/transactions/history/?page=4&pagesize=1", headers=headers
+        )
+        assert rv.status_code == 200
+        transactions = rv.json
+        assert len(transactions) == 0

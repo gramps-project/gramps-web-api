@@ -23,7 +23,7 @@ from typing import Dict
 
 from flask import Response
 from gramps.gen.db.dbconst import TXNADD, TXNDEL, TXNUPD
-from webargs import fields
+from webargs import fields, validate
 
 from ..util import get_db_handle, use_args
 from . import ProtectedResource
@@ -39,6 +39,8 @@ class TransactionsHistoryResource(ProtectedResource):
             "old": fields.Boolean(load_default=False),
             "new": fields.Boolean(load_default=False),
             "patch": fields.Boolean(load_default=False),
+            "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
+            "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
         },
         location="query",
     )
@@ -48,6 +50,10 @@ class TransactionsHistoryResource(ProtectedResource):
         transactions = []
         undodb = db_handle.undodb
         transactions = undodb.get_transactions(
-            old_data=args["old"], new_data=args["new"], patch=args["patch"]
+            page=args["page"],
+            pagesize=args["pagesize"],
+            old_data=args["old"],
+            new_data=args["new"],
+            patch=args["patch"],
         )
         return transactions

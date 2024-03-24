@@ -512,18 +512,27 @@ class DbUndoSQLWeb(DbUndoSQL):
     """SQL-based undo database with additional methods for Web API."""
 
     def get_transactions(
-        self, old_data: bool = True, new_data: bool = True, patch: bool = True
+        self,
+        page: int = 1,
+        pagesize: int = 20,
+        old_data: bool = True,
+        new_data: bool = True,
+        patch: bool = True,
     ) -> List[Dict[str, Any]]:
         """Get transactions as a JSONifiable list."""
         with self.session_scope() as session:
-            transactions = (
+            query = (
                 session.query(Transaction)
                 .join(Connection)
                 .join(Change)
                 .filter(Connection.tree_id == self.tree_id)
                 .filter(Change.id >= Transaction.first)
                 .filter(Change.id <= Transaction.last)
+                .order_by(Transaction.id)
             )
+            if page and pagesize:
+                query = query.limit(pagesize).offset((page - 1) * pagesize)
+            transactions = query.all()
             return [
                 transaction._to_dict(old_data=old_data, new_data=new_data, patch=patch)
                 for transaction in transactions
