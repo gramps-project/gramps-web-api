@@ -102,11 +102,12 @@ def get_postgres_credentials(directory, username, password):
 class WebDbSessionManager:
     """Session manager derived from `CLIDbLoader` and `CLIManager`."""
 
-    def __init__(self, dbstate: DbState, user: UserBase):
+    def __init__(self, dbstate: DbState, user: UserBase, user_id: str):
         """Initialize self."""
         self.dbstate = dbstate
         self._pmgr = BasePluginManager.get_instance()
         self.user = user
+        self.user_id = user_id
 
     def read_file(
         self,
@@ -136,8 +137,6 @@ class WebDbSessionManager:
         db = make_database(dbid)
 
         def create_undo_manager():
-            tree_id = None
-            user_id = None
             if dbid == "sqlite":
                 dburl = f"sqlite:///{db.undolog}"
             elif dbid in ["postgresql", "sharedpostgresql"]:
@@ -145,7 +144,11 @@ class WebDbSessionManager:
                 dburl = f"postgresql+psycopg2://{username}:{password}@{dbargs['host']}:{dbargs['port']}/{dbargs['dbname']}"
             if dbid == "sharedpostgresql":
                 tree_id = db.dbapi.treeid
-            return DbUndoSQL(grampsdb=db, dburl=dburl, tree_id=tree_id, user_id=user_id)
+            else:
+                tree_id = None
+            return DbUndoSQL(
+                grampsdb=db, dburl=dburl, tree_id=tree_id, user_id=self.user_id
+            )
 
         db._create_undo_manager = create_undo_manager
 

@@ -103,10 +103,14 @@ def send_email_new_user(
         send_email(subject=subject, body=body, to=emails)
 
 
-def _search_reindex_full(tree, progress_cb: Optional[Callable] = None) -> None:
+def _search_reindex_full(
+    tree: str, user_id: str, progress_cb: Optional[Callable] = None
+) -> None:
     """Rebuild the search index."""
     indexer = get_search_indexer(tree)
-    db = get_db_outside_request(tree=tree, view_private=True, readonly=True)
+    db = get_db_outside_request(
+        tree=tree, view_private=True, readonly=True, user_id=user_id
+    )
     try:
         indexer.reindex_full(db, progress_cb=progress_cb)
     finally:
@@ -132,18 +136,23 @@ def progress_callback_count(self, title: str = "", message: str = "") -> Callabl
 
 
 @shared_task(bind=True)
-def search_reindex_full(self, tree) -> None:
+def search_reindex_full(self, tree: str, user_id: str) -> None:
     """Rebuild the search index."""
     return _search_reindex_full(
-        tree,
+        tree=tree,
+        user_id=user_id,
         progress_cb=progress_callback_count(self, title="Updating search index..."),
     )
 
 
-def _search_reindex_incremental(tree, progress_cb: Optional[Callable] = None) -> None:
+def _search_reindex_incremental(
+    tree: str, user_id: str, progress_cb: Optional[Callable] = None
+) -> None:
     """Run an incremental reindex of the search index."""
     indexer = get_search_indexer(tree)
-    db = get_db_outside_request(tree=tree, view_private=True, readonly=True)
+    db = get_db_outside_request(
+        tree=tree, view_private=True, readonly=True, user_id=user_id
+    )
     try:
         indexer.reindex_incremental(db, progress_cb=progress_cb)
     finally:
@@ -151,22 +160,27 @@ def _search_reindex_incremental(tree, progress_cb: Optional[Callable] = None) ->
 
 
 @shared_task(bind=True)
-def search_reindex_incremental(self, tree) -> None:
+def search_reindex_incremental(self, tree: str, user_id: str) -> None:
     """Run an incremental reindex of the search index."""
     return _search_reindex_incremental(
-        tree,
+        tree=tree,
+        user_id=user_id,
         progress_cb=progress_callback_count(self, title="Updating search index..."),
     )
 
 
 @shared_task(bind=True)
-def import_file(self, tree: str, file_name: str, extension: str, delete: bool = True):
+def import_file(
+    self, tree: str, user_id: str, file_name: str, extension: str, delete: bool = True
+):
     """Import a file."""
     object_counts = dry_run_import(file_name=file_name)
     if object_counts is None:
         raise ValueError(f"Failed importing {extension} file")
     check_quota_people(to_add=object_counts["people"], tree=tree)
-    db_handle = get_db_outside_request(tree=tree, view_private=True, readonly=True)
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=True, readonly=True, user_id=user_id
+    )
     run_import(
         db_handle=db_handle,
         file_name=file_name,
@@ -176,18 +190,19 @@ def import_file(self, tree: str, file_name: str, extension: str, delete: bool = 
     )
     update_usage_people(tree=tree)
     _search_reindex_incremental(
-        tree,
+        tree=tree,
+        user_id=user_id,
         progress_cb=progress_callback_count(self, title="Updating search index..."),
     )
 
 
 @shared_task(bind=True)
 def export_db(
-    self, tree: str, extension: str, options: Dict, view_private: bool
+    self, tree: str, user_id: str, extension: str, options: Dict, view_private: bool
 ) -> Dict[str, str]:
     """Export a database."""
     db_handle = get_db_outside_request(
-        tree=tree, view_private=view_private, readonly=True
+        tree=tree, view_private=view_private, readonly=True, user_id=user_id
     )
     prepared_options = prepare_options(db_handle, options)
     file_name, file_type = run_export(db_handle, extension, prepared_options, task=self)
@@ -202,6 +217,7 @@ def export_db(
 @shared_task()
 def generate_report(
     tree: str,
+    user_id: str,
     report_id: str,
     options: Dict,
     view_private: bool,
@@ -209,7 +225,7 @@ def generate_report(
 ) -> Dict[str, str]:
     """Generate a Gramps report."""
     db_handle = get_db_outside_request(
-        tree=tree, view_private=view_private, readonly=True
+        tree=tree, view_private=view_private, readonly=True, user_id=user_id
     )
     file_name, file_type = run_report(
         db_handle=db_handle,
@@ -225,10 +241,12 @@ def generate_report(
 
 
 @shared_task(bind=True)
-def export_media(self, tree: str, view_private: bool) -> Dict[str, Union[str, int]]:
+def export_media(
+    self, tree: str, user_id: str, view_private: bool
+) -> Dict[str, Union[str, int]]:
     """Export media files."""
     db_handle = get_db_outside_request(
-        tree=tree, view_private=view_private, readonly=True
+        tree=tree, view_private=view_private, readonly=True, user_id=user_id
     )
     media_handler = get_media_handler(db_handle, tree=tree)
     export_path = current_app.config["EXPORT_DIR"]
@@ -250,11 +268,16 @@ def export_media(self, tree: str, view_private: bool) -> Dict[str, Union[str, in
 
 
 @shared_task(bind=True)
-def import_media_archive(self, tree: str, file_name: str, delete: bool = True):
+def import_media_archive(
+    self, tree: str, user_id: str, file_name: str, delete: bool = True
+):
     """Import a media archive."""
-    db_handle = get_db_outside_request(tree=tree, view_private=True, readonly=True)
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=True, readonly=True, user_id=user_id
+    )
     importer = MediaImporter(
         tree=tree,
+        user_id=user_id,
         db_handle=db_handle,
         file_name=file_name,
         delete=delete,
@@ -265,11 +288,16 @@ def import_media_archive(self, tree: str, file_name: str, delete: bool = True):
 
 @shared_task()
 def media_ocr(
-    tree: str, handle: str, view_private: bool, lang: str, output_format: str = "string"
+    tree: str,
+    user_id: str,
+    handle: str,
+    view_private: bool,
+    lang: str,
+    output_format: str = "string",
 ):
     """Perform text recognition (OCR) on a media object."""
     db_handle = get_db_outside_request(
-        tree=tree, view_private=view_private, readonly=True
+        tree=tree, view_private=view_private, readonly=True, user_id=user_id
     )
     handler = get_media_handler(db_handle, tree).get_file_handler(
         handle, db_handle=db_handle
@@ -278,25 +306,31 @@ def media_ocr(
 
 
 @shared_task(bind=True)
-def check_repair_database(self, tree: str):
+def check_repair_database(self, tree: str, user_id: str):
     """Check and repair a Gramps database (tree)"""
-    db_handle = get_db_outside_request(tree=tree, view_private=True, readonly=False)
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=True, readonly=False, user_id=user_id
+    )
     return check_database(db_handle, progress_cb=progress_callback_count(self))
 
 
 @shared_task(bind=True)
-def upgrade_database_schema(self, tree: str):
+def upgrade_database_schema(self, tree: str, user_id: str):
     """Upgrade a Gramps database (tree) schema."""
-    return upgrade_gramps_database(tree=tree, task=self)
+    return upgrade_gramps_database(tree=tree, user_id=user_id, task=self)
 
 
 @shared_task(bind=True)
-def delete_objects(self, tree: str, namespaces: Optional[List[str]] = None):
+def delete_objects(
+    self, tree: str, user_id: str, namespaces: Optional[List[str]] = None
+):
     """Delete all objects of a given type."""
-    db_handle = get_db_outside_request(tree=tree, view_private=True, readonly=False)
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=True, readonly=False, user_id=user_id
+    )
     delete_all_objects(
         db_handle=db_handle,
         namespaces=namespaces,
         progress_cb=progress_callback_count(self),
     )
-    update_usage_people(tree=tree)
+    update_usage_people(tree=tree, user_id=user_id)

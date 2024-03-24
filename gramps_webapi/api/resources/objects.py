@@ -23,6 +23,7 @@ import json
 from typing import Sequence
 
 from flask import Response, jsonify, request
+from flask_jwt_extended import get_jwt_identity
 from gramps.gen.db import DbTxn
 from gramps.gen.lib import Family, Person
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
@@ -124,9 +125,11 @@ class DeleteObjectsResource(FreshProtectedResource):
         """Delete the objects."""
         require_permissions([PERM_DEL_OBJ_BATCH])
         tree = get_tree_from_jwt()
+        user_id = get_jwt_identity()
         task = run_task(
             delete_objects,
             tree=tree,
+            user_id=user_id,
             namespaces=args.get("namespaces") or None,
         )
         if isinstance(task, AsyncResult):
