@@ -177,7 +177,7 @@ def import_file(
     object_counts = dry_run_import(file_name=file_name)
     if object_counts is None:
         raise ValueError(f"Failed importing {extension} file")
-    check_quota_people(to_add=object_counts["people"], tree=tree)
+    check_quota_people(to_add=object_counts["people"], tree=tree, user_id=user_id)
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=True, user_id=user_id
     )
