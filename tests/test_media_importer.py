@@ -105,7 +105,7 @@ def test_no_media(setup):
     files = ["f1.jpg"]
     create_zip(files, temp_dir)
     zip_file_name = os.path.join(temp_dir, ZIP_NAME)
-    mi = MediaImporter(tree, db_handle, zip_file_name)
+    mi = MediaImporter(tree, "", db_handle, zip_file_name)
     result = mi()
     assert result == {"missing": 0, "uploaded": 0, "failures": 0}
 
@@ -119,7 +119,7 @@ def test_two_files(setup):
     checksums = create_zip(files, temp_dir)
     create_media(db_handle, files, checksums)
     zip_file_name = os.path.join(temp_dir, ZIP_NAME)
-    mi = MediaImporter(tree, db_handle, zip_file_name)
+    mi = MediaImporter(tree, "", db_handle, zip_file_name)
     result = mi()
     assert result == {"missing": 2, "uploaded": 2, "failures": 0}
 
@@ -131,7 +131,7 @@ def test_wrong_checksums(setup):
     wrong_checksums = [cs + "xx" for cs in checksums]
     create_media(db_handle, files, wrong_checksums)
     zip_file_name = os.path.join(temp_dir, ZIP_NAME)
-    mi = MediaImporter(tree, db_handle, zip_file_name)
+    mi = MediaImporter(tree, "", db_handle, zip_file_name)
     result = mi()
     assert result == {"missing": 2, "uploaded": 0, "failures": 0}
 
@@ -143,7 +143,7 @@ def test_wrong_filenames(setup):
     wrong_files = ["xx" + fn for fn in files]
     create_media(db_handle, wrong_files, checksums)
     zip_file_name = os.path.join(temp_dir, ZIP_NAME)
-    mi = MediaImporter(tree, db_handle, zip_file_name)
+    mi = MediaImporter(tree, "", db_handle, zip_file_name)
     result = mi()
     assert result == {"missing": 2, "uploaded": 2, "failures": 0}
 
@@ -155,7 +155,7 @@ def test_empty_checksums(setup):
     checksums = ["", ""]
     create_media(db_handle, files, checksums)
     zip_file_name = os.path.join(temp_dir, ZIP_NAME)
-    mi = MediaImporter(tree, db_handle, zip_file_name)
+    mi = MediaImporter(tree, "", db_handle, zip_file_name)
     result = mi()
     assert result == {"missing": 2, "uploaded": 2, "failures": 0}
 
@@ -169,6 +169,6 @@ def test_mixed(setup):
     files = files + ["doesntexist.jpg"]
     create_media(db_handle, files, checksums)
     zip_file_name = os.path.join(temp_dir, ZIP_NAME)
-    mi = MediaImporter(tree, db_handle, zip_file_name)
+    mi = MediaImporter(tree, "", db_handle, zip_file_name)
     result = mi()
     assert result == {"missing": 4, "uploaded": 2, "failures": 0}
