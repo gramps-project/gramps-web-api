@@ -188,7 +188,7 @@ def import_file(
         delete=delete,
         task=self,
     )
-    update_usage_people(tree=tree)
+    update_usage_people(tree=tree, user_id=user_id)
     _search_reindex_incremental(
         tree=tree,
         user_id=user_id,
