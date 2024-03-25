@@ -518,6 +518,7 @@ class DbUndoSQLWeb(DbUndoSQL):
         old_data: bool = True,
         new_data: bool = True,
         patch: bool = True,
+        ascending: bool = True,
     ) -> List[Dict[str, Any]]:
         """Get transactions as a JSONifiable list."""
         with self.session_scope() as session:
@@ -528,8 +529,11 @@ class DbUndoSQLWeb(DbUndoSQL):
                 .filter(Connection.tree_id == self.tree_id)
                 .filter(Change.id >= Transaction.first)
                 .filter(Change.id <= Transaction.last)
-                .order_by(Transaction.id)
             )
+            if ascending:
+                query = query.order_by(Transaction.id)
+            else:
+                query = query.order_by(Transaction.id.desc())
             if page and pagesize:
                 query = query.limit(pagesize).offset((page - 1) * pagesize)
             transactions = query.all()

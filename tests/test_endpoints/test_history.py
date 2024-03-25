@@ -250,3 +250,7 @@ class TestTransactionHistoryResource(unittest.TestCase):
         assert rv.status_code == 200
         transactions = rv.json
         assert len(transactions) == 0
+        rv = self.client.get("/api/transactions/history/?sort=-id", headers=headers)
+        assert rv.status_code == 200
+        transactions = rv.json
+        assert [t["id"] for t in transactions] == [3, 2, 1]

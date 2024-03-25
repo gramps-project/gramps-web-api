@@ -41,6 +41,7 @@ class TransactionsHistoryResource(ProtectedResource):
             "patch": fields.Boolean(load_default=False),
             "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
             "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
+            "sort": fields.Str(validate=validate.Length(min=1)),
         },
         location="query",
     )
@@ -49,11 +50,13 @@ class TransactionsHistoryResource(ProtectedResource):
         db_handle = get_db_handle()
         transactions = []
         undodb = db_handle.undodb
+        ascending = args.get("sort") != "-id"
         transactions = undodb.get_transactions(
             page=args["page"],
             pagesize=args["pagesize"],
             old_data=args["old"],
             new_data=args["new"],
             patch=args["patch"],
+            ascending=ascending,
         )
         return transactions
