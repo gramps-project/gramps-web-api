@@ -25,6 +25,8 @@ from flask import Response
 from gramps.gen.db.dbconst import TXNADD, TXNDEL, TXNUPD
 from webargs import fields, validate
 
+from ...auth.const import PERM_VIEW_PRIVATE
+from ..auth import require_permissions
 from ..util import get_db_handle, use_args
 from . import ProtectedResource
 
@@ -47,6 +49,7 @@ class TransactionsHistoryResource(ProtectedResource):
     )
     def get(self, args: Dict) -> Response:
         """Return a list of transactions."""
+        require_permissions([PERM_VIEW_PRIVATE])
         db_handle = get_db_handle()
         transactions = []
         undodb = db_handle.undodb
