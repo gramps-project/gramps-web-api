@@ -183,7 +183,7 @@ class DbUndoSQL(DbUndo):
         DbUndo.__init__(self, grampsdb)
         self._connection_id: Optional[int] = None
         self.tree_id = None
-        self.user_id = None
+        self.user_id = user_id
         self.undodb: List[bytes] = []
         self.engine = create_engine(dburl)
 
