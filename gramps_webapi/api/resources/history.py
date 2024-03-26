@@ -21,13 +21,15 @@
 
 from typing import Dict
 
-from flask import Response
+from flask import Response, current_app
 from gramps.gen.db.dbconst import TXNADD, TXNDEL, TXNUPD
 from webargs import fields, validate
 
+from ...auth import get_all_user_details
 from ...auth.const import PERM_VIEW_PRIVATE
+from ...const import TREE_MULTI
 from ..auth import require_permissions
-from ..util import get_db_handle, use_args
+from ..util import get_db_handle, get_tree_from_jwt, use_args
 from . import ProtectedResource
 
 trans_code = {"delete": TXNDEL, "add": TXNADD, "update": TXNUPD}
@@ -62,4 +64,27 @@ class TransactionsHistoryResource(ProtectedResource):
             patch=args["patch"],
             ascending=ascending,
         )
+
+        # load user info
+        tree = get_tree_from_jwt()
+        is_single = current_app.config["TREE"] != TREE_MULTI
+        users = get_all_user_details(
+            tree=tree, include_treeless=is_single, include_guid=True
+        )
+        user_dict = {
+            str(user["user_id"]): {"name": user["name"], "full_name": user["full_name"]}
+            for user in users
+        }
+
+        # replace user IDs by user name
+        transactions = [
+            {
+                **tr,
+                "connection": {
+                    **{k: v for k, v in tr["connection"].items() if k != "user_id"},
+                    "user": user_dict.get(tr["connection"]["user_id"]),
+                },
+            }
+            for tr in transactions
+        ]
         return transactions

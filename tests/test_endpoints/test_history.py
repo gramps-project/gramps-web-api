@@ -92,6 +92,7 @@ class TestTransactionHistoryResource(unittest.TestCase):
         assert transaction["first"] == 1
         assert transaction["last"] == 1
         assert transaction["connection"]["id"] == 1
+        assert transaction["connection"]["user"]["name"] == "editor"
         assert len(transaction["changes"]) == 1
         change = transaction["changes"][0]
         assert change["id"] == 1
