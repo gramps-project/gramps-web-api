@@ -121,7 +121,7 @@ class MediaFileResource(ProtectedResource):
         obj.set_path(path)
         obj.set_mime_type(mime)
         db_handle_writable = get_db_handle(readonly=False)
-        with DbTxn("Update media object", db_handle_writable) as trans:
+        with DbTxn("Edit Media Object", db_handle_writable) as trans:
             try:
                 update_object(db_handle_writable, obj, trans)
             except (AttributeError, ValueError) as exc:

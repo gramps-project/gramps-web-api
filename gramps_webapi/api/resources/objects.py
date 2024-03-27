@@ -81,7 +81,7 @@ class CreateObjectsResource(ProtectedResource):
         number_new_people = sum(isinstance(obj, Person) for obj in objects)
         check_quota_people(to_add=number_new_people)
         db_handle = get_db_handle(readonly=False)
-        with DbTxn("Add objects", db_handle) as trans:
+        with DbTxn("Add multiple objects", db_handle) as trans:
             for obj in objects:
                 try:
                     add_object(db_handle, obj, trans, fail_if_exists=True)

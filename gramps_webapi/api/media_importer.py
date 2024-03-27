@@ -126,7 +126,7 @@ class MediaImporter:
                         checksums_by_handle[handle] = checksum
         if not checksums_by_handle:
             return 0
-        with DbTxn("Update media checksums", self.db_handle) as trans:
+        with DbTxn("Updating checksums on media", self.db_handle) as trans:
             objects_by_handle = {
                 obj.handle: obj
                 for obj in self.objects
