@@ -541,3 +541,26 @@ class DbUndoSQLWeb(DbUndoSQL):
                 transaction._to_dict(old_data=old_data, new_data=new_data, patch=patch)
                 for transaction in transactions
             ]
+
+    def get_transaction(
+        self,
+        transaction_id: int,
+        old_data: bool = True,
+        new_data: bool = True,
+        patch: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """Get a single transaction as a JSONifiable dict."""
+        with self.session_scope() as session:
+            query = (
+                session.query(Transaction)
+                .join(Connection)
+                .join(Change)
+                .filter(Connection.tree_id == self.tree_id)
+                .filter(Transaction.id == transaction_id)
+                .filter(Change.id >= Transaction.first)
+                .filter(Change.id <= Transaction.last)
+            )
+            transaction = query.scalar()
+            return transaction._to_dict(
+                old_data=old_data, new_data=new_data, patch=patch
+            )

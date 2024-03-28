@@ -65,26 +65,64 @@ class TransactionsHistoryResource(ProtectedResource):
             ascending=ascending,
         )
 
-        # load user info
-        tree = get_tree_from_jwt()
-        is_single = current_app.config["TREE"] != TREE_MULTI
-        users = get_all_user_details(
-            tree=tree, include_treeless=is_single, include_guid=True
-        )
-        user_dict = {
-            str(user["user_id"]): {"name": user["name"], "full_name": user["full_name"]}
-            for user in users
-        }
-
         # replace user IDs by user name
+        user_dict = get_user_dict()
         transactions = [
-            {
-                **tr,
-                "connection": {
-                    **{k: v for k, v in tr["connection"].items() if k != "user_id"},
-                    "user": user_dict.get(tr["connection"]["user_id"]),
-                },
-            }
-            for tr in transactions
+            fix_transaction_user(transaction, user_dict) for transaction in transactions
         ]
         return transactions
+
+
+class TransactionHistoryResource(ProtectedResource):
+    """Resource for database transaction history."""
+
+    @use_args(
+        {
+            "old": fields.Boolean(load_default=False),
+            "new": fields.Boolean(load_default=False),
+            "patch": fields.Boolean(load_default=False),
+        },
+        location="query",
+    )
+    def get(self, args: Dict, transaction_id: int) -> Response:
+        """Return a list of transactions."""
+        require_permissions([PERM_VIEW_PRIVATE])
+        db_handle = get_db_handle()
+        undodb = db_handle.undodb
+        transaction = undodb.get_transaction(
+            transaction_id=transaction_id,
+            old_data=args["old"],
+            new_data=args["new"],
+            patch=args["patch"],
+        )
+
+        # replace user IDs by user name
+        user_dict = get_user_dict()
+        transaction = fix_transaction_user(transaction, user_dict)
+
+        return transaction
+
+
+def get_user_dict() -> Dict[str, Dict[str, str]]:
+    """Get a dictionary with user IDs to user names."""
+    tree = get_tree_from_jwt()
+    is_single = current_app.config["TREE"] != TREE_MULTI
+    users = get_all_user_details(
+        tree=tree, include_treeless=is_single, include_guid=True
+    )
+    return {
+        str(user["user_id"]): {"name": user["name"], "full_name": user["full_name"]}
+        for user in users
+    }
+
+
+def fix_transaction_user(transaction, user_dict):
+    """Replace the user ID by the user name."""
+
+    return {
+        **transaction,
+        "connection": {
+            **{k: v for k, v in transaction["connection"].items() if k != "user_id"},
+            "user": user_dict.get(transaction["connection"]["user_id"]),
+        },
+    }

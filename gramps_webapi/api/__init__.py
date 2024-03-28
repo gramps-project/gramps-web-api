@@ -50,7 +50,7 @@ from .resources.facts import FactsResource
 from .resources.families import FamiliesResource, FamilyResource
 from .resources.file import MediaFileResource
 from .resources.filters import FilterResource, FiltersResource, FiltersResources
-from .resources.history import TransactionsHistoryResource
+from .resources.history import TransactionHistoryResource, TransactionsHistoryResource
 from .resources.holidays import HolidayResource, HolidaysResource
 from .resources.import_media import MediaUploadZipResource
 from .resources.importers import (
@@ -136,6 +136,11 @@ register_endpt(DeleteObjectsResource, "/objects/delete/", "delete_objects")
 register_endpt(TransactionsResource, "/transactions/", "transactions")
 register_endpt(
     TransactionsHistoryResource, "/transactions/history/", "transactions_history"
+)
+register_endpt(
+    TransactionHistoryResource,
+    "/transactions/history/<int:transaction_id>",
+    "transaction_history",
 )
 # Token
 register_endpt(TokenResource, "/token/", "token")
