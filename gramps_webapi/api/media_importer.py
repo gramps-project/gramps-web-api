@@ -45,12 +45,14 @@ class MediaImporter:
     def __init__(
         self,
         tree: str,
+        user_id: str,
         db_handle: DbReadBase,
         file_name: FilenameOrPath,
         delete: bool = True,
     ) -> None:
         """Initialize media importer."""
         self.tree = tree
+        self.user_id = user_id
         self.db_handle = db_handle
         self.file_name = file_name
         self.delete = delete
@@ -124,7 +126,7 @@ class MediaImporter:
                         checksums_by_handle[handle] = checksum
         if not checksums_by_handle:
             return 0
-        with DbTxn("Update media checksums", self.db_handle) as trans:
+        with DbTxn("Updating checksums on media", self.db_handle) as trans:
             objects_by_handle = {
                 obj.handle: obj
                 for obj in self.objects
@@ -231,7 +233,7 @@ class MediaImporter:
             return {"missing": len(missing_files), "uploaded": 0, "failures": 0}
 
         upload_size = sum(file_size for (_, file_size) in to_upload.values())
-        check_quota_media(to_add=upload_size, tree=self.tree)
+        check_quota_media(to_add=upload_size, tree=self.tree, user_id=self.user_id)
 
         num_failures = self._upload_files(
             to_upload, missing_files, progress_cb=progress_cb

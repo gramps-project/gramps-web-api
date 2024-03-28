@@ -437,7 +437,7 @@ def delete_object(
         method = delete_methods[key]
     except KeyError:
         raise NotImplementedError(gramps_class_name)
-    with DbTxn(f"Delete {gramps_class_name} {handle}", db_handle) as trans:
+    with DbTxn(f"Delete {gramps_class_name}", db_handle) as trans:
         method(db_handle, handle, trans=trans)
         trans_dict = transaction_to_json(trans)
     return trans_dict

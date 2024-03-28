@@ -27,9 +27,10 @@ import time
 from typing import Dict
 
 from flask import Response, abort, current_app, jsonify, send_file
+from flask_jwt_extended import get_jwt_identity
 from webargs import fields, validate
 
-from ...auth.const import PERM_EDIT_OBJ, PERM_VIEW_PRIVATE
+from ...auth.const import PERM_VIEW_PRIVATE
 from ...const import MIME_TYPES
 from ..auth import has_permissions
 from ..report import check_report_id_exists, get_reports, run_report
@@ -123,9 +124,11 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
         if "of" in report_options:
             abort(422)
         tree = get_tree_from_jwt()
+        user_id = get_jwt_identity()
         task = run_task(
             generate_report,
             tree=tree,
+            user_id=user_id,
             report_id=report_id.lower(),
             options=report_options,
             view_private=has_permissions({PERM_VIEW_PRIVATE}),

@@ -158,6 +158,7 @@ class WebDbManager:
 
     def get_db(
         self,
+        user_id: str = "",
         readonly: bool = True,
         force_unlock: bool = False,
     ) -> DbState:
@@ -170,7 +171,7 @@ class WebDbManager:
         """
         dbstate = DbState()
         user = User()
-        smgr = WebDbSessionManager(dbstate, user)
+        smgr = WebDbSessionManager(dbstate, user, user_id=user_id)
         smgr.do_reg_plugins(dbstate, uistate=None)
         if force_unlock:
             self.break_lock()
@@ -198,11 +199,12 @@ class WebDbManager:
 
     def upgrade_if_needed(
         self,
+        user_id: Optional[str] = None,
         user: Optional[UserBase] = None,
     ):
         """Upgrade the Gramps database schema if needed."""
         dbstate = DbState()
-        smgr = WebDbSessionManager(dbstate, user=user or User())
+        smgr = WebDbSessionManager(dbstate, user=user or User(), user_id=user_id)
         smgr.do_reg_plugins(dbstate, uistate=None)
         smgr.read_file(
             self.path,

@@ -23,6 +23,7 @@ from http import HTTPStatus
 from typing import Dict
 
 from flask import Response, abort, jsonify
+from flask_jwt_extended import get_jwt_identity
 from gramps.gen.errors import HandleError
 from webargs import fields, validate
 
@@ -51,9 +52,11 @@ class MediaOcrResource(ProtectedResource):
         except HandleError:
             abort(HTTPStatus.NOT_FOUND)
         tree = get_tree_from_jwt()
+        user_id = get_jwt_identity()
         task = run_task(
             media_ocr,
             tree=tree,
+            user_id=user_id,
             handle=handle,
             view_private=has_permissions({PERM_VIEW_PRIVATE}),
             lang=args["lang"],

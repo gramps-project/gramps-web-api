@@ -32,7 +32,7 @@ from typing import BinaryIO, List, Optional, Sequence, Tuple
 
 from celery import Task
 from flask import Response, abort, current_app, g, jsonify, make_response, request
-from flask_jwt_extended import get_jwt
+from flask_jwt_extended import get_jwt, get_jwt_identity
 from gramps.cli.clidbman import NAME_FILE, CLIDbManager
 from gramps.gen.config import config
 from gramps.gen.const import GRAMPS_LOCALE
@@ -358,7 +358,9 @@ def get_tree_from_jwt() -> Optional[str]:
     return tree
 
 
-def get_db_outside_request(tree: str, view_private: bool, readonly: bool) -> DbReadBase:
+def get_db_outside_request(
+    tree: str, view_private: bool, readonly: bool, user_id: str
+) -> DbReadBase:
     """Open the database and get the current instance.
 
     Called before every request.
@@ -370,7 +372,7 @@ def get_db_outside_request(tree: str, view_private: bool, readonly: bool) -> DbR
     """
     dbmgr = get_db_manager(tree)
     try:
-        dbstate = dbmgr.get_db(readonly=readonly)
+        dbstate = dbmgr.get_db(user_id=user_id, readonly=readonly)
     except DbUpgradeRequiredError:
         abort_with_message(
             HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -400,6 +402,7 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
     """
     view_private = has_permissions({PERM_VIEW_PRIVATE})
     tree = get_tree_from_jwt()
+    user_id = get_jwt_identity()
 
     if readonly and "db" not in g:
         # cache the db instance for the duration of
@@ -408,6 +411,7 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
             tree=tree,
             view_private=view_private,
             readonly=True,
+            user_id=user_id,
         )
         g.db = db
 
@@ -428,6 +432,7 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
             tree=tree,
             view_private=view_private,
             readonly=False,
+            user_id=user_id,
         )
         g.db_write = db_write
     if not readonly:
@@ -595,27 +600,36 @@ def tree_exists(tree_id: str) -> bool:
     return True
 
 
-def update_usage_people(tree: Optional[str] = None) -> int:
+def update_usage_people(
+    tree: Optional[str] = None, user_id: Optional[str] = None
+) -> int:
     """Update the usage of people."""
     if not tree:
         tree = get_tree_from_jwt()
+    if not user_id:
+        user_id = get_jwt_identity()
     db_handle = get_db_outside_request(
         tree=tree,
         view_private=True,
         readonly=True,
+        user_id=user_id,
     )
     usage_people = db_handle.get_number_of_people()
     set_tree_usage(tree, usage_people=usage_people)
     return usage_people
 
 
-def check_quota_people(to_add: int, tree: Optional[str] = None) -> None:
+def check_quota_people(
+    to_add: int, tree: Optional[str] = None, user_id: Optional[str] = None
+) -> None:
     """Check whether the quota allows adding `to_add` people and abort if not."""
     if not tree:
         tree = get_tree_from_jwt()
+    if not user_id:
+        user_id = get_jwt_identity()
     usage_dict = get_tree_usage(tree)
     if not usage_dict or usage_dict.get("usage_people") is None:
-        update_usage_people(tree=tree)
+        update_usage_people(tree=tree, user_id=user_id)
     usage_dict = get_tree_usage(tree)
     usage = usage_dict["usage_people"]
     quota = usage_dict.get("quota_people")
@@ -638,7 +652,9 @@ def abort_with_message(status: int, message: str):
     raise exc
 
 
-def upgrade_gramps_database(tree: str, task: Optional[Task] = None) -> None:
+def upgrade_gramps_database(
+    tree: str, user_id: str, task: Optional[Task] = None
+) -> None:
     """Upgrade the Gramps database for a tree."""
     dbmgr = get_db_manager(tree=tree)
-    dbmgr.upgrade_if_needed(user=UserTaskProgress(task=task))
+    dbmgr.upgrade_if_needed(user_id=user_id, user=UserTaskProgress(task=task))

@@ -90,7 +90,7 @@ class MediaObjectsResource(GrampsObjectsProtectedResource, MediaObjectResourceHe
         obj.set_checksum(checksum)
         obj.set_path(path)
         obj.set_mime_type(mime)
-        with DbTxn("Add object", db_handle) as trans:
+        with DbTxn("New Media", db_handle) as trans:
             try:
                 add_object(db_handle, obj, trans)
             except ValueError as exc:

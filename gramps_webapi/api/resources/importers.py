@@ -26,6 +26,7 @@ from http import HTTPStatus
 from typing import Any, Dict
 
 from flask import Response, current_app, request
+from flask_jwt_extended import get_jwt_identity
 from webargs import fields
 
 from ...auth.const import PERM_IMPORT_FILE
@@ -95,9 +96,11 @@ class ImporterFileResource(ProtectedResource):
                 HTTPStatus.NOT_FOUND, f"Importer for extension {extension} not found"
             )
         tree = get_tree_from_jwt()
+        user_id = get_jwt_identity()
         task = run_task(
             import_file,
             tree=tree,
+            user_id=user_id,
             file_name=file_path,
             extension=extension.lower(),
             delete=True,

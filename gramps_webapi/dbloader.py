@@ -24,6 +24,7 @@
 
 import logging
 import os
+from uuid import uuid4
 
 from gramps.gen.config import config
 from gramps.gen.const import GRAMPS_LOCALE as glocale
@@ -37,6 +38,9 @@ from gramps.gen.plug import BasePluginManager
 from gramps.gen.recentfiles import recent_files
 from gramps.gen.user import UserBase
 from gramps.gen.utils.config import get_researcher
+from gramps.gen.utils.configmanager import ConfigManager
+
+from .undodb import DbUndoSQLWeb
 
 _ = glocale.translation.gettext
 
@@ -64,14 +68,46 @@ def get_title(filename: str) -> str:
     return title
 
 
+def get_postgres_credentials(directory, username, password):
+    """Get the credentials for PostgreSQL."""
+    config_file = os.path.join(directory, "settings.ini")
+    config_mgr = ConfigManager(config_file)
+    config_mgr.register("database.dbname", "")
+    config_mgr.register("database.host", "")
+    config_mgr.register("database.port", "")
+    config_mgr.register("tree.uuid", "")
+
+    if not os.path.exists(config_file):
+        config_mgr.set("database.dbname", "gramps")
+        config_mgr.set("database.host", config.get("database.host"))
+        config_mgr.set("database.port", config.get("database.port"))
+        config_mgr.set("tree.uuid", uuid4().hex)
+        config_mgr.save()
+
+    config_mgr.load()
+
+    dbkwargs = {}
+    for key in config_mgr.get_section_settings("database"):
+        value = config_mgr.get("database." + key)
+        if value:
+            dbkwargs[key] = value
+    if username:
+        dbkwargs["user"] = username
+    if password:
+        dbkwargs["password"] = password
+
+    return dbkwargs
+
+
 class WebDbSessionManager:
     """Session manager derived from `CLIDbLoader` and `CLIManager`."""
 
-    def __init__(self, dbstate: DbState, user: UserBase):
+    def __init__(self, dbstate: DbState, user: UserBase, user_id: str):
         """Initialize self."""
         self.dbstate = dbstate
         self._pmgr = BasePluginManager.get_instance()
         self.user = user
+        self.user_id = user_id
 
     def read_file(
         self,
@@ -99,6 +135,22 @@ class WebDbSessionManager:
             dbid = file_handle.read().strip()
 
         db = make_database(dbid)
+
+        def create_undo_manager():
+            if dbid == "sqlite":
+                dburl = f"sqlite:///{db.undolog}"
+            elif dbid in ["postgresql", "sharedpostgresql"]:
+                dbargs = get_postgres_credentials(filename, username, password)
+                dburl = f"postgresql+psycopg2://{username}:{password}@{dbargs['host']}:{dbargs['port']}/{dbargs['dbname']}"
+            if dbid == "sharedpostgresql":
+                tree_id = db.dbapi.treeid
+            else:
+                tree_id = None
+            return DbUndoSQLWeb(
+                grampsdb=db, dburl=dburl, tree_id=tree_id, user_id=self.user_id
+            )
+
+        db._create_undo_manager = create_undo_manager
 
         self.dbstate.change_database(db)
         self.dbstate.db.disable_signals()

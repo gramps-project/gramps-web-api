@@ -24,6 +24,7 @@ import re
 import time
 
 from flask import Response, abort, current_app, jsonify, send_file
+from flask_jwt_extended import get_jwt_identity
 
 from ...auth.const import PERM_VIEW_PRIVATE
 from ..auth import has_permissions
@@ -45,9 +46,11 @@ class MediaArchiveResource(ProtectedResource):
     def post(self) -> Response:
         """Create an archive of media files."""
         tree = get_tree_from_jwt()
+        user_id = get_jwt_identity()
         task = run_task(
             export_media,
             tree=tree,
+            user_id=user_id,
             view_private=has_permissions({PERM_VIEW_PRIVATE}),
         )
         if isinstance(task, AsyncResult):
