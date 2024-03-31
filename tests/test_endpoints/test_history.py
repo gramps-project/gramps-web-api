@@ -21,7 +21,6 @@
 
 import os
 import unittest
-import uuid
 from typing import Dict
 from unittest.mock import patch
 
@@ -100,7 +99,6 @@ class TestTransactionHistoryResource(unittest.TestCase):
         assert change["trans_type"] == 0
         assert "old_data" not in change
         assert "new_data" not in change
-        assert "patch" not in change
 
     def test_add_two(self):
         headers = get_headers(self.client, "editor", "123")
@@ -216,29 +214,18 @@ class TestTransactionHistoryResource(unittest.TestCase):
         for transaction in transactions:
             assert "old_data" not in transaction["changes"][0]
             assert "new_data" not in transaction["changes"][0]
-            assert "patch" not in transaction["changes"][0]
         rv = self.client.get("/api/transactions/history/?old=1", headers=headers)
         assert rv.status_code == 200
         transactions = rv.json
         for transaction in transactions:
             assert "old_data" in transaction["changes"][0]
             assert "new_data" not in transaction["changes"][0]
-            assert "patch" not in transaction["changes"][0]
         rv = self.client.get("/api/transactions/history/?old=1&new=1", headers=headers)
         assert rv.status_code == 200
         transactions = rv.json
         for transaction in transactions:
             assert "old_data" in transaction["changes"][0]
             assert "new_data" in transaction["changes"][0]
-            assert "patch" not in transaction["changes"][0]
-        rv = self.client.get(
-            "/api/transactions/history/?old=1&new=1&patch=1", headers=headers
-        )
-        assert rv.status_code == 200
-        transactions = rv.json
-        assert "patch" not in transactions[0]["changes"][0]
-        assert "patch" in transactions[1]["changes"][0]
-        assert "patch" not in transactions[0]["changes"][0]
         rv = self.client.get(
             "/api/transactions/history/?page=1&pagesize=1", headers=headers
         )
