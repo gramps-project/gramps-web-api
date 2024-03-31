@@ -28,7 +28,6 @@ from time import time_ns
 from typing import Any, Dict, List, Optional
 
 import gramps
-import jsonpatch
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import REFERENCE_KEY, TXNADD, TXNDEL, TXNUPD, DbUndo, DbWriteBase
 from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_CLASS_MAP, KEY_TO_NAME_MAP
@@ -74,15 +73,16 @@ class Change(Base):
         """Convert binary object to a JSON dict."""
         if data is None:
             return {}
-        obj_cls = getattr(gramps.gen.lib, self.obj_class)
+        try:
+            obj_cls = getattr(gramps.gen.lib, self.obj_class)
+        except AttributeError:
+            return {}
         serial_data = pickle.loads(data)
         obj = obj_cls().unserialize(serial_data)
         json_string = to_json(obj)
         return json.loads(json_string)
 
-    def _to_dict(
-        self, old_data: bool = True, new_data: bool = True, patch: bool = True
-    ):
+    def _to_dict(self, old_data: bool = True, new_data: bool = True):
         """Return a dict representation of the change."""
 
         data = {
@@ -93,17 +93,12 @@ class Change(Base):
             "ref_handle": self.ref_handle,
             "timestamp": self.timestamp / 1e9,
         }
-        show_patch = patch and self.trans_type == TXNUPD
-        if old_data or show_patch:
-            old = self._obj_to_json(self.old_data)
-        if new_data or show_patch:
-            new = self._obj_to_json(self.new_data)
         if old_data:
+            old = self._obj_to_json(self.old_data)
             data["old_data"] = old
         if new_data:
+            new = self._obj_to_json(self.new_data)
             data["new_data"] = new
-        if show_patch:
-            data["patch"] = jsonpatch.JsonPatch.from_diff(old, new).patch
         return data
 
 
@@ -151,9 +146,7 @@ class Transaction(Base):
 
     connection = relationship("Connection", back_populates="transactions")
 
-    def _to_dict(
-        self, old_data: bool = True, new_data: bool = True, patch: bool = True
-    ):
+    def _to_dict(self, old_data: bool = True, new_data: bool = True):
         """Return a dict representation of the transaction."""
         return {
             "id": self.id,
@@ -164,7 +157,7 @@ class Transaction(Base):
             "undo": bool(self.undo),
             "timestamp": self.timestamp / 1e9,
             "changes": [
-                change._to_dict(old_data=old_data, new_data=new_data, patch=patch)
+                change._to_dict(old_data=old_data, new_data=new_data)
                 for change in self.connection.changes
             ],
         }
@@ -517,7 +510,6 @@ class DbUndoSQLWeb(DbUndoSQL):
         pagesize: int = 20,
         old_data: bool = True,
         new_data: bool = True,
-        patch: bool = True,
         ascending: bool = True,
     ) -> List[Dict[str, Any]]:
         """Get transactions as a JSONifiable list."""
@@ -538,7 +530,7 @@ class DbUndoSQLWeb(DbUndoSQL):
                 query = query.limit(pagesize).offset((page - 1) * pagesize)
             transactions = query.all()
             return [
-                transaction._to_dict(old_data=old_data, new_data=new_data, patch=patch)
+                transaction._to_dict(old_data=old_data, new_data=new_data)
                 for transaction in transactions
             ]
 
@@ -547,7 +539,6 @@ class DbUndoSQLWeb(DbUndoSQL):
         transaction_id: int,
         old_data: bool = True,
         new_data: bool = True,
-        patch: bool = True,
     ) -> List[Dict[str, Any]]:
         """Get a single transaction as a JSONifiable dict."""
         with self.session_scope() as session:
@@ -561,6 +552,4 @@ class DbUndoSQLWeb(DbUndoSQL):
                 .filter(Change.id <= Transaction.last)
             )
             transaction = query.scalar()
-            return transaction._to_dict(
-                old_data=old_data, new_data=new_data, patch=patch
-            )
+            return transaction._to_dict(old_data=old_data, new_data=new_data)

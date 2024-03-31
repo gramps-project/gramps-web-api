@@ -42,7 +42,6 @@ class TransactionsHistoryResource(ProtectedResource):
         {
             "old": fields.Boolean(load_default=False),
             "new": fields.Boolean(load_default=False),
-            "patch": fields.Boolean(load_default=False),
             "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
             "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
             "sort": fields.Str(validate=validate.Length(min=1)),
@@ -61,7 +60,6 @@ class TransactionsHistoryResource(ProtectedResource):
             pagesize=args["pagesize"],
             old_data=args["old"],
             new_data=args["new"],
-            patch=args["patch"],
             ascending=ascending,
         )
 
@@ -80,7 +78,6 @@ class TransactionHistoryResource(ProtectedResource):
         {
             "old": fields.Boolean(load_default=False),
             "new": fields.Boolean(load_default=False),
-            "patch": fields.Boolean(load_default=False),
         },
         location="query",
     )
@@ -93,7 +90,6 @@ class TransactionHistoryResource(ProtectedResource):
             transaction_id=transaction_id,
             old_data=args["old"],
             new_data=args["new"],
-            patch=args["patch"],
         )
 
         # replace user IDs by user name

@@ -52,7 +52,6 @@ REQUIREMENTS = [
     "celery[redis]",
     "Unidecode",
     "pytesseract",
-    "jsonpatch",
 ]
 
 setup(
