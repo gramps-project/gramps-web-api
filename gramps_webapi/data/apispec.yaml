@@ -4660,6 +4660,103 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+  /transactions/history/:
+    get:
+      tags:
+      - transactions
+      summary: "Show the history of database transactions."
+      operationId: getTransactionHistory
+      security:
+        - Bearer: []
+      parameters:
+      - name: old
+        in: query
+        required: false
+        type: boolean
+        description: "Whether to include the raw object data before the change."
+      - name: new
+        in: query
+        required: false
+        type: boolean
+        description: "Whether to include the raw object data after the change."
+      - name: page
+        in: query
+        required: false
+        type: integer
+        default: 0
+        description: "If provided the page number representing a subset of results to be returned. By default all are returned."
+      - name: pagesize
+        in: query
+        required: false
+        type: integer
+        default: 20
+        description: "The number of items that constitute a page."
+      - name: sort
+        in: query
+        required: false
+        type: string
+        description: "Sort the transactions. Can be 'id' to sort ascending, '-id' to sort descending."
+      - name: before
+        in: query
+        required: false
+        type: number
+        description: "A Unix timestamp. If provided, will only return transactions committed before that point in time."
+      - name: after
+        in: query
+        required: false
+        type: number
+        description: "A Unix timestamp. If provided, will only return transactions committed after that point in time."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/UndoTransaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
+  /transactions/history/{transaction_id}:
+    get:
+      tags:
+      - transactions
+      summary: "Show the history of database transactions."
+      operationId: getTransactionHistory
+      security:
+        - Bearer: []
+      parameters:
+      - name: transaction_id
+        in: path
+        required: true
+        type: integer
+        description: "The ID of the transaction."
+      - name: old
+        in: query
+        required: false
+        type: boolean
+        description: "Whether to include the raw object data before the change."
+      - name: new
+        in: query
+        required: false
+        type: boolean
+        description: "Whether to include the raw object data after the change."
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/UndoTransaction"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
+
 
 ##############################################################################
 # Endpoint - Types
@@ -7411,6 +7508,46 @@ definitions:
       new:
         description: "The new object"
         type: object
+
+##############################################################################
+# Model - UndoTransaction
+##############################################################################
+
+  UndoTransaction:
+    type: object
+    required:
+      - id
+      - connection
+      - description
+      - first
+      - last
+      - undo
+      - timstamp
+      - changes
+    properties:
+      id:
+        description: "The transaction ID"
+        type: integer
+      connection:
+        description: "The connection object."
+        type: object
+      first:
+        description: "ID of the first change."
+        type: integer
+      last:
+        description: "ID of the last change."
+        type: integer
+      undo:
+        description: "Whether the transaction is from an undo action."
+        type: boolean
+      timestamp:
+        description: "The Unix timestamp when the transaction was committed."
+        type: number
+      changes:
+        description: "The list of changes."
+        type: array
+        items:
+          type: object
 
 
 ##############################################################################
