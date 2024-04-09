@@ -242,6 +242,22 @@ class TestTransactionHistoryResource(unittest.TestCase):
         assert rv.status_code == 200
         transactions = rv.json
         assert [t["id"] for t in transactions] == [3, 2, 1]
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        transactions = rv.json
+        assert len(transactions) == 3
+        after = transactions[0]["timestamp"]
+        rv = self.client.get(
+            f"/api/transactions/history/?after={after}", headers=headers
+        )
+        assert rv.status_code == 200
+        assert len(rv.json) == 2
+        before = transactions[1]["timestamp"]
+        rv = self.client.get(
+            f"/api/transactions/history/?after={before}", headers=headers
+        )
+        assert rv.status_code == 200
+        assert len(rv.json) == 1
 
     def test_guest(self):
         headers = get_headers(self.client, "user", "123")

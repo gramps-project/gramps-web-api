@@ -46,6 +46,8 @@ class TransactionsHistoryResource(ProtectedResource):
             "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
             "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
             "sort": fields.Str(validate=validate.Length(min=1)),
+            "before": fields.Float(load_default=None),
+            "after": fields.Float(load_default=None),
         },
         location="query",
     )
@@ -62,6 +64,8 @@ class TransactionsHistoryResource(ProtectedResource):
             old_data=args["old"],
             new_data=args["new"],
             ascending=ascending,
+            before=args["before"],
+            after=args["after"],
         )
 
         # replace user IDs by user name
