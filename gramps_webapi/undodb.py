@@ -25,7 +25,7 @@ import json
 import pickle
 from contextlib import contextmanager
 from time import time_ns
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import gramps
 from gramps.gen.const import GRAMPS_LOCALE as glocale
@@ -511,7 +511,7 @@ class DbUndoSQLWeb(DbUndoSQL):
         old_data: bool = True,
         new_data: bool = True,
         ascending: bool = True,
-    ) -> List[Dict[str, Any]]:
+    ) -> Tuple[List[Dict[str, Any]], int]:
         """Get transactions as a JSONifiable list."""
         with self.session_scope() as session:
             query = (
@@ -521,7 +521,9 @@ class DbUndoSQLWeb(DbUndoSQL):
                 .filter(Connection.tree_id == self.tree_id)
                 .filter(Change.id >= Transaction.first)
                 .filter(Change.id <= Transaction.last)
+                .group_by(Transaction.id)
             )
+            count = query.count()
             if ascending:
                 query = query.order_by(Transaction.id)
             else:
@@ -532,7 +534,7 @@ class DbUndoSQLWeb(DbUndoSQL):
             return [
                 transaction._to_dict(old_data=old_data, new_data=new_data)
                 for transaction in transactions
-            ]
+            ], count
 
     def get_transaction(
         self,

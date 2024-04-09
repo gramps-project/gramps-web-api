@@ -19,6 +19,7 @@
 
 """Database Transaction history endpoints."""
 
+import json
 from typing import Dict
 
 from flask import Response, current_app
@@ -55,7 +56,7 @@ class TransactionsHistoryResource(ProtectedResource):
         transactions = []
         undodb = db_handle.undodb
         ascending = args.get("sort") != "-id"
-        transactions = undodb.get_transactions(
+        transactions, count = undodb.get_transactions(
             page=args["page"],
             pagesize=args["pagesize"],
             old_data=args["old"],
@@ -68,7 +69,13 @@ class TransactionsHistoryResource(ProtectedResource):
         transactions = [
             fix_transaction_user(transaction, user_dict) for transaction in transactions
         ]
-        return transactions
+        res = Response(
+            response=json.dumps(transactions),
+            status=200,
+            mimetype="application/json",
+        )
+        res.headers.add("X-Total-Count", count)
+        return res
 
 
 class TransactionHistoryResource(ProtectedResource):
