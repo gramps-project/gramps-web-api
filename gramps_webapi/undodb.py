@@ -518,11 +518,11 @@ class DbUndoSQLWeb(DbUndoSQL):
         with self.session_scope() as session:
             query = (
                 session.query(Transaction)
-                .join(Connection)
-                .join(Change)
+                .outerjoin(Connection)
+                .outerjoin(Change)
                 .filter(Connection.tree_id == self.tree_id)
-                .filter(Change.id >= Transaction.first)
-                .filter(Change.id <= Transaction.last)
+                .filter((Change.id >= Transaction.first) | Transaction.first.is_(None))
+                .filter((Change.id <= Transaction.last) | Transaction.first.is_(None))
                 .group_by(Transaction.id)
             )
             if before:
@@ -552,12 +552,12 @@ class DbUndoSQLWeb(DbUndoSQL):
         with self.session_scope() as session:
             query = (
                 session.query(Transaction)
-                .join(Connection)
-                .join(Change)
+                .outerjoin(Connection)
+                .outerjoin(Change)
                 .filter(Connection.tree_id == self.tree_id)
                 .filter(Transaction.id == transaction_id)
-                .filter(Change.id >= Transaction.first)
-                .filter(Change.id <= Transaction.last)
+                .filter((Change.id >= Transaction.first) | Transaction.first.is_(None))
+                .filter((Change.id <= Transaction.last) | Transaction.first.is_(None))
             )
             transaction = query.scalar()
             return transaction._to_dict(old_data=old_data, new_data=new_data)
