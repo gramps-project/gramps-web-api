@@ -43,6 +43,7 @@ from sqlalchemy import (
     Text,
     create_engine,
 )
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from sqlalchemy.sql import func
 
@@ -205,7 +206,11 @@ class DbUndoSQL(DbUndo):
         """
         Open the backing storage.
         """
-        Base.metadata.create_all(self.engine)
+        try:
+            Base.metadata.create_all(self.engine)
+        except OperationalError as e:
+            if "already exists" not in str(e):
+                raise
 
     def _make_connection_id(self) -> int:
         """Insert a row into the connection table."""
