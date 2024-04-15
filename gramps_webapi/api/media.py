@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import BinaryIO, Callable, List, Optional, Set
 
 from flask import current_app
+from flask_jwt_extended import get_jwt_identity
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.lib import Media
 from gramps.gen.utils.file import expand_media_path
@@ -351,24 +352,32 @@ def get_media_handler(
     return MediaHandler(base_dir)
 
 
-def update_usage_media(tree: Optional[str] = None) -> int:
+def update_usage_media(
+    tree: Optional[str] = None, user_id: Optional[str] = None
+) -> int:
     """Update the usage of media."""
     if not tree:
         tree = get_tree_from_jwt()
-    db_handle = get_db_outside_request(tree=tree, view_private=True, readonly=True)
+    if not user_id:
+        user_id = get_jwt_identity()
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=True, readonly=True, user_id=user_id
+    )
     media_handler = get_media_handler(db_handle, tree=tree)
     usage_media = media_handler.get_media_size(db_handle=db_handle)
     set_tree_usage(tree, usage_media=usage_media)
     return usage_media
 
 
-def check_quota_media(to_add: int, tree: Optional[str] = None) -> None:
+def check_quota_media(
+    to_add: int, tree: Optional[str] = None, user_id: Optional[str] = None
+) -> None:
     """Check whether the quota allows adding `to_add` bytes and abort if not."""
     if not tree:
         tree = get_tree_from_jwt()
     usage_dict = get_tree_usage(tree)
     if not usage_dict or usage_dict.get("usage_media") is None:
-        update_usage_media(tree=tree)
+        update_usage_media(tree=tree, user_id=user_id)
     usage_dict = get_tree_usage(tree)
     usage = usage_dict["usage_media"]
     quota = usage_dict.get("quota_media")

@@ -21,7 +21,8 @@
 
 from typing import Dict
 
-from flask import Response, current_app
+from flask import Response
+from flask_jwt_extended import get_jwt_identity
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
@@ -159,11 +160,12 @@ class SearchIndexResource(ProtectedResource):
         """Trigger a reindex."""
         require_permissions([PERM_TRIGGER_REINDEX])
         tree = get_tree_from_jwt()
+        user_id = get_jwt_identity()
         if args["full"]:
             task_func = search_reindex_full
         else:
             task_func = search_reindex_incremental
-        task = run_task(task_func, tree=tree)
+        task = run_task(task_func, tree=tree, user_id=user_id)
         if isinstance(task, AsyncResult):
             return make_task_response(task)
         return Response(status=201)

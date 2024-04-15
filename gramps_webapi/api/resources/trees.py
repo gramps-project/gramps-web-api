@@ -25,6 +25,7 @@ import uuid
 from typing import Dict, List, Optional
 
 from flask import abort, current_app, jsonify
+from flask_jwt_extended import get_jwt_identity
 from gramps.gen.config import config
 from webargs import fields
 from werkzeug.security import safe_join
@@ -255,9 +256,11 @@ class CheckTreeResource(ProtectedResource):
             validate_tree_id(tree_id)
             if tree_id != user_tree_id:
                 abort_with_message(403, "Not allowed to repair other trees")
+        user_id = get_jwt_identity()
         task = run_task(
             check_repair_database,
             tree=tree_id,
+            user_id=user_id,
         )
         if isinstance(task, AsyncResult):
             return make_task_response(task)
@@ -278,9 +281,11 @@ class UpgradeTreeSchemaResource(ProtectedResource):
             validate_tree_id(tree_id)
             if tree_id != user_tree_id:
                 abort_with_message(403, "Not allowed to upgrade other trees")
+        user_id = get_jwt_identity()
         task = run_task(
             upgrade_database_schema,
             tree=tree_id,
+            user_id=user_id,
         )
         if isinstance(task, AsyncResult):
             return make_task_response(task)

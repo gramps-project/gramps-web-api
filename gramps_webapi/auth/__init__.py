@@ -193,14 +193,17 @@ def get_pwhash(username: str) -> str:
     return user.pwhash
 
 
-def _get_user_detail(user):
-    return {
+def _get_user_detail(user, include_guid: bool = False):
+    details = {
         "name": user.name,
         "email": user.email,
         "full_name": user.fullname,
         "role": user.role,
         "tree": user.tree,
     }
+    if include_guid:
+        details["user_id"] = user.id
+    return details
 
 
 def get_user_details(username: str) -> Optional[Dict[str, Any]]:
@@ -213,7 +216,7 @@ def get_user_details(username: str) -> Optional[Dict[str, Any]]:
 
 
 def get_all_user_details(
-    tree: Optional[str], include_treeless=False
+    tree: Optional[str], include_treeless=False, include_guid: bool = False
 ) -> List[Dict[str, Any]]:
     """Return details about all users.
 
@@ -229,7 +232,7 @@ def get_all_user_details(
         else:
             query = query.filter(User.tree == tree)
     users = query.all()
-    return [_get_user_detail(user) for user in users]
+    return [_get_user_detail(user, include_guid=include_guid) for user in users]
 
 
 def get_permissions(username: str) -> Set[str]:

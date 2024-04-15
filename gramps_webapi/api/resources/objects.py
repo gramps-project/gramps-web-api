@@ -23,6 +23,7 @@ import json
 from typing import Sequence
 
 from flask import Response, jsonify, request
+from flask_jwt_extended import get_jwt_identity
 from gramps.gen.db import DbTxn
 from gramps.gen.lib import Family, Person
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
@@ -80,7 +81,7 @@ class CreateObjectsResource(ProtectedResource):
         number_new_people = sum(isinstance(obj, Person) for obj in objects)
         check_quota_people(to_add=number_new_people)
         db_handle = get_db_handle(readonly=False)
-        with DbTxn("Add objects", db_handle) as trans:
+        with DbTxn("Add multiple objects", db_handle) as trans:
             for obj in objects:
                 try:
                     add_object(db_handle, obj, trans, fail_if_exists=True)
@@ -124,9 +125,11 @@ class DeleteObjectsResource(FreshProtectedResource):
         """Delete the objects."""
         require_permissions([PERM_DEL_OBJ_BATCH])
         tree = get_tree_from_jwt()
+        user_id = get_jwt_identity()
         task = run_task(
             delete_objects,
             tree=tree,
+            user_id=user_id,
             namespaces=args.get("namespaces") or None,
         )
         if isinstance(task, AsyncResult):

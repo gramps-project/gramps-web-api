@@ -24,6 +24,7 @@ import uuid
 import zipfile
 
 from flask import Response, current_app, jsonify, request
+from flask_jwt_extended import get_jwt_identity
 
 from ...auth.const import PERM_IMPORT_FILE
 from ..auth import require_permissions
@@ -64,9 +65,11 @@ class MediaUploadZipResource(ProtectedResource):
             abort_with_message(400, "The uploaded file is not a valid ZIP file.")
 
         tree = get_tree_from_jwt()
+        user_id = get_jwt_identity()
         task = run_task(
             import_media_archive,
             tree=tree,
+            user_id=user_id,
             file_name=file_path,
             delete=True,
         )

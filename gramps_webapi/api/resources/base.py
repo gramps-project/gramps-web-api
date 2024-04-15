@@ -281,7 +281,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         if not obj:
             abort_with_message(400, "Empty object")
         db_handle = self.db_handle_writable
-        with DbTxn("Edit object", db_handle) as trans:
+        with DbTxn(f"Edit {self.gramps_class_name}", db_handle) as trans:
             try:
                 update_object(db_handle, obj, trans)
             except ValueError as exc:
@@ -445,7 +445,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         if not obj:
             abort_with_message(400, "Empty object")
         db_handle = self.db_handle_writable
-        with DbTxn("Add objects", db_handle) as trans:
+        with DbTxn(f"New {self.gramps_class_name}", db_handle) as trans:
             try:
                 add_object(db_handle, obj, trans, fail_if_exists=True)
             except ValueError:

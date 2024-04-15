@@ -31,6 +31,7 @@ import time
 from typing import Dict
 
 from flask import Response, abort, current_app, jsonify, send_file
+from flask_jwt_extended import get_jwt_identity
 from webargs import fields, validate
 
 from ...auth.const import PERM_EDIT_OBJ, PERM_VIEW_PRIVATE
@@ -119,11 +120,13 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
         if not exporters:
             abort(404)
         tree = get_tree_from_jwt()
+        user_id = get_jwt_identity()
         # remove JWT from args
         options = {k: v for k, v in args.items() if k != "jwt"}
         task = run_task(
             export_db,
             tree=tree,
+            user_id=user_id,
             extension=extension.lower(),
             options=options,
             view_private=has_permissions({PERM_VIEW_PRIVATE}),
