@@ -9841,6 +9841,14 @@ definitions:
             description: "The version of the Gramps Web API code."
             type: string
             example: "0.1-dev"
+      gramps_ql:
+        description: "Information about the installed Gramps QL library."
+        type: object
+        properties:
+          version:
+            description: "The version of the Gramps Gramps QL library."
+            type: string
+            example: "0.3.0"
       locale:
         description: "The active locale."
         type: object

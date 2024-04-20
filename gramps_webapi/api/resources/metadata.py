@@ -20,6 +20,7 @@
 
 """Metadata API resource."""
 
+import gramps_ql
 import pytesseract
 from flask import Response, current_app
 from gramps.cli.clidbman import CLIDbManager
@@ -96,6 +97,7 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 "schema": VERSION,
                 "version": VERSION,
             },
+            "gramps_ql": {"version": gramps_ql.__version__},
             "locale": {
                 "lang": GRAMPS_LOCALE.lang,
                 "language": GRAMPS_LOCALE.language[0],
