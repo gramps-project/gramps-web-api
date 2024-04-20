@@ -23,6 +23,7 @@ import json
 from abc import abstractmethod
 from typing import Dict, List
 
+import gramps_ql
 from flask import Response, abort, request
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import DbTxn
@@ -31,6 +32,7 @@ from gramps.gen.errors import HandleError
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.lib.serialize import from_json
 from gramps.gen.utils.grampslocale import GrampsLocale
+from pyparsing.exceptions import ParseBaseException
 from webargs import fields, validate
 
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
@@ -343,6 +345,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                 fields.Str(validate=validate.Length(min=1))
             ),
             "format_options": fields.Str(validate=validate.Length(min=1)),
+            "gql": fields.Str(validate=validate.Length(min=1)),
             "gramps_id": fields.Str(validate=validate.Length(min=1)),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "locale": fields.Str(
@@ -412,6 +415,16 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                 self.db_handle, args, self.gramps_class_name, handles
             )
             objects = [obj for obj in objects if obj.handle in set(handles)]
+
+        if "gql" in args:
+            try:
+                objects = [
+                    obj
+                    for obj in objects
+                    if gramps_ql.match(query=args["gql"], obj=obj)
+                ]
+            except (ParseBaseException, ValueError) as e:
+                abort_with_message(422, str(e))
 
         if self.gramps_class_name == "Media" and args.get("filemissing"):
             objects = filter_missing_files(objects)
