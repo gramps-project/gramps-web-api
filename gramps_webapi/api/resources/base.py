@@ -23,7 +23,7 @@ import json
 from abc import abstractmethod
 from typing import Dict, List
 
-import gramps_ql
+import gramps_ql as gql
 from flask import Response, abort, request
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import DbTxn
@@ -419,11 +419,9 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         if "gql" in args:
             try:
                 objects = [
-                    obj
-                    for obj in objects
-                    if gramps_ql.match(query=args["gql"], obj=obj)
+                    obj for obj in objects if gql.match(query=args["gql"], obj=obj)
                 ]
-            except (ParseBaseException, ValueError) as e:
+            except (ParseBaseException, ValueError, TypeError) as e:
                 abort_with_message(422, str(e))
 
         if self.gramps_class_name == "Media" and args.get("filemissing"):
