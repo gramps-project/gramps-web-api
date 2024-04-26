@@ -419,7 +419,9 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         if "gql" in args:
             try:
                 objects = [
-                    obj for obj in objects if gql.match(query=args["gql"], obj=obj)
+                    obj
+                    for obj in objects
+                    if gql.match(query=args["gql"], obj=obj, db=self.db_handle)
                 ]
             except (ParseBaseException, ValueError, TypeError) as e:
                 abort_with_message(422, str(e))
