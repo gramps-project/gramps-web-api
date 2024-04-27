@@ -792,6 +792,12 @@ paths:
 
 
           The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
+      - name: gql
+        in: query
+        required: false
+        type: string
+        description: "A Gramps QL query string that is used to filter the objects."
+        example: "media_list.length >= 10"
       - name: strip
         in: query
         required: false
@@ -1382,6 +1388,12 @@ paths:
 
 
           The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
+      - name: gql
+        in: query
+        required: false
+        type: string
+        description: "A Gramps QL query string that is used to filter the objects."
+        example: "media_list.length >= 10"
       - name: strip
         in: query
         required: false
@@ -1857,6 +1869,12 @@ paths:
 
 
           The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
+      - name: gql
+        in: query
+        required: false
+        type: string
+        description: "A Gramps QL query string that is used to filter the objects."
+        example: "media_list.length >= 10"
       - name: strip
         in: query
         required: false
@@ -2238,6 +2256,12 @@ paths:
 
 
           The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
+      - name: gql
+        in: query
+        required: false
+        type: string
+        description: "A Gramps QL query string that is used to filter the objects."
+        example: "media_list.length >= 10"
       - name: strip
         in: query
         required: false
@@ -2561,6 +2585,12 @@ paths:
 
 
           The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
+      - name: gql
+        in: query
+        required: false
+        type: string
+        description: "A Gramps QL query string that is used to filter the objects."
+        example: "media_list.length >= 10"
       - name: strip
         in: query
         required: false
@@ -2872,6 +2902,12 @@ paths:
 
 
           The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
+      - name: gql
+        in: query
+        required: false
+        type: string
+        description: "A Gramps QL query string that is used to filter the objects."
+        example: "media_list.length >= 10"
       - name: strip
         in: query
         required: false
@@ -3155,6 +3191,12 @@ paths:
 
 
           The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
+      - name: gql
+        in: query
+        required: false
+        type: string
+        description: "A Gramps QL query string that is used to filter the objects."
+        example: "media_list.length >= 10"
       - name: strip
         in: query
         required: false
@@ -3450,6 +3492,12 @@ paths:
 
 
           The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
+      - name: gql
+        in: query
+        required: false
+        type: string
+        description: "A Gramps QL query string that is used to filter the objects."
+        example: "note_list.length >= 10"
       - name: strip
         in: query
         required: false
@@ -4137,6 +4185,12 @@ paths:
 
 
           The regex value is a boolean, true or false, that indicates if text values should be treated as regular expressions. If not present the default is false.
+      - name: gql
+        in: query
+        required: false
+        type: string
+        description: "A Gramps QL query string that is used to filter the objects."
+        example: "tag_list.length >= 10"
       - name: strip
         in: query
         required: false
@@ -9841,6 +9895,14 @@ definitions:
             description: "The version of the Gramps Web API code."
             type: string
             example: "0.1-dev"
+      gramps_ql:
+        description: "Information about the installed Gramps QL library."
+        type: object
+        properties:
+          version:
+            description: "The version of the Gramps Gramps QL library."
+            type: string
+            example: "0.3.0"
       locale:
         description: "The active locale."
         type: object
