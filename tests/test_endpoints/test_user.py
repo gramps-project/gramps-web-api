@@ -112,7 +112,15 @@ class TestUser(unittest.TestCase):
         self.dbman.remove_database(self.name)
 
     def test_change_password_wrong_method(self):
-        rv = self.client.get(BASE_URL + "/users/-/password/change")
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "user", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token = rv.json["access_token"]
+        rv = self.client.get(
+            BASE_URL + "/users/-/password/change",
+            headers={"Authorization": f"Bearer {token}"},
+        )
         assert rv.status_code == 405
 
     def test_change_password_no_token(self):
