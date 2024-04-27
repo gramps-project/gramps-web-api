@@ -33,7 +33,7 @@ from pkg_resources import resource_filename
 import gramps_webapi.app
 from gramps_webapi.api.util import get_search_indexer
 from gramps_webapi.app import create_app
-from gramps_webapi.auth import user_db, add_user
+from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import (
     ROLE_ADMIN,
     ROLE_EDITOR,
@@ -121,4 +121,4 @@ def setUpModule():
 def tearDownModule():
     """Test module tear down."""
     if TEST_GRAMPSHOME and os.path.isdir(TEST_GRAMPSHOME):
-        pass  # shutil.rmtree(TEST_GRAMPSHOME)
+        shutil.rmtree(TEST_GRAMPSHOME)

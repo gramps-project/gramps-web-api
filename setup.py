@@ -52,6 +52,7 @@ REQUIREMENTS = [
     "celery[redis]",
     "Unidecode",
     "pytesseract",
+    "gramps-ql>=0.3.0",
 ]
 
 setup(
