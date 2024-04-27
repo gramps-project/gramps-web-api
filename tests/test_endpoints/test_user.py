@@ -113,7 +113,7 @@ class TestUser(unittest.TestCase):
 
     def test_change_password_wrong_method(self):
         rv = self.client.get(BASE_URL + "/users/-/password/change")
-        assert rv.status_code == 404
+        assert rv.status_code == 405
 
     def test_change_password_no_token(self):
         rv = self.client.post(

@@ -33,23 +33,23 @@ from ..auth import (
 class Resource(MethodView):
     """Base class for API resources."""
 
-    def get(self):
+    def get(self, *args, **kwargs):
         """Default GET endpoint."""
         abort(405)
 
-    def put(self):
+    def put(self, *args, **kwargs):
         """Default PUT endpoint."""
         abort(405)
 
-    def post(self):
+    def post(self, *args, **kwargs):
         """Default POST endpoint."""
         abort(405)
 
-    def delete(self):
+    def delete(self, *args, **kwargs):
         """Default DELETE endpoint."""
         abort(405)
 
-    def patch(self):
+    def patch(self, *args, **kwargs):
         """Default PATCH endpoint."""
         abort(405)
 
