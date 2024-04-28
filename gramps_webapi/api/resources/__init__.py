@@ -19,6 +19,7 @@
 
 """API resource endpoints."""
 
+from flask import abort
 from flask.views import MethodView
 
 from ..auth import (
@@ -31,6 +32,26 @@ from ..auth import (
 
 class Resource(MethodView):
     """Base class for API resources."""
+
+    def get(self, *args, **kwargs):
+        """Default GET endpoint."""
+        abort(405)
+
+    def put(self, *args, **kwargs):
+        """Default PUT endpoint."""
+        abort(405)
+
+    def post(self, *args, **kwargs):
+        """Default POST endpoint."""
+        abort(405)
+
+    def delete(self, *args, **kwargs):
+        """Default DELETE endpoint."""
+        abort(405)
+
+    def patch(self, *args, **kwargs):
+        """Default PATCH endpoint."""
+        abort(405)
 
 
 class ProtectedResource(Resource):
