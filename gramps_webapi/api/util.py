@@ -614,7 +614,10 @@ def update_usage_people(
         readonly=True,
         user_id=user_id,
     )
-    usage_people = db_handle.get_number_of_people()
+    try:
+        usage_people = db_handle.get_number_of_people()
+    finally:
+        db_handle.close()
     set_tree_usage(tree, usage_people=usage_people)
     return usage_people
 

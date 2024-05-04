@@ -181,13 +181,16 @@ def import_file(
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=True, user_id=user_id
     )
-    run_import(
-        db_handle=db_handle,
-        file_name=file_name,
-        extension=extension.lower(),
-        delete=delete,
-        task=self,
-    )
+    try:
+        run_import(
+            db_handle=db_handle,
+            file_name=file_name,
+            extension=extension.lower(),
+            delete=delete,
+            task=self,
+        )
+    finally:
+        db_handle.close()
     update_usage_people(tree=tree, user_id=user_id)
     _search_reindex_incremental(
         tree=tree,
@@ -204,8 +207,14 @@ def export_db(
     db_handle = get_db_outside_request(
         tree=tree, view_private=view_private, readonly=True, user_id=user_id
     )
-    prepared_options = prepare_options(db_handle, options)
-    file_name, file_type = run_export(db_handle, extension, prepared_options, task=self)
+    try:
+        prepared_options = prepare_options(db_handle, options)
+        file_name, file_type = run_export(
+            db_handle, extension, prepared_options, task=self
+        )
+    finally:
+        db_handle.close()
+
     extension = file_type.lstrip(".")
     return {
         "file_name": file_name,
@@ -227,12 +236,16 @@ def generate_report(
     db_handle = get_db_outside_request(
         tree=tree, view_private=view_private, readonly=True, user_id=user_id
     )
-    file_name, file_type = run_report(
-        db_handle=db_handle,
-        report_id=report_id,
-        report_options=options,
-        language=locale,
-    )
+    try:
+        file_name, file_type = run_report(
+            db_handle=db_handle,
+            report_id=report_id,
+            report_options=options,
+            language=locale,
+        )
+    finally:
+        db_handle.close()
+
     return {
         "file_name": file_name,
         "file_type": file_type,
@@ -248,17 +261,21 @@ def export_media(
     db_handle = get_db_outside_request(
         tree=tree, view_private=view_private, readonly=True, user_id=user_id
     )
-    media_handler = get_media_handler(db_handle, tree=tree)
-    export_path = current_app.config["EXPORT_DIR"]
-    os.makedirs(export_path, exist_ok=True)
-    file_name = f"{uuid.uuid4()}.zip"
-    zip_filename = os.path.join(export_path, file_name)
-    media_handler.create_file_archive(
-        db_handle=db_handle,
-        zip_filename=zip_filename,
-        include_private=view_private,
-        progress_cb=progress_callback_count(self),
-    )
+    try:
+        media_handler = get_media_handler(db_handle, tree=tree)
+        export_path = current_app.config["EXPORT_DIR"]
+        os.makedirs(export_path, exist_ok=True)
+        file_name = f"{uuid.uuid4()}.zip"
+        zip_filename = os.path.join(export_path, file_name)
+        media_handler.create_file_archive(
+            db_handle=db_handle,
+            zip_filename=zip_filename,
+            include_private=view_private,
+            progress_cb=progress_callback_count(self),
+        )
+    finally:
+        db_handle.close()
+
     file_size = os.path.getsize(zip_filename)
     return {
         "file_name": file_name,
@@ -275,14 +292,17 @@ def import_media_archive(
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=True, user_id=user_id
     )
-    importer = MediaImporter(
-        tree=tree,
-        user_id=user_id,
-        db_handle=db_handle,
-        file_name=file_name,
-        delete=delete,
-    )
-    result = importer(progress_cb=progress_callback_count(self))
+    try:
+        importer = MediaImporter(
+            tree=tree,
+            user_id=user_id,
+            db_handle=db_handle,
+            file_name=file_name,
+            delete=delete,
+        )
+        result = importer(progress_cb=progress_callback_count(self))
+    finally:
+        db_handle.close()
     return result
 
 
@@ -299,10 +319,13 @@ def media_ocr(
     db_handle = get_db_outside_request(
         tree=tree, view_private=view_private, readonly=True, user_id=user_id
     )
-    handler = get_media_handler(db_handle, tree).get_file_handler(
-        handle, db_handle=db_handle
-    )
-    return handler.get_ocr(lang=lang, output_format=output_format)
+    try:
+        handler = get_media_handler(db_handle, tree).get_file_handler(
+            handle, db_handle=db_handle
+        )
+        return handler.get_ocr(lang=lang, output_format=output_format)
+    finally:
+        db_handle.close()
 
 
 @shared_task(bind=True)
@@ -311,7 +334,10 @@ def check_repair_database(self, tree: str, user_id: str):
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=False, user_id=user_id
     )
-    return check_database(db_handle, progress_cb=progress_callback_count(self))
+    try:
+        return check_database(db_handle, progress_cb=progress_callback_count(self))
+    finally:
+        db_handle.close()
 
 
 @shared_task(bind=True)
@@ -328,9 +354,13 @@ def delete_objects(
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=False, user_id=user_id
     )
-    delete_all_objects(
-        db_handle=db_handle,
-        namespaces=namespaces,
-        progress_cb=progress_callback_count(self),
-    )
+    try:
+        delete_all_objects(
+            db_handle=db_handle,
+            namespaces=namespaces,
+            progress_cb=progress_callback_count(self),
+        )
+    finally:
+        db_handle.close()
+
     update_usage_people(tree=tree, user_id=user_id)
