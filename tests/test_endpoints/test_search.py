@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-2024 David Straub
 # Copyright (C) 2020      Christopher Horn
 #
 # This program is free software; you can redistribute it and/or modify
@@ -120,12 +120,28 @@ class TestSearch(unittest.TestCase):
         self.assertEqual(rv[0]["rank"], 0)
         self.assertIsInstance(rv[0]["score"], float)
 
+    def test_get_search_expected_result_text_string_wildcard(self):
+        """Test expected result querying for text."""
+        rv = check_success(self, TEST_URL + "?query=micr*")
+        self.assertEqual(
+            {hit["handle"] for hit in rv},
+            {"b39fe2e143d1e599450", "b39fe3f390e30bd2b99"},
+        )
+        self.assertIn(rv[0]["object_type"], ["source", "note"])
+        self.assertEqual(rv[0]["rank"], 0)
+        self.assertIsInstance(rv[0]["score"], float)
+
     def test_get_search_expected_result_specific_object(self):
         """Test expected result querying for a specific object by Gramps id."""
         rv = check_success(self, TEST_URL + "?query=I0044")
         self.assertEqual(len(rv), 1)
         self.assertIn("object", rv[0])
         self.assertEqual(rv[0]["object"]["gramps_id"], "I0044")
+
+    def test_get_search_expected_result_or(self):
+        """Test expected result querying for a specific object by Gramps id."""
+        rv = check_success(self, TEST_URL + f"?query={quote('I0044 OR I0043')}")
+        self.assertEqual(len(rv), 2)
 
     def test_get_search_expected_result_unicode(self):
         """Test expected result querying for a Unicode decoded string."""
