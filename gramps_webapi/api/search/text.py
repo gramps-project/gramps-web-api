@@ -124,16 +124,3 @@ def iter_obj_strings(
             obj_strings = obj_strings_from_object(db_handle, class_name, obj)
             if obj_strings:
                 yield obj_strings
-
-
-def get_object_timestamps(db_handle: DbReadBase):
-    """Get a dictionary with change timestamps of all objects in the DB."""
-    d = {}
-    for class_name in PRIMARY_GRAMPS_OBJECTS:
-        d[class_name] = set()
-        iter_method = db_handle.method("iter_%s_handles", class_name)
-        for handle in iter_method():
-            query_method = db_handle.method("get_%s_from_handle", class_name)
-            obj = query_method(handle)
-            d[class_name].add((handle, datetime.fromtimestamp(obj.change)))
-    return d

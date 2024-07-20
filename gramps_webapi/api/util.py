@@ -25,6 +25,7 @@ import json
 import os
 import smtplib
 import socket
+from datetime import datetime
 from email.message import EmailMessage
 from email.utils import make_msgid
 from http import HTTPStatus
@@ -65,10 +66,14 @@ from werkzeug.security import safe_join
 
 from ..auth import config_get, get_tree, get_tree_usage, set_tree_usage
 from ..auth.const import PERM_VIEW_PRIVATE
-from ..const import DB_CONFIG_ALLOWED_KEYS, LOCALE_MAP, TREE_MULTI
+from ..const import (
+    DB_CONFIG_ALLOWED_KEYS,
+    LOCALE_MAP,
+    TREE_MULTI,
+    PRIMARY_GRAMPS_OBJECTS,
+)
 from ..dbmanager import WebDbManager
 from .auth import has_permissions
-from .search import SearchIndexer
 
 
 class Parser(FlaskParser):
@@ -440,13 +445,6 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
     return g.db
 
 
-def get_search_indexer(tree: str) -> SearchIndexer:
-    """Get the search indexer for the tree."""
-    base_dir = current_app.config["SEARCH_INDEX_DIR"]
-    index_dir = os.path.join(base_dir, tree)
-    return SearchIndexer(index_dir=index_dir)
-
-
 def get_locale_for_language(language: str, default: bool = False) -> GrampsLocale:
     """Get GrampsLocale set to specified language."""
     if language is not None:
@@ -661,3 +659,32 @@ def upgrade_gramps_database(
     """Upgrade the Gramps database for a tree."""
     dbmgr = get_db_manager(tree=tree)
     dbmgr.upgrade_if_needed(user_id=user_id, user=UserTaskProgress(task=task))
+
+
+def get_total_number_of_objects(db_handle: DbReadBase):
+    """Get the total number of searchable objects in the database."""
+    return (
+        db_handle.get_number_of_people()
+        + db_handle.get_number_of_families()
+        + db_handle.get_number_of_sources()
+        + db_handle.get_number_of_citations()
+        + db_handle.get_number_of_events()
+        + db_handle.get_number_of_media()
+        + db_handle.get_number_of_places()
+        + db_handle.get_number_of_repositories()
+        + db_handle.get_number_of_notes()
+        + db_handle.get_number_of_tags()
+    )
+
+
+def get_object_timestamps(db_handle: DbReadBase):
+    """Get a dictionary with change timestamps of all objects in the DB."""
+    d = {}
+    for class_name in PRIMARY_GRAMPS_OBJECTS:
+        d[class_name] = set()
+        iter_method = db_handle.method("iter_%s_handles", class_name)
+        for handle in iter_method():
+            query_method = db_handle.method("get_%s_from_handle", class_name)
+            obj = query_method(handle)
+            d[class_name].add((handle, datetime.fromtimestamp(obj.change)))
+    return d

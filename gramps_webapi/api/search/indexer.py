@@ -34,8 +34,8 @@ from whoosh.sorting import FieldFacet
 from whoosh.writing import AsyncWriter
 
 from ...types import FilenameOrPath
-from .text import iter_obj_strings, get_object_timestamps, obj_strings_from_handle
-from .util import get_total_number_of_objects
+from .text import iter_obj_strings, obj_strings_from_handle
+from ..util import get_total_number_of_objects, get_object_timestamps
 
 
 class SearchIndexer:
@@ -199,7 +199,7 @@ class SearchIndexer:
                     self.add_or_update_object(writer, handle, db_handle, class_name)
 
     @staticmethod
-    def format_hit(hit: Hit) -> Dict[str, Any]:
+    def _format_hit(hit: Hit) -> Dict[str, Any]:
         """Format a search hit."""
         return {
             "handle": hit["handle"],
@@ -251,4 +251,4 @@ class SearchIndexer:
             results = searcher.search_page(
                 parsed_query, page, pagesize, mask=mask, sortedby=sortedby
             )
-            return results.total, [self.format_hit(hit) for hit in results]
+            return results.total, [self._format_hit(hit) for hit in results]

@@ -31,6 +31,7 @@ from webargs import fields, validate
 
 from ...auth.const import PERM_TRIGGER_REINDEX, PERM_VIEW_PRIVATE
 from ..auth import has_permissions, require_permissions
+from ..search import get_search_indexer
 from ..tasks import (
     AsyncResult,
     make_task_response,
@@ -41,7 +42,6 @@ from ..tasks import (
 from ..util import (
     get_db_handle,
     get_locale_for_language,
-    get_search_indexer,
     get_tree_from_jwt,
     use_args,
 )

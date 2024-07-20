@@ -19,5 +19,15 @@
 
 """Full-text search utilities."""
 
+import os
+
+from flask import current_app
+
 from .indexer import SearchIndexer
-from .util import get_total_number_of_objects
+
+
+def get_search_indexer(tree: str) -> SearchIndexer:
+    """Get the search indexer for the tree."""
+    base_dir = current_app.config["SEARCH_INDEX_DIR"]
+    index_dir = os.path.join(base_dir, tree)
+    return SearchIndexer(index_dir=index_dir)

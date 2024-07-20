@@ -37,11 +37,11 @@ from .media_importer import MediaImporter
 from .report import run_report
 from .resources.delete import delete_all_objects
 from .resources.util import dry_run_import, run_import
+from .search import get_search_indexer
 from .util import (
     check_quota_people,
     get_config,
     get_db_outside_request,
-    get_search_indexer,
     send_email,
     update_usage_people,
     upgrade_gramps_database,

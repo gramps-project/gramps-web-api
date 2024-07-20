@@ -33,13 +33,12 @@ from webargs import fields, validate
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ_BATCH, PERM_EDIT_OBJ
 from ...const import GRAMPS_OBJECT_PLURAL
 from ..auth import require_permissions
-from ..search import SearchIndexer
+from ..search import SearchIndexer, get_search_indexer
 from ..tasks import AsyncResult, delete_objects, make_task_response, run_task
 from ..util import (
     abort_with_message,
     check_quota_people,
     get_db_handle,
-    get_search_indexer,
     get_tree_from_jwt,
     update_usage_people,
     use_args,

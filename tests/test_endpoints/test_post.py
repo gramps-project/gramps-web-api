@@ -31,7 +31,7 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.dbstate import DbState
 
-from gramps_webapi.api.util import get_search_indexer
+from gramps_webapi.api.search import get_search_indexer
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import add_user, set_tree_quota, user_db
 from gramps_webapi.auth.const import (
