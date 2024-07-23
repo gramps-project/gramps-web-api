@@ -261,14 +261,18 @@ class TestSearch(unittest.TestCase):
         """Search for a private attribute as owner."""
         header = fetch_header(self.client, role=ROLE_GUEST)
         # the guest won't find any results when searching for the private attribute
-        rv = self.client.get(TEST_URL + f"?query={quote('123 456 7890')}", headers=header)
+        rv = self.client.get(
+            TEST_URL + f"?query={quote('123 456 7890')}", headers=header
+        )
         self.assertEqual(len(rv.json), 0)
 
     def test_get_search_private_attribute_owner(self):
         """Search for a private attribute as owner."""
         header = fetch_header(self.client, role=ROLE_OWNER)
         # the owner will get a hit when searching for the private attribute
-        rv = self.client.get(TEST_URL + f"?query={quote('123 456 7890')}", headers=header)
+        rv = self.client.get(
+            TEST_URL + f"?query={quote('123 456 7890')}", headers=header
+        )
         self.assertEqual(len(rv.json), 1)
         self.assertEqual(rv.json[0]["object"]["gramps_id"], "I0044")
 
@@ -276,8 +280,7 @@ class TestSearch(unittest.TestCase):
         """Search for an explicit type as owner."""
         header = fetch_header(self.client, role=ROLE_OWNER)
         rv = self.client.get(
-            TEST_URL
-            + f"?query={quote("a*")}&type=repository&sort=change&pagesize=1",
+            TEST_URL + f"?query={quote('a*')}&type=repository&sort=change&pagesize=1",
             headers=header,
         )
         self.assertEqual(len(rv.json), 1)
@@ -287,8 +290,7 @@ class TestSearch(unittest.TestCase):
         """Search for a an explicit type as guest."""
         header = fetch_header(self.client, role=ROLE_GUEST)
         rv = self.client.get(
-            TEST_URL
-            + f"?query={quote("lib*")}&type=repository&sort=change&pagesize=1",
+            TEST_URL + f"?query={quote('lib*')}&type=repository&sort=change&pagesize=1",
             headers=header,
         )
         self.assertEqual(len(rv.json), 1)
