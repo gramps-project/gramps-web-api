@@ -117,14 +117,13 @@ class TransactionsResource(ProtectedResource):
         # update search index
         tree = get_tree_from_jwt()
         indexer: SearchIndexer = get_search_indexer(tree)
-        with indexer.get_writer(overwrite=False, use_async=True) as writer:
-            for _trans_dict in trans_dict:
-                handle = _trans_dict["handle"]
-                class_name = _trans_dict["_class"]
-                if _trans_dict["type"] == "delete":
-                    indexer.delete_object(writer, handle)
-                else:
-                    indexer.add_or_update_object(writer, handle, db_handle, class_name)
+        for _trans_dict in trans_dict:
+            handle = _trans_dict["handle"]
+            class_name = _trans_dict["_class"]
+            if _trans_dict["type"] == "delete":
+                indexer.delete_object(handle, class_name)
+            else:
+                indexer.add_or_update_object(handle, db_handle, class_name)
         res = Response(
             response=json.dumps(trans_dict),
             status=200,

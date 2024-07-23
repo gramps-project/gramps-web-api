@@ -263,8 +263,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         # update search index
         tree = get_tree_from_jwt()
         indexer: SearchIndexer = get_search_indexer(tree)
-        with indexer.get_writer(overwrite=False, use_async=True) as writer:
-            indexer.delete_object(writer, handle)
+        indexer.delete_object(handle=handle, class_name=self.gramps_class_name)
         return self.response(200, trans_dict, total_items=len(trans_dict))
 
     def put(self, handle: str) -> Response:
@@ -291,11 +290,10 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         # update search index
         tree = get_tree_from_jwt()
         indexer: SearchIndexer = get_search_indexer(tree)
-        with indexer.get_writer(overwrite=False, use_async=True) as writer:
-            for _trans_dict in trans_dict:
-                handle = _trans_dict["handle"]
-                class_name = _trans_dict["_class"]
-                indexer.add_or_update_object(writer, handle, db_handle, class_name)
+        for _trans_dict in trans_dict:
+            handle = _trans_dict["handle"]
+            class_name = _trans_dict["_class"]
+            indexer.add_or_update_object(handle, db_handle, class_name)
         return self.response(200, trans_dict, total_items=len(trans_dict))
 
 
@@ -469,11 +467,10 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         # update search index
         tree = get_tree_from_jwt()
         indexer: SearchIndexer = get_search_indexer(tree)
-        with indexer.get_writer(overwrite=False, use_async=True) as writer:
-            for _trans_dict in trans_dict:
-                handle = _trans_dict["handle"]
-                class_name = _trans_dict["_class"]
-                indexer.add_or_update_object(writer, handle, db_handle, class_name)
+        for _trans_dict in trans_dict:
+            handle = _trans_dict["handle"]
+            class_name = _trans_dict["_class"]
+            indexer.add_or_update_object(handle, db_handle, class_name)
         return self.response(201, trans_dict, total_items=len(trans_dict))
 
 
