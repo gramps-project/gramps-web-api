@@ -25,7 +25,6 @@ import json
 import os
 import smtplib
 import socket
-from datetime import datetime
 from email.message import EmailMessage
 from email.utils import make_msgid
 from http import HTTPStatus
@@ -686,5 +685,5 @@ def get_object_timestamps(db_handle: DbReadBase):
         for handle in iter_method():
             query_method = db_handle.method("get_%s_from_handle", class_name)
             obj = query_method(handle)
-            d[class_name].add((handle, datetime.fromtimestamp(obj.change)))
+            d[class_name].add((handle, obj.change))
     return d

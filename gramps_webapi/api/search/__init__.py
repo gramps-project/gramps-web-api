@@ -19,7 +19,9 @@
 
 """Full-text search utilities."""
 
-import os
+import warnings
+from pathlib import Path
+from urllib.parse import urlparse
 
 from flask import current_app
 
@@ -28,6 +30,22 @@ from .indexer import SearchIndexer
 
 def get_search_indexer(tree: str) -> SearchIndexer:
     """Get the search indexer for the tree."""
-    base_dir = current_app.config["SEARCH_INDEX_DIR"]
-    index_dir = os.path.join(base_dir, tree)
-    return SearchIndexer(index_dir=index_dir)
+    db_url = current_app.config["SEARCH_INDEX_DB_URI"] or None
+    url_parts = urlparse(db_url)
+    # in case of SQLite create the containing directory if it doesn't exist
+    if url_parts.scheme == "sqlite":
+        path = url_parts.path
+        if path.lstrip("/") and path.lstrip("/") != ":memory:" and path[0] == "/":
+            path = Path(path[1:])
+            if not path.exists() and not path.parent.exists():
+                path.parent.mkdir(parents=True, exist_ok=True)
+    if not db_url and current_app.config["SEARCH_INDEX_DIR"]:
+        # backwards compatibility...
+        db_url = f"sqlite:///{current_app.config['SEARCH_INDEX_DIR']}/search_index.db"
+        warnings.warn(
+            "The SEARCH_INDEX_DIR config option is deprecated and will be removed in a "
+            "future release. Please use SEARCH_INDEX_DB_URI instead, "
+            f"e.g. setting it to {db_url}"
+        )
+
+    return SearchIndexer(db_url=db_url, tree=tree)

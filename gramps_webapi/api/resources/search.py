@@ -30,6 +30,7 @@ from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 
 from ...auth.const import PERM_TRIGGER_REINDEX, PERM_VIEW_PRIVATE
+from ...const import PRIMARY_GRAMPS_OBJECTS
 from ..auth import has_permissions, require_permissions
 from ..search import get_search_indexer
 from ..tasks import (
@@ -115,6 +116,12 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
                 ),
             ),
             "strip": fields.Boolean(load_default=False),
+            "type": fields.DelimitedList(
+                fields.Str(validate=validate.Length(min=1)),
+                validate=validate.ContainsOnly(
+                    choices=[t.lower() for t in PRIMARY_GRAMPS_OBJECTS]
+                ),
+            ),
         },
         location="query",
     )
@@ -129,6 +136,7 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
             # search in private records if allowed to
             include_private=has_permissions([PERM_VIEW_PRIVATE]),
             sort=args.get("sort"),
+            object_types=args.get("type") or None,
         )
         if hits:
             locale = get_locale_for_language(args["locale"], default=True)

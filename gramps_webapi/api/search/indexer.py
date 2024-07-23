@@ -19,21 +19,12 @@
 
 """Full-text search indexer."""
 
-from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
 
+import sifts
 from flask import current_app
 from gramps.gen.db.base import DbReadBase
-from whoosh import index
-from whoosh.fields import BOOLEAN, DATETIME, ID, TEXT, Schema
-from whoosh.qparser import MultifieldParser, QueryParser
-from whoosh.qparser.dateparse import DateParserPlugin
-from whoosh.query import Term
-from whoosh.searching import Hit
-from whoosh.sorting import FieldFacet
-from whoosh.writing import AsyncWriter
 
-from ...types import FilenameOrPath
 from .text import iter_obj_strings, obj_strings_from_handle
 from ..util import get_total_number_of_objects, get_object_timestamps
 
@@ -41,58 +32,70 @@ from ..util import get_total_number_of_objects, get_object_timestamps
 class SearchIndexer:
     """Full-text search indexer."""
 
-    # schema for searches of all (public + private) info
-    SCHEMA = Schema(
-        type=ID(stored=True, sortable=True),
-        handle=ID(stored=True, unique=True),
-        private=BOOLEAN(stored=True),
-        text=TEXT(),
-        text_private=TEXT(),
-        change=DATETIME(sortable=True, stored=True),
-    )
-
-    # schema for searches of public info only
-    SCHEMA_PUBLIC = Schema(
-        type=ID(stored=True, sortable=True),
-        handle=ID(stored=True, unique=True),
-        private=BOOLEAN(stored=True),
-        text=TEXT(),
-        change=DATETIME(sortable=True, stored=True),
-    )
-
-    def __init__(self, index_dir=FilenameOrPath):
+    def __init__(self, tree: str, db_url: Optional[str] = None):
         """Initialize given an index dir path."""
-        self.index_dir = Path(index_dir)
-        self.index_dir.mkdir(parents=True, exist_ok=True)
-        # query parser for all (public + private) content
-        self.query_parser_all = MultifieldParser(
-            ["text", "text_private"], schema=self.SCHEMA
-        )
-        # query parser for public content only
-        self.query_parser_public = QueryParser("text", schema=self.SCHEMA_PUBLIC)
+        if not tree:
+            raise ValueError("`tree` is required for the search index")
+        if tree.endswith("__p"):
+            # we can't allow tree IDs ending in __p since it would
+            # interfere with our private-aware index
+            raise ValueError("Invalid tree ID")
+        self.tree = tree
+        # index for all objects
+        self.engine = sifts.SearchEngine(db_url=db_url, prefix=tree)
+        # index for view with only non-private objects
+        self.engine_public = sifts.SearchEngine(db_url=db_url, prefix=f"{tree}__p")
 
-    def index(self, overwrite=False):
-        """Return the index; create if doesn't exist."""
-        index_dir = str(self.index_dir)
-        if overwrite or not index.exists_in(index_dir):
-            return index.create_in(index_dir, self.SCHEMA)
-        return index.open_dir(index_dir)
+    def _object_id(self, handle: str, class_name: str) -> str:
+        """Return the object ID for class name and handle."""
+        return f"{class_name.lower()}_{handle}_{self.tree}"
 
-    def _add_obj_strings(self, writer, obj_dict):
+    def _object_id_public(self, handle: str, class_name: str) -> str:
+        """Return the object ID for class name and handle."""
+        return f"{class_name.lower()}_{handle}_{self.tree}__p"
+
+    def _get_object_data(self, obj_dict: Dict[str, Any], public_only: bool = False):
         """Add or update an object to the index."""
-        try:
-            writer.update_document(
-                type=obj_dict["class_name"].lower(),
-                handle=obj_dict["handle"],
-                private=obj_dict["private"],
-                text=obj_dict["string"],
-                text_private=obj_dict["string_private"],
-                change=obj_dict["change"],
+        if public_only:
+            obj_id = self._object_id_public(
+                handle=obj_dict["handle"], class_name=obj_dict["class_name"]
             )
-        except:
-            current_app.logger.error(
-                "Failed adding object {}".format(obj_dict["handle"])
+        else:
+            obj_id = self._object_id(
+                handle=obj_dict["handle"], class_name=obj_dict["class_name"]
             )
+
+        metadata = {
+            "type": obj_dict["class_name"].lower(),
+            "handle": obj_dict["handle"],
+            "change": obj_dict["change"],
+        }
+        if public_only:
+            contents = obj_dict["string"]
+        else:
+            contents = " ".join([obj_dict["string"], obj_dict["string_private"]])
+        return {
+            "contents": contents,
+            "id": obj_id,
+            "metadata": metadata,
+        }
+
+    def _add_objects(self, obj_dicts: List[Dict[str, Any]]):
+        """Add or update an object to the index."""
+        data = [
+            self._get_object_data(obj_dict, public_only=False) for obj_dict in obj_dicts
+        ]
+        contents = [dat["contents"] for dat in data]
+        ids = [dat["id"] for dat in data]
+        metadatas = [dat["metadata"] for dat in data]
+        self.engine.add(contents=contents, ids=ids, metadatas=metadatas)
+        data = [
+            self._get_object_data(obj_dict, public_only=True) for obj_dict in obj_dicts
+        ]
+        contents = [dat["contents"] for dat in data]
+        ids = [dat["id"] for dat in data]
+        metadatas = [dat["metadata"] for dat in data]
+        self.engine_public.add(contents=contents, ids=ids, metadatas=metadatas)
 
     def reindex_full(
         self, db_handle: DbReadBase, progress_cb: Optional[Callable] = None
@@ -100,21 +103,25 @@ class SearchIndexer:
         """Reindex the whole database."""
         if progress_cb:
             total = get_total_number_of_objects(db_handle)
-        with self.index(overwrite=True).writer() as writer:
-            for i, obj_dict in enumerate(iter_obj_strings(db_handle)):
-                if progress_cb:
-                    progress_cb(current=i, total=total)
-                self._add_obj_strings(writer, obj_dict)
+
+        obj_dicts = []
+        for i, obj_dict in enumerate(iter_obj_strings(db_handle)):
+            obj_dicts.append(obj_dict)
+            if progress_cb:
+                progress_cb(current=i, total=total)
+        self.engine.delete_all()
+        self.engine_public.delete_all()
+        self._add_objects(obj_dicts)
 
     def _get_object_timestamps(self):
         """Get a dictionary with the timestamps of all objects in the index."""
         d = {}
-        with self.index().searcher() as searcher:
-            for fields in searcher.all_stored_fields():
-                class_name = fields["type"]
-                if class_name not in d:
-                    d[class_name] = set()
-                d[class_name].add((fields["handle"], fields["change"]))
+        for doc in self.engine.all_documents(content=False):
+            meta = doc["metadata"]
+            class_name = meta["type"]
+            if class_name not in d:
+                d[class_name] = set()
+            d[class_name].add((meta["handle"], meta["change"]))
         return d
 
     def _get_update_info(self, db_handle: DbReadBase) -> Dict[str, Dict[str, Set[str]]]:
@@ -142,26 +149,17 @@ class SearchIndexer:
             updated[class_name] = changed_handles & ix_handles
         return {"deleted": deleted, "updated": updated, "new": new}
 
-    def delete_object(self, writer, handle: str):
+    def delete_object(self, handle: str, class_name: str) -> None:
         """Delete an object from the index."""
-        writer.delete_by_term("handle", handle)
+        obj_id = self._object_id(handle=handle, class_name=class_name)
+        self.engine.delete([obj_id])
+        obj_id = self._object_id_public(handle=handle, class_name=class_name)
+        self.engine_public.delete([obj_id])
 
-    def add_or_update_object(
-        self, writer, handle: str, db_handle: DbReadBase, class_name: str
-    ):
+    def add_or_update_object(self, handle: str, db_handle: DbReadBase, class_name: str):
         """Add an object to the index or update it if it exists."""
         obj_dict = obj_strings_from_handle(db_handle, class_name, handle)
-        self._add_obj_strings(writer, obj_dict)
-
-    def get_writer(self, overwrite: bool = False, use_async: bool = False):
-        """Get a writer instance.
-
-        If `use_async` is true, use an `AsyncWriter`.
-        """
-        idx = self.index(overwrite=overwrite)
-        if use_async:
-            return AsyncWriter(idx, delay=0.1)
-        return idx.writer()
+        self._add_objects([obj_dict])
 
     def reindex_incremental(
         self, db_handle: DbReadBase, progress_cb: Optional[Callable] = None
@@ -181,49 +179,41 @@ class SearchIndexer:
             i += 1
             return i
 
-        with self.index(overwrite=False).writer() as writer:
-            # delete objects
-            for class_name, handles in update_info["deleted"].items():
-                for handle in handles:
-                    i = progress(i)
-                    self.delete_object(writer, handle)
-            # add objects
-            for class_name, handles in update_info["new"].items():
-                for handle in handles:
-                    i = progress(i)
-                    self.add_or_update_object(writer, handle, db_handle, class_name)
-            # update objects
-            for class_name, handles in update_info["updated"].items():
-                for handle in handles:
-                    i = progress(i)
-                    self.add_or_update_object(writer, handle, db_handle, class_name)
+        # delete objects
+        for class_name, handles in update_info["deleted"].items():
+            obj_ids = [
+                self._object_id(handle=handle, class_name=class_name)
+                for handle in handles
+            ]
+            self.engine.delete(obj_ids)
+            obj_ids = [
+                self._object_id_public(handle=handle, class_name=class_name)
+                for handle in handles
+            ]
+            self.engine_public.delete(obj_ids)
+            for _ in handles:
+                i = progress(i)
+
+        # add objects
+        for class_name, handles in update_info["new"].items():
+            for handle in handles:
+                i = progress(i)
+                self.add_or_update_object(handle, db_handle, class_name)
+        # update objects
+        for class_name, handles in update_info["updated"].items():
+            for handle in handles:
+                i = progress(i)
+                self.add_or_update_object(handle, db_handle, class_name)
 
     @staticmethod
-    def _format_hit(hit: Hit) -> Dict[str, Any]:
+    def _format_hit(hit, rank) -> Dict[str, Any]:
         """Format a search hit."""
         return {
-            "handle": hit["handle"],
-            "object_type": hit["type"],
-            "rank": hit.rank,
-            "score": hit.score,
+            "handle": hit["metadata"]["handle"],
+            "object_type": hit["metadata"]["type"],
+            "score": hit["rank"],
+            "rank": rank,
         }
-
-    def _get_sorting(
-        self,
-        sort: Optional[List[str]] = None,
-    ) -> Optional[List[FieldFacet]]:
-        """Get the appropriate field facets for sorting."""
-        if not sort:
-            return None
-        facets = []
-        allowed_sorters = {"type", "change"}
-        for sorter in sort:
-            _field = sorter.lstrip("+-")
-            if _field not in allowed_sorters:
-                continue
-            reverse = sorter.startswith("-")
-            facets.append(FieldFacet(_field, reverse=reverse))
-        return facets
 
     def search(
         self,
@@ -231,24 +221,30 @@ class SearchIndexer:
         page: int,
         pagesize: int,
         include_private: bool = True,
-        extend: bool = False,
         sort: Optional[List[str]] = None,
+        object_types: Optional[List[str]] = None,
     ):
         """Search the index.
 
         If `include_private` is true, include also private objects and
         search in private fields.
         """
-        query_parser = (
-            self.query_parser_all if include_private else self.query_parser_public
+        search = self.engine if include_private else self.engine_public
+        if object_types:
+            where = {"type": {"$in": object_types}}
+        else:
+            where = None
+        offset = (page - 1) * pagesize
+        results = search.query(
+            query,
+            limit=pagesize,
+            offset=offset,
+            order_by=sort,
+            where=where,
         )
-        query_parser.add_plugin(DateParserPlugin())
-        # if private objects should not be shown, add a mask
-        mask = None if include_private else Term("private", True)
-        parsed_query = query_parser.parse(query)
-        with self.index().searcher() as searcher:
-            sortedby = self._get_sorting(sort)
-            results = searcher.search_page(
-                parsed_query, page, pagesize, mask=mask, sortedby=sortedby
-            )
-            return results.total, [self._format_hit(hit) for hit in results]
+        total = results["total"]
+        hits = [
+            self._format_hit(hit, rank=offset + i)
+            for i, hit in enumerate(results["results"])
+        ]
+        return total, hits

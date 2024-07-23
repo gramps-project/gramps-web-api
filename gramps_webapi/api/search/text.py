@@ -19,7 +19,6 @@
 
 """Functions for converting Gramps objects to indexable text."""
 
-from datetime import datetime
 from typing import Any, Dict, Generator, Optional, Sequence, Tuple
 
 from gramps.gen.db.base import DbReadBase
@@ -108,7 +107,7 @@ def obj_strings_from_object(
             "private": private,
             "string": obj_string,
             "string_private": obj_string_private,
-            "change": datetime.fromtimestamp(obj.change),
+            "change": obj.change,
         }
     return None
 
