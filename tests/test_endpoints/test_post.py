@@ -520,34 +520,37 @@ class TestObjectCreation(unittest.TestCase):
 
     def test_search_add_note(self):
         """Test whether adding a note updates the search index correctly."""
-        handle = make_handle()
+        gramps_id = make_handle().replace("-", "")  # random Gramps ID
         headers = get_headers(self.client, "admin", "123")
         # not added yet: shouldn't find anything
-        rv = self.client.get("/api/search/?query=handle:{handle}", headers=headers)
+        rv = self.client.get("/api/search/?query={gramps_id}", headers=headers)
         self.assertEqual(rv.status_code, 200)
         self.assertEqual(rv.json, [])
         obj = {
             "_class": "Note",
-            "handle": handle,
+            "gramps_id": gramps_id,
             "text": {"_class": "StyledText", "string": "My searchable note."},
         }
         rv = self.client.post("/api/notes/", json=obj, headers=headers)
         self.assertEqual(rv.status_code, 201)
         # now it should be there
-        rv = self.client.get(f"/api/search/?query=handle:{handle}", headers=headers)
+        rv = self.client.get(f"/api/search/?query={gramps_id}", headers=headers)
         self.assertEqual(rv.status_code, 200)
         data = rv.json
         self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]["handle"], handle)
+        self.assertEqual(data[0]["gramps_id"], gramps_id)
         self.assertEqual(data[0]["object_type"], "note")
 
     def test_search_add_person(self):
         """Test whether adding a person with event updates the search index."""
         handle_person = make_handle()
+        gramps_id_person = make_handle().replace("-", "")  # random Gramps ID
         handle_birth = make_handle()
+        gramps_id_birth = make_handle().replace("-", "")  # random Gramps ID
         person = {
             "_class": "Person",
             "handle": handle_person,
+            "gramps_id": gramps_id_person,
             "primary_name": {
                 "_class": "Name",
                 "surname_list": [
@@ -571,6 +574,7 @@ class TestObjectCreation(unittest.TestCase):
         birth = {
             "_class": "Event",
             "handle": handle_birth,
+            "gramps_id": gramps_id_birth,
             "date": {
                 "_class": "Date",
                 "dateval": [2, 10, 1764, False],
@@ -583,7 +587,7 @@ class TestObjectCreation(unittest.TestCase):
         self.assertEqual(rv.status_code, 201)
         # now they should be there
         rv = self.client.get(
-            f"/api/search/?query=handle:{handle_person}", headers=headers
+            f"/api/search/?query={gramps_id_person}", headers=headers
         )
         self.assertEqual(rv.status_code, 200)
         data = rv.json
@@ -591,7 +595,7 @@ class TestObjectCreation(unittest.TestCase):
         self.assertEqual(data[0]["handle"], handle_person)
         self.assertEqual(data[0]["object_type"], "person")
         rv = self.client.get(
-            f"/api/search/?query=handle:{handle_birth}", headers=headers
+            f"/api/search/?query={gramps_id_birth}", headers=headers
         )
         self.assertEqual(rv.status_code, 200)
         data = rv.json
