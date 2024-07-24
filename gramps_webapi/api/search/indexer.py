@@ -42,9 +42,9 @@ class SearchIndexer:
             raise ValueError("Invalid tree ID")
         self.tree = tree
         # index for all objects
-        self.engine = sifts.SearchEngine(db_url=db_url, prefix=tree)
+        self.engine = sifts.Collection(db_url=db_url, name=tree)
         # index for view with only non-private objects
-        self.engine_public = sifts.SearchEngine(db_url=db_url, prefix=f"{tree}__p")
+        self.engine_public = sifts.Collection(db_url=db_url, name=f"{tree}__p")
 
     def _object_id(self, handle: str, class_name: str) -> str:
         """Return the object ID for class name and handle."""
