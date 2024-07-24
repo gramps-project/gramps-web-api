@@ -194,11 +194,13 @@ class TestObjectDeletion(unittest.TestCase):
     def test_search_delete_note(self):
         """Test whether deleting a note updates the search index correctly."""
         handle = make_handle()
-        text = make_handle()
+        gramps_id = make_handle().replace("-", "")
+        text = make_handle().replace("-", "")
         headers = get_headers(self.client, "admin", "123")
         obj = {
             "_class": "Note",
             "handle": handle,
+            "gramps_id": gramps_id,
             "text": {"_class": "StyledText", "string": f"Original note: {text}."},
         }
         # create object
@@ -216,7 +218,7 @@ class TestObjectDeletion(unittest.TestCase):
         rv = self.client.delete(f"/api/notes/{handle}", headers=headers)
         self.assertEqual(rv.status_code, 200)
         # don't find it anymore
-        rv = self.client.get(f"/api/search/?query=handle:{handle}", headers=headers)
+        rv = self.client.get(f"/api/search/?query={gramps_id}", headers=headers)
         self.assertEqual(len(rv.json), 0)
         # or its text
         rv = self.client.get(f"/api/search/?query={text}", headers=headers)
