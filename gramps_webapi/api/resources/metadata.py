@@ -22,6 +22,7 @@
 
 import gramps_ql as gql
 import pytesseract
+import sifts
 from flask import Response, current_app
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.const import ENV, GRAMPS_LOCALE
@@ -119,6 +120,7 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 "tags": db_handle.get_number_of_tags(),
             },
             "researcher": db_handle.get_researcher(),
+            "search": {"sifts": {"version": sifts.__version__}},
             "server": {
                 "multi_tree": is_multi_tree,
                 "task_queue": has_task_queue,

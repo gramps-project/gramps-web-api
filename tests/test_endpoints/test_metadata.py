@@ -41,4 +41,7 @@ class TestMetadata(unittest.TestCase):
 
     def test_get_metadata_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(self, TEST_URL, "Metadata")
+        res = check_conforms_to_schema(self, TEST_URL, "Metadata")
+        assert "search" in res
+        assert "sifts" in res["search"]
+        assert "version" in res["search"]["sifts"]
