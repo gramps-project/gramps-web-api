@@ -600,7 +600,9 @@ class TestObjectCreation(unittest.TestCase):
         self.assertEqual(data[0]["object_type"], "event")
 
     def test_search_locked(self):
-        """Torture test for search with manually locked index."""
+        """Torture test for search."""
+        # this was originally meant as a torture test for the whoosh async writer
+        # when we still had whoosh as backend.
         headers = get_headers(self.client, "admin", "123")
         with self.app.app_context():
             db_manager = WebDbManager(name=self.name, create_if_missing=False)
@@ -608,16 +610,14 @@ class TestObjectCreation(unittest.TestCase):
             indexer = get_search_indexer(tree)
             label = make_handle()
             content = {"text": {"_class": "StyledText", "string": label}}
-            with indexer.index(overwrite=False).writer() as writer:
-                for _ in range(10):
-                    # write 10 objects while index is locked
-                    rv = self.client.post(
-                        "/api/notes/",
-                        json=content,
-                        headers=headers,
-                    )
-                    self.assertEqual(rv.status_code, 201)
-        sleep(2)  # give the async writer time to flush
+            for _ in range(10):
+                # write 10 objects
+                rv = self.client.post(
+                    "/api/notes/",
+                    json=content,
+                    headers=headers,
+                )
+                self.assertEqual(rv.status_code, 201)
         rv = self.client.get(f"/api/search/?query={label}", headers=headers)
         self.assertEqual(rv.status_code, 200)
         data = rv.json
