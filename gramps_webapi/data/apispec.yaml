@@ -6072,6 +6072,12 @@ paths:
         type: integer
         default: 20
         description: "The number of search results that constitute a page."
+      - name: type
+        in: query
+        required: false
+        type: string
+        description: "A comma delimited list of object types to include."
+        example: person,family,source
       - name: sort
         in: query
         required: false
