@@ -521,6 +521,7 @@ class TestObjectCreation(unittest.TestCase):
     def test_search_add_note(self):
         """Test whether adding a note updates the search index correctly."""
         gramps_id = make_handle().replace("-", "")  # random Gramps ID
+        handle = make_handle()
         headers = get_headers(self.client, "admin", "123")
         # not added yet: shouldn't find anything
         rv = self.client.get("/api/search/?query={gramps_id}", headers=headers)
@@ -528,6 +529,7 @@ class TestObjectCreation(unittest.TestCase):
         self.assertEqual(rv.json, [])
         obj = {
             "_class": "Note",
+            "handle": handle,
             "gramps_id": gramps_id,
             "text": {"_class": "StyledText", "string": "My searchable note."},
         }
@@ -538,7 +540,7 @@ class TestObjectCreation(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         data = rv.json
         self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]["gramps_id"], gramps_id)
+        self.assertEqual(data[0]["handle"], handle)
         self.assertEqual(data[0]["object_type"], "note")
 
     def test_search_add_person(self):
@@ -612,7 +614,7 @@ class TestObjectCreation(unittest.TestCase):
             db_manager = WebDbManager(name=self.name, create_if_missing=False)
             tree = db_manager.dirname
             indexer = get_search_indexer(tree)
-            label = make_handle()
+            label = make_handle().replace("-", "")
             content = {"text": {"_class": "StyledText", "string": label}}
             for _ in range(10):
                 # write 10 objects
