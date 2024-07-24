@@ -207,7 +207,7 @@ class TestObjectDeletion(unittest.TestCase):
         rv = self.client.post("/api/notes/", json=obj, headers=headers)
         self.assertEqual(rv.status_code, 201)
         # find it
-        rv = self.client.get(f"/api/search/?query=handle:{handle}", headers=headers)
+        rv = self.client.get(f"/api/search/?query={gramps_id}", headers=headers)
         self.assertEqual(len(rv.json), 1)
         self.assertEqual(rv.json[0]["handle"], handle)
         # or its text
