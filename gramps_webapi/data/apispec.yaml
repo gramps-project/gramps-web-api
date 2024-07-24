@@ -8,7 +8,7 @@ info:
 
 
     * More about Gramps and the numerous features it provides for genealogists can be found at https://gramps-project.org
-  version: "2.3.1"  # make sure to match this version with the one in _version.py
+  version: "2.4.0"  # make sure to match this version with the one in _version.py
   license:
     name: "GNU Affero General Public License v3.0"
     url: "http://www.gnu.org/licenses/agpl-3.0.html"
@@ -9944,7 +9944,11 @@ definitions:
               version:
                 description: "The Sifts version."
                 type: string
-                example: "0.5.0"
+                example: "0.7.0"
+              count:
+                description: "The total number of items in the search index."
+                type: number
+                example: 10570
       server:
         description: "Information about the server setup."
         type: object

@@ -46,6 +46,12 @@ class SearchIndexer:
         # index for view with only non-private objects
         self.engine_public = sifts.Collection(db_url=db_url, name=f"{tree}__p")
 
+    def count(self, include_private: bool):
+        """Return the number of items in the collection."""
+        if include_private:
+            return self.engine.count()
+        return self.engine_public.count()
+
     def _object_id(self, handle: str, class_name: str) -> str:
         """Return the object ID for class name and handle."""
         return f"{class_name.lower()}_{handle}_{self.tree}"

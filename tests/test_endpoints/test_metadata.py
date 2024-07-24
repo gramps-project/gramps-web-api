@@ -45,3 +45,5 @@ class TestMetadata(unittest.TestCase):
         assert "search" in res
         assert "sifts" in res["search"]
         assert "version" in res["search"]["sifts"]
+        assert "count" in res["search"]["sifts"]
+        assert res["search"]["sifts"]["count"] > 1
