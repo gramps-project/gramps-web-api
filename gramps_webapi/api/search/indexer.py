@@ -122,7 +122,8 @@ class SearchIndexer:
     def _get_object_timestamps(self):
         """Get a dictionary with the timestamps of all objects in the index."""
         d = {}
-        for doc in self.engine.all_documents(content=False):
+        all_docs = self.engine.get()["results"]
+        for doc in all_docs:
             meta = doc["metadata"]
             class_name = meta["type"]
             if class_name not in d:
