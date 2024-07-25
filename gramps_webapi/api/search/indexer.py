@@ -217,7 +217,7 @@ class SearchIndexer:
         return {
             "handle": hit["metadata"]["handle"],
             "object_type": hit["metadata"]["type"],
-            "score": hit["rank"],
+            "score": hit.get("rank"),
             "rank": rank,
         }
 
@@ -229,6 +229,8 @@ class SearchIndexer:
         include_private: bool = True,
         sort: Optional[List[str]] = None,
         object_types: Optional[List[str]] = None,
+        change_op: Optional[str] = None,
+        change_value: Optional[float] = None,
     ):
         """Search the index.
 
@@ -236,18 +238,31 @@ class SearchIndexer:
         search in private fields.
         """
         search = self.engine if include_private else self.engine_public
+        where = {}
         if object_types:
-            where = {"type": {"$in": object_types}}
-        else:
-            where = None
+            where["type"] = {"$in": object_types}
+        if change_op and change_value is not None:
+            if change_op not in {">", "<", ">=", "<="}:
+                raise ValueError("Invalid operator for change condition")
+            ops = {">": "$gt", "<": "$lt", ">=": "$gte", "<=": "$lte"}
+            where["change"] = {ops[change_op]: change_value}
+        where = where or None
         offset = (page - 1) * pagesize
-        results = search.query(
-            query,
-            limit=pagesize,
-            offset=offset,
-            order_by=sort,
-            where=where,
-        )
+        if not query or query.strip() == "*":
+            results = search.get(
+                limit=pagesize,
+                offset=offset,
+                order_by=sort,
+                where=where,
+            )
+        else:
+            results = search.query(
+                query,
+                limit=pagesize,
+                offset=offset,
+                order_by=sort,
+                where=where,
+            )
         total = results["total"]
         hits = [
             self._format_hit(hit, rank=offset + i)
