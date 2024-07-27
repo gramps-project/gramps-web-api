@@ -22,14 +22,15 @@
 from typing import Any, Dict, Generator, Optional, Sequence, Tuple
 
 from gramps.gen.db.base import DbReadBase
-from gramps.gen.lib import Name, Place
+from gramps.gen.lib import Event, Family, Name
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from unidecode import unidecode
 
 from ...const import GRAMPS_OBJECT_PLURAL, PRIMARY_GRAMPS_OBJECTS
+from ..resources.util import get_event_participants_for_handle
 
 
-def object_to_strings(obj) -> Tuple[str, str]:
+def object_to_strings(obj: GrampsObject, db_handle: DbReadBase) -> Tuple[str, str]:
     """Create strings from a Gramps object's textual pieces.
 
     This function returns a tuple of two strings: the first one contains
@@ -43,6 +44,24 @@ def object_to_strings(obj) -> Tuple[str, str]:
         # text_data_list, so it is added here explicitly if missing
         strings.append(obj.gramps_id)
     text_data_child_list = obj.get_text_data_child_list()
+    # family: add parents' names
+    if isinstance(obj, Family):
+        for parent_handle in [obj.father_handle, obj.mother_handle]:
+            if parent_handle:
+                parent_obj = db_handle.get_person_from_handle(parent_handle)
+                text_data_child_list.append(parent_obj.get_primary_name())
+    # event: add primary/family role participants' names
+    if isinstance(obj, Event):
+        participants = get_event_participants_for_handle(db_handle, obj.handle)
+        for role, person in participants["people"]:
+            if role.is_primary():
+                text_data_child_list.append(person.get_primary_name())
+        for role, family in participants["families"]:
+            if role.is_primary() or role.is_family():
+                for parent_handle in [family.father_handle, family.mother_handle]:
+                    if parent_handle:
+                        parent_obj = db_handle.get_person_from_handle(parent_handle)
+                        text_data_child_list.append(parent_obj.get_primary_name())
     for child_obj in text_data_child_list:
         if hasattr(child_obj, "get_text_data_list"):
             if hasattr(child_obj, "private") and child_obj.private:
@@ -94,7 +113,7 @@ def obj_strings_from_object(
     db_handle: DbReadBase, class_name: str, obj: GrampsObject
 ) -> Optional[Dict[str, Any]]:
     """Return object strings from a handle and Gramps class name."""
-    obj_string, obj_string_private = object_to_strings(obj)
+    obj_string, obj_string_private = object_to_strings(obj, db_handle)
     private = hasattr(obj, "private") and obj.private
     if obj_string:
         return {

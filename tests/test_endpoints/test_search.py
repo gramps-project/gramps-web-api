@@ -82,12 +82,17 @@ class TestSearchEngine(unittest.TestCase):
 
     def test_search_method(self):
         """Test search engine returns an expected result."""
-        total, rv = self.search.search("Lewis von", page=1, pagesize=2)
+        total, rv = self.search.search("Lewis von", page=1, pagesize=20)
         self.assertEqual(
             {(hit["object_type"], hit["handle"]) for hit in rv},
             {
                 ("person", "GNUJQCL9MD64AM56OH"),
+                ("family", "9OUJQCBOHW9UEK9CNV"),
                 ("note", "d0436be64ac277b615b79b34e72"),
+                ("event", "a5af0ecb107303354a0"),  # person event
+                ("event", "a5af0ecb11f5ac3110e"),  # person event
+                ("event", "a5af0ecb12e29af8a5d"),  # person event
+                ("event", "a5af0ed5df832ee65c1"),  # family event
             },
         )
 

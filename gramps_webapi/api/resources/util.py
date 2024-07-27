@@ -42,6 +42,7 @@ from gramps.gen.errors import HandleError
 from gramps.gen.lib import (
     Citation,
     Event,
+    EventRoleType,
     Family,
     Media,
     Person,
@@ -139,7 +140,7 @@ def get_event_participants_for_handle(
     db_handle: DbReadBase,
     handle: Handle,
     locale: GrampsLocale = glocale,
-) -> Dict:
+) -> Dict[str, List[Tuple[EventRoleType, Union[Person, Family]]]]:
     """Get event participants given a handle."""
     result = {"people": [], "families": []}
     seen = set()  # to avoid duplicates
@@ -156,14 +157,10 @@ def get_event_participants_for_handle(
             for event_ref in person.get_event_ref_list():
                 if handle == event_ref.ref:
                     result["people"].append(
-                        {
-                            "role": locale.translation.sgettext(
-                                event_ref.get_role().xml_str()
-                            ),
-                            "person": get_person_profile_for_handle(
-                                db_handle, backref_handle, args=[], locale=locale
-                            ),
-                        }
+                        (
+                            event_ref.get_role(),
+                            db_handle.get_person_from_handle(backref_handle),
+                        )
                     )
         elif class_name == "Family":
             family = db_handle.get_family_from_handle(backref_handle)
@@ -172,15 +169,39 @@ def get_event_participants_for_handle(
             for event_ref in family.get_event_ref_list():
                 if handle == event_ref.ref:
                     result["families"].append(
-                        {
-                            "role": locale.translation.sgettext(
-                                event_ref.get_role().xml_str()
-                            ),
-                            "family": get_family_profile_for_handle(
-                                db_handle, backref_handle, args=[], locale=locale
-                            ),
-                        }
+                        (
+                            event_ref.get_role(),
+                            db_handle.get_family_from_handle(backref_handle),
+                        )
                     )
+    return result
+
+
+def get_event_participants_profile_for_handle(
+    db_handle: DbReadBase,
+    handle: Handle,
+    locale: GrampsLocale = glocale,
+) -> Dict:
+    """Get event participants given a handle."""
+    event_participants = get_event_participants_for_handle(
+        db_handle=db_handle,
+        handle=handle,
+        locale=locale,
+    )
+    result = {"people": [], "families": []}
+
+    for role, person in event_participants["people"]:
+        person_profile = get_person_profile_for_object(
+            db_handle, person, args=[], locale=locale
+        )
+        role_str = locale.translation.sgettext(role.xml_str())
+        result["people"].append({"role": role_str, "person": person_profile})
+    for role, person in event_participants["families"]:
+        person_profile = get_family_profile_for_object(
+            db_handle, person, args=[], locale=locale
+        )
+        role_str = locale.translation.sgettext(role.xml_str())
+        result["families"].append({"role": role_str, "family": person_profile})
     return result
 
 
@@ -215,7 +236,7 @@ def get_event_profile_for_object(
     if role is not None:
         result["role"] = role
     if "all" in args or "participants" in args:
-        result["participants"] = get_event_participants_for_handle(
+        result["participants"] = get_event_participants_profile_for_handle(
             db_handle, event.handle, locale=locale
         )
     if "all" in args or "ratings" in args:
