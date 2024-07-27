@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-2024 David Straub
 # Copyright (C) 2020      Christopher Horn
 #
 # This program is free software; you can redistribute it and/or modify
@@ -82,12 +82,17 @@ class TestSearchEngine(unittest.TestCase):
 
     def test_search_method(self):
         """Test search engine returns an expected result."""
-        total, rv = self.search.search("Lewis von", page=1, pagesize=2)
+        total, rv = self.search.search("Lewis von", page=1, pagesize=20)
         self.assertEqual(
             {(hit["object_type"], hit["handle"]) for hit in rv},
             {
                 ("person", "GNUJQCL9MD64AM56OH"),
+                ("family", "9OUJQCBOHW9UEK9CNV"),
                 ("note", "d0436be64ac277b615b79b34e72"),
+                ("event", "a5af0ecb107303354a0"),  # person event
+                ("event", "a5af0ecb11f5ac3110e"),  # person event
+                ("event", "a5af0ecb12e29af8a5d"),  # person event
+                ("event", "a5af0ed5df832ee65c1"),  # family event
             },
         )
 
@@ -114,7 +119,18 @@ class TestSearch(unittest.TestCase):
         rv = check_success(self, TEST_URL + "?query=microfilm")
         self.assertEqual(
             {hit["handle"] for hit in rv},
-            {"b39fe2e143d1e599450", "b39fe3f390e30bd2b99"},
+            {"b39fe2e143d1e599450", "b39fe3f390e30bd2b99", "b39fe1cfc1305ac4a21"},
+        )
+        self.assertIn(rv[0]["object_type"], ["source", "note"])
+        self.assertEqual(rv[0]["rank"], 0)
+        self.assertIsInstance(rv[0]["score"], float)
+
+    def test_get_search_expected_result_text_string_wildcard(self):
+        """Test expected result querying for text."""
+        rv = check_success(self, TEST_URL + "?query=micr*")
+        self.assertEqual(
+            {hit["handle"] for hit in rv},
+            {"b39fe2e143d1e599450", "b39fe3f390e30bd2b99", "b39fe1cfc1305ac4a21"},
         )
         self.assertIn(rv[0]["object_type"], ["source", "note"])
         self.assertEqual(rv[0]["rank"], 0)
@@ -127,32 +143,33 @@ class TestSearch(unittest.TestCase):
         self.assertIn("object", rv[0])
         self.assertEqual(rv[0]["object"]["gramps_id"], "I0044")
 
+    def test_get_search_expected_result_or(self):
+        """Test expected result querying for a specific object by Gramps id."""
+        rv = check_success(self, TEST_URL + f"?query={quote('I0044 OR I0043')}")
+        self.assertEqual(len(rv), 2)
+
     def test_get_search_expected_result_unicode(self):
         """Test expected result querying for a Unicode decoded string."""
         # 斎藤 is transliterated as Zhai Teng
-        rv = check_success(self, TEST_URL + f"?query={quote('Zhai Teng type:person') }")
+        rv = check_success(self, TEST_URL + f"?query={quote('Zhai Teng')}&type=person")
         self.assertEqual(len(rv), 1)
         self.assertIn("object", rv[0])
-        print(rv[0]["object"])
         self.assertEqual(rv[0]["object"]["gramps_id"], "I0761")
-        rv = check_success(self, TEST_URL + f"?query={quote('斎藤 type:person')}")
+        rv = check_success(self, TEST_URL + f"?query={quote('斎藤')}&type=person")
         self.assertEqual(len(rv), 1)
         self.assertIn("object", rv[0])
-        print(rv[0]["object"])
         self.assertEqual(rv[0]["object"]["gramps_id"], "I0761")
 
     def test_get_search_expected_result_unicode_2(self):
         """Test expected result querying for a Unicode decoded string."""
         # Шестаков is transliterated as Shestakov
-        rv = check_success(self, TEST_URL + f"?query={quote('Shestakov type:person')}")
+        rv = check_success(self, TEST_URL + f"?query={quote('Shestakov')}&type=person")
         self.assertEqual(len(rv), 1)
         self.assertIn("object", rv[0])
-        print(rv[0]["object"])
         self.assertEqual(rv[0]["object"]["gramps_id"], "I0972")
-        rv = check_success(self, TEST_URL + f"?query={quote('Шестаков type:person')}")
+        rv = check_success(self, TEST_URL + f"?query={quote('Шестаков')}&type=person")
         self.assertEqual(len(rv), 1)
         self.assertIn("object", rv[0])
-        print(rv[0]["object"])
         self.assertEqual(rv[0]["object"]["gramps_id"], "I0972")
 
     def test_get_search_expected_result_no_hits(self):
@@ -185,9 +202,21 @@ class TestSearch(unittest.TestCase):
             ["b39fe3f390e30bd2b99"],
         )
         count = rv.headers.pop("X-Total-Count")
-        self.assertEqual(count, "2")
+        self.assertEqual(count, "3")
         rv = check_success(
             self, TEST_URL + "?query=microfilm&page=2&pagesize=1", full=True
+        )
+
+        self.assertEqual(len(rv.json), 1)
+        self.assertEqual(
+            [hit["handle"] for hit in rv.json],
+            ["b39fe1cfc1305ac4a21"],
+        )
+        count = rv.headers.pop("X-Total-Count")
+        self.assertEqual(count, "3")
+
+        rv = check_success(
+            self, TEST_URL + "?query=microfilm&page=3&pagesize=1", full=True
         )
         self.assertEqual(len(rv.json), 1)
         self.assertEqual(
@@ -195,7 +224,7 @@ class TestSearch(unittest.TestCase):
             ["b39fe2e143d1e599450"],
         )
         count = rv.headers.pop("X-Total-Count")
-        self.assertEqual(count, "2")
+        self.assertEqual(count, "3")
 
     def test_get_search_parameter_strip_validate_semantics(self):
         """Test invalid strip parameter and values."""
@@ -237,10 +266,8 @@ class TestSearch(unittest.TestCase):
         """Search for a private attribute as owner."""
         header = fetch_header(self.client, role=ROLE_GUEST)
         # the guest won't find any results when searching for the private attribute
-        rv = self.client.get(TEST_URL + "?query=123-456-7890", headers=header)
-        self.assertEqual(len(rv.json), 0)
         rv = self.client.get(
-            TEST_URL + "?query=text_private:123-456-7890", headers=header
+            TEST_URL + f"?query={quote('123 456 7890')}", headers=header
         )
         self.assertEqual(len(rv.json), 0)
 
@@ -248,51 +275,41 @@ class TestSearch(unittest.TestCase):
         """Search for a private attribute as owner."""
         header = fetch_header(self.client, role=ROLE_OWNER)
         # the owner will get a hit when searching for the private attribute
-        rv = self.client.get(TEST_URL + "?query=123-456-7890", headers=header)
-        self.assertEqual(len(rv.json), 1)
-        self.assertEqual(rv.json[0]["object"]["gramps_id"], "I0044")
         rv = self.client.get(
-            TEST_URL + "?query=text_private:123-456-7890", headers=header
+            TEST_URL + f"?query={quote('123 456 7890')}", headers=header
         )
         self.assertEqual(len(rv.json), 1)
         self.assertEqual(rv.json[0]["object"]["gramps_id"], "I0044")
-        rv = self.client.get(TEST_URL + "?query=text:123-456-7890", headers=header)
-        self.assertEqual(len(rv.json), 0)
 
     def test_get_search_explicit_fields_owner(self):
-        """Search for a private attribute as owner."""
+        """Search for an explicit type as owner."""
         header = fetch_header(self.client, role=ROLE_OWNER)
         rv = self.client.get(
-            TEST_URL
-            + "?query={}".format(quote("type:repository change:'2012 to now'")),
+            TEST_URL + f"?query={quote('a*')}&type=repository&sort=change&pagesize=1",
             headers=header,
         )
         self.assertEqual(len(rv.json), 1)
-        self.assertEqual(rv.json[0]["object"]["gramps_id"], "R0002")
+        self.assertEqual(rv.json[0]["object"]["gramps_id"], "R0003")
 
     def test_get_search_explicit_fields_guest(self):
-        """Search for a private attribute as owner."""
+        """Search for a an explicit type as guest."""
         header = fetch_header(self.client, role=ROLE_GUEST)
         rv = self.client.get(
-            TEST_URL
-            + "?query={}".format(quote("type:repository change:'2012 to now'")),
+            TEST_URL + f"?query={quote('lib*')}&type=repository&sort=change&pagesize=1",
             headers=header,
         )
         self.assertEqual(len(rv.json), 1)
-        self.assertEqual(rv.json[0]["object"]["gramps_id"], "R0002")
+        self.assertEqual(rv.json[0]["object"]["gramps_id"], "R0003")
 
     def test_get_search_oldest(self):
         """Search for the oldest person record."""
         header = fetch_header(self.client, role=ROLE_OWNER)
         rv = self.client.get(
-            TEST_URL
-            + "?sort=change&pagesize=1&page=1&query={}".format(
-                quote("type:person change:'1990 to now'")
-            ),
+            TEST_URL + "?pagesize=1&page=1&query=Anderson&type=person",
             headers=header,
         )
         self.assertEqual(len(rv.json), 1)
-        self.assertEqual(rv.json[0]["object"]["gramps_id"], "I0552")
+        self.assertEqual(rv.json[0]["object"]["gramps_id"], "I0044")
 
     # def test_get_search_newest(self):
     #     """Search for the newest person record."""

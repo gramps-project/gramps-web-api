@@ -26,9 +26,9 @@ import sys
 import warnings
 
 import click
-from whoosh.index import LockError
 
-from .api.util import get_db_manager, get_search_indexer, list_trees
+from .api.search import get_search_indexer
+from .api.util import get_db_manager, list_trees
 from .app import create_app
 from .auth import add_user, delete_user, fill_tree, user_db
 from .const import ENV_CONFIG_FILE, TREE_MULTI
@@ -158,8 +158,6 @@ def index_full(ctx):
 
     try:
         indexer.reindex_full(db, progress_cb=progress_callback_count)
-    except LockError:
-        LOG.warning("Index is locked")
     except:
         LOG.exception("Error during indexing")
     finally:

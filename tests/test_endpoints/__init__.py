@@ -31,7 +31,7 @@ from jsonschema import RefResolver
 from pkg_resources import resource_filename
 
 import gramps_webapi.app
-from gramps_webapi.api.util import get_search_indexer
+from gramps_webapi.api.search import get_search_indexer
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import (

@@ -8,7 +8,7 @@ info:
 
 
     * More about Gramps and the numerous features it provides for genealogists can be found at https://gramps-project.org
-  version: "2.3.1"  # make sure to match this version with the one in _version.py
+  version: "2.4.0"  # make sure to match this version with the one in _version.py
   license:
     name: "GNU Affero General Public License v3.0"
     url: "http://www.gnu.org/licenses/agpl-3.0.html"
@@ -6072,6 +6072,12 @@ paths:
         type: integer
         default: 20
         description: "The number of search results that constitute a page."
+      - name: type
+        in: query
+        required: false
+        type: string
+        description: "A comma delimited list of object types to include."
+        example: person,family,source
       - name: sort
         in: query
         required: false
@@ -9927,6 +9933,22 @@ definitions:
         $ref: "#/definitions/ObjectCounts"
       researcher:
         $ref: "#/definitions/Researcher"
+      search:
+        description: "Information about libraries related to searching."
+        type: object
+        properties:
+          sifts:
+            description: "Information about the Sifts library."
+            type: object
+            properties:
+              version:
+                description: "The Sifts version."
+                type: string
+                example: "0.7.0"
+              count:
+                description: "The total number of items in the search index."
+                type: number
+                example: 10570
       server:
         description: "Information about the server setup."
         type: object

@@ -33,13 +33,12 @@ from webargs import fields, validate
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ_BATCH, PERM_EDIT_OBJ
 from ...const import GRAMPS_OBJECT_PLURAL
 from ..auth import require_permissions
-from ..search import SearchIndexer
+from ..search import SearchIndexer, get_search_indexer
 from ..tasks import AsyncResult, delete_objects, make_task_response, run_task
 from ..util import (
     abort_with_message,
     check_quota_people,
     get_db_handle,
-    get_search_indexer,
     get_tree_from_jwt,
     update_usage_people,
     use_args,
@@ -93,11 +92,10 @@ class CreateObjectsResource(ProtectedResource):
         # update search index
         tree = get_tree_from_jwt()
         indexer: SearchIndexer = get_search_indexer(tree)
-        with indexer.get_writer(overwrite=False, use_async=True) as writer:
-            for _trans_dict in trans_dict:
-                handle = _trans_dict["handle"]
-                class_name = _trans_dict["_class"]
-                indexer.add_or_update_object(writer, handle, db_handle, class_name)
+        for _trans_dict in trans_dict:
+            handle = _trans_dict["handle"]
+            class_name = _trans_dict["_class"]
+            indexer.add_or_update_object(handle, db_handle, class_name)
         res = Response(
             response=json.dumps(trans_dict),
             status=201,

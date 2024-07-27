@@ -44,7 +44,6 @@ REQUIREMENTS = [
     "pdf2image",
     "Pillow",
     "bleach[css]>=5.0.0",
-    "whoosh",
     "jsonschema",
     "ffmpeg-python",
     "boto3",
@@ -53,6 +52,7 @@ REQUIREMENTS = [
     "Unidecode",
     "pytesseract",
     "gramps-ql>=0.3.0",
+    "sifts>=0.8.0",
 ]
 
 setup(

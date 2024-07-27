@@ -22,6 +22,7 @@
 
 import gramps_ql as gql
 import pytesseract
+import sifts
 from flask import Response, current_app
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.const import ENV, GRAMPS_LOCALE
@@ -32,7 +33,10 @@ from webargs import fields
 
 from gramps_webapi.const import TREE_MULTI, VERSION
 
-from ..util import get_db_handle, use_args
+from ...auth.const import PERM_VIEW_PRIVATE
+from ..auth import has_permissions
+from ..search import get_search_indexer
+from ..util import get_db_handle, get_tree_from_jwt, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -82,6 +86,11 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
         except pytesseract.TesseractNotFoundError:
             has_ocr = False
             ocr_languages = []
+        tree = get_tree_from_jwt()
+        searcher = get_search_indexer(tree)
+        search_count = searcher.count(
+            include_private=has_permissions({PERM_VIEW_PRIVATE})
+        )
 
         result = {
             "database": {
@@ -119,6 +128,7 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 "tags": db_handle.get_number_of_tags(),
             },
             "researcher": db_handle.get_researcher(),
+            "search": {"sifts": {"version": sifts.__version__, "count": search_count}},
             "server": {
                 "multi_tree": is_multi_tree,
                 "task_queue": has_task_queue,

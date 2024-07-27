@@ -38,7 +38,7 @@ from gramps.gen.utils.db import (
 )
 
 from ...const import GRAMPS_OBJECT_PLURAL
-from ..search import get_total_number_of_objects
+from ..util import get_total_number_of_objects
 from .util import transaction_to_json
 
 

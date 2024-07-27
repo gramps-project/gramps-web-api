@@ -19,7 +19,8 @@
 
 """Full-text search endpoint."""
 
-from typing import Dict
+import re
+from typing import Dict, Optional
 
 from flask import Response
 from flask_jwt_extended import get_jwt_identity
@@ -30,7 +31,9 @@ from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 
 from ...auth.const import PERM_TRIGGER_REINDEX, PERM_VIEW_PRIVATE
+from ...const import PRIMARY_GRAMPS_OBJECTS
 from ..auth import has_permissions, require_permissions
+from ..search import get_search_indexer
 from ..tasks import (
     AsyncResult,
     make_task_response,
@@ -41,13 +44,13 @@ from ..tasks import (
 from ..util import (
     get_db_handle,
     get_locale_for_language,
-    get_search_indexer,
     get_tree_from_jwt,
     use_args,
 )
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .util import (
+    abort_with_message,
     get_citation_profile_for_object,
     get_event_profile_for_object,
     get_family_profile_for_object,
@@ -115,6 +118,13 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
                 ),
             ),
             "strip": fields.Boolean(load_default=False),
+            "type": fields.DelimitedList(
+                fields.Str(validate=validate.Length(min=1)),
+                validate=validate.ContainsOnly(
+                    choices=[t.lower() for t in PRIMARY_GRAMPS_OBJECTS]
+                ),
+            ),
+            "change": fields.Str(validate=validate.Length(min=2)),
         },
         location="query",
     )
@@ -122,6 +132,17 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
         """Get search result."""
         tree = get_tree_from_jwt()
         searcher = get_search_indexer(tree)
+        if args.get("change"):
+            match = re.match(r"^(<=|>=|<|>)(\d+(\.\d+)?)$", args["change"])
+            if match:
+                change_op: Optional[str] = match.group(1)
+                change_value: Optional[float] = float(match.group(2))
+            else:
+                abort_with_message(422, "change parameter has invalid format")
+        else:
+            change_op = None
+            change_value = None
+
         total, hits = searcher.search(
             query=args["query"],
             page=args["page"],
@@ -129,6 +150,9 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
             # search in private records if allowed to
             include_private=has_permissions([PERM_VIEW_PRIVATE]),
             sort=args.get("sort"),
+            object_types=args.get("type") or None,
+            change_op=change_op,
+            change_value=change_value,
         )
         if hits:
             locale = get_locale_for_language(args["locale"], default=True)
