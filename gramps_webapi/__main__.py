@@ -175,9 +175,7 @@ def index_incremental(ctx):
 
     try:
         indexer.reindex_incremental(db, progress_cb=progress_callback_count)
-    except LockError:
-        LOG.warning("Index is locked")
-    except:
+    except Exception:
         LOG.exception("Error during indexing")
     finally:
         db.close()
