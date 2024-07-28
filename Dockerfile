@@ -43,7 +43,7 @@ RUN mkdir -p /root/.gramps/gramps$GRAMPS_VERSION/plugins
 # set config options
 ENV GRAMPSWEB_USER_DB_URI=sqlite:////app/users/users.sqlite
 ENV GRAMPSWEB_MEDIA_BASE_DIR=/app/media
-ENV GRAMPSWEB_SEARCH_INDEX_DIR=/app/indexdir
+ENV GRAMPSWEB_SEARCH_INDEX_DB_URI=sqlite:////app/indexdir/search_index.db
 ENV GRAMPSWEB_STATIC_PATH=/app/static
 ENV GRAMPSWEB_THUMBNAIL_CACHE_CONFIG__CACHE_DIR=/app/thumbnail_cache
 ENV GRAMPSWEB_REPORT_DIR=/app/cache/reports
