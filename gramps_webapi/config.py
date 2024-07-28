@@ -29,7 +29,7 @@ class DefaultConfig(object):
 
     PROPAGATE_EXCEPTIONS = True
     SEARCH_INDEX_DIR = "indexdir"  # deprecated!
-    SEARCH_INDEX_DB_URI = "sqlite:///indexdir/search_index.db"
+    SEARCH_INDEX_DB_URI = ""
     EMAIL_HOST = "localhost"
     EMAIL_PORT = "465"
     EMAIL_HOST_USER = ""
