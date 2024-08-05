@@ -203,14 +203,18 @@ class SearchIndexer:
 
         # add objects
         for class_name, handles in update_info["new"].items():
+            obj_dicts = []
             for handle in handles:
+                obj_dicts.append(obj_strings_from_handle(db_handle, class_name, handle))
                 i = progress(i)
-                self.add_or_update_object(handle, db_handle, class_name)
+            self._add_objects(obj_dicts)
         # update objects
         for class_name, handles in update_info["updated"].items():
+            obj_dicts = []
             for handle in handles:
+                obj_dicts.append(obj_strings_from_handle(db_handle, class_name, handle))
                 i = progress(i)
-                self.add_or_update_object(handle, db_handle, class_name)
+            self._add_objects(obj_dicts)
 
     @staticmethod
     def _format_hit(hit, rank) -> Dict[str, Any]:

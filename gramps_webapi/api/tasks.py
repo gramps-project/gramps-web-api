@@ -364,3 +364,8 @@ def delete_objects(
         db_handle.close()
 
     update_usage_people(tree=tree, user_id=user_id)
+    _search_reindex_incremental(
+        tree=tree,
+        user_id=user_id,
+        progress_cb=progress_callback_count(self, title="Updating search index..."),
+    )
