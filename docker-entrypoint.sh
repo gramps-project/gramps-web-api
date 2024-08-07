@@ -14,9 +14,14 @@ then
 fi
 
 # Create search index if not exists
-if [ ! -f /app/indexdir/search_index.db ] && [ "${GRAMPSWEB_TREE}" != "*" ];
-then
-    python3 -m gramps_webapi --config /app/config/config.cfg search index-full
+if [ ! -f /app/indexdir/search_index.db ]; then
+    if [ "${GRAMPSWEB_TREE}" = "*" ]; then
+        for GRAMPSWEB_TREE in $(python3 -m gramps_webapi --config /app/config/config.cfg tree list | awk '{print $1;}' | grep -v Tree); do
+          python3 -m gramps_webapi --config /app/config/config.cfg search index-full;
+        done
+    else
+        python3 -m gramps_webapi --config /app/config/config.cfg search index-full;
+    fi
 fi
 
 # Run migrations for user database, if any
