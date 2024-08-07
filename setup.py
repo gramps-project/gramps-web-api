@@ -52,7 +52,7 @@ REQUIREMENTS = [
     "Unidecode",
     "pytesseract",
     "gramps-ql>=0.3.0",
-    "sifts>=0.8.2",
+    "sifts>=0.8.3",
 ]
 
 setup(
