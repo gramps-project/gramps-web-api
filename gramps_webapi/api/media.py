@@ -45,7 +45,7 @@ from .util import (
 PREFIX_S3 = "s3://"
 
 
-def removeprefix(string: str, prefix: str, /) -> str:
+def removeprefix(string: str, prefix: str) -> str:
     """Remove prefix from a string; see PEP 616."""
     if string.startswith(prefix):
         return string[len(prefix) :]
