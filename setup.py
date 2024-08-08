@@ -58,7 +58,7 @@ REQUIREMENTS = [
 setup(
     author="Gramps Development Team",
     url="https://github.com/gramps-project/web-api",
-    python_requires=">=3.5",
+    python_requires=">=3.8",
     description="A RESTful web API for the Gramps genealogical database.",
     license="AGPL v3 or greater",
     install_requires=REQUIREMENTS,
