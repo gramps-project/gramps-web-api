@@ -34,6 +34,7 @@ from .resources.bookmarks import (
     BookmarkResource,
     BookmarksResource,
 )
+from .resources.chat import ChatResource
 from .resources.citations import CitationResource, CitationsResource
 from .resources.config import ConfigResource, ConfigsResource
 from .resources.dna import PersonDnaMatchesResource
@@ -329,6 +330,9 @@ register_endpt(
 # Search
 register_endpt(SearchResource, "/search/", "search")
 register_endpt(SearchIndexResource, "/search/index/", "search_index")
+
+# Chat
+register_endpt(ChatResource, "/chat/", "chat")
 
 # Config
 register_endpt(
