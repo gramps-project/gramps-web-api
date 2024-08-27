@@ -19,6 +19,8 @@
 
 """Command line interface for the Gramps web API."""
 
+from __future__ import annotations
+
 import logging
 import os
 import subprocess
@@ -120,8 +122,13 @@ def migrate_db(ctx):
 
 @cli.group("search", help="Manage the full-text search index.")
 @click.option("--tree", help="Tree ID", default=None)
+@click.option(
+    "--semantic/--fulltext",
+    help="Semantic rather than full-text search index",
+    default=False,
+)
 @click.pass_context
-def search(ctx, tree):
+def search(ctx, tree, semantic):
     app = ctx.obj["app"]
     if not tree:
         if app.config["TREE"] == TREE_MULTI:
@@ -135,14 +142,16 @@ def search(ctx, tree):
         tree = dbmgr.dirname
     with app.app_context():
         ctx.obj["db_manager"] = get_db_manager(tree=tree)
-        ctx.obj["search_indexer"] = get_search_indexer(tree=tree)
+        ctx.obj["search_indexer"] = get_search_indexer(tree=tree, semantic=semantic)
 
 
-def progress_callback_count(current: int, total: int) -> None:
+def progress_callback_count(current: int, total: int, prev: int | None = None) -> None:
     if total == 0:
         return
     pct = int(100 * current / total)
-    pct_prev = int(100 * (current - 1) / total)
+    if prev is None:
+        prev = current - 1
+    pct_prev = int(100 * prev / total)
     if current == 0 or pct != pct_prev:
         LOG.info(f"Progress: {pct}%")
 

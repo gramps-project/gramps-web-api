@@ -25,11 +25,20 @@ from urllib.parse import urlparse
 
 from flask import current_app
 
-from .indexer import SearchIndexer
+from .indexer import SearchIndexer, SemanticSearchIndexer, SearchIndexerBase
+from .embeddings import embedding_function_factory
+
+_KEY_INDEXER = "_SEARCH_INDEXER"
+_KEY_INDEXER_SEMANTIC = "_SEARCH_INDEXER_SEMANTIC"
 
 
-def get_search_indexer(tree: str) -> SearchIndexer:
+def get_search_indexer(tree: str, semantic: bool = False) -> SearchIndexerBase:
     """Get the search indexer for the tree."""
+    # return cached instances if possible
+    if not semantic and (indexer := current_app.config.get(_KEY_INDEXER)):
+        return indexer
+    if semantic and (indexer := current_app.config.get(_KEY_INDEXER_SEMANTIC)):
+        return indexer
     db_url = current_app.config["SEARCH_INDEX_DB_URI"] or None
     if not db_url and current_app.config["SEARCH_INDEX_DIR"]:
         # backwards compatibility...
@@ -47,5 +56,19 @@ def get_search_indexer(tree: str) -> SearchIndexer:
             path = Path(path[1:])
             if not path.exists() and not path.parent.exists():
                 path.parent.mkdir(parents=True, exist_ok=True)
-
-    return SearchIndexer(db_url=db_url, tree=tree)
+    if semantic:
+        model = current_app.config.get("VECTOR_EMBEDDING_MODEL")
+        if not model:
+            raise ValueError("VECTOR_EMBEDDING_MODEL option not set")
+        try:
+            embedding_function = embedding_function_factory(model)
+        except OSError:
+            raise ValueError(f"Failed initializing model {model}")
+        # cache on app instance
+        current_app.config[_KEY_INDEXER_SEMANTIC] = SemanticSearchIndexer(
+            db_url=db_url, tree=tree, embedding_function=embedding_function
+        )
+        return current_app.config[_KEY_INDEXER_SEMANTIC]
+    # cache on app instance
+    current_app.config[_KEY_INDEXER] = SearchIndexer(db_url=db_url, tree=tree)
+    return current_app.config[_KEY_INDEXER]

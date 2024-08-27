@@ -19,24 +19,42 @@
 
 """AI chat endpoint."""
 
-from typing import Dict
+from marshmallow import Schema
+from webargs import fields
 
-from flask import request
-from flask_jwt_extended import get_jwt_identity
-
-from ..util import get_tree_from_jwt, abort_with_message
+from ..llm import answer_prompt_retrieve
+from ..util import get_tree_from_jwt, use_args, abort_with_message
 from . import ProtectedResource
+from ...auth.const import PERM_VIEW_PRIVATE
+from ..auth import has_permissions
+
+
+class ChatMessageSchema(Schema):
+    role = fields.Str(required=True)
+    message = fields.Str(required=True)
 
 
 class ChatResource(ProtectedResource):
     """AI chat resource."""
 
-    def post(self):
+    @use_args(
+        {
+            "query": fields.Str(required=True),
+            "history": fields.List(fields.Nested(ChatMessageSchema), required=False),
+        },
+        location="json",
+    )
+    def post(self, args):
         """Create a chat response."""
         tree = get_tree_from_jwt()
-        user_id = get_jwt_identity()
-        question = request.json
-        if not question.get("query"):
-            abort_with_message(422, "Missing or empty query")
-        response = f"Response to: {question['query']}"
+        try:
+            response = answer_prompt_retrieve(
+                prompt=args["query"],
+                tree=tree,
+                include_private=has_permissions({PERM_VIEW_PRIVATE}),
+                history=args.get("history"),
+            )
+        except ValueError:
+            raise
+            abort_with_message(422, "Invalid message format")
         return {"response": response}

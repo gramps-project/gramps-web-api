@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020-2022      David Straub
+# Copyright (C) 2020-2024      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -21,6 +21,7 @@
 
 import hashlib
 import io
+import logging
 import json
 import os
 import smtplib
@@ -31,7 +32,16 @@ from http import HTTPStatus
 from typing import BinaryIO, List, Optional, Sequence, Tuple
 
 from celery import Task
-from flask import Response, abort, current_app, g, jsonify, make_response, request
+from flask import (
+    Response,
+    abort,
+    current_app,
+    g,
+    has_app_context,
+    jsonify,
+    make_response,
+    request,
+)
 from flask_jwt_extended import get_jwt, get_jwt_identity
 from gramps.cli.clidbman import NAME_FILE, CLIDbManager
 from gramps.gen.config import config
@@ -687,3 +697,16 @@ def get_object_timestamps(db_handle: DbReadBase):
             obj = query_method(handle)
             d[class_name].add((handle, obj.change))
     return d
+
+
+def get_logger() -> logging.Logger:
+    """Get an appropriate logger instance."""
+    if has_app_context() and current_app.logger:
+        return current_app.logger
+    else:
+        # Fallback to a standard logger
+        logger = logging.getLogger(__name__)
+        if not logger.hasHandlers():
+            # If the logger is not configured yet, set up basic configuration
+            logging.basicConfig(level=logging.INFO)
+        return logger

@@ -58,6 +58,10 @@ class DefaultConfig(object):
     NEW_DB_BACKEND = "sqlite"
     RATE_LIMIT_MEDIA_ARCHIVE = "1 per day"
     REGISTRATION_DISABLED = False
+    LOG_LEVEL = "INFO"
+    LLM_BASE_URL = None
+    LLM_MODEL = ""
+    VECTOR_EMBEDDING_MODEL = ""
 
 
 class DefaultConfigJWT(object):

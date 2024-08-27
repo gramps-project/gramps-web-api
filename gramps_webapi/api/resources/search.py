@@ -108,6 +108,7 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
                 load_default=None, validate=validate.Length(min=1, max=5)
             ),
             "query": fields.Str(required=True, validate=validate.Length(min=1)),
+            "semantic": fields.Boolean(load_default=False),
             "page": fields.Int(load_default=1, validate=validate.Range(min=1)),
             "pagesize": fields.Int(load_default=20, validate=validate.Range(min=1)),
             "sort": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
@@ -131,7 +132,14 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
     def get(self, args: Dict):
         """Get search result."""
         tree = get_tree_from_jwt()
-        searcher = get_search_indexer(tree)
+        try:
+            searcher = get_search_indexer(tree, semantic=args["semantic"])
+        except ValueError:
+            abort_with_message(500, "Failed initializing semantic search")
+        if args["semantic"] and args.get("sort"):
+            abort_with_message(
+                422, "the sort parameter is not allowed with semantic search"
+            )
         if args.get("change"):
             match = re.match(r"^(<=|>=|<|>)(\d+(\.\d+)?)$", args["change"])
             if match:
@@ -177,6 +185,7 @@ class SearchIndexResource(ProtectedResource):
     @use_args(
         {
             "full": fields.Boolean(load_default=False),
+            "semantic": fields.Boolean(load_default=False),
         },
         location="query",
     )
@@ -189,7 +198,9 @@ class SearchIndexResource(ProtectedResource):
             task_func = search_reindex_full
         else:
             task_func = search_reindex_incremental
-        task = run_task(task_func, tree=tree, user_id=user_id)
+        task = run_task(
+            task_func, tree=tree, user_id=user_id, semantic=args["semantic"]
+        )
         if isinstance(task, AsyncResult):
             return make_task_response(task)
         return Response(status=201)

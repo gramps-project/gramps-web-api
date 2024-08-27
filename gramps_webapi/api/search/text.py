@@ -22,12 +22,34 @@
 from typing import Any, Dict, Generator, Optional, Sequence, Tuple
 
 from gramps.gen.db.base import DbReadBase
-from gramps.gen.lib import Event, Family, Name
+from gramps.gen.lib import (
+    Event,
+    Family,
+    Name,
+    Person,
+    Place,
+    Citation,
+    Source,
+    Repository,
+    Note,
+    Media,
+)
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from unidecode import unidecode
 
 from ...const import GRAMPS_OBJECT_PLURAL, PRIMARY_GRAMPS_OBJECTS
 from ..resources.util import get_event_participants_for_handle
+from .text_semantic import (
+    person_to_text,
+    family_to_text,
+    event_to_text,
+    place_to_text,
+    citation_to_text,
+    source_to_text,
+    repository_to_text,
+    note_to_text,
+    media_to_text,
+)
 
 
 def object_to_strings(obj: GrampsObject, db_handle: DbReadBase) -> Tuple[str, str]:
@@ -36,7 +58,7 @@ def object_to_strings(obj: GrampsObject, db_handle: DbReadBase) -> Tuple[str, st
     This function returns a tuple of two strings: the first one contains
     the concatenated string of the object and the strings of all
     non-private child objects. The second contains the concatenated
-    strings of all private child objects."""
+    strings of the objects and all non-private *and* private child objects."""
     strings = obj.get_text_data_list()
     private_strings = []
     if hasattr(obj, "gramps_id") and obj.gramps_id not in strings:
@@ -76,7 +98,7 @@ def object_to_strings(obj: GrampsObject, db_handle: DbReadBase) -> Tuple[str, st
                             private_strings += grandchild_obj.get_text_data_list()
                         else:
                             strings += grandchild_obj.get_text_data_list()
-    return process_strings(strings), process_strings(private_strings)
+    return process_strings(strings), process_strings(strings + private_strings)
 
 
 def process_strings(strings: Sequence[str]) -> str:
@@ -100,41 +122,81 @@ def process_strings(strings: Sequence[str]) -> str:
     return " ".join(generator())
 
 
+def object_to_strings_semantic(
+    obj: GrampsObject, db_handle: DbReadBase
+) -> Tuple[str, str]:
+    """Create strings from a Gramps object's textual pieces.
+
+    This function returns a tuple of two strings: the first one contains
+    the concatenated string of the object and the strings of all
+    non-private child objects. The second contains the concatenated
+    strings of all private child objects."""
+    if isinstance(obj, Person):
+        return person_to_text(obj, db_handle)
+    if isinstance(obj, Family):
+        return family_to_text(obj, db_handle)
+    if isinstance(obj, Event):
+        return event_to_text(obj, db_handle)
+    if isinstance(obj, Place):
+        return place_to_text(obj, db_handle)
+    if isinstance(obj, Citation):
+        return citation_to_text(obj, db_handle)
+    if isinstance(obj, Source):
+        return source_to_text(obj, db_handle)
+    if isinstance(obj, Repository):
+        return repository_to_text(obj, db_handle)
+    if isinstance(obj, Media):
+        return media_to_text(obj, db_handle)
+    if isinstance(obj, Note):
+        return note_to_text(obj, db_handle)
+    else:
+        return "", ""
+
+
 def obj_strings_from_handle(
-    db_handle: DbReadBase, class_name: str, handle
+    db_handle: DbReadBase, class_name: str, handle, semantic: bool = False
 ) -> Optional[Dict[str, Any]]:
     """Return object strings from a handle and Gramps class name."""
     query_method = db_handle.method("get_%s_from_handle", class_name)
     obj = query_method(handle)
-    return obj_strings_from_object(db_handle=db_handle, class_name=class_name, obj=obj)
+    return obj_strings_from_object(
+        db_handle=db_handle, class_name=class_name, obj=obj, semantic=semantic
+    )
 
 
 def obj_strings_from_object(
-    db_handle: DbReadBase, class_name: str, obj: GrampsObject
+    db_handle: DbReadBase, class_name: str, obj: GrampsObject, semantic: bool = False
 ) -> Optional[Dict[str, Any]]:
     """Return object strings from a handle and Gramps class name."""
-    obj_string, obj_string_private = object_to_strings(obj, db_handle)
+    if semantic:
+        obj_string_public, obj_string_all = object_to_strings_semantic(obj, db_handle)
+    else:
+        obj_string_public, obj_string_all = object_to_strings(obj, db_handle)
     private = hasattr(obj, "private") and obj.private
-    if obj_string:
+    if obj_string_all:
         return {
             "class_name": class_name,
             "handle": obj.handle,
             "private": private,
-            "string": obj_string,
-            "string_private": obj_string_private,
+            "string_public": obj_string_public,
+            "string_all": obj_string_all,
             "change": obj.change,
         }
     return None
 
 
 def iter_obj_strings(
-    db_handle: DbReadBase,
+    db_handle: DbReadBase, semantic: bool = False
 ) -> Generator[Dict[str, Any], None, None]:
     """Iterate over object strings in the whole database."""
     for class_name in PRIMARY_GRAMPS_OBJECTS:
         plural_name = GRAMPS_OBJECT_PLURAL[class_name]
         iter_method = db_handle.method("iter_%s", plural_name)
         for obj in iter_method():
-            obj_strings = obj_strings_from_object(db_handle, class_name, obj)
+            obj_strings = obj_strings_from_object(
+                db_handle, class_name, obj, semantic=semantic
+            )
+            # if semantic and obj_strings:
+            #     print(obj_strings["string_all"])
             if obj_strings:
                 yield obj_strings
