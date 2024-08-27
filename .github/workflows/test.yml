@@ -23,7 +23,7 @@ jobs:
           python -m pip install --upgrade pip wheel setuptools
           pip install opencv-python
           pip install -r requirements-dev.txt
-          pip install .
+          pip install .[ai]
           pip list
       - name: Test with pytest
         run: pytest
