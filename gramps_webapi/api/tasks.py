@@ -197,6 +197,7 @@ def import_file(
     _search_reindex_incremental(
         tree=tree,
         user_id=user_id,
+        semantic=False,
         progress_cb=progress_callback_count(
             self, title="Updating full-text search index..."
         ),
@@ -380,6 +381,7 @@ def delete_objects(
     _search_reindex_incremental(
         tree=tree,
         user_id=user_id,
+        semantic=False,
         progress_cb=progress_callback_count(
             self, title="Updating full-text search index..."
         ),

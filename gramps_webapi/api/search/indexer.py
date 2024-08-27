@@ -145,7 +145,8 @@ class SearchIndexerBase:
                 prev = i
                 obj_dicts = []
         self._add_objects(obj_dicts)
-        progress_cb(current=total - 1, total=total)
+        if progress_cb:
+            progress_cb(current=total - 1, total=total)
 
     def _get_object_timestamps(self):
         """Get a dictionary with the timestamps of all objects in the index."""
