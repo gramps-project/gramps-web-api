@@ -19,13 +19,14 @@
 
 """Image utilities."""
 
+from __future__ import annotations
 
 import io
 import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import BinaryIO, Callable, List, Tuple
+from typing import BinaryIO, Callable
 
 import ffmpeg
 from pdf2image import convert_from_path
@@ -218,26 +219,45 @@ class LocalFileThumbnailHandler(ThumbnailHandler):
         super().__init__(stream=stream, mime_type=mime_type)
 
 
-def detect_faces(stream: BinaryIO) -> List[Tuple[float, float, float, float]]:
-    """Detect faces in an image (stream)."""
+def detect_faces(stream: BinaryIO) -> list[tuple[float, float, float, float]]:
+    """Detect faces in an image (stream) using YuNet."""
+    # Read the image from the input stream
     import cv2
     import numpy as np
 
     file_bytes = np.asarray(bytearray(stream.read()), dtype=np.uint8)
     cv_image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-    cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
-    haarcascade_path = resource_filename(
-        "gramps_webapi", "data/haarcascade_frontalface_default.xml"
+
+    # Load the YuNet model
+    model_path = resource_filename(
+        "gramps_webapi", "data/face_detection_yunet_2023mar.onnx"
     )
-    cascade = cv2.CascadeClassifier(haarcascade_path)
-    faces = cascade.detectMultiScale(cv_image, 1.1, 4)
-    height, width = cv_image.shape
-    return [
-        (
-            100 * x / width,
-            100 * y / height,
-            100 * (x + w) / width,
-            100 * (y + h) / height,
+    face_detector = cv2.FaceDetectorYN.create(
+        model_path, "", (320, 320), score_threshold=0.5
+    )
+
+    # Set input image size for YuNet
+    height, width, _ = cv_image.shape
+    face_detector.setInputSize((width, height))
+
+    # Detect faces
+    faces = face_detector.detect(cv_image)
+
+    # Check if any faces are detected
+    if faces[1] is None:
+        return []
+
+    # Extract and normalize face bounding boxes
+    detected_faces = []
+    for face in faces[1]:
+        x, y, w, h = face[:4]
+        detected_faces.append(
+            (
+                100 * x / width,
+                100 * y / height,
+                100 * (x + w) / width,
+                100 * (y + h) / height,
+            )
         )
-        for (x, y, w, h) in faces
-    ]
+
+    return detected_faces
