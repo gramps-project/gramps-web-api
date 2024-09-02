@@ -251,6 +251,10 @@ def detect_faces(stream: BinaryIO) -> list[tuple[float, float, float, float]]:
     detected_faces = []
     for face in faces[1]:
         x, y, w, h = face[:4]
+        x = float(x)
+        y = float(y)
+        w = float(w)
+        h = float(h)
         detected_faces.append(
             (
                 100 * x / width,
