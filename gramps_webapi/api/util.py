@@ -640,13 +640,42 @@ def check_quota_people(
     usage_dict = get_tree_usage(tree)
     if not usage_dict or usage_dict.get("usage_people") is None:
         update_usage_people(tree=tree, user_id=user_id)
-    usage_dict = get_tree_usage(tree)
+        usage_dict = get_tree_usage(tree)
     usage = usage_dict["usage_people"]
     quota = usage_dict.get("quota_people")
     if quota is None:
         return
     if usage + to_add > quota:
         abort_with_message(405, "Not allowed by people quota")
+
+
+def update_usage_ai(new: int, tree: Optional[str] = None) -> int:
+    """Update the usage of AI by adding `new` units to the usage."""
+    if not tree:
+        tree = get_tree_from_jwt()
+    usage_dict = get_tree_usage(tree)
+    if not usage_dict:
+        old_usage = 0
+    else:
+        old_usage = usage_dict.get("usage_ai") or 0
+    new_usage = old_usage + new
+    set_tree_usage(tree, usage_ai=new_usage)
+    return new_usage
+
+
+def check_quota_ai(requested: int, tree: Optional[str] = None) -> None:
+    """Check whether the AI quota allows consuming another `requested` units."""
+    if not tree:
+        tree = get_tree_from_jwt()
+    usage_dict = get_tree_usage(tree)
+    if not usage_dict:
+        return
+    usage = usage_dict.get("usage_ai") or 0
+    quota = usage_dict.get("quota_ai")
+    if quota is None:
+        return
+    if usage + requested > quota:
+        abort_with_message(405, "Not allowed by AI quota")
 
 
 def abort_with_message(status: int, message: str):

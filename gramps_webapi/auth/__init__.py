@@ -19,6 +19,8 @@
 
 """Define methods of providing authentication for users."""
 
+from __future__ import annotations
+
 import secrets
 import uuid
 from abc import ABCMeta, abstractmethod
@@ -320,17 +322,19 @@ def config_delete(key: str) -> None:
         user_db.session.commit()  # pylint: disable=no-member
 
 
-def get_tree_usage(tree: str) -> Optional[Dict[str, int]]:
+def get_tree_usage(tree: str) -> Optional[dict[str, int]]:
     """Get tree usage info."""
     query = user_db.session.query(Tree)  # pylint: disable=no-member
-    tree_obj = query.filter_by(id=tree).scalar()
+    tree_obj: Tree = query.filter_by(id=tree).scalar()
     if tree_obj is None:
         return None
     return {
         "quota_media": tree_obj.quota_media,
         "quota_people": tree_obj.quota_people,
+        "quota_ai": tree_obj.quota_ai,
         "usage_media": tree_obj.usage_media,
         "usage_people": tree_obj.usage_people,
+        "usage_ai": tree_obj.usage_ai,
     }
 
 
@@ -338,18 +342,21 @@ def set_tree_usage(
     tree: str,
     usage_media: Optional[int] = None,
     usage_people: Optional[int] = None,
+    usage_ai: Optional[int] = None,
 ) -> None:
     """Set the tree usage data."""
-    if usage_media is None and usage_people is None:
+    if usage_media is None and usage_people is None and usage_ai is None:
         return
     query = user_db.session.query(Tree)  # pylint: disable=no-member
-    tree_obj = query.filter_by(id=tree).scalar()
+    tree_obj: Tree = query.filter_by(id=tree).scalar()
     if not tree_obj:
         tree_obj = Tree(id=tree)
     if usage_media is not None:
         tree_obj.usage_media = usage_media
     if usage_people is not None:
         tree_obj.usage_people = usage_people
+    if usage_ai is not None:
+        tree_obj.usage_ai = usage_ai
     user_db.session.add(tree_obj)  # pylint: disable=no-member
     user_db.session.commit()  # pylint: disable=no-member
 

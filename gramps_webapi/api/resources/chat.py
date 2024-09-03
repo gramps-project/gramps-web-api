@@ -23,7 +23,13 @@ from marshmallow import Schema
 from webargs import fields
 
 from ..llm import answer_prompt_retrieve
-from ..util import get_tree_from_jwt, use_args, abort_with_message
+from ..util import (
+    get_tree_from_jwt,
+    use_args,
+    abort_with_message,
+    check_quota_ai,
+    update_usage_ai,
+)
 from . import ProtectedResource
 from ...auth.const import PERM_VIEW_PRIVATE
 from ..auth import has_permissions
@@ -47,6 +53,7 @@ class ChatResource(ProtectedResource):
     def post(self, args):
         """Create a chat response."""
         tree = get_tree_from_jwt()
+        check_quota_ai(requested=1)
         try:
             response = answer_prompt_retrieve(
                 prompt=args["query"],
@@ -55,6 +62,6 @@ class ChatResource(ProtectedResource):
                 history=args.get("history"),
             )
         except ValueError:
-            raise
             abort_with_message(422, "Invalid message format")
+        update_usage_ai(new=1)
         return {"response": response}
