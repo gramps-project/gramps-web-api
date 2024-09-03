@@ -136,6 +136,7 @@ MIME_TYPES = {
 # depending on whether needed dependencies are available.
 try:
     import gi
+    gi.require_version('Gtk', '3.0')
 
     REPORT_FILTERS = ["gv", "dot", "gvpdf"]
     REPORT_DEFAULTS = {
