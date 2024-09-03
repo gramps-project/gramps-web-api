@@ -1,4 +1,63 @@
+[project]
+name = "gramps-webapi"
+description = "A RESTful web API for the Gramps genealogical database."
+authors = [
+  { name = "Gramps Development Team" },
+  { name = "David M. Straub", email = "straub@protonmail.com" }
+]
+license = { text = "AGPL v3 or greater" }
+readme = "README.md"
+dynamic = ["version"]
+keywords = ["RESTful", "web API", "genealogy", "Gramps"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "gramps-desktop[GUI,i18n]==5.2.*",
+    "Click>=7.0",
+    "Flask>=2.1.0",
+    "Flask-Caching>=2.0.0",
+    "Flask-Compress",
+    "Flask-Cors",
+    "Flask-JWT-Extended>=4.2.1,!=4.4.0,!=4.4.1",
+    "Flask-Limiter>=2.9.0",
+    "Flask-SQLAlchemy",
+    "marshmallow>=3.13.0",
+    "webargs",
+    "SQLAlchemy",
+    "pdf2image",
+    "Pillow",
+    "bleach[css]>=5.0.0",
+    "jsonschema",
+    "ffmpeg-python",
+    "boto3",
+    "alembic",
+    "celery[redis]",
+    "Unidecode",
+    "pytesseract",
+    "gramps-ql>=0.3.0",
+    "sifts>=0.8.3",
+]
+
+[project.urls]
+homepage = "https://github.com/gramps-project/gramps-web-api"
+repository = "https://github.com/gramps-project/gramps-web-api"
+
+
 [build-system]
-# XXX: If your project needs other packages to build properly, add them to this list.
-requires = ["setuptools >= 64"]
+requires = ["setuptools>=64.0", "setuptools_scm[toml]>=6.2", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.isort]
+profile = "black"
+
+[tool.setuptools_scm]
+# NOTE: Using a version file avoids some overhead
+#
+# This file is explicitly ignored by version control.
+write_to = "gramps_webapi/_version.py"
+
+[tool.setuptools.packages.find]
+include = ["gramps_webapi", "gramps_webapi.*"]
