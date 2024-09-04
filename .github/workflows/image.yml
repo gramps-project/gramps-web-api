@@ -34,12 +34,14 @@ jobs:
       - name: tag and push devel image
         run: |
           docker build --push \
+            --build-arg BUILDKIT_CONTEXT_KEEP_GIT_DIR=1 \
             --tag dmstraub/gramps-webapi:latest-devel \
             --platform linux/amd64,linux/arm/v7,linux/arm64 .
       - name: tag and push release image
         if: github.event_name == 'release'
         run: |
           docker build --push \
+            --build-arg BUILDKIT_CONTEXT_KEEP_GIT_DIR=1 \
             --tag dmstraub/gramps-webapi:${{ github.event.release.tag_name }} \
             --tag dmstraub/gramps-webapi:latest \
             --platform linux/amd64,linux/arm/v7,linux/arm64 .
