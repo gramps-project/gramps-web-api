@@ -134,13 +134,13 @@ class SearchIndexerBase:
         self.index.delete_all()
         self.index_public.delete_all()
         obj_dicts = []
-        chunk_size = max(100, total // 100)
+        chunk_size = max(100, total // 10)
         prev: int | None = None
         for i, obj_dict in enumerate(
             iter_obj_strings(db_handle, semantic=self.use_semantic_text)
         ):
             obj_dicts.append(obj_dict)
-            if i % chunk_size == 0:
+            if i > 0 and i % chunk_size == 0:
                 self._add_objects(obj_dicts)
                 if progress_cb:
                     progress_cb(current=i, total=total, prev=prev)
