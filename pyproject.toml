@@ -46,7 +46,6 @@ dependencies = [
 homepage = "https://github.com/gramps-project/gramps-web-api"
 repository = "https://github.com/gramps-project/gramps-web-api"
 
-
 [build-system]
 requires = ["setuptools>=64.0", "setuptools_scm[toml]>=6.2", "wheel"]
 build-backend = "setuptools.build_meta"
@@ -54,11 +53,8 @@ build-backend = "setuptools.build_meta"
 [tool.isort]
 profile = "black"
 
-[tool.setuptools_scm]
-# NOTE: Using a version file avoids some overhead
-#
-# This file is explicitly ignored by version control.
-write_to = "gramps_webapi/_version.py"
+[tool.setuptools.dynamic]
+version = {attr = "gramps_webapi.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["gramps_webapi", "gramps_webapi.*"]
