@@ -19,54 +19,6 @@
 
 """The setup script."""
 
-from setuptools import find_packages, setup
+from setuptools import setup  # pylint: disable=E0401
 
-with open("README.md") as readme_file:
-    README = readme_file.read()
-
-with open("gramps_webapi/_version.py") as version_file:
-    exec(version_file.read())
-
-
-REQUIREMENTS = [
-    "gramps-desktop[GUI,i18n]==5.2.*",
-    "Click>=7.0",
-    "Flask>=2.1.0",
-    "Flask-Caching>=2.0.0",
-    "Flask-Compress",
-    "Flask-Cors",
-    "Flask-JWT-Extended>=4.2.1, !=4.4.0, !=4.4.1",
-    "Flask-Limiter>=2.9.0",
-    "Flask-SQLAlchemy",
-    "marshmallow>=3.13.0",
-    "webargs",
-    "SQLAlchemy",
-    "pdf2image",
-    "Pillow",
-    "bleach[css]>=5.0.0",
-    "jsonschema",
-    "ffmpeg-python",
-    "boto3",
-    "alembic",
-    "celery[redis]",
-    "Unidecode",
-    "pytesseract",
-    "gramps-ql>=0.3.0",
-    "sifts>=0.8.3",
-]
-
-setup(
-    author="Gramps Development Team",
-    url="https://github.com/gramps-project/web-api",
-    python_requires=">=3.8",
-    description="A RESTful web API for the Gramps genealogical database.",
-    license="AGPL v3 or greater",
-    install_requires=REQUIREMENTS,
-    long_description=README,
-    long_description_content_type="text/markdown",
-    include_package_data=True,
-    name="gramps-webapi",
-    packages=find_packages(include=["gramps_webapi", "gramps_webapi.*"]),
-    version=__version__,
-    zip_safe=False,
-)
+setup()
