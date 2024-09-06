@@ -13,10 +13,6 @@ def embedding_function_factory(model: str):
     logger.debug("Done initializing embedding model.")
 
     def embedding_function(queries: list[str]):
-        # import numpy as np
-
-        # return np.random.rand(len(queries), 348)
-        # print(len(queries))
         return model.encode(queries)
 
     return embedding_function
