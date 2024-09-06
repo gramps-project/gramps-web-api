@@ -89,7 +89,7 @@ def setUpModule():
         user_db.create_all()
 
         # create also an empty db in addition to the example db
-        for db_name in test_db.name, "empty_db":
+        for db_name in "empty_db", test_db.name:
             db_manager = WebDbManager(name=db_name, create_if_missing=True)
             tree = db_manager.dirname
 
@@ -106,7 +106,7 @@ def setUpModule():
             db_state = db_manager.get_db()
             search_index = get_search_indexer(tree)
             db = db_state.db
-            # search_index.reindex_full(db)
+            search_index.reindex_full(db)
     TEST_OBJECT_COUNTS = {
         "people": db_state.db.get_number_of_people(),
         "families": db_state.db.get_number_of_families(),
