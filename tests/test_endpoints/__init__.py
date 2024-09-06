@@ -19,18 +19,14 @@
 
 """Tests for the `gramps_webapi.api` module."""
 
-import importlib
 import os
 import shutil
-import tempfile
 from unittest.mock import patch
 
-import gramps.gen.const
 import yaml
 from jsonschema import RefResolver
 from pkg_resources import resource_filename
 
-import gramps_webapi.app
 from gramps_webapi.api.search import get_search_indexer
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import add_user, user_db
@@ -75,7 +71,9 @@ def setUpModule():
     """Test module setup."""
     global TEST_CLIENT, TEST_OBJECT_COUNTS
 
+    # create a database with the Gramps example tree
     test_db = ExampleDbSQLite(name="example_gramps")
+
     with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EXAMPLE_GRAMPS_AUTH_CONFIG}):
 
         test_app = create_app(
@@ -83,26 +81,32 @@ def setUpModule():
                 "TESTING": True,
                 "RATELIMIT_ENABLED": False,
                 "MEDIA_BASE_DIR": f"{os.environ['GRAMPS_RESOURCES']}/doc/gramps/example/gramps",
+                "VECTOR_EMBEDDING_MODEL": "paraphrase-albert-small-v2",
             }
         )
     TEST_CLIENT = test_app.test_client()
     with test_app.app_context():
         user_db.create_all()
-        db_manager = WebDbManager(name=test_db.name, create_if_missing=False)
-        tree = db_manager.dirname
 
-        for role, user in TEST_USERS.items():
-            add_user(
-                name=user["name"],
-                password=user["password"],
-                role=role,
-                tree=tree,
-            )
+        # create also an empty db in addition to the example db
+        for db_name in test_db.name, "empty_db":
+            db_manager = WebDbManager(name=db_name, create_if_missing=True)
+            tree = db_manager.dirname
 
-        db_state = db_manager.get_db()
-        search_index = get_search_indexer(tree)
-        db = db_state.db
-        search_index.reindex_full(db)
+            for role, user in TEST_USERS.items():
+                # for the empty db, append "_empty" to usernames
+                user_suffix = "_empty" if "empty" in db_name else ""
+                add_user(
+                    name=user["name"] + user_suffix,
+                    password=user["password"],
+                    role=role,
+                    tree=tree,
+                )
+
+            db_state = db_manager.get_db()
+            search_index = get_search_indexer(tree)
+            db = db_state.db
+            # search_index.reindex_full(db)
     TEST_OBJECT_COUNTS = {
         "people": db_state.db.get_number_of_people(),
         "families": db_state.db.get_number_of_families(),

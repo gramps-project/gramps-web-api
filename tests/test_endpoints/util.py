@@ -24,12 +24,15 @@ from gramps_webapi.auth.const import ROLE_OWNER
 from . import TEST_USERS
 
 
-def fetch_header(test, role=ROLE_OWNER):
+def fetch_header(test, role=ROLE_OWNER, empty_db: bool = False):
     """Return authorization header with valid token."""
+    username = TEST_USERS[role]["name"]
+    if empty_db:
+        username += "_empty"
     rv = test.post(
         "/api/token/",
         json={
-            "username": TEST_USERS[role]["name"],
+            "username": username,
             "password": TEST_USERS[role]["password"],
         },
     )
