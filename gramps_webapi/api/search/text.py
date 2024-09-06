@@ -196,7 +196,5 @@ def iter_obj_strings(
             obj_strings = obj_strings_from_object(
                 db_handle, class_name, obj, semantic=semantic
             )
-            # if semantic and obj_strings:
-            #     print(obj_strings["string_all"])
             if obj_strings:
                 yield obj_strings
