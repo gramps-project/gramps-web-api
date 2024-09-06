@@ -91,6 +91,11 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
         search_count = searcher.count(
             include_private=has_permissions({PERM_VIEW_PRIVATE})
         )
+        if current_app.config.get("VECTOR_EMBEDDING_MODEL"):
+            searcher_s = get_search_indexer(tree, semantic=True)
+            search_count_s = searcher_s.count(
+                include_private=has_permissions({PERM_VIEW_PRIVATE})
+            )
 
         result = {
             "database": {
@@ -128,7 +133,13 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 "tags": db_handle.get_number_of_tags(),
             },
             "researcher": db_handle.get_researcher(),
-            "search": {"sifts": {"version": sifts.__version__, "count": search_count}},
+            "search": {
+                "sifts": {
+                    "version": sifts.__version__,
+                    "count": search_count,
+                    "count_semantic": search_count_s,
+                }
+            },
             "server": {
                 "multi_tree": is_multi_tree,
                 "task_queue": has_task_queue,
