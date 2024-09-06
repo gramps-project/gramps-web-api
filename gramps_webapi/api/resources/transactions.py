@@ -43,7 +43,7 @@ from ..util import (
     use_args,
 )
 from . import ProtectedResource
-from .util import reverse_transaction, transaction_to_json
+from .util import app_has_semantic_search, reverse_transaction, transaction_to_json
 
 trans_code = {"delete": TXNDEL, "add": TXNADD, "update": TXNUPD}
 
@@ -124,6 +124,15 @@ class TransactionsResource(ProtectedResource):
                 indexer.delete_object(handle, class_name)
             else:
                 indexer.add_or_update_object(handle, db_handle, class_name)
+        if app_has_semantic_search():
+            indexer: SearchIndexer = get_search_indexer(tree, semantic=True)
+            for _trans_dict in trans_dict:
+                handle = _trans_dict["handle"]
+                class_name = _trans_dict["_class"]
+                if _trans_dict["type"] == "delete":
+                    indexer.delete_object(handle, class_name)
+                else:
+                    indexer.add_or_update_object(handle, db_handle, class_name)
         res = Response(
             response=json.dumps(trans_dict),
             status=200,
