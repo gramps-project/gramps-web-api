@@ -68,3 +68,5 @@ class TestChat(unittest.TestCase):
         )
         assert rv.status_code == 200
         assert len(rv.json) == 2
+        assert rv.json[0]["object"]["gramps_id"] == "N02"  # Pizza!
+        assert rv.json[1]["object"]["gramps_id"] == "N01"
