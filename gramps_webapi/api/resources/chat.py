@@ -62,6 +62,7 @@ class ChatResource(ProtectedResource):
                 history=args.get("history"),
             )
         except ValueError:
+            raise
             abort_with_message(422, "Invalid message format")
         update_usage_ai(new=1)
         return {"response": response}

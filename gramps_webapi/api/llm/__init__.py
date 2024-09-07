@@ -11,6 +11,8 @@ from ..util import abort_with_message, get_logger
 
 def get_client(config: dict) -> OpenAI:
     """Get an OpenAI client instance."""
+    if not config.get("LLM_MODEL"):
+        raise ValueError("No LLM specified")
     return OpenAI(base_url=config.get("LLM_BASE_URL"))
 
 
@@ -41,8 +43,6 @@ def answer_prompt(prompt: str, system_prompt: str, config: dict | None = None) -
 
     client = get_client(config=config)
     model = config.get("LLM_MODEL")
-    if not model:
-        raise ValueError("No LLM specified")
 
     try:
         response = client.chat.completions.create(
