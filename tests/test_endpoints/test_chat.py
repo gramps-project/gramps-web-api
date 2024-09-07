@@ -28,6 +28,8 @@ from urllib.parse import quote
 from . import BASE_URL, get_test_client
 from .util import fetch_header
 
+from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_OWNER
+
 TEST_URL = BASE_URL + "/chat/"
 
 
@@ -96,7 +98,22 @@ class TestChat(unittest.TestCase):
 
         mock_client.chat.completions.create.side_effect = mock_chat_completion_create
         header = fetch_header(self.client, empty_db=True)
+        header_editor = fetch_header(self.client, empty_db=True, role=ROLE_EDITOR)
+        rv = self.client.get("/api/trees/", headers=header)
+        assert rv.status_code == 200
+        tree_id = rv.json[0]["id"]
+        assert rv.status_code == 200
+        rv = self.client.put(
+            f"/api/trees/{tree_id}", json={"min_role_ai": ROLE_OWNER}, headers=header
+        )
+        assert rv.status_code == 200
+        header = fetch_header(self.client, empty_db=True)
+        header_editor = fetch_header(self.client, empty_db=True, role=ROLE_EDITOR)
         query = "What should I have for dinner tonight?"
+        rv = self.client.post(
+            "/api/chat/", json={"query": query}, headers=header_editor
+        )
+        assert rv.status_code == 403
         rv = self.client.post("/api/chat/", json={"query": query}, headers=header)
         assert rv.status_code == 200
         assert "response" in rv.json

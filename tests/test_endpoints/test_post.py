@@ -33,7 +33,7 @@ from gramps.gen.dbstate import DbState
 
 from gramps_webapi.api.search import get_search_indexer
 from gramps_webapi.app import create_app
-from gramps_webapi.auth import add_user, set_tree_quota, user_db
+from gramps_webapi.auth import add_user, set_tree_details, user_db
 from gramps_webapi.auth.const import (
     ROLE_CONTRIBUTOR,
     ROLE_EDITOR,
@@ -77,7 +77,7 @@ class TestObjectCreation(unittest.TestCase):
                 name="contributor", password="123", role=ROLE_CONTRIBUTOR, tree=tree
             )
             add_user(name="editor", password="123", role=ROLE_EDITOR, tree=tree)
-            set_tree_quota(tree, quota_people=3)
+            set_tree_details(tree, quota_people=3)
 
     @classmethod
     def tearDownClass(cls):

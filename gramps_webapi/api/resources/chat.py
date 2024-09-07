@@ -31,8 +31,8 @@ from ..util import (
     update_usage_ai,
 )
 from . import ProtectedResource
-from ...auth.const import PERM_VIEW_PRIVATE
-from ..auth import has_permissions
+from ...auth.const import PERM_USE_CHAT, PERM_VIEW_PRIVATE
+from ..auth import has_permissions, require_permissions
 
 
 class ChatMessageSchema(Schema):
@@ -52,8 +52,9 @@ class ChatResource(ProtectedResource):
     )
     def post(self, args):
         """Create a chat response."""
-        tree = get_tree_from_jwt()
+        require_permissions({PERM_USE_CHAT})
         check_quota_ai(requested=1)
+        tree = get_tree_from_jwt()
         try:
             response = answer_prompt_retrieve(
                 prompt=args["query"],
@@ -62,7 +63,6 @@ class ChatResource(ProtectedResource):
                 history=args.get("history"),
             )
         except ValueError:
-            raise
             abort_with_message(422, "Invalid message format")
         update_usage_ai(new=1)
         return {"response": response}

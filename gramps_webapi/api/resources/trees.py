@@ -32,15 +32,17 @@ from werkzeug.security import safe_join
 
 from ...auth import (
     disable_enable_tree,
+    get_tree_permissions,
     get_tree_usage,
     is_tree_disabled,
-    set_tree_quota,
+    set_tree_details,
 )
 from ...auth.const import (
     PERM_ADD_TREE,
     PERM_DISABLE_TREE,
     PERM_EDIT_OTHER_TREE,
     PERM_EDIT_TREE,
+    PERM_EDIT_TREE_MIN_ROLE_AI,
     PERM_EDIT_TREE_QUOTA,
     PERM_REPAIR_TREE,
     PERM_UPGRADE_TREE_SCHEMA,
@@ -75,7 +77,8 @@ def get_tree_details(tree_id: str) -> Dict[str, str]:
         abort(404)
     usage = get_tree_usage(tree_id) or {}
     enabled = not is_tree_disabled(tree=tree_id)
-    return {"name": dbmgr.name, "id": tree_id, **usage, "enabled": enabled}
+    perms = get_tree_permissions(tree_id) or {}
+    return {"name": dbmgr.name, "id": tree_id, **usage, "enabled": enabled, **perms}
 
 
 def get_tree_path(tree_id: str) -> Optional[str]:
@@ -120,6 +123,7 @@ class TreesResource(ProtectedResource):
             "name": fields.Str(required=True),
             "quota_media": fields.Integer(required=False),
             "quota_people": fields.Integer(required=False),
+            "min_role_ai": fields.Integer(required=False),
         },
         location="json",
     )
@@ -138,10 +142,11 @@ class TreesResource(ProtectedResource):
             ignore_lock=current_app.config["IGNORE_DB_LOCK"],
         )
         if args.get("quota_media") or args.get("quota_people"):
-            set_tree_quota(
+            set_tree_details(
                 tree=tree_id,
                 quota_media=args.get("quota_media"),
                 quota_people=args.get("quota_people"),
+                min_role_ai=args.get("min_role_ai"),
             )
         return get_tree_details(tree_id), 201
 
@@ -168,6 +173,7 @@ class TreeResource(ProtectedResource):
             "name": fields.Str(required=False, load_default=None),
             "quota_media": fields.Integer(required=False),
             "quota_people": fields.Integer(required=False),
+            "min_role_ai": fields.Integer(required=False),
         },
         location="json",
     )
@@ -198,7 +204,7 @@ class TreeResource(ProtectedResource):
             rv.update({"old_name": old_name, "new_name": new_name})
         if args.get("quota_media") is not None or args.get("quota_people") is not None:
             require_permissions([PERM_EDIT_TREE_QUOTA])
-            set_tree_quota(
+            set_tree_details(
                 tree=tree_id,
                 quota_media=args.get("quota_media"),
                 quota_people=args.get("quota_people"),
@@ -206,6 +212,13 @@ class TreeResource(ProtectedResource):
             for quota in ["quota_media", "quota_people"]:
                 if args.get(quota) is not None:
                     rv.update({quota: args[quota]})
+        if args.get("min_role_ai") is not None:
+            require_permissions([PERM_EDIT_TREE_MIN_ROLE_AI])
+            set_tree_details(
+                tree=tree_id,
+                min_role_ai=args.get("min_role_ai"),
+            )
+            rv.update({"min_role_ai": args["min_role_ai"]})
         return rv
 
 

@@ -88,7 +88,7 @@ class TokenResource(Resource):
         tree_id = get_tree_id(user_id)
         if is_tree_disabled(tree=tree_id):
             abort_with_message(503, "This tree is temporarily disabled")
-        permissions = get_permissions(args["username"])
+        permissions = get_permissions(username=args["username"], tree=tree_id)
         return get_tokens(
             user_id=user_id,
             permissions=permissions,
@@ -112,7 +112,7 @@ class TokenRefreshResource(RefreshProtectedResource):
         tree_id = get_tree_id(user_id)
         if is_tree_disabled(tree=tree_id):
             abort_with_message(503, "This tree is temporarily disabled")
-        permissions = get_permissions(username)
+        permissions = get_permissions(username=username, tree=tree_id)
         return get_tokens(
             user_id=user_id,
             permissions=permissions,

@@ -29,7 +29,7 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
-from gramps_webapi.auth import add_user, set_tree_quota, user_db
+from gramps_webapi.auth import add_user, set_tree_details, user_db
 from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EMPTY_GRAMPS_AUTH_CONFIG
 
@@ -194,7 +194,7 @@ class TestImportersExtensionFile(unittest.TestCase):
         """Test importing example.gramps with a quota."""
         os.remove(os.path.join(self.dbpath, "sqlite.db"))
         with self.test_app.app_context():
-            set_tree_quota(self.tree, quota_people=2000)
+            set_tree_details(self.tree, quota_people=2000)
         example_db = ExampleDbInMemory()
         file_obj = io.BytesIO()
         with open(example_db.path, "rb") as f:
@@ -213,4 +213,4 @@ class TestImportersExtensionFile(unittest.TestCase):
         rv = check_success(self, f"{BASE_URL}/people/")
         assert len(rv) == 0
         with self.test_app.app_context():
-            set_tree_quota(self.tree, quota_people=None)
+            set_tree_details(self.tree, quota_people=None)

@@ -6208,6 +6208,8 @@ paths:
             $ref: "#/definitions/ChatResponse"
         401:
           description: "Unauthorized: Missing authorization header."
+        403:
+          description: "Unauthorized: insufficient permissions."
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
@@ -7146,13 +7148,18 @@ paths:
       - name: quota_media
         in: body
         type: integer
-        required: true
+        required: false
         description: "The maxium size of media objects."
       - name: quota_people
         in: body
         type: integer
-        required: true
+        required: false
         description: "The maxium number of people."
+      - name: min_role_ai
+        in: body
+        type: integer
+        required: false
+        description: "The minimum user role required to use the chat endpoint."
       tags:
       - trees
       summary: "Create a new empty tree."
@@ -7166,6 +7173,8 @@ paths:
             $ref: "#/definitions/Tree"
         401:
           description: "Unauthorized: Missing authorization header."
+        403:
+          description: "Unauthorized: insufficient permissions."
         404:
           description: "Not found: tree does not exist."
         422:
@@ -10906,3 +10915,7 @@ definitions:
         description: "Whether the tree is enabled."
         type: boolean
         example: true
+      min_role_ai:
+        description: "The minimum user role required to use the chat endpoint."
+        type: integer
+        example: 5
