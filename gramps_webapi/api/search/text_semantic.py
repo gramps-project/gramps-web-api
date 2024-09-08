@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
+from gramps.gen.errors import HandleError
 from gramps.gen.lib import (
     Event,
     Date,
@@ -31,6 +32,37 @@ from ..resources.util import get_event_participants_for_handle
 # TODO general: citation, media (p), note, attribute (p), tags, URLs
 
 
+# Utility functions
+
+
+class PString:
+    """String representation of an object with or without private strings."""
+
+    def __init__(self, string: str, private: bool = False, public_only: bool = False):
+        self.string_public = "" if private else string
+        self.string_all = "" if public_only else string
+
+    def __add__(self, other):
+        """Add two object strings."""
+        rhs = other if isinstance(other, PString) else PString(other)
+        result = PString("")
+        result.string_public = self.string_public + rhs.string_public
+        result.string_all = self.string_all + rhs.string_all
+        return result
+
+    def __radd__(self, other):
+        """Add two object strings."""
+        rhs = other if isinstance(other, PString) else PString(other)
+        return rhs + self
+
+    def __iadd__(self, other):
+        """Add an object string to self."""
+        rhs = other if isinstance(other, PString) else PString(other)
+        self.string_public += rhs.string_public
+        self.string_all += rhs.string_all
+        return self
+
+
 def join_sentence(words: list[str], sep: str = ","):
     """Join strings with a seperator, "and" before the last element, and a full stop."""
     if isinstance(words, str):
@@ -42,6 +74,9 @@ def join_sentence(words: list[str], sep: str = ","):
     if len(words) == 2:
         return " and ".join(words)
     return f"{sep} ".join(words[:-1]) + f"{sep} and {words[-1]}."
+
+
+# Secondary objects
 
 
 def date_to_text(date: Date) -> str:
@@ -155,13 +190,16 @@ pronouns_pers = {
     Person.OTHER: "they",
 }
 
+# Primary objects
+
 
 def person_to_text(obj: Person, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert a person to text."""
     name = f"[{name_to_text(obj.primary_name)}](/person/{obj.gramps_id})"
+    # FIXME primary name could be private
     pronoun_poss = pronouns_poss[obj.gender]
     pronoun_pers = pronouns_pers[obj.gender]
-    string = f"## Person: {name}\n"
+    string = PString(f"## Person: {name}\n")
     string += (
         f"This document contains information about the person {name}: "
         f"{pronoun_poss} name, life dates, and the events {pronoun_pers} participated in, "
@@ -170,41 +208,81 @@ def person_to_text(obj: Person, db_handle: DbReadBase) -> tuple[str, str]:
     if obj.alternate_names:
         for name in obj.alternate_names:
             name_type = name.type.xml_str()
-            string += (
-                f"{pronoun_poss.capitalize()} {name_type} is {name_to_text(name)}."
+            alt_name = (
+                f"{pronoun_poss.capitalize()} {name_type} is {name_to_text(name)}. "
             )
-    if obj.event_ref_list:
-        event_strings = {}
-        for event_ref in obj.event_ref_list:
-            role = event_ref.role.xml_str()
-            if role not in event_strings:
-                event_strings[role] = []
-            event = db_handle.get_event_from_handle(event_ref.ref)
-            event_text = event_to_line(event, db_handle)
-            event_strings[role].append(event_text)
-        if event_strings.get("Primary"):
-            string += f" {name} had the following personal events: "
-            string += "; ".join(event_strings["Primary"]) + "."
-        other_roles = set(event_strings.keys()) - {"Primary"}
-        if other_roles:
-            string += f" {name} participated in the following events: "
-            for role in other_roles:
-                string += (
-                    "; ".join(
-                        [
-                            f"{event_string} ({role})"
-                            for event_string in event_strings[role]
-                        ]
-                    )
-                    + "."
-                )
-    # TODO personref
-    # private names!
+            string += PString(alt_name, private=name.private)
+    # FIXME
+    # if obj.event_ref_list:
+    #     event_strings = {}
+    #     event_strings_public = {}
+    #     for event_ref in obj.event_ref_list:
+    #         role = event_ref.role.xml_str()
+    #         if role not in event_strings:
+    #             event_strings[role] = []
+    #         if role not in event_strings_public:
+    #             event_strings_public[role] = []
+    #         try:
+    #             event = db_handle.get_event_from_handle(event_ref.ref)
+    #         except HandleError:
+    #             continue
+    #         event_text = event_to_line(event, db_handle)
+    #         event_strings[role].append(event_text)
+    #         if not event_ref.private and not event.private:
+    #             event_strings_public[role].append(event_text)
+    #     if event_strings.get("Primary"):
+    #         string += f" {name} had the following personal events: "
+    #         string += "; ".join(event_strings["Primary"]) + "."
+    #     if event_strings_public.get("Primary"):
+    #         string += f" {name} had the following personal events: "
+    #         string += "; ".join(event_strings_public["Primary"]) + "."
+    #     other_roles = set(event_strings.keys()) - {"Primary"}
+    #     if other_roles:
+    #         string += f" {name} participated in the following events: "
+    #         for role in other_roles:
+    #             string += (
+    #                 "; ".join(
+    #                     [
+    #                         f"{event_string} ({role})"
+    #                         for event_string in event_strings[role]
+    #                     ]
+    #                 )
+    #                 + "."
+    #             )
+    #     other_roles = set(event_strings_public.keys()) - {"Primary"}
+    #     if other_roles:
+    #         string_public += f" {name} participated in the following events: "
+    #         for role in other_roles:
+    #             string_public += (
+    #                 "; ".join(
+    #                     [
+    #                         f"{event_string} ({role})"
+    #                         for event_string in event_strings_public[role]
+    #                     ]
+    #                 )
+    #                 + "."
+    #             )
+    for person_ref in obj.person_ref_list:
+        if person_ref.rel == "DNA":
+            rel_string = "has a DNA match with"
+        else:
+            rel_string = f"has an association of type {person_ref.rel} with"
+        try:
+            ref_person = db_handle.get_person_from_handle(person_ref.ref)
+        except HandleError:
+            continue
+        name_ref = (
+            f"[{name_to_text(ref_person.primary_name)}]"
+            f"(/person/{ref_person.gramps_id})"
+        )
+        string += PString(
+            f" {name} {rel_string} {name_ref}.", private=person_ref.private
+        )
     # media, address, attribute, URL, citation, note, tags
     # eventref citations, notes, attributes
     if obj.private:
-        return "", string
-    return string, string
+        return "", string.string_all
+    return string.string_public, string.string_all
 
 
 def family_to_text(obj: Family, db_handle: DbReadBase) -> tuple[str, str]:
@@ -226,7 +304,7 @@ def family_to_text(obj: Family, db_handle: DbReadBase) -> tuple[str, str]:
     else:
         name = "Family with unknown parents"
     name = f"[{name}](/family/{obj.gramps_id})"
-    string = f"## Family: {name}\n"
+    string = PString(f"## Family: {name}\n")
     string += (
         f"This document contains information about the family {name}: "
         f"The name and life dates of the parents, the names and life dates of all children, "
@@ -246,11 +324,11 @@ def family_to_text(obj: Family, db_handle: DbReadBase) -> tuple[str, str]:
             event_text = event_to_line(event, db_handle)
             event_strings.append(event_text)
         string += "; ".join(event_strings) + ". "
-    string_public = string
     if obj.child_ref_list:
-        string += f"{name} had the following children: "
-        if not all([child_ref.private for child_ref in obj.child_ref_list]):
-            string_public += f"{name} had the following children: "
+        string += PString(
+            f"{name} had the following children: ",
+            private=all([child_ref.private for child_ref in obj.child_ref_list]),
+        )
         child_strings = []
         child_strings_public = []
         for child_ref in obj.child_ref_list:
@@ -264,20 +342,22 @@ def family_to_text(obj: Family, db_handle: DbReadBase) -> tuple[str, str]:
             child_strings.append(string_child)
             if not child_ref.private:
                 child_strings_public.append(string_child)
-        string += join_sentence(child_strings)
-        string_public += join_sentence(child_strings_public)
+        string += PString(join_sentence(child_strings), private=True)
+        string += PString(join_sentence(child_strings_public), public_only=True)
     # TODO media, attribute, citation, note, tags
     # childref citation, note, gender
     if obj.private:
-        return "", string
-    return string_public, string
+        return "", string.string_all
+    return string.string_public, string.string_all
 
 
 def event_to_text(obj: Event, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert an event to text."""
-    string = f"""Type: event
+    string = PString(
+        f"""Type: event
 Gramps ID: {obj.gramps_id}
 """
+    )
     if obj.type:
         string += f"Event type: {obj.type.xml_str()}\n"
     if obj.date and not obj.date.is_empty():
@@ -303,15 +383,17 @@ Gramps ID: {obj.gramps_id}
             string += f"Participant family ({role.xml_str()}): {family.gramps_id}\n"
     # TODO citation, media, note, attribute, tags
     if obj.private:
-        return "", string
-    return string, string
+        return "", string.string_all
+    return string.string_public, string.string_all
 
 
 def place_to_text(obj: Place, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert a place to text."""
-    string = f"""Type: place
+    string = PString(
+        f"""Type: place
 Gramps ID: {obj.gramps_id}
 """
+    )
     if obj.title and not obj.name:
         string += f"Place title: {obj.title}\n"
     else:
@@ -335,15 +417,17 @@ Gramps ID: {obj.gramps_id}
         string += "\n"
     # TODO urls, media, citations, notes, tags
     if obj.private:
-        return "", string
-    return string, string
+        return "", string.string_all
+    return string.string_public, string.string_all
 
 
 def citation_to_text(obj: Citation, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert a citation to text."""
-    string = f"""Type: citation
+    string = PString(
+        f"""Type: citation
 Gramps ID: {obj.gramps_id}
 """
+    )
     if obj.date and not obj.date.is_empty():
         string += f"Date: {date_to_text(obj.date)}\n"
     if obj.page:
@@ -351,15 +435,17 @@ Gramps ID: {obj.gramps_id}
     # TODO source
     # note, media, attribute, tags
     if obj.private:
-        return "", string
-    return string, string
+        return "", string.string_all
+    return string.string_public, string.string_all
 
 
 def source_to_text(obj: Source, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert a source to text."""
-    string = f"""Type: source
+    string = PString(
+        f"""Type: source
 Gramps ID: {obj.gramps_id}
 """
+    )
     if obj.title:
         string += f"Source title: {obj.title}\n"
     if obj.author:
@@ -371,43 +457,45 @@ Gramps ID: {obj.gramps_id}
     # TODO reporef
     # notes, media, attributes, tags
     if obj.private:
-        return "", string
-    return string, string
+        return "", string.string_all
+    return string.string_public, string.string_all
 
 
 def repository_to_text(obj: Repository, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert a repository to text."""
-    string = f"""Type: repository
+    string = PString(
+        f"""Type: repository
 Gramps ID: {obj.gramps_id}
 Repository type: {obj.type.xml_str()}
 Repository name: {obj.name}
 """
-    if obj.private:
-        string_public = ""
-    else:
-        string_public = string
+    )
     # TODO: sources
     # URLs, address, tags
-    return string_public, string
+    if obj.private:
+        return "", string.string_all
+    return string.string_public, string.string_all
 
 
 def note_to_text(obj: Note, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert a note to text."""
-    string = f"""Type: note
+    string = PString(
+        f"""Type: note
 Gramps ID: {obj.gramps_id}
 Note text:
 {obj.text.string}
 """
+    )
     # TODO: referencing objects?
     # tags
     if obj.private:
-        return "", string
-    return string, string
+        return "", string.string_all
+    return string.string_public, string.string_all
 
 
 def media_to_text(obj: Media, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert a media object to text."""
-    string = (
+    string = PString(
         "This document contains metadata about the media object "
         f"[{obj.gramps_id}](/media/{obj.gramps_id}). "
         f"Its media type is {obj.mime or 'unknown'}. "
@@ -419,5 +507,5 @@ def media_to_text(obj: Media, db_handle: DbReadBase) -> tuple[str, str]:
     # TODO: referencing objects?
     # citations, attributes, notes, tags
     if obj.private:
-        return "", string
-    return string, string
+        return "", string.string_all
+    return string.string_public, string.string_all
