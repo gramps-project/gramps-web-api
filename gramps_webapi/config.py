@@ -61,6 +61,7 @@ class DefaultConfig(object):
     LOG_LEVEL = "INFO"
     LLM_BASE_URL = None
     LLM_MODEL = ""
+    LLM_MAX_CONTEXT_LENGTH = 50000
     VECTOR_EMBEDDING_MODEL = ""
 
 

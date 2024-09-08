@@ -118,10 +118,16 @@ def answer_prompt_retrieve(
         # no chat history present - we directly retrieve the context
 
         search_results = retrieve(
-            prompt=prompt, tree=tree, include_private=include_private
+            prompt=prompt, tree=tree, include_private=include_private, num_results=20
         )
 
-        context = "\n\n".join(search_results)
+        context = ""
+        max_length = current_app.config["LLM_MAX_CONTEXT_LENGTH"]
+        for search_result in search_results:
+            if len(context) + len(search_result) > max_length:
+                break
+            context += search_result + "\n\n"
+        context = context.strip()
 
         logger.debug("Answering prompt '%s' with context '%s'", prompt, context)
         logger.debug("Context length: %s characters", len(context))
