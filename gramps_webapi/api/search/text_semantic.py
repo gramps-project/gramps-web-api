@@ -40,11 +40,14 @@ class PString:
     """String representation of an object with or without private strings."""
 
     def __init__(
-        self, string: str = "", private: bool = False, public_only: bool = False
+        self,
+        string: str | PString = "",
+        private: bool = False,
+        public_only: bool = False,
     ):
         if isinstance(string, PString):
-            self.string_public = "" if private else string.string_public
-            self.string_all = "" if public_only else string.string_all
+            self.string_public: str = "" if private else string.string_public
+            self.string_all: str = "" if public_only else string.string_all
         else:
             if not isinstance(string, str):
                 raise ValueError(f"Not a string: {string}")
@@ -71,7 +74,7 @@ class PString:
         self.string_all += rhs.string_all
         return self
 
-    def __str__(self):
+    def __repr__(self):
         """String representation."""
         return f"<PString(string_public={self.string_public})>"
 
@@ -94,13 +97,15 @@ def pjoin(sep: str, pstrings: list[PString | str]) -> PString:
     return string
 
 
-def pwrap(before: str, pstring: PString, after: str) -> PString:
+def pwrap(before: str | PString, pstring: PString, after: str | PString) -> PString:
     """Wrap a PString with a string before and after, if the string is not empty."""
+    lhs = PString(before)
+    rhs = PString(after)
     new = PString(pstring)
     if new.string_all:
-        new.string_all = before + new.string_all + after
+        new.string_all = lhs.string_all + new.string_all + rhs.string_all
     if new.string_public:
-        new.string_public = before + new.string_public + after
+        new.string_public = lhs.string_public + new.string_public + rhs.string_public
     return new
 
 
@@ -109,9 +114,9 @@ def join_sentence(words: list[str | PString], sep: str = ",") -> PString:
     if isinstance(words, str):
         raise ValueError("words should be a list of strings")
     if not words:
-        return ""
+        return PString("")
     if len(words) == 1:
-        return words[0]
+        return PString(words[0])
     if len(words) == 2:
         return pjoin(" and ", words)
     return pjoin(f"{sep} ", words[:-1]) + f"{sep} and " + words[-1] + "."
@@ -135,7 +140,7 @@ def name_to_text(name: Name) -> str:
 
 def place_to_line(
     place: Place, db_handle: DbReadBase, include_hierarchy: bool = True
-) -> str:
+) -> str | PString:
     """Convert a place to a single line of text without participants."""
     place_hierarchy = get_location_list(db_handle, place)
     place_name = f"[{place_hierarchy[0][0]}](/place/{place.gramps_id})"
@@ -145,21 +150,21 @@ def place_to_line(
     return pjoin(", ", [name for name, _ in place_hierarchy])
 
 
-def event_to_line(event: Event, db_handle: DbReadBase) -> str:
+def event_to_line(event: Event, db_handle: DbReadBase) -> PString:
     """Convert an event to a single line of text without participants."""
     event_type = event.type.xml_str()
     if event.date and not event.date.is_empty():
         date = date_to_text(event.date)
     else:
         date = ""
-    string = f"[{event_type}](/event/{event.gramps_id})"
+    string = PString(f"[{event_type}](/event/{event.gramps_id})")
     if date:
         string += f": {date}"
     if event.place:
         try:
             place = db_handle.get_place_from_handle(event.place)
             place_string = place_to_line(place, db_handle, include_hierarchy=False)
-            string += PString(f" in {place_string}", private=place.private)
+            string += PString(" in " + place_string, private=place.private)
         except HandleError:
             pass
     if event.description:
@@ -240,13 +245,13 @@ pronouns_pers = {
 
 def person_to_text(obj: Person, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert a person to text."""
-    name = f"[{name_to_text(obj.primary_name)}](/person/{obj.gramps_id})"
+    person_name = f"[{name_to_text(obj.primary_name)}](/person/{obj.gramps_id})"
     # FIXME primary name could be private
     pronoun_poss = pronouns_poss[obj.gender]
     pronoun_pers = pronouns_pers[obj.gender]
-    string = PString(f"## Person: {name}\n")
+    string = PString(f"## Person: {person_name}\n")
     string += (
-        f"This document contains information about the person {name}: "
+        f"This document contains information about the person {person_name}: "
         f"{pronoun_poss} name, life dates, and the events {pronoun_pers} participated in, "
         "such as birth, death, occupation, education, religious events, and others. "
     )
@@ -257,56 +262,53 @@ def person_to_text(obj: Person, db_handle: DbReadBase) -> tuple[str, str]:
                 f"{pronoun_poss.capitalize()} {name_type} is {name_to_text(name)}. "
             )
             string += PString(alt_name, private=name.private)
-    # FIXME
-    # if obj.event_ref_list:
-    #     event_strings = {}
-    #     event_strings_public = {}
-    #     for event_ref in obj.event_ref_list:
-    #         role = event_ref.role.xml_str()
-    #         if role not in event_strings:
-    #             event_strings[role] = []
-    #         if role not in event_strings_public:
-    #             event_strings_public[role] = []
-    #         try:
-    #             event = db_handle.get_event_from_handle(event_ref.ref)
-    #         except HandleError:
-    #             continue
-    #         event_text = event_to_line(event, db_handle)
-    #         event_strings[role].append(event_text)
-    #         if not event_ref.private and not event.private:
-    #             event_strings_public[role].append(event_text)
-    #     if event_strings.get("Primary"):
-    #         string += f" {name} had the following personal events: "
-    #         string += pjoin("; ", event_strings["Primary"]) + "."
-    #     if event_strings_public.get("Primary"):
-    #         string += f" {name} had the following personal events: "
-    #         string += pjoin("; ", event_strings_public["Primary"]) + "."
-    #     other_roles = set(event_strings.keys()) - {"Primary"}
-    #     if other_roles:
-    #         string += f" {name} participated in the following events: "
-    #         for role in other_roles:
-    #             string += (
-    #                 pjoin("; ",
-    #                     [
-    #                         f"{event_string} ({role})"
-    #                         for event_string in event_strings[role]
-    #                     ]
-    #                 )
-    #                 + "."
-    #             )
-    #     other_roles = set(event_strings_public.keys()) - {"Primary"}
-    #     if other_roles:
-    #         string_public += f" {name} participated in the following events: "
-    #         for role in other_roles:
-    #             string_public += (
-    #                 pjoin("; ",
-    #                     [
-    #                         f"{event_string} ({role})"
-    #                         for event_string in event_strings_public[role]
-    #                     ]
-    #                 )
-    #                 + "."
-    #             )
+    if obj.event_ref_list:
+        event_strings = {}
+        for event_ref in obj.event_ref_list:
+            role = event_ref.role.xml_str()
+            if role not in event_strings:
+                event_strings[role] = []
+            try:
+                event = db_handle.get_event_from_handle(event_ref.ref)
+            except HandleError:
+                continue
+            event_text = PString(
+                event_to_line(event, db_handle),
+                private=event_ref.private or event.private,
+            )
+            event_strings[role].append(event_text)
+        if event_strings.get("Primary"):
+            private = not any(
+                pstring.string_public for pstring in event_strings["Primary"]
+            )
+            string += PString(
+                private=private,
+            )
+            string += pwrap(
+                person_name + " had the following personal events: ",
+                pjoin("; ", event_strings["Primary"]),
+                ". ",
+            )
+        other_roles = set(event_strings.keys()) - {"Primary"}
+        if other_roles:
+            other_role_string = PString()
+            for role in other_roles:
+                other_role_string += pwrap(
+                    "",
+                    pjoin(
+                        "; ",
+                        [
+                            pwrap("", event_string, " (" + role + ")")
+                            for event_string in event_strings[role]
+                        ],
+                    ),
+                    ". ",
+                )
+            string += pwrap(
+                person_name + " participated in the following events: ",
+                other_role_string,
+                " ",
+            )
     for person_ref in obj.person_ref_list:
         if person_ref.rel == "DNA":
             rel_string = "has a DNA match with"
@@ -321,7 +323,7 @@ def person_to_text(obj: Person, db_handle: DbReadBase) -> tuple[str, str]:
             f"(/person/{ref_person.gramps_id})"
         )
         string += PString(
-            f" {name} {rel_string} {name_ref}.", private=person_ref.private
+            f" {person_name} {rel_string} {name_ref}.", private=person_ref.private
         )
     # media, address, attribute, URL, citation, note, tags
     # eventref citations, notes, attributes
