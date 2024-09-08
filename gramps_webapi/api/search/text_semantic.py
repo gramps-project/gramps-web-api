@@ -533,11 +533,12 @@ Repository name: {obj.name}
 
 def note_to_text(obj: Note, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert a note to text."""
+    note_text = re.sub(r"\n+", "\n", obj.text.string)
     string = PString(
         f"""Type: note
 Gramps ID: {obj.gramps_id}
 Note text:
-{re.sub(r'\n+', '\n', obj.text.string)}
+{note_text}
 """
     )
     # TODO: referencing objects?
