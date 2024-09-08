@@ -1,6 +1,7 @@
 """Object to text conversion for semantic search."""
 
 from __future__ import annotations
+import re
 
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
@@ -38,14 +39,22 @@ from ..resources.util import get_event_participants_for_handle
 class PString:
     """String representation of an object with or without private strings."""
 
-    def __init__(self, string: str, private: bool = False, public_only: bool = False):
-        self.string_public = "" if private else string
-        self.string_all = "" if public_only else string
+    def __init__(
+        self, string: str = "", private: bool = False, public_only: bool = False
+    ):
+        if isinstance(string, PString):
+            self.string_public = "" if private else string.string_public
+            self.string_all = "" if public_only else string.string_all
+        else:
+            if not isinstance(string, str):
+                raise ValueError(f"Not a string: {string}")
+            self.string_public = "" if private else string
+            self.string_all = "" if public_only else string
 
     def __add__(self, other):
         """Add two object strings."""
         rhs = other if isinstance(other, PString) else PString(other)
-        result = PString("")
+        result = PString()
         result.string_public = self.string_public + rhs.string_public
         result.string_all = self.string_all + rhs.string_all
         return result
@@ -62,8 +71,40 @@ class PString:
         self.string_all += rhs.string_all
         return self
 
+    def __str__(self):
+        """String representation."""
+        return f"<PString(string_public={self.string_public})>"
 
-def join_sentence(words: list[str], sep: str = ","):
+    def __bool__(self) -> bool:
+        return bool(self.string_all) or bool(self.string_public)
+
+
+def pjoin(sep: str, pstrings: list[PString | str]) -> PString:
+    string = PString()
+    pstrings_cast = [
+        pstring if isinstance(pstring, PString) else PString(pstring)
+        for pstring in pstrings
+    ]
+    string.string_all = sep.join(
+        [pstring.string_all for pstring in pstrings_cast if pstring.string_all]
+    )
+    string.string_public = sep.join(
+        [pstring.string_public for pstring in pstrings_cast if pstring.string_public]
+    )
+    return string
+
+
+def pwrap(before: str, pstring: PString, after: str) -> PString:
+    """Wrap a PString with a string before and after, if the string is not empty."""
+    new = PString(pstring)
+    if new.string_all:
+        new.string_all = before + new.string_all + after
+    if new.string_public:
+        new.string_public = before + new.string_public + after
+    return new
+
+
+def join_sentence(words: list[str | PString], sep: str = ",") -> PString:
     """Join strings with a seperator, "and" before the last element, and a full stop."""
     if isinstance(words, str):
         raise ValueError("words should be a list of strings")
@@ -72,8 +113,8 @@ def join_sentence(words: list[str], sep: str = ","):
     if len(words) == 1:
         return words[0]
     if len(words) == 2:
-        return " and ".join(words)
-    return f"{sep} ".join(words[:-1]) + f"{sep} and {words[-1]}."
+        return pjoin(" and ", words)
+    return pjoin(f"{sep} ", words[:-1]) + f"{sep} and " + words[-1] + "."
 
 
 # Secondary objects
@@ -101,7 +142,7 @@ def place_to_line(
     if not include_hierarchy:
         return place_name
     place_hierarchy[0] = place_name, ""
-    return ", ".join(name for name, _ in place_hierarchy)
+    return pjoin(", ", [name for name, _ in place_hierarchy])
 
 
 def event_to_line(event: Event, db_handle: DbReadBase) -> str:
@@ -115,9 +156,12 @@ def event_to_line(event: Event, db_handle: DbReadBase) -> str:
     if date:
         string += f": {date}"
     if event.place:
-        place = db_handle.get_place_from_handle(event.place)
-        place_string = place_to_line(place, db_handle, include_hierarchy=False)
-        string += f" in {place_string}"
+        try:
+            place = db_handle.get_place_from_handle(event.place)
+            place_string = place_to_line(place, db_handle, include_hierarchy=False)
+            string += PString(f" in {place_string}", private=place.private)
+        except HandleError:
+            pass
     if event.description:
         if date or event.place:
             string += " - "
@@ -131,18 +175,22 @@ def child_ref_to_text(child_ref: ChildRef) -> str:
     return f"relation to father: {frel}, relation to mother: {mrel}"
 
 
-def person_to_line(person: Person, db_handle: DbReadBase) -> str:
-    string = f"[{name_to_text(person.primary_name)}](/person/{person.gramps_id})"
+def person_to_line(person: Person, db_handle: DbReadBase) -> PString:
+    string = PString(
+        f"[{name_to_text(person.primary_name)}](/person/{person.gramps_id})"
+    )
     try:
         if person.birth_ref_index < 0:
             raise IndexError  # negative index means event does not exist
         birth_ref = person.event_ref_list[person.birth_ref_index]
         birth = db_handle.get_event_from_handle(birth_ref.ref)
         if birth.date and not birth.date.is_empty():
-            birth_date = date_to_text(birth.date)
+            birth_date = PString(
+                date_to_text(birth.date), private=birth.private or birth_ref.private
+            )
         else:
             birth_date = ""
-    except IndexError:
+    except (IndexError, HandleError):
         birth_date = ""
     try:
         if person.death_ref_index < 0:
@@ -150,21 +198,18 @@ def person_to_line(person: Person, db_handle: DbReadBase) -> str:
         death_ref = person.event_ref_list[person.death_ref_index]
         death = db_handle.get_event_from_handle(death_ref.ref)
         if death.date and not death.date.is_empty():
-            death_date = date_to_text(death.date)
+            death_date = PString(
+                date_to_text(death.date), private=death.private or death_ref.private
+            )
         else:
             death_date = ""
-    except IndexError:
+    except (IndexError, HandleError):
         death_date = ""
-    if birth_date or death_date:
-        string += " ("
-    if birth_date:
-        string += f"born {birth_date}"
-    if birth_date and death_date:
-        string += ", "
-    if death_date:
-        string += f"died {death_date}"
-    if birth_date or death_date:
-        string += ")"
+    birth_date = pwrap("born ", birth_date, "")
+    death_date = pwrap("died ", death_date, "")
+    life_dates = pjoin(", ", [birth_date, death_date])
+    if life_dates:
+        string += pwrap(" (", life_dates, ")")
     return string
 
 
@@ -232,16 +277,16 @@ def person_to_text(obj: Person, db_handle: DbReadBase) -> tuple[str, str]:
     #             event_strings_public[role].append(event_text)
     #     if event_strings.get("Primary"):
     #         string += f" {name} had the following personal events: "
-    #         string += "; ".join(event_strings["Primary"]) + "."
+    #         string += pjoin("; ", event_strings["Primary"]) + "."
     #     if event_strings_public.get("Primary"):
     #         string += f" {name} had the following personal events: "
-    #         string += "; ".join(event_strings_public["Primary"]) + "."
+    #         string += pjoin("; ", event_strings_public["Primary"]) + "."
     #     other_roles = set(event_strings.keys()) - {"Primary"}
     #     if other_roles:
     #         string += f" {name} participated in the following events: "
     #         for role in other_roles:
     #             string += (
-    #                 "; ".join(
+    #                 pjoin("; ",
     #                     [
     #                         f"{event_string} ({role})"
     #                         for event_string in event_strings[role]
@@ -254,7 +299,7 @@ def person_to_text(obj: Person, db_handle: DbReadBase) -> tuple[str, str]:
     #         string_public += f" {name} participated in the following events: "
     #         for role in other_roles:
     #             string_public += (
-    #                 "; ".join(
+    #                 pjoin("; ",
     #                     [
     #                         f"{event_string} ({role})"
     #                         for event_string in event_strings_public[role]
@@ -287,6 +332,7 @@ def person_to_text(obj: Person, db_handle: DbReadBase) -> tuple[str, str]:
 
 def family_to_text(obj: Family, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert a family to text."""
+    string = PString()
     if obj.father_handle:
         person = db_handle.get_person_from_handle(obj.father_handle)
         father = person_to_line(person, db_handle)
@@ -296,54 +342,62 @@ def family_to_text(obj: Family, db_handle: DbReadBase) -> tuple[str, str]:
         mother = person_to_line(person, db_handle)
         mother_name = name_to_text(person.primary_name)
     if obj.father_handle and obj.mother_handle:
-        name = f"{father_name} and {mother_name}"
+        name = father_name + " and " + mother_name
     elif obj.father_handle:
-        name = f"{father_name} and unknown mother"
+        name = father_name + " and unknown mother"
     elif obj.mother_handle:
-        name = f"{mother_name} and unknown father"
+        name = mother_name + " and unknown father"
     else:
         name = "Family with unknown parents"
-    name = f"[{name}](/family/{obj.gramps_id})"
-    string = PString(f"## Family: {name}\n")
+    name = "[" + name + f"](/family/{obj.gramps_id})"
+    string += "## Family: " + name + "\n"
+    string += "This document contains information about the family "
+    string += name
+    string += ": "
     string += (
-        f"This document contains information about the family {name}: "
-        f"The name and life dates of the parents, the names and life dates of all children, "
+        "The name and life dates of the parents, the names and life dates of all children, "
         "and the events the family participated in, such as marriage and residence. "
     )
     if obj.father_handle:
-        string += f"The family's father was {father}. "
+        string += "The family's father was " + father + ". "
     if obj.mother_handle:
-        string += f"The family's mother was {mother}. "
+        string += "The family's mother was " + mother + ". "
     if obj.type:
         string += f"Their relationship was: {obj.type.xml_str()}. "
     if obj.event_ref_list:
-        string += f"{name} had the following family events: "
+        string += name + " had the following family events: "
         event_strings = []
         for event_ref in obj.event_ref_list:
             event = db_handle.get_event_from_handle(event_ref.ref)
             event_text = event_to_line(event, db_handle)
             event_strings.append(event_text)
-        string += "; ".join(event_strings) + ". "
+        string += pjoin(";", event_strings) + ". "
     if obj.child_ref_list:
         string += PString(
-            f"{name} had the following children: ",
+            name + " had the following children: ",
             private=all([child_ref.private for child_ref in obj.child_ref_list]),
         )
         child_strings = []
-        child_strings_public = []
         for child_ref in obj.child_ref_list:
-            person = db_handle.get_person_from_handle(child_ref.ref)
-            string_child = f"{person_to_line(person, db_handle)}"
+            try:
+                person = db_handle.get_person_from_handle(child_ref.ref)
+            except HandleError:
+                continue
+            string_child = PString(
+                person_to_line(person, db_handle),
+                private=child_ref.private or person.private,
+            )
             if (
                 child_ref.frel.value != ChildRefType.BIRTH
                 or child_ref.mrel.value != ChildRefType.BIRTH
             ):
-                string_child += f" ({child_ref_to_text(child_ref)})"
-            child_strings.append(string_child)
-            if not child_ref.private:
-                child_strings_public.append(string_child)
-        string += PString(join_sentence(child_strings), private=True)
-        string += PString(join_sentence(child_strings_public), public_only=True)
+                string_child += PString(
+                    " (" + child_ref_to_text(child_ref) + ")",
+                    private=child_ref.private or person.private or child_ref.private,
+                )
+            if string_child:
+                child_strings.append(string_child)
+        string += pjoin(", ", child_strings)
     # TODO media, attribute, citation, note, tags
     # childref citation, note, gender
     if obj.private:
@@ -365,7 +419,7 @@ Gramps ID: {obj.gramps_id}
     if obj.place:
         place = db_handle.get_place_from_handle(obj.place)
         place_string = place_to_line(place, db_handle)
-        string += f"Event location: {place_string}\n"
+        string += "Event location: " + place_string + "\n"
     if obj.description:
         string += f"Event description: {obj.description}\n"
     participants = get_event_participants_for_handle(
@@ -413,7 +467,7 @@ Gramps ID: {obj.gramps_id}
         )
     if parent_list and len(parent_list) > 1:
         string += "Part of: "
-        string += ", ".join(name for name, _ in parent_list[1:])
+        string += pjoin(", ", [name for name, _ in parent_list[1:]])
         string += "\n"
     # TODO urls, media, citations, notes, tags
     if obj.private:
@@ -483,7 +537,7 @@ def note_to_text(obj: Note, db_handle: DbReadBase) -> tuple[str, str]:
         f"""Type: note
 Gramps ID: {obj.gramps_id}
 Note text:
-{obj.text.string}
+{re.sub(r'\n+', '\n', obj.text.string)}
 """
     )
     # TODO: referencing objects?

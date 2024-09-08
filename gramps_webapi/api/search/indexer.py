@@ -140,9 +140,9 @@ class SearchIndexerBase:
             iter_obj_strings(db_handle, semantic=self.use_semantic_text)
         ):
             obj_dicts.append(obj_dict)
-            if i > 0 and i % chunk_size == 0:
+            if i % chunk_size == 0:
                 self._add_objects(obj_dicts)
-                if progress_cb:
+                if progress_cb and i != 0:
                     progress_cb(current=i, total=total, prev=prev)
                 prev = i
                 obj_dicts = []
