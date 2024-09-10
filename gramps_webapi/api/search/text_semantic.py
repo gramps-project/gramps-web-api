@@ -247,8 +247,9 @@ def person_to_text(obj: Person, db_handle: DbReadBase) -> tuple[str, str]:
     string = PString(f"## Person: {person_name}\n")
     string += (
         f"This document contains information about the person {person_name}: "
-        f"{pronoun_poss} name, life dates, and the events {pronoun_pers} participated in, "
-        "such as birth, death, occupation, education, religious events, and others. "
+        f"{pronoun_poss} name, life dates, and the events {pronoun_pers} participated "
+        "in, such as birth, death, occupation, education, religious events, "
+        "and others. "
     )
     if obj.alternate_names:
         for name in obj.alternate_names:
@@ -258,7 +259,7 @@ def person_to_text(obj: Person, db_handle: DbReadBase) -> tuple[str, str]:
             )
             string += PString(alt_name, private=name.private)
     if obj.event_ref_list:
-        event_strings: dict[str, PString] = {}
+        event_strings: dict[str, list[PString]] = {}
         for event_ref in obj.event_ref_list:
             role = event_ref.role.xml_str()
             if role not in event_strings:
@@ -352,7 +353,8 @@ def family_to_text(obj: Family, db_handle: DbReadBase) -> tuple[str, str]:
     string += name
     string += ": "
     string += (
-        "The name and life dates of the parents, the names and life dates of all children, "
+        "The name and life dates of the parents, the names "
+        "and life dates of all children, "
         "and the events the family participated in, such as marriage and residence. "
     )
     if obj.father_handle:
@@ -404,34 +406,83 @@ def family_to_text(obj: Family, db_handle: DbReadBase) -> tuple[str, str]:
 
 def event_to_text(obj: Event, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert an event to text."""
-    string = PString(
-        f"""Type: event
-Gramps ID: {obj.gramps_id}
-"""
-    )
+    title = obj.gramps_id
+    name = PString("[" + title + f"](/event/{obj.gramps_id})")
+    string = PString("## Event: " + name + "\n")
+    string += "This document contains information about the event " + title + ", "
+    string += "such as when and where it happened and who participated in it. "
     if obj.type:
-        string += f"Event type: {obj.type.xml_str()}\n"
+        string += f"It was an event of type {obj.type.xml_str()}. "
     if obj.date and not obj.date.is_empty():
-        string += f"Event date: {date_to_text(obj.date)}\n"
+        string += f"It happened on the following date: {date_to_text(obj.date)}. "
     if obj.place:
         place = db_handle.get_place_from_handle(obj.place)
         place_string = place_to_line(place, db_handle)
-        string += "Event location: " + place_string + "\n"
+        string += PString(
+            "The event location was " + place_string + "\n", private=place.private
+        )
     if obj.description:
-        string += f"Event description: {obj.description}\n"
+        string += f'The event description is as follows: "{obj.description}". '
     participants = get_event_participants_for_handle(
         db_handle=db_handle, handle=obj.handle
     )
+    roles: dict[str, list[PString]] = {}
     if participants.get("people"):
         for role, person in participants["people"]:
-            string += (
-                f"Participant ({role.xml_str()}): "
-                f"{name_to_text(person.primary_name)} "
-                f"(Gramps ID: {person.gramps_id})\n"
+            role_str = role.xml_str()
+            if role.xml_str() not in roles:
+                roles[role_str] = []
+            ref_private = all(
+                [
+                    event_ref.private
+                    for event_ref in person.event_ref_list
+                    if event_ref.ref == obj.handle
+                ]
             )
+            role_pstring = PString(
+                f"[{name_to_text(person.primary_name)}](/person/{person.gramps_id})",
+                private=person.private or ref_private,
+            )
+            roles[role_str].append(role_pstring)
+    if roles.get("Primary"):
+        string += pwrap(
+            "The primary participant of the event was ",
+            pjoin(", ", roles["Primary"]),
+            ". ",
+        )
+    for k, v in roles.items():
+        if k == "Primary":
+            continue
+        string += pwrap(
+            f"The participants with role {k} of the event were ",
+            pjoin(", ", v),
+            ". ",
+        )
+    roles: dict[str, list[PString]] = {}
     if participants.get("families"):
         for role, family in participants["families"]:
-            string += f"Participant family ({role.xml_str()}): {family.gramps_id}\n"
+            role_str = role.xml_str()
+            if role_str not in roles:
+                roles[role_str] = []
+            ref_private = all(
+                [
+                    event_ref.private
+                    for event_ref in family.event_ref_list
+                    if event_ref.ref == obj.handle
+                ]
+            )
+            role_pstring = PString(
+                f"[{family.gramps_id}](/family/{family.gramps_id})",
+                private=family.private or ref_private,
+            )
+
+            roles[role_str].append(role_pstring)
+    if roles.get("Family"):
+        string += pwrap(
+            "The primary participant family of the event was ",
+            pjoin(", ", roles["Family"]),
+            ". ",
+        )
     # TODO citation, media, note, attribute, tags
     if obj.private:
         return "", string.string_all
@@ -571,15 +622,19 @@ def note_to_text(obj: Note, db_handle: DbReadBase) -> tuple[str, str]:
 
 def media_to_text(obj: Media, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert a media object to text."""
+    name = f"[{obj.desc or obj.gramps_id}](/media/{obj.gramps_id})"
     string = PString(
+        f"## Media object: {name}\n"
         "This document contains metadata about the media object "
-        f"[{obj.gramps_id}](/media/{obj.gramps_id}). "
+        f"{name}. "
         f"Its media type is {obj.mime or 'unknown'}. "
     )
     if obj.desc:
-        f"The media description is: {obj.desc}. "
+        string += f"The media description is: {obj.desc}. "
     if obj.date and not obj.date.is_empty():
-        string += f"Media date: {date_to_text(obj.date)}. "
+        string += f"The date of the media object is {date_to_text(obj.date)}. "
+    if obj.path:
+        string += f"The media object's path is {obj.path}. "
     # citations, attributes, notes, tags
     if obj.private:
         return "", string.string_all
