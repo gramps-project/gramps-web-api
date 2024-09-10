@@ -528,17 +528,26 @@ def place_to_text(obj: Place, db_handle: DbReadBase) -> tuple[str, str]:
 
 def citation_to_text(obj: Citation, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert a citation to text."""
-    string = PString(
-        f"""Type: citation
-Gramps ID: {obj.gramps_id}
-"""
+    string = PString(f"## Citation: [{obj.gramps_id}](/citation/{obj.gramps_id})\n")
+    string += (
+        "This document contains the metadata of a citation, "
+        "which is a reference to a source. "
     )
+    if obj.source_handle:
+        try:
+            source = db_handle.get_source_from_handle(obj.source_handle)
+            string += PString(
+                "It cites the source "
+                f"[{source.title or source.gramps_id}](/source/{source.gramps_id}). ",
+                private=source.private,
+            )
+        except HandleError:
+            pass
+    if obj.page.strip():
+        string += f"It cites page/volume: {obj.page}. "
     if obj.date and not obj.date.is_empty():
-        string += f"Date: {date_to_text(obj.date)}\n"
-    if obj.page:
-        string += f"Page/Volume: {obj.page}\n"
-    # TODO source
-    # note, media, attribute, tags
+        string += f"The citation's date is {date_to_text(obj.date)}. "
+    # TODO note, media, attribute, tags
     if obj.private:
         return "", string.string_all
     return string.string_public, string.string_all
@@ -546,19 +555,14 @@ Gramps ID: {obj.gramps_id}
 
 def source_to_text(obj: Source, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert a source to text."""
-    string = PString(
-        f"""Type: source
-Gramps ID: {obj.gramps_id}
-"""
-    )
-    if obj.title:
-        string += f"Source title: {obj.title}\n"
+    title = f"[{obj.title or obj.gramps_id}](/source/{obj.gramps_id})"
+    string = PString(f"## Source: {title}\n")
     if obj.author:
-        string += f"Source author: {obj.author}\n"
+        string += f"The source's author was {obj.author}. "
     if obj.pubinfo:
-        string += f"Source publication info: {obj.pubinfo}\n"
+        string += f"Source publication info: {obj.pubinfo}. "
     if obj.abbrev:
-        string += f"Source abbrevation: {obj.abbrev}\n"
+        string += f"The source is abbreviated as {obj.abbrev}. "
     # TODO reporef
     # notes, media, attributes, tags
     if obj.private:
