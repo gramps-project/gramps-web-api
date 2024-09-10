@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import re
+from typing import Sequence
 
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
@@ -17,6 +18,7 @@ from gramps.gen.lib import (
     Repository,
     Name,
     Note,
+    NoteType,
     Media,
     ChildRef,
     ChildRefType,
@@ -25,15 +27,6 @@ from gramps.gen.utils.location import get_location_list
 from gramps.gen.utils.place import conv_lat_lon
 
 from ..resources.util import get_event_participants_for_handle
-
-# things that can be private:
-# Address, Attribute, ChildRef, EventRef, MediaRef, Name, PersonRef, RepoRef, SrcAttribute, URL
-# Citation, Event, Family, Media, Note, Person, Place, Repository, Source
-
-# TODO general: citation, media (p), note, attribute (p), tags, URLs
-
-
-# Utility functions
 
 
 class PString:
@@ -82,7 +75,7 @@ class PString:
         return bool(self.string_all) or bool(self.string_public)
 
 
-def pjoin(sep: str, pstrings: list[PString | str]) -> PString:
+def pjoin(sep: str, pstrings: Sequence[PString | str]) -> PString:
     string = PString()
     pstrings_cast = [
         pstring if isinstance(pstring, PString) else PString(pstring)
@@ -97,7 +90,9 @@ def pjoin(sep: str, pstrings: list[PString | str]) -> PString:
     return string
 
 
-def pwrap(before: str | PString, pstring: PString, after: str | PString) -> PString:
+def pwrap(
+    before: str | PString, pstring: str | PString, after: str | PString
+) -> PString:
     """Wrap a PString with a string before and after, if the string is not empty."""
     lhs = PString(before)
     rhs = PString(after)
@@ -109,7 +104,7 @@ def pwrap(before: str | PString, pstring: PString, after: str | PString) -> PStr
     return new
 
 
-def join_sentence(words: list[str | PString], sep: str = ",") -> PString:
+def join_sentence(words: Sequence[str | PString], sep: str = ",") -> PString:
     """Join strings with a seperator, "and" before the last element, and a full stop."""
     if isinstance(words, str):
         raise ValueError("words should be a list of strings")
@@ -190,7 +185,7 @@ def person_to_line(person: Person, db_handle: DbReadBase) -> PString:
         birth_ref = person.event_ref_list[person.birth_ref_index]
         birth = db_handle.get_event_from_handle(birth_ref.ref)
         if birth.date and not birth.date.is_empty():
-            birth_date = PString(
+            birth_date: str | PString = PString(
                 date_to_text(birth.date), private=birth.private or birth_ref.private
             )
         else:
@@ -203,7 +198,7 @@ def person_to_line(person: Person, db_handle: DbReadBase) -> PString:
         death_ref = person.event_ref_list[person.death_ref_index]
         death = db_handle.get_event_from_handle(death_ref.ref)
         if death.date and not death.date.is_empty():
-            death_date = PString(
+            death_date: str | PString = PString(
                 date_to_text(death.date), private=death.private or death_ref.private
             )
         else:
@@ -263,7 +258,7 @@ def person_to_text(obj: Person, db_handle: DbReadBase) -> tuple[str, str]:
             )
             string += PString(alt_name, private=name.private)
     if obj.event_ref_list:
-        event_strings = {}
+        event_strings: dict[str, PString] = {}
         for event_ref in obj.event_ref_list:
             role = event_ref.role.xml_str()
             if role not in event_strings:
@@ -445,32 +440,35 @@ Gramps ID: {obj.gramps_id}
 
 def place_to_text(obj: Place, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert a place to text."""
-    string = PString(
-        f"""Type: place
-Gramps ID: {obj.gramps_id}
-"""
-    )
     if obj.title and not obj.name:
-        string += f"Place title: {obj.title}\n"
+        name = obj.title
     else:
-        string += f"Place name: {obj.get_name().value}\n"
-    if obj.alt_names:
-        for name in obj.alt_names:
-            f"Also known as: {name.value}"
+        name = obj.get_name().value
+    title = f"[{name}](/place/{obj.gramps_id})"
+    string = PString(f"## Place: {title}\n")
+    string += (
+        f"This document contains data about the place {name}: "
+        "its place type, geographic location, and enclosing places. "
+    )
     if obj.place_type:
-        string += f"Place type: {obj.place_type.xml_str()}\n"
+        string += f"{title} is a place of type {obj.place_type.xml_str()}. "
+    if obj.alt_names:
+        string += "It is also known as: "
+        string += ", ".join([name.value for name in obj.alt_names])
+        string += ". "
     if obj.code:
-        string += f"Place code: {obj.code}\n"
+        string += f"Its place code is {obj.code}. "
     parent_list = get_location_list(db_handle, obj)
     latitude, longitude = conv_lat_lon(obj.lat, obj.long, format="D.D8")
     if latitude and longitude:
         string += (
-            f"Latitude: {float(latitude):.5f}, Longitude: {float(longitude):.5f}\n"
+            f"The greographical coordinates (latitude and longitude) of {title} "
+            f"are {float(latitude):.4f}, {float(longitude):.4f}. "
         )
     if parent_list and len(parent_list) > 1:
-        string += "Part of: "
+        string += f"{title} is part of "
         string += pjoin(", ", [name for name, _ in parent_list[1:]])
-        string += "\n"
+        string += ". "
     # TODO urls, media, citations, notes, tags
     if obj.private:
         return "", string.string_all
@@ -518,16 +516,37 @@ Gramps ID: {obj.gramps_id}
 
 
 def repository_to_text(obj: Repository, db_handle: DbReadBase) -> tuple[str, str]:
+    title = f"[{obj.name}](/repository/{obj.gramps_id})"
     """Convert a repository to text."""
-    string = PString(
-        f"""Type: repository
-Gramps ID: {obj.gramps_id}
-Repository type: {obj.type.xml_str()}
-Repository name: {obj.name}
-"""
-    )
-    # TODO: sources
-    # URLs, address, tags
+    string = PString(f"## Repository: {title}\n")
+    string += f"{title} is a repository of type {obj.type.xml_str()}. "
+    sources = []
+    for _, source_handle in db_handle.find_backlink_handles(
+        obj.handle, include_classes=["Source"]
+    ):
+        try:
+            source = db_handle.get_source_from_handle(source_handle)
+            ref_private = all(
+                [
+                    reporef.private
+                    for reporef in source.reporef_list
+                    if reporef.ref == obj.handle
+                ]
+            )
+            sources.append(
+                PString(
+                    f"[{source.title}](/source/{source.gramps_id})",
+                    private=source.private or ref_private,
+                )
+            )
+        except HandleError:
+            pass
+    if sources:
+        string += pwrap(
+            f"The repository {title} contains the following sources: ",
+            pjoin(", ", sources),
+            ". ",
+        )
     if obj.private:
         return "", string.string_all
     return string.string_public, string.string_all
@@ -535,16 +554,16 @@ Repository name: {obj.name}
 
 def note_to_text(obj: Note, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert a note to text."""
-    note_text = re.sub(r"\n+", "\n", obj.text.string)
-    string = PString(
-        f"""Type: note
-Gramps ID: {obj.gramps_id}
-Note text:
-{note_text}
-"""
+    string = PString(f"## Note [{obj.gramps_id}](/note/{obj.gramps_id})\n")
+    string += (
+        "This document contains the contents of the "
+        f"[Note {obj.gramps_id}](/note/{obj.gramps_id}). "
     )
-    # TODO: referencing objects?
-    # tags
+    if obj.type.value not in {NoteType.UNKNOWN, NoteType.GENERAL}:
+        string += f"It is a note of type {obj.type.xml_str()}. "
+    string += "Contents:\n"
+    string += re.sub(r"\n+", "\n", obj.text.string)
+    # TODO: tags
     if obj.private:
         return "", string.string_all
     return string.string_public, string.string_all
@@ -561,7 +580,6 @@ def media_to_text(obj: Media, db_handle: DbReadBase) -> tuple[str, str]:
         f"The media description is: {obj.desc}. "
     if obj.date and not obj.date.is_empty():
         string += f"Media date: {date_to_text(obj.date)}. "
-    # TODO: referencing objects?
     # citations, attributes, notes, tags
     if obj.private:
         return "", string.string_all
