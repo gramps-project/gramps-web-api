@@ -30,7 +30,33 @@ from ..resources.util import get_event_participants_for_handle
 
 
 class PString:
-    """String representation of an object with or without private strings."""
+    """String representation of an object with or without private strings.
+
+    The class supports string addition with + or +=, but does not support
+    inserting into f-strings.
+
+    The `string_public` property contains the string that remains when all
+    private information has been stripped. The `string_all` property contains
+    the full string.
+
+    If `private=True` is passed to the constructor, the string is assumed to
+    be fully private. If `public_only=True` is passed, the string is assumed
+    to only be present in the non-private case (this can be used e.g. for
+    placeholders).
+
+    To construct partially private strings, simply concatenate (add) several
+    PStrings.
+
+    Example:
+
+    ```
+    (
+        PString("His father was ")
+        + PString("Darth Vader.", private=True)
+        + PString("a Jedi knight.", public_only=True)
+    )
+    ```
+    """
 
     def __init__(
         self,
@@ -76,6 +102,10 @@ class PString:
 
 
 def pjoin(sep: str, pstrings: Sequence[PString | str]) -> PString:
+    """Join a sequence of PStrings.
+
+    Analogue of `string.join` for PStrings.
+    """
     string = PString()
     pstrings_cast = [
         pstring if isinstance(pstring, PString) else PString(pstring)
@@ -93,7 +123,15 @@ def pjoin(sep: str, pstrings: Sequence[PString | str]) -> PString:
 def pwrap(
     before: str | PString, pstring: str | PString, after: str | PString
 ) -> PString:
-    """Wrap a PString with a string before and after, if the string is not empty."""
+    """Wrap a PString with a string before and after, if the string is not empty.
+
+    Example:
+    ```
+    pwrap("(", PString("married", private=True), ")")
+    ```
+    will lead to "(married)" in the full string but an empty string (rather than "()")
+    in the public case.
+    """
     lhs = PString(before)
     rhs = PString(after)
     new = PString(pstring)
@@ -170,12 +208,14 @@ def event_to_line(event: Event, db_handle: DbReadBase) -> PString:
 
 
 def child_ref_to_text(child_ref: ChildRef) -> str:
+    """Convert a child reference to text."""
     frel = child_ref.frel.xml_str()
     mrel = child_ref.mrel.xml_str()
     return f"relation to father: {frel}, relation to mother: {mrel}"
 
 
 def person_to_line(person: Person, db_handle: DbReadBase) -> PString:
+    """Convert a person to a single line of text."""
     string = PString(
         f"[{name_to_text(person.primary_name)}](/person/{person.gramps_id})"
     )
@@ -331,22 +371,7 @@ def person_to_text(obj: Person, db_handle: DbReadBase) -> tuple[str, str]:
 def family_to_text(obj: Family, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert a family to text."""
     string = PString()
-    if obj.father_handle:
-        person = db_handle.get_person_from_handle(obj.father_handle)
-        father = person_to_line(person, db_handle)
-        father_name = name_to_text(person.primary_name)
-    if obj.mother_handle:
-        person = db_handle.get_person_from_handle(obj.mother_handle)
-        mother = person_to_line(person, db_handle)
-        mother_name = name_to_text(person.primary_name)
-    if obj.father_handle and obj.mother_handle:
-        name = father_name + " and " + mother_name
-    elif obj.father_handle:
-        name = father_name + " and unknown mother"
-    elif obj.mother_handle:
-        name = mother_name + " and unknown father"
-    else:
-        name = "Family with unknown parents"
+    name = get_family_title(obj, db_handle)
     name = "[" + name + f"](/family/{obj.gramps_id})"
     string += "## Family: " + name + "\n"
     string += "This document contains information about the family "
@@ -358,9 +383,19 @@ def family_to_text(obj: Family, db_handle: DbReadBase) -> tuple[str, str]:
         "and the events the family participated in, such as marriage and residence. "
     )
     if obj.father_handle:
-        string += "The family's father was " + father + ". "
+        try:
+            person = db_handle.get_person_from_handle(obj.father_handle)
+            father = person_to_line(person, db_handle)
+            string += "The family's father was " + father + ". "
+        except HandleError:
+            pass
     if obj.mother_handle:
-        string += "The family's mother was " + mother + ". "
+        try:
+            person = db_handle.get_person_from_handle(obj.mother_handle)
+            mother = person_to_line(person, db_handle)
+            string += "The family's mother was " + mother + ". "
+        except HandleError:
+            pass
     if obj.type:
         string += f"Their relationship was: {obj.type.xml_str()}. "
     if obj.event_ref_list:
@@ -402,6 +437,29 @@ def family_to_text(obj: Family, db_handle: DbReadBase) -> tuple[str, str]:
     if obj.private:
         return "", string.string_all
     return string.string_public, string.string_all
+
+
+def get_family_title(obj: Family, db_handle: DbReadBase) -> PString:
+    """Get a title for a family."""
+    if obj.father_handle:
+        person = db_handle.get_person_from_handle(obj.father_handle)
+        private = person.private or person.primary_name.private
+        father_name = PString(
+            name_to_text(person.primary_name),
+            private=private,
+        )
+        if private:
+            father_name += PString("unknown father", public_only=True)
+    if obj.mother_handle:
+        person = db_handle.get_person_from_handle(obj.mother_handle)
+        private = person.private or person.primary_name.private
+        mother_name = PString(
+            name_to_text(person.primary_name),
+            private=private,
+        )
+        if private:
+            mother_name += PString("unknown mother", public_only=True)
+    return father_name + " and " + mother_name
 
 
 def event_to_text(obj: Event, db_handle: DbReadBase) -> tuple[str, str]:
@@ -458,7 +516,7 @@ def event_to_text(obj: Event, db_handle: DbReadBase) -> tuple[str, str]:
             pjoin(", ", v),
             ". ",
         )
-    roles: dict[str, list[PString]] = {}
+    roles = {}
     if participants.get("families"):
         for role, family in participants["families"]:
             role_str = role.xml_str()
@@ -471,8 +529,9 @@ def event_to_text(obj: Event, db_handle: DbReadBase) -> tuple[str, str]:
                     if event_ref.ref == obj.handle
                 ]
             )
+            family_title = get_family_title(family, db_handle)
             role_pstring = PString(
-                f"[{family.gramps_id}](/family/{family.gramps_id})",
+                "[" + family_title + f"](/family/{family.gramps_id})",
                 private=family.private or ref_private,
             )
 
