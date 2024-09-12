@@ -142,19 +142,6 @@ def pwrap(
     return new
 
 
-def join_sentence(words: Sequence[str | PString], sep: str = ",") -> PString:
-    """Join strings with a seperator, "and" before the last element, and a full stop."""
-    if isinstance(words, str):
-        raise ValueError("words should be a list of strings")
-    if not words:
-        return PString("")
-    if len(words) == 1:
-        return PString(words[0])
-    if len(words) == 2:
-        return pjoin(" and ", words)
-    return pjoin(f"{sep} ", words[:-1]) + f"{sep} and " + words[-1] + "."
-
-
 # Secondary objects
 
 
