@@ -158,6 +158,19 @@ def name_to_text(name: Name) -> str:
     return f"{given} {surname} {suffix}".strip()
 
 
+def tags_to_text(tag_list: Sequence[str], db_handle: DbReadBase) -> str:
+    """Convert a tag list to text."""
+    tags = []
+    for tag_handle in tag_list:
+        try:
+            tag = db_handle.get_tag_from_handle(tag_handle)
+            tags.append(tag.get_name())
+        except HandleError:
+            pass
+
+    return ", ".join(tags)
+
+
 def place_to_line(
     place: Place, db_handle: DbReadBase, include_hierarchy: bool = True
 ) -> str | PString:
@@ -166,6 +179,9 @@ def place_to_line(
     place_name = f"[{place_hierarchy[0][0]}](/place/{place.gramps_id})"
     if not include_hierarchy:
         return place_name
+    # TODO while place refs cannot be private, there is the theoretical
+    # possibility that a referenced parent place is private. This is
+    # currently not accounted for.
     place_hierarchy[0] = place_name, ""
     return pjoin(", ", [name for name, _ in place_hierarchy])
 
@@ -201,11 +217,20 @@ def child_ref_to_text(child_ref: ChildRef) -> str:
     return f"relation to father: {frel}, relation to mother: {mrel}"
 
 
+def person_name_linked(person: Person) -> PString:
+    """Format a person as a linked name."""
+    person_name = PString(
+        name_to_text(person.primary_name), private=person.primary_name.private
+    )
+    if person.primary_name.private:
+        person_name = PString("N. N.", public_only=True)
+    person_name = "[" + person_name + f"](/person/{person.gramps_id})"
+    return person_name
+
+
 def person_to_line(person: Person, db_handle: DbReadBase) -> PString:
     """Convert a person to a single line of text."""
-    string = PString(
-        f"[{name_to_text(person.primary_name)}](/person/{person.gramps_id})"
-    )
+    string = person_name_linked(person)
     try:
         if person.birth_ref_index < 0:
             raise IndexError  # negative index means event does not exist
@@ -262,18 +287,46 @@ pronouns_pers = {
     Person.OTHER: "they",
 }
 
+
+def get_family_title(obj: Family, db_handle: DbReadBase) -> PString:
+    """Get a title for a family."""
+    if obj.father_handle:
+        person = db_handle.get_person_from_handle(obj.father_handle)
+        private = person.private or person.primary_name.private
+        father_name = PString(
+            name_to_text(person.primary_name),
+            private=private,
+        )
+        if private:
+            father_name += PString("Unknown father", public_only=True)
+    else:
+        father_name = PString("Unknown father")
+    if obj.mother_handle:
+        person = db_handle.get_person_from_handle(obj.mother_handle)
+        private = person.private or person.primary_name.private
+        mother_name = PString(
+            name_to_text(person.primary_name),
+            private=private,
+        )
+        if private:
+            mother_name += PString("unknown mother", public_only=True)
+    else:
+        mother_name = PString("unknown mother")
+    return father_name + " and " + mother_name
+
+
 # Primary objects
+# TODO continue here
 
 
 def person_to_text(obj: Person, db_handle: DbReadBase) -> tuple[str, str]:
     """Convert a person to text."""
-    person_name = f"[{name_to_text(obj.primary_name)}](/person/{obj.gramps_id})"
-    # FIXME primary name could be private
+    person_name = person_name_linked(obj)
     pronoun_poss = pronouns_poss[obj.gender]
     pronoun_pers = pronouns_pers[obj.gender]
-    string = PString(f"## Person: {person_name}\n")
+    string = PString("## Person: " + person_name + "\n")
     string += (
-        f"This document contains information about the person {person_name}: "
+        "This document contains information about the person " + person_name + ": "
         f"{pronoun_poss} name, life dates, and the events {pronoun_pers} participated "
         "in, such as birth, death, occupation, education, religious events, "
         "and others. "
@@ -346,9 +399,17 @@ def person_to_text(obj: Person, db_handle: DbReadBase) -> tuple[str, str]:
             f"(/person/{ref_person.gramps_id})"
         )
         string += PString(
-            f" {person_name} {rel_string} {name_ref}.", private=person_ref.private
+            " " + person_name + f" {rel_string} {name_ref}. ",
+            private=person_ref.private,
         )
-    # media, address, attribute, URL, citation, note, tags
+    if obj.tag_list:
+        string += pwrap(
+            person_name + " has the following tags in the database: ",
+            tags_to_text(obj.tag_list, db_handle),
+            ". ",
+        )
+    # not included:
+    # media, address, attribute, URL, citation, note
     # eventref citations, notes, attributes
     if obj.private:
         return "", string.string_all
@@ -419,34 +480,18 @@ def family_to_text(obj: Family, db_handle: DbReadBase) -> tuple[str, str]:
             if string_child:
                 child_strings.append(string_child)
         string += pjoin(", ", child_strings)
-    # TODO media, attribute, citation, note, tags
+    # not included:
+    # media, attribute, citation, note
     # childref citation, note, gender
+    if obj.tag_list:
+        string += pwrap(
+            "The family has the following tags in the database: ",
+            tags_to_text(obj.tag_list, db_handle),
+            ". ",
+        )
     if obj.private:
         return "", string.string_all
     return string.string_public, string.string_all
-
-
-def get_family_title(obj: Family, db_handle: DbReadBase) -> PString:
-    """Get a title for a family."""
-    if obj.father_handle:
-        person = db_handle.get_person_from_handle(obj.father_handle)
-        private = person.private or person.primary_name.private
-        father_name = PString(
-            name_to_text(person.primary_name),
-            private=private,
-        )
-        if private:
-            father_name += PString("unknown father", public_only=True)
-    if obj.mother_handle:
-        person = db_handle.get_person_from_handle(obj.mother_handle)
-        private = person.private or person.primary_name.private
-        mother_name = PString(
-            name_to_text(person.primary_name),
-            private=private,
-        )
-        if private:
-            mother_name += PString("unknown mother", public_only=True)
-    return father_name + " and " + mother_name
 
 
 def event_to_text(obj: Event, db_handle: DbReadBase) -> tuple[str, str]:
@@ -464,7 +509,7 @@ def event_to_text(obj: Event, db_handle: DbReadBase) -> tuple[str, str]:
         place = db_handle.get_place_from_handle(obj.place)
         place_string = place_to_line(place, db_handle)
         string += PString(
-            "The event location was " + place_string + "\n", private=place.private
+            "The event location was " + place_string + ". ", private=place.private
         )
     if obj.description:
         string += f'The event description is as follows: "{obj.description}". '
@@ -529,7 +574,14 @@ def event_to_text(obj: Event, db_handle: DbReadBase) -> tuple[str, str]:
             pjoin(", ", roles["Family"]),
             ". ",
         )
-    # TODO citation, media, note, attribute, tags
+    # not included:
+    # citation, media, note, attribute
+    if obj.tag_list:
+        string += pwrap(
+            "The event has the following tags in the database: ",
+            tags_to_text(obj.tag_list, db_handle),
+            ". ",
+        )
     if obj.private:
         return "", string.string_all
     return string.string_public, string.string_all
@@ -566,7 +618,14 @@ def place_to_text(obj: Place, db_handle: DbReadBase) -> tuple[str, str]:
         string += f"{title} is part of "
         string += pjoin(", ", [name for name, _ in parent_list[1:]])
         string += ". "
-    # TODO urls, media, citations, notes, tags
+    # not included:
+    # urls, media, citations, notes
+    if obj.tag_list:
+        string += pwrap(
+            "The place " + title + " has the following tags in the database: ",
+            tags_to_text(obj.tag_list, db_handle),
+            ". ",
+        )
     if obj.private:
         return "", string.string_all
     return string.string_public, string.string_all
@@ -593,7 +652,14 @@ def citation_to_text(obj: Citation, db_handle: DbReadBase) -> tuple[str, str]:
         string += f"It cites page/volume: {obj.page}. "
     if obj.date and not obj.date.is_empty():
         string += f"The citation's date is {date_to_text(obj.date)}. "
-    # TODO note, media, attribute, tags
+    # not included:
+    # note, media, attribute
+    if obj.tag_list:
+        string += pwrap(
+            "The citation has the following tags in the database: ",
+            tags_to_text(obj.tag_list, db_handle),
+            ". ",
+        )
     if obj.private:
         return "", string.string_all
     return string.string_public, string.string_all
@@ -610,7 +676,13 @@ def source_to_text(obj: Source, db_handle: DbReadBase) -> tuple[str, str]:
     if obj.abbrev:
         string += f"The source is abbreviated as {obj.abbrev}. "
     # TODO reporef
-    # notes, media, attributes, tags
+    # notes, media, attributes
+    if obj.tag_list:
+        string += pwrap(
+            "The source has the following tags in the database: ",
+            tags_to_text(obj.tag_list, db_handle),
+            ". ",
+        )
     if obj.private:
         return "", string.string_all
     return string.string_public, string.string_all
@@ -648,6 +720,12 @@ def repository_to_text(obj: Repository, db_handle: DbReadBase) -> tuple[str, str
             pjoin(", ", sources),
             ". ",
         )
+    if obj.tag_list:
+        string += pwrap(
+            f"The repository {title} has the following tags in the database: ",
+            tags_to_text(obj.tag_list, db_handle),
+            ". ",
+        )
     if obj.private:
         return "", string.string_all
     return string.string_public, string.string_all
@@ -664,9 +742,15 @@ def note_to_text(obj: Note, db_handle: DbReadBase) -> tuple[str, str]:
         string += f"It is a note of type {obj.type.xml_str()}. "
     string += "Contents:\n"
     string += re.sub(r"\n+", "\n", obj.text.string)
-    # TODO: tags
+    # not included: tags
     if obj.private:
         return "", string.string_all
+    if obj.tag_list:
+        string += pwrap(
+            "The note has the following tags in the database: ",
+            tags_to_text(obj.tag_list, db_handle),
+            ". ",
+        )
     return string.string_public, string.string_all
 
 
@@ -685,7 +769,14 @@ def media_to_text(obj: Media, db_handle: DbReadBase) -> tuple[str, str]:
         string += f"The date of the media object is {date_to_text(obj.date)}. "
     if obj.path:
         string += f"The media object's path is {obj.path}. "
+    # not included:
     # citations, attributes, notes, tags
     if obj.private:
         return "", string.string_all
+    if obj.tag_list:
+        string += pwrap(
+            "The media object has the following tags in the database: ",
+            tags_to_text(obj.tag_list, db_handle),
+            ". ",
+        )
     return string.string_public, string.string_all
