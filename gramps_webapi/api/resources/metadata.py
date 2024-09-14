@@ -76,6 +76,8 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
 
         is_multi_tree = current_app.config["TREE"] == TREE_MULTI
         has_task_queue = bool(current_app.config["CELERY_CONFIG"])
+        has_semantic_search = bool(current_app.config["VECTOR_EMBEDDING_MODEL"])
+        has_chat = has_semantic_search and bool(current_app.config["LLM_MODEL"])
 
         try:
             pytesseract.get_tesseract_version()
@@ -146,6 +148,8 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 "task_queue": has_task_queue,
                 "ocr": has_ocr,
                 "ocr_languages": ocr_languages,
+                "semantic_search": has_semantic_search,
+                "chat": has_chat,
             },
         }
         if args["surnames"]:
