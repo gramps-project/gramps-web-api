@@ -120,6 +120,8 @@ def answer_prompt_retrieve(
         search_results = retrieve(
             prompt=prompt, tree=tree, include_private=include_private, num_results=20
         )
+        if not search_results:
+            abort_with_message("Unexpected problem while retrieving context")
 
         context = ""
         max_length = current_app.config["LLM_MAX_CONTEXT_LENGTH"]
