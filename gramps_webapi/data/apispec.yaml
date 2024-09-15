@@ -10019,7 +10019,7 @@ definitions:
             description: "Indicates whether the server is using a task queue for long running operations."
             type: boolean
             example: false
-          has_ocr:
+          ocr:
             description: "Indicates whether the server supports text recognition (OCR)."
             type: boolean
             example: false
@@ -10031,6 +10031,14 @@ definitions:
             example:
               - eng
               - deu
+          semantic_search:
+            description: "Indicates whether the server supports semantic search."
+            type: boolean
+            example: false
+          chat:
+            description: "Indicates whether the server supports AI chat."
+            type: boolean
+            example: false
 
       surnames:
         description: "A list of all surnames found in the database."
