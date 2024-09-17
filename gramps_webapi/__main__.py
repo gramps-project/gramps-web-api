@@ -25,6 +25,7 @@ import logging
 import os
 import subprocess
 import sys
+import time
 import warnings
 
 import click
@@ -165,13 +166,14 @@ def index_full(ctx):
     indexer = ctx.obj["search_indexer"]
     db = db_manager.get_db().db
 
+    t0 = time.time()
     try:
         indexer.reindex_full(db, progress_cb=progress_callback_count)
     except:
         LOG.exception("Error during indexing")
     finally:
         db.close()
-    LOG.info("Done building search index.")
+    LOG.info(f"Done building search index in {time.time() - t0:.0f} seconds.")
 
 
 @search.command("index-incremental")
