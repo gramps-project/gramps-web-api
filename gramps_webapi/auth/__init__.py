@@ -239,7 +239,7 @@ def get_permissions(username: str, tree: str) -> Set[str]:
     """Get the permissions of a given user."""
     query = user_db.session.query(User)  # pylint: disable=no-member
     user = query.filter_by(name=username).one()
-    permissions = PERMISSIONS[user.role]
+    permissions = PERMISSIONS[user.role].copy()
     # check & add chat permissions
     query = user_db.session.query(Tree)  # pylint: disable=no-member
     tree_obj = query.filter_by(id=tree).scalar()
