@@ -118,7 +118,7 @@ def _search_reindex_full(
 
 
 def progress_callback_count(self, title: str = "", message: str = "") -> Callable:
-    def callback(current: int, total: int) -> None:
+    def callback(current: int, total: int, prev: int | None = None) -> None:
         if total == 0:
             return
         self.update_state(
