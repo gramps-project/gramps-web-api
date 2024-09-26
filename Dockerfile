@@ -75,7 +75,7 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-
 # download and cache sentence transformer model
 RUN python3 -c "\
 from sentence_transformers import SentenceTransformer; \
-model = SentenceTransformer('intfloat/multilingual-e5-small')"
+model = SentenceTransformer('sentence-transformers/distiluse-base-multilingual-cased-v2')"
 
 EXPOSE 5000
 
