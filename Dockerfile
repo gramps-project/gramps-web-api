@@ -65,7 +65,6 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-
 
 # install PyTorch - CPU only
 RUN python3 -m pip install --break-system-packages --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
-    --extra-index-url https://www.piwheels.org/simple \
     torch
 
 # copy package source and install
