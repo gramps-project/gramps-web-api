@@ -6199,7 +6199,7 @@ paths:
         type: string
         description: >
           An optional JSON object with a history of chat messages.
-          It should be an array of objects that have two string properties: `role` being one of `human` or `ai`, and `m̀essage` being the message content.
+          It should be an array of objects that have two string properties: `role` being one of `human` or `ai`, and `message` being the message content.
         example: "[{\"role\":\"human\",\"message\":\"Hello AI!\"},{\"role\":\"ai\",\"message\":\"Hello Human!\"}]"
       responses:
         200:
