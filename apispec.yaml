@@ -1,7 +1,7 @@
 swagger: "2.0"
 info:
   title: "Gramps Web API"
-  version: "2.4.2"
+  version: "2.5.0"
   description: >
     The Gramps Web API is a REST API that provides access to family tree databases generated and maintained with Gramps, a popular Open Source genealogical research software package.
 
@@ -70,6 +70,8 @@ tags:
   description: Work with timelines.
 - name: search
   description: Work with search engine.
+- name: chat
+  description: Work with AI chat.
 - name: reports
   description: Work with reports.
 - name: facts
@@ -6117,6 +6119,12 @@ paths:
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns event list with name, date and location
             families | Returns family information with parents, children, and key relationship between parents
+      - name: semantic
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether semantic search should be used rather than full-text search (the default)."
       responses:
         200:
           description: "OK: Successful operation."
@@ -6144,6 +6152,12 @@ paths:
         type: boolean
         default: false
         description: "Perform a full or incremental (default) reindex."
+      - name: semantic
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether the semantic search index should be updated rather than full-text search index (the default)."
       responses:
         201:
           description: "OK: Successful operation."
@@ -6161,6 +6175,43 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+##############################################################################
+# Endpoint - Chat
+##############################################################################
+
+  /chat:
+    get:
+      tags:
+      - chat
+      summary: "Answer a chat prompt."
+      operationId: completeChat
+      security:
+        - Bearer: []
+      parameters:
+      - name: query
+        in: query
+        required: true
+        type: string
+        description: "The query prompt."
+      - name: history
+        in: query
+        required: false
+        type: string
+        description: >
+          An optional JSON object with a history of chat messages.
+          It should be an array of objects that have two string properties: `role` being one of `human` or `ai`, and `m̀essage` being the message content.
+        example: "[{\"role\":\"human\",\"message\":\"Hello AI!\"},{\"role\":\"ai\",\"message\":\"Hello Human!\"}]"
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/ChatResponse"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        403:
+          description: "Unauthorized: insufficient permissions."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 ##############################################################################
 # Endpoint - Reports
@@ -7097,13 +7148,18 @@ paths:
       - name: quota_media
         in: body
         type: integer
-        required: true
+        required: false
         description: "The maxium size of media objects."
       - name: quota_people
         in: body
         type: integer
-        required: true
+        required: false
         description: "The maxium number of people."
+      - name: min_role_ai
+        in: body
+        type: integer
+        required: false
+        description: "The minimum user role required to use the chat endpoint."
       tags:
       - trees
       summary: "Create a new empty tree."
@@ -7117,6 +7173,8 @@ paths:
             $ref: "#/definitions/Tree"
         401:
           description: "Unauthorized: Missing authorization header."
+        403:
+          description: "Unauthorized: insufficient permissions."
         404:
           description: "Not found: tree does not exist."
         422:
@@ -9961,7 +10019,7 @@ definitions:
             description: "Indicates whether the server is using a task queue for long running operations."
             type: boolean
             example: false
-          has_ocr:
+          ocr:
             description: "Indicates whether the server supports text recognition (OCR)."
             type: boolean
             example: false
@@ -9973,6 +10031,14 @@ definitions:
             example:
               - eng
               - deu
+          semantic_search:
+            description: "Indicates whether the server supports semantic search."
+            type: boolean
+            example: false
+          chat:
+            description: "Indicates whether the server supports AI chat."
+            type: boolean
+            example: false
 
       surnames:
         description: "A list of all surnames found in the database."
@@ -10533,6 +10599,17 @@ definitions:
         example: 5.522300827719273
 
 ##############################################################################
+# Model - ChatResponse
+##############################################################################
+
+  ChatResponse:
+    type: object
+    properties:
+      response:
+        type: string
+        example: "I don't know."
+
+##############################################################################
 # Model - Living
 ##############################################################################
 
@@ -10846,3 +10923,7 @@ definitions:
         description: "Whether the tree is enabled."
         type: boolean
         example: true
+      min_role_ai:
+        description: "The minimum user role required to use the chat endpoint."
+        type: integer
+        example: 5
