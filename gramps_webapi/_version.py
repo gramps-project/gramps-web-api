@@ -17,4 +17,5 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 
-__version__ = "2.4.2"
+# make sure to match this version with the one in apispec.yaml
+__version__ = "2.5.0"

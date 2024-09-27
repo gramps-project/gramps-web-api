@@ -50,7 +50,9 @@ class TestSearchEngine(unittest.TestCase):
         cls.client = get_test_client()
         cls.index_dir = tempfile.mkdtemp()
         cls.dbmgr = WebDbManager(name="example_gramps", create_if_missing=False)
-        cls.search = SearchIndexer(cls.index_dir)
+        tree = cls.dbmgr.dirname
+        db_url = f"sqlite:///{cls.index_dir}/search_index.db"
+        cls.search = SearchIndexer(tree, db_url)
         db = cls.dbmgr.get_db().db
         cls.search.reindex_full(db)
         db.close()

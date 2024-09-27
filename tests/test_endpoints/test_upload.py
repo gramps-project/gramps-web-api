@@ -33,7 +33,7 @@ from gramps.gen.dbstate import DbState
 from PIL import Image
 
 from gramps_webapi.app import create_app
-from gramps_webapi.auth import add_user, set_tree_quota, user_db
+from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER, ROLE_ADMIN
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 

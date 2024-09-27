@@ -18,6 +18,8 @@
 
 """Execute tasks."""
 
+from __future__ import annotations
+
 import os
 import uuid
 from gettext import gettext as _
@@ -104,10 +106,10 @@ def send_email_new_user(
 
 
 def _search_reindex_full(
-    tree: str, user_id: str, progress_cb: Optional[Callable] = None
+    tree: str, user_id: str, semantic: bool, progress_cb: Optional[Callable] = None
 ) -> None:
     """Rebuild the search index."""
-    indexer = get_search_indexer(tree)
+    indexer = get_search_indexer(tree, semantic=semantic)
     db = get_db_outside_request(
         tree=tree, view_private=True, readonly=True, user_id=user_id
     )
@@ -118,7 +120,7 @@ def _search_reindex_full(
 
 
 def progress_callback_count(self, title: str = "", message: str = "") -> Callable:
-    def callback(current: int, total: int) -> None:
+    def callback(current: int, total: int, prev: int | None = None) -> None:
         if total == 0:
             return
         self.update_state(
@@ -136,20 +138,21 @@ def progress_callback_count(self, title: str = "", message: str = "") -> Callabl
 
 
 @shared_task(bind=True)
-def search_reindex_full(self, tree: str, user_id: str) -> None:
+def search_reindex_full(self, tree: str, user_id: str, semantic: bool) -> None:
     """Rebuild the search index."""
     return _search_reindex_full(
         tree=tree,
         user_id=user_id,
+        semantic=semantic,
         progress_cb=progress_callback_count(self, title="Updating search index..."),
     )
 
 
 def _search_reindex_incremental(
-    tree: str, user_id: str, progress_cb: Optional[Callable] = None
+    tree: str, user_id: str, semantic: bool, progress_cb: Optional[Callable] = None
 ) -> None:
     """Run an incremental reindex of the search index."""
-    indexer = get_search_indexer(tree)
+    indexer = get_search_indexer(tree, semantic=semantic)
     db = get_db_outside_request(
         tree=tree, view_private=True, readonly=True, user_id=user_id
     )
@@ -160,11 +163,12 @@ def _search_reindex_incremental(
 
 
 @shared_task(bind=True)
-def search_reindex_incremental(self, tree: str, user_id: str) -> None:
+def search_reindex_incremental(self, tree: str, user_id: str, semantic: bool) -> None:
     """Run an incremental reindex of the search index."""
     return _search_reindex_incremental(
         tree=tree,
         user_id=user_id,
+        semantic=semantic,
         progress_cb=progress_callback_count(self, title="Updating search index..."),
     )
 
@@ -195,8 +199,20 @@ def import_file(
     _search_reindex_incremental(
         tree=tree,
         user_id=user_id,
-        progress_cb=progress_callback_count(self, title="Updating search index..."),
+        semantic=False,
+        progress_cb=progress_callback_count(
+            self, title="Updating full-text search index..."
+        ),
     )
+    if current_app.config.get("VECTOR_EMBEDDING_MODEL"):
+        _search_reindex_incremental(
+            tree=tree,
+            user_id=user_id,
+            semantic=True,
+            progress_cb=progress_callback_count(
+                self, title="Updating semantic search index..."
+            ),
+        )
 
 
 @shared_task(bind=True)
@@ -367,5 +383,17 @@ def delete_objects(
     _search_reindex_incremental(
         tree=tree,
         user_id=user_id,
-        progress_cb=progress_callback_count(self, title="Updating search index..."),
+        semantic=False,
+        progress_cb=progress_callback_count(
+            self, title="Updating full-text search index..."
+        ),
     )
+    if current_app.config.get("VECTOR_EMBEDDING_MODEL"):
+        _search_reindex_incremental(
+            tree=tree,
+            user_id=user_id,
+            semantic=True,
+            progress_cb=progress_callback_count(
+                self, title="Updating semantic search index..."
+            ),
+        )

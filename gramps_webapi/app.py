@@ -33,7 +33,7 @@ from gramps.gen.config import config as gramps_config
 from .api import api_blueprint
 from .api.cache import thumbnail_cache
 from .api.ratelimiter import limiter
-from .api.search import SearchIndexer
+from .api.search.embeddings import load_model
 from .auth import user_db
 from .config import DefaultConfig, DefaultConfigJWT
 from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI
@@ -102,6 +102,9 @@ def create_app(config: Optional[Dict[str, Any]] = None):
     for option in required_options:
         if not app.config.get(option):
             raise ValueError(f"{option} must be specified")
+
+    if app.config.get("LOG_LEVEL"):
+        app.logger.setLevel(app.config["LOG_LEVEL"])
 
     if app.config["TREE"] != TREE_MULTI:
         # create database if missing (only in single-tree mode)
@@ -186,5 +189,8 @@ def create_app(config: Optional[Dict[str, Any]] = None):
         if exception:
             user_db.session.rollback()  # pylint: disable=no-member
         user_db.session.remove()  # pylint: disable=no-member
+
+    if app.config.get("VECTOR_EMBEDDING_MODEL"):
+        load_model(app.config["VECTOR_EMBEDDING_MODEL"])
 
     return app

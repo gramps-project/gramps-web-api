@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020-2022      David Straub
+# Copyright (C) 2020-2024      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -21,6 +21,7 @@
 
 import hashlib
 import io
+import logging
 import json
 import os
 import smtplib
@@ -31,7 +32,16 @@ from http import HTTPStatus
 from typing import BinaryIO, List, Optional, Sequence, Tuple
 
 from celery import Task
-from flask import Response, abort, current_app, g, jsonify, make_response, request
+from flask import (
+    Response,
+    abort,
+    current_app,
+    g,
+    has_app_context,
+    jsonify,
+    make_response,
+    request,
+)
 from flask_jwt_extended import get_jwt, get_jwt_identity
 from gramps.cli.clidbman import NAME_FILE, CLIDbManager
 from gramps.gen.config import config
@@ -630,13 +640,42 @@ def check_quota_people(
     usage_dict = get_tree_usage(tree)
     if not usage_dict or usage_dict.get("usage_people") is None:
         update_usage_people(tree=tree, user_id=user_id)
-    usage_dict = get_tree_usage(tree)
+        usage_dict = get_tree_usage(tree)
     usage = usage_dict["usage_people"]
     quota = usage_dict.get("quota_people")
     if quota is None:
         return
     if usage + to_add > quota:
         abort_with_message(405, "Not allowed by people quota")
+
+
+def update_usage_ai(new: int, tree: Optional[str] = None) -> int:
+    """Update the usage of AI by adding `new` units to the usage."""
+    if not tree:
+        tree = get_tree_from_jwt()
+    usage_dict = get_tree_usage(tree)
+    if not usage_dict:
+        old_usage = 0
+    else:
+        old_usage = usage_dict.get("usage_ai") or 0
+    new_usage = old_usage + new
+    set_tree_usage(tree, usage_ai=new_usage)
+    return new_usage
+
+
+def check_quota_ai(requested: int, tree: Optional[str] = None) -> None:
+    """Check whether the AI quota allows consuming another `requested` units."""
+    if not tree:
+        tree = get_tree_from_jwt()
+    usage_dict = get_tree_usage(tree)
+    if not usage_dict:
+        return
+    usage = usage_dict.get("usage_ai") or 0
+    quota = usage_dict.get("quota_ai")
+    if quota is None:
+        return
+    if usage + requested > quota:
+        abort_with_message(405, "Not allowed by AI quota")
 
 
 def abort_with_message(status: int, message: str):
@@ -687,3 +726,16 @@ def get_object_timestamps(db_handle: DbReadBase):
             obj = query_method(handle)
             d[class_name].add((handle, obj.change))
     return d
+
+
+def get_logger() -> logging.Logger:
+    """Get an appropriate logger instance."""
+    if has_app_context() and current_app.logger:
+        return current_app.logger
+    else:
+        # Fallback to a standard logger
+        logger = logging.getLogger(__name__)
+        if not logger.hasHandlers():
+            # If the logger is not configured yet, set up basic configuration
+            logging.basicConfig(level=logging.INFO)
+        return logger

@@ -44,7 +44,13 @@ from ..util import (
     use_args,
 )
 from . import FreshProtectedResource, ProtectedResource
-from .util import add_object, fix_object_dict, transaction_to_json, validate_object_dict
+from .util import (
+    add_object,
+    app_has_semantic_search,
+    fix_object_dict,
+    transaction_to_json,
+    validate_object_dict,
+)
 
 
 class CreateObjectsResource(ProtectedResource):
@@ -96,6 +102,12 @@ class CreateObjectsResource(ProtectedResource):
             handle = _trans_dict["handle"]
             class_name = _trans_dict["_class"]
             indexer.add_or_update_object(handle, db_handle, class_name)
+        if app_has_semantic_search():
+            indexer: SearchIndexer = get_search_indexer(tree, semantic=True)
+            for _trans_dict in trans_dict:
+                handle = _trans_dict["handle"]
+                class_name = _trans_dict["_class"]
+                indexer.add_or_update_object(handle, db_handle, class_name)
         res = Response(
             response=json.dumps(trans_dict),
             status=201,

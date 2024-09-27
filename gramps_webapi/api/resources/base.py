@@ -56,6 +56,7 @@ from .sort import sort_objects
 from .util import (
     abort_with_message,
     add_object,
+    app_has_semantic_search,
     filter_missing_files,
     fix_object_dict,
     get_backlinks,
@@ -294,6 +295,12 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             handle = _trans_dict["handle"]
             class_name = _trans_dict["_class"]
             indexer.add_or_update_object(handle, db_handle, class_name)
+        if app_has_semantic_search():
+            indexer: SearchIndexer = get_search_indexer(tree, semantic=True)
+            for _trans_dict in trans_dict:
+                handle = _trans_dict["handle"]
+                class_name = _trans_dict["_class"]
+                indexer.add_or_update_object(handle, db_handle, class_name)
         return self.response(200, trans_dict, total_items=len(trans_dict))
 
 
@@ -471,6 +478,12 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             handle = _trans_dict["handle"]
             class_name = _trans_dict["_class"]
             indexer.add_or_update_object(handle, db_handle, class_name)
+        if app_has_semantic_search():
+            indexer: SearchIndexer = get_search_indexer(tree, semantic=True)
+            for _trans_dict in trans_dict:
+                handle = _trans_dict["handle"]
+                class_name = _trans_dict["_class"]
+                indexer.add_or_update_object(handle, db_handle, class_name)
         return self.response(201, trans_dict, total_items=len(trans_dict))
 
 

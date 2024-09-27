@@ -63,10 +63,19 @@ RUN wget https://github.com/gramps-project/addons/archive/refs/heads/master.zip 
 RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
     gunicorn
 
+# install PyTorch - CPU only
+RUN python3 -m pip install --break-system-packages --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
+    torch
+
 # copy package source and install
 COPY . /app/src
 RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
-    /app/src
+    /app/src[ai]
+
+# download and cache sentence transformer model
+RUN python3 -c "\
+from sentence_transformers import SentenceTransformer; \
+model = SentenceTransformer('sentence-transformers/distiluse-base-multilingual-cased-v2')"
 
 EXPOSE 5000
 

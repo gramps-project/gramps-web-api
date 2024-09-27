@@ -1255,3 +1255,8 @@ def dry_run_import(
         "notes": db_handle.get_number_of_notes(),
         "tags": db_handle.get_number_of_tags(),
     }
+
+
+def app_has_semantic_search() -> bool:
+    """Indicate whether the app supports semantic search."""
+    return bool(current_app.config.get("VECTOR_EMBEDDING_MODEL"))
