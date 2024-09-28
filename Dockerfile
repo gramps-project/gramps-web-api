@@ -20,7 +20,8 @@ RUN apt-get update && apt-get install -y \
   libpq-dev postgresql-client postgresql-client-common python3-psycopg2 \
   libgl1-mesa-dev libgtk2.0-dev libatlas-base-dev \
   libopencv-dev python3-opencv \
-  tesseract-ocr tesseract-ocr-all \
+  tesseract-ocr tesseract-ocr-all
+  libopenblas-dev \
   && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8 \
   && rm -rf /var/lib/apt/lists/*
 
