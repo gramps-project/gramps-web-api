@@ -63,9 +63,16 @@ RUN wget https://github.com/gramps-project/addons/archive/refs/heads/master.zip 
 RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
     gunicorn
 
-# install PyTorch - CPU only
-RUN python3 -m pip install --break-system-packages --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
-    torch
+# Install PyTorch based on architecture
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "armv7l" ]; then \
+        # Install the armv7l-specific PyTorch wheel
+        python3 -m pip install --break-system-packages --no-cache-dir \
+        https://github.com/maxisoft/pytorch-arm/releases/download/v1.0.0/torch-1.13.0a0+git7c98e70-cp311-cp311-linux_armv7l.whl; \
+    else \
+        # Install PyTorch from the official index for other architectures
+        python3 -m pip install --break-system-packages --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch; \
+    fi
 
 # copy package source and install
 COPY . /app/src
