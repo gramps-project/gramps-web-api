@@ -78,7 +78,7 @@ RUN ARCH=$(uname -m) && \
 # copy package source and install
 COPY . /app/src
 RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
-    scikit-learn==1.4.2 /app/src[ai]
+    scikit-learn==1.4.2 numpy==1.26.4 /app/src[ai]
 
 # download and cache sentence transformer model
 RUN python3 -c "\
