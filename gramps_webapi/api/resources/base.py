@@ -24,7 +24,7 @@ from abc import abstractmethod
 from typing import Dict, List
 
 import gramps_ql as gql
-import pythonish_ql as pql
+import object_ql as oql
 from flask import Response, abort, request
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import DbTxn
@@ -351,7 +351,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             ),
             "format_options": fields.Str(validate=validate.Length(min=1)),
             "gql": fields.Str(validate=validate.Length(min=1)),
-            "pql": fields.Str(validate=validate.Length(min=1)),
+            "oql": fields.Str(validate=validate.Length(min=1)),
             "gramps_id": fields.Str(validate=validate.Length(min=1)),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "locale": fields.Str(
@@ -432,12 +432,12 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             except (ParseBaseException, ValueError, TypeError) as e:
                 abort_with_message(422, str(e))
 
-        if "pql" in args:
+        if "oql" in args:
             try:
                 objects = [
                     obj
                     for obj in objects
-                    if pql.match(query=args["pql"], obj=obj, db=self.db_handle)
+                    if oql.match(query=args["oql"], obj=obj, db=self.db_handle)
                 ]
             except (ParseBaseException, ValueError, TypeError) as e:
                 abort_with_message(422, str(e))

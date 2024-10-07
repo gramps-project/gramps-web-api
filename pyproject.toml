@@ -39,7 +39,7 @@ dependencies = [
     "Unidecode",
     "pytesseract",
     "gramps-ql>=0.3.0",
-    "pythonish-ql>=0.0.5",
+    "object-ql>=0.1.0",
     "sifts>=0.8.3",
 ]
 
