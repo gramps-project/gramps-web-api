@@ -9964,9 +9964,17 @@ definitions:
         type: object
         properties:
           version:
-            description: "The version of the Gramps Gramps QL library."
+            description: "The version of the Gramps QL library."
             type: string
             example: "0.3.0"
+      pythonish_ql:
+        description: "Information about the installed Pythonish QL library."
+        type: object
+        properties:
+          version:
+            description: "The version of the Pythonish QL library."
+            type: string
+            example: "0.0.5"
       locale:
         description: "The active locale."
         type: object
