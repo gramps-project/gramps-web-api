@@ -9974,7 +9974,7 @@ definitions:
           version:
             description: "The version of the Object QL library."
             type: string
-            example: "0.1.0"
+            example: "0.1.1"
       locale:
         description: "The active locale."
         type: object
