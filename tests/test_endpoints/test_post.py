@@ -524,7 +524,7 @@ class TestObjectCreation(unittest.TestCase):
         handle = make_handle()
         headers = get_headers(self.client, "admin", "123")
         # not added yet: shouldn't find anything
-        rv = self.client.get("/api/search/?query={gramps_id}", headers=headers)
+        rv = self.client.get(f"/api/search/?query={gramps_id}", headers=headers)
         self.assertEqual(rv.status_code, 200)
         self.assertEqual(rv.json, [])
         obj = {
@@ -588,17 +588,13 @@ class TestObjectCreation(unittest.TestCase):
         rv = self.client.post("/api/objects/", json=objects, headers=headers)
         self.assertEqual(rv.status_code, 201)
         # now they should be there
-        rv = self.client.get(
-            f"/api/search/?query={gramps_id_person}", headers=headers
-        )
+        rv = self.client.get(f"/api/search/?query={gramps_id_person}", headers=headers)
         self.assertEqual(rv.status_code, 200)
         data = rv.json
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0]["handle"], handle_person)
         self.assertEqual(data[0]["object_type"], "person")
-        rv = self.client.get(
-            f"/api/search/?query={gramps_id_birth}", headers=headers
-        )
+        rv = self.client.get(f"/api/search/?query={gramps_id_birth}", headers=headers)
         self.assertEqual(rv.status_code, 200)
         data = rv.json
         self.assertEqual(len(data), 1)
