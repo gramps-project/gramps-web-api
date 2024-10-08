@@ -363,8 +363,11 @@ def update_usage_media(
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=True, user_id=user_id
     )
-    media_handler = get_media_handler(db_handle, tree=tree)
-    usage_media = media_handler.get_media_size(db_handle=db_handle)
+    try:
+        media_handler = get_media_handler(db_handle, tree=tree)
+        usage_media = media_handler.get_media_size(db_handle=db_handle)
+    finally:
+        db_handle.close()
     set_tree_usage(tree, usage_media=usage_media)
     return usage_media
 
