@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - hotfix-242
   pull_request:
 
 jobs:
