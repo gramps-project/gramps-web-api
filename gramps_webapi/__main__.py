@@ -28,7 +28,7 @@ import warnings
 import click
 
 from .api.search import get_search_indexer
-from .api.util import get_db_manager, list_trees
+from .api.util import get_db_manager, list_trees, close_db
 from .app import create_app
 from .auth import add_user, delete_user, fill_tree, user_db
 from .const import ENV_CONFIG_FILE, TREE_MULTI
@@ -155,13 +155,12 @@ def index_full(ctx):
     db_manager = ctx.obj["db_manager"]
     indexer = ctx.obj["search_indexer"]
     db = db_manager.get_db().db
-
     try:
         indexer.reindex_full(db, progress_cb=progress_callback_count)
     except:
         LOG.exception("Error during indexing")
     finally:
-        db.close()
+        close_db(db)
     LOG.info("Done building search index.")
 
 
@@ -178,7 +177,7 @@ def index_incremental(ctx):
     except Exception:
         LOG.exception("Error during indexing")
     finally:
-        db.close()
+        close_db(db)
     LOG.info("Done updating search index.")
 
 

@@ -54,6 +54,7 @@ from gramps.gen.db.exceptions import DbUpgradeRequiredError
 from gramps.gen.dbstate import DbState
 from gramps.gen.errors import HandleError
 from gramps.gen.proxy import PrivateProxyDb
+from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps.gen.proxy.private import sanitize_media
 from gramps.gen.user import UserBase
 from gramps.gen.utils.grampslocale import GrampsLocale
@@ -394,6 +395,15 @@ def get_db_outside_request(
     return dbstate.db
 
 
+def close_db(db_handle: DbReadBase) -> None:
+    """Close the connection to the database including the undo log."""
+    db_handle.close()
+    if isinstance(db_handle, ProxyDbBase):
+        db_handle.basedb.undodb.close()
+    else:
+        db_handle.undodb.close()
+
+
 def get_db_handle(readonly: bool = True) -> DbReadBase:
     """Open the database and get the current instance.
 
@@ -614,7 +624,7 @@ def update_usage_people(
     try:
         usage_people = db_handle.get_number_of_people()
     finally:
-        db_handle.close()
+        close_db(db_handle)
     set_tree_usage(tree, usage_people=usage_people)
     return usage_people
 

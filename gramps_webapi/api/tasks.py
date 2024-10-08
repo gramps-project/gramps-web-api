@@ -40,6 +40,7 @@ from .resources.util import dry_run_import, run_import
 from .search import get_search_indexer
 from .util import (
     check_quota_people,
+    close_db,
     get_config,
     get_db_outside_request,
     send_email,
@@ -114,7 +115,7 @@ def _search_reindex_full(
     try:
         indexer.reindex_full(db, progress_cb=progress_cb)
     finally:
-        db.close()
+        close_db(db)
 
 
 def progress_callback_count(self, title: str = "", message: str = "") -> Callable:
@@ -156,7 +157,7 @@ def _search_reindex_incremental(
     try:
         indexer.reindex_incremental(db, progress_cb=progress_cb)
     finally:
-        db.close()
+        close_db(db)
 
 
 @shared_task(bind=True)
@@ -190,7 +191,7 @@ def import_file(
             task=self,
         )
     finally:
-        db_handle.close()
+        close_db(db_handle)
     update_usage_people(tree=tree, user_id=user_id)
     _search_reindex_incremental(
         tree=tree,
@@ -213,7 +214,7 @@ def export_db(
             db_handle, extension, prepared_options, task=self
         )
     finally:
-        db_handle.close()
+        close_db(db_handle)
 
     extension = file_type.lstrip(".")
     return {
@@ -244,7 +245,7 @@ def generate_report(
             language=locale,
         )
     finally:
-        db_handle.close()
+        close_db(db_handle)
 
     return {
         "file_name": file_name,
@@ -274,7 +275,7 @@ def export_media(
             progress_cb=progress_callback_count(self),
         )
     finally:
-        db_handle.close()
+        close_db(db_handle)
 
     file_size = os.path.getsize(zip_filename)
     return {
@@ -302,7 +303,7 @@ def import_media_archive(
         )
         result = importer(progress_cb=progress_callback_count(self))
     finally:
-        db_handle.close()
+        close_db(db_handle)
     return result
 
 
@@ -325,7 +326,7 @@ def media_ocr(
         )
         return handler.get_ocr(lang=lang, output_format=output_format)
     finally:
-        db_handle.close()
+        close_db(db_handle)
 
 
 @shared_task(bind=True)
@@ -337,7 +338,7 @@ def check_repair_database(self, tree: str, user_id: str):
     try:
         return check_database(db_handle, progress_cb=progress_callback_count(self))
     finally:
-        db_handle.close()
+        close_db(db_handle)
 
 
 @shared_task(bind=True)
@@ -361,7 +362,7 @@ def delete_objects(
             progress_cb=progress_callback_count(self),
         )
     finally:
-        db_handle.close()
+        close_db(db_handle)
 
     update_usage_people(tree=tree, user_id=user_id)
     _search_reindex_incremental(
