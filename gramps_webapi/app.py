@@ -33,6 +33,7 @@ from gramps.gen.config import config as gramps_config
 from .api import api_blueprint
 from .api.cache import thumbnail_cache
 from .api.ratelimiter import limiter
+from .api.util import close_db
 from .auth import user_db
 from .config import DefaultConfig, DefaultConfigJWT
 from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI
