@@ -14,7 +14,7 @@ then
 fi
 
 # Create search index if not exists
-if [ -z "$(ls -A /app/indexdir/*.db)" ]
+if [ ! -f /app/indexdir/search_index.db ] && [ "${GRAMPSWEB_TREE}" != "*" ];
 then
     python3 -m gramps_webapi --config /app/config/config.cfg search index-full
 fi
