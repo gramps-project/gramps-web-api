@@ -224,7 +224,7 @@ class DbUndoSQL(DbUndo):
 
     def close(self) -> None:
         """Close the backing storage."""
-        pass
+        self.engine.dispose()
 
     def append(self, value) -> None:
         """Add a new entry on the end."""

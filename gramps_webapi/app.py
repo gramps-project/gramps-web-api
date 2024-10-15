@@ -34,6 +34,7 @@ from .api import api_blueprint
 from .api.cache import thumbnail_cache
 from .api.ratelimiter import limiter
 from .api.search.embeddings import load_model
+from .api.util import close_db
 from .auth import user_db
 from .config import DefaultConfig, DefaultConfigJWT
 from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI
@@ -171,23 +172,22 @@ def create_app(config: Optional[Dict[str, Any]] = None):
     # instantiate celery
     create_celery(app)
 
-    # close Gramps DB after every request
     @app.teardown_appcontext
-    def close_db(exception) -> None:
-        """Close the database."""
+    def close_db_connection(exception) -> None:
+        """Close the Gramps database after every request."""
         db = g.pop("db", None)
-        if db and db.is_open():
-            db.close()
+        if db:
+            close_db(db)
         db_write = g.pop("db_write", None)
-        if db_write and db_write.is_open():
-            db_write.close()
+        if db_write:
+            close_db(db_write)
 
-    # close user DB after every request
     @app.teardown_request
-    def close_user_db(exception) -> None:
-        """Close the user database."""
+    def close_user_db_connection(exception) -> None:
+        """Close the user database after every request."""
         if exception:
             user_db.session.rollback()  # pylint: disable=no-member
+        user_db.session.close()  # pylint: disable=no-member
         user_db.session.remove()  # pylint: disable=no-member
 
     if app.config.get("VECTOR_EMBEDDING_MODEL"):
