@@ -407,6 +407,39 @@ class TestPeople(unittest.TestCase):
         )
         assert len(rv) == 20
 
+    def test_get_people_parameter_oql_validate_semantics(self):
+        """Test invalid rules syntax."""
+        check_invalid_semantics(self, TEST_URL + "?oql=(")
+
+    def test_get_people_parameter_oql_handle(self):
+        """Test equal field."""
+        rv = check_success(
+            self,
+            TEST_URL + "?oql=" + quote("person.gramps_id == 'I0044'"),
+        )
+        assert len(rv) == 1
+        assert rv[0]["gramps_id"] == "I0044"
+
+    def test_get_people_parameter_oql_like(self):
+        """Test string in field."""
+        rv = check_success(
+            self,
+            TEST_URL + "?oql=" + quote("'I004' in person.gramps_id"),
+        )
+        assert len(rv) == 10
+
+    def test_get_people_parameter_oql_or(self):
+        """Test two expr combined with or."""
+        rv = check_success(
+            self,
+            TEST_URL
+            + "?oql="
+            + quote(
+                "(person.gramps_id.startswith('I004') or person.gramps_id.startswith('I003'))"
+            ),
+        )
+        assert len(rv) == 20
+
     def test_get_people_parameter_extend_validate_semantics(self):
         """Test invalid extend parameter and values."""
         check_invalid_semantics(self, TEST_URL + "?extend", check="list")
