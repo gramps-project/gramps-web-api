@@ -52,15 +52,15 @@ def email_confirm_email(base_url: str, token: str):
     """Confirm e-mail address e-mail text."""
     intro = (
         _(
-            "You are receiving this email because this e-mail address "
+            "You are receiving this message because this e-mail address "
             "was used to register a new account at %s."
         )
         % base_url
     )
     action = _(
         "Please click on the following link, or paste this into your browser "
-        "to confirm your email address. You will be able to log on once an "
-        "administrator reviews and approves your account."
+        "to confirm your email address. You will be able to log on once a "
+        "tree owner reviews and approves your account."
     )
 
     return f"""{intro}
