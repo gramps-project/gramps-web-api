@@ -9964,9 +9964,17 @@ definitions:
         type: object
         properties:
           version:
-            description: "The version of the Gramps Gramps QL library."
+            description: "The version of the Gramps QL library."
             type: string
             example: "0.3.0"
+      object_ql:
+        description: "Information about the installed Object QL library."
+        type: object
+        properties:
+          version:
+            description: "The version of the Object QL library."
+            type: string
+            example: "0.1.1"
       locale:
         description: "The active locale."
         type: object
