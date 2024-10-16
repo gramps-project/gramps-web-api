@@ -569,5 +569,8 @@ class UserConfirmEmailResource(LimitedScopeProtectedResource):
                 include_admins=not is_multi,
             )
         title = _("E-mail address confirmation")
-        message = _("Thank you for confirming your e-mail address.")
+        message = _(
+            "Thank you for confirming your e-mail address. "
+            "An administrator will review your account request."
+        )
         return render_template("confirmation.html", title=title, message=message)
