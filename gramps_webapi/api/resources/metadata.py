@@ -21,6 +21,7 @@
 """Metadata API resource."""
 
 import gramps_ql as gql
+import object_ql as oql
 import pytesseract
 import sifts
 from flask import Response, current_app
@@ -119,6 +120,7 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 "version": VERSION,
             },
             "gramps_ql": {"version": gql.__version__},
+            "object_ql": {"version": oql.__version__},
             "locale": {
                 "lang": GRAMPS_LOCALE.lang,
                 "language": GRAMPS_LOCALE.language[0],
