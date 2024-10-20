@@ -134,7 +134,15 @@ class SearchIndexerBase:
         self.index.delete_all()
         self.index_public.delete_all()
         obj_dicts = []
-        chunk_size = max(100, total // 10)
+        if self.use_semantic_text:
+            # semantic search indexing is slow and uses lots of memory, so we use
+            # a small chunk size: at most 100. If we have less than 1000 objects,
+            # use 1/10th as chunk size.
+            chunk_size = min(100, total // 10 + 1)
+        else:
+            # full-text search indexing is fast, so we use a large chunk size:
+            # at least 100 (but at most 10%).
+            chunk_size = max(100, total // 10)
         prev: int | None = None
         for i, obj_dict in enumerate(
             iter_obj_strings(db_handle, semantic=self.use_semantic_text)
