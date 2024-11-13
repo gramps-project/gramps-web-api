@@ -1,5 +1,7 @@
 """Functions for working with large language models (LLMs)."""
 
+from __future__ import annotations
+
 from flask import current_app
 from openai import OpenAI, RateLimitError, APIError
 
