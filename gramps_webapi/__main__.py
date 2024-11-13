@@ -19,8 +19,6 @@
 
 """Command line interface for the Gramps web API."""
 
-from __future__ import annotations
-
 import logging
 import os
 import subprocess

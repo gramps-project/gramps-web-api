@@ -18,8 +18,6 @@
 
 """Execute tasks."""
 
-from __future__ import annotations
-
 import os
 import uuid
 from gettext import gettext as _

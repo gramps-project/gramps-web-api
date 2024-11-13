@@ -19,8 +19,6 @@
 
 """Full-text search indexer."""
 
-from __future__ import annotations
-
 from typing import Any, Callable, Dict, List, Optional, Set
 
 import sifts
