@@ -2,7 +2,7 @@
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
 # Copyright (C) 2020      Christopher Horn
-# Copyright (C) 2023      David Straub
+# Copyright (C) 2023-24   David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -25,9 +25,9 @@ import object_ql as oql
 import pytesseract
 import sifts
 from flask import Response, current_app
-from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.const import ENV, GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
+from gramps.gen.db.utils import get_dbid_from_path
 from gramps.gen.dbstate import DbState
 from gramps.gen.utils.grampslocale import INCOMPLETE_TRANSLATIONS
 from webargs import fields
@@ -35,11 +35,23 @@ from webargs import fields
 from gramps_webapi.const import TREE_MULTI, VERSION
 
 from ...auth.const import PERM_VIEW_PRIVATE
+from ...dbmanager import WebDbManager
 from ..auth import has_permissions
 from ..search import get_search_indexer
 from ..util import get_db_handle, get_tree_from_jwt, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+
+
+def get_dbid_from_tree_id(tree_id: str) -> str:
+    """Get the database ID (e.g. 'sqlite') from a tree ID."""
+    dbmgr = WebDbManager(
+        dirname=tree_id,
+        create_if_missing=False,
+        ignore_lock=current_app.config["IGNORE_DB_LOCK"],
+    )
+    db_path = dbmgr.path
+    return get_dbid_from_path(db_path)
 
 
 class MetadataResource(ProtectedResource, GrampsJSONEncoder):
@@ -66,15 +78,8 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
 
         db_handle = self.db_handle
         db_name = db_handle.get_dbname()
-        db_type = "Unknown"
-        dbstate = DbState()
-        db_summary = CLIDbManager(dbstate).family_tree_summary(database_names=[db_name])
-        if len(db_summary) == 1:
-            db_key = GRAMPS_LOCALE.translation.sgettext("Database")
-            for key in db_summary[0]:
-                if key == db_key:
-                    db_type = db_summary[0][key]
-
+        tree_id = get_tree_from_jwt()
+        db_type = get_dbid_from_tree_id(tree_id)
         is_multi_tree = current_app.config["TREE"] == TREE_MULTI
         has_task_queue = bool(current_app.config["CELERY_CONFIG"])
         has_semantic_search = bool(current_app.config["VECTOR_EMBEDDING_MODEL"])
