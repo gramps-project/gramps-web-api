@@ -14,7 +14,7 @@ classifiers = [
     "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
     "Operating System :: OS Independent",
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dependencies = [
     "gramps-desktop[GUI,i18n]==5.2.*",
     "Click>=7.0",
