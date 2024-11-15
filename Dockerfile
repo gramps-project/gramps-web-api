@@ -19,7 +19,6 @@ RUN apt-get update && apt-get install -y \
   unzip \
   libpq-dev postgresql-client postgresql-client-common python3-psycopg2 \
   libgl1-mesa-dev libgtk2.0-dev libatlas-base-dev \
-  libopencv-dev python3-opencv \
   tesseract-ocr tesseract-ocr-all \
   libopenblas-dev \
   && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8 \
@@ -81,7 +80,7 @@ RUN ARCH=$(uname -m) && \
 # copy package source and install
 COPY . /app/src
 RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
-    scikit-learn==1.4.2 numpy==1.26.4 /app/src[ai]
+    opencv-python scikit-learn==1.4.2 numpy==1.26.4 /app/src[ai]
 
 # download and cache sentence transformer model
 RUN python3 -c "\
