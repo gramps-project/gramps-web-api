@@ -33,6 +33,9 @@ ENV LC_ALL en_US.utf8
 
 ENV GRAMPS_API_CONFIG=/app/config/config.cfg
 
+# limit pytorch to 1 thread
+ENV OMP_NUM_THREADS=1
+
 # create directories
 RUN mkdir /app/src &&  mkdir /app/config && touch /app/config/config.cfg
 RUN mkdir /app/static && touch /app/static/index.html
