@@ -1,7 +1,5 @@
 """Functions to compute vector embeddings."""
 
-from __future__ import annotations
-
 from ..util import get_logger
 
 

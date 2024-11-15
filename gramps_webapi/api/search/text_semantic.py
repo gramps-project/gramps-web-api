@@ -1,6 +1,7 @@
 """Object to text conversion for semantic search."""
 
 from __future__ import annotations
+
 import re
 from typing import Sequence
 

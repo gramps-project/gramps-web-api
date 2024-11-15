@@ -42,6 +42,7 @@ class TestMetadata(unittest.TestCase):
     def test_get_metadata_conforms_to_schema(self):
         """Test conforms to schema."""
         res = check_conforms_to_schema(self, TEST_URL, "Metadata")
+        assert res["database"]["type"] == "sqlite"
         assert "search" in res
         assert "sifts" in res["search"]
         assert "version" in res["search"]["sifts"]

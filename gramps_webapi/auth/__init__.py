@@ -19,8 +19,6 @@
 
 """Define methods of providing authentication for users."""
 
-from __future__ import annotations
-
 import secrets
 import uuid
 from typing import Any, Dict, List, Optional, Sequence, Set, Union

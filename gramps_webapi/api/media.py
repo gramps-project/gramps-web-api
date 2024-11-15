@@ -46,13 +46,6 @@ from .util import (
 PREFIX_S3 = "s3://"
 
 
-def removeprefix(string: str, prefix: str, /) -> str:
-    """Remove prefix from a string; see PEP 616."""
-    if string.startswith(prefix):
-        return string[len(prefix) :]
-    return string[:]
-
-
 class MediaHandlerBase:
     """Generic handler for media files."""
 
@@ -218,12 +211,12 @@ class MediaHandlerS3(MediaHandlerBase):
     @property
     def bucket_name(self) -> str:
         """Get the bucket name."""
-        return removeprefix(self.base_dir, PREFIX_S3).split("/")[0]
+        return self.base_dir.removeprefix(PREFIX_S3).split("/")[0]
 
     @property
     def prefix(self) -> Optional[str]:
         """Get the prefix."""
-        splitted = removeprefix(self.base_dir, PREFIX_S3).split("/", 1)
+        splitted = self.base_dir.removeprefix(PREFIX_S3).split("/", 1)
         if len(splitted) < 2:
             return None
         return splitted[1].rstrip("/")
@@ -233,7 +226,7 @@ class MediaHandlerS3(MediaHandlerBase):
         keys = get_object_keys_size(
             self.bucket_name, prefix=self.prefix, endpoint_url=self.endpoint_url
         )
-        return set(removeprefix(key, self.prefix or "").lstrip("/") for key in keys)
+        return set(key.removeprefix(self.prefix or "").lstrip("/") for key in keys)
 
     def get_file_handler(
         self, handle, db_handle: DbReadBase
@@ -286,7 +279,7 @@ class MediaHandlerS3(MediaHandlerBase):
         # remove prefix if needed
         if self.prefix:
             keys_size = {
-                removeprefix(key, self.prefix).lstrip("/"): size
+                key.removeprefix(self.prefix).lstrip("/"): size
                 for key, size in keys_size.items()
             }
         return sum(keys_size.get(key, 0) for key in keys)
