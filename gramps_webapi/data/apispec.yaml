@@ -9930,7 +9930,7 @@ definitions:
           type:
             description: "The database type."
             type: string
-            example: "SQLite"
+            example: "sqlite"
           version:
             description: "The database version."
             type: string
