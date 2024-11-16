@@ -88,9 +88,8 @@ RUN ARCH=$(uname -m) && \
 # download and cache sentence transformer model
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" != "armv7l" ]; then \
-        python3 -c "\
-        from sentence_transformers import SentenceTransformer; \
-        model = SentenceTransformer('sentence-transformers/distiluse-base-multilingual-cased-v2')"; \
+        python3 -c "from sentence_transformers import SentenceTransformer; \
+model = SentenceTransformer('sentence-transformers/distiluse-base-multilingual-cased-v2')"; \
     fi
 
 EXPOSE 5000
