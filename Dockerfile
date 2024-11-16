@@ -79,10 +79,10 @@ RUN ARCH=$(uname -m) && \
 COPY . /app/src
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "armv7l" ]; then \
-        python3 -m pip install --break-system-packages --no-cache-dir /app/src; \
+        python3 -m pip install --break-system-packages --no-cache-dir numpy /app/src; \
     else \
         python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
-        /app/src[ai]; \
+        numpy /app/src[ai]; \
     fi
 
 # download and cache sentence transformer model
