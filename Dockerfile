@@ -68,19 +68,17 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-
 
 # Install PyTorch based on architecture
 RUN ARCH=$(uname -m) && \
-    if [ "$ARCH" = "armv7l" ]; then \
-        # Install the armv7l-specific PyTorch wheel
-        python3 -m pip install --break-system-packages --no-cache-dir \
-        https://github.com/maxisoft/pytorch-arm/releases/download/v1.0.0/torch-1.13.0a0+git7c98e70-cp311-cp311-linux_armv7l.whl; \
-    else \
-        # Install PyTorch from the official index for other architectures
+    if [ "$ARCH" != "armv7l" ]; then \
+        # PyTorch and opencv not supported on armv7l
         python3 -m pip install --break-system-packages --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch; \
+        python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
+        opencv-python opencv-contrib-python; \
     fi
 
 # copy package source and install
 COPY . /app/src
 RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
-    opencv-python scikit-learn==1.4.2 numpy==1.26.4 /app/src[ai]
+    scikit-learn==1.4.2 numpy==1.26.4 /app/src[ai]
 
 # download and cache sentence transformer model
 RUN python3 -c "\
