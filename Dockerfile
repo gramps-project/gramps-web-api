@@ -77,13 +77,21 @@ RUN ARCH=$(uname -m) && \
 
 # copy package source and install
 COPY . /app/src
-RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
-    scikit-learn==1.4.2 numpy==1.26.4 /app/src[ai]
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "armv7l" ]; then \
+        python3 -m pip install --break-system-packages --no-cache-dir /app/src; \
+    else \
+        python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
+        /app/src[ai]; \
+    fi
 
 # download and cache sentence transformer model
-RUN python3 -c "\
-from sentence_transformers import SentenceTransformer; \
-model = SentenceTransformer('sentence-transformers/distiluse-base-multilingual-cased-v2')"
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" != "armv7l" ]; then \
+        python3 -c "\
+        from sentence_transformers import SentenceTransformer; \
+        model = SentenceTransformer('sentence-transformers/distiluse-base-multilingual-cased-v2')"; \
+    fi
 
 EXPOSE 5000
 
