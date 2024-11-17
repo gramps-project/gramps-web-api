@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y \
   libpq-dev postgresql-client postgresql-client-common python3-psycopg2 \
   libgl1-mesa-dev libgtk2.0-dev libatlas-base-dev \
   tesseract-ocr tesseract-ocr-all \
-  libopenblas-dev build-essential \
+  libopenblas-dev cmake \
   && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8 \
   && rm -rf /var/lib/apt/lists/*
 
@@ -79,10 +79,10 @@ RUN ARCH=$(uname -m) && \
 COPY . /app/src
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "armv7l" ]; then \
-        python3 -m pip install --break-system-packages --no-cache-dir numpy /app/src; \
+        python3 -m pip install --break-system-packages --no-cache-dir /app/src; \
     else \
         python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
-        numpy /app/src[ai]; \
+        /app/src[ai]; \
     fi
 
 # download and cache sentence transformer model
