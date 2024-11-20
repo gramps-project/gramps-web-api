@@ -17,7 +17,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""Tests for the /ready endpoint example_gramps."""
+"""Tests for the /ready endpoint."""
 
 import unittest
 
@@ -25,7 +25,7 @@ from . import get_test_client
 
 
 class TestBookmarks(unittest.TestCase):
-    """Test cases for the /api/bookmarks endpoint."""
+    """Test cases for the /api/ready endpoint."""
 
     @classmethod
     def setUpClass(cls):
