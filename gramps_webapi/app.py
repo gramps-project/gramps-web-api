@@ -193,4 +193,8 @@ def create_app(config: Optional[Dict[str, Any]] = None):
     if app.config.get("VECTOR_EMBEDDING_MODEL"):
         load_model(app.config["VECTOR_EMBEDDING_MODEL"])
 
+    @app.route("/ready", methods=["GET"])
+    def ready():
+        return {"status": "ready"}, 200
+
     return app
