@@ -19,9 +19,8 @@ RUN apt-get update && apt-get install -y \
   unzip \
   libpq-dev postgresql-client postgresql-client-common python3-psycopg2 \
   libgl1-mesa-dev libgtk2.0-dev libatlas-base-dev \
-  libopencv-dev python3-opencv \
   tesseract-ocr tesseract-ocr-all \
-  libopenblas-dev \
+  libopenblas-dev cmake \
   && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8 \
   && rm -rf /var/lib/apt/lists/*
 
@@ -32,6 +31,9 @@ ENV LANG en_US.utf8
 ENV LC_ALL en_US.utf8
 
 ENV GRAMPS_API_CONFIG=/app/config/config.cfg
+
+# limit pytorch to 1 thread
+ENV OMP_NUM_THREADS=1
 
 # create directories
 RUN mkdir /app/src &&  mkdir /app/config && touch /app/config/config.cfg
@@ -66,27 +68,32 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-
 
 # Install PyTorch based on architecture
 RUN ARCH=$(uname -m) && \
-    if [ "$ARCH" = "armv7l" ]; then \
-        # Install the armv7l-specific PyTorch wheel
-        python3 -m pip install --break-system-packages --no-cache-dir \
-        https://github.com/maxisoft/pytorch-arm/releases/download/v1.0.0/torch-1.13.0a0+git7c98e70-cp311-cp311-linux_armv7l.whl; \
-    else \
-        # Install PyTorch from the official index for other architectures
+    if [ "$ARCH" != "armv7l" ]; then \
+        # PyTorch and opencv not supported on armv7l
         python3 -m pip install --break-system-packages --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch; \
+        python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
+        opencv-python opencv-contrib-python; \
     fi
 
 # copy package source and install
 COPY . /app/src
-RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
-    scikit-learn==1.4.2 numpy==1.26.4 /app/src[ai]
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "armv7l" ]; then \
+        python3 -m pip install --break-system-packages --no-cache-dir /app/src; \
+    else \
+        python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
+        /app/src[ai]; \
+    fi
 
 # download and cache sentence transformer model
-RUN python3 -c "\
-from sentence_transformers import SentenceTransformer; \
-model = SentenceTransformer('sentence-transformers/distiluse-base-multilingual-cased-v2')"
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" != "armv7l" ]; then \
+        python3 -c "from sentence_transformers import SentenceTransformer; \
+model = SentenceTransformer('sentence-transformers/distiluse-base-multilingual-cased-v2')"; \
+    fi
 
 EXPOSE 5000
 
 COPY docker-entrypoint.sh /
 ENTRYPOINT ["/docker-entrypoint.sh"]
-CMD gunicorn -w ${GUNICORN_NUM_WORKERS:-8} -b 0.0.0.0:5000 gramps_webapi.wsgi:app --timeout 120 --limit-request-line 8190
+CMD gunicorn -w ${GUNICORN_NUM_WORKERS:-8} -b 0.0.0.0:5000 gramps_webapi.wsgi:app --timeout ${GUNICORN_TIMEOUT:-120} --limit-request-line 8190

@@ -16,6 +16,13 @@ def get_client(config: dict) -> OpenAI:
     return OpenAI(base_url=config.get("LLM_BASE_URL"))
 
 
+def sanitize_answer(answer: str) -> str:
+    """Sanitize the LLM answer."""
+    # some models convert relative URLs to absolute URLs with this domain
+    answer = answer.replace("https://www.example.com", "")
+    return answer
+
+
 def answer_prompt(prompt: str, system_prompt: str, config: dict | None = None) -> str:
     """Answer a question given a system prompt."""
     if not config:
@@ -61,7 +68,7 @@ def answer_prompt(prompt: str, system_prompt: str, config: dict | None = None) -
     except (KeyError, IndexError):
         abort_with_message(500, "Error parsing chat API response.")
 
-    return answer
+    return sanitize_answer(answer)
 
 
 def answer_prompt_with_context(prompt: str, context: str) -> str:
@@ -121,7 +128,7 @@ def answer_prompt_retrieve(
             prompt=prompt, tree=tree, include_private=include_private, num_results=20
         )
         if not search_results:
-            abort_with_message("Unexpected problem while retrieving context")
+            abort_with_message(500, "Unexpected problem while retrieving context")
 
         context = ""
         max_length = current_app.config["LLM_MAX_CONTEXT_LENGTH"]

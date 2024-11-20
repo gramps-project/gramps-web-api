@@ -13,12 +13,6 @@ then
     export GRAMPSWEB_SECRET_KEY=$(cat /app/secret/secret)
 fi
 
-# Create search index if not exists
-if [ -z "$(ls -A /app/indexdir/*.db)" ]
-then
-    python3 -m gramps_webapi --config /app/config/config.cfg search index-full
-fi
-
 # Run migrations for user database, if any
 cd /app/src/
 python3 -m gramps_webapi --config /app/config/config.cfg user migrate

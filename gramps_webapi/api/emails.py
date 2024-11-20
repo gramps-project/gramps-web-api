@@ -52,14 +52,15 @@ def email_confirm_email(base_url: str, token: str):
     """Confirm e-mail address e-mail text."""
     intro = (
         _(
-            "You are receiving this e-mail because you (or someone else) "
-            "have registered a new account at %s."
+            "You are receiving this message because this e-mail address "
+            "was used to register a new account at %s."
         )
         % base_url
     )
     action = _(
         "Please click on the following link, or paste this into your browser "
-        "to complete the process:"
+        "to confirm your email address. You will be able to log on once a "
+        "tree owner reviews and approves your account."
     )
 
     return f"""{intro}
@@ -72,7 +73,11 @@ def email_confirm_email(base_url: str, token: str):
 
 def email_new_user(base_url: str, username: str, fullname: str, email: str):
     """E-mail notifying owners of a new registered user."""
-    intro = _("A new user registered at %s:") % base_url
+    intro = _("A new user registered at %s.") % base_url
+    next_step = _(
+        "Please review this user registration and assign a role to "
+        "enable access:"
+    )
     label_username = _("User name")
     label_fullname = _("Full name")
     label_email = _("E-mail")
@@ -81,6 +86,8 @@ def email_new_user(base_url: str, username: str, fullname: str, email: str):
 {label_email}: {email}
 """
     return f"""{intro}
+
+{next_step}
 
 {user_details}
 """
