@@ -28,7 +28,6 @@ dependencies = [
     "marshmallow>=3.13.0",
     "waitress",
     "webargs",
-    "webbrowser",
     "SQLAlchemy",
     "pdf2image",
     "Pillow",
