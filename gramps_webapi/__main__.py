@@ -143,7 +143,7 @@ def user(ctx):
 def user_add(ctx, name, password, fullname, email, role, tree):
     """Add a user."""
     app = ctx.obj["app"]
-    app.logging.error(f"Adding user {name} ...")
+    app.logger.error(f"Adding user {name} ...")
     with app.app_context():
         user_db.create_all()
         add_user(name, password, fullname, email, role, tree)
@@ -155,7 +155,7 @@ def user_add(ctx, name, password, fullname, email, role, tree):
 def user_del(ctx, name):
     """Delete a user."""
     app = ctx.obj["app"]
-    app.logging.info(f"Deleting user {name} ...")
+    app.logger.info(f"Deleting user {name} ...")
     with app.app_context():
         delete_user(name)
 
@@ -216,7 +216,7 @@ def progress_callback_count(
         prev = current - 1
     pct_prev = int(100 * prev / total)
     if current == 0 or pct != pct_prev:
-        app.logging.info(f"Progress: {pct}%")
+        app.logger.info(f"Progress: {pct}%")
 
 
 @search.command("index-full")
@@ -224,7 +224,7 @@ def progress_callback_count(
 def index_full(ctx):
     """Perform a full reindex."""
     app = ctx.obj["app"]
-    app.logging.info("Rebuilding search index ...")
+    app.logger.info("Rebuilding search index ...")
     db_manager = ctx.obj["db_manager"]
     indexer = ctx.obj["search_indexer"]
     db = db_manager.get_db().db
@@ -233,10 +233,10 @@ def index_full(ctx):
     try:
         indexer.reindex_full(app, db, progress_cb=progress_callback_count)
     except:
-        app.logging.exception("Error during indexing")
+        app.logger.exception("Error during indexing")
     finally:
         close_db(db)
-    app.logging.info(f"Done building search index in {time.time() - t0:.0f} seconds.")
+    app.logger.info(f"Done building search index in {time.time() - t0:.0f} seconds.")
 
 
 @search.command("index-incremental")
@@ -251,10 +251,10 @@ def index_incremental(ctx):
     try:
         indexer.reindex_incremental(db, progress_cb=progress_callback_count)
     except Exception:
-        app.logging.exception("Error during indexing")
+        app.logger.exception("Error during indexing")
     finally:
         close_db(db)
-    app.logging.info("Done updating search index.")
+    app.logger.info("Done updating search index.")
 
 
 @cli.group("tree", help="Manage trees.")
