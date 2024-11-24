@@ -312,7 +312,7 @@ if __name__ == "__main__":
     try:
         cli(
             prog_name="python3 -m gramps_webapi"
-        ) # pylint:disable=no-value-for-parameter,unexpected-keyword-arg
+        )  # pylint:disable=no-value-for-parameter,unexpected-keyword-arg
     except SystemExit as e:
         if e.code != 0:
             raise
