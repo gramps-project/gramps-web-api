@@ -35,7 +35,6 @@ from .sql_guid import GUID
 
 user_db = SQLAlchemy()
 
-
 def add_user(
     name: str,
     password: str,

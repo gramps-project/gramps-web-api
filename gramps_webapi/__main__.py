@@ -143,7 +143,7 @@ def user(ctx):
 def user_add(ctx, name, password, fullname, email, role, tree):
     """Add a user."""
     app = ctx.obj["app"]
-    app.logger.error(f"Adding user {name} ...")
+    app.logger.info(f"Adding user {name} ...")
     with app.app_context():
         user_db.create_all()
         add_user(name, password, fullname, email, role, tree)
