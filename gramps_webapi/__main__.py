@@ -285,7 +285,7 @@ def tree_list(ctx):
         print(f"{dirname:>36}  {name:<}")
 
 
-@cli.group("grampsdb", help="Manage a Gramps daabase.")
+@cli.group("grampsdb", help="Manage a Gramps database.")
 @click.option("--tree", help="Tree ID", default=None)
 @click.pass_context
 def grampsdb(ctx, tree):
