@@ -62,15 +62,23 @@ def cli(ctx, config):
 @click.option("-t", "--tree", help="Tree ID: '*' for multi-trees", default=None)
 @click.option(
     "-o",
-    "--open",
+    "--open-browser",
     help="Open gramps-web in browser: 'tab', 'window', or 'no'",
     default="no",
+    type=click.Choice(
+        ['tab', 'window', 'no'],
+        case_sensitive=False
+    ),
 )
 @click.option(
     "-d",
     "--debug-level",
     help="Debug level: 'info', 'debug', 'warning', 'critical'",
     default="info",
+    type=click.Choice(
+        ['info', 'debug', 'warning', 'critical'],
+        case_sensitive=False
+    ),
 )
 @click.option("-l", "--log-file", help="Set logging file to this path", default=None)
 @click.option(
@@ -83,20 +91,23 @@ def cli(ctx, config):
 )
 @click.option("--use-wsgi", is_flag=True, help="Add a wsgi wrapper around server")
 @click.pass_context
-def run(ctx, port, tree, host, open, debug_level, log_file, max_workers, use_wsgi):
+def run(ctx, port, tree, host, open_browser, debug_level, log_file, max_workers, use_wsgi):
     """Run the app."""
     app = ctx.obj["app"]
     debug_level = debug_level.upper()
+    open_browser = open_browser.lower()
+
     if max_workers is None:
         max_workers = min(32, os.cpu_count() + 4)
 
-    def open_webbrowser():
+    def open_webbrowser_after_start():
+        # Wait a bit for for server to start:
         time.sleep(1.0)
-        new = {"tab": 0, "window": 1}[open]
+        new = {"tab": 2, "window": 1}[open_browser]
         webbrowser.open("http://%s:%s" % (host, port), new=0, autoraise=True)
 
-    if open != "no":
-        thread = Thread(target=open_webbrowser)
+    if open_browser != "no":
+        thread = Thread(target=open_webbrowser_after_start)
         thread.start()
 
     if log_file:
@@ -104,9 +115,9 @@ def run(ctx, port, tree, host, open, debug_level, log_file, max_workers, use_wsg
         app.logger.addHandler(file_handler)
         app.logger.setLevel(debug_level)
 
-    print("Running gramps-web...")
-    if open != "no":
-        print(f"    Opening {open} on http://{host}:{port}...")
+    print("Running gramps-web server...")
+    if open_browser != "no":
+        print(f"    Opening gramps-web in browser {open_browser} on http://{host}:{port}...")
 
     print("    Control+C to quit")
     if use_wsgi:
@@ -123,7 +134,7 @@ def run(ctx, port, tree, host, open, debug_level, log_file, max_workers, use_wsg
     else:
         app.run(port=port, threaded=True)
     print()
-    print("Stopping gramps-web...")
+    print("Stopping gramps-web server...")
 
 
 @cli.group("user", help="Manage users.")
