@@ -111,7 +111,7 @@ def run(
         app.logger.addHandler(file_handler)
         app.logger.setLevel(debug_level)
 
-    print("Running gramps-web server...")
+    print("Running gramps-web-api server...")
     if open_browser != "no":
         print(
             f"    Opening gramps-web in browser {open_browser} on http://{host}:{port}..."
@@ -132,7 +132,7 @@ def run(
     else:
         app.run(port=port, threaded=True)
     print()
-    print("Stopping gramps-web server...")
+    print("Stopping gramps-web-api server...")
 
 
 @cli.group("user", help="Manage users.")
