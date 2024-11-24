@@ -65,20 +65,14 @@ def cli(ctx, config):
     "--open-browser",
     help="Open gramps-web in browser: 'tab', 'window', or 'no'",
     default="no",
-    type=click.Choice(
-        ['tab', 'window', 'no'],
-        case_sensitive=False
-    ),
+    type=click.Choice(["tab", "window", "no"], case_sensitive=False),
 )
 @click.option(
     "-d",
     "--debug-level",
     help="Debug level: 'info', 'debug', 'warning', 'critical'",
     default="info",
-    type=click.Choice(
-        ['info', 'debug', 'warning', 'critical'],
-        case_sensitive=False
-    ),
+    type=click.Choice(["info", "debug", "warning", "critical"], case_sensitive=False),
 )
 @click.option("-l", "--log-file", help="Set logging file to this path", default=None)
 @click.option(
@@ -91,7 +85,9 @@ def cli(ctx, config):
 )
 @click.option("--use-wsgi", is_flag=True, help="Add a wsgi wrapper around server")
 @click.pass_context
-def run(ctx, port, tree, host, open_browser, debug_level, log_file, max_workers, use_wsgi):
+def run(
+    ctx, port, tree, host, open_browser, debug_level, log_file, max_workers, use_wsgi
+):
     """Run the app."""
     app = ctx.obj["app"]
     debug_level = debug_level.upper()
@@ -117,7 +113,9 @@ def run(ctx, port, tree, host, open_browser, debug_level, log_file, max_workers,
 
     print("Running gramps-web server...")
     if open_browser != "no":
-        print(f"    Opening gramps-web in browser {open_browser} on http://{host}:{port}...")
+        print(
+            f"    Opening gramps-web in browser {open_browser} on http://{host}:{port}..."
+        )
 
     print("    Control+C to quit")
     if use_wsgi:
