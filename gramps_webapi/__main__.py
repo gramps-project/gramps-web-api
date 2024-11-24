@@ -309,6 +309,10 @@ def migrate_gramps_db(ctx):
 
 
 if __name__ == "__main__":
-    cli(
-        prog_name="python3 -m gramps_webapi"
-    )  # pylint:disable=no-value-for-parameter,unexpected-keyword-arg
+    try:
+        cli(
+            prog_name="python3 -m gramps_webapi"
+        ) # pylint:disable=no-value-for-parameter,unexpected-keyword-arg
+    except SystemExit as e:
+        if e.code != 0:
+            raise
