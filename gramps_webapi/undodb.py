@@ -21,6 +21,8 @@
 
 """SQLite database with undo history."""
 
+from __future__ import annotations
+
 import json
 import pickle
 from contextlib import contextmanager
