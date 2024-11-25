@@ -25,7 +25,7 @@ import json
 import pickle
 from contextlib import contextmanager
 from time import time_ns
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import gramps
 from gramps.gen.const import GRAMPS_LOCALE as glocale
@@ -35,7 +35,6 @@ from gramps.gen.db.txn import DbTxn
 from gramps.gen.lib.serialize import to_json
 from sqlalchemy import (
     BigInteger,
-    Column,
     ForeignKey,
     Integer,
     LargeBinary,
@@ -44,12 +43,20 @@ from sqlalchemy import (
     create_engine,
 )
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    mapped_column,
+    relationship,
+    sessionmaker,
+)
 from sqlalchemy.sql import func
 
 _ = glocale.translation.gettext
 
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    pass
 
 
 class Change(Base):
@@ -58,15 +65,15 @@ class Change(Base):
     __tablename__ = "changes"
     __table_args__ = (PrimaryKeyConstraint("id", "connection_id"),)
 
-    id = Column(Integer)
-    connection_id = Column(Integer, ForeignKey("connections.id"), index=True)
-    obj_class = Column(Text)
-    trans_type = Column(Integer)
-    obj_handle = Column(Text)
-    ref_handle = Column(Text)
-    old_data = Column(LargeBinary)
-    new_data = Column(LargeBinary)
-    timestamp = Column(BigInteger, index=True)
+    id = mapped_column(Integer)
+    connection_id = mapped_column(Integer, ForeignKey("connections.id"), index=True)
+    obj_class = mapped_column(Text)
+    trans_type = mapped_column(Integer)
+    obj_handle = mapped_column(Text)
+    ref_handle = mapped_column(Text)
+    old_data = mapped_column(LargeBinary)
+    new_data = mapped_column(LargeBinary)
+    timestamp = mapped_column(BigInteger, index=True)
 
     connection = relationship("Connection", back_populates="changes")
 
@@ -112,10 +119,10 @@ class Connection(Base):
 
     __tablename__ = "connections"
 
-    id = Column(Integer, primary_key=True)
-    tree_id = Column(Integer, index=True)
-    user_id = Column(Text, index=True)
-    timestamp = Column(BigInteger, index=True)
+    id = mapped_column(Integer, primary_key=True)
+    tree_id = mapped_column(Integer, index=True)
+    user_id = mapped_column(Text, index=True)
+    timestamp = mapped_column(BigInteger, index=True)
 
     changes = relationship("Change", back_populates="connection")
     transactions = relationship("Transaction", back_populates="connection")
@@ -137,13 +144,13 @@ class Transaction(Base):
 
     __tablename__ = "transactions"
 
-    id = Column(Integer, primary_key=True)
-    connection_id = Column(Integer, ForeignKey("connections.id"), index=True)
-    description = Column(Text)
-    first = Column(Integer)
-    last = Column(Integer)
-    undo = Column(Integer)
-    timestamp = Column(BigInteger, index=True)
+    id = mapped_column(Integer, primary_key=True)
+    connection_id = mapped_column(Integer, ForeignKey("connections.id"), index=True)
+    description = mapped_column(Text)
+    first = mapped_column(Integer)
+    last = mapped_column(Integer)
+    undo = mapped_column(Integer)
+    timestamp = mapped_column(BigInteger, index=True)
 
     connection = relationship("Connection", back_populates="transactions")
 
@@ -171,14 +178,14 @@ class DbUndoSQL(DbUndo):
         self,
         grampsdb: DbWriteBase,
         dburl: str,
-        tree_id: Optional[int] = None,
-        user_id: Optional[str] = None,
+        tree_id: int | None = None,
+        user_id: str | None = None,
     ) -> None:
         DbUndo.__init__(self, grampsdb)
-        self._connection_id: Optional[int] = None
+        self._connection_id: int | None = None
         self.tree_id = tree_id
         self.user_id = user_id
-        self.undodb: List[bytes] = []
+        self.undodb: list[bytes] = []
         self.engine = create_engine(dburl)
 
     @contextmanager
@@ -203,9 +210,7 @@ class DbUndoSQL(DbUndo):
         return self._connection_id
 
     def open(self, value=None) -> None:
-        """
-        Open the backing storage.
-        """
+        """Open the backing storage."""
         try:
             Base.metadata.create_all(self.engine)
         except OperationalError as e:
@@ -376,7 +381,9 @@ class DbUndoSQL(DbUndo):
         db = self.db
         subitems = transaction.get_recnos()
         # sigs[obj_type][trans_type]
-        sigs = [[[] for trans_type in range(3)] for key in range(11)]
+        sigs: list[list[list[int]]] = [
+            [[] for trans_type in range(3)] for key in range(11)
+        ]
         records = {record_id: self[record_id] for record_id in subitems}
 
         # Process all records in the transaction
@@ -429,7 +436,9 @@ class DbUndoSQL(DbUndo):
         db = self.db
         subitems = transaction.get_recnos(reverse=True)
         # sigs[obj_type][trans_type]
-        sigs = [[[] for trans_type in range(3)] for key in range(11)]
+        sigs: list[list[list[int]]] = [
+            [[] for trans_type in range(3)] for key in range(11)
+        ]
         records = {record_id: self[record_id] for record_id in subitems}
 
         # Process all records in the transaction
@@ -516,9 +525,9 @@ class DbUndoSQLWeb(DbUndoSQL):
         old_data: bool = True,
         new_data: bool = True,
         ascending: bool = True,
-        before: Optional[int] = None,
-        after: Optional[int] = None,
-    ) -> Tuple[List[Dict[str, Any]], int]:
+        before: int | None = None,
+        after: int | None = None,
+    ) -> tuple[list[dict[str, Any]], int]:
         """Get transactions as a JSONifiable list."""
         with self.session_scope() as session:
             query = (
@@ -552,7 +561,7 @@ class DbUndoSQLWeb(DbUndoSQL):
         transaction_id: int,
         old_data: bool = True,
         new_data: bool = True,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get a single transaction as a JSONifiable dict."""
         with self.session_scope() as session:
             query = (
