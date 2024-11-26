@@ -288,7 +288,7 @@ class UserTaskProgress(UserBase):
     def _report_progress(self) -> None:
         """Report the progress in the task result."""
         if self.steps == 0:
-            progress = -1
+            progress = -1.0
         else:
             progress = self.current_step / self.steps
             if progress < 0 or progress >= 1:
