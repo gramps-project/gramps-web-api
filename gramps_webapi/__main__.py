@@ -84,7 +84,7 @@ def cli(ctx, config):
     help="Maximum number of workers for frontend; requires --use-wsgi",
     default=None,
 )
-@click.option("--use-wsgi", is_flag=True, help="Add a wsgi wrapper around server")
+@click.option("--use-wsgi", is_flag=True, help="Add a WSGI wrapper around the server")
 @click.pass_context
 def run(
     ctx, port, tree, host, open_browser, debug_level, log_file, max_workers, use_wsgi
@@ -112,7 +112,7 @@ def run(
         app.logger.addHandler(file_handler)
         app.logger.setLevel(debug_level)
 
-    print("Running gramps-web-api server...")
+    print("Running Gramps Web API server...")
     if open_browser != "no":
         print(
             f"    Opening gramps-web in browser {open_browser} on http://{host}:{port}..."
@@ -133,7 +133,7 @@ def run(
     else:
         app.run(port=port, threaded=True)
     print()
-    print("Stopping gramps-web-api server...")
+    print("Stopping Gramps Web API server...")
 
 
 @cli.group("user", help="Manage users.")
