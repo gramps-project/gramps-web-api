@@ -2,6 +2,7 @@
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
 # Copyright (C) 2020      David Straub
+# Copyright (C) 2024      Doug Blank
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -27,8 +28,11 @@ import subprocess
 import sys
 import time
 import warnings
+from threading import Thread
 
 import click
+import waitress
+import webbrowser
 
 from .api.search import get_search_indexer
 from .api.util import get_db_manager, list_trees, close_db
@@ -36,9 +40,7 @@ from .app import create_app
 from .auth import add_user, delete_user, fill_tree, user_db
 from .const import ENV_CONFIG_FILE, TREE_MULTI
 from .dbmanager import WebDbManager
-
-logging.basicConfig()
-LOG = logging.getLogger("gramps_webapi")
+from .translogger import TransLogger
 
 
 @click.group("cli")
@@ -58,12 +60,80 @@ def cli(ctx, config):
 
 @cli.command("run")
 @click.option("-p", "--port", help="Port to use (default: 5000)", default=5000)
-@click.option("--tree", help="Tree ID", default=None)
+@click.option("-t", "--tree", help="Tree ID: '*' for multi-trees", default=None)
+@click.option(
+    "-o",
+    "--open-browser",
+    help="Open gramps-web in browser: 'tab', 'window', or 'no'",
+    default="no",
+    type=click.Choice(["tab", "window", "no"], case_sensitive=False),
+)
+@click.option(
+    "-d",
+    "--debug-level",
+    help="Debug level: 'info', 'debug', 'warning', 'critical'",
+    default="info",
+    type=click.Choice(["info", "debug", "warning", "critical"], case_sensitive=False),
+)
+@click.option("-l", "--log-file", help="Set logging file to this path", default=None)
+@click.option(
+    "--host", help="Set the host address for server to listen on", default="127.0.0.1"
+)
+@click.option(
+    "--max-workers",
+    help="Maximum number of workers for frontend; requires --use-wsgi",
+    default=None,
+)
+@click.option("--use-wsgi", is_flag=True, help="Add a wsgi wrapper around server")
 @click.pass_context
-def run(ctx, port, tree):
+def run(
+    ctx, port, tree, host, open_browser, debug_level, log_file, max_workers, use_wsgi
+):
     """Run the app."""
     app = ctx.obj["app"]
-    app.run(port=port, threaded=True)
+    debug_level = debug_level.upper()
+    open_browser = open_browser.lower()
+
+    if max_workers is None:
+        max_workers = min(32, os.cpu_count() + 4)
+
+    def open_webbrowser_after_start():
+        # Wait a bit for for server to start:
+        time.sleep(1.0)
+        new = {"tab": 2, "window": 1}[open_browser]
+        webbrowser.open("http://%s:%s" % (host, port), new=0, autoraise=True)
+
+    if open_browser != "no":
+        thread = Thread(target=open_webbrowser_after_start)
+        thread.start()
+
+    if log_file:
+        file_handler = logging.FileHandler(log_file, "w+")
+        app.logger.addHandler(file_handler)
+        app.logger.setLevel(debug_level)
+
+    print("Running gramps-web-api server...")
+    if open_browser != "no":
+        print(
+            f"    Opening gramps-web in browser {open_browser} on http://{host}:{port}..."
+        )
+
+    print("    Control+C to quit")
+    if use_wsgi:
+        waitress.serve(
+            TransLogger(
+                app,
+                setup_console_handler=False,
+                set_logger_level=debug_level,
+            ),
+            host=host,
+            port=port,
+            threads=max_workers,
+        )
+    else:
+        app.run(port=port, threaded=True)
+    print()
+    print("Stopping gramps-web-api server...")
 
 
 @cli.group("user", help="Manage users.")
@@ -82,8 +152,8 @@ def user(ctx):
 @click.pass_context
 def user_add(ctx, name, password, fullname, email, role, tree):
     """Add a user."""
-    LOG.error(f"Adding user {name} ...")
     app = ctx.obj["app"]
+    app.logger.info(f"Adding user {name} ...")
     with app.app_context():
         user_db.create_all()
         add_user(name, password, fullname, email, role, tree)
@@ -94,8 +164,8 @@ def user_add(ctx, name, password, fullname, email, role, tree):
 @click.pass_context
 def user_del(ctx, name):
     """Delete a user."""
-    LOG.info(f"Deleting user {name} ...")
     app = ctx.obj["app"]
+    app.logger.info(f"Deleting user {name} ...")
     with app.app_context():
         delete_user(name)
 
@@ -146,7 +216,9 @@ def search(ctx, tree, semantic):
         ctx.obj["search_indexer"] = get_search_indexer(tree=tree, semantic=semantic)
 
 
-def progress_callback_count(current: int, total: int, prev: int | None = None) -> None:
+def progress_callback_count(
+    app, current: int, total: int, prev: int | None = None
+) -> None:
     if total == 0:
         return
     pct = int(100 * current / total)
@@ -154,32 +226,34 @@ def progress_callback_count(current: int, total: int, prev: int | None = None) -
         prev = current - 1
     pct_prev = int(100 * prev / total)
     if current == 0 or pct != pct_prev:
-        LOG.info(f"Progress: {pct}%")
+        app.logger.info(f"Progress: {pct}%")
 
 
 @search.command("index-full")
 @click.pass_context
 def index_full(ctx):
     """Perform a full reindex."""
-    LOG.info("Rebuilding search index ...")
+    app = ctx.obj["app"]
+    app.logger.info("Rebuilding search index ...")
     db_manager = ctx.obj["db_manager"]
     indexer = ctx.obj["search_indexer"]
     db = db_manager.get_db().db
 
     t0 = time.time()
     try:
-        indexer.reindex_full(db, progress_cb=progress_callback_count)
+        indexer.reindex_full(app, db, progress_cb=progress_callback_count)
     except:
-        LOG.exception("Error during indexing")
+        app.logger.exception("Error during indexing")
     finally:
         close_db(db)
-    LOG.info(f"Done building search index in {time.time() - t0:.0f} seconds.")
+    app.logger.info(f"Done building search index in {time.time() - t0:.0f} seconds.")
 
 
 @search.command("index-incremental")
 @click.pass_context
 def index_incremental(ctx):
     """Perform an incremental reindex."""
+    app = ctx.obj["app"]
     db_manager = ctx.obj["db_manager"]
     indexer = ctx.obj["search_indexer"]
     db = db_manager.get_db().db
@@ -187,10 +261,10 @@ def index_incremental(ctx):
     try:
         indexer.reindex_incremental(db, progress_cb=progress_callback_count)
     except Exception:
-        LOG.exception("Error during indexing")
+        app.logger.exception("Error during indexing")
     finally:
         close_db(db)
-    LOG.info("Done updating search index.")
+    app.logger.info("Done updating search index.")
 
 
 @cli.group("tree", help="Manage trees.")
@@ -212,7 +286,7 @@ def tree_list(ctx):
         print(f"{dirname:>36}  {name:<}")
 
 
-@cli.group("grampsdb", help="Manage a Gramps daabase.")
+@cli.group("grampsdb", help="Manage a Gramps database.")
 @click.option("--tree", help="Tree ID", default=None)
 @click.pass_context
 def grampsdb(ctx, tree):
@@ -236,8 +310,10 @@ def migrate_gramps_db(ctx):
 
 
 if __name__ == "__main__":
-    LOG.setLevel(logging.INFO)
-
-    cli(
-        prog_name="python3 -m gramps_webapi"
-    )  # pylint:disable=no-value-for-parameter,unexpected-keyword-arg
+    try:
+        cli(
+            prog_name="python3 -m gramps_webapi"
+        )  # pylint:disable=no-value-for-parameter,unexpected-keyword-arg
+    except SystemExit as e:
+        if e.code != 0:
+            raise
