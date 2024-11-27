@@ -50,15 +50,10 @@ def get_search_indexer(tree: str, semantic: bool = False) -> SearchIndexerBase:
             if not path.exists() and not path.parent.exists():
                 path.parent.mkdir(parents=True, exist_ok=True)
     if semantic:
-        model = current_app.config.get("VECTOR_EMBEDDING_MODEL")
+        model = current_app.config.get("_INITIALIZED_VECTOR_EMBEDDING_MODEL")
         if not model:
             raise ValueError("VECTOR_EMBEDDING_MODEL option not set")
-        try:
-            embedding_function = embedding_function_factory(model)
-        except OSError:
-            raise ValueError(f"Failed initializing model {model}")
-        # cache on app instance
         return SemanticSearchIndexer(
-            db_url=db_url, tree=tree, embedding_function=embedding_function
+            db_url=db_url, tree=tree, embedding_function=model.encode
         )
     return SearchIndexer(db_url=db_url, tree=tree)

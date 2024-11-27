@@ -3,15 +3,6 @@
 from ..util import get_logger
 
 
-def embedding_function_factory(model_name: str):
-    model = load_model(model_name)
-
-    def embedding_function(queries: list[str]):
-        return model.encode(queries)
-
-    return embedding_function
-
-
 def load_model(model_name: str):
     """Load the sentence transformer model.
 
