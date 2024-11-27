@@ -33,7 +33,7 @@ from webargs import fields, validate
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ_BATCH, PERM_EDIT_OBJ
 from ...const import GRAMPS_OBJECT_PLURAL
 from ..auth import require_permissions
-from ..search import SearchIndexer, get_search_indexer
+from ..search import SearchIndexer, SemanticSearchIndexer, get_search_indexer
 from ..tasks import AsyncResult, delete_objects, make_task_response, run_task
 from ..util import (
     abort_with_message,
@@ -59,7 +59,7 @@ class CreateObjectsResource(ProtectedResource):
 
     def _parse_objects(self) -> Sequence[GrampsObject]:
         """Parse the objects."""
-        payload = request.json
+        payload = request.json or []
         objects = []
         for obj_dict in payload:
             try:
@@ -98,17 +98,18 @@ class CreateObjectsResource(ProtectedResource):
             update_usage_people()
         # update search index
         tree = get_tree_from_jwt()
-        indexer: SearchIndexer = get_search_indexer(tree)
+        assert tree is not None  # mypy
+        indexer = get_search_indexer(tree)
         for _trans_dict in trans_dict:
             handle = _trans_dict["handle"]
             class_name = _trans_dict["_class"]
             indexer.add_or_update_object(handle, db_handle, class_name)
         if app_has_semantic_search():
-            indexer: SearchIndexer = get_search_indexer(tree, semantic=True)
+            indexer_semantic = get_search_indexer(tree, semantic=True)
             for _trans_dict in trans_dict:
                 handle = _trans_dict["handle"]
                 class_name = _trans_dict["_class"]
-                indexer.add_or_update_object(handle, db_handle, class_name)
+                indexer_semantic.add_or_update_object(handle, db_handle, class_name)
         res = Response(
             response=json.dumps(trans_dict),
             status=201,

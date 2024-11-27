@@ -72,6 +72,7 @@ from gramps.gen.user import UserBase
 from gramps.gen.utils.grampslocale import GrampsLocale
 from gramps.plugins.db.dbapi.dbapi import DBAPI
 from marshmallow import RAISE
+from sklearn import tree
 from torch import Value
 from webargs.flaskparser import FlaskParser
 from werkzeug.exceptions import HTTPException
@@ -375,6 +376,18 @@ def get_tree_from_jwt() -> str | None:
     return claims.get("tree")
 
 
+def get_tree_from_jwt_or_fail() -> str:
+    """Get the tree ID from the token.
+
+    Needs request context. Will fail if no tree ID is present.
+    """
+    tree = get_tree_from_jwt()
+    if not tree:
+        abort_with_message(403, "No tree ID in JWT")
+        raise  # mypy; unreachable
+    return tree
+
+
 def get_db_outside_request(
     tree: str, view_private: bool, readonly: bool, user_id: str
 ) -> DbReadBase:
@@ -427,7 +440,7 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
     If `readonly` is false, locks the database during the request.
     """
     view_private = has_permissions({PERM_VIEW_PRIVATE})
-    tree = get_tree_from_jwt()
+    tree = get_tree_from_jwt_or_fail()
     user_id = get_jwt_identity()
 
     if readonly and "db" not in g:
