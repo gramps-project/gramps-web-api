@@ -132,6 +132,7 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
     def get(self, args: Dict):
         """Get search result."""
         tree = get_tree_from_jwt()
+        assert tree is not None  # mypy; cannot be None if authenticated
         try:
             searcher = get_search_indexer(tree, semantic=args["semantic"])
         except ValueError:
