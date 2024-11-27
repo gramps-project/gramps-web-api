@@ -366,16 +366,13 @@ def get_db_manager(tree: str | None) -> WebDbManager:
     )
 
 
-def get_tree_from_jwt() -> str:
+def get_tree_from_jwt() -> str | None:
     """Get the tree ID from the token.
 
     Needs request context.
     """
     claims = get_jwt()
-    tree = claims.get("tree")
-    if tree is None:
-        abort_with_message(500, "No tree ID in JWT")
-    return str(tree)
+    return claims.get("tree")
 
 
 def get_db_outside_request(
