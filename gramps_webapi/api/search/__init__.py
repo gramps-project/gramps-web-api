@@ -26,7 +26,6 @@ from urllib.parse import urlparse
 from flask import current_app
 
 from .indexer import SearchIndexer, SemanticSearchIndexer, SearchIndexerBase
-from .embeddings import embedding_function_factory
 
 
 def get_search_indexer(tree: str, semantic: bool = False) -> SearchIndexerBase:
