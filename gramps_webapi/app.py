@@ -191,7 +191,9 @@ def create_app(config: Optional[Dict[str, Any]] = None):
         user_db.session.remove()  # pylint: disable=no-member
 
     if app.config.get("VECTOR_EMBEDDING_MODEL"):
-        load_model(app.config["VECTOR_EMBEDDING_MODEL"])
+        app.config["_INITIALIZED_VECTOR_EMBEDDING_MODEL"] = load_model(
+            app.config["VECTOR_EMBEDDING_MODEL"]
+        )
 
     @app.route("/ready", methods=["GET"])
     def ready():
