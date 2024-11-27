@@ -31,12 +31,13 @@ from ..auth import require_permissions
 from ..tasks import AsyncResult, import_media_archive, make_task_response, run_task
 from ..util import abort_with_message, get_tree_from_jwt
 from . import ProtectedResource
+from gramps_webapi.types import ResponseReturnValue
 
 
 class MediaUploadZipResource(ProtectedResource):
     """Resource for uploading an archive of media files."""
 
-    def post(self) -> Response:
+    def post(self) -> ResponseReturnValue:
         """Upload an archive of media files."""
         require_permissions([PERM_IMPORT_FILE])
         request_stream = request.stream

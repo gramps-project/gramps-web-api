@@ -51,6 +51,7 @@ from .util import (
     transaction_to_json,
     validate_object_dict,
 )
+from gramps_webapi.types import ResponseReturnValue
 
 
 class CreateObjectsResource(ProtectedResource):
@@ -71,7 +72,7 @@ class CreateObjectsResource(ProtectedResource):
             objects.append(obj)
         return objects
 
-    def post(self) -> Response:
+    def post(self) -> ResponseReturnValue:
         """Post the objects."""
         require_permissions([PERM_ADD_OBJ])
         objects = self._parse_objects()
@@ -113,7 +114,7 @@ class CreateObjectsResource(ProtectedResource):
             status=201,
             mimetype="application/json",
         )
-        res.headers.add("X-Total-Count", len(trans_dict))
+        res.headers.add("X-Total-Count", str(len(trans_dict)))
         return res
 
 
@@ -131,7 +132,7 @@ class DeleteObjectsResource(FreshProtectedResource):
         },
         location="query",
     )
-    def post(self, args) -> Response:
+    def post(self, args) -> ResponseReturnValue:
         """Delete the objects."""
         require_permissions([PERM_DEL_OBJ_BATCH])
         tree = get_tree_from_jwt()
