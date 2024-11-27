@@ -21,6 +21,8 @@
 
 """Functions for exporting a database."""
 
+from __future__ import annotations
+
 import mimetypes
 import os
 import uuid
