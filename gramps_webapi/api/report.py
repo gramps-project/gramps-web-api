@@ -20,6 +20,8 @@
 
 """Functions for running Gramps reports."""
 
+from __future__ import annotations
+
 import os
 import sys
 import uuid
@@ -116,7 +118,9 @@ def get_report_profile(
 
 
 def get_reports(
-    db_handle: DbReadBase, report_id: str = None, include_options_help: bool = True
+    db_handle: DbReadBase,
+    report_id: str | None = None,
+    include_options_help: bool = True,
 ):
     """Extract and return report attributes and options."""
     reload_custom_filters()
@@ -358,6 +362,7 @@ def run_report(
                 current_app.logger.error(f"Cannot find {file_type} in MIME_TYPES")
                 abort_with_message(500, f"MIME type {file_type} not found")
             report_path = current_app.config.get("REPORT_DIR")
+            assert report_path is not None, "REPORT_DIR not set in config"
             os.makedirs(report_path, exist_ok=True)
             file_name = f"{uuid.uuid4()}{file_type}"
             report_options["of"] = os.path.join(report_path, file_name)

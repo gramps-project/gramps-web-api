@@ -188,7 +188,7 @@ class ExportOptions:
         return dbase
 
 
-def get_exporters(extension: str = None):
+def get_exporters(extension: str | None = None):
     """Extract and return list of exporters."""
     exporters = []
     plugin_manager = BasePluginManager.get_instance()
