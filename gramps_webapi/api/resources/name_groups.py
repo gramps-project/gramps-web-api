@@ -19,6 +19,8 @@
 
 """Name Groups API resource."""
 
+from __future__ import annotations
+
 from os import read
 from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
