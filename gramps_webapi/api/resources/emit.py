@@ -82,7 +82,7 @@ class GrampsJSONEncoder:
         )
 
         if total_items > -1:
-            res.headers.add("X-Total-Count", total_items)
+            res.headers.add("X-Total-Count", str(total_items))
         if etag:
             res.headers.add("ETag", etag)
         return res

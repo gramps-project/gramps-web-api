@@ -19,7 +19,7 @@
 
 """Authentication endpoint blueprint."""
 
-from typing import Iterable, Optional
+from typing import Any, Iterable
 
 from flask import abort, current_app
 from flask_jwt_extended import (
@@ -47,12 +47,12 @@ from . import RefreshProtectedResource, Resource
 def get_tokens(
     user_id: str,
     permissions: Iterable[str],
-    tree_id: Optional[str] = None,
+    tree_id: str,
     include_refresh: bool = False,
     fresh: bool = False,
 ):
     """Create access token (and refresh token if desired)."""
-    claims = {"permissions": list(permissions)}
+    claims: dict[str, Any] = {"permissions": list(permissions)}
     if tree_id:
         claims["tree"] = tree_id
     access_token = create_access_token(

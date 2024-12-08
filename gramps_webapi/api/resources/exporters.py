@@ -47,13 +47,14 @@ from ..util import (
 )
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from gramps_webapi.types import ResponseReturnValue
 
 
 class ExportersResource(ProtectedResource, GrampsJSONEncoder):
     """Exporters resource."""
 
     @use_args({}, location="query")
-    def get(self, args: Dict) -> Response:
+    def get(self, args: Dict) -> ResponseReturnValue:
         """Get all available exporter attributes."""
         get_db_handle()  # needed to load plugins
         return self.response(200, get_exporters())
@@ -63,7 +64,7 @@ class ExporterResource(ProtectedResource, GrampsJSONEncoder):
     """Export resource."""
 
     @use_args({}, location="query")
-    def get(self, args: Dict, extension: str) -> Response:
+    def get(self, args: Dict, extension: str) -> ResponseReturnValue:
         """Get specific report attributes."""
         get_db_handle()  # needed to load plugins
         exporters = get_exporters(extension)
@@ -113,7 +114,7 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
         },
         location="query",
     )
-    def post(self, args: Dict, extension: str) -> Response:
+    def post(self, args: Dict, extension: str) -> ResponseReturnValue:
         """Create the export."""
         get_db_handle()  # to load plugins
         exporters = get_exporters(extension)
@@ -174,7 +175,7 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
         },
         location="query",
     )
-    def get(self, args: Dict, extension: str) -> Response:
+    def get(self, args: Dict, extension: str) -> ResponseReturnValue:
         """Get export file."""
         db_handle = get_db_handle()
         exporters = get_exporters(extension)
@@ -183,6 +184,7 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
         options = prepare_options(db_handle, args)
         file_name, file_type = run_export(db_handle, extension, options)
         export_path = current_app.config.get("EXPORT_DIR")
+        assert export_path is not None, "EXPORT_DIR not set"  # mypy
         os.makedirs(export_path, exist_ok=True)
         file_path = os.path.join(export_path, file_name)
         buffer = get_buffer_for_file(file_path, delete=True)
@@ -195,9 +197,10 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
 class ExporterFileResultResource(ProtectedResource, GrampsJSONEncoder):
     """Export file result resource."""
 
-    def get(self, extension: str, filename: str) -> Response:
+    def get(self, extension: str, filename: str) -> ResponseReturnValue:
         """Get the processed file."""
         export_path = current_app.config.get("EXPORT_DIR")
+        assert export_path is not None, "EXPORT_DIR not set"  # mypy
 
         # assert the filename is legit
         regex = re.compile(
@@ -206,6 +209,7 @@ class ExporterFileResultResource(ProtectedResource, GrampsJSONEncoder):
         match = regex.match(filename)
         if not match:
             abort_with_message(422, "Invalid filename")
+        assert match is not None  # mypy
 
         file_type = match.group(2)
         file_path = os.path.join(export_path, filename)

@@ -113,7 +113,7 @@ class TranslationsResource(ProtectedResource, GrampsJSONEncoder):
         },
         location="query",
     )
-    def get(self, args: Union[Dict, None] = None) -> Response:
+    def get(self, args: dict) -> Response:
         """Get available translations."""
         default_locale = GrampsLocale(lang="en")
         current_locale = get_locale_for_language(args["locale"], default=True)

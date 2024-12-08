@@ -22,6 +22,8 @@
 
 """Database loader utilitis derived from `grampscli`."""
 
+from __future__ import annotations
+
 import logging
 import os
 from uuid import uuid4
@@ -113,8 +115,8 @@ class WebDbSessionManager:
         self,
         filename,
         mode: str,
-        username: str,
-        password: str,
+        username: str | None,
+        password: str | None,
         force_schema_upgrade: bool = False,
     ):
         """Open a database from a file."""

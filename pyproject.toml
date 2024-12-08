@@ -28,7 +28,7 @@ dependencies = [
     "marshmallow>=3.13.0",
     "waitress",
     "webargs",
-    "SQLAlchemy",
+    "SQLAlchemy>=2.0.0",
     "pdf2image",
     "Pillow",
     "bleach[css]>=5.0.0",

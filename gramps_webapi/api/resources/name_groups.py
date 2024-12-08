@@ -19,6 +19,9 @@
 
 """Name Groups API resource."""
 
+from __future__ import annotations
+
+from os import read
 from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
 
@@ -32,14 +35,9 @@ from .emit import GrampsJSONEncoder
 class NameGroupsResource(ProtectedResource, GrampsJSONEncoder):
     """Name group mappings resource."""
 
-    @property
-    def db_handle(self) -> DbReadBase:
-        """Get the database instance."""
-        return get_db_handle()
-
-    def get(self, surname: str = None) -> Response:
+    def get(self, surname: str | None = None) -> Response:
         """Get list of name group mappings."""
-        db_handle = self.db_handle
+        db_handle = get_db_handle()
         if surname is not None:
             return self.response(
                 200,
@@ -57,11 +55,11 @@ class NameGroupsResource(ProtectedResource, GrampsJSONEncoder):
                 )
         return self.response(200, mappings)
 
-    def post(self, surname: str = None, group: str = None) -> Response:
+    def post(self, surname: str | None = None, group: str | None = None) -> Response:
         """Set a name group mapping."""
         require_permissions([PERM_EDIT_NAME_GROUP])
-        db_handle = self.db_handle
         if surname is None or group is None or len(surname) == 0 or len(group) == 0:
             abort(400)
+        db_handle = get_db_handle(readonly=False)
         db_handle.set_name_group_mapping(surname, group)
         return self.response(201, {"surname": surname, "group": group})

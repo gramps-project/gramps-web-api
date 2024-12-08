@@ -43,7 +43,7 @@ def get_search_indexer(tree: str, semantic: bool = False) -> SearchIndexerBase:
     url_parts = urlparse(db_url)
     # in case of SQLite create the containing directory if it doesn't exist
     if url_parts.scheme == "sqlite":
-        path = url_parts.path
+        path = str(url_parts.path)
         if path.lstrip("/") and path.lstrip("/") != ":memory:" and path[0] == "/":
             path = Path(path[1:])
             if not path.exists() and not path.parent.exists():
