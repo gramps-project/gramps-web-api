@@ -370,7 +370,8 @@ def get_db_manager(tree: str | None) -> WebDbManager:
 def get_tree_from_jwt() -> str | None:
     """Get the tree ID from the token.
 
-    Needs request context.
+    Needs request context. Can return None if no tree ID is present,
+    e.g. for e-mail confirmation or password reset tokens.
     """
     claims = get_jwt()
     return claims.get("tree")
@@ -636,7 +637,7 @@ def tree_exists(tree_id: str) -> bool:
 def update_usage_people(tree: str | None = None, user_id: str | None = None) -> int:
     """Update the usage of people."""
     if not tree:
-        tree = get_tree_from_jwt()
+        tree = get_tree_from_jwt_or_fail()
     if not user_id:
         user_id = get_jwt_identity()
     db_handle = get_db_outside_request(
@@ -658,7 +659,7 @@ def check_quota_people(
 ) -> None:
     """Check whether the quota allows adding `to_add` people and abort if not."""
     if not tree:
-        tree = get_tree_from_jwt()
+        tree = get_tree_from_jwt_or_fail()
     if not user_id:
         user_id = get_jwt_identity()
     usage_dict = get_tree_usage(tree)
@@ -677,7 +678,7 @@ def check_quota_people(
 def update_usage_ai(new: int, tree: str | None = None) -> int:
     """Update the usage of AI by adding `new` units to the usage."""
     if not tree:
-        tree = get_tree_from_jwt()
+        tree = get_tree_from_jwt_or_fail()
     usage_dict = get_tree_usage(tree)
     if not usage_dict:
         old_usage = 0
@@ -691,7 +692,7 @@ def update_usage_ai(new: int, tree: str | None = None) -> int:
 def check_quota_ai(requested: int, tree: str | None = None) -> None:
     """Check whether the AI quota allows consuming another `requested` units."""
     if not tree:
-        tree = get_tree_from_jwt()
+        tree = get_tree_from_jwt_or_fail()
     usage_dict = get_tree_usage(tree)
     if not usage_dict:
         return

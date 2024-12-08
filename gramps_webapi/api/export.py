@@ -44,6 +44,7 @@ from gramps.gen.proxy import (
 )
 from gramps.gen.user import User
 from gramps.gen.utils.resourcepath import ResourcePath
+from torch import Value
 
 from ..const import DISABLED_EXPORTERS
 from .util import UserTaskProgress, abort_with_message, get_locale_for_language
@@ -269,6 +270,8 @@ def run_export(
 ):
     """Generate the export."""
     export_path = current_app.config.get("EXPORT_DIR")
+    if not export_path:
+        raise abort_with_message(500, "EXPORT_DIR not set in configuration")
     os.makedirs(export_path, exist_ok=True)
     file_name = f"{uuid.uuid4()}.{extension}"
     file_path = os.path.join(export_path, file_name)
