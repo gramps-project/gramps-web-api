@@ -46,10 +46,10 @@ class HolidayResource(ProtectedResource, GrampsJSONEncoder):
     def get(
         self,
         args: Dict,
-        country: str = None,
-        year: int = None,
-        month: int = None,
-        day: int = None,
+        country: str | None = None,
+        year: int | None = None,
+        month: int | None = None,
+        day: int | None = None,
     ) -> Response:
         """If the given day is a holiday return the name or names."""
         holidays = HolidayTable()
