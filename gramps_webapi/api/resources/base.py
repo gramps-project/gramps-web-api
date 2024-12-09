@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020-2023      David Straub
+# Copyright (C) 2020-2024      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -69,6 +69,7 @@ from .util import (
     update_object,
     validate_object_dict,
 )
+from gramps_webapi.types import Handle, ResponseReturnValue
 
 
 class GrampsObjectResourceHelper(GrampsJSONEncoder):
@@ -233,7 +234,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         },
         location="query",
     )
-    def get(self, args: Dict, handle: str) -> Response:
+    def get(self, args: Dict, handle: str) -> ResponseReturnValue:
         """Get the object."""
         try:
             obj = self.get_object_from_handle(handle)
@@ -245,7 +246,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             200, self.full_object(obj, args, locale=locale), args, etag=get_etag
         )
 
-    def delete(self, handle: str) -> Response:
+    def delete(self, handle: str) -> ResponseReturnValue:
         """Delete the object."""
         require_permissions([PERM_DEL_OBJ])
         try:
@@ -268,7 +269,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         indexer.delete_object(handle=handle, class_name=self.gramps_class_name)
         return self.response(200, trans_dict, total_items=len(trans_dict))
 
-    def put(self, handle: str) -> Response:
+    def put(self, handle: str) -> ResponseReturnValue:
         """Modify an existing object."""
         require_permissions([PERM_EDIT_OBJ])
         try:
@@ -385,7 +386,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         },
         location="query",
     )
-    def get(self, args: Dict) -> Response:
+    def get(self, args: Dict) -> ResponseReturnValue:
         """Get all objects."""
         locale = get_locale_for_language(args["locale"], default=True)
         if "gramps_id" in args:
@@ -464,7 +465,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             total_items=total_items,
         )
 
-    def post(self) -> Response:
+    def post(self) -> ResponseReturnValue:
         """Post a new object."""
         require_permissions([PERM_ADD_OBJ])
         # check quota

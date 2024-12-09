@@ -26,7 +26,7 @@ import re
 import time
 from typing import Dict
 
-from flask import Response, abort, current_app, jsonify, send_file
+from flask import abort, current_app, jsonify, send_file
 from flask_jwt_extended import get_jwt_identity
 from webargs import fields, validate
 
@@ -38,13 +38,14 @@ from ..tasks import AsyncResult, generate_report, make_task_response, run_task
 from ..util import get_buffer_for_file, get_db_handle, get_tree_from_jwt, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from gramps_webapi.types import ResponseReturnValue
 
 
 class ReportsResource(ProtectedResource, GrampsJSONEncoder):
     """Reports resource."""
 
     @use_args({"include_help": fields.Boolean(load_default=False)}, location="query")
-    def get(self, args: Dict) -> Response:
+    def get(self, args: Dict) -> ResponseReturnValue:
         """Get all available report attributes."""
         reports = get_reports(
             get_db_handle(), include_options_help=args["include_help"]
@@ -56,7 +57,7 @@ class ReportResource(ProtectedResource, GrampsJSONEncoder):
     """Report resource."""
 
     @use_args({"include_help": fields.Boolean(load_default=True)}, location="query")
-    def get(self, args: Dict, report_id: str) -> Response:
+    def get(self, args: Dict, report_id: str) -> ResponseReturnValue:
         """Get specific report attributes."""
         reports = get_reports(
             get_db_handle(),
@@ -81,7 +82,7 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
         },
         location="query",
     )
-    def get(self, args: Dict, report_id: str) -> Response:
+    def get(self, args: Dict, report_id: str) -> ResponseReturnValue:
         """Get specific report attributes."""
         report_options = {}
         if "options" in args:
@@ -99,6 +100,7 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
             language=args["locale"],
         )
         report_path = current_app.config.get("REPORT_DIR")
+        assert report_path is not None, "REPORT_DIR not set in config"  # mypy
         file_path = os.path.join(report_path, file_name)
         buffer = get_buffer_for_file(file_path, not_found=True)
         return send_file(buffer, mimetype=MIME_TYPES[file_type])
@@ -113,7 +115,7 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
         },
         location="query",
     )
-    def post(self, args: Dict, report_id: str) -> Response:
+    def post(self, args: Dict, report_id: str) -> ResponseReturnValue:
         """Create the report."""
         report_options = {}
         if "options" in args:
@@ -142,13 +144,13 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
 class ReportFileResultResource(ProtectedResource, GrampsJSONEncoder):
     """Report file result resource."""
 
-    def get(self, report_id: str, filename: str) -> Response:
+    def get(self, report_id: str, filename: str) -> ResponseReturnValue:
         """Get the processed file."""
         if not check_report_id_exists(report_id):
             # do not allow a non-existing report ID to be supplied by the user
             abort(404)
         report_path = current_app.config.get("REPORT_DIR")
-
+        assert report_path is not None, "REPORT_DIR not set in config"  # mypy
         # assert the filename is legit
         regex = re.compile(
             r"([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(\.[\w\.]*)"

@@ -19,6 +19,7 @@
 
 """Custom types."""
 
+import flask.typing
 from pathlib import Path
 from typing import Any, Dict, List, NewType, Union
 
@@ -26,3 +27,4 @@ Handle = NewType("Handle", str)
 GrampsId = NewType("GrampsId", str)
 FilenameOrPath = Union[str, Path]
 TransactionJson = List[Dict[str, Any]]
+ResponseReturnValue = flask.typing.ResponseReturnValue

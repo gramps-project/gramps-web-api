@@ -50,6 +50,7 @@ def answer_prompt(prompt: str, system_prompt: str, config: dict | None = None) -
 
     client = get_client(config=config)
     model = config.get("LLM_MODEL")
+    assert model is not None, "No LLM model specified"  # mypy; shouldn't happen
 
     try:
         response = client.chat.completions.create(
@@ -67,6 +68,7 @@ def answer_prompt(prompt: str, system_prompt: str, config: dict | None = None) -
         answer = response.to_dict()["choices"][0]["message"]["content"]
     except (KeyError, IndexError):
         abort_with_message(500, "Error parsing chat API response.")
+        raise  # mypy; unreachable
 
     return sanitize_answer(answer)
 
