@@ -91,8 +91,8 @@ def get_tree_path(tree_id: str) -> Optional[str]:
 
 def tree_exists(tree_id: str) -> bool:
     """Check whether a tree exists."""
-    tree_path = bool(get_tree_path(tree_id))
-    return tree_path and os.path.isdir(tree_path)
+    tree_path = get_tree_path(tree_id)
+    return tree_path is not None and os.path.isdir(tree_path)
 
 
 def validate_tree_id(tree_id: str) -> None:
