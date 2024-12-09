@@ -19,6 +19,8 @@
 
 """Background task resources."""
 
+from __future__ import annotations
+
 import os
 import re
 import uuid
@@ -65,7 +67,7 @@ from . import ProtectedResource
 TREE_ID_REGEX = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
-def get_tree_details(tree_id: str) -> Dict[str, str]:
+def get_tree_details(tree_id: str) -> Dict[str, str | bool | int]:
     """Get details about a tree."""
     try:
         dbmgr = WebDbManager(
@@ -89,7 +91,7 @@ def get_tree_path(tree_id: str) -> Optional[str]:
 
 def tree_exists(tree_id: str) -> bool:
     """Check whether a tree exists."""
-    tree_path = get_tree_path(tree_id)
+    tree_path = bool(get_tree_path(tree_id))
     return tree_path and os.path.isdir(tree_path)
 
 
