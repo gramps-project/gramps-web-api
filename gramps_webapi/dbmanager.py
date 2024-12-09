@@ -56,7 +56,7 @@ class WebDbManager:
         """Initialize given a family tree name or subdirectory name (path)."""
         if dirname:
             self.dirname = dirname
-            self.name = self._get_name(dirname=dirname) or name
+            self.name = self._get_name(dirname=dirname) or name or "unnamed tree"
         else:
             if name:
                 self.name = name
