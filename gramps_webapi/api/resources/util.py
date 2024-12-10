@@ -29,6 +29,7 @@ from http import HTTPStatus
 from typing import Any, cast, Optional, Union, Literal
 
 import gramps
+import gramps.gen.lib
 import jsonschema
 from celery import Task
 from flask import current_app
@@ -141,9 +142,11 @@ def get_event_participants_for_handle(
     db_handle: DbReadBase,
     handle: Handle,
     locale: GrampsLocale = glocale,
-) -> dict[str, list[tuple[EventRoleType, Union[Person, Family]]]]:
+) -> dict[Literal["people", "families"], list[tuple[EventRoleType, Person | Family]]]:
     """Get event participants given a handle."""
-    result: dict[Literal["people", "families"], list[tuple[Any, Person | Family]]] = {
+    result: dict[
+        Literal["people", "families"], list[tuple[EventRoleType, Person | Family]]
+    ] = {
         "people": [],
         "families": [],
     }
@@ -224,7 +227,7 @@ def get_event_summary_from_object(
 def get_event_profile_for_object(
     db_handle: DbReadBase,
     event: Event,
-    args: list,
+    args: list[str],
     base_event: Union[Event, None] = None,
     label: str = "span",
     locale: GrampsLocale = glocale,
@@ -335,14 +338,14 @@ def get_marriage_profile(
 def get_divorce_profile(
     db_handle: DbReadBase,
     family: Family,
-    args: Union[list, None] = None,
+    args: list | None = None,
     locale: GrampsLocale = glocale,
-) -> tuple[dict, Union[Event, None]]:
+) -> tuple[dict, Event | None]:
     """Return best available divorce information for a couple."""
     event = get_divorce_or_fallback(db_handle, family)
     if event is None:
         return {}, None
-    args = args or {}
+    args = args or []
     return (
         get_event_profile_for_object(db_handle, event, args=args, locale=locale),
         event,
@@ -499,7 +502,10 @@ def get_person_profile_for_handle(
 
 
 def get_family_profile_for_object(
-    db_handle: DbReadBase, family: Family, args: list, locale: GrampsLocale = glocale
+    db_handle: DbReadBase,
+    family: Family,
+    args: list[str],
+    locale: GrampsLocale = glocale,
 ) -> Family:
     """Get family profile given a Family."""
     options = []
@@ -646,7 +652,7 @@ def get_extended_attributes(
 ) -> dict:
     """Get extended attributes for a GrampsObject."""
     args = args or {}
-    result = {}
+    result: dict[str, list | dict[str, Any]] = {}
     do_all = False
     if "all" in args["extend"]:
         do_all = True
@@ -714,7 +720,7 @@ def get_backlinks(db_handle: DbReadBase, handle: Handle) -> dict[str, list[Handl
     Will return a dictionary of the form
     `{'object_type': ['handle1', 'handle2', ...], ...}`
     """
-    backlinks = {}
+    backlinks: dict[str, list[Handle]] = {}
     for obj_type, target_handle in db_handle.find_backlink_handles(handle):
         key = obj_type.lower()
         if key not in backlinks:
