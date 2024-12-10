@@ -296,7 +296,7 @@ class SearchIndexerBase:
         search in private fields.
         """
         search = self.index if include_private else self.index_public
-        where = {}
+        where: dict[str, Any] = {}
         if object_types:
             where["type"] = {"$in": object_types}
         if change_op and change_value is not None:

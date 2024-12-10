@@ -161,7 +161,9 @@ def _search_reindex_incremental(
 ) -> None:
     """Run an incremental reindex of the search index."""
     if semantic:
-        indexer = get_semantic_search_indexer(tree)
+        indexer: SearchIndexer | SemanticSearchIndexer = get_semantic_search_indexer(
+            tree
+        )
     else:
         indexer = get_search_indexer(tree)
     db = get_db_outside_request(
