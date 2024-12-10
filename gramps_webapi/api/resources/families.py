@@ -39,6 +39,7 @@ from .util import (
     get_family_profile_for_object,
     get_person_by_handle,
 )
+from gramps_webapi.types import ResponseReturnValue
 
 
 class FamilyResourceHelper(GrampsObjectResourceHelper):
@@ -75,7 +76,7 @@ class FamilyResource(GrampsObjectProtectedResource, FamilyResourceHelper):
 class FamiliesResource(GrampsObjectsProtectedResource, FamilyResourceHelper):
     """Families resource."""
 
-    def post(self) -> Response:
+    def post(self) -> ResponseReturnValue:
         """Post a new object.
 
         The parent class's method is overridden since creating a Family object

@@ -56,7 +56,7 @@ def answer_prompt(prompt: str, system_prompt: str, config: dict | None = None) -
         response = client.chat.completions.create(
             messages=messages,
             model=model,
-        )
+        )  # type: ignore
     except RateLimitError:
         abort_with_message(500, "Chat API rate limit exceeded.")
     except APIError:
@@ -65,7 +65,7 @@ def answer_prompt(prompt: str, system_prompt: str, config: dict | None = None) -
         abort_with_message(500, "Unexpected error.")
 
     try:
-        answer = response.to_dict()["choices"][0]["message"]["content"]
+        answer = response.to_dict()["choices"][0]["message"]["content"]  # type: ignore
     except (KeyError, IndexError):
         abort_with_message(500, "Error parsing chat API response.")
         raise  # mypy; unreachable

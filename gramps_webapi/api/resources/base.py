@@ -21,7 +21,7 @@
 
 import json
 from abc import abstractmethod
-from typing import Dict, List
+from typing import Dict, List, TypeVar
 
 import gramps_ql as gql
 import object_ql as oql
@@ -72,17 +72,15 @@ from .util import (
 from gramps_webapi.types import Handle, ResponseReturnValue
 
 
+T = TypeVar("T", bound=GrampsObject)
+
+
 class GrampsObjectResourceHelper(GrampsJSONEncoder):
     """Gramps object helper class."""
 
-    @property  # type: ignore
-    @abstractmethod
-    def gramps_class_name(self):
-        """To be set on child classes."""
+    gramps_class_name: str
 
-    def full_object(
-        self, obj: GrampsObject, args: Dict, locale: GrampsLocale = glocale
-    ) -> GrampsObject:
+    def full_object(self, obj: T, args: Dict, locale: GrampsLocale = glocale) -> T:
         """Get the full object with extended attributes and backlinks."""
         if args.get("backlinks"):
             obj.backlinks = get_backlinks(self.db_handle, obj.handle)
@@ -104,9 +102,7 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
             )
         return obj
 
-    def object_extend(
-        self, obj: GrampsObject, args: Dict, locale: GrampsLocale = glocale
-    ) -> GrampsObject:
+    def object_extend(self, obj: T, args: Dict, locale: GrampsLocale = glocale) -> T:
         """Extend the base object attributes as needed."""
         if "extend" in args:
             obj.extended = get_extended_attributes(self.db_handle, obj, args)

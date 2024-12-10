@@ -26,7 +26,7 @@ from gettext import gettext as _
 from http import HTTPStatus
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from celery import shared_task
+from celery import shared_task, Task
 from celery.result import AsyncResult
 from flask import current_app
 
@@ -51,7 +51,7 @@ from .util import (
 )
 
 
-def run_task(task: Callable, **kwargs) -> Union[AsyncResult, Any]:
+def run_task(task: Task, **kwargs) -> Union[AsyncResult, Any]:
     """Send a task to the task queue or run immediately if no queue set up."""
     if not current_app.config["CELERY_CONFIG"]:
         with current_app.app_context():
