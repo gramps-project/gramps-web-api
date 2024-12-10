@@ -77,7 +77,7 @@ class MediaImporter:
             obj for obj in self.objects if obj.handle not in handles_existing
         ]
 
-        missing_files = {}
+        missing_files: dict[str, list[dict[str, str]]] = {}
         for obj in objects_missing:
             if obj.checksum not in missing_files:
                 missing_files[obj.checksum] = []

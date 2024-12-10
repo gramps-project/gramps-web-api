@@ -30,6 +30,8 @@ from celery import shared_task, Task
 from celery.result import AsyncResult
 from flask import current_app
 
+from gramps_webapi.api.search.indexer import SearchIndexer, SemanticSearchIndexer
+
 from ..auth import get_owner_emails
 from .check import check_database
 from .emails import email_confirm_email, email_new_user, email_reset_pw
@@ -111,7 +113,9 @@ def _search_reindex_full(
 ) -> None:
     """Rebuild the search index."""
     if semantic:
-        indexer = get_semantic_search_indexer(tree)
+        indexer: SearchIndexer | SemanticSearchIndexer = get_semantic_search_indexer(
+            tree
+        )
     else:
         indexer = get_search_indexer(tree)
     db = get_db_outside_request(

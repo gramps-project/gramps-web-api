@@ -31,7 +31,7 @@ import socket
 from email.message import EmailMessage
 from email.utils import make_msgid
 from http import HTTPStatus
-from typing import Any, BinaryIO, Never, Sequence
+from typing import Any, BinaryIO, NoReturn, Sequence
 
 from celery import Task
 from flask import (
@@ -704,7 +704,7 @@ def check_quota_ai(requested: int, tree: str | None = None) -> None:
         abort_with_message(405, "Not allowed by AI quota")
 
 
-def abort_with_message(status: int, message: str) -> Never:
+def abort_with_message(status: int, message: str) -> NoReturn:
     """Abort with a JSON response."""
     payload = {"error": {"code": status, "message": message}}
     response = Response(

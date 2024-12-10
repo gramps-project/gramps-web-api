@@ -20,12 +20,13 @@
 
 """Gramps utility functions."""
 
+from __future__ import annotations
 
 import json
 import os
 from hashlib import sha256
 from http import HTTPStatus
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, cast, Optional, Union, Literal
 
 import gramps
 import jsonschema
@@ -82,7 +83,7 @@ pd = PlaceDisplay()
 _ = glocale.translation.gettext
 
 
-def get_person_by_handle(db_handle: DbReadBase, handle: Handle) -> Union[Person, Dict]:
+def get_person_by_handle(db_handle: DbReadBase, handle: Handle) -> Union[Person, dict]:
     """Safe get person by handle."""
     try:
         return db_handle.get_person_from_handle(handle)
@@ -90,7 +91,7 @@ def get_person_by_handle(db_handle: DbReadBase, handle: Handle) -> Union[Person,
         return {}
 
 
-def get_place_by_handle(db_handle: DbReadBase, handle: Handle) -> Union[Place, Dict]:
+def get_place_by_handle(db_handle: DbReadBase, handle: Handle) -> Union[Place, dict]:
     """Safe get place by handle."""
     try:
         return db_handle.get_place_from_handle(handle)
@@ -99,8 +100,8 @@ def get_place_by_handle(db_handle: DbReadBase, handle: Handle) -> Union[Place, D
 
 
 def get_family_by_handle(
-    db_handle: DbReadBase, handle: Handle, args: Optional[Dict] = None
-) -> Union[Family, Dict]:
+    db_handle: DbReadBase, handle: Handle, args: Optional[dict] = None
+) -> Union[Family, dict]:
     """Get a family and optional extended attributes."""
     try:
         obj = db_handle.get_family_from_handle(handle)
@@ -117,7 +118,7 @@ def get_family_by_handle(
 
 
 def get_source_by_handle(
-    db_handle: DbReadBase, handle: Handle, args: Optional[Dict] = None
+    db_handle: DbReadBase, handle: Handle, args: Optional[dict] = None
 ) -> Source:
     """Get a source and optional extended attributes."""
     args = args or {}
@@ -140,9 +141,12 @@ def get_event_participants_for_handle(
     db_handle: DbReadBase,
     handle: Handle,
     locale: GrampsLocale = glocale,
-) -> Dict[str, List[Tuple[EventRoleType, Union[Person, Family]]]]:
+) -> dict[str, list[tuple[EventRoleType, Union[Person, Family]]]]:
     """Get event participants given a handle."""
-    result = {"people": [], "families": []}
+    result: dict[Literal["people", "families"], list[tuple[Any, Person | Family]]] = {
+        "people": [],
+        "families": [],
+    }
     seen = set()  # to avoid duplicates
     for class_name, backref_handle in db_handle.find_backlink_handles(
         handle, include_classes=["Person", "Family"]
@@ -181,7 +185,7 @@ def get_event_participants_profile_for_handle(
     db_handle: DbReadBase,
     handle: Handle,
     locale: GrampsLocale = glocale,
-) -> Dict:
+) -> dict:
     """Get event participants given a handle."""
     event_participants = get_event_participants_for_handle(
         db_handle=db_handle,
@@ -192,13 +196,13 @@ def get_event_participants_profile_for_handle(
 
     for role, person in event_participants["people"]:
         person_profile = get_person_profile_for_object(
-            db_handle, person, args=[], locale=locale
+            db_handle, cast(Person, person), args=[], locale=locale
         )
         role_str = locale.translation.sgettext(role.xml_str())
         result["people"].append({"role": role_str, "person": person_profile})
-    for role, person in event_participants["families"]:
+    for role, family in event_participants["families"]:
         person_profile = get_family_profile_for_object(
-            db_handle, person, args=[], locale=locale
+            db_handle, cast(Family, family), args=[], locale=locale
         )
         role_str = locale.translation.sgettext(role.xml_str())
         result["families"].append({"role": role_str, "family": person_profile})
@@ -220,12 +224,12 @@ def get_event_summary_from_object(
 def get_event_profile_for_object(
     db_handle: DbReadBase,
     event: Event,
-    args: List,
+    args: list,
     base_event: Union[Event, None] = None,
     label: str = "span",
     locale: GrampsLocale = glocale,
     role: Optional[str] = None,
-) -> Dict:
+) -> dict:
     """Get event profile given an Event."""
     result = {
         "type": locale.translation.sgettext(event.type.xml_str()),
@@ -255,12 +259,12 @@ def get_event_profile_for_object(
 def get_event_profile_for_handle(
     db_handle: DbReadBase,
     handle: Handle,
-    args: List,
+    args: list,
     base_event: Union[Event, None] = None,
     label: str = "span",
     locale: GrampsLocale = glocale,
     role: Optional[str] = None,
-) -> Dict:
+) -> dict:
     """Get event profile given a handle."""
     try:
         obj = db_handle.get_event_from_handle(handle)
@@ -280,9 +284,9 @@ def get_event_profile_for_handle(
 def get_birth_profile(
     db_handle: DbReadBase,
     person: Person,
-    args: Union[List, None] = None,
+    args: Union[list, None] = None,
     locale: GrampsLocale = glocale,
-) -> Tuple[Dict, Union[Event, None]]:
+) -> tuple[dict, Union[Event, None]]:
     """Return best available birth information for a person."""
     event = get_birth_or_fallback(db_handle, person)
     if event is None:
@@ -297,9 +301,9 @@ def get_birth_profile(
 def get_death_profile(
     db_handle: DbReadBase,
     person: Person,
-    args: Union[List, None] = None,
+    args: Union[list, None] = None,
     locale: GrampsLocale = glocale,
-) -> Tuple[Dict, Union[Event, None]]:
+) -> tuple[dict, Union[Event, None]]:
     """Return best available death information for a person."""
     event = get_death_or_fallback(db_handle, person)
     if event is None:
@@ -314,9 +318,9 @@ def get_death_profile(
 def get_marriage_profile(
     db_handle: DbReadBase,
     family: Family,
-    args: Union[List, None] = None,
+    args: Union[list, None] = None,
     locale: GrampsLocale = glocale,
-) -> Tuple[Dict, Union[Event, None]]:
+) -> tuple[dict, Union[Event, None]]:
     """Return best available marriage information for a couple."""
     event = get_marriage_or_fallback(db_handle, family)
     if event is None:
@@ -331,9 +335,9 @@ def get_marriage_profile(
 def get_divorce_profile(
     db_handle: DbReadBase,
     family: Family,
-    args: Union[List, None] = None,
+    args: Union[list, None] = None,
     locale: GrampsLocale = glocale,
-) -> Tuple[Dict, Union[Event, None]]:
+) -> tuple[dict, Union[Event, None]]:
     """Return best available divorce information for a couple."""
     event = get_divorce_or_fallback(db_handle, family)
     if event is None:
@@ -347,7 +351,7 @@ def get_divorce_profile(
 
 def _format_place_type(
     place_type: PlaceType, locale: GrampsLocale = glocale
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Format a place type."""
     return locale.translation.sgettext(place_type.xml_str())
 
@@ -357,7 +361,7 @@ def get_place_profile_for_object(
     place: Place,
     locale: GrampsLocale = glocale,
     parent_places: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get place profile given a Place."""
     latitude, longitude = conv_lat_lon(place.lat, place.long, format="D.D8")
     profile = {
@@ -401,7 +405,7 @@ def get_place_profile_for_handle(
     handle: Handle,
     locale: GrampsLocale = glocale,
     parent_places: bool = True,
-) -> Union[Media, Dict]:
+) -> Union[Media, dict]:
     """Get place profile given a handle."""
     obj = get_place_by_handle(db_handle, handle)
     return get_place_profile_for_object(
@@ -410,7 +414,7 @@ def get_place_profile_for_handle(
 
 
 def get_person_profile_for_object(
-    db_handle: DbReadBase, person: Person, args: List, locale: GrampsLocale = glocale
+    db_handle: DbReadBase, person: Person, args: list, locale: GrampsLocale = glocale
 ) -> Person:
     """Get person profile given a Person."""
     options = []
@@ -484,8 +488,8 @@ def get_person_profile_for_object(
 
 
 def get_person_profile_for_handle(
-    db_handle: DbReadBase, handle: Handle, args: List, locale: GrampsLocale = glocale
-) -> Union[Person, Dict]:
+    db_handle: DbReadBase, handle: Handle, args: list, locale: GrampsLocale = glocale
+) -> Union[Person, dict]:
     """Get person profile given a handle."""
     try:
         obj = db_handle.get_person_from_handle(handle)
@@ -495,7 +499,7 @@ def get_person_profile_for_handle(
 
 
 def get_family_profile_for_object(
-    db_handle: DbReadBase, family: Family, args: List, locale: GrampsLocale = glocale
+    db_handle: DbReadBase, family: Family, args: list, locale: GrampsLocale = glocale
 ) -> Family:
     """Get family profile given a Family."""
     options = []
@@ -566,8 +570,8 @@ def get_family_profile_for_object(
 
 
 def get_family_profile_for_handle(
-    db_handle: DbReadBase, handle: Handle, args: List, locale: GrampsLocale = glocale
-) -> Union[Family, Dict]:
+    db_handle: DbReadBase, handle: Handle, args: list, locale: GrampsLocale = glocale
+) -> Union[Family, dict]:
     """Get family profile given a handle."""
     try:
         obj = db_handle.get_family_from_handle(handle)
@@ -579,7 +583,7 @@ def get_family_profile_for_handle(
 def get_citation_profile_for_object(
     db_handle: DbReadBase,
     citation: Citation,
-    args: List,
+    args: list,
     locale: GrampsLocale = glocale,
 ) -> Citation:
     """Get citation profile given a Citation."""
@@ -598,8 +602,8 @@ def get_citation_profile_for_object(
 
 
 def get_citation_profile_for_handle(
-    db_handle: DbReadBase, handle: Handle, args: List, locale: GrampsLocale = glocale
-) -> Union[Family, Dict]:
+    db_handle: DbReadBase, handle: Handle, args: list, locale: GrampsLocale = glocale
+) -> Union[Family, dict]:
     """Get citation profile given a handle."""
     try:
         obj = db_handle.get_citation_from_handle(handle)
@@ -609,7 +613,7 @@ def get_citation_profile_for_handle(
 
 
 def get_media_profile_for_object(
-    db_handle: DbReadBase, media: Media, args: List, locale: GrampsLocale = glocale
+    db_handle: DbReadBase, media: Media, args: list, locale: GrampsLocale = glocale
 ) -> Media:
     """Get media profile given Media."""
     return {
@@ -619,8 +623,8 @@ def get_media_profile_for_object(
 
 
 def get_media_profile_for_handle(
-    db_handle: DbReadBase, handle: Handle, args: List, locale: GrampsLocale = glocale
-) -> Union[Media, Dict]:
+    db_handle: DbReadBase, handle: Handle, args: list, locale: GrampsLocale = glocale
+) -> Union[Media, dict]:
     """Get media profile given a handle."""
     try:
         obj = db_handle.get_media_from_handle(handle)
@@ -638,8 +642,8 @@ def catch_handle_error(method, handle):
 
 
 def get_extended_attributes(
-    db_handle: DbReadBase, obj: GrampsObject, args: Optional[Dict] = None
-) -> Dict:
+    db_handle: DbReadBase, obj: GrampsObject, args: Optional[dict] = None
+) -> dict:
     """Get extended attributes for a GrampsObject."""
     args = args or {}
     result = {}
@@ -704,7 +708,7 @@ def get_extended_attributes(
     return result
 
 
-def get_backlinks(db_handle: DbReadBase, handle: Handle) -> Dict[str, List[Handle]]:
+def get_backlinks(db_handle: DbReadBase, handle: Handle) -> dict[str, list[Handle]]:
     """Get backlinks to a handle.
 
     Will return a dictionary of the form
@@ -737,7 +741,7 @@ def get_reference_profile_for_object(
     db_handle: DbReadBase,
     obj: GrampsObject,
     locale: GrampsLocale = glocale,
-) -> Dict:
+) -> dict:
     """Return reference profiles for an object."""
     profile = {}
     # get backlink handles
@@ -779,7 +783,7 @@ def get_reference_profile_for_object(
     return profile
 
 
-def get_rating(db_handle: DbReadBase, obj: GrampsObject) -> Tuple[int, int]:
+def get_rating(db_handle: DbReadBase, obj: GrampsObject) -> tuple[int, int]:
     """Return rating based on citations."""
     count = 0
     confidence = 0
@@ -876,7 +880,7 @@ def add_family_update_refs(
         db_handle.commit_person(child, trans)
 
 
-def validate_object_dict(obj_dict: Dict[str, Any]) -> bool:
+def validate_object_dict(obj_dict: dict[str, Any]) -> bool:
     """Validate a dict representation of a Gramps object vs. its schema."""
     try:
         obj_cls = getattr(gramps.gen.lib, obj_dict["_class"])
@@ -900,7 +904,7 @@ def xml_to_locale(gramps_type_name: str, string: str) -> str:
     return str(typ)
 
 
-def fix_object_dict(object_dict: Dict, class_name: Optional[str] = None):
+def fix_object_dict(object_dict: dict, class_name: Optional[str] = None):
     """Restore a Gramps object in simplified representation to its full form.
 
     This restores in particular:
@@ -1149,7 +1153,7 @@ def hash_object(obj: GrampsObject) -> str:
     return sha256(data).hexdigest()
 
 
-def filter_missing_files(objects: List[Media]) -> List[Media]:
+def filter_missing_files(objects: list[Media]) -> list[Media]:
     """Filter media objects returning only ones where the file is missing."""
     tree = get_tree_from_jwt()
     db_handle = get_db_handle()
@@ -1160,8 +1164,8 @@ def filter_missing_files(objects: List[Media]) -> List[Media]:
 
 
 def get_missing_media_file_handles(
-    db_handle: DbReadBase, handles: List[str]
-) -> List[str]:
+    db_handle: DbReadBase, handles: list[str]
+) -> list[str]:
     """Filter media handles returning only ones where the file is missing."""
     objects = [db_handle.get_media_from_handle(handle) for handle in handles]
     objects_missing = filter_missing_files(objects)
@@ -1174,7 +1178,7 @@ def get_one_relationship(
     person2: Person,
     depth: int,
     locale: GrampsLocale = glocale,
-) -> Tuple[str, int, int]:
+) -> tuple[str, int, int]:
     """Get a relationship string and the number of generations between the people."""
     calc = get_relationship_calculator(reinit=True, clocale=locale)
     # the relationship calculation can be slow when depth is set to a large value
@@ -1193,7 +1197,7 @@ def get_one_relationship(
     )
 
 
-def get_importers(extension: str = None):
+def get_importers(extension: str | None = None):
     """Extract and return list of importers."""
     importers = []
     plugin_manager = BasePluginManager.get_instance()
@@ -1238,7 +1242,7 @@ def run_import(
 
 def dry_run_import(
     file_name: FilenameOrPath,
-) -> Optional[Dict[str, int]]:
+) -> Optional[dict[str, int]]:
     """Import a file into an in-memory database and returns object counts."""
     db_handle: DbReadBase = import_as_dict(filename=file_name, user=User())
     if db_handle is None:

@@ -158,6 +158,7 @@ def obj_strings_from_handle(
 ) -> Optional[Dict[str, Any]]:
     """Return object strings from a handle and Gramps class name."""
     query_method = db_handle.method("get_%s_from_handle", class_name)
+    assert query_method is not None  # type checker
     obj = query_method(handle)
     return obj_strings_from_object(
         db_handle=db_handle, class_name=class_name, obj=obj, semantic=semantic
@@ -192,6 +193,7 @@ def iter_obj_strings(
     for class_name in PRIMARY_GRAMPS_OBJECTS:
         plural_name = GRAMPS_OBJECT_PLURAL[class_name]
         iter_method = db_handle.method("iter_%s", plural_name)
+        assert iter_method is not None  # type checker
         for obj in iter_method():
             obj_strings = obj_strings_from_object(
                 db_handle, class_name, obj, semantic=semantic
