@@ -27,8 +27,8 @@ import sifts
 from flask import Response, current_app
 from gramps.gen.const import ENV, GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
+from gramps.gen.db.generic import DbGeneric
 from gramps.gen.db.utils import get_dbid_from_path
-from gramps.gen.dbstate import DbState
 from gramps.gen.utils.grampslocale import INCOMPLETE_TRANSLATIONS
 from webargs import fields
 
@@ -38,7 +38,7 @@ from ...auth.const import PERM_VIEW_PRIVATE
 from ...dbmanager import WebDbManager
 from ..auth import has_permissions
 from ..search import get_search_indexer
-from ..util import get_db_handle, get_tree_from_jwt, use_args
+from ..util import get_db_handle, get_tree_from_jwt_or_fail, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -78,7 +78,7 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
 
         db_handle = self.db_handle
         db_name = db_handle.get_dbname()
-        tree_id = get_tree_from_jwt()
+        tree_id = get_tree_from_jwt_or_fail()
         db_type = get_dbid_from_tree_id(tree_id)
         is_multi_tree = current_app.config["TREE"] == TREE_MULTI
         has_task_queue = bool(current_app.config["CELERY_CONFIG"])
@@ -94,8 +94,7 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
         except pytesseract.TesseractNotFoundError:
             has_ocr = False
             ocr_languages = []
-        tree = get_tree_from_jwt()
-        searcher = get_search_indexer(tree)
+        searcher = get_search_indexer(tree_id)
         search_count = searcher.count(
             include_private=has_permissions({PERM_VIEW_PRIVATE})
         )
@@ -104,7 +103,7 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
             "count": search_count,
         }
         if current_app.config.get("VECTOR_EMBEDDING_MODEL"):
-            searcher_s = get_search_indexer(tree, semantic=True)
+            searcher_s = get_search_indexer(tree_id, semantic=True)
             search_count_s = searcher_s.count(
                 include_private=has_permissions({PERM_VIEW_PRIVATE})
             )
@@ -172,5 +171,6 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 result["database"]["module"] = data[item]
             elif item == db_schema_key:
                 result["database"]["schema"] = data[item]
-        result["database"]["actual_schema"] = db_handle.get_schema_version()
+        if isinstance(db_handle, DbGeneric):
+            result["database"]["actual_schema"] = db_handle.get_schema_version()
         return self.response(200, result)
