@@ -37,7 +37,7 @@ from gramps_webapi.const import TREE_MULTI, VERSION
 from ...auth.const import PERM_VIEW_PRIVATE
 from ...dbmanager import WebDbManager
 from ..auth import has_permissions
-from ..search import get_search_indexer
+from ..search import get_search_indexer, get_semantic_search_indexer
 from ..util import get_db_handle, get_tree_from_jwt_or_fail, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
@@ -103,7 +103,7 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
             "count": search_count,
         }
         if current_app.config.get("VECTOR_EMBEDDING_MODEL"):
-            searcher_s = get_search_indexer(tree_id, semantic=True)
+            searcher_s = get_semantic_search_indexer(tree_id)
             search_count_s = searcher_s.count(
                 include_private=has_permissions({PERM_VIEW_PRIVATE})
             )

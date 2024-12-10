@@ -28,9 +28,11 @@ from flask import current_app
 from .indexer import SearchIndexer, SemanticSearchIndexer, SearchIndexerBase
 
 
-def get_search_indexer(tree: str, semantic: bool = False) -> SearchIndexerBase:
-    """Get the search indexer for the tree."""
-    # return cached instances if possible
+def _get_search_index_db_url() -> str:
+    """Get the search index database URL.
+
+    Also, create the containing directory if it doesn't exist in case of SQLite.
+    """
     db_url = current_app.config["SEARCH_INDEX_DB_URI"] or None
     if not db_url and current_app.config["SEARCH_INDEX_DIR"]:
         # backwards compatibility...
@@ -40,6 +42,8 @@ def get_search_indexer(tree: str, semantic: bool = False) -> SearchIndexerBase:
             "future release. Please use SEARCH_INDEX_DB_URI instead, "
             f"e.g. setting it to {db_url}"
         )
+    if not db_url:
+        raise ValueError("SEARCH_INDEX_DB_URI option not set")
     url_parts = urlparse(db_url)
     # in case of SQLite create the containing directory if it doesn't exist
     if url_parts.scheme == "sqlite":
@@ -52,11 +56,21 @@ def get_search_indexer(tree: str, semantic: bool = False) -> SearchIndexerBase:
             path = Path(path_name[1:])
             if not path.exists() and not path.parent.exists():
                 path.parent.mkdir(parents=True, exist_ok=True)
-    if semantic:
-        model = current_app.config.get("_INITIALIZED_VECTOR_EMBEDDING_MODEL")
-        if not model:
-            raise ValueError("VECTOR_EMBEDDING_MODEL option not set")
-        return SemanticSearchIndexer(
-            db_url=db_url, tree=tree, embedding_function=model.encode
-        )
+    return db_url
+
+
+def get_search_indexer(tree: str) -> SearchIndexer:
+    """Get the search indexer for the tree."""
+    db_url = _get_search_index_db_url()
     return SearchIndexer(db_url=db_url, tree=tree)
+
+
+def get_semantic_search_indexer(tree: str) -> SemanticSearchIndexer:
+    """Get the search indexer for the tree."""
+    db_url = _get_search_index_db_url()
+    model = current_app.config.get("_INITIALIZED_VECTOR_EMBEDDING_MODEL")
+    if not model:
+        raise ValueError("VECTOR_EMBEDDING_MODEL option not set")
+    return SemanticSearchIndexer(
+        db_url=db_url, tree=tree, embedding_function=model.encode
+    )

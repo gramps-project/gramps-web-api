@@ -39,7 +39,7 @@ from .media_importer import MediaImporter
 from .report import run_report
 from .resources.delete import delete_all_objects
 from .resources.util import dry_run_import, run_import
-from .search import get_search_indexer
+from .search import get_search_indexer, get_semantic_search_indexer
 from .util import (
     check_quota_people,
     close_db,
@@ -110,7 +110,10 @@ def _search_reindex_full(
     tree: str, user_id: str, semantic: bool, progress_cb: Optional[Callable] = None
 ) -> None:
     """Rebuild the search index."""
-    indexer = get_search_indexer(tree, semantic=semantic)
+    if semantic:
+        indexer = get_semantic_search_indexer(tree)
+    else:
+        indexer = get_search_indexer(tree)
     db = get_db_outside_request(
         tree=tree, view_private=True, readonly=True, user_id=user_id
     )
@@ -153,7 +156,10 @@ def _search_reindex_incremental(
     tree: str, user_id: str, semantic: bool, progress_cb: Optional[Callable] = None
 ) -> None:
     """Run an incremental reindex of the search index."""
-    indexer = get_search_indexer(tree, semantic=semantic)
+    if semantic:
+        indexer = get_semantic_search_indexer(tree)
+    else:
+        indexer = get_search_indexer(tree)
     db = get_db_outside_request(
         tree=tree, view_private=True, readonly=True, user_id=user_id
     )

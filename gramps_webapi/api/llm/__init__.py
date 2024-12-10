@@ -5,7 +5,7 @@ from __future__ import annotations
 from flask import current_app
 from openai import OpenAI, RateLimitError, APIError
 
-from ..search import get_search_indexer
+from ..search import get_semantic_search_indexer
 from ..util import abort_with_message, get_logger
 
 
@@ -104,7 +104,7 @@ def contextualize_prompt(prompt: str, context: str) -> str:
 
 
 def retrieve(tree: str, prompt: str, include_private: bool, num_results: int = 10):
-    searcher = get_search_indexer(tree, semantic=True)
+    searcher = get_semantic_search_indexer(tree)
     total, hits = searcher.search(
         query=prompt,
         page=1,

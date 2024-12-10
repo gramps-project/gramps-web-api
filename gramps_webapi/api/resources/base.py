@@ -36,15 +36,18 @@ from gramps.gen.utils.grampslocale import GrampsLocale
 from pyparsing.exceptions import ParseBaseException
 from webargs import fields, validate
 
+from gramps_webapi.api.search.indexer import SemanticSearchIndexer
+
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ...const import GRAMPS_OBJECT_PLURAL
 from ..auth import require_permissions
-from ..search import SearchIndexer, get_search_indexer
+from ..search import SearchIndexer, get_search_indexer, get_semantic_search_indexer
 from ..util import (
     check_quota_people,
     get_db_handle,
     get_locale_for_language,
     get_tree_from_jwt,
+    get_tree_from_jwt_or_fail,
     update_usage_people,
     use_args,
 )
@@ -260,7 +263,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         if self.gramps_class_name == "Person":
             update_usage_people()
         # update search index
-        tree = get_tree_from_jwt()
+        tree = get_tree_from_jwt_or_fail()
         indexer: SearchIndexer = get_search_indexer(tree)
         indexer.delete_object(handle=handle, class_name=self.gramps_class_name)
         return self.response(200, trans_dict, total_items=len(trans_dict))
@@ -287,18 +290,18 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
                 abort_with_message(400, "Error while updating object")
             trans_dict = transaction_to_json(trans)
         # update search index
-        tree = get_tree_from_jwt()
+        tree = get_tree_from_jwt_or_fail()
         indexer: SearchIndexer = get_search_indexer(tree)
         for _trans_dict in trans_dict:
             handle = _trans_dict["handle"]
             class_name = _trans_dict["_class"]
             indexer.add_or_update_object(handle, db_handle, class_name)
         if app_has_semantic_search():
-            indexer: SearchIndexer = get_search_indexer(tree, semantic=True)
+            semantic_indexer: SemanticSearchIndexer = get_semantic_search_indexer(tree)
             for _trans_dict in trans_dict:
                 handle = _trans_dict["handle"]
                 class_name = _trans_dict["_class"]
-                indexer.add_or_update_object(handle, db_handle, class_name)
+                semantic_indexer.add_or_update_object(handle, db_handle, class_name)
         return self.response(200, trans_dict, total_items=len(trans_dict))
 
 
@@ -396,12 +399,14 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         # load all objects to memory
         objects_name = GRAMPS_OBJECT_PLURAL[self.gramps_class_name]
         iter_objects_method = self.db_handle.method("iter_%s", objects_name)
+        assert iter_objects_method is not None  # type checker
         objects = list(iter_objects_method())
 
         # for all objects except events, repos, and notes, Gramps supports
         # a database-backed default sort order. Use that if no sort order
         # requested.
         query_method = self.db_handle.method("get_%s_handles", self.gramps_class_name)
+        assert query_method is not None  # type checker
         if self.gramps_class_name in ["Event", "Repository", "Note"]:
             handles = query_method()
         else:
@@ -481,18 +486,18 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         if self.gramps_class_name == "Person":
             update_usage_people()
         # update search index
-        tree = get_tree_from_jwt()
+        tree = get_tree_from_jwt_or_fail()
         indexer: SearchIndexer = get_search_indexer(tree)
         for _trans_dict in trans_dict:
             handle = _trans_dict["handle"]
             class_name = _trans_dict["_class"]
             indexer.add_or_update_object(handle, db_handle, class_name)
         if app_has_semantic_search():
-            indexer: SearchIndexer = get_search_indexer(tree, semantic=True)
+            semantic_indexer: SemanticSearchIndexer = get_semantic_search_indexer(tree)
             for _trans_dict in trans_dict:
                 handle = _trans_dict["handle"]
                 class_name = _trans_dict["_class"]
-                indexer.add_or_update_object(handle, db_handle, class_name)
+                semantic_indexer.add_or_update_object(handle, db_handle, class_name)
         return self.response(201, trans_dict, total_items=len(trans_dict))
 
 

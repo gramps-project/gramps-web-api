@@ -34,7 +34,7 @@ import click
 import waitress
 import webbrowser
 
-from .api.search import get_search_indexer
+from .api.search import get_search_indexer, get_semantic_search_indexer
 from .api.util import get_db_manager, list_trees, close_db
 from .app import create_app
 from .auth import add_user, delete_user, fill_tree, user_db
@@ -213,7 +213,10 @@ def search(ctx, tree, semantic):
         tree = dbmgr.dirname
     with app.app_context():
         ctx.obj["db_manager"] = get_db_manager(tree=tree)
-        ctx.obj["search_indexer"] = get_search_indexer(tree=tree, semantic=semantic)
+        if semantic:
+            ctx.obj["search_indexer"] = get_semantic_search_indexer(tree=tree)
+        else:
+            ctx.obj["search_indexer"] = get_search_indexer(tree=tree)
 
 
 def progress_callback_count(
