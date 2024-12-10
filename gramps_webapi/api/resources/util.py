@@ -192,7 +192,7 @@ def get_event_participants_profile_for_handle(
         handle=handle,
         locale=locale,
     )
-    result = {"people": [], "families": []}
+    result: dict[str, list[dict[str, Any]]] = {"people": [], "families": []}
 
     for role, person in event_participants["people"]:
         person_profile = get_person_profile_for_object(
