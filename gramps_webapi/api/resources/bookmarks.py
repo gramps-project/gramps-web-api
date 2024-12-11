@@ -69,10 +69,10 @@ def _get_bookmarks_object(db_handle: DbReadBase, namespace: str) -> DbBookmarks:
     return result
 
 
-def get_bookmarks(db_handle: DbReadBase, namespace: str) -> Optional[List]:
+def get_bookmarks(db_handle: DbReadBase, namespace: str) -> list:
     """Return bookmarks for a namespace."""
     bookmarks = _get_bookmarks_object(db_handle, namespace)
-    return bookmarks.get()
+    return bookmarks.get() or []
 
 
 def create_bookmark(db_handle: DbReadBase, namespace: str, handle: str) -> None:

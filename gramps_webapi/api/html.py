@@ -23,8 +23,8 @@
 
 from typing import Callable, Optional
 
-import bleach
-from bleach.css_sanitizer import CSSSanitizer
+import bleach  # type: ignore
+from bleach.css_sanitizer import CSSSanitizer  # type: ignore
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Note, NoteType, StyledText
 from gramps.plugins.lib.libhtml import Html

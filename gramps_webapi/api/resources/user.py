@@ -303,9 +303,9 @@ class UserRegisterResource(Resource):
         # check if there are tree owners or, in a single-tree setup,
         # tree admins
         if current_app.config["TREE"] == TREE_MULTI:
-            roles = (ROLE_OWNER,)
+            roles = [ROLE_OWNER]
         else:
-            roles = (ROLE_OWNER, ROLE_ADMIN)
+            roles = [ROLE_OWNER, ROLE_ADMIN]
         if get_number_users(tree=tree, roles=roles) == 0:
             # no users authorized to enable new accounts:
             # registration disabled

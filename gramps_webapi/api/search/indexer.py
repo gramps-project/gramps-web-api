@@ -202,12 +202,15 @@ class SearchIndexerBase:
         obj_id = self._object_id_public(handle=handle, class_name=class_name)
         self.index_public.delete([obj_id])
 
-    def add_or_update_object(self, handle: str, db_handle: DbReadBase, class_name: str):
+    def add_or_update_object(
+        self, handle: str, db_handle: DbReadBase, class_name: str
+    ) -> None:
         """Add an object to the index or update it if it exists."""
         obj_dict = obj_strings_from_handle(
             db_handle, class_name, handle, semantic=self.use_semantic_text
         )
-        self._add_objects([obj_dict])
+        if obj_dict is not None:
+            self._add_objects([obj_dict])
 
     def reindex_incremental(
         self, db_handle: DbReadBase, progress_cb: Optional[Callable] = None
@@ -246,22 +249,22 @@ class SearchIndexerBase:
         for class_name, handles in update_info["new"].items():
             obj_dicts = []
             for handle in handles:
-                obj_dicts.append(
-                    obj_strings_from_handle(
-                        db_handle, class_name, handle, semantic=self.use_semantic_text
-                    )
+                obj_strings = obj_strings_from_handle(
+                    db_handle, class_name, handle, semantic=self.use_semantic_text
                 )
+                if obj_strings is not None:
+                    obj_dicts.append(obj_strings)
                 i = progress(i)
             self._add_objects(obj_dicts)
         # update objects
         for class_name, handles in update_info["updated"].items():
             obj_dicts = []
             for handle in handles:
-                obj_dicts.append(
-                    obj_strings_from_handle(
-                        db_handle, class_name, handle, semantic=self.use_semantic_text
-                    )
+                obj_strings = obj_strings_from_handle(
+                    db_handle, class_name, handle, semantic=self.use_semantic_text
                 )
+                if obj_strings is not None:
+                    obj_dicts.append(obj_strings)
                 i = progress(i)
             self._add_objects(obj_dicts)
 
@@ -296,7 +299,7 @@ class SearchIndexerBase:
         search in private fields.
         """
         search = self.index if include_private else self.index_public
-        where = {}
+        where: dict[str, Any] = {}
         if object_types:
             where["type"] = {"$in": object_types}
         if change_op and change_value is not None:
@@ -304,14 +307,13 @@ class SearchIndexerBase:
                 raise ValueError("Invalid operator for change condition")
             ops = {">": "$gt", "<": "$lt", ">=": "$gte", "<=": "$lte"}
             where["change"] = {ops[change_op]: change_value}
-        where = where or None
         offset = (page - 1) * pagesize
         if not query or query.strip() == "*":
             results = search.get(
                 limit=pagesize,
                 offset=offset,
                 order_by=sort,
-                where=where,
+                where=where or None,
             )
         else:
             results = search.query(
@@ -319,7 +321,7 @@ class SearchIndexerBase:
                 limit=pagesize,
                 offset=offset,
                 order_by=sort,
-                where=where,
+                where=where or None,
                 vector_search=self.use_semantic_text,
             )
         total = results["total"]

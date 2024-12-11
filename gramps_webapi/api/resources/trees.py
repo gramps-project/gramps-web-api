@@ -19,6 +19,8 @@
 
 """Background task resources."""
 
+from __future__ import annotations
+
 import os
 import re
 import uuid
@@ -58,14 +60,14 @@ from ..tasks import (
     run_task,
     upgrade_database_schema,
 )
-from ..util import abort_with_message, get_tree_from_jwt, list_trees, use_args
+from ..util import abort_with_message, get_tree_from_jwt_or_fail, list_trees, use_args
 from . import ProtectedResource
 
 # legal tree dirnames
 TREE_ID_REGEX = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
-def get_tree_details(tree_id: str) -> Dict[str, str]:
+def get_tree_details(tree_id: str) -> Dict[str, str | bool | int]:
     """Get details about a tree."""
     try:
         dbmgr = WebDbManager(
@@ -90,7 +92,7 @@ def get_tree_path(tree_id: str) -> Optional[str]:
 def tree_exists(tree_id: str) -> bool:
     """Check whether a tree exists."""
     tree_path = get_tree_path(tree_id)
-    return tree_path and os.path.isdir(tree_path)
+    return tree_path is not None and os.path.isdir(tree_path)
 
 
 def validate_tree_id(tree_id: str) -> None:
@@ -114,7 +116,7 @@ class TreesResource(ProtectedResource):
             tree_ids = get_tree_ids()
         else:
             # only allowed to see details about our own tree
-            user_tree_id = get_tree_from_jwt()
+            user_tree_id = get_tree_from_jwt_or_fail()
             tree_ids = [user_tree_id]
         return [get_tree_details(tree_id) for tree_id in tree_ids]
 
@@ -158,11 +160,11 @@ class TreeResource(ProtectedResource):
         """Get info about a tree."""
         if tree_id == "-":
             # own tree
-            tree_id = get_tree_from_jwt()
+            tree_id = get_tree_from_jwt_or_fail()
         else:
             validate_tree_id(tree_id)
             if not has_permissions([PERM_VIEW_OTHER_TREE]):
-                user_tree_id = get_tree_from_jwt()
+                user_tree_id = get_tree_from_jwt_or_fail()
                 if tree_id != user_tree_id:
                     # only allowed to see details about our own tree
                     abort_with_message(403, "Not authorized to view other trees")
@@ -181,10 +183,10 @@ class TreeResource(ProtectedResource):
         """Modify a tree."""
         if tree_id == "-":
             # own tree
-            tree_id = get_tree_from_jwt()
+            tree_id = get_tree_from_jwt_or_fail()
             require_permissions([PERM_EDIT_TREE])
         else:
-            user_tree_id = get_tree_from_jwt()
+            user_tree_id = get_tree_from_jwt_or_fail()
             if tree_id == user_tree_id:
                 require_permissions([PERM_EDIT_TREE])
             else:
@@ -231,7 +233,7 @@ class DisableEnableTreeResource(ProtectedResource):
             abort_with_message(405, "Not allowed in single-tree setup")
         if tree_id == "-":
             # own tree
-            tree_id = get_tree_from_jwt()
+            tree_id = get_tree_from_jwt_or_fail()
         if not tree_exists(tree_id):
             abort(404)
         require_permissions([PERM_DISABLE_TREE])
@@ -261,7 +263,7 @@ class CheckTreeResource(ProtectedResource):
     def post(self, tree_id: str):
         """Check & repair a Gramps database (tree)."""
         require_permissions([PERM_REPAIR_TREE])
-        user_tree_id = get_tree_from_jwt()
+        user_tree_id = get_tree_from_jwt_or_fail()
         if tree_id == "-":
             # own tree
             tree_id = user_tree_id
@@ -286,7 +288,7 @@ class UpgradeTreeSchemaResource(ProtectedResource):
     def post(self, tree_id: str):
         """Upgrade the schema of a Gramps database (tree)."""
         require_permissions([PERM_UPGRADE_TREE_SCHEMA])
-        user_tree_id = get_tree_from_jwt()
+        user_tree_id = get_tree_from_jwt_or_fail()
         if tree_id == "-":
             # own tree
             tree_id = user_tree_id

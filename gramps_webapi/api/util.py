@@ -19,6 +19,8 @@
 
 """Utility functions."""
 
+from __future__ import annotations
+
 import hashlib
 import io
 import logging
@@ -29,7 +31,7 @@ import socket
 from email.message import EmailMessage
 from email.utils import make_msgid
 from http import HTTPStatus
-from typing import BinaryIO, List, Optional, Sequence, Tuple
+from typing import Any, BinaryIO, NoReturn, Sequence
 
 from celery import Task
 from flask import (
@@ -288,7 +290,7 @@ class UserTaskProgress(UserBase):
     def _report_progress(self) -> None:
         """Report the progress in the task result."""
         if self.steps == 0:
-            progress = -1
+            progress = -1.0
         else:
             progress = self.current_step / self.steps
             if progress < 0 or progress >= 1:
@@ -352,7 +354,7 @@ def _sanitize_media_patched(db, media):
     return obj
 
 
-def get_db_manager(tree: Optional[str]) -> WebDbManager:
+def get_db_manager(tree: str | None) -> WebDbManager:
     """Get an appropriate WebDbManager instance."""
     return WebDbManager(
         dirname=tree,
@@ -363,13 +365,25 @@ def get_db_manager(tree: Optional[str]) -> WebDbManager:
     )
 
 
-def get_tree_from_jwt() -> Optional[str]:
+def get_tree_from_jwt() -> str | None:
     """Get the tree ID from the token.
 
-    Needs request context.
+    Needs request context. Can return None if no tree ID is present,
+    e.g. for e-mail confirmation or password reset tokens.
     """
     claims = get_jwt()
-    tree = claims.get("tree")
+    return claims.get("tree")
+
+
+def get_tree_from_jwt_or_fail() -> str:
+    """Get the tree ID from the token.
+
+    Needs request context. Will fail if no tree ID is present.
+    """
+    tree = get_tree_from_jwt()
+    if not tree:
+        abort_with_message(403, "No tree ID in JWT")
+        raise  # mypy; unreachable
     return tree
 
 
@@ -425,7 +439,7 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
     If `readonly` is false, locks the database during the request.
     """
     view_private = has_permissions({PERM_VIEW_PRIVATE})
-    tree = get_tree_from_jwt()
+    tree = get_tree_from_jwt_or_fail()
     user_id = get_jwt_identity()
 
     if readonly and "db" not in g:
@@ -495,7 +509,7 @@ def get_buffer_for_file(filename: str, delete=True, not_found=False) -> BinaryIO
 
 
 def send_email(
-    subject: str, body: str, to: Sequence[str], from_email: Optional[str] = None
+    subject: str, body: str, to: Sequence[str], from_email: str | None = None
 ) -> None:
     """Send an e-mail message."""
     msg = EmailMessage()
@@ -513,6 +527,7 @@ def send_email(
     password = get_config("EMAIL_HOST_PASSWORD")
     use_tls = get_config("EMAIL_USE_TLS")
     try:
+        smtp: smtplib.SMTP | smtplib.SMTP_SSL
         if use_tls:
             smtp = smtplib.SMTP_SSL(host=host, port=port, timeout=10)
         else:
@@ -563,7 +578,7 @@ def make_cache_key_thumbnails(*args, **kwargs):
     return cache_key
 
 
-def get_config(key: str) -> Optional[str]:
+def get_config(key: str) -> Any:
     """Get a config item.
 
     If exists, returns the config item from the database.
@@ -576,7 +591,7 @@ def get_config(key: str) -> Optional[str]:
     return current_app.config.get(key)
 
 
-def list_trees() -> List[Tuple[str, str]]:
+def list_trees() -> list[tuple[str, str]]:
     """Get a list of tree dirnames and names."""
     dbstate = DbState()
     dbman = CLIDbManager(dbstate)
@@ -617,14 +632,13 @@ def tree_exists(tree_id: str) -> bool:
     return True
 
 
-def update_usage_people(
-    tree: Optional[str] = None, user_id: Optional[str] = None
-) -> int:
+def update_usage_people(tree: str | None = None, user_id: str | None = None) -> int:
     """Update the usage of people."""
     if not tree:
-        tree = get_tree_from_jwt()
+        tree = get_tree_from_jwt_or_fail()
     if not user_id:
         user_id = get_jwt_identity()
+    assert user_id is not None, "Unexpected error while looking up user ID."
     db_handle = get_db_outside_request(
         tree=tree,
         view_private=True,
@@ -640,17 +654,18 @@ def update_usage_people(
 
 
 def check_quota_people(
-    to_add: int, tree: Optional[str] = None, user_id: Optional[str] = None
+    to_add: int, tree: str | None = None, user_id: str | None = None
 ) -> None:
     """Check whether the quota allows adding `to_add` people and abort if not."""
     if not tree:
-        tree = get_tree_from_jwt()
+        tree = get_tree_from_jwt_or_fail()
     if not user_id:
         user_id = get_jwt_identity()
     usage_dict = get_tree_usage(tree)
     if not usage_dict or usage_dict.get("usage_people") is None:
         update_usage_people(tree=tree, user_id=user_id)
         usage_dict = get_tree_usage(tree)
+    assert usage_dict is not None, "Unexpected error while looking up usage data."
     usage = usage_dict["usage_people"]
     quota = usage_dict.get("quota_people")
     if quota is None:
@@ -659,10 +674,10 @@ def check_quota_people(
         abort_with_message(405, "Not allowed by people quota")
 
 
-def update_usage_ai(new: int, tree: Optional[str] = None) -> int:
+def update_usage_ai(new: int, tree: str | None = None) -> int:
     """Update the usage of AI by adding `new` units to the usage."""
     if not tree:
-        tree = get_tree_from_jwt()
+        tree = get_tree_from_jwt_or_fail()
     usage_dict = get_tree_usage(tree)
     if not usage_dict:
         old_usage = 0
@@ -673,10 +688,10 @@ def update_usage_ai(new: int, tree: Optional[str] = None) -> int:
     return new_usage
 
 
-def check_quota_ai(requested: int, tree: Optional[str] = None) -> None:
+def check_quota_ai(requested: int, tree: str | None = None) -> None:
     """Check whether the AI quota allows consuming another `requested` units."""
     if not tree:
-        tree = get_tree_from_jwt()
+        tree = get_tree_from_jwt_or_fail()
     usage_dict = get_tree_usage(tree)
     if not usage_dict:
         return
@@ -688,7 +703,7 @@ def check_quota_ai(requested: int, tree: Optional[str] = None) -> None:
         abort_with_message(405, "Not allowed by AI quota")
 
 
-def abort_with_message(status: int, message: str):
+def abort_with_message(status: int, message: str) -> NoReturn:
     """Abort with a JSON response."""
     payload = {"error": {"code": status, "message": message}}
     response = Response(
@@ -701,9 +716,7 @@ def abort_with_message(status: int, message: str):
     raise exc
 
 
-def upgrade_gramps_database(
-    tree: str, user_id: str, task: Optional[Task] = None
-) -> None:
+def upgrade_gramps_database(tree: str, user_id: str, task: Task | None = None) -> None:
     """Upgrade the Gramps database for a tree."""
     dbmgr = get_db_manager(tree=tree)
     dbmgr.upgrade_if_needed(user_id=user_id, user=UserTaskProgress(task=task))
@@ -727,10 +740,11 @@ def get_total_number_of_objects(db_handle: DbReadBase):
 
 def get_object_timestamps(db_handle: DbReadBase):
     """Get a dictionary with change timestamps of all objects in the DB."""
-    d = {}
+    d: dict[str, set[tuple[int, float | int]]] = {}
     for class_name in PRIMARY_GRAMPS_OBJECTS:
         d[class_name] = set()
         iter_method = db_handle.method("iter_%s_handles", class_name)
+        assert iter_method is not None, f"Method iter_{class_name}_handles not found"
         for handle in iter_method():
             query_method = db_handle.method("get_%s_from_handle", class_name)
             obj = query_method(handle)

@@ -22,6 +22,8 @@
 
 """Database loader utilitis derived from `grampscli`."""
 
+from __future__ import annotations
+
 import logging
 import os
 from uuid import uuid4
@@ -102,7 +104,7 @@ def get_postgres_credentials(directory, username, password):
 class WebDbSessionManager:
     """Session manager derived from `CLIDbLoader` and `CLIManager`."""
 
-    def __init__(self, dbstate: DbState, user: UserBase, user_id: str):
+    def __init__(self, dbstate: DbState, user: UserBase, user_id: str | None):
         """Initialize self."""
         self.dbstate = dbstate
         self._pmgr = BasePluginManager.get_instance()
@@ -113,8 +115,8 @@ class WebDbSessionManager:
         self,
         filename,
         mode: str,
-        username: str,
-        password: str,
+        username: str | None,
+        password: str | None,
         force_schema_upgrade: bool = False,
     ):
         """Open a database from a file."""

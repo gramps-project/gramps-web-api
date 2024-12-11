@@ -5,7 +5,7 @@ from __future__ import annotations
 from flask import current_app
 from openai import OpenAI, RateLimitError, APIError
 
-from ..search import get_search_indexer
+from ..search import get_semantic_search_indexer
 from ..util import abort_with_message, get_logger
 
 
@@ -50,10 +50,11 @@ def answer_prompt(prompt: str, system_prompt: str, config: dict | None = None) -
 
     client = get_client(config=config)
     model = config.get("LLM_MODEL")
+    assert model is not None, "No LLM model specified"  # mypy; shouldn't happen
 
     try:
         response = client.chat.completions.create(
-            messages=messages,
+            messages=messages,  # type: ignore
             model=model,
         )
     except RateLimitError:
@@ -64,9 +65,10 @@ def answer_prompt(prompt: str, system_prompt: str, config: dict | None = None) -
         abort_with_message(500, "Unexpected error.")
 
     try:
-        answer = response.to_dict()["choices"][0]["message"]["content"]
+        answer = response.to_dict()["choices"][0]["message"]["content"]  # type: ignore
     except (KeyError, IndexError):
         abort_with_message(500, "Error parsing chat API response.")
+        raise  # mypy; unreachable
 
     return sanitize_answer(answer)
 
@@ -102,7 +104,7 @@ def contextualize_prompt(prompt: str, context: str) -> str:
 
 
 def retrieve(tree: str, prompt: str, include_private: bool, num_results: int = 10):
-    searcher = get_search_indexer(tree, semantic=True)
+    searcher = get_semantic_search_indexer(tree)
     total, hits = searcher.search(
         query=prompt,
         page=1,

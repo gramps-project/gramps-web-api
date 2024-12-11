@@ -447,7 +447,7 @@ def delete_all_objects(
     db_handle: DbWriteBase,
     namespaces: Optional[List[str]] = None,
     progress_cb: Optional[Callable] = None,
-) -> List[Dict[str, Any]]:
+) -> None:
     """Delete all objects, optionally restricting to one or more types (namespaces)."""
     if progress_cb:
         total = get_total_number_of_objects(db_handle)

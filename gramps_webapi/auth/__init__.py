@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Union
 import sqlalchemy as sa
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError, StatementError
+from sqlalchemy.orm import mapped_column
 from sqlalchemy.sql.functions import coalesce
 
 from ..const import DB_CONFIG_ALLOWED_KEYS
@@ -61,7 +62,7 @@ def add_user(
         user_db.session.add(user)  # pylint: disable=no-member
         user_db.session.commit()  # pylint: disable=no-member
     except IntegrityError as exc:
-        reason = str(exc.orig.args)
+        reason = str(exc.orig.args) if exc.orig else ""
         if "name" in reason:
             message = "User already exists"
         elif "email" in reason:
@@ -87,14 +88,14 @@ def add_users(
             raise ValueError("Password must not be empty")
         if "id" in user and not allow_id:
             raise ValueError("User ID must not be specified")
-        if not allow_admin and user.get("role", 0) > ROLE_OWNER:
+        if not allow_admin and int(user.get("role", 0)) > ROLE_OWNER:
             raise ValueError("Insufficient permissions to create admin role")
         if "id" not in user:
-            user["id"] = uuid.uuid4()
+            user["id"] = str(uuid.uuid4())
         if not user.get("password"):
             # generate random password
             user["password"] = secrets.token_urlsafe(16)
-        user["pwhash"] = hash_password(user.pop("password"))
+        user["pwhash"] = hash_password(str(user.pop("password")))
         try:
             user_obj = User(**user)
             user_db.session.add(user_obj)  # pylint: disable=no-member
@@ -415,52 +416,52 @@ def is_tree_disabled(tree: str) -> bool:
     return tree_obj.enabled == 0
 
 
-class User(user_db.Model):
+class User(user_db.Model):  # type: ignore
     """User table class for sqlalchemy."""
 
     __tablename__ = "users"
 
-    id = sa.Column(GUID, primary_key=True)
-    name = sa.Column(sa.String, unique=True, nullable=False)
-    email = sa.Column(sa.String, unique=True)
-    fullname = sa.Column(sa.String)
-    pwhash = sa.Column(sa.String, nullable=False)
-    role = sa.Column(sa.Integer, default=0)
-    tree = sa.Column(sa.String, index=True)
+    id = mapped_column(GUID, primary_key=True)
+    name = mapped_column(sa.String, unique=True, nullable=False)
+    email = mapped_column(sa.String, unique=True)
+    fullname = mapped_column(sa.String)
+    pwhash = mapped_column(sa.String, nullable=False)
+    role = mapped_column(sa.Integer, default=0)
+    tree = mapped_column(sa.String, index=True)
 
     def __repr__(self):
         """Return string representation of instance."""
         return f"<User(name='{self.name}', fullname='{self.fullname}')>"
 
 
-class Config(user_db.Model):
+class Config(user_db.Model):  # type: ignore
     """Config table class for sqlalchemy."""
 
     __tablename__ = "configuration"
 
-    id = sa.Column(sa.Integer, primary_key=True)
-    key = sa.Column(sa.String, unique=True, nullable=False)
-    value = sa.Column(sa.String)
+    id = mapped_column(sa.Integer, primary_key=True)
+    key = mapped_column(sa.String, unique=True, nullable=False)
+    value = mapped_column(sa.String)
 
     def __repr__(self):
         """Return string representation of instance."""
         return f"<Config(key='{self.key}', value='{self.value}')>"
 
 
-class Tree(user_db.Model):
+class Tree(user_db.Model):  # type: ignore
     """Config table class for sqlalchemy."""
 
     __tablename__ = "trees"
 
-    id = sa.Column(sa.String, primary_key=True)
-    quota_media = sa.Column(sa.BigInteger)
-    quota_people = sa.Column(sa.Integer)
-    quota_ai = sa.Column(sa.Integer)
-    usage_media = sa.Column(sa.BigInteger)
-    usage_people = sa.Column(sa.Integer)
-    usage_ai = sa.Column(sa.Integer)
-    min_role_ai = sa.Column(sa.Integer)
-    enabled = sa.Column(sa.Integer, default=1, server_default="1")
+    id = mapped_column(sa.String, primary_key=True)
+    quota_media = mapped_column(sa.BigInteger)
+    quota_people = mapped_column(sa.Integer)
+    quota_ai = mapped_column(sa.Integer)
+    usage_media = mapped_column(sa.BigInteger)
+    usage_people = mapped_column(sa.Integer)
+    usage_ai = mapped_column(sa.Integer)
+    min_role_ai = mapped_column(sa.Integer)
+    enabled = mapped_column(sa.Integer, default=1, server_default="1")
 
     def __repr__(self):
         """Return string representation of instance."""

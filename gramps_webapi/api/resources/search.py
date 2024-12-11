@@ -19,6 +19,8 @@
 
 """Full-text search endpoint."""
 
+from __future__ import annotations
+
 import re
 from typing import Dict, Optional
 
@@ -33,7 +35,12 @@ from webargs import fields, validate
 from ...auth.const import PERM_TRIGGER_REINDEX, PERM_VIEW_PRIVATE
 from ...const import PRIMARY_GRAMPS_OBJECTS
 from ..auth import has_permissions, require_permissions
-from ..search import get_search_indexer
+from ..search import (
+    get_search_indexer,
+    get_semantic_search_indexer,
+    SearchIndexer,
+    SemanticSearchIndexer,
+)
 from ..tasks import (
     AsyncResult,
     make_task_response,
@@ -44,7 +51,7 @@ from ..tasks import (
 from ..util import (
     get_db_handle,
     get_locale_for_language,
-    get_tree_from_jwt,
+    get_tree_from_jwt_or_fail,
     use_args,
 )
 from . import ProtectedResource
@@ -73,6 +80,7 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
     ) -> GrampsObject:
         """Get the object given a Gramps handle."""
         query_method = self.db_handle.method("get_%s_from_handle", class_name)
+        assert query_method is not None  # type checker
         obj = query_method(handle)
         if "profile" in args:
             if class_name == "person":
@@ -131,11 +139,16 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
     )
     def get(self, args: Dict):
         """Get search result."""
-        tree = get_tree_from_jwt()
+        tree = get_tree_from_jwt_or_fail()
         try:
-            searcher = get_search_indexer(tree, semantic=args["semantic"])
+            if args["semantic"]:
+                searcher: SearchIndexer | SemanticSearchIndexer = (
+                    get_semantic_search_indexer(tree)
+                )
+            else:
+                searcher = get_search_indexer(tree)
         except ValueError:
-            abort_with_message(500, "Failed initializing semantic search")
+            abort_with_message(500, "Failed initializing search")
         if args["semantic"] and args.get("sort"):
             abort_with_message(
                 422, "the sort parameter is not allowed with semantic search"
@@ -192,7 +205,7 @@ class SearchIndexResource(ProtectedResource):
     def post(self, args: Dict):
         """Trigger a reindex."""
         require_permissions([PERM_TRIGGER_REINDEX])
-        tree = get_tree_from_jwt()
+        tree = get_tree_from_jwt_or_fail()
         user_id = get_jwt_identity()
         if args["full"]:
             task_func = search_reindex_full
