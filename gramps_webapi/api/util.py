@@ -72,8 +72,6 @@ from gramps.gen.user import UserBase
 from gramps.gen.utils.grampslocale import GrampsLocale
 from gramps.plugins.db.dbapi.dbapi import DBAPI
 from marshmallow import RAISE
-from sklearn import tree
-from torch import Value
 from webargs.flaskparser import FlaskParser
 from werkzeug.exceptions import HTTPException
 from werkzeug.security import safe_join

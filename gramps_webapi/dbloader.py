@@ -104,7 +104,7 @@ def get_postgres_credentials(directory, username, password):
 class WebDbSessionManager:
     """Session manager derived from `CLIDbLoader` and `CLIManager`."""
 
-    def __init__(self, dbstate: DbState, user: UserBase, user_id: str):
+    def __init__(self, dbstate: DbState, user: UserBase, user_id: str | None):
         """Initialize self."""
         self.dbstate = dbstate
         self._pmgr = BasePluginManager.get_instance()
