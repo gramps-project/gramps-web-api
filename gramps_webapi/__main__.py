@@ -31,7 +31,7 @@ import warnings
 from threading import Thread
 
 import click
-import waitress
+import waitress  # type: ignore
 import webbrowser
 
 from .api.search import get_search_indexer, get_semantic_search_indexer

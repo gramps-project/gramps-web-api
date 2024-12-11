@@ -54,9 +54,9 @@ def answer_prompt(prompt: str, system_prompt: str, config: dict | None = None) -
 
     try:
         response = client.chat.completions.create(
-            messages=messages,
+            messages=messages,  # type: ignore
             model=model,
-        )  # type: ignore
+        )
     except RateLimitError:
         abort_with_message(500, "Chat API rate limit exceeded.")
     except APIError:
