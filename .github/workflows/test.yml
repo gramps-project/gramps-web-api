@@ -25,5 +25,7 @@ jobs:
           pip install -r requirements-dev.txt
           pip install .[ai]
           pip list
+      - name: Run type checker
+        run: mypy --ignore-missing-imports .
       - name: Test with pytest
         run: pytest
