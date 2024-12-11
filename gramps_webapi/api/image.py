@@ -249,8 +249,8 @@ def detect_faces(stream: BinaryIO) -> list[tuple[float, float, float, float]]:
 
     # Extract and normalize face bounding boxes
     detected_faces = []
-    for face in np.asarray(faces)[1]:
-        x, y, w, h = face[:4]
+    for face in faces[1]:
+        x, y, w, h = np.asarray(face)[:4]
         x = float(x)
         y = float(y)
         w = float(w)
