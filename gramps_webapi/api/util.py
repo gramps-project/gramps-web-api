@@ -638,6 +638,7 @@ def update_usage_people(tree: str | None = None, user_id: str | None = None) -> 
         tree = get_tree_from_jwt_or_fail()
     if not user_id:
         user_id = get_jwt_identity()
+    assert user_id is not None, "Unexpected error while looking up user ID."
     db_handle = get_db_outside_request(
         tree=tree,
         view_private=True,
