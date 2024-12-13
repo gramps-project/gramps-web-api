@@ -93,7 +93,9 @@ class MediaImporter:
     def _check_disk_space_and_extract(self) -> str:
         """Check disk space and extract files into a temporary directory."""
         total_size = 0
-        with zipfile.ZipFile(self.file_name, "r") as zip_file:
+        with zipfile.ZipFile(
+            self.file_name, "r", metadata_encoding="utf-8"
+        ) as zip_file:
             for file_info in zip_file.infolist():
                 total_size += file_info.file_size
 
