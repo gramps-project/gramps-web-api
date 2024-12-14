@@ -33,12 +33,17 @@ from webargs import fields
 
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ..auth import require_permissions
-from ..search import SearchIndexer, get_search_indexer
+from ..search import (
+    SearchIndexer,
+    get_search_indexer,
+    SemanticSearchIndexer,
+    get_semantic_search_indexer,
+)
 from ..util import (
     abort_with_message,
     check_quota_people,
     get_db_handle,
-    get_tree_from_jwt,
+    get_tree_from_jwt_or_fail,
     update_usage_people,
     use_args,
 )
@@ -115,7 +120,7 @@ class TransactionsResource(ProtectedResource):
         if num_people_new:
             update_usage_people()
         # update search index
-        tree = get_tree_from_jwt()
+        tree = get_tree_from_jwt_or_fail()
         indexer: SearchIndexer = get_search_indexer(tree)
         for _trans_dict in trans_dict:
             handle = _trans_dict["handle"]
@@ -125,20 +130,20 @@ class TransactionsResource(ProtectedResource):
             else:
                 indexer.add_or_update_object(handle, db_handle, class_name)
         if app_has_semantic_search():
-            indexer: SearchIndexer = get_search_indexer(tree, semantic=True)
+            semantic_indexer: SemanticSearchIndexer = get_semantic_search_indexer(tree)
             for _trans_dict in trans_dict:
                 handle = _trans_dict["handle"]
                 class_name = _trans_dict["_class"]
                 if _trans_dict["type"] == "delete":
-                    indexer.delete_object(handle, class_name)
+                    semantic_indexer.delete_object(handle, class_name)
                 else:
-                    indexer.add_or_update_object(handle, db_handle, class_name)
+                    semantic_indexer.add_or_update_object(handle, db_handle, class_name)
         res = Response(
             response=json.dumps(trans_dict),
             status=200,
             mimetype="application/json",
         )
-        res.headers.add("X-Total-Count", len(trans_dict))
+        res.headers.add("X-Total-Count", str(len(trans_dict)))
         return res
 
     def handle_delete(self, trans: DbTxn, class_name: str, handle: str) -> None:

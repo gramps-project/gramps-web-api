@@ -33,7 +33,7 @@ from webargs import fields, validate
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ_BATCH, PERM_EDIT_OBJ
 from ...const import GRAMPS_OBJECT_PLURAL
 from ..auth import require_permissions
-from ..search import SearchIndexer, get_search_indexer
+from ..search import get_search_indexer, get_semantic_search_indexer
 from ..tasks import AsyncResult, delete_objects, make_task_response, run_task
 from ..util import (
     abort_with_message,
@@ -51,6 +51,7 @@ from .util import (
     transaction_to_json,
     validate_object_dict,
 )
+from gramps_webapi.types import ResponseReturnValue
 
 
 class CreateObjectsResource(ProtectedResource):
@@ -58,7 +59,7 @@ class CreateObjectsResource(ProtectedResource):
 
     def _parse_objects(self) -> Sequence[GrampsObject]:
         """Parse the objects."""
-        payload = request.json
+        payload = request.json or []
         objects = []
         for obj_dict in payload:
             try:
@@ -71,7 +72,7 @@ class CreateObjectsResource(ProtectedResource):
             objects.append(obj)
         return objects
 
-    def post(self) -> Response:
+    def post(self) -> ResponseReturnValue:
         """Post the objects."""
         require_permissions([PERM_ADD_OBJ])
         objects = self._parse_objects()
@@ -97,23 +98,24 @@ class CreateObjectsResource(ProtectedResource):
             update_usage_people()
         # update search index
         tree = get_tree_from_jwt()
-        indexer: SearchIndexer = get_search_indexer(tree)
+        assert tree is not None  # mypy
+        indexer = get_search_indexer(tree)
         for _trans_dict in trans_dict:
             handle = _trans_dict["handle"]
             class_name = _trans_dict["_class"]
             indexer.add_or_update_object(handle, db_handle, class_name)
         if app_has_semantic_search():
-            indexer: SearchIndexer = get_search_indexer(tree, semantic=True)
+            indexer_semantic = get_semantic_search_indexer(tree)
             for _trans_dict in trans_dict:
                 handle = _trans_dict["handle"]
                 class_name = _trans_dict["_class"]
-                indexer.add_or_update_object(handle, db_handle, class_name)
+                indexer_semantic.add_or_update_object(handle, db_handle, class_name)
         res = Response(
             response=json.dumps(trans_dict),
             status=201,
             mimetype="application/json",
         )
-        res.headers.add("X-Total-Count", len(trans_dict))
+        res.headers.add("X-Total-Count", str(len(trans_dict)))
         return res
 
 
@@ -131,7 +133,7 @@ class DeleteObjectsResource(FreshProtectedResource):
         },
         location="query",
     )
-    def post(self, args) -> Response:
+    def post(self, args) -> ResponseReturnValue:
         """Delete the objects."""
         require_permissions([PERM_DEL_OBJ_BATCH])
         tree = get_tree_from_jwt()

@@ -41,6 +41,7 @@ from .util import (
     get_db_handle,
     get_db_outside_request,
     get_tree_from_jwt,
+    get_tree_from_jwt_or_fail,
 )
 
 PREFIX_S3 = "s3://"
@@ -351,9 +352,10 @@ def update_usage_media(
 ) -> int:
     """Update the usage of media."""
     if not tree:
-        tree = get_tree_from_jwt()
+        tree = get_tree_from_jwt_or_fail()
     if not user_id:
         user_id = get_jwt_identity()
+    assert user_id is not None, "Unexpected error while looking up user ID."
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=True, user_id=user_id
     )
@@ -371,11 +373,12 @@ def check_quota_media(
 ) -> None:
     """Check whether the quota allows adding `to_add` bytes and abort if not."""
     if not tree:
-        tree = get_tree_from_jwt()
+        tree = get_tree_from_jwt_or_fail()
     usage_dict = get_tree_usage(tree)
     if not usage_dict or usage_dict.get("usage_media") is None:
         update_usage_media(tree=tree, user_id=user_id)
-    usage_dict = get_tree_usage(tree)
+        usage_dict = get_tree_usage(tree)
+        assert usage_dict is not None, "Unexpected error while looking up usage data."
     usage = usage_dict["usage_media"]
     quota = usage_dict.get("quota_media")
     if quota is None:

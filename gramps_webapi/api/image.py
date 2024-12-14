@@ -29,6 +29,7 @@ from typing import BinaryIO, Callable
 import ffmpeg
 from pdf2image import convert_from_path
 from PIL import Image, ImageOps
+from PIL.Image import Image as ImageType
 from pkg_resources import resource_filename
 
 from gramps_webapi.const import MIME_PDF
@@ -37,12 +38,13 @@ from gramps_webapi.types import FilenameOrPath
 from .util import abort_with_message
 
 
-def image_thumbnail(image: Image, size: int, square: bool = False) -> Image:
+def image_thumbnail(image: ImageType, size: int, square: bool = False) -> ImageType:
     """Return a thumbnail of `size` (longest side) for the image.
 
     If `square` is true, the image is cropped to a centered square.
     """
     img = ImageOps.exif_transpose(image)
+    assert img is not None, "img is None"  # for type checker. Can't happen in practice.
     if square:
         # don't enlarge image: square size is at most shorter (!) side's length
         size_orig = min(img.size)
@@ -52,13 +54,13 @@ def image_thumbnail(image: Image, size: int, square: bool = False) -> Image:
             (size_square, size_square),
             bleed=0.0,
             centering=(0.5, 0.5),
-            method=Image.BICUBIC,
+            method=Image.Resampling.BICUBIC,
         )
     img.thumbnail((size, size))
     return img
 
 
-def image_square(image: Image) -> Image:
+def image_square(image: ImageType) -> ImageType:
     """Crop an image to a centered square."""
     size = min(image.size)
     return ImageOps.fit(
@@ -66,11 +68,11 @@ def image_square(image: Image) -> Image:
         (size, size),
         bleed=0.0,
         centering=(0.0, 0.5),
-        method=Image.BICUBIC,
+        method=Image.Resampling.BICUBIC,
     )
 
 
-def crop_image(image: Image, x1: int, y1: int, x2: int, y2: int) -> Image:
+def crop_image(image: ImageType, x1: int, y1: int, x2: int, y2: int) -> ImageType:
     """Crop an image.
 
     The arguments `x1`, `y1`, `x2`, `y2` are the coordinates of the cropped region
@@ -84,7 +86,7 @@ def crop_image(image: Image, x1: int, y1: int, x2: int, y2: int) -> Image:
     return image.crop((x1_abs, y1_abs, x2_abs, y2_abs))
 
 
-def save_image_buffer(image: Image, fmt="JPEG") -> BinaryIO:
+def save_image_buffer(image: ImageType, fmt="JPEG") -> BinaryIO:
     """Save an image to a binary buffer."""
     buffer = io.BytesIO()
     if image.mode != "RGB":
@@ -118,7 +120,7 @@ class ThumbnailHandler:
             self.is_image = False
             self.is_video = False
 
-    def get_image(self) -> Image:
+    def get_image(self) -> ImageType:
         """Get a Pillow Image instance."""
         if self.mime_type == MIME_PDF:
             return self._get_image_pdf()
@@ -142,7 +144,7 @@ class ThumbnailHandler:
             img = image_square(img)
         return save_image_buffer(img)
 
-    def _get_image_pdf(self) -> Image:
+    def _get_image_pdf(self) -> ImageType:
         """Get a Pillow Image instance of the PDF's first page."""
         ims = self._apply_to_path(
             convert_from_path, single_file=True, use_cropbox=True, dpi=100
@@ -165,7 +167,7 @@ class ThumbnailHandler:
             os.remove(temp_filename)
         return output
 
-    def _get_image_video(self) -> Image:
+    def _get_image_video(self) -> ImageType:
         """Get a Pillow Image instance of the video's first frame."""
         out, _ = self._apply_to_path(
             lambda path: (
@@ -248,7 +250,7 @@ def detect_faces(stream: BinaryIO) -> list[tuple[float, float, float, float]]:
     # Extract and normalize face bounding boxes
     detected_faces = []
     for face in faces[1]:
-        x, y, w, h = face[:4]
+        x, y, w, h = np.asarray(face)[:4]
         x = float(x)
         y = float(y)
         w = float(w)

@@ -32,6 +32,7 @@ from ..auth import has_permissions
 from ..tasks import AsyncResult, make_task_response, media_ocr, run_task
 from ..util import get_db_handle, get_tree_from_jwt, use_args
 from . import ProtectedResource
+from gramps_webapi.types import ResponseReturnValue
 
 
 class MediaOcrResource(ProtectedResource):
@@ -44,7 +45,7 @@ class MediaOcrResource(ProtectedResource):
         },
         location="query",
     )
-    def post(self, args: Dict, handle) -> Response:
+    def post(self, args: Dict, handle) -> ResponseReturnValue:
         """Execute OCR on a file."""
         db_handle = get_db_handle()
         try:

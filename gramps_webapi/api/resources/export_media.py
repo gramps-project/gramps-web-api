@@ -32,6 +32,7 @@ from ..ratelimiter import limiter_per_user
 from ..tasks import AsyncResult, export_media, make_task_response, run_task
 from ..util import abort_with_message, get_buffer_for_file, get_tree_from_jwt
 from . import ProtectedResource
+from gramps_webapi.types import ResponseReturnValue
 
 
 def get_limit() -> str:
@@ -43,7 +44,7 @@ class MediaArchiveResource(ProtectedResource):
     """Resource for downloading an archive of media files."""
 
     @limiter_per_user.limit(get_limit)
-    def post(self) -> Response:
+    def post(self) -> ResponseReturnValue:
         """Create an archive of media files."""
         tree = get_tree_from_jwt()
         user_id = get_jwt_identity()

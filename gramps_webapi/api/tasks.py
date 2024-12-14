@@ -26,9 +26,11 @@ from gettext import gettext as _
 from http import HTTPStatus
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from celery import shared_task
+from celery import shared_task, Task
 from celery.result import AsyncResult
 from flask import current_app
+
+from gramps_webapi.api.search.indexer import SearchIndexer, SemanticSearchIndexer
 
 from ..auth import get_owner_emails
 from .check import check_database
@@ -39,7 +41,7 @@ from .media_importer import MediaImporter
 from .report import run_report
 from .resources.delete import delete_all_objects
 from .resources.util import dry_run_import, run_import
-from .search import get_search_indexer
+from .search import get_search_indexer, get_semantic_search_indexer
 from .util import (
     check_quota_people,
     close_db,
@@ -51,7 +53,7 @@ from .util import (
 )
 
 
-def run_task(task: Callable, **kwargs) -> Union[AsyncResult, Any]:
+def run_task(task: Task, **kwargs) -> Union[AsyncResult, Any]:
     """Send a task to the task queue or run immediately if no queue set up."""
     if not current_app.config["CELERY_CONFIG"]:
         with current_app.app_context():
@@ -110,7 +112,12 @@ def _search_reindex_full(
     tree: str, user_id: str, semantic: bool, progress_cb: Optional[Callable] = None
 ) -> None:
     """Rebuild the search index."""
-    indexer = get_search_indexer(tree, semantic=semantic)
+    if semantic:
+        indexer: SearchIndexer | SemanticSearchIndexer = get_semantic_search_indexer(
+            tree
+        )
+    else:
+        indexer = get_search_indexer(tree)
     db = get_db_outside_request(
         tree=tree, view_private=True, readonly=True, user_id=user_id
     )
@@ -153,7 +160,12 @@ def _search_reindex_incremental(
     tree: str, user_id: str, semantic: bool, progress_cb: Optional[Callable] = None
 ) -> None:
     """Run an incremental reindex of the search index."""
-    indexer = get_search_indexer(tree, semantic=semantic)
+    if semantic:
+        indexer: SearchIndexer | SemanticSearchIndexer = get_semantic_search_indexer(
+            tree
+        )
+    else:
+        indexer = get_search_indexer(tree)
     db = get_db_outside_request(
         tree=tree, view_private=True, readonly=True, user_id=user_id
     )

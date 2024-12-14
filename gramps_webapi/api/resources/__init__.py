@@ -28,28 +28,29 @@ from ..auth import (
     jwt_refresh_token_required,
     jwt_required,
 )
+from gramps_webapi.types import ResponseReturnValue
 
 
 class Resource(MethodView):
     """Base class for API resources."""
 
-    def get(self, *args, **kwargs):
+    def get(self, *args, **kwargs) -> ResponseReturnValue:
         """Default GET endpoint."""
         abort(405)
 
-    def put(self, *args, **kwargs):
+    def put(self, *args, **kwargs) -> ResponseReturnValue:
         """Default PUT endpoint."""
         abort(405)
 
-    def post(self, *args, **kwargs):
+    def post(self, *args, **kwargs) -> ResponseReturnValue:
         """Default POST endpoint."""
         abort(405)
 
-    def delete(self, *args, **kwargs):
+    def delete(self, *args, **kwargs) -> ResponseReturnValue:
         """Default DELETE endpoint."""
         abort(405)
 
-    def patch(self, *args, **kwargs):
+    def patch(self, *args, **kwargs) -> ResponseReturnValue:
         """Default PATCH endpoint."""
         abort(405)
 
