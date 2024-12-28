@@ -435,7 +435,7 @@ def process_transactions(
         item["type"] == "add" and item["_class"] == "Person" for item in payload
     )
     num_people_new = num_people_added - num_people_deleted
-    check_quota_people(to_add=num_people_new)
+    check_quota_people(to_add=num_people_new, tree=tree, user_id=user_id)
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=False, user_id=user_id
     )
@@ -450,7 +450,7 @@ def process_transactions(
                     db_handle, class_name, handle, old_data
                 ):
                     if num_people_added or num_people_deleted:
-                        update_usage_people()
+                        update_usage_people(tree=tree, user_id=user_id)
                     abort_with_message(409, "Object has changed")
                 new_data = item["new"]
                 if new_data:
@@ -468,15 +468,15 @@ def process_transactions(
                     handle_commit(trans, class_name, new_obj)
                 else:
                     if num_people_added or num_people_deleted:
-                        update_usage_people()
+                        update_usage_people(tree=tree, user_id=user_id)
                     abort_with_message(400, "Unexpected transaction type")
             except (KeyError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
                 if num_people_added or num_people_deleted:
-                    update_usage_people()
+                    update_usage_people(tree=tree, user_id=user_id)
                 abort_with_message(400, "Error while processing transaction")
         trans_dict = transaction_to_json(trans)
     if num_people_new:
-        update_usage_people()
+        update_usage_people(tree=tree, user_id=user_id)
     # update search index
     indexer: SearchIndexer = get_search_indexer(tree)
     for _trans_dict in trans_dict:

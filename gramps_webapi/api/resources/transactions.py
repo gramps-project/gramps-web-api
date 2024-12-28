@@ -27,6 +27,7 @@ from gramps.gen.db.dbconst import TXNADD, TXNDEL, TXNUPD
 from webargs import fields
 
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
+from ...types import ResponseReturnValue
 from ..auth import require_permissions
 from ..tasks import AsyncResult, make_task_response, process_transactions, run_task
 from ..util import abort_with_message, use_args, get_tree_from_jwt_or_fail
@@ -47,7 +48,7 @@ class TransactionsResource(ProtectedResource):
         },
         location="query",
     )
-    def post(self, args) -> Response:
+    def post(self, args) -> ResponseReturnValue:
         """Post the transaction."""
         require_permissions([PERM_ADD_OBJ, PERM_EDIT_OBJ, PERM_DEL_OBJ])
         payload = request.json
@@ -58,6 +59,17 @@ class TransactionsResource(ProtectedResource):
             payload = reverse_transaction(payload)
         tree = get_tree_from_jwt_or_fail()
         user_id = get_jwt_identity()
+        if args["background"]:
+            task = run_task(
+                process_transactions,
+                tree=tree,
+                user_id=user_id,
+                payload=payload,
+                force=args["force"],
+            )
+            if isinstance(task, AsyncResult):
+                return make_task_response(task)
+            return task, 200
         trans_dict = process_transactions(
             tree=tree, user_id=user_id, payload=payload, force=args["force"]
         )

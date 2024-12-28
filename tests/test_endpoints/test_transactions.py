@@ -93,11 +93,15 @@ class TestTransactionResource(unittest.TestCase):
         for username in ["user", "member", "contributor"]:
             # these three roles should not be able to post a transaction!
             headers = get_headers(self.client, username, "123")
-            rv = self.client.post("/api/transactions/", json=obj, headers=headers)
+            rv = self.client.post(
+                "/api/transactions/?background=1", json=obj, headers=headers
+            )
             self.assertEqual(rv.status_code, 403)
         headers = get_headers(self.client, "editor", "123")
         # add
-        rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        rv = self.client.post(
+            "/api/transactions/?background=1", json=trans, headers=headers
+        )
         self.assertEqual(rv.status_code, 200)
         trans_dict = rv.json
         self.assertEqual(len(trans_dict), 1)
@@ -111,7 +115,7 @@ class TestTransactionResource(unittest.TestCase):
         self.assertEqual(obj_dict["text"]["string"], "My first note.")
         # undo add
         rv = self.client.post(
-            "/api/transactions/?undo=1", json=trans_dict, headers=headers
+            "/api/transactions/?undo=1&background=1", json=trans_dict, headers=headers
         )
         assert rv.status_code == 200
         trans_dict = rv.json
@@ -123,7 +127,7 @@ class TestTransactionResource(unittest.TestCase):
         self.assertEqual(rv.status_code, 404)
         # undo undo
         rv = self.client.post(
-            "/api/transactions/?undo=1", json=trans_dict, headers=headers
+            "/api/transactions/?undo=1&background=1", json=trans_dict, headers=headers
         )
         assert rv.status_code == 200
         rv = self.client.get(f"/api/notes/{handle}", headers=headers)
@@ -140,7 +144,9 @@ class TestTransactionResource(unittest.TestCase):
                 "new": obj_new,
             }
         ]
-        rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        rv = self.client.post(
+            "/api/transactions/?background=1", json=trans, headers=headers
+        )
         self.assertEqual(rv.status_code, 200)
         trans_dict = rv.json
         rv = self.client.get(f"/api/notes/{handle}", headers=headers)
@@ -150,7 +156,7 @@ class TestTransactionResource(unittest.TestCase):
         self.assertEqual(obj_dict["gramps_id"], "N2")
         # undo update
         rv = self.client.post(
-            "/api/transactions/?undo=1", json=trans_dict, headers=headers
+            "/api/transactions/?undo=1&background=1", json=trans_dict, headers=headers
         )
         assert rv.status_code == 200
         trans_dict = rv.json
@@ -161,7 +167,7 @@ class TestTransactionResource(unittest.TestCase):
         self.assertEqual(obj_dict["gramps_id"], "N1")
         # undo undo
         rv = self.client.post(
-            "/api/transactions/?undo=1", json=trans_dict, headers=headers
+            "/api/transactions/?undo=1&background=1", json=trans_dict, headers=headers
         )
         # delete
         trans = [
@@ -173,14 +179,16 @@ class TestTransactionResource(unittest.TestCase):
                 "new": None,
             }
         ]
-        rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        rv = self.client.post(
+            "/api/transactions/?background=1", json=trans, headers=headers
+        )
         self.assertEqual(rv.status_code, 200)
         trans_dict = rv.json
         rv = self.client.get(f"/api/notes/{handle}", headers=headers)
         self.assertEqual(rv.status_code, 404)
         # undo delete
         rv = self.client.post(
-            "/api/transactions/?undo=1", json=trans_dict, headers=headers
+            "/api/transactions/?undo=1&background=1", json=trans_dict, headers=headers
         )
         self.assertEqual(rv.status_code, 200)
         trans_dict = rv.json
@@ -188,7 +196,7 @@ class TestTransactionResource(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         # undo undo
         rv = self.client.post(
-            "/api/transactions/?undo=1", json=trans_dict, headers=headers
+            "/api/transactions/?undo=1&background=1", json=trans_dict, headers=headers
         )
 
     def test_family_undo(self):
@@ -229,7 +237,7 @@ class TestTransactionResource(unittest.TestCase):
         assert rv.status_code == 200
         # undo family post should delete the family and update the people
         rv = self.client.post(
-            "/api/transactions/?undo=1", json=trans_dict, headers=headers
+            "/api/transactions/?undo=1&background=1", json=trans_dict, headers=headers
         )
         rv = self.client.get(f"/api/people/{father['handle']}", headers=headers)
         assert rv.status_code == 200
@@ -286,7 +294,9 @@ class TestTransactionResource(unittest.TestCase):
                 "new": obj2,
             },
         ]
-        rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        rv = self.client.post(
+            "/api/transactions/?background=1", json=trans, headers=headers
+        )
         self.assertEqual(rv.status_code, 200)
         trans_dict = rv.json
         self.assertEqual(len(trans_dict), 2)
@@ -317,7 +327,9 @@ class TestTransactionResource(unittest.TestCase):
                 "new": obj2_upd,
             },
         ]
-        rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        rv = self.client.post(
+            "/api/transactions/?background=1", json=trans, headers=headers
+        )
         self.assertEqual(rv.status_code, 200)
         rv = self.client.get(f"/api/notes/{handle1}", headers=headers)
         self.assertEqual(rv.status_code, 200)
@@ -344,7 +356,9 @@ class TestTransactionResource(unittest.TestCase):
                 "new": None,
             },
         ]
-        rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        rv = self.client.post(
+            "/api/transactions/?background=1", json=trans, headers=headers
+        )
         self.assertEqual(rv.status_code, 200)
         rv = self.client.get(f"/api/notes/{handle1}", headers=headers)
         self.assertEqual(rv.status_code, 404)
@@ -362,7 +376,9 @@ class TestTransactionResource(unittest.TestCase):
         trans = [{"type": "add", "_class": "Note", "old": None, "new": obj}]
         headers = get_headers(self.client, "editor", "123")
         # add
-        rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        rv = self.client.post(
+            "/api/transactions/?background=1", json=trans, headers=headers
+        )
         self.assertEqual(rv.status_code, 400)
 
     def test_missing_gramps_id(self):
@@ -378,5 +394,7 @@ class TestTransactionResource(unittest.TestCase):
         ]
         headers = get_headers(self.client, "editor", "123")
         # add
-        rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        rv = self.client.post(
+            "/api/transactions/?background=1", json=trans, headers=headers
+        )
         self.assertEqual(rv.status_code, 400)
