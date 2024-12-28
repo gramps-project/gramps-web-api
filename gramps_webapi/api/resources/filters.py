@@ -23,15 +23,17 @@ import json
 from typing import Any, Dict, List, Optional, Set
 
 import gramps.gen.filters as filters
-from flask import Response, abort
+from flask import Response, abort, current_app
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.filters import GenericFilter
 from marshmallow import Schema
 from webargs import ValidationError, fields, validate
 
-from ..util import abort_with_message, use_args
-from ...const import GRAMPS_NAMESPACES
+from ...auth.const import PERM_EDIT_CUSTOM_FILTER
+from ...const import GRAMPS_NAMESPACES, TREE_MULTI
 from ...types import Handle
+from ..auth import require_permissions
+from ..util import abort_with_message, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -235,6 +237,11 @@ class FiltersResource(ProtectedResource, GrampsJSONEncoder):
     @use_args(CustomFilterSchema(), location="json")
     def post(self, args: Dict, namespace: str) -> Response:
         """Create a custom filter."""
+        if current_app.config["TREE"] == TREE_MULTI:
+            abort_with_message(
+                405, "Custom filters cannot be edited in a multi-tree setup"
+            )
+        require_permissions([PERM_EDIT_CUSTOM_FILTER])
         try:
             namespace = GRAMPS_NAMESPACES[namespace]
         except KeyError:
@@ -252,6 +259,11 @@ class FiltersResource(ProtectedResource, GrampsJSONEncoder):
     @use_args(CustomFilterSchema(), location="json")
     def put(self, args: Dict, namespace: str) -> Response:
         """Update a custom filter."""
+        if current_app.config["TREE"] == TREE_MULTI:
+            abort_with_message(
+                405, "Custom filters cannot be edited in a multi-tree setup"
+            )
+        require_permissions([PERM_EDIT_CUSTOM_FILTER])
         try:
             namespace = GRAMPS_NAMESPACES[namespace]
         except KeyError:
@@ -294,6 +306,11 @@ class FilterResource(ProtectedResource, GrampsJSONEncoder):
     )
     def delete(self, args: Dict, namespace: str, name: str) -> Response:
         """Delete a custom filter."""
+        if current_app.config["TREE"] == TREE_MULTI:
+            abort_with_message(
+                405, "Custom filters cannot be edited in a multi-tree setup"
+            )
+        require_permissions([PERM_EDIT_CUSTOM_FILTER])
         try:
             namespace = GRAMPS_NAMESPACES[namespace]
         except KeyError:
