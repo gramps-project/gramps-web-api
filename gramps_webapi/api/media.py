@@ -144,7 +144,7 @@ class MediaHandlerLocal(MediaHandlerBase):
         if not db_handle:
             db_handle = get_db_handle()
         if not os.path.isdir(self.base_dir):
-            raise ValueError(f"Directory {self.base_dir} does not exist")
+            return 0
         size = 0
         paths_seen = set()
         for obj in db_handle.iter_media():
