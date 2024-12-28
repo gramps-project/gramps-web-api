@@ -22,7 +22,6 @@
 from marshmallow import Schema
 from webargs import fields
 
-from ..llm import answer_prompt_retrieve
 from ..util import (
     get_tree_from_jwt,
     use_args,
@@ -54,6 +53,9 @@ class ChatResource(ProtectedResource):
         """Create a chat response."""
         require_permissions({PERM_USE_CHAT})
         check_quota_ai(requested=1)
+        # import here to avoid error if OpenAI-Python is not installed
+        from gramps_webapi.api.llm import answer_prompt_retrieve
+
         tree = get_tree_from_jwt()
         try:
             response = answer_prompt_retrieve(
