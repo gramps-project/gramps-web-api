@@ -4691,6 +4691,11 @@ paths:
           required: false
           type: boolean
           description: "If true, force applying the transaction even if objects have been modified."
+        - name: background
+          in: query
+          required: false
+          type: boolean
+          description: "If true, the transactions will be applied in the background and status 202 will be returned."
         - in: body
           name: source
           description: The database transaction
@@ -4705,6 +4710,13 @@ paths:
             type: array
             items:
               $ref: "#/definitions/Transaction"
+        202:
+          description: "Accepted: transactions will be applied in the background."
+          schema:
+            type: object
+            properties:
+              task:
+                $ref: "#/definitions/TaskReference"
         400:
           description: "Bad Request: Malformed request could not be parsed."
         401:
