@@ -32,8 +32,8 @@ class CachePeopleFamiliesProxy(ProxyDbBase):
         """Initialize the proxy database."""
         super().__init__(db)
         self.db: DbReadBase  # for type checker
-        self._people_cache = {}
-        self._family_cache = {}
+        self._people_cache: dict[str, Person] = {}
+        self._family_cache: dict[str, Family] = {}
 
     def cache_people(self) -> None:
         """Cache all people."""
