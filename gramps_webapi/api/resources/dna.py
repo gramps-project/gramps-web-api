@@ -3,7 +3,7 @@
 #
 # Copyright (C) 2020       Nick Hall
 # Copyright (C) 2020-2023  Gary Griffin
-# Copyright (C) 2023       David Straub
+# Copyright (C) 2023-2025  David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -32,6 +32,8 @@ from gramps.gen.relationship import get_relationship_calculator
 from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 
+from gramps_webapi.api.people_families_cache import CachePeopleFamiliesProxy
+
 from ...types import Handle
 from ..util import get_db_handle, get_locale_for_language, use_args
 from .util import get_person_profile_for_handle
@@ -57,12 +59,18 @@ class PersonDnaMatchesResource(ProtectedResource):
     )
     def get(self, args: Dict, handle: str):
         """Get the DNA match data."""
-        db_handle = get_db_handle()
+        db_handle = CachePeopleFamiliesProxy(get_db_handle())
+
         try:
             person = db_handle.get_person_from_handle(handle)
         except HandleError:
             abort(404)
+
+        db_handle.cache_people()
+        db_handle.cache_families()
+
         locale = get_locale_for_language(args["locale"], default=True)
+
         matches = []
         for association in person.get_person_ref_list():
             if association.get_relation() == "DNA":

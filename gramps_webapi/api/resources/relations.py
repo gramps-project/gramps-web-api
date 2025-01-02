@@ -2,6 +2,7 @@
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
 # Copyright (C) 2020      Christopher Horn
+# Copyright (C) 2025      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -21,16 +22,18 @@
 
 from typing import Dict
 
-from flask import Response, abort
+from flask import Response
+from gramps.gen.errors import HandleError
 from gramps.gen.relationship import get_relationship_calculator
 from webargs import fields, validate
 
+from gramps_webapi.api.people_families_cache import CachePeopleFamiliesProxy
+
 from ...types import Handle
-from ..util import use_args
-from ..util import get_db_handle, get_locale_for_language
+from ..util import get_db_handle, get_locale_for_language, use_args, abort_with_message
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
-from .util import get_one_relationship, get_person_by_handle
+from .util import get_one_relationship
 
 
 class RelationResource(ProtectedResource, GrampsJSONEncoder):
@@ -47,14 +50,18 @@ class RelationResource(ProtectedResource, GrampsJSONEncoder):
     )
     def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:
         """Get the most direct relationship between two people."""
-        db_handle = get_db_handle()
-        person1 = get_person_by_handle(db_handle, handle1)
-        if person1 == {}:
-            abort(404)
+        db_handle = CachePeopleFamiliesProxy(get_db_handle())
+        try:
+            person1 = db_handle.get_person_from_handle(handle1)
+        except HandleError:
+            abort_with_message(404, f"Person {handle1} not found")
+        try:
+            person2 = db_handle.get_person_from_handle(handle2)
+        except HandleError:
+            abort_with_message(404, f"Person {handle2} not found")
 
-        person2 = get_person_by_handle(db_handle, handle2)
-        if person2 == {}:
-            abort(404)
+        db_handle.cache_people()
+        db_handle.cache_families()
 
         locale = get_locale_for_language(args["locale"], default=True)
         data = get_one_relationship(
@@ -88,14 +95,20 @@ class RelationsResource(ProtectedResource, GrampsJSONEncoder):
     )
     def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:
         """Get all possible relationships between two people."""
-        db_handle = get_db_handle()
-        person1 = get_person_by_handle(db_handle, handle1)
-        if person1 == {}:
-            abort(404)
+        db_handle = CachePeopleFamiliesProxy(get_db_handle())
 
-        person2 = get_person_by_handle(db_handle, handle2)
-        if person2 == {}:
-            abort(404)
+        try:
+            person1 = db_handle.get_person_from_handle(handle1)
+        except HandleError:
+            abort_with_message(404, f"Person {handle1} not found")
+
+        try:
+            person2 = db_handle.get_person_from_handle(handle2)
+        except HandleError:
+            abort_with_message(404, f"Person {handle2} not found")
+
+        db_handle.cache_people()
+        db_handle.cache_families()
 
         locale = get_locale_for_language(args["locale"], default=True)
         calc = get_relationship_calculator(reinit=True, clocale=locale)
