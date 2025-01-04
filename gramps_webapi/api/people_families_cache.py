@@ -20,6 +20,8 @@
 
 """A proxy database class optionally caching people and families."""
 
+from typing import Generator
+
 from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps.gen.db import DbReadBase
 from gramps.gen.lib import Person, Family
@@ -54,3 +56,29 @@ class CachePeopleFamiliesProxy(ProxyDbBase):
         if handle in self._family_cache:
             return self._family_cache[handle]
         return self.db.get_family_from_handle(handle)
+
+    def find_backlink_handles(
+        self, handle, include_classes=None
+    ) -> Generator[tuple[str, str], None, None]:
+        """
+        Find all objects that hold a reference to the object handle.
+
+        Returns an iterator over a list of (class_name, handle) tuples.
+
+        :param handle: handle of the object to search for.
+        :type handle: str database handle
+        :param include_classes: list of class names to include in the results.
+            Default is None which includes all classes.
+        :type include_classes: list of class names
+
+        This default implementation does a sequential scan through all
+        the primary object databases and is very slow. Backends can
+        override this method to provide much faster implementations that
+        make use of additional capabilities of the backend.
+
+        Note that this is a generator function, it returns a iterator for
+        use in loops. If you want a list of the results use::
+
+            result_list = list(find_backlink_handles(handle))
+        """
+        return self.db.find_backlink_handles(handle, include_classes)
