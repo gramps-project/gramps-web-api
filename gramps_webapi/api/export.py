@@ -44,7 +44,6 @@ from gramps.gen.proxy import (
 )
 from gramps.gen.user import User
 from gramps.gen.utils.resourcepath import ResourcePath
-from torch import Value
 
 from ..const import DISABLED_EXPORTERS
 from .util import UserTaskProgress, abort_with_message, get_locale_for_language
