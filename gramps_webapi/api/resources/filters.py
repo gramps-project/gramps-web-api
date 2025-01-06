@@ -2,6 +2,7 @@
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
 # Copyright (C) 2020      Christopher Horn
+# Copyright (C) 2025      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -25,7 +26,9 @@ from typing import Any, Dict, List, Optional, Set
 import gramps.gen.filters as filters
 from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
+from gramps.gen.lib import Person
 from gramps.gen.filters import GenericFilter
+from gramps.gen.filters.rules import Rule
 from marshmallow import Schema
 from webargs import ValidationError, fields, validate
 
@@ -35,8 +38,27 @@ from ...types import Handle
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
+
+class HasAssociationType(Rule):
+    """Rule that checks for a person with an association of a given type."""
+
+    labels = ["Type:"]
+    name = "People with association of type <type>"
+    description = "Matches people with a certain association type"
+    category = "General filters"
+
+    def apply(self, db: DbReadBase, person: Person) -> bool:  # type: ignore
+        for person_ref in person.get_person_ref_list():
+            if person_ref.get_relation() == self.list[0]:
+                return True
+        return False
+
+
+additional_person_rules = [HasAssociationType]
+
+
 _RULES_LOOKUP = {
-    "Person": filters.rules.person.editor_rule_list,
+    "Person": filters.rules.person.editor_rule_list + additional_person_rules,
     "Family": filters.rules.family.editor_rule_list,
     "Event": filters.rules.event.editor_rule_list,
     "Place": filters.rules.place.editor_rule_list,

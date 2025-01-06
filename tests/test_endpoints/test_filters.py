@@ -2,6 +2,7 @@
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
 # Copyright (C) 2020      Christopher Horn
+# Copyright (C) 2025      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -19,6 +20,7 @@
 
 """Tests for the /api/filters endpoints using example_gramps."""
 
+import uuid
 import unittest
 
 from jsonschema import validate
@@ -33,6 +35,7 @@ from .checks import (
     check_resource_missing,
     check_success,
 )
+from .util import fetch_header
 
 TEST_URL = BASE_URL + "/filters/"
 
@@ -259,3 +262,54 @@ class TestFiltersNotes(unittest.TestCase):
     def test_filters_endpoint_notes_filter(self):
         """Test creation and application of a notes filter."""
         check_filter_create_update_delete(self, BASE_URL, TEST_URL, "notes")
+
+
+def make_handle() -> str:
+    """Make a new valid handle."""
+    return str(uuid.uuid4())
+
+
+class TestHasAssociationType(unittest.TestCase):
+    """Test cases for the HasAssociationType filter."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_has_association_type(self):
+        payload = {}
+        # check authorization required to post to endpoint
+        handle = make_handle()
+        payload = {
+            "_class": "Person",
+            "handle": handle,
+            "person_ref_list": [
+                {
+                    "_class": "PersonRef",
+                    "rel": "DNA",
+                    "ref": handle,  # self-reference, why not
+                }
+            ],
+        }
+        headers = fetch_header(self.client)
+        url = '/api/people/?rules={"rules":[{"name":"HasAssociationType","values":["DNA"]}]}'
+        # no result
+        rv = self.client.get(url, headers=headers)
+        assert rv.json == []
+        # add person
+        rv = self.client.post("/api/people/", json=payload, headers=headers)
+        assert rv.status_code == 201
+        # one result
+        rv = self.client.get(url, headers=headers)
+        assert rv.json
+        assert rv.json[0]["handle"] == handle
+        # no result for wrong type
+        rv = self.client.get(url.replace("DNA", "NotDNA"), headers=headers)
+        assert rv.json == []
+        # delete person
+        rv = self.client.delete(f"/api/people/{handle}", headers=headers)
+        assert rv.status_code == 200
+        # no result
+        rv = self.client.get(url, headers=headers)
+        assert rv.json == []
