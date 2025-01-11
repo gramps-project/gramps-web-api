@@ -161,7 +161,7 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
         try:
             obj_dict = fix_object_dict(obj_dict)
         except ValueError as exc:
-            abort_with_message(400, "Error while processing object")
+            abort_with_message(400, f"Error while processing object: {exc}")
         if not validate_object_dict(obj_dict):
             abort_with_message(400, "Schema validation failed")
         return from_json(json.dumps(obj_dict))

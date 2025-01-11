@@ -37,7 +37,7 @@ from .resources.bookmarks import (
 from .resources.chat import ChatResource
 from .resources.citations import CitationResource, CitationsResource
 from .resources.config import ConfigResource, ConfigsResource
-from .resources.dna import PersonDnaMatchesResource
+from .resources.dna import PersonDnaMatchesResource, DnaMatchParserResource
 from .resources.events import EventResource, EventSpanResource, EventsResource
 from .resources.export_media import MediaArchiveFileResource, MediaArchiveResource
 from .resources.exporters import (
@@ -235,6 +235,8 @@ register_endpt(FiltersResources, "/filters/", "filters")
 # Translations
 register_endpt(TranslationResource, "/translations/<string:language>", "translation")
 register_endpt(TranslationsResource, "/translations/", "translations")
+# Parsers
+register_endpt(DnaMatchParserResource, "/parsers/dna-match", "dna-match-parser")
 # Relations
 register_endpt(
     RelationResource,
