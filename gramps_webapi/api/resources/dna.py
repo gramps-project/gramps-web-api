@@ -23,7 +23,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Union
 
 from flask import abort
 from gramps.gen.const import GRAMPS_LOCALE as glocale
@@ -46,7 +46,7 @@ SIDE_UNKNOWN = "U"
 SIDE_MATERNAL = "M"
 SIDE_PATERNAL = "P"
 
-Segment = dict[str, float | int | str]
+Segment = dict[str, Union[float, int, str]]
 
 
 class PersonDnaMatchesResource(ProtectedResource):
@@ -174,14 +174,16 @@ def get_segments_from_note(
     """Get the segements from a note handle."""
     note: Note = db_handle.get_note_from_handle(handle)
     raw_string: str = note.get()
-    return parse_raw_dna_match_string(raw_string)
+    return parse_raw_dna_match_string(raw_string, side=side)
 
 
-def parse_raw_dna_match_string(raw_string: str) -> list[Segment]:
+def parse_raw_dna_match_string(
+    raw_string: str, side: str | None = None
+) -> list[Segment]:
     """Parse a raw DNA match string and return a list of segments."""
     segments = []
     for line in raw_string.split("\n"):
-        data = parse_line(line)
+        data = parse_line(line, side=side)
         if data:
             segments.append(data)
     return segments
