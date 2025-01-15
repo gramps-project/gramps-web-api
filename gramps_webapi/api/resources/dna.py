@@ -21,29 +21,32 @@
 
 """DNA resources."""
 
-from typing import Any, Dict, List, Optional, Union
+from __future__ import annotations
+
+from typing import Any, Union
 
 from flask import abort
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
-from gramps.gen.lib import Person, PersonRef
+from gramps.gen.lib import Note, Person, PersonRef
 from gramps.gen.relationship import get_relationship_calculator
 from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 
 from gramps_webapi.api.people_families_cache import CachePeopleFamiliesProxy
+from gramps_webapi.types import ResponseReturnValue
 
 from ...types import Handle
 from ..util import get_db_handle, get_locale_for_language, use_args
-from .util import get_person_profile_for_handle
 from . import ProtectedResource
+from .util import get_person_profile_for_handle
 
 SIDE_UNKNOWN = "U"
 SIDE_MATERNAL = "M"
 SIDE_PATERNAL = "P"
 
-Segment = Dict[str, Union[float, int, str]]
+Segment = dict[str, Union[float, int, str]]
 
 
 class PersonDnaMatchesResource(ProtectedResource):
@@ -57,7 +60,7 @@ class PersonDnaMatchesResource(ProtectedResource):
         },
         location="query",
     )
-    def get(self, args: Dict, handle: str):
+    def get(self, args: dict, handle: str):
         """Get the DNA match data."""
         db_handle = CachePeopleFamiliesProxy(get_db_handle())
 
@@ -84,12 +87,24 @@ class PersonDnaMatchesResource(ProtectedResource):
         return matches
 
 
+class DnaMatchParserResource(ProtectedResource):
+    """DNA match parser resource."""
+
+    @use_args(
+        {"string": fields.Str(required=True)},
+        location="json",
+    )
+    def post(self, args: dict) -> ResponseReturnValue:
+        """Parse DNA match string."""
+        return parse_raw_dna_match_string(args["string"])
+
+
 def get_match_data(
     db_handle: DbReadBase,
     person: Person,
     association: PersonRef,
     locale: GrampsLocale = glocale,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get the DNA match data in the appropriate format."""
     relationship = get_relationship_calculator(reinit=True, clocale=locale)
     associate = db_handle.get_person_from_handle(association.ref)
@@ -154,19 +169,27 @@ def get_match_data(
 
 
 def get_segments_from_note(
-    db_handle: DbReadBase, handle: Handle, side: Optional[str] = None
-) -> List[Segment]:
+    db_handle: DbReadBase, handle: Handle, side: str | None = None
+) -> list[Segment]:
     """Get the segements from a note handle."""
-    note = db_handle.get_note_from_handle(handle)
+    note: Note = db_handle.get_note_from_handle(handle)
+    raw_string: str = note.get()
+    return parse_raw_dna_match_string(raw_string, side=side)
+
+
+def parse_raw_dna_match_string(
+    raw_string: str, side: str | None = None
+) -> list[Segment]:
+    """Parse a raw DNA match string and return a list of segments."""
     segments = []
-    for line in note.get().split("\n"):
+    for line in raw_string.split("\n"):
         data = parse_line(line, side=side)
         if data:
             segments.append(data)
     return segments
 
 
-def parse_line(line: str, side: Optional[str] = None) -> Optional[Segment]:
+def parse_line(line: str, side: str | None = None) -> Segment | None:
     """Parse a line from the CSV/TSV data and return a dictionary."""
     if "\t" in line:
         # Tabs are the field separators. Now determine THOUSEP and RADIXCHAR.

@@ -1,7 +1,7 @@
 swagger: "2.0"
 info:
   title: "Gramps Web API"
-  version: "2.7.0"
+  version: "2.8.0"
   description: >
     The Gramps Web API is a REST API that provides access to family tree databases generated and maintained with Gramps, a popular Open Source genealogical research software package.
 
@@ -7126,6 +7126,37 @@ paths:
             $ref: "#/definitions/Metadata"
         401:
           description: "Unauthorized: Missing authorization header."
+
+
+##############################################################################
+# Endpoint - Parsers
+##############################################################################
+
+  /parsers/dna-match:
+    post:
+      tags:
+      - parsers
+      summary: "Parse a DNA match file."
+      operationId: parseDnaMatch
+      security:
+        - Bearer: []
+      parameters:
+      - name: string
+        in: json
+        required: true
+        type: string
+        description: "The raw DNA match data to parse."
+      responses:
+        200:
+          description: "OK: sucessfully parser."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/DnaMatch"
+        401:
+          description: "Unauthorized: Missing authorization header."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
 ##############################################################################
