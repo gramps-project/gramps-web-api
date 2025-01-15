@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2023      David Straub
+# Copyright (C) 2023-25   David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -39,14 +39,13 @@ from gramps_webapi.auth.const import (
 )
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
-
-match1 = """chromosome,start,end,cMs,SNP
+MATCH1 = """chromosome,start,end,cMs,SNP
 1,56950055,64247327,10.9,1404
 5,850055,950055,12,1700
 """
-match2 = """chromosome	start	end	cMs	SNP	Side
+MATCH2 = """chromosome	start	end	cMs	SNP	Side
 2	56950055	64247327	10.9	1404	M"""
-match3 = """chromosome,start,end,cMs
+MATCH3 = """chromosome,start,end,cMs
 X,56950055,64247327,10.9"""
 
 
@@ -60,13 +59,6 @@ def get_headers(client, user: str, password: str) -> Dict[str, str]:
 def make_handle() -> str:
     """Make a new valid handle."""
     return str(uuid.uuid4())
-
-
-def get_headers(client, user: str, password: str) -> Dict[str, str]:
-    """Get the auth headers for a specific user."""
-    rv = client.post("/api/token/", json={"username": user, "password": password})
-    access_token = rv.json["access_token"]
-    return {"Authorization": "Bearer {}".format(access_token)}
 
 
 class TestDnaMatches(unittest.TestCase):
@@ -127,7 +119,7 @@ class TestDnaMatches(unittest.TestCase):
         assert rv.json == []
 
     def test_one(self):
-        """Test without association."""
+        """Full test."""
         headers = get_headers(self.client, "admin", "123")
         handle_p1 = make_handle()
         handle_p2 = make_handle()
@@ -255,17 +247,17 @@ class TestDnaMatches(unittest.TestCase):
             {
                 "_class": "Note",
                 "handle": handle_n1,
-                "text": {"_class": "StyledText", "string": match1},
+                "text": {"_class": "StyledText", "string": MATCH1},
             },
             {
                 "_class": "Note",
                 "handle": handle_n2,
-                "text": {"_class": "StyledText", "string": match2},
+                "text": {"_class": "StyledText", "string": MATCH2},
             },
             {
                 "_class": "Note",
                 "handle": handle_n3,
-                "text": {"_class": "StyledText", "string": match3},
+                "text": {"_class": "StyledText", "string": MATCH3},
             },
         ]
         rv = self.client.post("/api/objects/", json=objects, headers=headers)
@@ -280,13 +272,6 @@ class TestDnaMatches(unittest.TestCase):
         assert data["ancestor_handles"] == [handle_grandf]
         assert data["relation"] == "le premier cousin"
         assert len(data["segments"]) == 4
-        # 1,56950055,64247327,10.9,1404
-        # 5,850055,950055,12,1700
-        # """
-        # match2 = """chromosome	start	end	cMs	SNP	Side
-        # 2	56950055	64247327	10.9	1404	M"""
-        # match3 = """chromosome,start,end,cMs
-        # X,56950055,64247327,10.9"""
         assert data["segments"][0] == {
             "chromosome": "1",
             "start": 56950055,
@@ -323,3 +308,16 @@ class TestDnaMatches(unittest.TestCase):
             "SNPs": 0,
             "comment": "",
         }
+        # empty string
+        rv = self.client.post(
+            f"/api/parsers/dna-match", headers=headers, json={"string": ""}
+        )
+        assert rv.status_code == 200
+        assert rv.json == []
+        rv = self.client.post(
+            f"/api/parsers/dna-match", headers=headers, json={"string": MATCH1}
+        )
+        assert rv.status_code == 200
+        data = rv.json
+        assert data
+        assert len(data) == 2
