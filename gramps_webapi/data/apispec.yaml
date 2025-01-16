@@ -10786,6 +10786,16 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/DnaSegment"
+      person_ref_idx:
+        description: The index of the associated person in the original person's person reference list
+        type: integer
+        example: 0
+      note_handles:
+        description: The handles of notes associated with the segments of the match
+        type: array
+        items:
+          type: string
+          example: 9BXKQC1PVLPYFMD6IX
 
 
 ##############################################################################
