@@ -221,7 +221,7 @@ class TestReportsReportIdFile(unittest.TestCase):
             full=True,
         )
         contents = rv.get_data(as_text=True)
-        assert "Ahnentafel für" in contents
+        assert "Ahnentafel Bericht für" in contents
 
     def test_get_reports_report_id_file_one_of_each(self):
         """Test one of each available report."""
