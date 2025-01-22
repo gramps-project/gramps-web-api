@@ -57,6 +57,7 @@ class PersonDnaMatchesResource(ProtectedResource):
             "locale": fields.Str(
                 load_default=None, validate=validate.Length(min=2, max=5)
             ),
+            "raw": fields.Bool(load_default=False),
         },
         location="query",
     )
@@ -85,6 +86,7 @@ class PersonDnaMatchesResource(ProtectedResource):
                     person=person,
                     association_index=association_index,
                     locale=locale,
+                    include_raw_data=args["raw"],
                 )
                 matches.append(match_data)
         return matches
@@ -107,6 +109,7 @@ def get_match_data(
     person: Person,
     association_index: int,
     locale: GrampsLocale = glocale,
+    include_raw_data: bool = False,
 ) -> dict[str, Any]:
     """Get the DNA match data in the appropriate format."""
     relationship = get_relationship_calculator(reinit=True, clocale=locale)
@@ -172,7 +175,7 @@ def get_match_data(
         )
         for handle in ancestor_handles
     ]
-    return {
+    result = {
         "handle": association.ref,
         "segments": segments,
         "relation": rel_string,
@@ -181,6 +184,13 @@ def get_match_data(
         "person_ref_idx": association_index,
         "note_handles": note_handles_with_segments,
     }
+    if include_raw_data:
+        raw_data = []
+        for note_handle in note_handles_with_segments:
+            note: Note = db_handle.get_note_from_handle(note_handle)
+            raw_data.append(note.get())
+        result["raw_data"] = raw_data
+    return result
 
 
 def get_segments_from_note(

@@ -1294,6 +1294,12 @@ paths:
         required: false
         type: string
         description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
+      - name: raw
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether to include the raw data for the matches or not."
       responses:
         200:
           description: "OK: Successful operation."
@@ -10796,6 +10802,12 @@ definitions:
         items:
           type: string
           example: 9BXKQC1PVLPYFMD6IX
+      raw_data:
+        description: The raw note strings
+        type: array
+        items:
+          type: string
+          example: "1,1,1,1"
 
 
 ##############################################################################
