@@ -23,7 +23,7 @@ import shutil
 
 import gramps.gen.lib as lib
 from gramps.gen.plug import CATEGORY_DRAW, CATEGORY_GRAPHVIZ, CATEGORY_TEXT
-from pkg_resources import resource_filename
+from pkg_resources import resource_filename  # type: ignore[import-untyped]
 
 from ._version import __version__ as VERSION
 
@@ -136,7 +136,8 @@ MIME_TYPES = {
 # depending on whether needed dependencies are available.
 try:
     import gi
-    gi.require_version('Gtk', '3.0')
+
+    gi.require_version("Gtk", "3.0")
 
     REPORT_FILTERS = ["gv", "dot", "gvpdf"]
     REPORT_DEFAULTS = {

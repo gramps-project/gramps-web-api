@@ -15,14 +15,6 @@ repos:
         args: [--ignore-missing-imports, --no-strict-optional]
         additional_dependencies:
           - types-setuptools
-  - repo: https://github.com/PyCQA/pylint
-    rev: v3.3.3
-    hooks:
-      - id: pylint
-        stages: [commit]
-        args:
-          - --score=n
-          - --disable=import-error,arguments-differ,too-many-locals
   - repo: https://github.com/PyCQA/pydocstyle
     rev: 6.3.0
     hooks:
