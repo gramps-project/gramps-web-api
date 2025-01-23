@@ -29,13 +29,13 @@ from flask import abort
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
-from gramps.gen.lib import Note, Person, PersonRef
+from gramps.gen.lib import Citation, Note, Person
 from gramps.gen.relationship import get_relationship_calculator
 from gramps.gen.utils.grampslocale import GrampsLocale
 from webargs import fields, validate
 
 from gramps_webapi.api.people_families_cache import CachePeopleFamiliesProxy
-from gramps_webapi.types import ResponseReturnValue
+from gramps_webapi.types import Handle, ResponseReturnValue
 
 from ...types import Handle
 from ..util import get_db_handle, get_locale_for_language, use_args
@@ -57,6 +57,7 @@ class PersonDnaMatchesResource(ProtectedResource):
             "locale": fields.Str(
                 load_default=None, validate=validate.Length(min=2, max=5)
             ),
+            "raw": fields.Bool(load_default=False),
         },
         location="query",
     )
@@ -65,9 +66,12 @@ class PersonDnaMatchesResource(ProtectedResource):
         db_handle = CachePeopleFamiliesProxy(get_db_handle())
 
         try:
-            person = db_handle.get_person_from_handle(handle)
+            person: Person | None = db_handle.get_person_from_handle(handle)
         except HandleError:
             abort(404)
+        if person is None:
+            abort(404)
+            raise AssertionError  # for type checker
 
         db_handle.cache_people()
         db_handle.cache_families()
@@ -75,13 +79,14 @@ class PersonDnaMatchesResource(ProtectedResource):
         locale = get_locale_for_language(args["locale"], default=True)
 
         matches = []
-        for association in person.get_person_ref_list():
+        for association_index, association in enumerate(person.get_person_ref_list()):
             if association.get_relation() == "DNA":
                 match_data = get_match_data(
                     db_handle=db_handle,
                     person=person,
-                    association=association,
+                    association_index=association_index,
                     locale=locale,
+                    include_raw_data=args["raw"],
                 )
                 matches.append(match_data)
         return matches
@@ -102,11 +107,13 @@ class DnaMatchParserResource(ProtectedResource):
 def get_match_data(
     db_handle: DbReadBase,
     person: Person,
-    association: PersonRef,
+    association_index: int,
     locale: GrampsLocale = glocale,
+    include_raw_data: bool = False,
 ) -> dict[str, Any]:
     """Get the DNA match data in the appropriate format."""
     relationship = get_relationship_calculator(reinit=True, clocale=locale)
+    association = person.get_person_ref_list()[association_index]
     associate = db_handle.get_person_from_handle(association.ref)
     data, _ = relationship.get_relationship_distance_new(
         db_handle,
@@ -134,15 +141,24 @@ def get_match_data(
     segments = []
 
     # Get Notes attached to Association
-    note_handles = association.get_note_list()
+    note_handles: list[Handle] = association.get_note_list()
+    # we'll be building a list of notes that actually contain segment data
+    note_handles_with_segments: list[Handle] = []
 
     # Get Notes attached to Citation which is attached to the Association
     for citation_handle in association.get_citation_list():
-        citation = db_handle.get_citation_from_handle(citation_handle)
-        note_handles += citation.get_note_list()
+        try:
+            citation: Citation = db_handle.get_citation_from_handle(citation_handle)
+        except HandleError:
+            continue
+        if citation is not None:
+            note_handles += citation.get_note_list()
 
     for note_handle in note_handles:
-        segments += get_segments_from_note(db_handle, handle=note_handle, side=side)
+        note_segments = get_segments_from_note(db_handle, handle=note_handle, side=side)
+        if note_segments:
+            segments += note_segments
+            note_handles_with_segments.append(note_handle)
 
     rel_strings, common_ancestors = relationship.get_all_relationships(
         db_handle, person, associate
@@ -159,20 +175,34 @@ def get_match_data(
         )
         for handle in ancestor_handles
     ]
-    return {
+    result = {
         "handle": association.ref,
         "segments": segments,
         "relation": rel_string,
         "ancestor_handles": ancestor_handles,
         "ancestor_profiles": ancestor_profiles,
+        "person_ref_idx": association_index,
+        "note_handles": note_handles_with_segments,
     }
+    if include_raw_data:
+        raw_data = []
+        for note_handle in note_handles_with_segments:
+            note: Note = db_handle.get_note_from_handle(note_handle)
+            raw_data.append(note.get())
+        result["raw_data"] = raw_data
+    return result
 
 
 def get_segments_from_note(
     db_handle: DbReadBase, handle: Handle, side: str | None = None
 ) -> list[Segment]:
     """Get the segements from a note handle."""
-    note: Note = db_handle.get_note_from_handle(handle)
+    try:
+        note: Note | None = db_handle.get_note_from_handle(handle)
+    except HandleError:
+        return []
+    if note is None:
+        return []
     raw_string: str = note.get()
     return parse_raw_dna_match_string(raw_string, side=side)
 
