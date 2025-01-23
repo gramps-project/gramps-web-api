@@ -22,13 +22,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, NewType
+from typing import Any, NewType, Union
 
 import flask.typing
 
 Handle = NewType("Handle", str)
 GrampsId = NewType("GrampsId", str)
-FilenameOrPath = str | Path
+FilenameOrPath = Union[str, Path]
 TransactionJson = list[dict[str, Any]]
 ResponseReturnValue = flask.typing.ResponseReturnValue
-MatchSegment = dict[str, float | int | str | None]
+MatchSegment = dict[str, Union[float, int, str, None]]

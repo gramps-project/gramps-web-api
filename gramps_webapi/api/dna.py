@@ -1,5 +1,7 @@
 """Utility functions for DNA data."""
 
+from __future__ import annotations
+
 from gramps_webapi.types import MatchSegment
 
 SIDE_UNKNOWN = "U"
