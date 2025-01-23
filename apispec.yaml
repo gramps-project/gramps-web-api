@@ -1294,6 +1294,12 @@ paths:
         required: false
         type: string
         description: "Specifies the locale to be used where applicable if one other than the current default is desired. Should be a valid language code from the available list of translations."
+      - name: raw
+        in: query
+        required: false
+        type: boolean
+        default: false
+        description: "Indicates whether to include the raw data for the matches or not."
       responses:
         200:
           description: "OK: Successful operation."
@@ -10786,6 +10792,22 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/DnaSegment"
+      person_ref_idx:
+        description: The index of the associated person in the original person's person reference list
+        type: integer
+        example: 0
+      note_handles:
+        description: The handles of notes associated with the segments of the match
+        type: array
+        items:
+          type: string
+          example: 9BXKQC1PVLPYFMD6IX
+      raw_data:
+        description: The raw note strings
+        type: array
+        items:
+          type: string
+          example: "1,1,1,1"
 
 
 ##############################################################################
