@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from gramps_webapi.types import MatchSegment
 
 SIDE_UNKNOWN = "U"
@@ -9,68 +11,120 @@ SIDE_MATERNAL = "M"
 SIDE_PATERNAL = "P"
 
 
+def get_delimiter(rows: list[str]) -> str:
+    """Guess the delimiter of a string containing a CSV-like table.
+
+    It is assumed that the table has at least 4 columns and at least one
+    row.
+    """
+    if rows[0].count("\t") >= 3:
+        return "\t"
+    if rows[0].count(",") >= 3:
+        return ","
+    if rows[0].count(";") >= 3:
+        return ";"
+    raise ValueError("Could not determine delimiter.")
+
+
+def is_numeric(value: str) -> bool:
+    """Determine if a string is number-like."""
+    if value == "":
+        return False
+    try:
+        float(value)
+        return True
+    except ValueError:
+        pass
+    if re.match(r"^\d[\d\.,]*$", value):
+        return True
+    return False
+
+
+def has_header(rows: list[str], delimiter: str) -> bool:
+    """Determine if the table has a header."""
+    if len(rows) < 2:
+        return False
+    header = rows[0]
+    if len(header) < 4:
+        return False
+    header_columns = header.split(delimiter)
+    if any(is_numeric(column) for column in header_columns):
+        return False
+    return True
+
+
+def get_order(header: list[str]) -> list[int]:
+    """Get the order of the columns."""
+    return [0, 1, 2, 3, 4, 5]
+
+
 def parse_raw_dna_match_string(raw_string: str) -> list[MatchSegment]:
     """Parse a raw DNA match string."""
+    rows = raw_string.strip().split("\n")
+    try:
+        delimiter = get_delimiter(rows)
+    except ValueError:
+        return []
+    if has_header(rows, delimiter):
+        header = rows[0].split(delimiter)
+        order = get_order(header)
+        rows = rows[1:]
+    else:
+        order = list(range(6))
     segments = []
-    for line in raw_string.split("\n"):
-        data = parse_line(line)
+    for row in rows:
+        if row.strip() == "":
+            continue
+        try:
+            data = process_row(fields=row.split(delimiter), order=order)
+        except (ValueError, TypeError):
+            continue
         if data:
             segments.append(data)
     return segments
 
 
-def parse_line(line: str) -> MatchSegment | None:
-    """Parse a line from the CSV/TSV data and return a dictionary."""
-    if "\t" in line:
-        # Tabs are the field separators. Now determine THOUSEP and RADIXCHAR.
-        # Use Field 2 (Stop Pos) to see if there are THOUSEP there. Use Field 3
-        # (SNPs) to see if there is a radixchar
-        field = line.split("\t")
-        if "," in field[2]:
-            line = line.replace(",", "")
-        elif "." in field[2]:
-            line = line.replace(".", "")
-        if "," in field[3]:
-            line = line.replace(",", ".")
-        line = line.replace("\t", ",")
-    field = line.split(",")
-    if len(field) < 4:
-        return None
-    chromo = field[0].strip()
-    start = get_base(field[1])
-    stop = get_base(field[2])
+def cast_int(value: str) -> int:
+    """Cast a string to an integer."""
     try:
-        cms = float(field[3])
-    except (ValueError, TypeError, IndexError):
+        return int(value.replace(",", "").replace(".", ""))
+    except (ValueError, TypeError):
+        return 0
+
+
+def cast_float(value: str) -> float:
+    """Cast a string to a float."""
+    try:
+        return float(value)
+    except ValueError:
+        return 0.0
+
+
+def process_row(fields: list[str], order: list[int]) -> MatchSegment | None:
+    """Process a row of a DNA match table."""
+    if len(fields) < 4:
         return None
     try:
-        snp = int(field[4])
-    except (ValueError, TypeError, IndexError):
-        snp = 0
-    seg_comment = ""
-    side = SIDE_UNKNOWN
-    if len(field) > 5:
-        if field[5] in {SIDE_MATERNAL, SIDE_PATERNAL, SIDE_UNKNOWN}:
-            side = field[5].strip()
+        chromo = fields[order[0]].strip()
+        start = cast_int(fields[order[1]].strip())
+        stop = cast_int(fields[order[2]].strip())
+        cms = cast_float(fields[order[3]].strip())
+        if len(fields) > 4:
+            snp = cast_int(fields[order[4]].strip())
         else:
-            seg_comment = field[5].strip()
+            snp = 0
+        if len(fields) > 5:
+            seg_comment = fields[order[5]].strip()
+        else:
+            seg_comment = ""
+    except (ValueError, TypeError):
+        return None
     return {
         "chromosome": chromo,
         "start": start,
         "stop": stop,
-        "side": side,
+        "side": "U",
         "cM": cms,
         "SNPs": snp,
         "comment": seg_comment,
     }
-
-
-def get_base(num: str) -> int:
-    """Get the number as int."""
-    try:
-        return int(num)
-    except (ValueError, TypeError):
-        try:
-            return int(float(num) * 1000000)
-        except (ValueError, TypeError):
-            return 0
