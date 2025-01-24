@@ -67,6 +67,13 @@ def cast_int(value: str) -> int:
 
 def cast_float(value: str) -> float:
     """Cast a string to a float."""
+    value = value.replace(" ", "")
+    if value.count(".") > 1:
+        value = value.replace(".", "")
+    if value.count(",") > 1:
+        value = value.replace(",", "")
+    if value.count(",") == 1 and value.count(".") == 0:
+        value = value.replace(",", ".")
     try:
         return float(value)
     except ValueError:
@@ -154,28 +161,28 @@ def get_order(
     exclude_indices: list[int] = []
     chromosome = find_column_position(
         header,
-        lambda col: col.startswith("chromosome"),
+        lambda col: col.startswith("chr"),
         exclude_indices=exclude_indices,
         allow_missing=False,
     )
     exclude_indices.append(chromosome)
     start_position = find_column_position(
         header,
-        lambda col: col.startswith("start"),
+        lambda col: "start" in col,
         exclude_indices=exclude_indices,
         allow_missing=False,
     )
     exclude_indices.append(start_position)
     end_position = find_column_position(
         header,
-        lambda col: col.startswith("end") or col.startswith("stop"),
+        lambda col: "end" in col or "stop" in col,
         exclude_indices=exclude_indices,
         allow_missing=False,
     )
     exclude_indices.append(end_position)
     centimorgans = find_column_position(
         header,
-        lambda col: col.startswith("cm") or col.startswith("centimorgan"),
+        lambda col: col.startswith("cm") or "centimorgan" in col,
         exclude_indices=exclude_indices,
         allow_missing=False,
     )
