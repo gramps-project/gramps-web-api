@@ -138,3 +138,21 @@ def test_gedmatch_german_locale():
         "SNPs": 977,
         "comment": "204",
     }
+
+
+def test_geneatnet_format():
+    """Test the GeneaNet CSV format."""
+    string = """Chromosome;Start of segment;Length of segment;Number of SNPs;Length in centimorgan (cM);Type of segment
+9;14037831;73101159;6804;38.64;half-identical
+"""
+    segments = parse_raw_dna_match_string(string)
+    assert len(segments) == 1
+    assert segments[0] == {
+        "chromosome": "9",
+        "start": 14037831,
+        "stop": 73101159,
+        "side": "U",
+        "cM": 38.64,
+        "SNPs": 6804,
+        "comment": "half-identical",
+    }
