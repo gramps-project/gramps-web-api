@@ -1,4 +1,4 @@
-"""Utility functions for DNA data."""
+"""Parser for raw DNA match data."""
 
 from __future__ import annotations
 
