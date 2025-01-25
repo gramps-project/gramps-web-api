@@ -156,3 +156,97 @@ def test_geneatnet_format():
         "SNPs": 6804,
         "comment": "half-identical",
     }
+
+
+def test_with_whitespace():
+    """Test a wrong format."""
+    string = """
+        Chromosome,   Start\t, End, \tcM
+        3, 56950055, 64247327, 10.9"""
+    segments = parse_raw_dna_match_string(string)
+    assert len(segments) == 1
+    assert segments[0] == {
+        "chromosome": "3",
+        "start": 56950055,
+        "stop": 64247327,
+        "side": "U",
+        "cM": 10.9,
+        "SNPs": 0,
+        "comment": "",
+    }
+
+
+def test_three_columns():
+    """Test a wrong format."""
+    string = """Chromosome,Start Location,End Location
+3,56950055,64247327"""
+    segments = parse_raw_dna_match_string(string)
+    assert len(segments) == 0
+
+
+def test_integer_with_separators():
+    """Test a wrong format."""
+    string = """Chromosome,Start Location,End Location,Centimorgans
+3,56.950.055,64.247.327,10.9"""
+    segments = parse_raw_dna_match_string(string)
+    assert len(segments) == 1
+    assert segments[0] == {
+        "chromosome": "3",
+        "start": 56950055,
+        "stop": 64247327,
+        "side": "U",
+        "cM": 10.9,
+        "SNPs": 0,
+        "comment": "",
+    }
+
+
+def test_integer_with_separators_tab():
+    """Test a wrong format."""
+    string = """Chromosome\tStart Location\tEnd Location\tCentimorgans
+3\t56,950,055\t64,247,327\t10.9"""
+    segments = parse_raw_dna_match_string(string)
+    assert len(segments) == 1
+    assert segments[0] == {
+        "chromosome": "3",
+        "start": 56950055,
+        "stop": 64247327,
+        "side": "U",
+        "cM": 10.9,
+        "SNPs": 0,
+        "comment": "",
+    }
+
+
+def test_non_castable_integer():
+    """Test a wrong format."""
+    string = """Chromosome,Start Location,End Location,Centimorgans
+3,56950055,64247327a,10.9"""
+    segments = parse_raw_dna_match_string(string)
+    assert len(segments) == 1
+    assert segments[0] == {
+        "chromosome": "3",
+        "start": 56950055,
+        "stop": 0,
+        "side": "U",
+        "cM": 10.9,
+        "SNPs": 0,
+        "comment": "",
+    }
+
+
+def test_non_castable_float():
+    """Test a wrong format."""
+    string = """Chromosome,Start Location,End Location,Centimorgans
+3,56950055,64247327,10.9a"""
+    segments = parse_raw_dna_match_string(string)
+    assert len(segments) == 1
+    assert segments[0] == {
+        "chromosome": "3",
+        "start": 56950055,
+        "stop": 64247327,
+        "side": "U",
+        "cM": 0,
+        "SNPs": 0,
+        "comment": "",
+    }
