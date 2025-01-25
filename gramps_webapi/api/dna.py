@@ -177,7 +177,7 @@ def get_order(
         header,
         lambda col: "end" in col
         or "stop" in col
-        or ("length" in col and "cM" not in col),
+        or ("length" in col and "morgan" not in col),
         exclude_indices=exclude_indices,
         allow_missing=False,
     )
