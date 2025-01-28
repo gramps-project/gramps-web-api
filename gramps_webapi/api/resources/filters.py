@@ -26,15 +26,15 @@ from typing import Any, Dict, List, Optional, Set
 import gramps.gen.filters as filters
 from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
-from gramps.gen.lib import Person
 from gramps.gen.filters import GenericFilter
 from gramps.gen.filters.rules import Rule
+from gramps.gen.lib import Person
 from marshmallow import Schema
 from webargs import ValidationError, fields, validate
 
-from ..util import abort_with_message, use_args
 from ...const import GRAMPS_NAMESPACES
 from ...types import Handle
+from ..util import abort_with_message, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -48,6 +48,7 @@ class HasAssociationType(Rule):
     category = "General filters"
 
     def apply(self, db: DbReadBase, person: Person) -> bool:  # type: ignore
+        """Apply the rule to the person."""
         for person_ref in person.get_person_ref_list():
             if person_ref.get_relation() == self.list[0]:
                 return True
@@ -57,23 +58,25 @@ class HasAssociationType(Rule):
 additional_person_rules = [HasAssociationType]
 
 
-_RULES_LOOKUP = {
-    "Person": filters.rules.person.editor_rule_list + additional_person_rules,
-    "Family": filters.rules.family.editor_rule_list,
-    "Event": filters.rules.event.editor_rule_list,
-    "Place": filters.rules.place.editor_rule_list,
-    "Citation": filters.rules.citation.editor_rule_list,
-    "Source": filters.rules.source.editor_rule_list,
-    "Repository": filters.rules.repository.editor_rule_list,
-    "Media": filters.rules.media.editor_rule_list,
-    "Note": filters.rules.note.editor_rule_list,
-}
+def get_rule_list(namespace: str) -> List[Rule]:
+    """Return a list of available rules for a namespace."""
+    return {
+        "Person": filters.rules.person.editor_rule_list + additional_person_rules,
+        "Family": filters.rules.family.editor_rule_list,
+        "Event": filters.rules.event.editor_rule_list,
+        "Place": filters.rules.place.editor_rule_list,
+        "Citation": filters.rules.citation.editor_rule_list,
+        "Source": filters.rules.source.editor_rule_list,
+        "Repository": filters.rules.repository.editor_rule_list,
+        "Media": filters.rules.media.editor_rule_list,
+        "Note": filters.rules.note.editor_rule_list,
+    }[namespace]
 
 
 def get_filter_rules(args: Dict[str, Any], namespace: str) -> List[Dict]:
     """Return a list of available filter rules for a namespace."""
     rule_list = []
-    for rule_class in _RULES_LOOKUP[namespace]:
+    for rule_class in get_rule_list(namespace):
         add_rule = True
         if "rules" in args and args["rules"]:
             if rule_class.__name__ not in args["rules"]:
@@ -137,7 +140,7 @@ def build_filter(filter_parms: Dict, namespace: str) -> GenericFilter:
         filter_object.set_invert(filter_parms["invert"])
     for filter_rule in filter_parms["rules"]:
         rule_instance = None
-        for rule_class in _RULES_LOOKUP[namespace]:
+        for rule_class in get_rule_list(namespace):
             if filter_rule["name"] == rule_class.__name__:
                 rule_instance = rule_class
                 break
