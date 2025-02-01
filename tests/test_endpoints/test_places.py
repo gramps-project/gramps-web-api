@@ -513,6 +513,7 @@ class TestPlacesHandle(unittest.TestCase):
             rv["profile"],
             {
                 "alternate_names": [],
+                "alternate_place_names": [],
                 "gramps_id": "P0860",
                 "lat": 33.6259414,
                 "long": -97.1333453,
@@ -520,6 +521,7 @@ class TestPlacesHandle(unittest.TestCase):
                 "parent_places": [
                     {
                         "alternate_names": [],
+                        "alternate_place_names": [],
                         "gramps_id": "P0194",
                         "lat": 0,
                         "long": 0,
@@ -528,6 +530,7 @@ class TestPlacesHandle(unittest.TestCase):
                     },
                     {
                         "alternate_names": [],
+                        "alternate_place_names": [],
                         "gramps_id": "P0010",
                         "lat": 0,
                         "long": 0,
@@ -536,6 +539,7 @@ class TestPlacesHandle(unittest.TestCase):
                     },
                     {
                         "alternate_names": [],
+                        "alternate_place_names": [],
                         "gramps_id": "P0957",
                         "lat": 0,
                         "long": 0,
