@@ -34,6 +34,7 @@ import click
 import waitress  # type: ignore
 import webbrowser
 
+from .api.tasks import send_dummy_email
 from .api.search import get_search_indexer, get_semantic_search_indexer
 from .api.util import get_db_manager, list_trees, close_db
 from .app import create_app
@@ -134,6 +135,23 @@ def run(
         app.run(port=port, threaded=True)
     print()
     print("Stopping Gramps Web API server...")
+
+
+@cli.group("system", help="Manage system tools.")
+@click.pass_context
+def system(ctx):
+    app = ctx.obj["app"]
+
+
+@system.command("sendMail")
+@click.argument("mail_to")
+@click.pass_context
+def send_mail(ctx, mail_to):
+    """Send dummy mail."""
+    app = ctx.obj["app"]
+    app.logger.info(f"Send mail to {mail_to} ...")
+    with app.app_context():
+        send_dummy_email(mail_to)
 
 
 @cli.group("user", help="Manage users.")

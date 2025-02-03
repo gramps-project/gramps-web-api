@@ -87,21 +87,46 @@ def clip_progress(x: float) -> float:
 
 
 @shared_task()
-def send_email_reset_password(email: str, token: str):
+def send_email_reset_password(email: str, user_name: str, token: str):
     """Send an email for password reset."""
     base_url = get_config("BASE_URL").rstrip("/")
-    body = email_reset_pw(base_url=base_url, token=token)
+    body, body_html = email_reset_pw(
+        base_url=base_url, user_name=user_name, token=token
+    )
     subject = _("Reset your Gramps password")
-    send_email(subject=subject, body=body, to=[email])
+    send_email(subject=subject, body=body, to=[email], body_html=body_html)
 
 
 @shared_task()
-def send_email_confirm_email(email: str, token: str):
+def send_email_confirm_email(email: str, user_name: str, token: str):
     """Send an email to confirm an e-mail address."""
     base_url = get_config("BASE_URL").rstrip("/")
-    body = email_confirm_email(base_url=base_url, token=token)
+    body, body_html = email_confirm_email(
+        base_url=base_url, user_name=user_name, token=token
+    )
     subject = _("Confirm your e-mail address")
-    send_email(subject=subject, body=body, to=[email])
+    send_email(subject=subject, body=body, to=[email], body_html=body_html)
+
+
+@shared_task()
+def send_dummy_email(email: str):
+    """Send a dummy email to test smtp settings"""
+    base_url = get_config("BASE_URL").rstrip("/")
+    token = ""
+    user_name = "DummyUser123"
+    # Send Confirm mail
+    body, body_html = email_confirm_email(
+        base_url=base_url, user_name=user_name, token=token
+    )
+    subject = _("Confirm your e-mail address")
+    send_email(subject=subject, body=body, to=[email], body_html=body_html)
+
+    # Send PW Reset
+    body, body_html = email_reset_pw(
+        base_url=base_url, user_name=user_name, token=token
+    )
+    subject = _("Reset your Gramps password")
+    send_email(subject=subject, body=body, to=[email], body_html=body_html)
 
 
 @shared_task()
