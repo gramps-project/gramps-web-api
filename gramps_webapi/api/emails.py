@@ -49,7 +49,7 @@ def email_reset_pw(base_url: str, user_name: str, token: str):
 {end}
 """
 
-    body_html = email_body_reset_pw(user_name=user_name, url=url)
+    body_html = email_htmlbody_reset_pw(user_name=user_name, url=url)
     return (body, body_html)
 
 
@@ -76,7 +76,7 @@ def email_confirm_email(base_url: str, user_name: str, token: str):
 
 {url}
 """
-    body_html = email_body_confirm_email(user_name=user_name, url=url)
+    body_html = email_htmlbody_confirm_email(user_name=user_name, url=url)
     return (body, body_html)
 
 
@@ -162,58 +162,84 @@ body {
 """
 
 
-def email_body_reset_pw(user_name: str, url: str) -> str:
+def email_htmlbody_reset_pw(user_name: str, url: str) -> str:
+    header = _("Reset Your Password")
+    greeting = _("Hi %s,") % user_name
+    descMail = _(
+        "You are receiving this e-mail because you (or someone else) have requested the reset of the password for your account."
+    )
+    descAction = _("Click the button below to set a new password:")
+    buttonLabel = _("Reset Password")
+    descIgnore = _(
+        "If you did not request a password reset, please ignore this email and your password will remain unchanged."
+    )
     return """
     <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reset Your Password</title>
+    <title>%(header)s</title>
     <style>
         %(styles)s
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">Reset Your Password</div>
+        <div class="header">%(header)s</div>
         <div class="content">
-            <p class="greeting">Hi %(user_name)s,</p>
-            <p>You are receiving this e-mail because you (or someone else) have requested the reset of the password for your account.</p>
-            <p>Click the button below to set a new password:</p>
-            <a href="%(url)s" class="button">Reset Password</a>
-            <p>If you did not request a password reset, please ignore this email and your password will remain unchanged.</p>
+            <p class="greeting">%(greeting)s</p>
+            <p>%(descMail)s</p>
+            <p>%(descAction)s</p>
+            <a href="%(url)s" class="button">%(buttonLabel)s</a>
+            <p>%(descIgnore)s</p>
         </div>
     </div>
 </body>
 </html>
     """ % {
-        "user_name": user_name,
+        "greeting": greeting,
         "url": url,
+        "header": header,
+        "descMail": descMail,
+        "descAction": descAction,
+        "buttonLabel": buttonLabel,
+        "descIgnore": descIgnore,
         "styles": email_html_styles(),
     }
 
 
-def email_body_confirm_email(user_name: str, url: str) -> str:
+def email_htmlbody_confirm_email(user_name: str, url: str) -> str:
+    header = _("Confirm your e-mail address")
+    welcome = _("Welcome to Gramps Web")
+    greeting = _("Hi %s,") % user_name
+    descAction = _(
+        "Thank you for registering! Please confirm your email address by clicking the button below:"
+    )
+    buttonLabel = _("Confirm Email")
+    descFurtherAction = _(
+        "You will be able to log on once a tree owner reviews and approves your account."
+    )
+
     return """
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Confirm Your Email Address</title>
+    <title>%(header)s</title>
     <style>
         %(styles)s
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">Welcome to Gramps Web</div>
+        <div class="header">%(welcome)s</div>
         <div class="content">
-            <p class="greeting">Hi %(user_name)s,</p>
-            <p>Thank you for registering! Please confirm your email address by clicking the button below:</p>
-            <a href="%(url)s" class="button">Confirm Email</a>
-            <p>You will be able to log on once a tree owner reviews and approves your account.</p>
+            <p class="greeting">%(greeting)s</p>
+            <p>%(descAction)s</p>
+            <a href="%(url)s" class="button">%(buttonLabel)s</a>
+            <p>%(descFurtherAction)s</p>
         </div>
     </div>
 </body>
@@ -221,5 +247,11 @@ def email_body_confirm_email(user_name: str, url: str) -> str:
     """ % {
         "user_name": user_name,
         "url": url,
+        "header": header,
+        "welcome": welcome,
+        "greeting": greeting,
+        "descAction": descAction,
+        "buttonLabel": buttonLabel,
+        "descFurtherAction": descFurtherAction,
         "styles": email_html_styles(),
     }
