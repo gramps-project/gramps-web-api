@@ -68,7 +68,7 @@ def email_confirm_email(base_url: str, user_name: str, token: str):
         "tree owner reviews and approves your account."
     )
 
-    url = f"""{base_url}/api/users/-/email/confirm/?jwt={token};"""
+    url = f"""{base_url}/api/users/-/email/confirm/?jwt={token}"""
 
     body = f"""{intro}
 
