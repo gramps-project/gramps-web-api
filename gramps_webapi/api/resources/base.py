@@ -31,7 +31,8 @@ from gramps.gen.db import DbTxn
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
-from gramps.gen.lib.serialize import from_json
+#from gramps.gen.lib.serialize import from_json
+from gramps.gen.lib.json_utils import dict_to_string
 from gramps.gen.utils.grampslocale import GrampsLocale
 from pyparsing.exceptions import ParseBaseException
 from webargs import fields, validate
@@ -164,7 +165,7 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
             abort_with_message(400, f"Error while processing object: {exc}")
         if not validate_object_dict(obj_dict):
             abort_with_message(400, "Schema validation failed")
-        return from_json(json.dumps(obj_dict))
+        return dict_to_string(obj_dict) # json.dumps(obj_dict))
 
     def has_handle(self, handle: str) -> bool:
         """Check if the handle exists in the database."""

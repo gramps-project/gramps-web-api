@@ -30,7 +30,8 @@ from celery import shared_task, Task
 from celery.result import AsyncResult
 from flask import current_app
 from gramps.gen.db import DbTxn
-from gramps.gen.lib.serialize import from_json, to_json
+#from gramps.gen.lib.serialize import from_json, to_json
+from gramps.gen.lib.json_utils import string_to_object, object_to_dict
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.merge.diff import diff_items
@@ -454,7 +455,7 @@ def process_transactions(
                     abort_with_message(409, "Object has changed")
                 new_data = item["new"]
                 if new_data:
-                    new_obj = from_json(json.dumps(new_data))
+                    new_obj = string_to_object(new_data) # from_json(json.dumps(new_data))
                 if trans_type == "delete":
                     handle_delete(trans, class_name, handle)
                     if (
@@ -528,7 +529,7 @@ def old_unchanged(db: DbReadBase, class_name: str, handle: str, old_data: Dict) 
         if old_data is None:
             return True
         return False
-    obj_dict = json.loads(to_json(obj))
+    obj_dict = object_to_dict(obj) # json.loads(to_json(obj))
     if diff_items(class_name, old_data, obj_dict):
         return False
     return True

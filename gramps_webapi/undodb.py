@@ -34,7 +34,8 @@ from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import REFERENCE_KEY, TXNADD, TXNDEL, TXNUPD, DbUndo, DbWriteBase
 from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_CLASS_MAP, KEY_TO_NAME_MAP
 from gramps.gen.db.txn import DbTxn
-from gramps.gen.lib.serialize import to_json
+#from gramps.gen.lib.serialize import to_json
+from gramps.gen.lib.json_data import string_to_dict
 from sqlalchemy import (
     BigInteger,
     ForeignKey,
@@ -79,18 +80,22 @@ class Change(Base):
 
     connection = relationship("Connection", back_populates="changes")
 
-    def _obj_to_json(self, data):
+    def _obj_to_json(self, string):
         """Convert binary object to a JSON dict."""
-        if data is None:
+        if string is None:
             return {}
         try:
             obj_cls = getattr(gramps.gen.lib, self.obj_class)
         except AttributeError:
             return {}
-        serial_data = pickle.loads(data)
-        obj = obj_cls().unserialize(serial_data)
-        json_string = to_json(obj)
-        return json.loads(json_string)
+        # Gramps 6.0 representation is a string, not binary blob
+        #serial_data = pickle.loads(data)
+        #obj = obj_cls().unserialize(serial_data)
+        #json_string = to_json(obj)
+        #return json.loads(json_string)
+        # could also use string_to_data, but if not using
+        # DataDict, this is simpler:
+        return string_to_dict(string)
 
     def _to_dict(self, old_data: bool = True, new_data: bool = True):
         """Return a dict representation of the change."""
