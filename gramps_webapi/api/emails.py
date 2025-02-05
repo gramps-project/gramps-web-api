@@ -101,26 +101,6 @@ def email_new_user(base_url: str, username: str, fullname: str, email: str):
 """
 
 
-def url_as_button(url: str, button_label: str) -> str:
-    return f"""
-        <a href="{url}" style="background-color: #6D4C41; color: white;
-            padding: 10px 20px; text-decoration: none; border-radius: 4px;
-            font-family: sans-serif;">
-            {button_label}
-        </a>
-    """
-
-
-def url_as_link(url: str, button_label: str) -> str:
-    return f"""
-        <a href="{url}" style="background-color: #6D4C41; color: white;
-            padding: 10px 20px; text-decoration: none; border-radius: 4px;
-            font-family: sans-serif;">
-            {button_label}
-        </a>
-    """
-
-
 def email_html_styles() -> str:
     return """
 body {
