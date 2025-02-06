@@ -34,7 +34,7 @@ dependencies = [
     "bleach[css]>=5.0.0",
     "jsonschema",
     "ffmpeg-python",
-    "boto3",
+    "boto3<1.36.0",
     "alembic",
     "celery[redis]",
     "Unidecode",
