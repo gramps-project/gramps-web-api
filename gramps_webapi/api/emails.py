@@ -101,8 +101,7 @@ def email_new_user(base_url: str, username: str, fullname: str, email: str):
 """
 
 
-def email_html_styles() -> str:
-    return """
+EMAIL_CSS_STYLES = """
 body {
     font-family: Arial, sans-serif;
     background-color: #f4f4f4;
@@ -185,7 +184,7 @@ def email_htmlbody_reset_pw(user_name: str, url: str) -> str:
         "descAction": descAction,
         "buttonLabel": buttonLabel,
         "descIgnore": descIgnore,
-        "styles": email_html_styles(),
+        "styles": EMAIL_CSS_STYLES,
     }
 
 
@@ -233,5 +232,5 @@ def email_htmlbody_confirm_email(user_name: str, url: str) -> str:
         "descAction": descAction,
         "buttonLabel": buttonLabel,
         "descFurtherAction": descFurtherAction,
-        "styles": email_html_styles(),
+        "styles": EMAIL_CSS_STYLES,
     }
