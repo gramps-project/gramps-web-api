@@ -35,7 +35,6 @@ import waitress  # type: ignore
 import webbrowser
 
 from .api.tasks import (
-    send_dummy_email,
     send_email_confirm_email,
     send_email_reset_password,
 )
