@@ -109,27 +109,6 @@ def send_email_confirm_email(email: str, user_name: str, token: str):
 
 
 @shared_task()
-def send_dummy_email(email: str):
-    """Send a dummy email to test smtp settings"""
-    base_url = get_config("BASE_URL").rstrip("/")
-    token = ""
-    user_name = "DummyUser123"
-    # Send Confirm mail
-    body, body_html = email_confirm_email(
-        base_url=base_url, user_name=user_name, token=token
-    )
-    subject = _("Confirm your e-mail address")
-    send_email(subject=subject, body=body, to=[email], body_html=body_html)
-
-    # Send PW Reset
-    body, body_html = email_reset_pw(
-        base_url=base_url, user_name=user_name, token=token
-    )
-    subject = _("Reset your Gramps password")
-    send_email(subject=subject, body=body, to=[email], body_html=body_html)
-
-
-@shared_task()
 def send_email_new_user(
     username: str, fullname: str, email: str, tree: str, include_admins: bool
 ):

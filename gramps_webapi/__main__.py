@@ -34,7 +34,11 @@ import click
 import waitress  # type: ignore
 import webbrowser
 
-from .api.tasks import send_dummy_email
+from .api.tasks import (
+    send_dummy_email,
+    send_email_confirm_email,
+    send_email_reset_password,
+)
 from .api.search import get_search_indexer, get_semantic_search_indexer
 from .api.util import get_db_manager, list_trees, close_db
 from .app import create_app
@@ -137,21 +141,34 @@ def run(
     print("Stopping Gramps Web API server...")
 
 
-@cli.group("system", help="Manage system tools.")
+@cli.group("email", help="Manage email tools.")
 @click.pass_context
-def system(ctx):
+def email(ctx):
     app = ctx.obj["app"]
 
 
-@system.command("sendMail")
+@email.command("reset-pw")
 @click.argument("mail_to")
+@click.argument("username")
 @click.pass_context
-def send_mail(ctx, mail_to):
-    """Send dummy mail."""
+def send_reset_pw_email(ctx, mail_to, username):
+    """Send dummy reset password email mail."""
     app = ctx.obj["app"]
-    app.logger.info(f"Send mail to {mail_to} ...")
+    app.logger.info(f"Send reset-pw mail to {mail_to} ...")
     with app.app_context():
-        send_dummy_email(mail_to)
+        send_email_reset_password(mail_to, username, "")
+
+
+@email.command("confirm-email")
+@click.argument("mail_to")
+@click.argument("username")
+@click.pass_context
+def send_confirm_email(ctx, mail_to, username):
+    """Send dummy confirm email mail."""
+    app = ctx.obj["app"]
+    app.logger.info(f"Send confirm-email mail to {mail_to} ...")
+    with app.app_context():
+        send_email_confirm_email(mail_to, username, "")
 
 
 @cli.group("user", help="Manage users.")
