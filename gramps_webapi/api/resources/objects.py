@@ -27,7 +27,8 @@ from flask_jwt_extended import get_jwt_identity
 from gramps.gen.db import DbTxn
 from gramps.gen.lib import Family, Person
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
-from gramps.gen.lib.serialize import from_json
+#from gramps.gen.lib.serialize import from_json
+from gramps.gen.lib.json_utils import data_to_object
 from webargs import fields, validate
 
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ_BATCH, PERM_EDIT_OBJ
@@ -68,7 +69,7 @@ class CreateObjectsResource(ProtectedResource):
                 abort_with_message(400, "Error processing objects")
             if not validate_object_dict(obj_dict):
                 abort_with_message(400, "Validation error while processing objects")
-            obj = from_json(json.dumps(obj_dict))
+            obj = data_to_object(obj_dict) # json.dumps(obj_dict))
             objects.append(obj)
         return objects
 
