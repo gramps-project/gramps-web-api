@@ -362,7 +362,12 @@ class UserRegisterResource(Resource):
             # link does not expire
             expires_delta=False,
         )
-        run_task(send_email_confirm_email, email=args["email"], token=token)
+        run_task(
+            send_email_confirm_email,
+            email=args["email"],
+            user_name=user_name,
+            token=token,
+        )
         return "", 201
 
 
@@ -480,7 +485,9 @@ class UserTriggerResetPasswordResource(Resource):
             expires_delta=datetime.timedelta(hours=1),
         )
         try:
-            task = run_task(send_email_reset_password, email=email, token=token)
+            task = run_task(
+                send_email_reset_password, email=email, user_name=user_name, token=token
+            )
         except ValueError:
             abort_with_message(500, "Error while trying to send e-mail")
         if isinstance(task, AsyncResult):

@@ -257,7 +257,7 @@ class TestUser(unittest.TestCase):
             headers={"Authorization": f"Bearer {token}"},
             json={"new_password": ""},
         )
-        self.assertEqual(rv.status_code, 400)
+        self.assertEqual(rv.status_code, 400, rv.data)
         # now that should work
         rv = self.client.post(
             BASE_URL + "/users/-/password/reset/",
@@ -650,7 +650,7 @@ class TestUser(unittest.TestCase):
                 BASE_URL + "/users/-/email/confirm/",
                 headers={"Authorization": f"Bearer {token}"},
             )
-            self.assertEqual(rv.status_code, 200)
+            self.assertEqual(rv.status_code, 200, rv.data)
             # check return template
             self.assertIn(b"Thank you for confirming your e-mail address", rv.data)
             # get owner token

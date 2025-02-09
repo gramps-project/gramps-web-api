@@ -509,11 +509,17 @@ def get_buffer_for_file(filename: str, delete=True, not_found=False) -> BinaryIO
 
 
 def send_email(
-    subject: str, body: str, to: Sequence[str], from_email: str | None = None
+    subject: str,
+    body: str,
+    to: Sequence[str],
+    from_email: str | None = None,
+    body_html: str | None = None,
 ) -> None:
     """Send an e-mail message."""
     msg = EmailMessage()
     msg.set_content(body)
+    if body_html:
+        msg.add_alternative(body_html, subtype="html")
     msg["Subject"] = subject
     if not from_email:
         from_email = get_config("DEFAULT_FROM_EMAIL")
