@@ -240,6 +240,7 @@ class TestUser(unittest.TestCase):
             msg = args[0]
             # extract the token from the message body
             body = msg.get_body().get_payload().replace("=\n", "")
+            print( "Body: " + body )
             matches = re.findall(r"jwt=3D([a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+)", body)
             self.assertEqual(len(matches), 1, msg=body)
             token = matches[0]
@@ -257,7 +258,7 @@ class TestUser(unittest.TestCase):
             headers={"Authorization": f"Bearer {token}"},
             json={"new_password": ""},
         )
-        self.assertEqual(rv.status_code, 400)
+        self.assertEqual(rv.status_code, 400, rv.data)
         # now that should work
         rv = self.client.post(
             BASE_URL + "/users/-/password/reset/",
@@ -637,6 +638,7 @@ class TestUser(unittest.TestCase):
             msg = args[0]
             # extract the token from the message body
             body = msg.get_body().get_payload().replace("=\n", "")
+            print( "Body: " + body)
             matches = re.findall(r"jwt=3D([a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+)", body)
             self.assertEqual(len(matches), 1, msg=body)
             token = matches[0]
@@ -650,7 +652,7 @@ class TestUser(unittest.TestCase):
                 BASE_URL + "/users/-/email/confirm/",
                 headers={"Authorization": f"Bearer {token}"},
             )
-            self.assertEqual(rv.status_code, 200)
+            self.assertEqual(rv.status_code, 200, rv.data)
             # check return template
             self.assertIn(b"Thank you for confirming your e-mail address", rv.data)
             # get owner token
