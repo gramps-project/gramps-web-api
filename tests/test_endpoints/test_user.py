@@ -240,7 +240,7 @@ class TestUser(unittest.TestCase):
             msg = args[0]
             # extract the token from the message body
             body = msg.get_body().get_payload().replace("=\n", "")
-            matches = re.findall(r".*jwt=([^\s]+).*", body)
+            matches = re.findall(r"jwt=3D([a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+)", body)
             self.assertEqual(len(matches), 1, msg=body)
             token = matches[0]
             if token[:2] == "3D":
@@ -637,7 +637,7 @@ class TestUser(unittest.TestCase):
             msg = args[0]
             # extract the token from the message body
             body = msg.get_body().get_payload().replace("=\n", "")
-            matches = re.findall(r".*jwt=([^\s]+).*", body)
+            matches = re.findall(r"jwt=3D([a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+)", body)
             self.assertEqual(len(matches), 1, msg=body)
             token = matches[0]
             if token[:2] == "3D":
