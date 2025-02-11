@@ -35,7 +35,7 @@ from gramps.gen.db import REFERENCE_KEY, TXNADD, TXNDEL, TXNUPD, DbUndo, DbWrite
 from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_CLASS_MAP, KEY_TO_NAME_MAP
 from gramps.gen.db.txn import DbTxn
 #from gramps.gen.lib.serialize import to_json
-from gramps.gen.lib.json_data import string_to_dict
+from gramps.gen.lib.json_utils import string_to_dict
 from sqlalchemy import (
     BigInteger,
     ForeignKey,
