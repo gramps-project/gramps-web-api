@@ -240,6 +240,7 @@ class TestUser(unittest.TestCase):
             msg = args[0]
             # extract the token from the message body
             body = msg.get_body().get_payload().replace("=\n", "")
+            print( "Body: " + body )
             matches = re.findall(r".*jwt=([^\s]+).*", body)
             self.assertEqual(len(matches), 1, msg=body)
             token = matches[0]
@@ -637,6 +638,7 @@ class TestUser(unittest.TestCase):
             msg = args[0]
             # extract the token from the message body
             body = msg.get_body().get_payload().replace("=\n", "")
+            print( "Body: " + body)
             matches = re.findall(r".*jwt=([^\s]+).*", body)
             self.assertEqual(len(matches), 1, msg=body)
             token = matches[0]
