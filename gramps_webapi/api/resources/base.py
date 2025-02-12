@@ -32,7 +32,7 @@ from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 #from gramps.gen.lib.serialize import from_json
-from gramps.gen.lib.json_utils import dict_to_string
+from gramps.gen.lib.json_utils import data_to_object
 from gramps.gen.utils.grampslocale import GrampsLocale
 from pyparsing.exceptions import ParseBaseException
 from webargs import fields, validate
