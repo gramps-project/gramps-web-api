@@ -165,7 +165,7 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
             abort_with_message(400, f"Error while processing object: {exc}")
         if not validate_object_dict(obj_dict):
             abort_with_message(400, "Schema validation failed")
-        return dict_to_string(obj_dict) # json.dumps(obj_dict))
+        return data_to_object(obj_dict)
 
     def has_handle(self, handle: str) -> bool:
         """Check if the handle exists in the database."""
