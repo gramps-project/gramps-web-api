@@ -1157,7 +1157,7 @@ def reverse_transaction(transaction_list: TransactionJson) -> TransactionJson:
 
 def hash_object(obj: GrampsObject) -> str:
     """Generate a SHA256 hash for a Gramps object's data."""
-    data = object_to_string(obj).decode() #to_json(obj).encode()
+    data = object_to_string(obj)  #to_json(obj).encode()
     return sha256(data).hexdigest()
 
 
