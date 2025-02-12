@@ -39,7 +39,7 @@ class TaskResource(ProtectedResource):
 
         def serialize_or_str(obj):
             try:
-                return object_to_string(obj) # json.dumps(obj)
+                return object_to_string(obj).decode() # json.dumps(obj)
             except TypeError:
                 return str(obj)
 
