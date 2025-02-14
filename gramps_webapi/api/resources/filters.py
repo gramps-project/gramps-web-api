@@ -195,7 +195,7 @@ class FilterSchema(Schema):
     function = fields.Str(
         required=False,
         load_default="and",
-        validate=validate.OneOf(["and", "or", "xor", "one"]),
+        validate=validate.OneOf(["and", "or", "one"]),
     )
     invert = fields.Boolean(required=False, load_default=False)
     rules = fields.List(
