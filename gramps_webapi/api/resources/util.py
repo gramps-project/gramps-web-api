@@ -374,6 +374,13 @@ def get_place_profile_for_object(
         "alternate_names": [
             place_name.value for place_name in place.get_alternative_names()
         ],
+        "alternate_place_names": [
+            {
+                "value": place_name.value,
+                "date_str": locale.date_displayer.display(place_name.date),
+            }
+            for place_name in place.get_alternative_names()
+        ],
         "lat": float(latitude) if (latitude and longitude) else None,
         "long": float(longitude) if (latitude and longitude) else None,
     }
