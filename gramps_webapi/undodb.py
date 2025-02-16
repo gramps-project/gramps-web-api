@@ -256,8 +256,8 @@ class DbUndoSQL(DbUndo):
         length = len(self)
         connection_id = self.connection_id  # outside session to prevent lock error
         with self.session_scope() as session:
-            old_data = None if old_data is None else data_to_string(old_data)
-            new_data = None if new_data is None else data_to_string(new_data)
+            old_json = None if old_data is None else data_to_string(old_data)
+            new_json = None if new_data is None else data_to_string(new_data)
             new_change = Change(
                 connection_id=connection_id,
                 id=length + 1,
@@ -265,8 +265,8 @@ class DbUndoSQL(DbUndo):
                 trans_type=trans_type,
                 obj_handle=obj_handle,
                 ref_handle=ref_handle,
-                old_data=old_data,
-                new_data=new_data,
+                old_json=old_data,
+                new_json=new_data,
                 timestamp=time_ns(),
             )
             session.add(new_change)
