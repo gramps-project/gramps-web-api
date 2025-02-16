@@ -265,8 +265,8 @@ class DbUndoSQL(DbUndo):
                 trans_type=trans_type,
                 obj_handle=obj_handle,
                 ref_handle=ref_handle,
-                old_json=old_data,
-                new_json=new_data,
+                old_json=old_json,
+                new_json=new_json,
                 timestamp=time_ns(),
             )
             session.add(new_change)
