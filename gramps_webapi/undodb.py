@@ -34,7 +34,12 @@ from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_CLASS_MAP, KEY_TO_NAM
 from gramps.gen.db.txn import DbTxn
 
 # from gramps.gen.lib.serialize import to_json
-from gramps.gen.lib.json_utils import dict_to_string, string_to_dict
+from gramps.gen.lib.json_utils import (
+    data_to_string,
+    dict_to_string,
+    string_to_data,
+    string_to_dict,
+)
 from sqlalchemy import (
     BigInteger,
     ForeignKey,
@@ -318,10 +323,10 @@ class DbUndoSQL(DbUndo):
 
             obj_class = int(CLASS_TO_KEY_MAP.get(change.obj_class, change.obj_class))
             old_data = (
-                None if change.old_json is None else string_to_dict(change.old_json)
+                None if change.old_json is None else string_to_data(change.old_json)
             )
             new_data = (
-                None if change.new_json is None else string_to_dict(change.new_json)
+                None if change.new_json is None else string_to_data(change.new_json)
             )
 
             if change.ref_handle:
@@ -359,8 +364,8 @@ class DbUndoSQL(DbUndo):
             change.trans_type = trans_type
             change.obj_handle = obj_handle
             change.ref_handle = ref_handle
-            change.old_json = dict_to_string(old_data) if old_data is not None else None
-            change.new_json = dict_to_string(new_data) if new_data is not None else None
+            change.old_json = data_to_string(old_data) if old_data is not None else None
+            change.new_json = data_to_string(new_data) if new_data is not None else None
             change.timestamp = time_ns()
 
             session.commit()
