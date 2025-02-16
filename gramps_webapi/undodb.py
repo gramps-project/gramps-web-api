@@ -256,8 +256,8 @@ class DbUndoSQL(DbUndo):
         length = len(self)
         connection_id = self.connection_id  # outside session to prevent lock error
         with self.session_scope() as session:
-            old_data = None if old_data is None else dict_to_string(old_data)
-            new_data = None if new_data is None else dict_to_string(new_data)
+            old_data = None if old_data is None else data_to_string(old_data)
+            new_data = None if new_data is None else data_to_string(new_data)
             new_change = Change(
                 connection_id=connection_id,
                 id=length + 1,
