@@ -1133,8 +1133,8 @@ def transaction_to_json(transaction: DbTxn) -> TransactionJson:
             "type": trans_dict[action],
             "handle": handle,
             "_class": obj_cls_name,
-            "old": object_to_dict(old_data),  # json.loads(to_json(old_data)),
-            "new": object_to_dict(new_data),  # json.loads(to_json(new_data)),
+            "old": dict(old_data),
+            "new": dict(new_data),
         }
         out.append(item)
     return out
