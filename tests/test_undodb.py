@@ -184,8 +184,8 @@ class TestUndoHistory(unittest.TestCase):
         assert commit["trans_type"] == 2  # delete
         assert commit["obj_handle"] == person.handle
         assert commit["ref_handle"] is None
-        assert commit["new_data"] is None
-        assert string_to_dict(commit["old_data"]) == object_to_dict(person)
+        assert commit["new_json"] is None
+        assert string_to_dict(commit["old_json"]) == object_to_dict(person)
 
     def test_undo_redo_modify(self):
         person: Person = next(self.db.iter_people())
@@ -220,6 +220,6 @@ class TestUndoHistory(unittest.TestCase):
         assert commit["trans_type"] == 1  # modify
         assert commit["obj_handle"] == person.handle
         assert commit["ref_handle"] is None
-        assert string_to_dict(commit["new_data"]) == object_to_dict(person)
-        assert string_to_dict(commit["new_data"]) == object_to_dict(new_person)
-        assert string_to_dict(commit["old_data"]) == object_to_dict(old_person)
+        assert string_to_dict(commit["new_json"]) == object_to_dict(person)
+        assert string_to_dict(commit["new_json"]) == object_to_dict(new_person)
+        assert string_to_dict(commit["old_json"]) == object_to_dict(old_person)
