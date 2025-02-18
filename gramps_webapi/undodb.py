@@ -28,6 +28,7 @@ from contextlib import contextmanager
 from time import time_ns
 from typing import Any
 
+import orjson
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import REFERENCE_KEY, TXNADD, TXNDEL, TXNUPD, DbUndo, DbWriteBase
 from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_CLASS_MAP, KEY_TO_NAME_MAP
@@ -35,11 +36,12 @@ from gramps.gen.db.txn import DbTxn
 
 # from gramps.gen.lib.serialize import to_json
 from gramps.gen.lib.json_utils import (
+    DataDict,
     data_to_string,
-    dict_to_string,
     string_to_data,
     string_to_dict,
 )
+from h11 import Data
 from sqlalchemy import (
     BigInteger,
     ForeignKey,
@@ -55,6 +57,13 @@ from sqlalchemy.orm import DeclarativeBase, mapped_column, relationship, session
 from sqlalchemy.sql import func
 
 _ = glocale.translation.gettext
+
+
+def string_to_data_or_list(string: str):
+    unserialized = orjson.loads(string)
+    if isinstance(unserialized, list):
+        return unserialized
+    return DataDict(unserialized)
 
 
 class Base(DeclarativeBase):
@@ -323,10 +332,14 @@ class DbUndoSQL(DbUndo):
 
             obj_class = int(CLASS_TO_KEY_MAP.get(change.obj_class, change.obj_class))
             old_data = (
-                None if change.old_json is None else string_to_data(change.old_json)
+                None
+                if change.old_json is None
+                else string_to_data_or_list(change.old_json)
             )
             new_data = (
-                None if change.new_json is None else string_to_data(change.new_json)
+                None
+                if change.new_json is None
+                else string_to_data_or_list(change.new_json)
             )
 
             if change.ref_handle:
