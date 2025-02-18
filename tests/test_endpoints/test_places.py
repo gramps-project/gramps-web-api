@@ -282,16 +282,7 @@ class TestPlaces(unittest.TestCase):
             TEST_URL
             + '?keys=handle&rules={"function":"or","rules":[{"name":"HasData","values":["","City","",""]},{"name":"HasNoLatOrLon"}]}',
         )
-        self.assertEqual(len(rv), 1294)
-
-    def test_get_places_parameter_rules_expected_response_xor_function(self):
-        """Test rules parameter expected response for xor function."""
-        rv = check_success(
-            self,
-            TEST_URL
-            + '?keys=handle&rules={"function":"xor","rules":[{"name":"HasData","values":["","City","",""]},{"name":"HasNoLatOrLon"}]}',
-        )
-        self.assertEqual(len(rv), 810)
+        self.assertEqual(len(rv), 1296)
 
     def test_get_places_parameter_rules_expected_response_one_function(self):
         """Test rules parameter expected response for one function."""
@@ -300,7 +291,7 @@ class TestPlaces(unittest.TestCase):
             TEST_URL
             + '?keys=handle&rules={"function":"one","rules":[{"name":"HasData","values":["","City","",""]},{"name":"HasNoLatOrLon"}]}',
         )
-        self.assertEqual(len(rv), 810)
+        self.assertEqual(len(rv), 811)
 
     def test_get_places_parameter_rules_expected_response_invert(self):
         """Test rules parameter expected response for invert option."""

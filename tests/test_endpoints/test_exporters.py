@@ -393,7 +393,7 @@ class TestExportersExtensionFile(unittest.TestCase):
         """Test csv parameter file options defaults all enabled."""
         rv = check_success(self, TEST_URL + "csv/file", full=True)
         self.assertIn(b'[P0000],"OH, USA",OH,State,,,,[P0957],', rv.data)
-        self.assertIn(b"[I2005],Allen,Joseph,,,,,male,1692-05-17,,,,,,,,,,,,", rv.data)
+        self.assertIn(b"[I2005],Allen,Joseph,,,,,,male,1692-05-17,,,,,,,,,,,", rv.data)
         self.assertIn(b"[F0001],[I0005],[I0006],1974-08-10,[P1385],,", rv.data)
         self.assertIn(b"[F0001],[I0004]", rv.data)
 
@@ -411,7 +411,7 @@ class TestExportersExtensionFile(unittest.TestCase):
         """Test csv parameter file options with places disabled."""
         rv = check_success(self, TEST_URL + "csv/file?include_places=0", full=True)
         self.assertNotIn(b'[P0000],"OH, USA",OH,State,,,,[P0957],', rv.data)
-        self.assertIn(b"[I2005],Allen,Joseph,,,,,male,1692-05-17,,,,,,,,,,,,", rv.data)
+        self.assertIn(b"[I2005],Allen,Joseph,,,,,,male,1692-05-17,,,,,,,,,,,", rv.data)
         self.assertNotIn(b"[F0001],[I0005],[I0006],1974-08-10,[P1385],,", rv.data)
         self.assertIn(
             b'[F0001],[I0005],[I0006],1974-08-10,"Worthington, MN, USA",,',
@@ -433,7 +433,7 @@ class TestExportersExtensionFile(unittest.TestCase):
         """Test csv parameter file options with children disabled."""
         rv = check_success(self, TEST_URL + "csv/file?include_children=0", full=True)
         self.assertIn(b'[P0000],"OH, USA",OH,State,,,,[P0957],', rv.data)
-        self.assertIn(b"[I2005],Allen,Joseph,,,,,male,1692-05-17,,,,,,,,,,,,", rv.data)
+        self.assertIn(b"[I2005],Allen,Joseph,,,,,,male,1692-05-17,,,,,,,,,,,", rv.data)
         self.assertIn(b"[F0001],[I0005],[I0006],1974-08-10,[P1385],,", rv.data)
         self.assertNotIn(b"[F0001],[I0004]", rv.data)
 
@@ -451,7 +451,7 @@ class TestExportersExtensionFile(unittest.TestCase):
         """Test csv parameter file options with marriages disabled."""
         rv = check_success(self, TEST_URL + "csv/file?include_marriages=0", full=True)
         self.assertIn(b'[P0000],"OH, USA",OH,State,,,,[P0957],', rv.data)
-        self.assertIn(b"[I2005],Allen,Joseph,,,,,male,1692-05-17,,,,,,,,,,,,", rv.data)
+        self.assertIn(b"[I2005],Allen,Joseph,,,,,,male,1692-05-17,,,,,,,,,,,", rv.data)
         self.assertNotIn(b"[F0001],[I0005],[I0006],1974-08-10,[P1385],,", rv.data)
         self.assertIn(b"[F0001],[I0004]", rv.data)
 
@@ -470,7 +470,7 @@ class TestExportersExtensionFile(unittest.TestCase):
         rv = check_success(self, TEST_URL + "csv/file?include_individuals=0", full=True)
         self.assertIn(b'[P0000],"OH, USA",OH,State,,,,[P0957],', rv.data)
         self.assertNotIn(
-            b"[I2005],Allen,Joseph,,,,,male,1692-05-17,,,,,,,,,,,,", rv.data
+            b"[I2005],Allen,Joseph,,,,,,male,1692-05-17,,,,,,,,,,,", rv.data
         )
         self.assertIn(b"[F0001],[I0005],[I0006],1974-08-10,[P1385],,", rv.data)
         self.assertIn(b"[F0001],[I0004]", rv.data)

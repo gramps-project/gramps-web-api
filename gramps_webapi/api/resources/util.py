@@ -26,7 +26,7 @@ import json
 import os
 from hashlib import sha256
 from http import HTTPStatus
-from typing import Any, cast, Optional, Union, Literal
+from typing import Any, Literal, Optional, Union, cast
 
 import gramps
 import gramps.gen.lib
@@ -53,8 +53,10 @@ from gramps.gen.lib import (
     Source,
     Span,
 )
+
+# from gramps.gen.lib.serialize import to_json
+from gramps.gen.lib.json_utils import object_to_dict, object_to_string
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
-from gramps.gen.lib.serialize import to_json
 from gramps.gen.plug import BasePluginManager
 from gramps.gen.relationship import get_relationship_calculator
 from gramps.gen.soundex import soundex
@@ -1122,16 +1124,17 @@ def transaction_to_json(transaction: DbTxn) -> TransactionJson:
             continue  # this happens for references
         trans_dict = {TXNUPD: "update", TXNDEL: "delete", TXNADD: "add"}
         obj_cls = getattr(gramps.gen.lib, obj_cls_name)
-        if old_data:
-            old_data = obj_cls().unserialize(old_data)
-        if new_data:
-            new_data = obj_cls().unserialize(new_data)
+        # In Gramps 6.0, the data repr is a string
+        # if old_data:
+        #    old_data = obj_cls().unserialize(old_data)
+        # if new_data:
+        #    new_data = obj_cls().unserialize(new_data)
         item = {
             "type": trans_dict[action],
             "handle": handle,
             "_class": obj_cls_name,
-            "old": json.loads(to_json(old_data)),
-            "new": json.loads(to_json(new_data)),
+            "old": None if old_data is None else dict(old_data),
+            "new": None if new_data is None else dict(new_data),
         }
         out.append(item)
     return out
@@ -1155,7 +1158,7 @@ def reverse_transaction(transaction_list: TransactionJson) -> TransactionJson:
 
 def hash_object(obj: GrampsObject) -> str:
     """Generate a SHA256 hash for a Gramps object's data."""
-    data = to_json(obj).encode()
+    data = object_to_string(obj)  # to_json(obj).encode()
     return sha256(data).hexdigest()
 
 

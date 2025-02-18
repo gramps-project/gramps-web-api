@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import hashlib
 import io
-import logging
 import json
+import logging
 import os
 import smtplib
 import socket
@@ -33,6 +33,7 @@ from email.utils import make_msgid
 from http import HTTPStatus
 from typing import Any, BinaryIO, NoReturn, Sequence
 
+import gramps.gen.lib
 from celery import Task
 from flask import (
     Response,
@@ -66,8 +67,8 @@ from gramps.gen.db.exceptions import DbUpgradeRequiredError
 from gramps.gen.dbstate import DbState
 from gramps.gen.errors import HandleError
 from gramps.gen.proxy import PrivateProxyDb
-from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps.gen.proxy.private import sanitize_media
+from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps.gen.user import UserBase
 from gramps.gen.utils.grampslocale import GrampsLocale
 from gramps.plugins.db.dbapi.dbapi import DBAPI
@@ -81,8 +82,8 @@ from ..auth.const import PERM_VIEW_PRIVATE
 from ..const import (
     DB_CONFIG_ALLOWED_KEYS,
     LOCALE_MAP,
-    TREE_MULTI,
     PRIMARY_GRAMPS_OBJECTS,
+    TREE_MULTI,
 )
 from ..dbmanager import WebDbManager
 from .auth import has_permissions
@@ -769,3 +770,34 @@ def get_logger() -> logging.Logger:
             # If the logger is not configured yet, set up basic configuration
             logging.basicConfig(level=logging.INFO)
         return logger
+
+
+def __object_hook(obj_dict):
+    obj = getattr(gramps.gen.lib, obj_dict["_class"])()
+    for key, value in obj_dict.items():
+        if key != "_class":
+            if key in ("dateval", "rect") and value is not None:
+                value = tuple(value)
+            if key == "ranges":
+                value = [tuple(item) for item in value]
+            setattr(obj, key, value)
+    if obj_dict["_class"] == "Date":
+        if obj.is_empty() and not obj.text:
+            return None
+    return obj
+
+
+def from_json_legacy(data):
+    """
+    Decode JSON data into a Gramps object hierarchy.
+
+    :param data: The JSON string to be unserialized.
+    :type data: str
+    :returns: A Gramps object.
+    :rtype: object
+
+    Note: this function was part of Gramps 5.x and is copied here because,
+    unlike gramps.gen.lib.json_utils.data_to_object in Gramps 6.0, it does
+    not require the dictionary to contain all properties.
+    """
+    return json.loads(data, object_hook=__object_hook)

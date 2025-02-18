@@ -47,7 +47,7 @@ class HasAssociationType(Rule):
     description = "Matches people with a certain association type"
     category = "General filters"
 
-    def apply(self, db: DbReadBase, person: Person) -> bool:  # type: ignore
+    def apply_to_one(self, db: DbReadBase, person: Person) -> bool:  # type: ignore
         """Apply the rule to the person."""
         for person_ref in person.get_person_ref_list():
             if person_ref.get_relation() == self.list[0]:
@@ -195,7 +195,7 @@ class FilterSchema(Schema):
     function = fields.Str(
         required=False,
         load_default="and",
-        validate=validate.OneOf(["and", "or", "xor", "one"]),
+        validate=validate.OneOf(["and", "or", "one"]),
     )
     invert = fields.Boolean(required=False, load_default=False)
     rules = fields.List(

@@ -248,15 +248,6 @@ class TestCitations(unittest.TestCase):
         )
         self.assertEqual(len(rv), 2854)
 
-    def test_get_citations_parameter_rules_expected_response_xor_function(self):
-        """Test rules parameter expected response for xor function."""
-        rv = check_success(
-            self,
-            TEST_URL
-            + '?keys=handle&rules={"function":"xor","rules":[{"name":"HasNote"},{"name":"HasCitation","values":["", "", 2]}]}',
-        )
-        self.assertEqual(len(rv), 2853)
-
     def test_get_citations_parameter_rules_expected_response_one_function(self):
         """Test rules parameter expected response for one function."""
         rv = check_success(

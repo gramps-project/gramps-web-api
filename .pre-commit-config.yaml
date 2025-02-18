@@ -15,8 +15,8 @@ repos:
         args: [--ignore-missing-imports, --no-strict-optional]
         additional_dependencies:
           - types-setuptools
-  - repo: https://github.com/PyCQA/pydocstyle
-    rev: 6.3.0
-    hooks:
-      - id: pydocstyle
-        stages: [commit]
+  # - repo: https://github.com/PyCQA/pydocstyle
+  #   rev: 6.3.0
+  #   hooks:
+  #     - id: pydocstyle
+  #       stages: [commit]

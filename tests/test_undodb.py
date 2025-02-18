@@ -26,6 +26,10 @@ import tempfile
 import time
 import unittest
 
+from gramps.gen.lib.json_utils import (
+    object_to_dict,
+    string_to_dict,
+)
 from gramps.gen.db import DbTxn, DbWriteBase
 from gramps.gen.db.utils import make_database
 from gramps.gen.lib import (
@@ -180,8 +184,8 @@ class TestUndoHistory(unittest.TestCase):
         assert commit["trans_type"] == 2  # delete
         assert commit["obj_handle"] == person.handle
         assert commit["ref_handle"] is None
-        assert commit["new_data"] is None
-        assert pickle.loads(commit["old_data"]) == person.serialize()
+        assert commit["new_json"] is None
+        assert string_to_dict(commit["old_json"]) == object_to_dict(person)
 
     def test_undo_redo_modify(self):
         person: Person = next(self.db.iter_people())
@@ -216,6 +220,6 @@ class TestUndoHistory(unittest.TestCase):
         assert commit["trans_type"] == 1  # modify
         assert commit["obj_handle"] == person.handle
         assert commit["ref_handle"] is None
-        assert pickle.loads(commit["new_data"]) == person.serialize()
-        assert pickle.loads(commit["new_data"]) == new_person.serialize()
-        assert pickle.loads(commit["old_data"]) == old_person.serialize()
+        assert string_to_dict(commit["new_json"]) == object_to_dict(person)
+        assert string_to_dict(commit["new_json"]) == object_to_dict(new_person)
+        assert string_to_dict(commit["old_json"]) == object_to_dict(old_person)
