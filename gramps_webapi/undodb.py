@@ -23,38 +23,47 @@
 
 from __future__ import annotations
 
-import json
 import pickle
 from contextlib import contextmanager
 from time import time_ns
 from typing import Any
 
-import gramps
+import orjson
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import REFERENCE_KEY, TXNADD, TXNDEL, TXNUPD, DbUndo, DbWriteBase
 from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_CLASS_MAP, KEY_TO_NAME_MAP
 from gramps.gen.db.txn import DbTxn
-from gramps.gen.lib.serialize import to_json
+
+# from gramps.gen.lib.serialize import to_json
+from gramps.gen.lib.json_utils import (
+    DataDict,
+    data_to_string,
+    string_to_data,
+    string_to_dict,
+)
+from h11 import Data
 from sqlalchemy import (
     BigInteger,
     ForeignKey,
     Integer,
-    LargeBinary,
     PrimaryKeyConstraint,
     Text,
     create_engine,
+    inspect,
+    text,
 )
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.orm import (
-    DeclarativeBase,
-    Mapped,
-    mapped_column,
-    relationship,
-    sessionmaker,
-)
+from sqlalchemy.orm import DeclarativeBase, mapped_column, relationship, sessionmaker
 from sqlalchemy.sql import func
 
 _ = glocale.translation.gettext
+
+
+def string_to_data_or_list(string: str):
+    unserialized = orjson.loads(string)
+    if isinstance(unserialized, list):
+        return unserialized
+    return DataDict(unserialized)
 
 
 class Base(DeclarativeBase):
@@ -73,24 +82,17 @@ class Change(Base):
     trans_type = mapped_column(Integer)
     obj_handle = mapped_column(Text)
     ref_handle = mapped_column(Text)
-    old_data = mapped_column(LargeBinary)
-    new_data = mapped_column(LargeBinary)
+    old_json = mapped_column(Text)
+    new_json = mapped_column(Text)
     timestamp = mapped_column(BigInteger, index=True)
 
     connection = relationship("Connection", back_populates="changes")
 
-    def _obj_to_json(self, data):
-        """Convert binary object to a JSON dict."""
-        if data is None:
+    def _obj_to_json(self, string: str) -> dict[str, Any]:
+        """Convert the JSON string to a dictionary."""
+        if not string:
             return {}
-        try:
-            obj_cls = getattr(gramps.gen.lib, self.obj_class)
-        except AttributeError:
-            return {}
-        serial_data = pickle.loads(data)
-        obj = obj_cls().unserialize(serial_data)
-        json_string = to_json(obj)
-        return json.loads(json_string)
+        return string_to_dict(string)
 
     def _to_dict(self, old_data: bool = True, new_data: bool = True):
         """Return a dict representation of the change."""
@@ -104,10 +106,10 @@ class Change(Base):
             "timestamp": self.timestamp / 1e9,
         }
         if old_data:
-            old = self._obj_to_json(self.old_data)
+            old = self._obj_to_json(self.old_json)
             data["old_data"] = old
         if new_data:
-            new = self._obj_to_json(self.new_data)
+            new = self._obj_to_json(self.new_json)
             data["new_data"] = new
         return data
 
@@ -215,9 +217,29 @@ class DbUndoSQL(DbUndo):
         """Open the backing storage."""
         try:
             Base.metadata.create_all(self.engine)
+            self._add_json_columns_if_needed()
         except OperationalError as e:
             if "already exists" not in str(e):
                 raise
+
+    def _add_json_columns_if_needed(self) -> None:
+        """Add JSON columns to the change table if not already present."""
+        inspector = inspect(self.engine)
+        columns = {col["name"] for col in inspector.get_columns("changes")}
+        if "old_json" not in columns or "new_json" not in columns:
+            with self.engine.begin() as conn:
+                if "old_json" not in columns:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE changes ADD COLUMN old_json TEXT DEFAULT NULL"
+                        )
+                    )
+                if "new_json" not in columns:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE changes ADD COLUMN new_json TEXT DEFAULT NULL"
+                        )
+                    )
 
     def _make_connection_id(self) -> int:
         """Insert a row into the connection table."""
@@ -243,8 +265,8 @@ class DbUndoSQL(DbUndo):
         length = len(self)
         connection_id = self.connection_id  # outside session to prevent lock error
         with self.session_scope() as session:
-            old_data = None if old_data is None else pickle.dumps(old_data, protocol=1)
-            new_data = None if new_data is None else pickle.dumps(new_data, protocol=1)
+            old_json = None if old_data is None else data_to_string(old_data)
+            new_json = None if new_data is None else data_to_string(new_data)
             new_change = Change(
                 connection_id=connection_id,
                 id=length + 1,
@@ -252,8 +274,8 @@ class DbUndoSQL(DbUndo):
                 trans_type=trans_type,
                 obj_handle=obj_handle,
                 ref_handle=ref_handle,
-                old_data=old_data,
-                new_data=new_data,
+                old_json=old_json,
+                new_json=new_json,
                 timestamp=time_ns(),
             )
             session.add(new_change)
@@ -310,10 +332,14 @@ class DbUndoSQL(DbUndo):
 
             obj_class = int(CLASS_TO_KEY_MAP.get(change.obj_class, change.obj_class))
             old_data = (
-                None if change.old_data is None else pickle.loads(change.old_data)
+                None
+                if change.old_json is None
+                else string_to_data_or_list(change.old_json)
             )
             new_data = (
-                None if change.new_data is None else pickle.loads(change.new_data)
+                None
+                if change.new_json is None
+                else string_to_data_or_list(change.new_json)
             )
 
             if change.ref_handle:
@@ -351,12 +377,8 @@ class DbUndoSQL(DbUndo):
             change.trans_type = trans_type
             change.obj_handle = obj_handle
             change.ref_handle = ref_handle
-            change.old_data = (
-                pickle.dumps(old_data, protocol=1) if old_data is not None else None
-            )
-            change.new_data = (
-                pickle.dumps(new_data, protocol=1) if new_data is not None else None
-            )
+            change.old_json = data_to_string(old_data) if old_data is not None else None
+            change.new_json = data_to_string(new_data) if new_data is not None else None
             change.timestamp = time_ns()
 
             session.commit()

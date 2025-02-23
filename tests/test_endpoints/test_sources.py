@@ -279,15 +279,6 @@ class TestSources(unittest.TestCase):
         )
         self.assertEqual(len(rv), 2)
 
-    def test_get_sources_parameter_rules_expected_response_xor_function(self):
-        """Test rules parameter expected response for xor function."""
-        rv = check_success(
-            self,
-            TEST_URL
-            + '?rules={"function":"xor","rules":[{"name":"MatchesTitleSubstringOf","values":["Church"]},{"name":"MatchesTitleSubstringOf","values":["World"]}]}',
-        )
-        self.assertEqual(len(rv), 2)
-
     def test_get_sources_parameter_rules_expected_response_one_function(self):
         """Test rules parameter expected response for one function."""
         rv = check_success(

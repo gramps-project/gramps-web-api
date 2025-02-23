@@ -20,23 +20,24 @@
 """Base for Gramps object API resources."""
 
 import json
-from abc import abstractmethod
 from typing import Dict, List, TypeVar
 
 import gramps_ql as gql
 import object_ql as oql
-from flask import Response, abort, request
+from flask import abort, request
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import DbTxn
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
-from gramps.gen.lib.serialize import from_json
+
+# from gramps.gen.lib.serialize import from_json
 from gramps.gen.utils.grampslocale import GrampsLocale
 from pyparsing.exceptions import ParseBaseException
 from webargs import fields, validate
 
 from gramps_webapi.api.search.indexer import SemanticSearchIndexer
+from gramps_webapi.types import Handle, ResponseReturnValue
 
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ...const import GRAMPS_OBJECT_PLURAL
@@ -44,9 +45,9 @@ from ..auth import require_permissions
 from ..search import SearchIndexer, get_search_indexer, get_semantic_search_indexer
 from ..util import (
     check_quota_people,
+    from_json_legacy,
     get_db_handle,
     get_locale_for_language,
-    get_tree_from_jwt,
     get_tree_from_jwt_or_fail,
     update_usage_people,
     use_args,
@@ -72,8 +73,6 @@ from .util import (
     update_object,
     validate_object_dict,
 )
-from gramps_webapi.types import Handle, ResponseReturnValue
-
 
 T = TypeVar("T", bound=GrampsObject)
 
@@ -164,7 +163,7 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
             abort_with_message(400, f"Error while processing object: {exc}")
         if not validate_object_dict(obj_dict):
             abort_with_message(400, "Schema validation failed")
-        return from_json(json.dumps(obj_dict))
+        return from_json_legacy(json.dumps(obj_dict))
 
     def has_handle(self, handle: str) -> bool:
         """Check if the handle exists in the database."""

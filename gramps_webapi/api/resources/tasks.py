@@ -19,14 +19,14 @@
 
 """Background task resources."""
 
-import json
+#import json
 from http import HTTPStatus
 
 from celery.result import AsyncResult
 from flask import abort
 
 from . import ProtectedResource
-
+from gramps.gen.lib.json_utils import object_to_string
 
 class TaskResource(ProtectedResource):
     """Resource for a single task."""
@@ -39,13 +39,14 @@ class TaskResource(ProtectedResource):
 
         def serialize_or_str(obj):
             try:
-                return json.dumps(obj)
+                return object_to_string(obj).decode() # json.dumps(obj)
             except TypeError:
                 return str(obj)
 
         def serializable_or_str(obj):
             try:
-                json.dumps(obj)
+                #json.dumps(obj)
+                object_to_string(obj)
                 return obj
             except TypeError:
                 return str(obj)
