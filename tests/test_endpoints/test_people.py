@@ -341,19 +341,6 @@ class TestPeople(unittest.TestCase):
             for tag in item["tag_list"]:
                 self.assertIn(tag, tag_handles)
 
-    def test_get_people_parameter_rules_expected_response_xor_function(self):
-        """Test rules parameter expected response for xor function."""
-        rv = check_success(
-            self,
-            TEST_URL
-            + '?keys=gender,family_list&rules={"function":"xor","rules":[{"name":"IsFemale"},{"name":"MultipleMarriages"}]}',
-        )
-        for item in rv:
-            if item["gender"] == 0:
-                self.assertLess(len(item["family_list"]), 2)
-            if len(item["family_list"]) > 1:
-                self.assertNotEqual(item["gender"], 0)
-
     def test_get_people_parameter_rules_expected_response_one_function(self):
         """Test rules parameter expected response for one function."""
         rv = check_success(

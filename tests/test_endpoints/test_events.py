@@ -288,15 +288,6 @@ class TestEvents(unittest.TestCase):
         )
         self.assertEqual(len(rv), 657)
 
-    def test_get_events_parameter_rules_expected_response_xor_function(self):
-        """Test rules parameter expected response for xor function."""
-        rv = check_success(
-            self,
-            TEST_URL
-            + '?keys=handle&rules={"function":"xor","rules":[{"name":"HasType","values":["Death"]},{"name":"HasNote"}]}',
-        )
-        self.assertEqual(len(rv), 656)
-
     def test_get_events_parameter_rules_expected_response_one_function(self):
         """Test rules parameter expected response for one function."""
         rv = check_success(

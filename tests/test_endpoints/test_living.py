@@ -106,7 +106,10 @@ class TestLivingDates(unittest.TestCase):
         rv = check_success(self, TEST_URL + "9BXKQC1PVLPYFMD6IX/dates")
         self.assertEqual(rv["birth"], "1999-04-11")
         self.assertEqual(rv["death"], "2109-04-11")
-        self.assertEqual(rv["explain"], "birth date")
+        self.assertEqual(
+            rv["explain"],
+            "Direct evidence for this person - birth: date, death: offset from birth date",
+        )
 
     def test_get_living_dates_missing_content(self):
         """Test response for missing content."""

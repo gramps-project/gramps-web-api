@@ -271,15 +271,6 @@ class TestNotes(unittest.TestCase):
         )
         self.assertEqual(len(rv), 3)
 
-    def test_get_notes_parameter_rules_expected_response_xor_function(self):
-        """Test rules parameter expected response for xor function."""
-        rv = check_success(
-            self,
-            TEST_URL
-            + '?keys=handle&rules={"function":"xor","rules":[{"name":"HasType","values":["Person Note"]},{"name":"NotePrivate"}]}',
-        )
-        self.assertEqual(len(rv), 3)
-
     def test_get_notes_parameter_rules_expected_response_one_function(self):
         """Test rules parameter expected response for one function."""
         rv = check_success(
@@ -488,4 +479,3 @@ class TestNotesHandle(unittest.TestCase):
             '<a href="__I0044__GNUJQCL9MD64AM56OH__person__">Lewis Anderson Garner</a>',
             html,
         )
-

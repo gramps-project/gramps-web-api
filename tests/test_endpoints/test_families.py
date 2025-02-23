@@ -291,15 +291,6 @@ class TestFamilies(unittest.TestCase):
         )
         self.assertEqual(len(rv), 6)
 
-    def test_get_families_parameter_rules_expected_response_xor_function(self):
-        """Test rules parameter expected response for xor function."""
-        rv = check_success(
-            self,
-            TEST_URL
-            + '?keys=handle&rules={"function":"xor","rules":[{"name":"IsBookmarked"},{"name":"HasRelType","values":["Unknown"]}]}',
-        )
-        self.assertEqual(len(rv), 6)
-
     def test_get_families_parameter_rules_expected_response_one_function(self):
         """Test rules parameter expected response for one function."""
         rv = check_success(

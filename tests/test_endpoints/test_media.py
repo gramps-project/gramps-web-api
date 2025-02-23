@@ -270,15 +270,6 @@ class TestMedia(unittest.TestCase):
         self.assertEqual(rv[0]["handle"], "238CGQ939HG18SS5MG")
         self.assertEqual(rv[1]["handle"], "F8JYGQFL2PKLSYH79X")
 
-    def test_get_media_parameter_rules_expected_response_xor_function(self):
-        """Test rules parameter expected response for xor function."""
-        rv = check_success(
-            self,
-            TEST_URL
-            + '?keys=handle&rules={"function":"xor","rules":[{"name":"HasTag","values":["ToDo"]},{"name":"HasIdOf","values":["O0007"]}]}',
-        )
-        self.assertEqual(len(rv), 2)
-
     def test_get_media_parameter_rules_expected_response_one_function(self):
         """Test rules parameter expected response for one function."""
         rv = check_success(

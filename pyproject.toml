@@ -16,8 +16,9 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-    "gramps[GUI,i18n]==5.2.*",
+    "gramps[all]>=6.0.1,<6.1.0",
     "PYGObject<=3.50.0",
+    "orjson",
     "Click>=7.0",
     "Flask>=2.1.0",
     "Flask-Caching>=2.0.0",
@@ -40,13 +41,15 @@ dependencies = [
     "celery[redis]",
     "Unidecode",
     "pytesseract",
-    "gramps-ql>=0.3.0",
-    "object-ql>=0.1.2",
+    "gramps-ql>=0.4.0",
+    "object-ql>=0.1.3",
     "sifts>=0.8.3",
 ]
 
 [project.optional-dependencies]
 ai = ["sentence-transformers==3.*", "openai", "accelerate"]
+test = ["pytest", "PyYAML"]
+all = "sentence-transformers==3.*", "openai", "accelerate", "pytest", "PyYAML"]
 
 [project.urls]
 homepage = "https://github.com/gramps-project/gramps-web-api"
