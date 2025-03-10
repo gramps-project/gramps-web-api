@@ -12,7 +12,7 @@ ENV PYTHONPATH="${PYTHONPATH}:/usr/lib/python3/dist-packages"
 # postgresql client (needed for PostgreSQL backend)
 RUN apt-get update && apt-get install -y \
   appstream pkg-config libcairo2-dev \
-  gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev \
+  gir1.2-gtk-3.0 libgirepository1.0-dev libgirepository-2.0-dev libicu-dev \
   graphviz gir1.2-gexiv2-0.10 gir1.2-osmgpsmap-1.0 \
   locales gettext wget python3-pip python3-pil \
   poppler-utils ffmpeg libavcodec-extra \
