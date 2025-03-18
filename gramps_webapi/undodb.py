@@ -41,7 +41,6 @@ from gramps.gen.lib.json_utils import (
     string_to_data,
     string_to_dict,
 )
-from h11 import Data
 from sqlalchemy import (
     BigInteger,
     ForeignKey,
