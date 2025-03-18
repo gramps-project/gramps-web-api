@@ -55,7 +55,7 @@ from gramps.gen.lib import (
 )
 
 # from gramps.gen.lib.serialize import to_json
-from gramps.gen.lib.json_utils import object_to_dict, object_to_string
+from gramps.gen.lib.json_utils import object_to_string
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.plug import BasePluginManager
 from gramps.gen.relationship import get_relationship_calculator
@@ -1158,7 +1158,7 @@ def reverse_transaction(transaction_list: TransactionJson) -> TransactionJson:
 
 def hash_object(obj: GrampsObject) -> str:
     """Generate a SHA256 hash for a Gramps object's data."""
-    data = object_to_string(obj)  # to_json(obj).encode()
+    data = object_to_string(obj).encode()
     return sha256(data).hexdigest()
 
 
