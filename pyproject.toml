@@ -16,7 +16,7 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-    "gramps[all]==6.0.0rc2",
+    "gramps[all]~=6.0.0",
     "PYGObject<=3.50.0",
     "orjson",
     "Click>=7.0",
@@ -48,6 +48,8 @@ dependencies = [
 
 [project.optional-dependencies]
 ai = ["sentence-transformers", "openai"]
+test = ["pytest", "PyYAML"]
+all = ["sentence-transformers", "openai", "pytest", "PyYAML"]
 
 [project.urls]
 homepage = "https://github.com/gramps-project/gramps-web-api"

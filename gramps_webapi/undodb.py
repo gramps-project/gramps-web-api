@@ -45,6 +45,7 @@ from sqlalchemy import (
     BigInteger,
     ForeignKey,
     Integer,
+    LargeBinary,
     PrimaryKeyConstraint,
     Text,
     create_engine,
@@ -81,6 +82,8 @@ class Change(Base):
     trans_type = mapped_column(Integer)
     obj_handle = mapped_column(Text)
     ref_handle = mapped_column(Text)
+    old_data = mapped_column(LargeBinary)
+    new_data = mapped_column(LargeBinary)
     old_json = mapped_column(Text)
     new_json = mapped_column(Text)
     timestamp = mapped_column(BigInteger, index=True)
@@ -598,3 +601,27 @@ class DbUndoSQLWeb(DbUndoSQL):
             )
             transaction = query.scalar()
             return transaction._to_dict(old_data=old_data, new_data=new_data)
+
+
+def migrate(undodb: DbUndoSQL) -> None:
+    """Migrate the undo db to a new schema if needed."""
+    with undodb.session_scope() as session:
+        # return all rows where old_json AND new_json are NULL
+        rows = (
+            session.query(Change)
+            .filter(Change.old_json.is_(None), Change.new_json.is_(None))
+            .all()
+        )
+        if not rows:
+            # all up to date, done
+            return
+        # for all filtered rows, set old_json and new_json to empty string
+        for row in rows:
+            if row.old_data is not None:
+                old_data = pickle.loads(row.old_data)
+                row.old_json = data_to_string(DataDict(old_data))
+            if row.new_data is not None:
+                new_data = pickle.loads(row.new_data)
+                row.new_json = data_to_string(DataDict(new_data))
+        session.commit()
+        # add JSON columns if needed
