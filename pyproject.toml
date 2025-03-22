@@ -16,7 +16,8 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-    "gramps[all]~=6.0.0",
+    # "gramps[all]~=6.0.0",
+    "gramps[all] @ git+https://github.com/DavidMStraub/gramps.git@b8336bdb9f459cf0630969987b8440b96c26174c",
     "PYGObject<=3.50.0",
     "orjson",
     "Click>=7.0",
