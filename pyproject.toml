@@ -46,7 +46,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ai = ["sentence-transformers", "openai"]
+ai = ["sentence-transformers==3.*", "openai"]
 
 [project.urls]
 homepage = "https://github.com/gramps-project/gramps-web-api"
