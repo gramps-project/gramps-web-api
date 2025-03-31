@@ -32,7 +32,6 @@ from gramps.plugins.lib.libhtmlbackend import HtmlBackend, process_spaces
 
 from .util import get_db_handle
 
-
 ALLOWED_TAGS = [
     "a",
     "abbr",
@@ -118,6 +117,8 @@ def build_link_factory(link_format: Optional[str] = None) -> Optional[Callable]:
             try:
                 obj = func(ref)
             except HandleError:
+                return ""
+            if not obj:
                 return ""
             gramps_id = obj.gramps_id
         else:
