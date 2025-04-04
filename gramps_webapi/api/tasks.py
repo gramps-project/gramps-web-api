@@ -26,13 +26,13 @@ from gettext import gettext as _
 from http import HTTPStatus
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from celery import shared_task, Task
+from celery import Task, shared_task
 from celery.result import AsyncResult
 from flask import current_app
 from gramps.gen.db import DbTxn
-from gramps.gen.lib.serialize import from_json, to_json
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
+from gramps.gen.lib.serialize import from_json, to_json
 from gramps.gen.merge.diff import diff_items
 
 from gramps_webapi.api.search.indexer import SearchIndexer, SemanticSearchIndexer
@@ -334,7 +334,7 @@ def import_media_archive(
 ):
     """Import a media archive."""
     db_handle = get_db_outside_request(
-        tree=tree, view_private=True, readonly=True, user_id=user_id
+        tree=tree, view_private=True, readonly=False, user_id=user_id
     )
     try:
         importer = MediaImporter(
