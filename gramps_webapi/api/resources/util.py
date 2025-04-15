@@ -89,7 +89,10 @@ _ = glocale.translation.gettext
 def get_person_by_handle(db_handle: DbReadBase, handle: Handle) -> Union[Person, dict]:
     """Safe get person by handle."""
     try:
-        return db_handle.get_person_from_handle(handle)
+        person = db_handle.get_person_from_handle(handle)
+        if person is None:
+            return {}
+        return person
     except HandleError:
         return {}
 
@@ -97,7 +100,10 @@ def get_person_by_handle(db_handle: DbReadBase, handle: Handle) -> Union[Person,
 def get_place_by_handle(db_handle: DbReadBase, handle: Handle) -> Union[Place, dict]:
     """Safe get place by handle."""
     try:
-        return db_handle.get_place_from_handle(handle)
+        place = db_handle.get_place_from_handle(handle)
+        if place is None:
+            return {}
+        return place
     except HandleError:
         return {}
 
@@ -108,6 +114,8 @@ def get_family_by_handle(
     """Get a family and optional extended attributes."""
     try:
         obj = db_handle.get_family_from_handle(handle)
+        if obj is None:
+            return {}
     except HandleError:
         return {}
     args = args or {}
@@ -273,6 +281,8 @@ def get_event_profile_for_handle(
     """Get event profile given a handle."""
     try:
         obj = db_handle.get_event_from_handle(handle)
+        if obj is None:
+            return {}
     except HandleError:
         return {}
     return get_event_profile_for_object(
@@ -498,6 +508,8 @@ def get_person_profile_for_handle(
     """Get person profile given a handle."""
     try:
         obj = db_handle.get_person_from_handle(handle)
+        if obj is None:
+            return {}
     except HandleError:
         return {}
     return get_person_profile_for_object(db_handle, obj, args, locale=locale)
@@ -583,6 +595,8 @@ def get_family_profile_for_handle(
     """Get family profile given a handle."""
     try:
         obj = db_handle.get_family_from_handle(handle)
+        if obj is None:
+            return {}
     except HandleError:
         return {}
     return get_family_profile_for_object(db_handle, obj, args, locale=locale)
@@ -615,6 +629,8 @@ def get_citation_profile_for_handle(
     """Get citation profile given a handle."""
     try:
         obj = db_handle.get_citation_from_handle(handle)
+        if obj is None:
+            return {}
     except HandleError:
         return {}
     return get_citation_profile_for_object(db_handle, obj, args, locale=locale)
@@ -636,6 +652,8 @@ def get_media_profile_for_handle(
     """Get media profile given a handle."""
     try:
         obj = db_handle.get_media_from_handle(handle)
+        if obj is None:
+            return {}
     except HandleError:
         return {}
     return get_media_profile_for_object(db_handle, obj, args, locale=locale)

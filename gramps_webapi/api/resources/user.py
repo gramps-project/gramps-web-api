@@ -557,6 +557,7 @@ class UserConfirmEmailResource(LimitedScopeProtectedResource):
             # This is a wrong token!
             abort_with_message(403, "Wrong token")
         current_details = get_user_details(username)
+        assert current_details is not None  # for type checker
         # the email is stored in the JWT
         if claims["email"] != current_details.get("email"):
             # This is a wrong token!
@@ -564,7 +565,9 @@ class UserConfirmEmailResource(LimitedScopeProtectedResource):
         if current_details["role"] == ROLE_UNCONFIRMED:
             # otherwise it has been confirmed already
             modify_user(name=username, role=ROLE_DISABLED)
-            tree = get_tree_from_jwt()
+            # we cannot use get_tree_from_jwt here since the JWT does not
+            # contain the tree ID
+            tree = get_tree_id(user_id)
             is_multi = current_app.config["TREE"] == TREE_MULTI
             run_task(
                 send_email_new_user,

@@ -337,7 +337,7 @@ def import_media_archive(
 ):
     """Import a media archive."""
     db_handle = get_db_outside_request(
-        tree=tree, view_private=True, readonly=True, user_id=user_id
+        tree=tree, view_private=True, readonly=False, user_id=user_id
     )
     try:
         importer = MediaImporter(

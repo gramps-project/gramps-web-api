@@ -36,10 +36,10 @@ from ...auth.const import PERM_TRIGGER_REINDEX, PERM_VIEW_PRIVATE
 from ...const import PRIMARY_GRAMPS_OBJECTS
 from ..auth import has_permissions, require_permissions
 from ..search import (
-    get_search_indexer,
-    get_semantic_search_indexer,
     SearchIndexer,
     SemanticSearchIndexer,
+    get_search_indexer,
+    get_semantic_search_indexer,
 )
 from ..tasks import (
     AsyncResult,
@@ -82,6 +82,8 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
         query_method = self.db_handle.method("get_%s_from_handle", class_name)
         assert query_method is not None  # type checker
         obj = query_method(handle)
+        if obj is None:
+            raise HandleError(f"Object not found for handle {handle}")
         if "profile" in args:
             if class_name == "person":
                 obj.profile = get_person_profile_for_object(
