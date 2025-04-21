@@ -727,6 +727,8 @@ def upgrade_gramps_database(tree: str, user_id: str, task: Task | None = None) -
     """Upgrade the Gramps database for a tree."""
     dbmgr = get_db_manager(tree=tree)
     dbmgr.upgrade_if_needed(user_id=user_id, user=UserTaskProgress(task=task))
+    dbstate = dbmgr.get_db(user_id=user_id, readonly=True)
+    dbstate.db.close()
 
 
 def get_total_number_of_objects(db_handle: DbReadBase):

@@ -28,17 +28,16 @@ from contextlib import contextmanager
 from time import time_ns
 from typing import Any
 
+import gramps
 import orjson
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import REFERENCE_KEY, TXNADD, TXNDEL, TXNUPD, DbUndo, DbWriteBase
 from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_CLASS_MAP, KEY_TO_NAME_MAP
 from gramps.gen.db.txn import DbTxn
-
-# from gramps.gen.lib.serialize import to_json
 from gramps.gen.lib.json_utils import (
     DataDict,
     data_to_string,
-    string_to_data,
+    object_to_string,
     string_to_dict,
 )
 from sqlalchemy import (
@@ -617,11 +616,14 @@ def migrate(undodb: DbUndoSQL) -> None:
             return
         # for all filtered rows, set old_json and new_json to empty string
         for row in rows:
+            obj_cls = getattr(gramps.gen.lib, row.obj_class)
             if row.old_data is not None:
                 old_data = pickle.loads(row.old_data)
-                row.old_json = data_to_string(DataDict(old_data))
+                obj = obj_cls().unserialize(old_data)
+                row.old_json = object_to_string(obj)
             if row.new_data is not None:
                 new_data = pickle.loads(row.new_data)
-                row.new_json = data_to_string(DataDict(new_data))
+                obj = obj_cls().unserialize(new_data)
+                row.new_json = object_to_string(obj)
         session.commit()
         # add JSON columns if needed

@@ -38,6 +38,7 @@ from gramps.gen.merge.diff import diff_items
 from gramps_webapi.api.search.indexer import SearchIndexer, SemanticSearchIndexer
 
 from ..auth import get_owner_emails
+from ..undodb import migrate as migrate_undodb
 from .check import check_database
 from .emails import email_confirm_email, email_new_user, email_reset_pw
 from .export import prepare_options, run_export
@@ -159,6 +160,18 @@ def progress_callback_count(self, title: str = "", message: str = "") -> Callabl
         )
 
     return callback
+
+
+def set_progress_title(self, title: str = "", message: str = "") -> None:
+    """Set a title/message indicating progress."""
+    if self.request.id is not None:
+        self.update_state(
+            state="PROGRESS",
+            meta={
+                "title": title,
+                "message": message,
+            },
+        )
 
 
 @shared_task(bind=True)
@@ -387,8 +400,29 @@ def check_repair_database(self, tree: str, user_id: str):
 
 @shared_task(bind=True)
 def upgrade_database_schema(self, tree: str, user_id: str):
-    """Upgrade a Gramps database (tree) schema."""
-    return upgrade_gramps_database(tree=tree, user_id=user_id, task=self)
+    """Upgrade the schema of the Gramps database and the associated undo database."""
+    set_progress_title(self, title="Upgrading Gramps database schema...")
+    upgrade_gramps_database(tree=tree, user_id=user_id, task=self)
+    set_progress_title(self, title="Upgrading undo database schema...")
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=True, readonly=False, user_id=user_id
+    )
+    try:
+        migrate_undodb(db_handle.undodb)
+    finally:
+        close_db(db_handle)
+
+
+@shared_task(bind=True)
+def upgrade_undodb_schema(self, tree: str, user_id: str):
+    """Upgrade the schema of the undo database."""
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=True, readonly=False, user_id=user_id
+    )
+    try:
+        migrate_undodb(db_handle.undodb)
+    finally:
+        close_db(db_handle)
 
 
 @shared_task(bind=True)
