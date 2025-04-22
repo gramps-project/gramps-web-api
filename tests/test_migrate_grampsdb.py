@@ -31,6 +31,7 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.db.dbconst import KEY_TO_NAME_MAP, PLACE_KEY
 from gramps.gen.dbstate import DbState
 from gramps.gen.lib import Place, PlaceName
+from sqlalchemy.sql import text
 
 from gramps_webapi.__main__ import cli
 from gramps_webapi.app import create_app
@@ -38,6 +39,7 @@ from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE
 from gramps_webapi.dbmanager import WebDbManager
+from gramps_webapi.undodb import DbUndoSQLWeb
 
 
 class TestMigrateCLI(unittest.TestCase):
@@ -284,6 +286,12 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
         db_handle._set_metadata("version", 20)
         assert db_handle.get_schema_version() == 20
         db_handle.set_serializer("json")
+
+        undodb: DbUndoSQLWeb = db_handle.undodb
+        with undodb.session_scope() as session:
+            # delete the old_json and new_json columns of the changes table
+            session.execute(text("ALTER TABLE changes DROP COLUMN old_json"))
+            session.execute(text("ALTER TABLE changes DROP COLUMN new_json"))
 
         # fetching a token works
         rv = self.client.post(
