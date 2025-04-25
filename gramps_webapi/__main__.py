@@ -28,23 +28,21 @@ import subprocess
 import sys
 import time
 import warnings
+import webbrowser
 from threading import Thread
 
 import click
 import waitress  # type: ignore
-import webbrowser
 
-from .api.tasks import (
-    send_email_confirm_email,
-    send_email_reset_password,
-)
 from .api.search import get_search_indexer, get_semantic_search_indexer
-from .api.util import get_db_manager, list_trees, close_db
+from .api.tasks import send_email_confirm_email, send_email_reset_password
+from .api.util import close_db, get_db_manager, list_trees
 from .app import create_app
 from .auth import add_user, delete_user, fill_tree, user_db
 from .const import ENV_CONFIG_FILE, TREE_MULTI
 from .dbmanager import WebDbManager
 from .translogger import TransLogger
+from .undodb import migrate as migrate_undodb
 
 
 @click.group("cli")
@@ -344,6 +342,18 @@ def migrate_gramps_db(ctx):
     """Upgrade the Gramps database schema, if required."""
     dbmgr = ctx.obj["db_manager"]
     dbmgr.upgrade_if_needed()
+
+
+@grampsdb.command("migrate-undodb")
+@click.pass_context
+def migrate_gramps_undodb(ctx):
+    """Upgrade the schema of the undo database, if required."""
+    dbmgr = ctx.obj["db_manager"]
+    db_handle = dbmgr.get_db().db
+    try:
+        migrate_undodb(db_handle.undodb)
+    finally:
+        close_db(db_handle)
 
 
 if __name__ == "__main__":
