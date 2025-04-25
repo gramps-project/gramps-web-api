@@ -997,6 +997,9 @@ def fix_object_dict(object_dict: dict, class_name: Optional[str] = None):
             ]
         elif k in ["complete"]:
             pass
+        elif k == "date" and v is None:
+            # date = None not allowed in Gramps 6.0
+            d_out[k] = {"_class": "Date", "dateval": [0, 0, 0, False]}
         else:
             d_out[k] = v
     return d_out
