@@ -616,14 +616,23 @@ def migrate(undodb: DbUndoSQL) -> None:
             return
         # for all filtered rows, set old_json and new_json to empty string
         for row in rows:
-            obj_cls = getattr(gramps.gen.lib, row.obj_class)
-            if row.old_data is not None:
-                old_data = pickle.loads(row.old_data)
-                obj = obj_cls().unserialize(old_data)
-                row.old_json = object_to_string(obj)
-            if row.new_data is not None:
-                new_data = pickle.loads(row.new_data)
-                obj = obj_cls().unserialize(new_data)
-                row.new_json = object_to_string(obj)
+            if str(row.obj_class) == str(REFERENCE_KEY):
+                # reference needs special treatment
+                if row.old_data is not None:
+                    old_data = pickle.loads(row.old_data)
+                    row.old_json = object_to_string(old_data)
+                if row.new_data is not None:
+                    new_data = pickle.loads(row.new_data)
+                    row.new_json = object_to_string(old_data)
+            else:
+                obj_cls = getattr(gramps.gen.lib, row.obj_class)
+                if row.old_data is not None:
+                    old_data = pickle.loads(row.old_data)
+                    obj = obj_cls().unserialize(old_data)
+                    row.old_json = object_to_string(obj)
+                if row.new_data is not None:
+                    new_data = pickle.loads(row.new_data)
+                    obj = obj_cls().unserialize(new_data)
+                    row.new_json = object_to_string(obj)
         session.commit()
         # add JSON columns if needed
