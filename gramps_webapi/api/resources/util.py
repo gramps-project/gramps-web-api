@@ -1141,12 +1141,6 @@ def transaction_to_json(transaction: DbTxn) -> TransactionJson:
         except KeyError:
             continue  # this happens for references
         trans_dict = {TXNUPD: "update", TXNDEL: "delete", TXNADD: "add"}
-        obj_cls = getattr(gramps.gen.lib, obj_cls_name)
-        # In Gramps 6.0, the data repr is a string
-        # if old_data:
-        #    old_data = obj_cls().unserialize(old_data)
-        # if new_data:
-        #    new_data = obj_cls().unserialize(new_data)
         item = {
             "type": trans_dict[action],
             "handle": handle,
