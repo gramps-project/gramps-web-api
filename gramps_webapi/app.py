@@ -29,6 +29,7 @@ from flask_compress import Compress
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from gramps.gen.config import config as gramps_config
+from gramps.gen.config import set as setconfig
 
 from .api import api_blueprint
 from .api.cache import thumbnail_cache
@@ -103,6 +104,11 @@ def create_app(config: Optional[Dict[str, Any]] = None):
     for option in required_options:
         if not app.config.get(option):
             raise ValueError(f"{option} must be specified")
+
+    # environment variable to set the Gramps database path.
+    # Needed for backwards compatibility from Gramps 6.0 onwards
+    if db_path := os.getenv("GRAMPS_DATABASE_PATH"):
+        setconfig("database.path", db_path)
 
     if app.config.get("LOG_LEVEL"):
         app.logger.setLevel(app.config["LOG_LEVEL"])

@@ -1,7 +1,7 @@
 FROM debian:bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV GRAMPS_VERSION=52
+ENV GRAMPS_VERSION=60
 
 WORKDIR /app
 
@@ -42,7 +42,7 @@ RUN mkdir /app/db && mkdir /app/media && mkdir /app/indexdir && mkdir /app/users
 RUN mkdir /app/thumbnail_cache
 RUN mkdir /app/cache && mkdir /app/cache/reports && mkdir /app/cache/export
 RUN mkdir /app/tmp && mkdir /app/persist
-RUN mkdir -p /root/.gramps/gramps$GRAMPS_VERSION/plugins
+RUN mkdir -p /root/gramps/gramps$GRAMPS_VERSION/plugins
 # set config options
 ENV GRAMPSWEB_USER_DB_URI=sqlite:////app/users/users.sqlite
 ENV GRAMPSWEB_MEDIA_BASE_DIR=/app/media
@@ -51,15 +51,17 @@ ENV GRAMPSWEB_STATIC_PATH=/app/static
 ENV GRAMPSWEB_THUMBNAIL_CACHE_CONFIG__CACHE_DIR=/app/thumbnail_cache
 ENV GRAMPSWEB_REPORT_DIR=/app/cache/reports
 ENV GRAMPSWEB_EXPORT_DIR=/app/cache/export
+ENV GRAMPSHOME=/root
+ENV GRAMPS_DATABASE_PATH=/root/.gramps/grampsdb
 
 # install PostgreSQL addon
 RUN wget https://github.com/gramps-project/addons/archive/refs/heads/master.zip \
     && unzip -p master.zip addons-master/gramps$GRAMPS_VERSION/download/PostgreSQL.addon.tgz | \
-    tar -xvz -C /root/.gramps/gramps$GRAMPS_VERSION/plugins \
+    tar -xvz -C /root/gramps/gramps$GRAMPS_VERSION/plugins \
     && unzip -p master.zip addons-master/gramps$GRAMPS_VERSION/download/SharedPostgreSQL.addon.tgz | \
-    tar -xvz -C /root/.gramps/gramps$GRAMPS_VERSION/plugins \
+    tar -xvz -C /root/gramps/gramps$GRAMPS_VERSION/plugins \
     && unzip -p master.zip addons-master/gramps$GRAMPS_VERSION/download/FilterRules.addon.tgz | \
-    tar -xvz -C /root/.gramps/gramps$GRAMPS_VERSION/plugins \
+    tar -xvz -C /root/gramps/gramps$GRAMPS_VERSION/plugins \
     && rm master.zip
 
 # install gunicorn
