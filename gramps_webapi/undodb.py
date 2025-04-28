@@ -623,7 +623,7 @@ def migrate(undodb: DbUndoSQL) -> None:
                     row.old_json = object_to_string(old_data)
                 if row.new_data is not None:
                     new_data = pickle.loads(row.new_data)
-                    row.new_json = object_to_string(old_data)
+                    row.new_json = object_to_string(new_data)
             else:
                 obj_cls = getattr(gramps.gen.lib, row.obj_class)
                 if row.old_data is not None:
