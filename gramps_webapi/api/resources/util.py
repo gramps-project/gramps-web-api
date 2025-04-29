@@ -55,7 +55,7 @@ from gramps.gen.lib import (
 )
 
 # from gramps.gen.lib.serialize import to_json
-from gramps.gen.lib.json_utils import object_to_string
+from gramps.gen.lib.json_utils import object_to_string, remove_object
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.plug import BasePluginManager
 from gramps.gen.relationship import get_relationship_calculator
@@ -1148,8 +1148,8 @@ def transaction_to_json(transaction: DbTxn) -> TransactionJson:
             "type": trans_dict[action],
             "handle": handle,
             "_class": obj_cls_name,
-            "old": None if old_data is None else dict(old_data),
-            "new": None if new_data is None else dict(new_data),
+            "old": None if old_data is None else remove_object(old_data),
+            "new": None if new_data is None else remove_object(new_data),
         }
         out.append(item)
     return out
