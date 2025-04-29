@@ -39,6 +39,7 @@ from gramps.gen.lib.json_utils import (
     data_to_string,
     object_to_string,
     string_to_dict,
+    string_to_object,
 )
 from sqlalchemy import (
     BigInteger,
@@ -333,14 +334,10 @@ class DbUndoSQL(DbUndo):
 
             obj_class = int(CLASS_TO_KEY_MAP.get(change.obj_class, change.obj_class))
             old_data = (
-                None
-                if change.old_json is None
-                else string_to_data_or_list(change.old_json)
+                None if change.old_json is None else string_to_object(change.old_json)
             )
             new_data = (
-                None
-                if change.new_json is None
-                else string_to_data_or_list(change.new_json)
+                None if change.new_json is None else string_to_object(change.new_json)
             )
 
             if change.ref_handle:
