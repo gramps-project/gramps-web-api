@@ -66,6 +66,7 @@ from gramps.gen.db.dbconst import (
 from gramps.gen.db.exceptions import DbUpgradeRequiredError
 from gramps.gen.dbstate import DbState
 from gramps.gen.errors import HandleError
+from gramps.gen.lib.json_utils import object_to_dict
 from gramps.gen.proxy import PrivateProxyDb
 from gramps.gen.proxy.private import sanitize_media
 from gramps.gen.proxy.proxybase import ProxyDbBase
@@ -803,3 +804,25 @@ def from_json_legacy(data):
     not require the dictionary to contain all properties.
     """
     return json.loads(data, object_hook=__object_hook)
+
+
+def complete_gramps_object_dict(data: dict[str, Any]):
+    """Restore a JSON dictionary to its full form, adding placeholders
+    for missing attributes."""
+    for key, value in data.items():
+        if isinstance(value, list):
+            for i in range(len(value)):
+                if isinstance(value[i], dict):
+                    value[i] = complete_gramps_object_dict(value[i])
+        elif isinstance(value, dict):
+            data[key] = complete_gramps_object_dict(value)
+    _class = data.get("_class")
+    if _class is None:
+        return data
+    cls = gramps.gen.lib.__dict__[_class]
+    empty_obj = cls()
+    empty_obj_dict = object_to_dict(empty_obj)
+    for key, value in empty_obj_dict.items():
+        if key not in data:
+            data[key] = value
+    return data

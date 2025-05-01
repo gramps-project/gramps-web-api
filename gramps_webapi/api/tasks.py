@@ -32,7 +32,7 @@ from flask import current_app
 from gramps.gen.db import DbTxn
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
-from gramps.gen.lib.json_utils import object_to_dict
+from gramps.gen.lib.json_utils import data_to_object, object_to_dict
 from gramps.gen.merge.diff import diff_items
 
 from gramps_webapi.api.search.indexer import SearchIndexer, SemanticSearchIndexer
@@ -57,7 +57,7 @@ from .util import (
     abort_with_message,
     check_quota_people,
     close_db,
-    from_json_legacy,
+    complete_gramps_object_dict,
     get_config,
     get_db_outside_request,
     send_email,
@@ -493,7 +493,7 @@ def process_transactions(
                     abort_with_message(409, "Object has changed")
                 new_data = item["new"]
                 if new_data:
-                    new_obj = from_json_legacy(json.dumps(new_data))
+                    new_obj = data_to_object(complete_gramps_object_dict(new_data))
                 if trans_type == "delete":
                     handle_delete(trans, class_name, handle)
                     if (
