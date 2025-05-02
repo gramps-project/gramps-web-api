@@ -55,7 +55,7 @@ from gramps.gen.lib import (
 )
 
 # from gramps.gen.lib.serialize import to_json
-from gramps.gen.lib.json_utils import object_to_string, remove_object
+from gramps.gen.lib.json_utils import object_to_dict, object_to_string, remove_object
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.plug import BasePluginManager
 from gramps.gen.relationship import get_relationship_calculator
@@ -950,36 +950,36 @@ def fix_object_dict(object_dict: dict, class_name: Optional[str] = None):
         ):
             if isinstance(v, str):
                 if class_name == "Family":
-                    d_out[k] = {
-                        "_class": f"{class_name}RelType",
-                        "string": xml_to_locale(f"{class_name}RelType", v),
-                    }
+                    _class = "FamilyRelType"
+                    obj = gramps.gen.lib.__dict__[_class]()
+                    obj.set_from_xml_str(v)
+                    d_out[k] = object_to_dict(obj)
                 elif class_name == "RepoRef":
-                    d_out[k] = {
-                        "_class": "SourceMediaType",
-                        "string": xml_to_locale("SourceMediaType", v),
-                    }
+                    _class = "SourceMediaType"
+                    obj = gramps.gen.lib.__dict__[_class]()
+                    obj.set_from_xml_str(v)
+                    d_out[k] = object_to_dict(obj)
                 else:
-                    d_out[k] = {
-                        "_class": f"{class_name}Type",
-                        "string": xml_to_locale(f"{class_name}Type", v),
-                    }
+                    _class = f"{class_name}Type"
+                    obj = gramps.gen.lib.__dict__[_class]()
+                    obj.set_from_xml_str(v)
+                    d_out[k] = object_to_dict(obj)
             else:
                 d_out[k] = v
         elif k == "role":
             if isinstance(v, str):
-                d_out[k] = {
-                    "_class": "EventRoleType",
-                    "string": xml_to_locale("EventRoleType", v),
-                }
+                _class = "EventRoleType"
+                obj = gramps.gen.lib.__dict__[_class]()
+                obj.set_from_xml_str(v)
+                d_out[k] = object_to_dict(obj)
             else:
                 d_out[k] = v
         elif k == "origintype":
             if isinstance(v, str):
-                d_out[k] = {
-                    "_class": "NameOriginType",
-                    "string": xml_to_locale("NameOriginType", v),
-                }
+                _class = "NameOriginType"
+                obj = gramps.gen.lib.__dict__[_class]()
+                obj.set_from_xml_str(v)
+                d_out[k] = object_to_dict(obj)
             else:
                 d_out[k] = v
         elif k in ["rect", "mother_handle", "father_handle", "famc"] and not v:

@@ -708,3 +708,42 @@ class TestObjectCreation(unittest.TestCase):
             self.client.delete(f"/api/people/{handle}", headers=headers)
         rv = self.client.post("/api/objects/", json=people[:4], headers=headers)
         assert rv.status_code == 405
+
+    def test_objects_add_person_types(self):
+        """Add a person and check that types are handled correctly even
+        when using incomplete dicts."""
+        handle_person = make_handle()
+        person = {
+            "handle": handle_person,
+            "primary_name": {
+                "surname_list": [
+                    {
+                        "surname": "Doe",
+                    }
+                ],
+                "first_name": "John",
+                "type": "Married Name",
+            },
+            "gender": 1,
+        }
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/people/", headers=headers)
+        rv = self.client.get("/api/people/", headers=headers)
+        handles = [obj["handle"] for obj in rv.json]
+        # delete existing people
+        for handle in handles:
+            self.client.delete(f"/api/people/{handle}", headers=headers)
+        rv = self.client.post("/api/people/", json=person, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        # check return value
+        out = rv.json
+        assert len(out) == 1
+        rv = self.client.get(
+            f"/api/people/{handle_person}?extend=event_ref_list&locale=de",
+            headers=headers,
+        )
+        assert rv.status_code == 200
+        person_dict = rv.json
+        assert person_dict["primary_name"]["first_name"] == "John"
+        assert person_dict["primary_name"]["surname_list"][0]["surname"] == "Doe"
+        assert person_dict["primary_name"]["type"] == "Married Name"
