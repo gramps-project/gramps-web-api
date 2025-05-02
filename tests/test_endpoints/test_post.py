@@ -290,6 +290,12 @@ class TestObjectCreation(unittest.TestCase):
                 (handle_child, 1, "Son", "Family"),
             ]
         ]
+        headers_admin = get_headers(self.client, "admin", "123")
+        rv = self.client.get("/api/people/", headers=headers_admin)
+        handles = [obj["handle"] for obj in rv.json]
+        # delete existing people
+        for handle in handles:
+            self.client.delete(f"/api/people/{handle}", headers=headers_admin)
         headers_contributor = get_headers(self.client, "contributor", "123")
         headers_editor = get_headers(self.client, "editor", "123")
         rv = self.client.post("/api/objects/", json=people, headers=headers_contributor)
