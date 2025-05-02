@@ -775,37 +775,6 @@ def get_logger() -> logging.Logger:
         return logger
 
 
-def __object_hook(obj_dict):
-    obj = getattr(gramps.gen.lib, obj_dict["_class"])()
-    for key, value in obj_dict.items():
-        if key != "_class":
-            if key in ("dateval", "rect") and value is not None:
-                value = tuple(value)
-            if key == "ranges":
-                value = [tuple(item) for item in value]
-            setattr(obj, key, value)
-    if obj_dict["_class"] == "Date":
-        if obj.is_empty() and not obj.text:
-            return None
-    return obj
-
-
-def from_json_legacy(data):
-    """
-    Decode JSON data into a Gramps object hierarchy.
-
-    :param data: The JSON string to be unserialized.
-    :type data: str
-    :returns: A Gramps object.
-    :rtype: object
-
-    Note: this function was part of Gramps 5.x and is copied here because,
-    unlike gramps.gen.lib.json_utils.data_to_object in Gramps 6.0, it does
-    not require the dictionary to contain all properties.
-    """
-    return json.loads(data, object_hook=__object_hook)
-
-
 def complete_gramps_object_dict(data: dict[str, Any]):
     """Restore a JSON dictionary to its full form, adding placeholders
     for missing attributes."""
