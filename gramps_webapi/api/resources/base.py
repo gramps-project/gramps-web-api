@@ -45,10 +45,10 @@ from ..auth import require_permissions
 from ..search import SearchIndexer, get_search_indexer, get_semantic_search_indexer
 from ..util import (
     check_quota_people,
-    from_json_legacy,
     get_db_handle,
     get_locale_for_language,
     get_tree_from_jwt_or_fail,
+    gramps_object_from_dict,
     update_usage_people,
     use_args,
 )
@@ -163,7 +163,7 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
             abort_with_message(400, f"Error while processing object: {exc}")
         if not validate_object_dict(obj_dict):
             abort_with_message(400, "Schema validation failed")
-        return from_json_legacy(json.dumps(obj_dict))
+        return gramps_object_from_dict(obj_dict)
 
     def has_handle(self, handle: str) -> bool:
         """Check if the handle exists in the database."""

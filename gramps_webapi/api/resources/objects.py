@@ -41,9 +41,9 @@ from ..tasks import AsyncResult, delete_objects, make_task_response, run_task
 from ..util import (
     abort_with_message,
     check_quota_people,
-    from_json_legacy,
     get_db_handle,
     get_tree_from_jwt,
+    gramps_object_from_dict,
     update_usage_people,
     use_args,
 )
@@ -71,7 +71,7 @@ class CreateObjectsResource(ProtectedResource):
                 abort_with_message(400, "Error processing objects")
             if not validate_object_dict(obj_dict):
                 abort_with_message(400, "Validation error while processing objects")
-            obj = from_json_legacy(json.dumps(obj_dict))
+            obj = gramps_object_from_dict(obj_dict)
             objects.append(obj)
         return objects
 

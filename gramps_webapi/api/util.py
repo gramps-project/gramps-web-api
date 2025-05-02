@@ -66,7 +66,7 @@ from gramps.gen.db.dbconst import (
 from gramps.gen.db.exceptions import DbUpgradeRequiredError
 from gramps.gen.dbstate import DbState
 from gramps.gen.errors import HandleError
-from gramps.gen.lib.json_utils import object_to_dict
+from gramps.gen.lib.json_utils import data_to_object, object_to_dict
 from gramps.gen.proxy import PrivateProxyDb
 from gramps.gen.proxy.private import sanitize_media
 from gramps.gen.proxy.proxybase import ProxyDbBase
@@ -826,3 +826,11 @@ def complete_gramps_object_dict(data: dict[str, Any]):
         if key not in data:
             data[key] = value
     return data
+
+
+def gramps_object_from_dict(data: dict[str, Any]):
+    """Instantiate a Gramps object from a dictionary.
+
+    The dictionary can be incomplete, i.e. not contain all properties of
+    the object class."""
+    return data_to_object(complete_gramps_object_dict(data))

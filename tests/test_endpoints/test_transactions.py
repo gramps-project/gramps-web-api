@@ -398,3 +398,48 @@ class TestTransactionResource(unittest.TestCase):
             "/api/transactions/?background=1", json=trans, headers=headers
         )
         self.assertEqual(rv.status_code, 400)
+
+    def test_gramps60_issue(self):
+        """Test for an issue that occurred after upgrading to Gramps 6.0"""
+        obj_dict = {
+            "handle": "fe171ce847937f3212613fb24c1",
+            "change": 1746095141,
+            "private": False,
+            "tag_list": [],
+            "gramps_id": "E4403",
+            "citation_list": [],
+            "note_list": [],
+            "media_list": [],
+            "attribute_list": [],
+            "date": {
+                "format": None,
+                "calendar": 0,
+                "modifier": 0,
+                "quality": 0,
+                "dateval": [2, 2, 1991, False],
+                "text": "1991-02-02",
+                "sortval": 2448290,
+                "newyear": 0,
+                "_class": "Date",
+            },
+            "place": "",
+            "_class": "Event",
+            "type": {"_class": "EventType", "value": 11, "string": ""},
+            "description": "Testereignis",
+        }
+        trans = [
+            {
+                "type": "add",
+                "_class": "Event",
+                "handle": obj_dict["handle"],
+                "old": None,
+                "new": obj_dict,
+            }
+        ]
+        headers = get_headers(self.client, "editor", "123")
+        # add
+        rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        assert rv.status_code == 200
+        rv = self.client.get(f"/api/events/{obj_dict['handle']}", headers=headers)
+        assert rv.status_code == 200
+        assert rv.json["type"] == "Adopted"
