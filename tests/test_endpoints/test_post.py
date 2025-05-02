@@ -709,7 +709,7 @@ class TestObjectCreation(unittest.TestCase):
         rv = self.client.post("/api/objects/", json=people[:4], headers=headers)
         assert rv.status_code == 405
 
-    def test_objects_add_person_types(self):
+    def test_add_person_types(self):
         """Add a person and check that types are handled correctly even
         when using incomplete dicts."""
         handle_person = make_handle()
@@ -739,7 +739,7 @@ class TestObjectCreation(unittest.TestCase):
         out = rv.json
         assert len(out) == 1
         rv = self.client.get(
-            f"/api/people/{handle_person}?extend=event_ref_list&locale=de",
+            f"/api/people/{handle_person}?locale=de",
             headers=headers,
         )
         assert rv.status_code == 200
@@ -747,3 +747,41 @@ class TestObjectCreation(unittest.TestCase):
         assert person_dict["primary_name"]["first_name"] == "John"
         assert person_dict["primary_name"]["surname_list"][0]["surname"] == "Doe"
         assert person_dict["primary_name"]["type"] == "Married Name"
+
+    def test_add_event_types(self):
+        handle_event = make_handle()
+        event = {
+            "handle": handle_event,
+            "change": 1746095141,
+            "date": {
+                "format": None,
+                "calendar": 0,
+                "modifier": 0,
+                "quality": 0,
+                "dateval": [2, 2, 1991, False],
+            },
+            "_class": "Event",
+            "type": "Adopted",
+        }
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/events/", headers=headers)
+        rv = self.client.get("/api/events/", headers=headers)
+        handles = [obj["handle"] for obj in rv.json]
+        # delete existing events
+        for handle in handles:
+            self.client.delete(f"/api/events/{handle}", headers=headers)
+        rv = self.client.post("/api/events/", json=event, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        # check return value
+        out = rv.json
+        assert len(out) == 1
+        rv = self.client.get(
+            f"/api/events/{handle_event}?locale=de&profile=self",
+            headers=headers,
+        )
+        assert rv.status_code == 200
+        event_dict = rv.json
+        assert event_dict["type"] == "Adopted"
+        # This being correctly translated tests that the type has been correctly
+        # detected as a default type rather than a custom type
+        assert event_dict["profile"]["type"] == "Adoptiert"
