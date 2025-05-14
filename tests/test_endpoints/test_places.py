@@ -504,6 +504,7 @@ class TestPlacesHandle(unittest.TestCase):
             rv["profile"],
             {
                 "alternate_names": [],
+                "alternate_place_names": [],
                 "gramps_id": "P0860",
                 "lat": 33.6259414,
                 "long": -97.1333453,
@@ -511,6 +512,7 @@ class TestPlacesHandle(unittest.TestCase):
                 "parent_places": [
                     {
                         "alternate_names": [],
+                        "alternate_place_names": [],
                         "gramps_id": "P0194",
                         "lat": 0,
                         "long": 0,
@@ -519,6 +521,7 @@ class TestPlacesHandle(unittest.TestCase):
                     },
                     {
                         "alternate_names": [],
+                        "alternate_place_names": [],
                         "gramps_id": "P0010",
                         "lat": 0,
                         "long": 0,
@@ -527,6 +530,7 @@ class TestPlacesHandle(unittest.TestCase):
                     },
                     {
                         "alternate_names": [],
+                        "alternate_place_names": [],
                         "gramps_id": "P0957",
                         "lat": 0,
                         "long": 0,
@@ -535,6 +539,43 @@ class TestPlacesHandle(unittest.TestCase):
                     },
                 ],
                 "type": "Città",
+            },
+        )
+
+    def test_get_places_handle_parameter_profile_alternative_names(self):
+        """Test place profile."""
+        rv = check_success(
+            self, TEST_URL + "fce62795df51c5d8ae432e3942c?profile=all&locale=en"
+        )
+        self.maxDiff = None
+        self.assertEqual(
+            rv["profile"],
+            {
+                "alternate_names": ["Leningrad", "Petrograd"],
+                "alternate_place_names": [
+                    {
+                        "date_str": "between 1924-01-26 and 1991-09-06",
+                        "value": "Leningrad",
+                    },
+                    {"date_str": "between 1914 and 1924", "value": "Petrograd"},
+                ],
+                "gramps_id": "P0443",
+                "lat": 0,
+                "long": 0,
+                "name": "Saint Petersburg",
+                "parent_places": [
+                    {
+                        "alternate_names": [],
+                        "alternate_place_names": [],
+                        "gramps_id": "P0442",
+                        "lat": 0,
+                        "long": 0,
+                        "name": "Russia",
+                        "type": "Country",
+                    },
+                ],
+                "references": {},
+                "type": "City",
             },
         )
 
