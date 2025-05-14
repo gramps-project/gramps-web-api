@@ -408,7 +408,7 @@ def upgrade_database_schema(self, tree: str, user_id: str):
         tree=tree, view_private=True, readonly=False, user_id=user_id
     )
     try:
-        migrate_undodb(db_handle.undodb, tree)
+        migrate_undodb(db_handle.undodb)
     finally:
         close_db(db_handle)
 
@@ -420,7 +420,7 @@ def upgrade_undodb_schema(self, tree: str, user_id: str):
         tree=tree, view_private=True, readonly=False, user_id=user_id
     )
     try:
-        migrate_undodb(db_handle.undodb, tree)
+        migrate_undodb(db_handle.undodb)
     finally:
         close_db(db_handle)
 

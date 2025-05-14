@@ -602,14 +602,14 @@ class DbUndoSQLWeb(DbUndoSQL):
             return transaction._to_dict(old_data=old_data, new_data=new_data)
 
 
-def migrate(undodb: DbUndoSQL, tree_id: str) -> None:
+def migrate(undodb: DbUndoSQL) -> None:
     """Migrate the undo db to a new schema if needed."""
     with undodb.session_scope() as session:
         # return all rows where old_json AND new_json are NULL
         rows = (
             session.query(Change)
             .join(Connection)
-            .filter(Connection.tree_id == tree_id)
+            .filter(Connection.tree_id == undodb.tree_id)
             .filter(Change.old_json.is_(None), Change.new_json.is_(None))
             .all()
         )
