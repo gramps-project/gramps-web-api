@@ -542,6 +542,43 @@ class TestPlacesHandle(unittest.TestCase):
             },
         )
 
+    def test_get_places_handle_parameter_profile_alternative_names(self):
+        """Test place profile."""
+        rv = check_success(
+            self, TEST_URL + "fce62795df51c5d8ae432e3942c?profile=all&locale=en"
+        )
+        self.maxDiff = None
+        self.assertEqual(
+            rv["profile"],
+            {
+                "alternate_names": ["Leningrad", "Petrograd"],
+                "alternate_place_names": [
+                    {
+                        "date_str": "between 1924-01-26 and 1991-09-06",
+                        "value": "Leningrad",
+                    },
+                    {"date_str": "between 1914 and 1924", "value": "Petrograd"},
+                ],
+                "gramps_id": "P0443",
+                "lat": 0,
+                "long": 0,
+                "name": "Saint Petersburg",
+                "parent_places": [
+                    {
+                        "alternate_names": [],
+                        "alternate_place_names": [],
+                        "gramps_id": "P0442",
+                        "lat": 0,
+                        "long": 0,
+                        "name": "Russia",
+                        "type": "Country",
+                    },
+                ],
+                "references": {},
+                "type": "City",
+            },
+        )
+
     def test_get_places_handle_parameter_backlinks_validate_semantics(self):
         """Test invalid backlinks parameter and values."""
         check_invalid_semantics(
