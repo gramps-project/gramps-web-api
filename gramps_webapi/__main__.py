@@ -351,7 +351,7 @@ def migrate_gramps_undodb(ctx):
     dbmgr = ctx.obj["db_manager"]
     db_handle = dbmgr.get_db().db
     try:
-        migrate_undodb(db_handle.undodb)
+        migrate_undodb(db_handle.undodb, tree_id=dbmgr.dirname)
     finally:
         close_db(db_handle)
 
