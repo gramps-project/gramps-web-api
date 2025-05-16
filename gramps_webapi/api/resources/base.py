@@ -202,15 +202,15 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
                     ]
                 ),
             ),
-            "formats": fields.Delimitedlist(
+            "formats": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
             "format_options": fields.Str(validate=validate.Length(min=1)),
-            "keys": fields.Delimitedlist(fields.Str(validate=validate.Length(min=1))),
+            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "locale": fields.Str(
                 load_default=None, validate=validate.Length(min=1, max=5)
             ),
-            "profile": fields.Delimitedlist(
+            "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
                     choices=[
@@ -225,7 +225,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
                     ]
                 ),
             ),
-            "skipkeys": fields.Delimitedlist(
+            "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
             "soundex": fields.Boolean(load_default=False),
@@ -317,7 +317,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                     r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
                 ),
             ),
-            "extend": fields.Delimitedlist(
+            "extend": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
                     choices=[
@@ -342,20 +342,20 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                 ),
             ),
             "filter": fields.Str(validate=validate.Length(min=1)),
-            "formats": fields.Delimitedlist(
+            "formats": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
             "format_options": fields.Str(validate=validate.Length(min=1)),
             "gql": fields.Str(validate=validate.Length(min=1)),
             "oql": fields.Str(validate=validate.Length(min=1)),
             "gramps_id": fields.Str(validate=validate.Length(min=1)),
-            "keys": fields.Delimitedlist(fields.Str(validate=validate.Length(min=1))),
+            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "locale": fields.Str(
                 load_default=None, validate=validate.Length(min=1, max=5)
             ),
             "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
             "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
-            "profile": fields.Delimitedlist(
+            "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
                     choices=[
@@ -371,10 +371,10 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                 ),
             ),
             "rules": fields.Str(validate=validate.Length(min=1)),
-            "skipkeys": fields.Delimitedlist(
+            "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
-            "sort": fields.Delimitedlist(fields.Str(validate=validate.Length(min=1))),
+            "sort": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "soundex": fields.Boolean(load_default=False),
             "strip": fields.Boolean(load_default=False),
             "filemissing": fields.Boolean(load_default=False),
