@@ -19,12 +19,12 @@
 
 """Base for Gramps object API resources."""
 
-import json
-from typing import Dict, List, TypeVar
+from typing import TypeVar
 
 import gramps_ql as gql
 import object_ql as oql
 from flask import abort, request
+from flask_jwt_extended import get_jwt_identity
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import DbTxn
 from gramps.gen.db.base import DbReadBase
@@ -37,12 +37,13 @@ from pyparsing.exceptions import ParseBaseException
 from webargs import fields, validate
 
 from gramps_webapi.api.search.indexer import SemanticSearchIndexer
-from gramps_webapi.types import Handle, ResponseReturnValue
+from gramps_webapi.types import ResponseReturnValue
 
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ...const import GRAMPS_OBJECT_PLURAL
 from ..auth import require_permissions
 from ..search import SearchIndexer, get_search_indexer, get_semantic_search_indexer
+from ..tasks import run_task, update_search_indices_from_transaction
 from ..util import (
     check_quota_people,
     get_db_handle,
@@ -82,7 +83,7 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
 
     gramps_class_name: str
 
-    def full_object(self, obj: T, args: Dict, locale: GrampsLocale = glocale) -> T:
+    def full_object(self, obj: T, args: dict, locale: GrampsLocale = glocale) -> T:
         """Get the full object with extended attributes and backlinks."""
         if args.get("backlinks"):
             obj.backlinks = get_backlinks(self.db_handle, obj.handle)
@@ -104,21 +105,21 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
             )
         return obj
 
-    def object_extend(self, obj: T, args: Dict, locale: GrampsLocale = glocale) -> T:
+    def object_extend(self, obj: T, args: dict, locale: GrampsLocale = glocale) -> T:
         """Extend the base object attributes as needed."""
         if "extend" in args:
             obj.extended = get_extended_attributes(self.db_handle, obj, args)
         return obj
 
     def sort_objects(
-        self, objects: List[GrampsObject], args: Dict, locale: GrampsLocale = glocale
-    ) -> List:
+        self, objects: list[GrampsObject], args: dict, locale: GrampsLocale = glocale
+    ) -> list:
         """Sort the list of objects as needed."""
         return sort_objects(
             self.db_handle, self.gramps_class_name, objects, args, locale=locale
         )
 
-    def match_dates(self, objects: List[GrampsObject], date: str) -> List[GrampsObject]:
+    def match_dates(self, objects: list[GrampsObject], date: str) -> list[GrampsObject]:
         """If supported filter objects using date mask."""
         if self.gramps_class_name in ["Event", "Media", "Citation"]:
             return match_dates(objects, date)
@@ -232,7 +233,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         },
         location="query",
     )
-    def get(self, args: Dict, handle: str) -> ResponseReturnValue:
+    def get(self, args: dict, handle: str) -> ResponseReturnValue:
         """Get the object."""
         try:
             obj = self.get_object_from_handle(handle)
@@ -290,17 +291,13 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             trans_dict = transaction_to_json(trans)
         # update search index
         tree = get_tree_from_jwt_or_fail()
-        indexer: SearchIndexer = get_search_indexer(tree)
-        for _trans_dict in trans_dict:
-            handle = _trans_dict["handle"]
-            class_name = _trans_dict["_class"]
-            indexer.add_or_update_object(handle, db_handle, class_name)
-        if app_has_semantic_search():
-            semantic_indexer: SemanticSearchIndexer = get_semantic_search_indexer(tree)
-            for _trans_dict in trans_dict:
-                handle = _trans_dict["handle"]
-                class_name = _trans_dict["_class"]
-                semantic_indexer.add_or_update_object(handle, db_handle, class_name)
+        user_id = get_jwt_identity()
+        run_task(
+            update_search_indices_from_transaction,
+            trans_dict=trans_dict,
+            tree=tree,
+            user_id=user_id,
+        )
         return self.response(200, trans_dict, total_items=len(trans_dict))
 
 
@@ -384,7 +381,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         },
         location="query",
     )
-    def get(self, args: Dict) -> ResponseReturnValue:
+    def get(self, args: dict) -> ResponseReturnValue:
         """Get all objects."""
         locale = get_locale_for_language(args["locale"], default=True)
         if "gramps_id" in args:
@@ -486,17 +483,13 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             update_usage_people()
         # update search index
         tree = get_tree_from_jwt_or_fail()
-        indexer: SearchIndexer = get_search_indexer(tree)
-        for _trans_dict in trans_dict:
-            handle = _trans_dict["handle"]
-            class_name = _trans_dict["_class"]
-            indexer.add_or_update_object(handle, db_handle, class_name)
-        if app_has_semantic_search():
-            semantic_indexer: SemanticSearchIndexer = get_semantic_search_indexer(tree)
-            for _trans_dict in trans_dict:
-                handle = _trans_dict["handle"]
-                class_name = _trans_dict["_class"]
-                semantic_indexer.add_or_update_object(handle, db_handle, class_name)
+        user_id = get_jwt_identity()
+        run_task(
+            update_search_indices_from_transaction,
+            trans_dict=trans_dict,
+            tree=tree,
+            user_id=user_id,
+        )
         return self.response(201, trans_dict, total_items=len(trans_dict))
 
 
