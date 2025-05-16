@@ -571,3 +571,27 @@ def old_unchanged(db: DbReadBase, class_name: str, handle: str, old_data: Dict) 
     if diff_items(class_name, old_data, obj_dict):
         return False
     return True
+
+
+@shared_task(bind=True)
+def update_search_indices_from_transaction(
+    self, trans_dict: list[dict], tree: str, user_id: str
+) -> None:
+    """Update the search indices from a transaction."""
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=True, readonly=True, user_id=user_id
+    )
+    try:
+        indexer = get_search_indexer(tree)
+        for _trans_dict in trans_dict:
+            handle = _trans_dict["handle"]
+            class_name = _trans_dict["_class"]
+            indexer.add_or_update_object(handle, db_handle, class_name)
+        if app_has_semantic_search():
+            indexer_semantic = get_semantic_search_indexer(tree)
+            for _trans_dict in trans_dict:
+                handle = _trans_dict["handle"]
+                class_name = _trans_dict["_class"]
+                indexer_semantic.add_or_update_object(handle, db_handle, class_name)
+    finally:
+        close_db(db_handle)
