@@ -178,7 +178,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
     @use_args(
         {
             "backlinks": fields.Boolean(load_default=False),
-            "extend": fields.Delimitedlist(
+            "extend": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
                     choices=[
