@@ -36,25 +36,24 @@ from gramps_webapi.types import ResponseReturnValue
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ_BATCH, PERM_EDIT_OBJ
 from ...const import GRAMPS_OBJECT_PLURAL
 from ..auth import require_permissions
-from ..search import get_search_indexer, get_semantic_search_indexer
-from ..tasks import AsyncResult, delete_objects, make_task_response, run_task
+from ..tasks import (
+    AsyncResult,
+    delete_objects,
+    make_task_response,
+    run_task,
+    update_search_indices_from_transaction,
+)
 from ..util import (
     abort_with_message,
     check_quota_people,
     get_db_handle,
-    get_tree_from_jwt,
+    get_tree_from_jwt_or_fail,
     gramps_object_from_dict,
     update_usage_people,
     use_args,
 )
 from . import FreshProtectedResource, ProtectedResource
-from .util import (
-    add_object,
-    app_has_semantic_search,
-    fix_object_dict,
-    transaction_to_json,
-    validate_object_dict,
-)
+from .util import add_object, fix_object_dict, transaction_to_json, validate_object_dict
 
 
 class CreateObjectsResource(ProtectedResource):
@@ -99,20 +98,15 @@ class CreateObjectsResource(ProtectedResource):
             trans_dict = transaction_to_json(trans)
         if number_new_people:
             update_usage_people()
-        # update search index
-        tree = get_tree_from_jwt()
-        assert tree is not None  # mypy
-        indexer = get_search_indexer(tree)
-        for _trans_dict in trans_dict:
-            handle = _trans_dict["handle"]
-            class_name = _trans_dict["_class"]
-            indexer.add_or_update_object(handle, db_handle, class_name)
-        if app_has_semantic_search():
-            indexer_semantic = get_semantic_search_indexer(tree)
-            for _trans_dict in trans_dict:
-                handle = _trans_dict["handle"]
-                class_name = _trans_dict["_class"]
-                indexer_semantic.add_or_update_object(handle, db_handle, class_name)
+        # update search indices
+        tree = get_tree_from_jwt_or_fail()
+        user_id = get_jwt_identity()
+        run_task(
+            update_search_indices_from_transaction,
+            trans_dict=trans_dict,
+            tree=tree,
+            user_id=user_id,
+        )
         res = Response(
             response=json.dumps(trans_dict),
             status=201,
@@ -139,7 +133,7 @@ class DeleteObjectsResource(FreshProtectedResource):
     def post(self, args) -> ResponseReturnValue:
         """Delete the objects."""
         require_permissions([PERM_DEL_OBJ_BATCH])
-        tree = get_tree_from_jwt()
+        tree = get_tree_from_jwt_or_fail()
         user_id = get_jwt_identity()
         task = run_task(
             delete_objects,
