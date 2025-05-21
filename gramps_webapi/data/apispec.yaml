@@ -1,7 +1,7 @@
 swagger: "2.0"
 info:
   title: "Gramps Web API"
-  version: "3.0.2"
+  version: "3.1.0"
   description: >
     The Gramps Web API is a REST API that provides access to family tree databases generated and maintained with Gramps, a popular Open Source genealogical research software package.
 
@@ -8772,6 +8772,18 @@ definitions:
           type: string
         example:
           - "Gainesville, FA"
+      alternate_place_names:
+        description: "Alternative names of the place with date."
+        type: object
+        properties:
+          date_str:
+            description: "Date the place name was in use."
+            type: string
+            example: "1800 to 1950"
+          value:
+            description: "The name in use."
+            type: string
+            example: "Gainesville, FA"
       gramps_id:
         description: "The place's Gramps ID."
         type: string
