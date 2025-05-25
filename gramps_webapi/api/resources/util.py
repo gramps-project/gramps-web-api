@@ -1316,6 +1316,6 @@ def return_304_if_unchanged(response: Response, etag: str) -> Response:
     with the current etag."""
     old_etag = request.headers.get("If-None-Match")
     if old_etag and normalize_etag(old_etag) == etag:
-        response.status = 304
+        response.status = "304"
         response.response = ""
     return response
