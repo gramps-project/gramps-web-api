@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from flask import current_app
-from openai import OpenAI, RateLimitError, APIError
+from openai import APIError, OpenAI, RateLimitError
 
 from ..search import get_semantic_search_indexer
 from ..util import abort_with_message, get_logger
@@ -48,8 +48,8 @@ def answer_prompt(prompt: str, system_prompt: str, config: dict | None = None) -
         }
     )
 
-    client = get_client(config=config)
-    model = config.get("LLM_MODEL")
+    client = get_client(config=config)  # type: ignore
+    model = config.get("LLM_MODEL")  # type: ignore
     assert model is not None, "No LLM model specified"  # mypy; shouldn't happen
 
     try:

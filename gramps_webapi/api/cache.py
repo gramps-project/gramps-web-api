@@ -3,3 +3,5 @@
 from flask_caching import Cache
 
 thumbnail_cache = Cache()
+
+request_cache = Cache()

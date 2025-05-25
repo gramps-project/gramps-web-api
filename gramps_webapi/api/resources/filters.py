@@ -152,6 +152,7 @@ def build_filter(filter_parms: Dict, namespace: str) -> GenericFilter:
         filter_regex = False
         if "regex" in filter_rule:
             filter_regex = filter_rule["regex"]
+        assert rule_instance is not None  # for mypy
         filter_object.add_rule(rule_instance(filter_args, use_regex=filter_regex))
     return filter_object
 

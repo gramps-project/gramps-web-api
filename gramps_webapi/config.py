@@ -39,6 +39,12 @@ class DefaultConfig(object):
     BASE_URL = "http://localhost/"
     CORS_EXPOSE_HEADERS = ["X-Total-Count"]
     STATIC_PATH = "static"
+    REQUEST_CACHE_CONFIG = {
+        "CACHE_TYPE": "FileSystemCache",
+        "CACHE_DIR": str(Path.cwd() / "request_cache"),
+        "CACHE_THRESHOLD": 1000,
+        "CACHE_DEFAULT_TIMEOUT": 0,
+    }
     THUMBNAIL_CACHE_CONFIG = {
         "CACHE_TYPE": "FileSystemCache",
         "CACHE_DIR": str(Path.cwd() / "thumbnail_cache"),

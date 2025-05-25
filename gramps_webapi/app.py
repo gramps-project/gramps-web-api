@@ -32,7 +32,7 @@ from gramps.gen.config import config as gramps_config
 from gramps.gen.config import set as setconfig
 
 from .api import api_blueprint
-from .api.cache import thumbnail_cache
+from .api.cache import request_cache, thumbnail_cache
 from .api.ratelimiter import limiter
 from .api.search.embeddings import load_model
 from .api.util import close_db
@@ -142,6 +142,7 @@ def create_app(config: Optional[Dict[str, Any]] = None):
     app.config["SQLALCHEMY_DATABASE_URI"] = app.config["USER_DB_URI"]
     user_db.init_app(app)
 
+    request_cache.init_app(app, config=app.config["REQUEST_CACHE_CONFIG"])
     thumbnail_cache.init_app(app, config=app.config["THUMBNAIL_CACHE_CONFIG"])
 
     # enable CORS for /api/... resources
