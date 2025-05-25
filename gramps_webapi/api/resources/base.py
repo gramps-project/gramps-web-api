@@ -62,7 +62,6 @@ from .sort import sort_objects
 from .util import (
     abort_with_message,
     add_object,
-    app_has_semantic_search,
     filter_missing_files,
     fix_object_dict,
     get_backlinks,
@@ -240,9 +239,10 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         except HandleError:
             abort(404)
         locale = get_locale_for_language(args["locale"], default=True)
-        get_etag = hash_object(obj)
         return self.response(
-            200, self.full_object(obj, args, locale=locale), args, etag=get_etag
+            200,
+            self.full_object(obj, args, locale=locale),
+            args,
         )
 
     def delete(self, handle: str) -> ResponseReturnValue:
@@ -389,7 +389,10 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             if obj is None:
                 abort(404)
             return self.response(
-                200, [self.full_object(obj, args, locale=locale)], args, total_items=1
+                200,
+                [self.full_object(obj, args, locale=locale)],
+                args,
+                total_items=1,
             )
 
         # load all objects to memory

@@ -22,7 +22,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 from hashlib import sha256
 from http import HTTPStatus
@@ -32,7 +31,7 @@ import gramps
 import gramps.gen.lib
 import jsonschema
 from celery import Task
-from flask import current_app
+from flask import Response, current_app, request
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import KEY_TO_CLASS_MAP, DbTxn
 from gramps.gen.db.base import DbReadBase, DbWriteBase
@@ -1295,3 +1294,28 @@ def dry_run_import(
 def app_has_semantic_search() -> bool:
     """Indicate whether the app supports semantic search."""
     return bool(current_app.config.get("VECTOR_EMBEDDING_MODEL"))
+
+
+def normalize_etag(etag: str | None) -> str | None:
+    """Normalize an Etag"""
+    if not etag:
+        return None
+    # Remove weak validator (W/) and suffix like :zstd or -gzip
+    if "/" in etag:
+        etag = etag.split("/", 1)[1]
+    if ":" in etag:
+        etag = etag.split(":", 1)[0]
+    elif "-" in etag:
+        etag = etag.split("-", 1)[0]
+    etag = etag.strip('"')
+    return etag
+
+
+def return_304_if_unchanged(response: Response, etag: str) -> Response:
+    """Change the response status to 304 if the if none match header agrees
+    with the current etag."""
+    old_etag = request.headers.get("If-None-Match")
+    if old_etag and normalize_etag(old_etag) == etag:
+        response.status = 304
+        response.response = ""
+    return response
