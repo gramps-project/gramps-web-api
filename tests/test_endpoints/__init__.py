@@ -81,8 +81,8 @@ def setUpModule():
                 "TESTING": True,
                 "RATELIMIT_ENABLED": False,
                 "MEDIA_BASE_DIR": f"{os.environ['GRAMPS_RESOURCES']}/doc/gramps/example/gramps",
-                # "VECTOR_EMBEDDING_MODEL": "paraphrase-albert-small-v2",
-                # "LLM_MODEL": "mock-model",
+                "VECTOR_EMBEDDING_MODEL": "paraphrase-albert-small-v2",
+                "LLM_MODEL": "mock-model",
             }
         )
     TEST_CLIENT = test_app.test_client()
