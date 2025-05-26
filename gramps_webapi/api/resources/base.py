@@ -249,13 +249,9 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         """Delete the object."""
         require_permissions([PERM_DEL_OBJ])
         try:
-            obj = self.get_object_from_handle(handle)
+            self.get_object_from_handle(handle)
         except HandleError:
             abort(404)
-        get_etag = hash_object(obj)
-        for etag in request.if_match:
-            if etag != get_etag:
-                abort_with_message(412, "Resource does not match provided ETag")
         trans_dict = delete_object(
             self.db_handle_writable, handle, self.gramps_class_name
         )
