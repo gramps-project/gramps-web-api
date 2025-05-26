@@ -617,7 +617,9 @@ def make_cache_key_request(*args, **kwargs):
     permission_hash = str(int(has_permissions({PERM_VIEW_PRIVATE})))
 
     tree_id = get_tree_from_jwt_or_fail()
-    db_timestamp = str(get_db_last_change_timestamp(tree_id))
+    db_timestamp = get_db_last_change_timestamp(tree_id)
+    if db_timestamp == 0:
+        return None
 
     cache_key = tree_id + str(db_timestamp) + request.path + arg_hash + permission_hash
 
