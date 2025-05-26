@@ -559,14 +559,35 @@ def send_email(
         raise ValueError("Error while trying to send e-mail.")
 
 
-def make_cache_key_thumbnails(*args, **kwargs):
-    """Make a cache key for thumbnails."""
-    # hash query args except jwt
+def get_db_last_change_timestamp(tree_id: str) -> int | float:
+    """Get the last change timestamp of the database.
+
+    We do this by looking at the modification time of the meta db file.
+    If the file does not exist, returns 0.
+    """
+    if not tree_id:
+        raise ValueError("Tree ID must not be empty")
+    dbmgr = get_db_manager(tree_id)
+    meta_path = os.path.join(dbmgr.dbdir, dbmgr.dirname, "meta_data.db")
+    try:
+        return os.path.getmtime(meta_path)
+    except FileNotFoundError:
+        return 0
+
+
+def _hash_request_args() -> str:
+    """Hash the request arguments for use in cache keys."""
     query_args = list((k, v) for (k, v) in request.args.items(multi=True) if k != "jwt")
     args_as_sorted_tuple = tuple(sorted(query_args))
     args_as_bytes = str(args_as_sorted_tuple).encode()
     arg_hash = hashlib.md5(args_as_bytes)
-    arg_hash = str(arg_hash.hexdigest())
+    return str(arg_hash.hexdigest())
+
+
+def make_cache_key_thumbnails(*args, **kwargs):
+    """Make a cache key for thumbnails."""
+    # hash query args except jwt
+    arg_hash = _hash_request_args()
 
     # get media checksum
     handle = kwargs["handle"]
@@ -582,6 +603,23 @@ def make_cache_key_thumbnails(*args, **kwargs):
     dbmgr = get_db_manager(tree)
 
     cache_key = checksum + request.path + arg_hash + dbmgr.dirname
+
+    return cache_key
+
+
+def make_cache_key_request(*args, **kwargs):
+    """Make a cache key for a base request."""
+    # hash query args except jwt
+    arg_hash = _hash_request_args()
+
+    # the request result will depend on whether the user can view private records
+    # this will be "1" if the user can view private records, "0" otherwise
+    permission_hash = str(int(has_permissions({PERM_VIEW_PRIVATE})))
+
+    tree_id = get_tree_from_jwt_or_fail()
+    db_timestamp = str(get_db_last_change_timestamp(tree_id))
+
+    cache_key = tree_id + str(db_timestamp) + request.path + arg_hash + permission_hash
 
     return cache_key
 
