@@ -40,7 +40,7 @@ from gramps_webapi.types import ResponseReturnValue
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ...const import GRAMPS_OBJECT_PLURAL
 from ..auth import require_permissions
-from ..cache import request_cache
+from ..cache import request_cache_decorator
 from ..search import SearchIndexer, get_search_indexer
 from ..tasks import run_task, update_search_indices_from_transaction
 from ..util import (
@@ -49,7 +49,6 @@ from ..util import (
     get_locale_for_language,
     get_tree_from_jwt_or_fail,
     gramps_object_from_dict,
-    make_cache_key_request,
     update_usage_people,
     use_args,
 )
@@ -232,7 +231,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         },
         location="query",
     )
-    @request_cache.cached(make_cache_key=make_cache_key_request)
+    @request_cache_decorator
     def get(self, args: dict, handle: str) -> ResponseReturnValue:
         """Get the object."""
         try:
@@ -381,7 +380,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         },
         location="query",
     )
-    @request_cache.cached(make_cache_key=make_cache_key_request)
+    @request_cache_decorator
     def get(self, args: dict) -> ResponseReturnValue:
         """Get all objects."""
         locale = get_locale_for_language(args["locale"], default=True)
