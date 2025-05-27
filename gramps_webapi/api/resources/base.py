@@ -62,7 +62,6 @@ from .sort import sort_objects
 from .util import (
     abort_with_message,
     add_object,
-    app_has_semantic_search,
     filter_missing_files,
     fix_object_dict,
     get_backlinks,
@@ -240,22 +239,19 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         except HandleError:
             abort(404)
         locale = get_locale_for_language(args["locale"], default=True)
-        get_etag = hash_object(obj)
         return self.response(
-            200, self.full_object(obj, args, locale=locale), args, etag=get_etag
+            200,
+            self.full_object(obj, args, locale=locale),
+            args,
         )
 
     def delete(self, handle: str) -> ResponseReturnValue:
         """Delete the object."""
         require_permissions([PERM_DEL_OBJ])
         try:
-            obj = self.get_object_from_handle(handle)
+            self.get_object_from_handle(handle)
         except HandleError:
             abort(404)
-        get_etag = hash_object(obj)
-        for etag in request.if_match:
-            if etag != get_etag:
-                abort_with_message(412, "Resource does not match provided ETag")
         trans_dict = delete_object(
             self.db_handle_writable, handle, self.gramps_class_name
         )
@@ -389,7 +385,10 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             if obj is None:
                 abort(404)
             return self.response(
-                200, [self.full_object(obj, args, locale=locale)], args, total_items=1
+                200,
+                [self.full_object(obj, args, locale=locale)],
+                args,
+                total_items=1,
             )
 
         # load all objects to memory

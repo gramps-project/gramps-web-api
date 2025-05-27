@@ -19,13 +19,15 @@
 
 """Gramps Json Encoder."""
 
-from typing import Any, Dict, Optional
+import hashlib
+from typing import Any, Optional
 
 import gramps.gen.lib as lib
 from flask import Response, current_app, json
 from gramps.gen.db import DbBookmarks
 from gramps.gen.lib.baseobj import BaseObject
-from werkzeug.datastructures import Headers
+
+from .util import return_304_if_unchanged
 
 
 def default(obj: Any):
@@ -49,9 +51,10 @@ class GrampsJSONEncoder:
         self,
         status: int = 200,
         payload: Optional[Any] = None,
-        args: Optional[Dict] = None,
+        args: Optional[dict] = None,
         total_items: int = -1,
         etag: Optional[str] = None,
+        cache_control: Optional[str] = None,
     ) -> Response:
         """Prepare response."""
         if payload is None:
@@ -69,22 +72,34 @@ class GrampsJSONEncoder:
             self.filter_skip_keys = args["skipkeys"]
         else:
             self.filter_skip_keys = []
-
+        response_string = json.dumps(
+            self.extract_objects(payload),
+            ensure_ascii=False,
+            sort_keys=True,
+            default=default,
+        )
         res = Response(
             status=status,
-            response=json.dumps(
-                self.extract_objects(payload),
-                ensure_ascii=False,
-                sort_keys=True,
-                default=default,
-            ),
+            response=response_string,
             mimetype="application/json",
         )
 
         if total_items > -1:
             res.headers.add("X-Total-Count", str(total_items))
-        if etag:
-            res.headers.add("ETag", etag)
+
+        if not etag:
+            # by default, use the hash of the response as ETag
+            etag = hashlib.sha256(response_string.encode("utf-8")).hexdigest()
+        res.headers.add("ETag", f'"{etag}"')
+
+        if cache_control:
+            res.headers.add("Cache-Control", cache_control)
+        else:
+            # by default, use a no-cache policy: allow the browser to cache,
+            # but always revalidate with the server
+            res.headers.add("Cache-Control", "no-cache")
+
+        res = return_304_if_unchanged(res, etag=etag)
         return res
 
     def is_null(self, value: Any) -> bool:
@@ -97,7 +112,7 @@ class GrampsJSONEncoder:
             pass
         return False
 
-    def extract_object(self, obj: Any, apply_filter=True) -> Dict:
+    def extract_object(self, obj: Any, apply_filter=True) -> dict:
         """Extract and filter attributes for a Gramps object."""
         data = {}
         for key, value in obj.__class__.__dict__.items():
