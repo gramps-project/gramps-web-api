@@ -31,12 +31,7 @@ from gramps_webapi.api.people_families_cache import CachePeopleFamiliesProxy
 
 from ...types import Handle
 from ..cache import request_cache_decorator
-from ..util import (
-    abort_with_message,
-    get_db_handle,
-    get_locale_for_language,
-    use_args,
-)
+from ..util import abort_with_message, get_db_handle, get_locale_for_language, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .util import get_one_relationship

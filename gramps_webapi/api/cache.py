@@ -1,5 +1,7 @@
 """Caching functions."""
 
+from __future__ import annotations
+
 import hashlib
 import os
 
@@ -16,7 +18,6 @@ from gramps_webapi.api.util import (
     get_tree_from_jwt_or_fail,
 )
 from gramps_webapi.auth.const import PERM_VIEW_PRIVATE
-
 
 thumbnail_cache = Cache()
 request_cache = Cache()

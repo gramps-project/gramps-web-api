@@ -40,11 +40,7 @@ from gramps_webapi.types import Handle, MatchSegment, ResponseReturnValue
 
 from ...types import Handle
 from ..cache import request_cache_decorator
-from ..util import (
-    get_db_handle,
-    get_locale_for_language,
-    use_args,
-)
+from ..util import get_db_handle, get_locale_for_language, use_args
 from . import ProtectedResource
 from .util import get_person_profile_for_handle
 
