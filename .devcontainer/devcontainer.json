@@ -1,0 +1,28 @@
+{
+  "name": "Gramps Web API Dev",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "devcontainer",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "postCreateCommand": "scripts/start_dev_container.sh",
+  "postStartCommand": "pip install -e .[ai]",
+  "appPort": ["5555:5555"],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.pylint",
+        "ms-python.vscode-pylance",
+        "ms-python.black-formatter",
+        "GitHub.vscode-pull-request-github",
+        "GitHub.copilot"
+      ],
+      "settings": {
+        "python.experiments.optOutFrom": ["pythonTestAdapter"],
+        "editor.formatOnSave": true,
+        "files.trimTrailingWhitespace": true,
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.black-formatter"
+        }
+      }
+    }
+  }
+}

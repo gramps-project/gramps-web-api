@@ -1,0 +1,31 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Serve Web API",
+      "type": "shell",
+      "command": "python3 -O -m gramps_webapi run --port 5555 --host 0.0.0.0",
+      "isBackground": true,
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "runOptions": {
+        "instanceLimit": 1
+      }
+    },
+    {
+      "label": "Start Celery Worker",
+      "type": "shell",
+      "command": "celery -A gramps_webapi.celery worker --loglevel=INFO --concurrency=1",
+      "isBackground": true,
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "runOptions": {
+        "instanceLimit": 1
+      }
+    }
+  ]
+}

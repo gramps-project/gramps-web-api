@@ -89,7 +89,15 @@ def cli(ctx, config):
 @click.option("--use-wsgi", is_flag=True, help="Add a WSGI wrapper around the server")
 @click.pass_context
 def run(
-    ctx, port, tree, host, open_browser, debug_level, log_file, max_workers, use_wsgi
+    ctx,
+    port,
+    tree,
+    host,
+    open_browser,
+    debug_level,
+    log_file,
+    max_workers,
+    use_wsgi,
 ):
     """Run the app."""
     app = ctx.obj["app"]
@@ -133,7 +141,7 @@ def run(
             threads=max_workers,
         )
     else:
-        app.run(port=port, threaded=True)
+        app.run(port=port, threaded=True, host=host)
     print()
     print("Stopping Gramps Web API server...")
 

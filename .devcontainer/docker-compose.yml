@@ -1,0 +1,15 @@
+version: "3.8"
+services:
+  devcontainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+
+  redis:
+    image: valkey/valkey:alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
