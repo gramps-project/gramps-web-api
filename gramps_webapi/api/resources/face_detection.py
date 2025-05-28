@@ -25,20 +25,16 @@ from http import HTTPStatus
 from flask import Response, abort
 from gramps.gen.errors import HandleError
 
-from ..cache import thumbnail_cache
+from ..cache import request_cache_decorator
 from ..media import get_media_handler
-from ..util import (
-    get_db_handle,
-    get_tree_from_jwt,
-    make_cache_key_thumbnails,
-)
+from ..util import get_db_handle, get_tree_from_jwt
 from . import ProtectedResource
 
 
 class MediaFaceDetectionResource(ProtectedResource):
     """Resource for face detection in media files."""
 
-    @thumbnail_cache.cached(make_cache_key=make_cache_key_thumbnails)
+    @request_cache_decorator
     def get(self, handle) -> Response:
         """Get detected face regions."""
         db_handle = get_db_handle()

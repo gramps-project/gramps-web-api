@@ -26,7 +26,7 @@ from webargs import fields, validate
 
 from ..const import API_PREFIX
 from .auth import jwt_required
-from .cache import thumbnail_cache
+from .cache import thumbnail_cache_decorator
 from .media import get_media_handler
 from .resources.base import Resource
 from .resources.bookmarks import (
@@ -37,7 +37,7 @@ from .resources.bookmarks import (
 from .resources.chat import ChatResource
 from .resources.citations import CitationResource, CitationsResource
 from .resources.config import ConfigResource, ConfigsResource
-from .resources.dna import PersonDnaMatchesResource, DnaMatchParserResource
+from .resources.dna import DnaMatchParserResource, PersonDnaMatchesResource
 from .resources.events import EventResource, EventSpanResource, EventsResource
 from .resources.export_media import MediaArchiveFileResource, MediaArchiveResource
 from .resources.exporters import (
@@ -120,7 +120,7 @@ from .resources.user import (
     UsersResource,
     UserTriggerResetPasswordResource,
 )
-from .util import get_db_handle, get_tree_from_jwt, make_cache_key_thumbnails, use_args
+from .util import get_db_handle, get_tree_from_jwt, use_args
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
 
@@ -407,7 +407,7 @@ register_endpt(
     },
     location="query",
 )
-@thumbnail_cache.cached(make_cache_key=make_cache_key_thumbnails)
+@thumbnail_cache_decorator
 def get_thumbnail(args, handle, size):
     """Get a file's thumbnail."""
     tree = get_tree_from_jwt()
@@ -429,7 +429,7 @@ def get_thumbnail(args, handle, size):
     },
     location="query",
 )
-@thumbnail_cache.cached(make_cache_key=make_cache_key_thumbnails)
+@thumbnail_cache_decorator
 def get_cropped(args, handle: str, x1: int, y1: int, x2: int, y2: int):
     """Get the thumbnail of a cropped file."""
     tree = get_tree_from_jwt()
@@ -451,7 +451,7 @@ def get_cropped(args, handle: str, x1: int, y1: int, x2: int, y2: int):
     },
     location="query",
 )
-@thumbnail_cache.cached(make_cache_key=make_cache_key_thumbnails)
+@thumbnail_cache_decorator
 def get_thumbnail_cropped(
     args, handle: str, x1: int, y1: int, x2: int, y2: int, size: int
 ):

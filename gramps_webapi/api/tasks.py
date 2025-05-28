@@ -478,65 +478,76 @@ def process_transactions(
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=False, user_id=user_id
     )
-    with DbTxn("Raw transaction", db_handle) as trans:
-        for item in payload:
-            try:
-                class_name = item["_class"]
-                trans_type = item["type"]
-                handle = item["handle"]
-                old_data = item["old"]
-                if not force and not old_unchanged(
-                    db_handle, class_name, handle, old_data
-                ):
-                    if num_people_added or num_people_deleted:
-                        update_usage_people(tree=tree, user_id=user_id)
-                    abort_with_message(409, "Object has changed")
-                new_data = item["new"]
-                if new_data:
-                    new_obj = gramps_object_from_dict(new_data)
-                if trans_type == "delete":
-                    handle_delete(trans, class_name, handle)
-                    if (
-                        class_name == "Person"
-                        and handle == db_handle.get_default_handle()
+    try:
+        with DbTxn("Raw transaction", db_handle) as trans:
+            for item in payload:
+                try:
+                    class_name = item["_class"]
+                    trans_type = item["type"]
+                    handle = item["handle"]
+                    old_data = item["old"]
+                    if not force and not old_unchanged(
+                        db_handle, class_name, handle, old_data
                     ):
-                        db_handle.set_default_person_handle(None)
-                elif trans_type == "add":
-                    handle_add(trans, class_name, new_obj)
-                elif trans_type == "update":
-                    handle_commit(trans, class_name, new_obj)
-                else:
+                        if num_people_added or num_people_deleted:
+                            update_usage_people(tree=tree, user_id=user_id)
+                        abort_with_message(409, "Object has changed")
+                    new_data = item["new"]
+                    if new_data:
+                        new_obj = gramps_object_from_dict(new_data)
+                    if trans_type == "delete":
+                        handle_delete(trans, class_name, handle)
+                        if (
+                            class_name == "Person"
+                            and handle == db_handle.get_default_handle()
+                        ):
+                            db_handle.set_default_person_handle(None)
+                    elif trans_type == "add":
+                        handle_add(trans, class_name, new_obj)
+                    elif trans_type == "update":
+                        handle_commit(trans, class_name, new_obj)
+                    else:
+                        if num_people_added or num_people_deleted:
+                            update_usage_people(tree=tree, user_id=user_id)
+                        abort_with_message(400, "Unexpected transaction type")
+                except (KeyError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
                     if num_people_added or num_people_deleted:
                         update_usage_people(tree=tree, user_id=user_id)
-                    abort_with_message(400, "Unexpected transaction type")
-            except (KeyError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
-                if num_people_added or num_people_deleted:
-                    update_usage_people(tree=tree, user_id=user_id)
-                abort_with_message(400, "Error while processing transaction")
-        trans_dict = transaction_to_json(trans)
-    if num_people_new:
-        update_usage_people(tree=tree, user_id=user_id)
-    # update search index
-    indexer: SearchIndexer = get_search_indexer(tree)
-    for _trans_dict in trans_dict:
-        handle = _trans_dict["handle"]
-        class_name = _trans_dict["_class"]
-        if _trans_dict["type"] == "delete":
-            indexer.delete_object(handle, class_name)
-        else:
-            indexer.add_or_update_object(handle, db_handle, class_name)
-    # update semantic search index
-    if app_has_semantic_search():
-        semantic_indexer: SemanticSearchIndexer = get_semantic_search_indexer(tree)
+                    abort_with_message(400, "Error while processing transaction")
+            trans_dict = transaction_to_json(trans)
+    finally:
+        # close the *writeable* db handle regardless of errors
+        close_db(db_handle)
+    # reopen a *readonly* db handle for seach index update
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=True, readonly=True, user_id=user_id
+    )
+    try:
+        if num_people_new:
+            update_usage_people(tree=tree, user_id=user_id)
+        # update search index
+        indexer: SearchIndexer = get_search_indexer(tree)
         for _trans_dict in trans_dict:
             handle = _trans_dict["handle"]
             class_name = _trans_dict["_class"]
             if _trans_dict["type"] == "delete":
-                semantic_indexer.delete_object(handle, class_name)
+                indexer.delete_object(handle, class_name)
             else:
-                semantic_indexer.add_or_update_object(handle, db_handle, class_name)
+                indexer.add_or_update_object(handle, db_handle, class_name)
+        # update semantic search index
+        if app_has_semantic_search():
+            semantic_indexer: SemanticSearchIndexer = get_semantic_search_indexer(tree)
+            for _trans_dict in trans_dict:
+                handle = _trans_dict["handle"]
+                class_name = _trans_dict["_class"]
+                if _trans_dict["type"] == "delete":
+                    semantic_indexer.delete_object(handle, class_name)
+                else:
+                    semantic_indexer.add_or_update_object(handle, db_handle, class_name)
+    finally:
+        close_db(db_handle)
     return trans_dict
-
+        
 
 def handle_delete(trans: DbTxn, class_name: str, handle: str) -> None:
     """Handle a delete action."""

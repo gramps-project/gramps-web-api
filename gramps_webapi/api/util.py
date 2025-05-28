@@ -559,33 +559,6 @@ def send_email(
         raise ValueError("Error while trying to send e-mail.")
 
 
-def make_cache_key_thumbnails(*args, **kwargs):
-    """Make a cache key for thumbnails."""
-    # hash query args except jwt
-    query_args = list((k, v) for (k, v) in request.args.items(multi=True) if k != "jwt")
-    args_as_sorted_tuple = tuple(sorted(query_args))
-    args_as_bytes = str(args_as_sorted_tuple).encode()
-    arg_hash = hashlib.md5(args_as_bytes)
-    arg_hash = str(arg_hash.hexdigest())
-
-    # get media checksum
-    handle = kwargs["handle"]
-    tree = get_tree_from_jwt()
-    db_handle = get_db_handle()
-    try:
-        obj = db_handle.get_media_from_handle(handle)
-    except HandleError:
-        abort_with_message(404, f"Handle {handle} not found")
-    # checksum in the DB
-    checksum = obj.checksum
-
-    dbmgr = get_db_manager(tree)
-
-    cache_key = checksum + request.path + arg_hash + dbmgr.dirname
-
-    return cache_key
-
-
 def get_config(key: str) -> Any:
     """Get a config item.
 

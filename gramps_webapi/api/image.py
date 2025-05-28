@@ -30,7 +30,7 @@ import ffmpeg
 from pdf2image import convert_from_path
 from PIL import Image, ImageOps
 from PIL.Image import Image as ImageType
-from pkg_resources import resource_filename
+from pkg_resources import resource_filename  # type: ignore[import-untyped]
 
 from gramps_webapi.const import MIME_PDF
 from gramps_webapi.types import FilenameOrPath

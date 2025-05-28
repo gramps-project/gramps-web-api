@@ -30,6 +30,8 @@ from flask import abort, current_app, jsonify, send_file
 from flask_jwt_extended import get_jwt_identity
 from webargs import fields, validate
 
+from gramps_webapi.types import ResponseReturnValue
+
 from ...auth.const import PERM_VIEW_PRIVATE
 from ...const import MIME_TYPES
 from ..auth import has_permissions
@@ -38,7 +40,6 @@ from ..tasks import AsyncResult, generate_report, make_task_response, run_task
 from ..util import get_buffer_for_file, get_db_handle, get_tree_from_jwt, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
-from gramps_webapi.types import ResponseReturnValue
 
 
 class ReportsResource(ProtectedResource, GrampsJSONEncoder):
@@ -159,6 +160,7 @@ class ReportFileResultResource(ProtectedResource, GrampsJSONEncoder):
         if not match:
             abort(422)
 
+        assert match is not None  # mypy
         file_type = match.group(2)
         file_path = os.path.join(report_path, filename)
         if not os.path.isfile(file_path):

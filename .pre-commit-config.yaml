@@ -12,7 +12,7 @@ repos:
     rev: v1.15.0
     hooks:
     -   id: mypy
-        args: [--ignore-missing-imports, --no-strict-optional]
+        args: [--install-types, --non-interactive, --ignore-missing-imports]
         additional_dependencies:
           - types-setuptools
           - types-PyYAML

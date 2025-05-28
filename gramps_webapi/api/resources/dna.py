@@ -39,6 +39,7 @@ from gramps_webapi.api.people_families_cache import CachePeopleFamiliesProxy
 from gramps_webapi.types import Handle, MatchSegment, ResponseReturnValue
 
 from ...types import Handle
+from ..cache import request_cache_decorator
 from ..util import get_db_handle, get_locale_for_language, use_args
 from . import ProtectedResource
 from .util import get_person_profile_for_handle
@@ -60,6 +61,7 @@ class PersonDnaMatchesResource(ProtectedResource):
         },
         location="query",
     )
+    @request_cache_decorator
     def get(self, args: dict, handle: str):
         """Get the DNA match data."""
         db_handle = CachePeopleFamiliesProxy(get_db_handle())

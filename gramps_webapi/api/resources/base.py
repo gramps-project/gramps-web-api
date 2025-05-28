@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020-2024      David Straub
+# Copyright (C) 2020-2025      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -30,19 +30,17 @@ from gramps.gen.db import DbTxn
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
-
-# from gramps.gen.lib.serialize import from_json
 from gramps.gen.utils.grampslocale import GrampsLocale
 from pyparsing.exceptions import ParseBaseException
 from webargs import fields, validate
 
-from gramps_webapi.api.search.indexer import SemanticSearchIndexer
 from gramps_webapi.types import ResponseReturnValue
 
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ...const import GRAMPS_OBJECT_PLURAL
 from ..auth import require_permissions
-from ..search import SearchIndexer, get_search_indexer, get_semantic_search_indexer
+from ..cache import request_cache_decorator
+from ..search import SearchIndexer, get_search_indexer
 from ..tasks import run_task, update_search_indices_from_transaction
 from ..util import (
     check_quota_people,
@@ -232,6 +230,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         },
         location="query",
     )
+    @request_cache_decorator
     def get(self, args: dict, handle: str) -> ResponseReturnValue:
         """Get the object."""
         try:
@@ -377,6 +376,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         },
         location="query",
     )
+    @request_cache_decorator
     def get(self, args: dict) -> ResponseReturnValue:
         """Get all objects."""
         locale = get_locale_for_language(args["locale"], default=True)

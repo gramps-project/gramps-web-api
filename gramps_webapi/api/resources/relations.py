@@ -30,7 +30,8 @@ from webargs import fields, validate
 from gramps_webapi.api.people_families_cache import CachePeopleFamiliesProxy
 
 from ...types import Handle
-from ..util import get_db_handle, get_locale_for_language, use_args, abort_with_message
+from ..cache import request_cache_decorator
+from ..util import abort_with_message, get_db_handle, get_locale_for_language, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .util import get_one_relationship
@@ -48,6 +49,7 @@ class RelationResource(ProtectedResource, GrampsJSONEncoder):
         },
         location="query",
     )
+    @request_cache_decorator
     def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:
         """Get the most direct relationship between two people."""
         db_handle = CachePeopleFamiliesProxy(get_db_handle())
@@ -93,6 +95,7 @@ class RelationsResource(ProtectedResource, GrampsJSONEncoder):
         },
         location="query",
     )
+    @request_cache_decorator
     def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:
         """Get all possible relationships between two people."""
         db_handle = CachePeopleFamiliesProxy(get_db_handle())
