@@ -7,6 +7,25 @@ services:
     volumes:
       - ../..:/workspaces:cached
     command: sleep infinity
+    environment:
+      LANGUAGE: en
+      OMP_NUM_THREADS: 1
+      GRAMPSWEB_USER_DB_URI: sqlite:////workspaces/web-api/data/users.sqlite
+      GRAMPSWEB_MEDIA_BASE_DIR: /workspaces/web-api/data/media
+      GRAMPSWEB_SEARCH_INDEX_DB_URI: sqlite:////workspaces/web-api/data/indexdir/search_index.db
+      GRAMPSWEB_STATIC_PATH: /workspaces/web-api/data/static
+      GRAMPSWEB_THUMBNAIL_CACHE_CONFIG__CACHE_DIR: /workspaces/web-api/data/thumbnail_cache
+      GRAMPSWEB_REPORT_DIR: /workspaces/web-api/data/reports_cache
+      GRAMPSWEB_EXPORT_DIR: /workspaces/web-api/data/export_cache
+      GRAMPSHOME: /workspaces/web-api/data/
+      GRAMPS_DATABASE_PATH: /workspaces/web-api/data/grampsdb
+      GRAMPSWEB_TREE: "Gramps Web"
+      # Do not use this value in production!!
+      GRAMPSWEB_SECRET_KEY: QAVoeYDzkQves9iDZ5PkxfdUoVElVMVYPqz-QXha6yE
+      GRAMPSWEB_CORS_ORIGINS: "*"
+      GRAMPSWEB_VECTOR_EMBEDDING_MODEL: sentence-transformers/distiluse-base-multilingual-cased-v2
+      GRAMPSWEB_CELERY_CONFIG__broker_url: redis://redis:6379/0
+      GRAMPSWEB_CELERY_CONFIG__result_backend: redis://redis:6379/0
 
   redis:
     image: valkey/valkey:alpine
