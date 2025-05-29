@@ -26,6 +26,7 @@ services:
       GRAMPSWEB_VECTOR_EMBEDDING_MODEL: sentence-transformers/distiluse-base-multilingual-cased-v2
       GRAMPSWEB_CELERY_CONFIG__broker_url: redis://redis:6379/0
       GRAMPSWEB_CELERY_CONFIG__result_backend: redis://redis:6379/0
+      GRAMPSWEB_LOG_LEVEL: DEBUG
 
   redis:
     image: valkey/valkey:alpine
