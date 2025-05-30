@@ -56,7 +56,10 @@ class TestPerson(unittest.TestCase):
         cls.dbman = CLIDbManager(DbState())
         _, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
-            cls.app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
+            cls.app = create_app(
+                config={"TESTING": True, "RATELIMIT_ENABLED": False},
+                config_from_env=False,
+            )
         cls.client = cls.app.test_client()
         db_manager = WebDbManager(cls.name, create_if_missing=False)
         tree = db_manager.dirname

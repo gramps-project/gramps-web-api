@@ -52,14 +52,8 @@ class TestTransactionHistoryResource(unittest.TestCase):
         self.dbman = CLIDbManager(DbState())
         dirpath, _ = self.dbman.create_new_db_cli(self.name, dbid="sqlite")
         tree = os.path.basename(dirpath)
-        with patch.dict(
-            "os.environ",
-            {
-                ENV_CONFIG_FILE: TEST_EMPTY_GRAMPS_AUTH_CONFIG,
-                "GRAMPSWEB_TREE": self.name,
-            },
-        ):
-            self.app = create_app()
+        with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EMPTY_GRAMPS_AUTH_CONFIG}):
+            self.app = create_app(config_from_env=False, config={"TREE": self.name})
         self.app.config["TESTING"] = True
         self.client = self.app.test_client()
         with self.app.app_context():

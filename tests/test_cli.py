@@ -30,9 +30,9 @@ from gramps.gen.dbstate import DbState
 
 from gramps_webapi.__main__ import cli
 from gramps_webapi.app import create_app
+from gramps_webapi.auth import get_user_details
 from gramps_webapi.const import ENV_CONFIG_FILE
 from gramps_webapi.dbmanager import WebDbManager
-from gramps_webapi.auth import get_user_details
 
 
 class TestCLI(unittest.TestCase):
@@ -50,7 +50,7 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
         with open(cls.config_file.name, "w") as f:
             f.write(config)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: cls.config_file.name}):
-            cls.app = create_app()
+            cls.app = create_app(config_from_env=False)
         cls.app.config["TESTING"] = True
         cls.client = cls.app.test_client()
         cls.runner = CliRunner()

@@ -44,13 +44,16 @@ class TestS3(unittest.TestCase):
         """Test class setup."""
         test_db = ExampleDbSQLite(name="example_gramps")
         with patch.dict(
-            "os.environ",
-            {
-                ENV_CONFIG_FILE: TEST_EXAMPLE_GRAMPS_AUTH_CONFIG,
-                "GRAMPSWEB_MEDIA_BASE_DIR": "s3://test-bucket",
-            },
+            "os.environ", {ENV_CONFIG_FILE: TEST_EXAMPLE_GRAMPS_AUTH_CONFIG}
         ):
-            test_app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
+            test_app = create_app(
+                config={
+                    "TESTING": True,
+                    "RATELIMIT_ENABLED": False,
+                    "MEDIA_BASE_DIR": "s3://test-bucket",
+                },
+                config_from_env=False,
+            )
         cls.client = test_app.test_client()
         with test_app.app_context():
             db_manager = WebDbManager(name=test_db.name, create_if_missing=False)

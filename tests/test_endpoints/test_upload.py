@@ -19,8 +19,8 @@
 
 """Tests uploading media files POST."""
 
-import os
 import hashlib
+import os
 import shutil
 import tempfile
 import unittest
@@ -34,7 +34,7 @@ from PIL import Image
 
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import add_user, user_db
-from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER, ROLE_ADMIN
+from gramps_webapi.auth.const import ROLE_ADMIN, ROLE_GUEST, ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
 
@@ -66,7 +66,7 @@ class TestUpload(unittest.TestCase):
         dirpath, _ = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
         tree = os.path.basename(dirpath)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
-            cls.app = create_app()
+            cls.app = create_app(config_from_env=False)
         cls.app.config["TESTING"] = True
         cls.media_base_dir = tempfile.mkdtemp()
         cls.app.config["MEDIA_BASE_DIR"] = cls.media_base_dir
@@ -210,7 +210,7 @@ class TestUploadWithQuota(unittest.TestCase):
         dirpath, _ = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
         tree = os.path.basename(dirpath)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
-            cls.app = create_app()
+            cls.app = create_app(config_from_env=False)
         cls.app.config["TESTING"] = True
         cls.media_base_dir = tempfile.mkdtemp()
         cls.app.config["MEDIA_BASE_DIR"] = cls.media_base_dir

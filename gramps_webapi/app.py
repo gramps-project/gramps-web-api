@@ -76,7 +76,7 @@ def deprecated_config_from_env(app):
     return app
 
 
-def create_app(config: Optional[Dict[str, Any]] = None):
+def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = True):
     """Flask application factory."""
     app = Flask(__name__)
 
@@ -93,7 +93,8 @@ def create_app(config: Optional[Dict[str, Any]] = None):
     deprecated_config_from_env(app)
 
     # use prefixed environment variables if exist
-    app.config.from_prefixed_env(prefix="GRAMPSWEB")
+    if config_from_env:
+        app.config.from_prefixed_env(prefix="GRAMPSWEB")
 
     # update config from dictionary if present
     if config:

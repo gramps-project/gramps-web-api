@@ -21,15 +21,14 @@
 
 import os
 import unittest
-from unittest.mock import patch
-
 from time import sleep
+from unittest.mock import patch
 
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
-from gramps_webapi.auth import user_db, add_user
+from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
@@ -42,7 +41,10 @@ class TestRateLimits(unittest.TestCase):
         dbpath, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
         tree = os.path.basename(dbpath)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
-            cls.app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": True})
+            cls.app = create_app(
+                config={"TESTING": True, "RATELIMIT_ENABLED": True},
+                config_from_env=False,
+            )
             cls.client = cls.app.test_client()
         with cls.app.app_context():
             user_db.create_all()

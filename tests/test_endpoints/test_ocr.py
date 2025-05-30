@@ -50,7 +50,7 @@ class TestOcr(unittest.TestCase):
         dirpath, _ = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
         tree = os.path.basename(dirpath)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
-            cls.app = create_app()
+            cls.app = create_app(config_from_env=False)
         cls.app.config["TESTING"] = True
         cls.media_base_dir = tempfile.mkdtemp()
         cls.app.config["MEDIA_BASE_DIR"] = cls.media_base_dir

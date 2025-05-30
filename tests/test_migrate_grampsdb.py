@@ -57,7 +57,7 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
         with open(cls.config_file.name, "w") as f:
             f.write(config)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: cls.config_file.name}):
-            cls.app = create_app()
+            cls.app = create_app(config_from_env=False)
         cls.app.config["TESTING"] = True
         cls.client = cls.app.test_client()
         cls.runner = CliRunner()
@@ -223,7 +223,7 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
         with open(cls.config_file.name, "w") as f:
             f.write(config)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: cls.config_file.name}):
-            cls.app = create_app()
+            cls.app = create_app(config_from_env=False)
         cls.app.config["TESTING"] = True
         cls.client = cls.app.test_client()
         cls.db_manager = WebDbManager(cls.name, create_if_missing=False)

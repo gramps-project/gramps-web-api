@@ -28,7 +28,7 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
-from gramps_webapi.auth import user_db, add_user
+from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import (
     ROLE_ADMIN,
     ROLE_MEMBER,
@@ -47,7 +47,10 @@ class TestConfig(unittest.TestCase):
         dirpath, _name = self.dbman.create_new_db_cli(self.name, dbid="sqlite")
         tree = os.path.basename(dirpath)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
-            self.app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
+            self.app = create_app(
+                config={"TESTING": True, "RATELIMIT_ENABLED": False},
+                config_from_env=False,
+            )
         self.client = self.app.test_client()
         with self.app.app_context():
             user_db.create_all()
