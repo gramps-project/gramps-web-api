@@ -280,14 +280,8 @@ class TestReportsEmptyDatabase(unittest.TestCase):
         cls.dbman = CLIDbManager(DbState())
         cls.dbpath, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
         cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
-        with patch.dict(
-            "os.environ",
-            {
-                ENV_CONFIG_FILE: TEST_EMPTY_GRAMPS_AUTH_CONFIG,
-                "TREE": cls.name,
-            },
-        ):
-            cls.test_app = create_app()
+        with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EMPTY_GRAMPS_AUTH_CONFIG}):
+            cls.test_app = create_app(config_from_env=False, config={"TREE": cls.name})
         cls.test_app.config["TESTING"] = True
         cls.client = cls.test_app.test_client()
         cls.tree = os.path.basename(cls.dbpath)

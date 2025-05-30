@@ -60,15 +60,13 @@ class TestImporterMedia(unittest.TestCase):
         cls.dbman = CLIDbManager(DbState())
         cls.dbpath, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
         cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
-        with patch.dict(
-            "os.environ",
-            {
-                ENV_CONFIG_FILE: TEST_EMPTY_GRAMPS_AUTH_CONFIG,
-                "GRAMPSWEB_TREE": cls.name,
-            },
-        ):
+        with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EMPTY_GRAMPS_AUTH_CONFIG}):
             cls.test_app = create_app(
-                {"EXPORT_DIR": cls.export_dir, "MEDIA_BASE_DIR": cls.media_dir}
+                {
+                    "EXPORT_DIR": cls.export_dir,
+                    "MEDIA_BASE_DIR": cls.media_dir,
+                    "TREE": cls.name,
+                },
             )
         cls.test_app.config["TESTING"] = True
         cls.client = cls.test_app.test_client()

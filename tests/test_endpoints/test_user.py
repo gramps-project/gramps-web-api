@@ -64,7 +64,10 @@ class TestUser(unittest.TestCase):
         self.tree = os.path.basename(dbpath)
         self.tree2 = os.path.basename(dbpath2)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
-            self.app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
+            self.app = create_app(
+                config={"TESTING": True, "RATELIMIT_ENABLED": False},
+                config_from_env=False,
+            )
         self.client = self.app.test_client()
         with self.app.app_context():
             user_db.create_all()
@@ -240,7 +243,9 @@ class TestUser(unittest.TestCase):
             msg = args[0]
             # extract the token from the message body
             body = msg.get_body().get_payload().replace("=\n", "")
-            matches = re.findall(r"jwt=3D([a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+)", body)
+            matches = re.findall(
+                r"jwt=3D([a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+)", body
+            )
             self.assertEqual(len(matches), 1, msg=body)
             token = matches[0]
             if token[:2] == "3D":
@@ -637,7 +642,9 @@ class TestUser(unittest.TestCase):
             msg = args[0]
             # extract the token from the message body
             body = msg.get_body().get_payload().replace("=\n", "")
-            matches = re.findall(r"jwt=3D([a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+)", body)
+            matches = re.findall(
+                r"jwt=3D([a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+)", body
+            )
             self.assertEqual(len(matches), 1, msg=body)
             token = matches[0]
             if token[:2] == "3D":
@@ -879,7 +886,10 @@ class TestUserCreateOwner(unittest.TestCase):
         self.dbman = CLIDbManager(DbState())
         _, _name = self.dbman.create_new_db_cli(self.name, dbid="sqlite")
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
-            self.app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
+            self.app = create_app(
+                config={"TESTING": True, "RATELIMIT_ENABLED": False},
+                config_from_env=False,
+            )
         self.client = self.app.test_client()
         with self.app.app_context():
             user_db.create_all()

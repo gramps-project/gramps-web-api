@@ -43,7 +43,10 @@ class TestTrees(unittest.TestCase):
         dbpath, _name = self.dbman.create_new_db_cli(self.name, dbid="sqlite")
         self.tree = os.path.basename(dbpath)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
-            self.app = create_app(config={"TESTING": True, "RATELIMIT_ENABLED": False})
+            self.app = create_app(
+                config={"TESTING": True, "RATELIMIT_ENABLED": False},
+                config_from_env=False,
+            )
         self.client = self.app.test_client()
         with self.app.app_context():
             user_db.create_all()
