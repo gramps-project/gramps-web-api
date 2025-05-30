@@ -2,6 +2,7 @@ FROM mcr.microsoft.com/devcontainers/python:3.11
 
 RUN apt-get update && apt-get install -y \
   gettext appstream pkg-config libcairo2-dev gir1.2-gtk-3.0 \
+  gir1.2-gexiv2-0.10 gir1.2-osmgpsmap-1.0 \
   libgirepository1.0-dev libicu-dev libopencv-dev tesseract-ocr \
   tesseract-ocr-all gir1.2-pango-1.0 \
   && rm -rf /var/lib/apt/lists/*
