@@ -130,3 +130,9 @@ class ExampleDbSQLite(ExampleDbBase, WebDbManager):
         if name != import_name:
             dbman.rename_database(os.path.join(self.path, "name.txt"), self.name)
         WebDbManager.__init__(self, self.name)
+
+
+def tearDownModule():
+    """Test module tear down."""
+    if TEST_GRAMPSHOME and os.path.isdir(TEST_GRAMPSHOME):
+        shutil.rmtree(TEST_GRAMPSHOME)

@@ -122,10 +122,3 @@ def setUpModule():
         "tags": db_state.db.get_number_of_tags(),
     }
     db_state.db.close()
-
-
-def tearDownModule():
-    """Test module tear down."""
-    if TEST_GRAMPSHOME and os.path.isdir(TEST_GRAMPSHOME):
-        # shutil.rmtree(TEST_GRAMPSHOME)
-        pass
