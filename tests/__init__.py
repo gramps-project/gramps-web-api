@@ -30,6 +30,7 @@ from typing import Optional
 
 TEST_GRAMPSHOME = tempfile.mkdtemp()
 os.environ["GRAMPSHOME"] = TEST_GRAMPSHOME
+os.environ["GRAMPS_DATABASE_PATH"] = os.path.join(TEST_GRAMPSHOME, "gramps", "grampsdb")
 
 from gramps.cli.clidbman import CLIDbManager
 from gramps.cli.grampscli import CLIManager

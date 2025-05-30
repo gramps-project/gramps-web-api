@@ -83,7 +83,8 @@ def setUpModule():
                 "MEDIA_BASE_DIR": f"{os.environ['GRAMPS_RESOURCES']}/doc/gramps/example/gramps",
                 "VECTOR_EMBEDDING_MODEL": "paraphrase-albert-small-v2",
                 "LLM_MODEL": "mock-model",
-            }
+            },
+            config_from_env=False,
         )
     TEST_CLIENT = test_app.test_client()
     with test_app.app_context():
