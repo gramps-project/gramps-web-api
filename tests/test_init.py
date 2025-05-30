@@ -43,8 +43,6 @@ class TestExampleDb(unittest.TestCase):
 
     def test_example_db_sqlite(self):
         """Test the SQLite example DB."""
-        test_grampshome = tempfile.mkdtemp()
-        os.environ["GRAMPSHOME"] = test_grampshome
         db = ExampleDbSQLite()
         self.assertEqual(getconfig("database.path"), db.db_path)
         dbman = CLIDbManager(DbState())
@@ -55,6 +53,3 @@ class TestExampleDb(unittest.TestCase):
         self.assertEqual(db_info[0][0], "example")
         # DB path
         self.assertEqual(os.path.dirname(db_info[0][1]), db.db_path)
-        # DB cleanup
-        shutil.rmtree(test_grampshome)
-        self.assertTrue(not os.path.exists(test_grampshome))
