@@ -127,9 +127,5 @@ def setUpModule():
 def tearDownModule():
     """Test module tear down."""
     if TEST_GRAMPSHOME and os.path.isdir(TEST_GRAMPSHOME):
-        # delete all files and directories in the test Gramps home directory
-        for entry in os.scandir(TEST_GRAMPSHOME):
-            if entry.is_file() or entry.is_symlink():
-                entry.unlink()
-            elif entry.is_dir():
-                shutil.rmtree(entry.path)
+        # shutil.rmtree(TEST_GRAMPSHOME)
+        pass
