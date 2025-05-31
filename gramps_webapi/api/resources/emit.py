@@ -27,8 +27,6 @@ from flask import Response, current_app, json
 from gramps.gen.db import DbBookmarks
 from gramps.gen.lib.baseobj import BaseObject
 
-from .util import return_304_if_unchanged
-
 
 def default(obj: Any):
     """Handle unserializable objects."""
@@ -99,7 +97,6 @@ class GrampsJSONEncoder:
             # but always revalidate with the server
             res.headers.add("Cache-Control", "no-cache")
 
-        res = return_304_if_unchanged(res, etag=etag)
         return res
 
     def is_null(self, value: Any) -> bool:
