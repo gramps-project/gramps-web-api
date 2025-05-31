@@ -121,9 +121,12 @@ class ObjectStorageFileHandler(FileHandler):
 
     def get_file_size(self) -> int:
         """Return the file size in bytes."""
-        response = self.client.head_object(
-            Bucket=self.bucket_name, Key=self.object_name
-        )
+        try:
+            response = self.client.head_object(
+                Bucket=self.bucket_name, Key=self.object_name
+            )
+        except ClientError as exc:
+            raise FileNotFoundError from exc
         file_size = response["ContentLength"]
         return file_size
 

@@ -111,7 +111,10 @@ class MediaFileResource(ProtectedResource):
                 HTTPStatus.CONFLICT, "Uploaded file has the wrong checksum"
             )
         # we're updating an existing file
-        size_old = file_handler.get_file_size()
+        try:
+            size_old = file_handler.get_file_size()
+        except FileNotFoundError:
+            size_old = 0
         size_delta = size - size_old
         if size_delta > 0:
             check_quota_media(to_add=size_delta)
