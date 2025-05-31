@@ -284,7 +284,7 @@ def index_full(ctx):
 
     t0 = time.time()
     try:
-        indexer.reindex_full(app, db, progress_cb=progress_callback_count)
+        indexer.reindex_full(db, progress_cb=progress_callback_count)
     except:
         app.logger.exception("Error during indexing")
     finally:
