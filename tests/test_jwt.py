@@ -52,7 +52,7 @@ def _add_person(gender, first_name, surname, trans, db, private=False):
 class TestPerson(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.name = "Test Web API"
+        cls.name = "Test Web API test_jwt"
         cls.dbman = CLIDbManager(DbState())
         _, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
