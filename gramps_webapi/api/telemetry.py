@@ -1,5 +1,7 @@
 """Optional telemetry for Gramps Web API."""
 
+from __future__ import annotations
+
 import os
 import time
 import uuid
