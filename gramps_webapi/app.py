@@ -23,7 +23,7 @@ import logging
 import os
 import warnings
 from typing import Any, Dict, Optional
-from auth.oidc import configure_oauth, oidc_bp
+from gramps_webapi.auth.oidc import configure_oauth, oidc_bp
 from dotenv import load_dotenv
 
 from flask import Flask, abort, g, send_from_directory, session
