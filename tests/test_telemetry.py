@@ -34,7 +34,7 @@ from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 from gramps_webapi.dbmanager import WebDbManager
 
 
-class TestPerson(unittest.TestCase):
+class TestTelemetry(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.name = "Test Web API test_jwt"
