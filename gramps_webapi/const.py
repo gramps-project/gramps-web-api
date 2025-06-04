@@ -195,3 +195,8 @@ DISABLED_IMPORTERS = ["gpkg"]
 
 # list of exporters (by file extension) that are not allowed
 DISABLED_EXPORTERS = ["gpkg"]
+
+# Settings for the opt-out telemetry
+TELEMETRY_ENDPOINT = "https://telemetry-cloud-run-442080026669.europe-west1.run.app"
+TELEMETRY_TIMESTAMP_KEY = "telemetry_last_sent"
+TELEMETRY_SERVER_ID_KEY = "telemetry_server_uuid"

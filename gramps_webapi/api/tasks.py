@@ -53,6 +53,7 @@ from .resources.util import (
     transaction_to_json,
 )
 from .search import get_search_indexer, get_semantic_search_indexer
+from .telemetry import get_telemetry_payload, send_telemetry, update_telemetry_timestamp
 from .util import (
     abort_with_message,
     check_quota_people,
@@ -547,7 +548,7 @@ def process_transactions(
     finally:
         close_db(db_handle)
     return trans_dict
-        
+
 
 def handle_delete(trans: DbTxn, class_name: str, handle: str) -> None:
     """Handle a delete action."""
@@ -606,3 +607,12 @@ def update_search_indices_from_transaction(
                 indexer_semantic.add_or_update_object(handle, db_handle, class_name)
     finally:
         close_db(db_handle)
+
+
+@shared_task()
+def send_telemetry_task(tree: str):
+    """Send telemetry"""
+    data = get_telemetry_payload(tree_id=tree)
+    # if the request fails, an exception will be raised
+    send_telemetry(data=data)
+    update_telemetry_timestamp()
