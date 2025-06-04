@@ -26,6 +26,6 @@ jobs:
           pip install .[ai]
           pip list
       - name: Run type checker
-        run: mypy --install-types --ignore-missing-imports --exclude build .
+        run: mypy --install-types --non-interactive --ignore-missing-imports --exclude build .
       - name: Test with pytest
         run: pytest
