@@ -23,8 +23,10 @@ import logging
 import os
 import warnings
 from typing import Any, Dict, Optional
+from auth.oidc import configure_oauth, oidc_bp
+from dotenv import load_dotenv
 
-from flask import Flask, abort, g, send_from_directory
+from flask import Flask, abort, g, send_from_directory, session
 from flask_compress import Compress
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
@@ -32,7 +34,7 @@ from gramps.gen.config import config as gramps_config
 from gramps.gen.config import set as setconfig
 
 from .api import api_blueprint
-from .api.cache import request_cache, thumbnail_cache
+from .api.cache import thumbnail_cache
 from .api.ratelimiter import limiter
 from .api.search.embeddings import load_model
 from .api.util import close_db
@@ -42,6 +44,7 @@ from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI
 from .dbmanager import WebDbManager
 from .util.celery import create_celery
 
+load_dotenv()
 
 def deprecated_config_from_env(app):
     """Add deprecated config from environment variables.
@@ -76,10 +79,10 @@ def deprecated_config_from_env(app):
     return app
 
 
-def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = True):
+def create_app(config: Optional[Dict[str, Any]] = None):
     """Flask application factory."""
     app = Flask(__name__)
-
+    app.secret_key = os.getenv("SECRET_KEY")
     app.logger.setLevel(logging.INFO)
 
     # load default config
@@ -93,8 +96,7 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
     deprecated_config_from_env(app)
 
     # use prefixed environment variables if exist
-    if config_from_env:
-        app.config.from_prefixed_env(prefix="GRAMPSWEB")
+    app.config.from_prefixed_env(prefix="GRAMPSWEB")
 
     # update config from dictionary if present
     if config:
@@ -143,7 +145,9 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
     app.config["SQLALCHEMY_DATABASE_URI"] = app.config["USER_DB_URI"]
     user_db.init_app(app)
 
-    request_cache.init_app(app, config=app.config["REQUEST_CACHE_CONFIG"])
+    configure_oauth(app)
+    app.register_blueprint(oidc_bp)
+    
     thumbnail_cache.init_app(app, config=app.config["THUMBNAIL_CACHE_CONFIG"])
 
     # enable CORS for /api/... resources
@@ -206,5 +210,48 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
     @app.route("/ready", methods=["GET"])
     def ready():
         return {"status": "ready"}, 200
+
+    @oidc_bp.route("/callback/<provider>")
+    def authorize(provider):
+        client = oauth.create_client(provider)
+        token = client.authorize_access_token()
+        oidc_user = client.parse_id_token(token) if provider == "google" else client.get('user').json()
+        
+        # Get email from OIDC user info
+        email = oidc_user.get('email')
+        if not email:
+            return {"error": "No email provided by OIDC provider"}, 400
+        
+        # Check if user exists
+        query = user_db.session.query(User)
+        user = query.filter_by(email=email).scalar()
+        
+        if not user:
+            # Create new user with default role
+            try:
+                user = User(
+                    id=uuid.uuid4(),
+                    name=email.split('@')[0],  # Use part before @ as username
+                    email=email,
+                    fullname=oidc_user.get('name', ''),
+                    role=0,  # Default role
+                    pwhash='',  # No password for OIDC users
+                )
+                user_db.session.add(user)
+                user_db.session.commit()
+            except IntegrityError:
+                return {"error": "User creation failed"}, 400
+        
+        # Set up session
+        session['user_id'] = str(user.id)
+        session['user_name'] = user.name
+        session['user_role'] = user.role
+        
+        return {"status": "logged_in", "provider": provider, "user": {
+            "name": user.name,
+            "email": user.email,
+            "full_name": user.fullname,
+            "role": user.role
+        }}
 
     return app
