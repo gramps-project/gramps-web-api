@@ -21,7 +21,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import io
 import json
 import logging
@@ -46,6 +45,7 @@ from flask import (
     request,
 )
 from flask_jwt_extended import get_jwt, get_jwt_identity
+from flask_jwt_extended.exceptions import WrongTokenError
 from gramps.cli.clidbman import NAME_FILE, CLIDbManager
 from gramps.gen.config import config
 from gramps.gen.const import GRAMPS_LOCALE
@@ -373,7 +373,11 @@ def get_tree_from_jwt() -> str | None:
     Needs request context. Can return None if no tree ID is present,
     e.g. for e-mail confirmation or password reset tokens.
     """
-    claims = get_jwt()
+    try:
+        claims = get_jwt()
+    except WrongTokenError:
+        # wrong token type, so no tree ID
+        return None
     return claims.get("tree")
 
 

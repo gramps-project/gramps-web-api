@@ -37,7 +37,7 @@ from gramps_webapi.dbmanager import WebDbManager
 class TestTelemetry(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.name = "Test Web API test_jwt"
+        cls.name = "Test Web API test_telemetry"
         cls.dbman = CLIDbManager(DbState())
         _, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):

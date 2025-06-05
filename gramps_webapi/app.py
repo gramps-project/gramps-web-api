@@ -28,6 +28,7 @@ from flask import Flask, abort, g, send_from_directory
 from flask_compress import Compress
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, verify_jwt_in_request
+from flask_jwt_extended.exceptions import WrongTokenError
 from gramps.gen.config import config as gramps_config
 from gramps.gen.config import set as setconfig
 
@@ -186,8 +187,12 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
     @app.before_request
     def maybe_send_telemetry() -> None:
         """Send telementry if needed."""
-        if verify_jwt_in_request(optional=True) is None:
-            # for requests without JWT, do nothing
+        try:
+            if verify_jwt_in_request(optional=True) is None:
+                # for requests without JWT, do nothing
+                return None
+        except WrongTokenError:
+            # for the refresh token endpoint, this will fail
             return None
         tree_id = get_tree_from_jwt()
         if not tree_id:
