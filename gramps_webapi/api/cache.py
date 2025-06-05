@@ -21,6 +21,7 @@ from gramps_webapi.auth.const import PERM_VIEW_PRIVATE
 
 thumbnail_cache = Cache()
 request_cache = Cache()
+persistent_cache = Cache()
 
 
 def get_db_last_change_timestamp(tree_id: str) -> int | float | None:

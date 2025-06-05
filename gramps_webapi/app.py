@@ -27,15 +27,18 @@ from typing import Any, Dict, Optional
 from flask import Flask, abort, g, send_from_directory
 from flask_compress import Compress
 from flask_cors import CORS
-from flask_jwt_extended import JWTManager
+from flask_jwt_extended import JWTManager, verify_jwt_in_request
+from flask_jwt_extended.exceptions import WrongTokenError
 from gramps.gen.config import config as gramps_config
 from gramps.gen.config import set as setconfig
 
 from .api import api_blueprint
-from .api.cache import request_cache, thumbnail_cache
+from .api.cache import persistent_cache, request_cache, thumbnail_cache
 from .api.ratelimiter import limiter
 from .api.search.embeddings import load_model
-from .api.util import close_db
+from .api.tasks import run_task, send_telemetry_task
+from .api.telemetry import should_send_telemetry
+from .api.util import close_db, get_tree_from_jwt
 from .auth import user_db
 from .config import DefaultConfig, DefaultConfigJWT
 from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI
@@ -145,6 +148,7 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
 
     request_cache.init_app(app, config=app.config["REQUEST_CACHE_CONFIG"])
     thumbnail_cache.init_app(app, config=app.config["THUMBNAIL_CACHE_CONFIG"])
+    persistent_cache.init_app(app, config=app.config["PERSISTENT_CACHE_CONFIG"])
 
     # enable CORS for /api/... resources
     if app.config.get("CORS_ORIGINS"):
@@ -179,6 +183,23 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
 
     # instantiate celery
     create_celery(app)
+
+    @app.before_request
+    def maybe_send_telemetry() -> None:
+        """Send telementry if needed."""
+        try:
+            if verify_jwt_in_request(optional=True) is None:
+                # for requests without JWT, do nothing
+                return None
+        except WrongTokenError:
+            # for the refresh token endpoint, this will fail
+            return None
+        tree_id = get_tree_from_jwt()
+        if not tree_id:
+            # for endpoints that don't require a JWT, we do nothing
+            return None
+        if should_send_telemetry():
+            run_task(send_telemetry_task, tree=tree_id)
 
     @app.teardown_appcontext
     def close_db_connection(exception) -> None:

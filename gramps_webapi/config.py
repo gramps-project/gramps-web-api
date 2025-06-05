@@ -51,6 +51,12 @@ class DefaultConfig(object):
         "CACHE_THRESHOLD": 1000,
         "CACHE_DEFAULT_TIMEOUT": 0,
     }
+    PERSISTENT_CACHE_CONFIG = {
+        "CACHE_TYPE": "FileSystemCache",
+        "CACHE_DIR": str(Path.cwd() / "persistent_cache"),
+        "CACHE_THRESHOLD": 0,
+        "CACHE_DEFAULT_TIMEOUT": 0,
+    }
     POSTGRES_USER = None
     POSTGRES_PASSWORD = None
     POSTGRES_HOST = "localhost"
@@ -69,6 +75,7 @@ class DefaultConfig(object):
     LLM_MODEL = ""
     LLM_MAX_CONTEXT_LENGTH = 50000
     VECTOR_EMBEDDING_MODEL = ""
+    DISABLE_TELEMETRY = False
 
 
 class DefaultConfigJWT(object):
