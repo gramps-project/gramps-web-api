@@ -7,7 +7,10 @@ Pipfile.lock
 .venv
 *.ipynb
 
+# this is used for dev container data
 data/
+# but this is needed
+!gramps_webapi/data
 indexdir/
 indexdir_empty/
 thumbnail_cache/
