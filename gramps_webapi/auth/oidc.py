@@ -1,7 +1,12 @@
 import os
 from authlib.integrations.flask_client import OAuth
-from flask import Blueprint, redirect, url_for, session, request
+from flask import Blueprint, redirect, url_for, request, current_app
+from flask_jwt_extended import create_access_token, create_refresh_token
 from dotenv import load_dotenv
+from sqlalchemy.exc import IntegrityError
+import uuid
+
+from . import user_db, User
 
 load_dotenv()
 
@@ -44,13 +49,59 @@ def configure_oauth(app):
 
 @oidc_bp.route("/login/<provider>")
 def login(provider):
+    """Start the OAuth/OIDC login flow."""
     redirect_uri = url_for("oidc.authorize", provider=provider, _external=True)
     return oauth.create_client(provider).authorize_redirect(redirect_uri)
 
 @oidc_bp.route("/callback/<provider>")
 def authorize(provider):
+    """Handle the OAuth/OIDC callback and create/link user account."""
     client = oauth.create_client(provider)
     token = client.authorize_access_token()
-    user = client.parse_id_token(token) if provider == "google" else client.get('user').json()
-    session['user'] = user
-    return {"status": "logged_in", "provider": provider, "user": user}
+    
+    # Get user info from provider
+    if provider == "google":
+        user_info = client.parse_id_token(token)
+    else:
+        user_info = client.get('user').json()
+    
+    # Get email from OIDC user info
+    email = user_info.get('email')
+    if not email:
+        return {"error": "No email provided by OIDC provider"}, 400
+    
+    # Check if user exists
+    query = user_db.session.query(User)
+    user = query.filter_by(email=email).scalar()
+    
+    if not user:
+        # Create new user with default role
+        try:
+            user = User(
+                id=uuid.uuid4(),
+                name=email.split('@')[0],  
+                email=email,
+                fullname=user_info.get('name', ''),
+                role=0,  
+                pwhash='',  
+            )
+            user_db.session.add(user)
+            user_db.session.commit()
+        except IntegrityError:
+            return {"error": "User creation failed"}, 400
+    
+    # Create JWT tokens
+    access_token = create_access_token(identity=str(user.id))
+    refresh_token = create_refresh_token(identity=str(user.id))
+    
+    # Return tokens and user info
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "user": {
+            "name": user.name,
+            "email": user.email,
+            "full_name": user.fullname,
+            "role": user.role
+        }
+    }
