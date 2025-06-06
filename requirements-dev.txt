@@ -8,3 +8,4 @@ pre-commit
 celery[pytest]
 moto[s3]<5.0.0
 PyYAML
+authlib
