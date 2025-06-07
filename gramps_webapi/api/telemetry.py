@@ -24,6 +24,11 @@ def send_telemetry(data: dict[str, str | int | float]) -> None:
     response.raise_for_status()  # Raise exception for HTTP errors
 
 
+def telemetry_sent_last_24h() -> bool:
+    """Check if telemetry has been sent in the last 24 hours."""
+    return time.time() - telemetry_last_sent() < 24 * 60 * 60
+
+
 def should_send_telemetry() -> bool:
     """Whether telemetry should be sent."""
     if current_app.config.get("DISABLE_TELEMETRY"):
@@ -37,7 +42,7 @@ def should_send_telemetry() -> bool:
         # do not send telemetry during tests unless MOCK_TELEMETRY is set
         return False
     # only send telemetry if it has not been sent in the last 24 hours
-    if time.time() - telemetry_last_sent() < 24 * 60 * 60:
+    if telemetry_sent_last_24h():
         return False
     return True
 

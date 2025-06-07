@@ -53,7 +53,12 @@ from .resources.util import (
     transaction_to_json,
 )
 from .search import get_search_indexer, get_semantic_search_indexer
-from .telemetry import get_telemetry_payload, send_telemetry, update_telemetry_timestamp
+from .telemetry import (
+    get_telemetry_payload,
+    send_telemetry,
+    telemetry_sent_last_24h,
+    update_telemetry_timestamp,
+)
 from .util import (
     abort_with_message,
     check_quota_people,
@@ -612,6 +617,13 @@ def update_search_indices_from_transaction(
 @shared_task()
 def send_telemetry_task(tree: str):
     """Send telemetry"""
+    if telemetry_sent_last_24h():
+        # Although this task will only be called by the backend if it hasn't been
+        # called in the last 24 hours, we check it here again because if a server
+        # is misconfigured and the celery worker is run in a container that doesn't
+        # have access to the same persistent cache as the backend, we don't want to
+        # send telemetry every time a request hits the API.
+        return None
     data = get_telemetry_payload(tree_id=tree)
     # if the request fails, an exception will be raised
     send_telemetry(data=data)
