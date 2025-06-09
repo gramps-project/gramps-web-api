@@ -1,12 +1,15 @@
 import os
 from authlib.integrations.flask_client import OAuth
-from flask import Blueprint, redirect, url_for, request, current_app
+from flask import Blueprint, redirect, url_for, request, current_app, jsonify
 from flask_jwt_extended import create_access_token, create_refresh_token
 from dotenv import load_dotenv
 from sqlalchemy.exc import IntegrityError
 import uuid
 
 from . import user_db, User
+from .const import ROLE_OWNER
+from ..api.util import get_tree_id
+from ..api.auth import get_permissions
 
 load_dotenv()
 
@@ -50,7 +53,8 @@ def configure_oauth(app):
 @oidc_bp.route("/login/<provider>")
 def login(provider):
     """Start the OAuth/OIDC login flow."""
-    redirect_uri = url_for("oidc.authorize", provider=provider, _external=True)
+    # Get the redirect URL from the request or use a default
+    redirect_uri = request.args.get('redirect_uri', url_for("oidc.authorize", provider=provider, _external=True))
     return oauth.create_client(provider).authorize_redirect(redirect_uri)
 
 @oidc_bp.route("/callback/<provider>")
@@ -68,7 +72,7 @@ def authorize(provider):
     # Get email from OIDC user info
     email = user_info.get('email')
     if not email:
-        return {"error": "No email provided by OIDC provider"}, 400
+        return jsonify({"error": "No email provided by OIDC provider"}), 400
     
     # Check if user exists
     query = user_db.session.query(User)
@@ -79,29 +83,53 @@ def authorize(provider):
         try:
             user = User(
                 id=uuid.uuid4(),
-                name=email.split('@')[0],  
+                name=email.split('@')[0],       
                 email=email,
                 fullname=user_info.get('name', ''),
-                role=0,  
+                role=ROLE_OWNER,  # Give owner role to new users
                 pwhash='',  
             )
             user_db.session.add(user)
             user_db.session.commit()
         except IntegrityError:
-            return {"error": "User creation failed"}, 400
+            return jsonify({"error": "User creation failed"}), 400
     
-    # Create JWT tokens
-    access_token = create_access_token(identity=str(user.id))
+    # Get user's tree and permissions
+    tree_id = get_tree_id(str(user.id))
+    permissions = get_permissions(username=user.name, tree=tree_id)
+    
+    # Create JWT tokens with proper claims
+    access_token = create_access_token(
+        identity=str(user.id),
+        additional_claims={
+            "permissions": list(permissions),
+            "tree": tree_id
+        }
+    )
     refresh_token = create_refresh_token(identity=str(user.id))
     
-    # Return tokens and user info
-    return {
+    # Get the frontend redirect URL from the state parameter
+    state = request.args.get('state', '')
+    frontend_redirect = state if state else current_app.config.get('FRONTEND_URL', '/')
+    
+    # Return tokens in standard OAuth2 format
+    response = {
         "access_token": access_token,
         "refresh_token": refresh_token,
+        "token_type": "Bearer",
+        "expires_in": current_app.config.get('JWT_ACCESS_TOKEN_EXPIRES', 900),  # 15 minutes default
         "user": {
             "name": user.name,
             "email": user.email,
             "full_name": user.fullname,
-            "role": user.role
+            "role": user.role,
+            "tree": tree_id
         }
     }
+    
+    # If this is an API request (has Accept: application/json header)
+    if request.headers.get('Accept') == 'application/json':
+        return jsonify(response)
+    
+    # For browser requests, redirect to frontend with tokens
+    return redirect(f"{frontend_redirect}?access_token={access_token}&refresh_token={refresh_token}")
