@@ -423,6 +423,7 @@ class TestTransactionResource(unittest.TestCase):
                 "_class": "Date",
             },
             "place": "",
+            "place_name": "",
             "_class": "Event",
             "type": {"_class": "EventType", "value": 11, "string": ""},
             "description": "Testereignis",
