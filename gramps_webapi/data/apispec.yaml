@@ -8449,6 +8449,10 @@ definitions:
         description: "Place of the event."
         type: string
         example: "Great Falls, MT, USA"
+      place_name:
+        description: "Name of the event's place."
+        type: string
+        example: "Great Falls"
       type:
         description: "Type of the event."
         type: string

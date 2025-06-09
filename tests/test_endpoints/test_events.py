@@ -379,6 +379,7 @@ class TestEvents(unittest.TestCase):
                 "confidence": 0,
                 "date": "1987-08-29",
                 "place": "Gainesville, Llano, TX, USA",
+                "place_name": "Gainesville",
                 "type": "Birth",
                 "summary": "Birth - Warner, Sarah Suzanne",
                 "participants": {
@@ -389,6 +390,7 @@ class TestEvents(unittest.TestCase):
                                 "birth": {
                                     "date": "1987-08-29",
                                     "place": "Gainesville, Llano, TX, USA",
+                                    "place_name": "Gainesville",
                                     "type": "Birth",
                                     "summary": "Birth - Warner, Sarah Suzanne",
                                 },
@@ -410,6 +412,7 @@ class TestEvents(unittest.TestCase):
                             "birth": {
                                 "date": "1987-08-29",
                                 "place": "Gainesville, Llano, TX, USA",
+                                "place_name": "Gainesville",
                                 "type": "Birth",
                                 "summary": "Birth - Warner, Sarah Suzanne",
                             },
@@ -635,6 +638,7 @@ class TestEventsHandle(unittest.TestCase):
                 "confidence": 0,
                 "date": "1250",
                 "place": "Atchison, Atchison, KS, USA",
+                "place_name": "Atchison",
                 "type": "Birth",
                 "summary": "Birth - Knudsen, Ralph",
                 "participants": {
@@ -645,12 +649,14 @@ class TestEventsHandle(unittest.TestCase):
                                 "birth": {
                                     "date": "1250",
                                     "place": "Atchison, Atchison, KS, USA",
+                                    "place_name": "Atchison",
                                     "type": "Birth",
                                     "summary": "Birth - Knudsen, Ralph",
                                 },
                                 "death": {
                                     "date": "1316",
                                     "place": "",
+                                    "place_name": "",
                                     "type": "Death",
                                     "summary": "Death - Knudsen, Ralph",
                                 },
@@ -671,12 +677,14 @@ class TestEventsHandle(unittest.TestCase):
                             "birth": {
                                 "date": "1250",
                                 "place": "Atchison, Atchison, KS, USA",
+                                "place_name": "Atchison",
                                 "type": "Birth",
                                 "summary": "Birth - Knudsen, Ralph",
                             },
                             "death": {
                                 "date": "1316",
                                 "place": "",
+                                "place_name": "",
                                 "type": "Death",
                                 "summary": "Death - Knudsen, Ralph",
                             },
@@ -686,7 +694,7 @@ class TestEventsHandle(unittest.TestCase):
                             "name_surname": "Knudsen",
                             "name_suffix": "",
                             "sex": "M",
-                        },
+                        }
                     ],
                 },
             },
@@ -702,6 +710,7 @@ class TestEventsHandle(unittest.TestCase):
                 "confidence": 0,
                 "date": "1250",
                 "place": "Atchison, Atchison, KS, USA",
+                "place_name": "Atchison",
                 "type": "Geburt",
                 "summary": "Geburt - Knudsen, Ralph",
                 "participants": {
@@ -712,12 +721,14 @@ class TestEventsHandle(unittest.TestCase):
                                 "birth": {
                                     "date": "1250",
                                     "place": "Atchison, Atchison, KS, USA",
+                                    "place_name": "Atchison",
                                     "type": "Geburt",
                                     "summary": "Geburt - Knudsen, Ralph",
                                 },
                                 "death": {
                                     "date": "1316",
                                     "place": "",
+                                    "place_name": "",
                                     "type": "Tod",
                                     "summary": "Tod - Knudsen, Ralph",
                                 },
@@ -738,12 +749,14 @@ class TestEventsHandle(unittest.TestCase):
                             "birth": {
                                 "date": "1250",
                                 "place": "Atchison, Atchison, KS, USA",
+                                "place_name": "Atchison",
                                 "type": "Geburt",
                                 "summary": "Geburt - Knudsen, Ralph",
                             },
                             "death": {
                                 "date": "1316",
                                 "place": "",
+                                "place_name": "",
                                 "type": "Tod",
                                 "summary": "Tod - Knudsen, Ralph",
                             },

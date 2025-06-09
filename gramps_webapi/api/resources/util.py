@@ -247,6 +247,7 @@ def get_event_profile_for_object(
         "type": locale.translation.sgettext(event.type.xml_str()),
         "date": locale.date_displayer.display(event.date),
         "place": pd.display_event(db_handle, event),
+        "place_name": get_place_name_for_event(db_handle, event),
         "summary": get_event_summary_from_object(db_handle, event, locale=locale),
     }
     if role is not None:
@@ -266,6 +267,23 @@ def get_event_profile_for_object(
             .strip("()")
         )
     return result
+
+
+def get_place_name_for_event(db_handle: DbReadBase, event: Event) -> str:
+    """Get place name for an event."""
+    place_handle = event.get_place_handle()
+    if not place_handle:
+        return ""
+    try:
+        place: Place = db_handle.get_place_from_handle(place_handle)
+    except HandleError:
+        return ""
+    if not place:
+        return ""
+    place_name = place.get_name()
+    if not place_name:
+        return ""
+    return place_name.value
 
 
 def get_event_profile_for_handle(
