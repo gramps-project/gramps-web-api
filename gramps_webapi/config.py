@@ -17,15 +17,20 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 
+
 """Default configuration settings."""
+
 
 import datetime
 from pathlib import Path
 from typing import Dict
 
 
+
+
 class DefaultConfig(object):
     """Default configuration object."""
+
 
     PROPAGATE_EXCEPTIONS = True
     SEARCH_INDEX_DIR = "indexdir"  # deprecated!
@@ -51,6 +56,12 @@ class DefaultConfig(object):
         "CACHE_THRESHOLD": 1000,
         "CACHE_DEFAULT_TIMEOUT": 0,
     }
+    PERSISTENT_CACHE_CONFIG = {
+        "CACHE_TYPE": "FileSystemCache",
+        "CACHE_DIR": str(Path.cwd() / "persistent_cache"),
+        "CACHE_THRESHOLD": 0,
+        "CACHE_DEFAULT_TIMEOUT": 0,
+    }
     POSTGRES_USER = None
     POSTGRES_PASSWORD = None
     POSTGRES_HOST = "localhost"
@@ -69,10 +80,24 @@ class DefaultConfig(object):
     LLM_MODEL = ""
     LLM_MAX_CONTEXT_LENGTH = 50000
     VECTOR_EMBEDDING_MODEL = ""
+    DISABLE_TELEMETRY = False
+
+
+    # OAuth configuration
+    OAUTH_GOOGLE_CLIENT_ID = ""
+    OAUTH_GOOGLE_CLIENT_SECRET = ""
+    OAUTH_GITHUB_CLIENT_ID = ""
+    OAUTH_GITHUB_CLIENT_SECRET = ""
+    OAUTH_MICROSOFT_CLIENT_ID = ""
+    OAUTH_MICROSOFT_CLIENT_SECRET = ""
+    OAUTH_ENABLED = False  # Master switch for OAuth functionality
+
+
 
 
 class DefaultConfigJWT(object):
     """Default configuration for JWT auth."""
+
 
     JWT_TOKEN_LOCATION = ["headers", "query_string"]
     JWT_ACCESS_TOKEN_EXPIRES = datetime.timedelta(minutes=15)
