@@ -1,4 +1,21 @@
-"""Flask web app providing a REST API to a Gramps family tree."""
+#
+# Gramps Web API - A RESTful API for the Gramps genealogy program
+#
+# Copyright (C) 2020-2022      David Straub
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
 
 
 import logging
@@ -29,7 +46,10 @@ from .util.celery import create_celery
 
 
 def deprecated_config_from_env(app):
-    """Add deprecated config from environment variables (legacy support)."""
+    """Add deprecated config from environment variables.
+
+    This function will be removed eventually!
+    """
     options = [
         "TREE", "SECRET_KEY", "USER_DB_URI", "POSTGRES_USER", "POSTGRES_PASSWORD",
         "MEDIA_BASE_DIR", "SEARCH_INDEX_DIR", "EMAIL_HOST", "EMAIL_PORT",
@@ -41,8 +61,9 @@ def deprecated_config_from_env(app):
         if value:
             app.config[option] = value
             warnings.warn(
-                f"Setting `{option}` via the environment is deprecated. "
-                f"Use `GRAMPSWEB_{option}` instead."
+                f"Setting the `{option}` config option via the `{option}` environment"
+                " variable is deprecated and will stop working in the future."
+                f" Please use `GRAMPSWEB_{option}` instead."
             )
     return app
 
@@ -52,31 +73,32 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
     app = Flask(__name__)
     app.logger.setLevel(logging.INFO)
 
-
+    # load default config
     app.config.from_object(DefaultConfig)
 
-
+    # overwrite with user config file
     if os.getenv(ENV_CONFIG_FILE):
         app.config.from_envvar(ENV_CONFIG_FILE)
 
-
+ # use unprefixed environment variables if exist - deprecated!
     deprecated_config_from_env(app)
 
-
+    # use prefixed environment variables if exist
     if config_from_env:
         app.config.from_prefixed_env(prefix="GRAMPSWEB")
 
-
+    # update config from dictionary if present
     if config:
         app.config.update(**config)
 
-
+    # fail if required config option is missing
     required_options = ["TREE", "SECRET_KEY", "USER_DB_URI"]
     for option in required_options:
         if not app.config.get(option):
             raise ValueError(f"{option} must be specified")
 
-
+    # environment variable to set the Gramps database path.
+    # Needed for backwards compatibility from Gramps 6.0 onwards
     if db_path := os.getenv("GRAMPS_DATABASE_PATH"):
         setconfig("database.path", db_path)
 
@@ -86,6 +108,7 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
 
 
     if app.config["TREE"] != TREE_MULTI:
+        # create database if missing (only in single-tree mode)
         WebDbManager(
             name=app.config["TREE"],
             create_if_missing=True,
@@ -94,14 +117,19 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
 
 
     if app.config["TREE"] == TREE_MULTI and not app.config["MEDIA_PREFIX_TREE"]:
-        warnings.warn("Multi-tree mode is enabled but MEDIA_PREFIX_TREE is False.")
+        warnings.warn(
+            "You have enabled multi-tree support, but `MEDIA_PREFIX_TREE` is "
+            "set to `False`. This is strongly discouraged as it exposes media "
+            "files to users belonging to different trees!"
+        )
 
 
     if app.config["TREE"] == TREE_MULTI and app.config["NEW_DB_BACKEND"] != "sqlite":
+                # needed in case a new postgres tree is to be created
         gramps_config.set("database.host", app.config["POSTGRES_HOST"])
         gramps_config.set("database.port", str(app.config["POSTGRES_PORT"]))
 
-
+    # load JWT default settings
     app.config.from_object(DefaultConfigJWT)
     JWTManager(app)
 
@@ -119,17 +147,20 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
 
     thumbnail_cache.init_app(app, config=app.config["THUMBNAIL_CACHE_CONFIG"])
 
-
+# enable CORS for /api/... resources
     if app.config.get("CORS_ORIGINS"):
-        CORS(app, resources={f"{API_PREFIX}/*": {"origins": app.config["CORS_ORIGINS"]}})
+        CORS(
+            app,
+            resources={f"{API_PREFIX}/*": {"origins": app.config["CORS_ORIGINS"]}},
+        )
 
-
+    # enable gzip compression
     Compress(app)
 
 
     static_path = app.config.get("STATIC_PATH")
 
-
+ # routes for static hosting (e.g. SPA frontend)
     @app.route("/", methods=["GET", "POST"])
     def send_index():
         return send_from_directory(static_path, "index.html")
@@ -138,19 +169,24 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
     @app.route("/<path:path>", methods=["GET", "POST"])
     def send_static(path):
         if path.startswith(API_PREFIX[1:]):
+            # we don't want any erroneous API calls to end up here!
             abort(404)
         if path and os.path.exists(os.path.join(static_path, path)):
             return send_from_directory(static_path, path)
-        return send_from_directory(static_path, "index.html")
+        else:
+            return send_from_directory(static_path, "index.html")
 
-
+    # register the API blueprint
     app.register_blueprint(api_blueprint)
     limiter.init_app(app)
+    
+    # instantiate celery
     create_celery(app)
 
 
     @app.teardown_appcontext
     def close_db_connection(exception) -> None:
+        """Close the Gramps database after every request."""
         db = g.pop("db", None)
         if db:
             close_db(db)
@@ -161,10 +197,11 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
 
     @app.teardown_request
     def close_user_db_connection(exception) -> None:
+        """Close the user database after every request."""
         if exception:
-            user_db.session.rollback()
-        user_db.session.close()
-        user_db.session.remove()
+            user_db.session.rollback()  # pylint: disable=no-member
+        user_db.session.close()  # pylint: disable=no-member
+        user_db.session.remove()  # pylint: disable=no-member
 
 
     if app.config.get("VECTOR_EMBEDDING_MODEL"):
