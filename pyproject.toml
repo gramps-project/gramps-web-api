@@ -5,13 +5,12 @@ authors = [
   { name = "Gramps Development Team" },
   { name = "David M. Straub", email = "straub@protonmail.com" }
 ]
-license = { text = "AGPL-3.0-or-later" }
+license = "AGPL-3.0-or-later"
 readme = "README.md"
 dynamic = ["version"]
 keywords = ["RESTful", "web API", "genealogy", "Gramps"]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
     "Operating System :: OS Independent",
 ]
 requires-python = ">=3.9"
