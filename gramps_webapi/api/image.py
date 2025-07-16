@@ -227,6 +227,7 @@ def detect_faces(stream: BinaryIO) -> list[tuple[float, float, float, float]]:
 
     file_bytes = np.asarray(bytearray(stream.read()), dtype=np.uint8)
     cv_image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+    assert cv_image is not None, "cv_image is None"  # for type checker
 
     # Load the YuNet model
     model_path = resource_filename(
