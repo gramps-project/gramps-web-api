@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y \
   && rm -rf /var/lib/apt/lists/*
 
 RUN pip install opencv-python
-RUN pip install gramps==6.0.1
+RUN pip install gramps==6.0.4
 
 # CPU-only version of PyTorch
 RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
