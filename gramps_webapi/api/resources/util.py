@@ -37,7 +37,7 @@ from gramps.gen.db import KEY_TO_CLASS_MAP, DbTxn
 from gramps.gen.db.base import DbReadBase, DbWriteBase
 from gramps.gen.db.dbconst import TXNADD, TXNDEL, TXNUPD
 from gramps.gen.db.utils import import_as_dict
-from gramps.gen.display.name import NameDisplay
+from gramps.gen.display.name import displayer as name_displayer
 from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import (
@@ -453,13 +453,16 @@ def get_place_profile_for_handle(
 
 
 def get_person_profile_for_object(
-    db_handle: DbReadBase, person: Person, args: list, locale: GrampsLocale = glocale
+    db_handle: DbReadBase,
+    person: Person,
+    args: list,
+    locale: GrampsLocale = glocale,
+    name_format: str = None,
 ) -> Person:
     """Get person profile given a Person."""
     options = []
     if "all" in args or "ratings" in args:
         options.append("ratings")
-    name_display = NameDisplay(xlocale=locale)
     birth, birth_event = get_birth_profile(
         db_handle, person, args=options, locale=locale
     )
@@ -484,8 +487,13 @@ def get_person_profile_for_object(
         "sex": get_sex_profile(person),
         "birth": birth,
         "death": death,
-        "name_given": name_display.display_given(person),
+        "name_given": name_displayer.display_given(person),
         "name_surname": person.primary_name.get_surname(),
+        "name_display": (
+            name_displayer.format_str(person.get_primary_name(), name_format)
+            if name_format
+            else name_displayer.display(person)
+        ),
         "name_suffix": person.primary_name.get_suffix(),
     }
     if "all" in args or "span" in args:

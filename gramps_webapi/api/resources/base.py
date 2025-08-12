@@ -373,6 +373,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             "soundex": fields.Boolean(load_default=False),
             "strip": fields.Boolean(load_default=False),
             "filemissing": fields.Boolean(load_default=False),
+            "name_format": fields.Str(validate=validate.Length(min=1)),
         },
         location="query",
     )
