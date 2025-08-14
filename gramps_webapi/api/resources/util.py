@@ -457,7 +457,7 @@ def get_person_profile_for_object(
     person: Person,
     args: list,
     locale: GrampsLocale = glocale,
-    name_format: str = None,
+    name_format: Optional[str] = None,
 ) -> Person:
     """Get person profile given a Person."""
     options = []
