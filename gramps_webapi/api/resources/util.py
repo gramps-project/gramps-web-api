@@ -32,12 +32,13 @@ import gramps.gen.lib
 import jsonschema
 from celery import Task
 from flask import Response, current_app, request
+from gramps.gen.config import config
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import KEY_TO_CLASS_MAP, DbTxn
 from gramps.gen.db.base import DbReadBase, DbWriteBase
 from gramps.gen.db.dbconst import TXNADD, TXNDEL, TXNUPD
 from gramps.gen.db.utils import import_as_dict
-from gramps.gen.display.name import displayer as name_displayer
+from gramps.gen.display.name import NameDisplay
 from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import (
@@ -481,6 +482,10 @@ def get_person_profile_for_object(
                     .format(precision=3, dlocale=locale)
                     .strip("()")
                 )
+    name_displayer = NameDisplay(xlocale=locale)
+    name_displayer.set_name_format(db_handle.name_formats)
+    fmt_default = config.get("preferences.name-format")
+    name_displayer.set_default_format(fmt_default)
     profile = {
         "handle": person.handle,
         "gramps_id": person.gramps_id,
