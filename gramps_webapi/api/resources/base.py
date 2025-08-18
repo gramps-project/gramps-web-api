@@ -207,6 +207,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             "locale": fields.Str(
                 load_default=None, validate=validate.Length(min=1, max=5)
             ),
+            "name_format": fields.Str(validate=validate.Length(min=1)),
             "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
