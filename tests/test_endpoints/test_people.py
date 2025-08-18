@@ -1285,6 +1285,17 @@ class TestPeopleHandle(unittest.TestCase):
         self.assertEqual(backlinks["family"][0]["handle"], "LOTJQC78O5B4WQGJRP")
         self.assertEqual(backlinks["family"][1]["handle"], "UPTJQC4VPCABZUDB75")
 
+    def test_get_people_handle_parameter_name_format_expected_result_name_display(self):
+        """Test the people handle endpoint with profile and name_format parameters"""
+        rv = check_success(
+            self,
+            TEST_URL
+            + "0PWJQCZYFXOS0HGREE?profile=all&name_format=Given%20%28Common%29%20SURNAME",
+        )
+        self.assertEqual(
+            rv["profile"]["name_display"], "Mary Grace Elizabeth (Mary) WARNER"
+        )
+
 
 class TestPeopleHandleTimeline(unittest.TestCase):
     """Test cases for the /api/people/{handle}/timeline endpoint for a specific person."""
