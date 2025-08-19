@@ -110,7 +110,7 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
                     self.db_handle, obj, args["profile"], locale=locale
                 )
             elif class_name == "place":
-                obj.profile = get_place_profile_for_objectprofile_for(
+                obj.profile = get_place_profile_for_object(
                     self.db_handle, obj, locale=locale
                 )
             elif class_name == "media":

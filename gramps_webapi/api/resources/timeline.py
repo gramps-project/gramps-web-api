@@ -631,6 +631,7 @@ class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
                 validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
             ),
             "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
+            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "locale": fields.Str(load_default=None),
             "name_format": fields.Str(validate=validate.Length(min=1)),
             "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
