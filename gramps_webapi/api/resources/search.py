@@ -87,11 +87,19 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
         if "profile" in args:
             if class_name == "person":
                 obj.profile = get_person_profile_for_object(
-                    self.db_handle, obj, args["profile"], locale=locale
+                    self.db_handle,
+                    obj,
+                    args["profile"],
+                    locale=locale,
+                    name_format=args.get("name_format"),
                 )
             elif class_name == "family":
                 obj.profile = get_family_profile_for_object(
-                    self.db_handle, obj, args["profile"], locale=locale
+                    self.db_handle,
+                    obj,
+                    args["profile"],
+                    locale=locale,
+                    name_format=args.get("name_format"),
                 )
             elif class_name == "event":
                 obj.profile = get_event_profile_for_object(
@@ -102,7 +110,7 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
                     self.db_handle, obj, args["profile"], locale=locale
                 )
             elif class_name == "place":
-                obj.profile = get_place_profile_for_object(
+                obj.profile = get_place_profile_for_objectprofile_for(
                     self.db_handle, obj, locale=locale
                 )
             elif class_name == "media":

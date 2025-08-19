@@ -977,6 +977,26 @@ class TestFamiliesHandle(unittest.TestCase):
         self.assertEqual(rv["profile"]["father"]["birth"]["age"], "0 Tage")
         self.assertEqual(rv["profile"]["father"]["birth"]["type"], "Geburt")
 
+    def test_get_families_handle_parameter_profile_expected_result_with_name_format(
+        self,
+    ):
+        """Test response as expected."""
+        rv = check_success(
+            self,
+            TEST_URL
+            + "7MTJQCHRUUYSUA8ABB?profile=all&name_format=%25f%20%28%25c%29%20%25L",
+        )
+        self.assertEqual(
+            rv["profile"]["children"][0]["name_display"], "Stephen Gerard GARNER"
+        )
+        self.assertEqual(
+            rv["profile"]["father"]["name_display"], "Gerard Stephen GARNER"
+        )
+        self.assertEqual(
+            rv["profile"]["references"]["person"][1]["name_display"],
+            "Daniel Patrick GARNER",
+        )
+
     def test_get_families_handle_parameter_backlinks_validate_semantics(self):
         """Test invalid backlinks parameter and values."""
         check_invalid_semantics(

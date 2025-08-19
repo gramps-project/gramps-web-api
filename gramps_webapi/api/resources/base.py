@@ -98,7 +98,10 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
                 # create profile if doesn't exist
                 obj.profile = {}
             obj.profile["references"] = get_reference_profile_for_object(
-                self.db_handle, obj, locale=locale
+                self.db_handle,
+                obj,
+                locale=locale,
+                name_format=args.get("name_format"),
             )
         return obj
 

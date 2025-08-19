@@ -198,6 +198,7 @@ def get_event_participants_profile_for_handle(
     db_handle: DbReadBase,
     handle: Handle,
     locale: GrampsLocale = glocale,
+    name_format: Optional[str] = None,
 ) -> dict:
     """Get event participants given a handle."""
     event_participants = get_event_participants_for_handle(
@@ -209,13 +210,21 @@ def get_event_participants_profile_for_handle(
 
     for role, person in event_participants["people"]:
         person_profile = get_person_profile_for_object(
-            db_handle, cast(Person, person), args=[], locale=locale
+            db_handle,
+            cast(Person, person),
+            args=[],
+            locale=locale,
+            name_format=name_format,
         )
         role_str = locale.translation.sgettext(role.xml_str())
         result["people"].append({"role": role_str, "person": person_profile})
     for role, family in event_participants["families"]:
         person_profile = get_family_profile_for_object(
-            db_handle, cast(Family, family), args=[], locale=locale
+            db_handle,
+            cast(Family, family),
+            args=[],
+            locale=locale,
+            name_format=name_format,
         )
         role_str = locale.translation.sgettext(role.xml_str())
         result["families"].append({"role": role_str, "family": person_profile})
@@ -242,6 +251,7 @@ def get_event_profile_for_object(
     label: str = "span",
     locale: GrampsLocale = glocale,
     role: Optional[str] = None,
+    name_format: Optional[str] = None,
 ) -> dict:
     """Get event profile given an Event."""
     result = {
@@ -255,7 +265,10 @@ def get_event_profile_for_object(
         result["role"] = role
     if "all" in args or "participants" in args:
         result["participants"] = get_event_participants_profile_for_handle(
-            db_handle, event.handle, locale=locale
+            db_handle,
+            event.handle,
+            locale=locale,
+            name_format=name_format,
         )
     if "all" in args or "ratings" in args:
         count, confidence = get_rating(db_handle, event)
@@ -295,6 +308,7 @@ def get_event_profile_for_handle(
     label: str = "span",
     locale: GrampsLocale = glocale,
     role: Optional[str] = None,
+    name_format: Optional[str] = None,
 ) -> dict:
     """Get event profile given a handle."""
     try:
@@ -311,6 +325,7 @@ def get_event_profile_for_handle(
         label=label,
         locale=locale,
         role=role,
+        name_format=name_format,
     )
 
 
@@ -540,7 +555,11 @@ def get_person_profile_for_object(
 
 
 def get_person_profile_for_handle(
-    db_handle: DbReadBase, handle: Handle, args: list, locale: GrampsLocale = glocale
+    db_handle: DbReadBase,
+    handle: Handle,
+    args: list,
+    locale: GrampsLocale = glocale,
+    name_format: str | None = None,
 ) -> Union[Person, dict]:
     """Get person profile given a handle."""
     try:
@@ -549,7 +568,9 @@ def get_person_profile_for_handle(
             return {}
     except HandleError:
         return {}
-    return get_person_profile_for_object(db_handle, obj, args, locale=locale)
+    return get_person_profile_for_object(
+        db_handle, obj, args, locale=locale, name_format=name_format
+    )
 
 
 def get_family_profile_for_object(
@@ -557,6 +578,7 @@ def get_family_profile_for_object(
     family: Family,
     args: list[str],
     locale: GrampsLocale = glocale,
+    name_format: Optional[str] = None,
 ) -> Family:
     """Get family profile given a Family."""
     options = []
@@ -585,17 +607,29 @@ def get_family_profile_for_object(
         "handle": family.handle,
         "gramps_id": family.gramps_id,
         "father": get_person_profile_for_handle(
-            db_handle, family.father_handle, options, locale=locale
+            db_handle,
+            family.father_handle,
+            options,
+            locale=locale,
+            name_format=name_format,
         ),
         "mother": get_person_profile_for_handle(
-            db_handle, family.mother_handle, options, locale=locale
+            db_handle,
+            family.mother_handle,
+            options,
+            locale=locale,
+            name_format=name_format,
         ),
         "relationship": locale.translation.sgettext(family.type.xml_str()),
         "marriage": marriage,
         "divorce": divorce,
         "children": [
             get_person_profile_for_handle(
-                db_handle, child_ref.ref, options, locale=locale
+                db_handle,
+                child_ref.ref,
+                options,
+                locale=locale,
+                name_format=name_format,
             )
             for child_ref in family.child_ref_list
         ],
@@ -627,7 +661,11 @@ def get_family_profile_for_object(
 
 
 def get_family_profile_for_handle(
-    db_handle: DbReadBase, handle: Handle, args: list, locale: GrampsLocale = glocale
+    db_handle: DbReadBase,
+    handle: Handle,
+    args: list,
+    locale: GrampsLocale = glocale,
+    name_format: Optional[str] = None,
 ) -> Union[Family, dict]:
     """Get family profile given a handle."""
     try:
@@ -636,7 +674,9 @@ def get_family_profile_for_handle(
             return {}
     except HandleError:
         return {}
-    return get_family_profile_for_object(db_handle, obj, args, locale=locale)
+    return get_family_profile_for_object(
+        db_handle, obj, args, locale=locale, name_format=name_format
+    )
 
 
 def get_citation_profile_for_object(
@@ -804,6 +844,7 @@ def get_reference_profile_for_object(
     db_handle: DbReadBase,
     obj: GrampsObject,
     locale: GrampsLocale = glocale,
+    name_format: Optional[str] = None,
 ) -> dict:
     """Return reference profiles for an object."""
     profile = {}
@@ -815,17 +856,35 @@ def get_reference_profile_for_object(
         backlink_handles = get_backlinks(db_handle, obj.handle)
     if "person" in backlink_handles:
         profile["person"] = [
-            get_person_profile_for_handle(db_handle, handle, args=[], locale=locale)
+            get_person_profile_for_handle(
+                db_handle,
+                handle,
+                args=[],
+                locale=locale,
+                name_format=name_format,
+            )
             for handle in backlink_handles["person"]
         ]
     if "family" in backlink_handles:
         profile["family"] = [
-            get_family_profile_for_handle(db_handle, handle, args=[], locale=locale)
+            get_family_profile_for_handle(
+                db_handle,
+                handle,
+                args=[],
+                locale=locale,
+                name_format=name_format,
+            )
             for handle in backlink_handles["family"]
         ]
     if "event" in backlink_handles:
         profile["event"] = [
-            get_event_profile_for_handle(db_handle, handle, args=[], locale=locale)
+            get_event_profile_for_handle(
+                db_handle,
+                handle,
+                args=[],
+                locale=locale,
+                name_format=name_format,
+            )
             for handle in backlink_handles["event"]
         ]
     if "media" in backlink_handles:

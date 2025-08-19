@@ -778,6 +778,83 @@ class TestEventsHandle(unittest.TestCase):
             },
         )
 
+    def test_get_events_handle_parameter_profile_expected_result_with_name_format(self):
+        """Test response as expected."""
+        rv = check_success(
+            self,
+            TEST_URL + "a5af0eb6dd140de132c?profile=all&name_format=Given%20SURNAME",
+        )
+        self.assertEqual(
+            rv["profile"],
+            {
+                "citations": 0,
+                "confidence": 0,
+                "date": "1250",
+                "place": "Atchison, Atchison, KS, USA",
+                "place_name": "Atchison",
+                "type": "Birth",
+                "summary": "Birth - Knudsen, Ralph",
+                "participants": {
+                    "families": [],
+                    "people": [
+                        {
+                            "person": {
+                                "birth": {
+                                    "date": "1250",
+                                    "place": "Atchison, Atchison, KS, USA",
+                                    "place_name": "Atchison",
+                                    "type": "Birth",
+                                    "summary": "Birth - Knudsen, Ralph",
+                                },
+                                "death": {
+                                    "date": "1316",
+                                    "place": "",
+                                    "place_name": "",
+                                    "type": "Death",
+                                    "summary": "Death - Knudsen, Ralph",
+                                },
+                                "gramps_id": "I1020",
+                                "handle": "H4EKQCFV3436HSKY2D",
+                                "name_display": "Ralph KNUDSEN",
+                                "name_given": "Ralph",
+                                "name_surname": "Knudsen",
+                                "name_suffix": "",
+                                "sex": "M",
+                            },
+                            "role": "Primary",
+                        }
+                    ],
+                },
+                "references": {
+                    "person": [
+                        {
+                            "birth": {
+                                "date": "1250",
+                                "place": "Atchison, Atchison, KS, USA",
+                                "place_name": "Atchison",
+                                "type": "Birth",
+                                "summary": "Birth - Knudsen, Ralph",
+                            },
+                            "death": {
+                                "date": "1316",
+                                "place": "",
+                                "place_name": "",
+                                "type": "Death",
+                                "summary": "Death - Knudsen, Ralph",
+                            },
+                            "gramps_id": "I1020",
+                            "handle": "H4EKQCFV3436HSKY2D",
+                            "name_display": "Ralph KNUDSEN",
+                            "name_given": "Ralph",
+                            "name_surname": "Knudsen",
+                            "name_suffix": "",
+                            "sex": "M",
+                        }
+                    ],
+                },
+            },
+        )
+
     def test_get_events_handle_parameter_backlinks_validate_semantics(self):
         """Test invalid backlinks parameter and values."""
         check_invalid_semantics(

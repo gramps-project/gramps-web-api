@@ -1,7 +1,7 @@
 swagger: "2.0"
 info:
   title: "Gramps Web API"
-  version: "3.2.0"
+  version: "3.3.0"
   description: >
     The Gramps Web API is a REST API that provides access to family tree databases generated and maintained with Gramps, a popular Open Source genealogical research software package.
 
@@ -874,6 +874,14 @@ paths:
             ratings | Returns citation count and highest confidence rating for events
             families | Returns family information with parents, children, and key relationship between parents
             references | Returns information about objects that refer to the person
+      - name: name_format
+        in: query
+        required: false
+        type: string
+        description: >
+          Specifies the format for the values corresponding to the profile.name_display key
+          Intended for setting the full name format including given name, surnames, etc. by the user
+          Refer to gramps.gen.display.name module for the format string syntax
       responses:
         200:
           description: "OK: Successful operation."
@@ -1006,6 +1014,14 @@ paths:
             ratings | Returns citation count and highest confidence rating for events
             families | Returns family information with parents, children, and key relationship between parents
             references | Returns information about objects that refer to the person
+      - name: name_format
+        in: query
+        required: false
+        type: string
+        description: >
+          Specifies the format for the values corresponding to the profile.name_display key
+          Intended for setting the full name format including given name, surnames, etc. by the user
+          Refer to gramps.gen.display.name module for the format string syntax
       responses:
         200:
           description: "OK: Successful operation."
@@ -1474,6 +1490,14 @@ paths:
             events | Returns family event list with name, date and location
             ratings | Returns citation count and highest confidence rating for events
             references | Returns information about objects that refer to the family
+      - name: name_format
+        in: query
+        required: false
+        type: string
+        description: >
+          Specifies the format for the values corresponding to the name_display key
+          Intended for setting the full person's name format including given name, surnames, etc. by the user
+          Refer to gramps.gen.display.name module for the format string syntax
       responses:
         200:
           description: "OK: Successful operation."
@@ -1603,6 +1627,14 @@ paths:
             events | Returns family event list with name, date and location
             ratings | Returns citation count and highest confidence rating for events
             references | Returns information about objects that refer to the family
+      - name: name_format
+        in: query
+        required: false
+        type: string
+        description: >
+          Specifies the format for the values corresponding to the name_display key
+          Intended for setting the full person's name format including given name, surnames, etc. by the user
+          Refer to gramps.gen.display.name module for the format string syntax
       responses:
         200:
           description: "OK: Successful operation."
@@ -1944,6 +1976,14 @@ paths:
             ratings | Returns citation count and highest confidence rating for events
             participants | Returns information about the event participants
             references | Returns information about objects that refer to the family
+      - name: name_format
+        in: query
+        required: false
+        type: string
+        description: >
+          Specifies the format for the values corresponding to the name_display key
+          Intended for setting the full person's name format including given name, surnames, etc. by the user
+          Refer to gramps.gen.display.name module for the format string syntax
       responses:
         200:
           description: "OK: Successful operation."
@@ -2061,6 +2101,14 @@ paths:
             events | Returns event name, date and location
             ratings | Returns citation count and highest confidence rating for events
             references | Returns information about objects that refer to the event
+      - name: name_format
+        in: query
+        required: false
+        type: string
+        description: >
+          Specifies the format for the values corresponding to the name_display key
+          Intended for setting the full person's name format including given name, surnames, etc. by the user
+          Refer to gramps.gen.display.name module for the format string syntax
       responses:
         200:
           description: "OK: Successful operation."
@@ -2656,6 +2704,14 @@ paths:
             ------ | --------
             all | Returns all information
             references | Returns information about objects that refer to the place
+      - name: name_format
+        in: query
+        required: false
+        type: string
+        description: >
+          Specifies the format for the values corresponding to the name_display key
+          Intended for setting the full person's name format including given name, surnames, etc. by the user
+          Refer to gramps.gen.display.name module for the format string syntax
       responses:
         200:
           description: "OK: Successful operation."
@@ -2765,6 +2821,14 @@ paths:
             ------ | --------
             all | Returns all information
             references | Returns information about objects that refer to the place
+      - name: name_format
+        in: query
+        required: false
+        type: string
+        description: >
+          Specifies the format for the values corresponding to the name_display key
+          Intended for setting the full person's name format including given name, surnames, etc. by the user
+          Refer to gramps.gen.display.name module for the format string syntax
       responses:
         200:
           description: "OK: Successful operation."
@@ -3562,6 +3626,14 @@ paths:
             ------ | --------
             all | Returns all information
             references | Returns information about objects that refer to the place
+      - name: name_format
+        in: query
+        required: false
+        type: string
+        description: >
+          Specifies the format for the values corresponding to the name_display key
+          Intended for setting the full person's name format including given name, surnames, etc. by the user
+          Refer to gramps.gen.display.name module for the format string syntax
       - name: filemissing
         in: query
         required: false
@@ -3673,6 +3745,14 @@ paths:
             ------ | --------
             all | Returns all information
             references | Returns information about objects that refer to the place
+      - name: name_format
+        in: query
+        required: false
+        type: string
+        description: >
+          Specifies the format for the values corresponding to the name_display key
+          Intended for setting the full person's name format including given name, surnames, etc. by the user
+          Refer to gramps.gen.display.name module for the format string syntax
       responses:
         200:
           description: "OK: Successful operation."
@@ -6137,6 +6217,14 @@ paths:
             span | Returns elapsed time span from union that formed the family and familial events
             events | Returns event list with name, date and location
             families | Returns family information with parents, children, and key relationship between parents
+      - name: name_format
+        in: query
+        required: false
+        type: string
+        description: >
+          Specifies the format for the values corresponding to the name_display key
+          Intended for setting the full person's name format including given name, surnames, etc. by the user
+          Refer to gramps.gen.display.name module for the format string syntax
       - name: semantic
         in: query
         required: false
@@ -7955,6 +8043,10 @@ definitions:
         description: "The unique identifier for a person."
         type: string
         example: "GNUJQCL9MD64AM56OH"
+      name_display:
+        description: "Preferred name of the person in a predefined display format"
+        type: string
+        example: "Warner, Mary Grace Elizabeth (Mary)"
       name_given:
         description: "Preferred given name of the person."
         type: string
@@ -10892,6 +10984,10 @@ definitions:
         description: "The unique identifier for a person."
         type: string
         example: "ORFKQC4KLWEGTGR19L"
+      name_display:
+        description: "Preferred name of the person in a predefined display format"
+        type: string
+        example: "Warner, Mary Grace Elizabeth (Mary)"
       name_given:
         description: "Preferred given name of the person."
         type: string
