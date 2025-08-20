@@ -185,8 +185,8 @@ class LocalFileHandler(FileHandler):
         """
         try:
             self._check_path()
-        except ValueError:
-            abort_with_message(403, "File access not allowed")
+        except ValueError as exc:
+            raise FileNotFoundError from exc
         return os.path.getsize(self.path_abs)
 
     def send_file(
