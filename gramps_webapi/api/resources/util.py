@@ -334,6 +334,7 @@ def get_birth_profile(
     person: Person,
     args: Union[list, None] = None,
     locale: GrampsLocale = glocale,
+    name_format: str | None = None,
 ) -> tuple[dict, Union[Event, None]]:
     """Return best available birth information for a person."""
     event = get_birth_or_fallback(db_handle, person)
@@ -341,7 +342,9 @@ def get_birth_profile(
         return {}, None
     args = args or []
     return (
-        get_event_profile_for_object(db_handle, event, args=args, locale=locale),
+        get_event_profile_for_object(
+            db_handle, event, args=args, locale=locale, name_format=name_format
+        ),
         event,
     )
 
@@ -351,6 +354,7 @@ def get_death_profile(
     person: Person,
     args: Union[list, None] = None,
     locale: GrampsLocale = glocale,
+    name_format: str | None = None,
 ) -> tuple[dict, Union[Event, None]]:
     """Return best available death information for a person."""
     event = get_death_or_fallback(db_handle, person)
@@ -358,7 +362,9 @@ def get_death_profile(
         return {}, None
     args = args or []
     return (
-        get_event_profile_for_object(db_handle, event, args=args, locale=locale),
+        get_event_profile_for_object(
+            db_handle, event, args=args, locale=locale, name_format=name_format
+        ),
         event,
     )
 
@@ -368,6 +374,7 @@ def get_marriage_profile(
     family: Family,
     args: Union[list, None] = None,
     locale: GrampsLocale = glocale,
+    name_format: str | None = None,
 ) -> tuple[dict, Union[Event, None]]:
     """Return best available marriage information for a couple."""
     event = get_marriage_or_fallback(db_handle, family)
@@ -375,7 +382,9 @@ def get_marriage_profile(
         return {}, None
     args = args or []
     return (
-        get_event_profile_for_object(db_handle, event, args=args, locale=locale),
+        get_event_profile_for_object(
+            db_handle, event, args=args, locale=locale, name_format=name_format
+        ),
         event,
     )
 
@@ -385,6 +394,7 @@ def get_divorce_profile(
     family: Family,
     args: list | None = None,
     locale: GrampsLocale = glocale,
+    name_format: str | None = None,
 ) -> tuple[dict, Event | None]:
     """Return best available divorce information for a couple."""
     event = get_divorce_or_fallback(db_handle, family)
@@ -392,7 +402,9 @@ def get_divorce_profile(
         return {}, None
     args = args or []
     return (
-        get_event_profile_for_object(db_handle, event, args=args, locale=locale),
+        get_event_profile_for_object(
+            db_handle, event, args=args, locale=locale, name_format=name_format
+        ),
         event,
     )
 
@@ -531,24 +543,35 @@ def get_person_profile_for_object(
                 label="age",
                 locale=locale,
                 role=locale.translation.sgettext(event_ref.get_role().xml_str()),
+                name_format=name_format,
             )
             for event_ref in person.event_ref_list
         ]
     if "all" in args or "families" in args:
         primary_parent_family_handle = person.get_main_parents_family_handle()
         profile["primary_parent_family"] = get_family_profile_for_handle(
-            db_handle, primary_parent_family_handle, options, locale=locale
+            db_handle,
+            primary_parent_family_handle,
+            options,
+            locale=locale,
+            name_format=name_format,
         )
         profile["other_parent_families"] = []
         for handle in person.parent_family_list:
             if handle != primary_parent_family_handle:
                 profile["other_parent_families"].append(
                     get_family_profile_for_handle(
-                        db_handle, handle, options, locale=locale
+                        db_handle,
+                        handle,
+                        options,
+                        locale=locale,
+                        name_format=name_format,
                     )
                 )
         profile["families"] = [
-            get_family_profile_for_handle(db_handle, handle, options, locale=locale)
+            get_family_profile_for_handle(
+                db_handle, handle, options, locale=locale, name_format=name_format
+            )
             for handle in person.family_list
         ]
     return profile
@@ -654,6 +677,7 @@ def get_family_profile_for_object(
                 base_event=marriage_event,
                 label="span",
                 locale=locale,
+                name_format=name_format,
             )
             for event_ref in family.event_ref_list
         ]

@@ -103,7 +103,11 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
                 )
             elif class_name == "event":
                 obj.profile = get_event_profile_for_object(
-                    self.db_handle, obj, args["profile"], locale=locale
+                    self.db_handle,
+                    obj,
+                    args["profile"],
+                    locale=locale,
+                    name_format=args.get("name_format"),
                 )
             elif class_name == "citation":
                 obj.profile = get_citation_profile_for_object(
