@@ -64,7 +64,11 @@ class EventResourceHelper(GrampsObjectResourceHelper):
             if "families" in args["profile"] or "events" in args["profile"]:
                 abort_with_message(422, "profile contains invalid keys")
             obj.profile = get_event_profile_for_object(
-                db_handle, obj, args["profile"], locale=locale
+                db_handle,
+                obj,
+                args["profile"],
+                locale=locale,
+                name_format=args.get("name_format"),
             )
         return obj
 

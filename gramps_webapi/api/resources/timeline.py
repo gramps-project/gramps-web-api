@@ -109,6 +109,7 @@ class Timeline:
         omit_anchor: bool = True,
         precision: int = 1,
         locale: GrampsLocale = glocale,
+        name_format: Optional[str] = None,
     ):
         """Initialize timeline."""
         self.db_handle = db_handle
@@ -131,6 +132,7 @@ class Timeline:
         self.set_event_filters(self.event_filters)
         self.set_relative_event_filters(self.relative_event_filters)
         self.birth_dates: Dict[str, Date] = {}
+        self.name_format = name_format
 
         if dates and "-" in dates:
             start, end = dates.split("-")
@@ -465,7 +467,11 @@ class Timeline:
                             get_person = False
                 if get_person:
                     person = get_person_profile_for_object(
-                        self.db_handle, person_object, {}, locale=self.locale
+                        self.db_handle,
+                        person_object,
+                        [],
+                        locale=self.locale,
+                        name_format=self.name_format,
                     )
                     if not person_age and person_object.handle in self.birth_dates:
                         person_age = self.get_age(
@@ -534,6 +540,7 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "last": fields.Boolean(load_default=True),
             "locale": fields.Str(load_default=None),
+            "name_format": fields.Str(validate=validate.Length(min=1)),
             "offspring": fields.Integer(
                 load_default=1, validate=validate.Range(min=1, max=5)
             ),
@@ -626,12 +633,14 @@ class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
             "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "locale": fields.Str(load_default=None),
+            "name_format": fields.Str(validate=validate.Length(min=1)),
             "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
             "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
             "ratings": fields.Boolean(load_default=False),
             "skipkeys": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1))
             ),
+            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "strip": fields.Boolean(load_default=False),
         },
         location="query",
@@ -648,6 +657,7 @@ class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
                 ratings=args["ratings"],
                 discard_empty=args["discard_empty"],
                 locale=locale,
+                name_format=args.get("name_format"),
             )
             timeline.add_family(Handle(handle))
         except ValueError:
@@ -720,6 +730,7 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
                 omit_anchor=args["omit_anchor"],
                 precision=args["precision"],
                 locale=locale,
+                name_format=args.get("name_format"),
             )
             if "anchor" in args:
                 timeline.add_person(
@@ -801,6 +812,7 @@ class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
                 ratings=args["ratings"],
                 discard_empty=args["discard_empty"],
                 locale=locale,
+                name_format=args.get("name_format"),
             )
         except ValueError:
             abort(422)

@@ -627,6 +627,7 @@ class TestPeople(unittest.TestCase):
                                 },
                                 "gramps_id": "I0554",
                                 "handle": "914KQCNJ9TMDQMDL81",
+                                "name_display": "Adams, Jane",
                                 "name_given": "Jane",
                                 "name_surname": "Adams",
                                 "sex": "F",
@@ -667,6 +668,7 @@ class TestPeople(unittest.TestCase):
                             },
                             "gramps_id": "I0701",
                             "handle": "FR6KQCRONQWR69LFUI",
+                            "name_display": "Adams, William",
                             "name_given": "William",
                             "name_surname": "Adams",
                             "sex": "M",
@@ -705,6 +707,7 @@ class TestPeople(unittest.TestCase):
                             },
                             "gramps_id": "I0702",
                             "handle": "OS6KQCDBW36VIRF98Z",
+                            "name_display": "Aguilar, Eleanor",
                             "name_given": "Eleanor",
                             "name_surname": "Aguilar",
                             "sex": "F",
@@ -714,6 +717,7 @@ class TestPeople(unittest.TestCase):
                 ],
                 "gramps_id": "I0702",
                 "handle": "OS6KQCDBW36VIRF98Z",
+                "name_display": "Aguilar, Eleanor",
                 "name_given": "Eleanor",
                 "name_surname": "Aguilar",
                 "primary_parent_family": {
@@ -741,6 +745,7 @@ class TestPeople(unittest.TestCase):
                             },
                             "gramps_id": "I0702",
                             "handle": "OS6KQCDBW36VIRF98Z",
+                            "name_display": "Aguilar, Eleanor",
                             "name_given": "Eleanor",
                             "name_surname": "Aguilar",
                             "sex": "F",
@@ -770,6 +775,7 @@ class TestPeople(unittest.TestCase):
                         },
                         "gramps_id": "I0953",
                         "handle": "4GCKQC20GMQLO6N77C",
+                        "name_display": "Aguilar, John",
                         "name_given": "John",
                         "name_surname": "Aguilar",
                         "sex": "M",
@@ -799,6 +805,7 @@ class TestPeople(unittest.TestCase):
                                     },
                                     "gramps_id": "I0702",
                                     "handle": "OS6KQCDBW36VIRF98Z",
+                                    "name_display": "Aguilar, Eleanor",
                                     "name_given": "Eleanor",
                                     "name_surname": "Aguilar",
                                     "sex": "F",
@@ -822,6 +829,7 @@ class TestPeople(unittest.TestCase):
                                 },
                                 "gramps_id": "I0953",
                                 "handle": "4GCKQC20GMQLO6N77C",
+                                "name_display": "Aguilar, John",
                                 "name_given": "John",
                                 "name_surname": "Aguilar",
                                 "sex": "M",
@@ -849,6 +857,7 @@ class TestPeople(unittest.TestCase):
                                     },
                                     "gramps_id": "I0554",
                                     "handle": "914KQCNJ9TMDQMDL81",
+                                    "name_display": "Adams, Jane",
                                     "name_given": "Jane",
                                     "name_surname": "Adams",
                                     "sex": "F",
@@ -872,6 +881,7 @@ class TestPeople(unittest.TestCase):
                                 },
                                 "gramps_id": "I0701",
                                 "handle": "FR6KQCRONQWR69LFUI",
+                                "name_display": "Adams, William",
                                 "name_given": "William",
                                 "name_surname": "Adams",
                                 "sex": "M",
@@ -901,6 +911,7 @@ class TestPeople(unittest.TestCase):
                                 },
                                 "gramps_id": "I0702",
                                 "handle": "OS6KQCDBW36VIRF98Z",
+                                "name_display": "Aguilar, Eleanor",
                                 "name_given": "Eleanor",
                                 "name_surname": "Aguilar",
                                 "sex": "F",
@@ -1170,6 +1181,7 @@ class TestPeopleHandle(unittest.TestCase):
                 },
                 "gramps_id": "I0138",
                 "handle": "0PWJQCZYFXOS0HGREE",
+                "name_display": "Warner, Mary Grace Elizabeth",
                 "name_given": "Mary Grace Elizabeth",
                 "name_suffix": "",
                 "name_surname": "Warner",
@@ -1229,6 +1241,7 @@ class TestPeopleHandle(unittest.TestCase):
             "events",
             "families",
             "handle",
+            "name_display",
             "name_given",
             "name_surname",
             "other_parent_families",
@@ -1271,6 +1284,17 @@ class TestPeopleHandle(unittest.TestCase):
         backlinks = rv["extended"]["backlinks"]
         self.assertEqual(backlinks["family"][0]["handle"], "LOTJQC78O5B4WQGJRP")
         self.assertEqual(backlinks["family"][1]["handle"], "UPTJQC4VPCABZUDB75")
+
+    def test_get_people_handle_parameter_name_format_expected_result_name_display(self):
+        """Test the people handle endpoint with profile and name_format parameters"""
+        rv = check_success(
+            self,
+            TEST_URL
+            + "0PWJQCZYFXOS0HGREE?profile=all&name_format=Given%20%28Common%29%20SURNAME",
+        )
+        self.assertEqual(
+            rv["profile"]["name_display"], "Mary Grace Elizabeth (Mary) WARNER"
+        )
 
 
 class TestPeopleHandleTimeline(unittest.TestCase):

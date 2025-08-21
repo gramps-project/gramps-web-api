@@ -430,6 +430,7 @@ class TestFamilies(unittest.TestCase):
                         "death": {},
                         "gramps_id": "I2115",
                         "handle": "cc82060516c6c141500",
+                        "name_display": ", صالح",
                         "name_given": "صالح",
                         "name_surname": "",
                         "name_suffix": "",
@@ -462,6 +463,7 @@ class TestFamilies(unittest.TestCase):
                     },
                     "gramps_id": "I2111",
                     "handle": "cc82060504445ab6deb",
+                    "name_display": ", أحمد",
                     "name_given": "أحمد",
                     "name_surname": "",
                     "name_suffix": "",
@@ -483,6 +485,7 @@ class TestFamilies(unittest.TestCase):
                     },
                     "gramps_id": "I2112",
                     "handle": "cc8206050980ea622d0",
+                    "name_display": "الفضل, العباسة",
                     "name_given": "العباسة",
                     "name_surname": "الفضل",
                     "name_suffix": "",
@@ -507,6 +510,7 @@ class TestFamilies(unittest.TestCase):
                             },
                             "gramps_id": "I2111",
                             "handle": "cc82060504445ab6deb",
+                            "name_display": ", أحمد",
                             "name_given": "أحمد",
                             "name_surname": "",
                             "name_suffix": "",
@@ -523,6 +527,7 @@ class TestFamilies(unittest.TestCase):
                             },
                             "gramps_id": "I2112",
                             "handle": "cc8206050980ea622d0",
+                            "name_display": "الفضل, العباسة",
                             "name_given": "العباسة",
                             "name_surname": "الفضل",
                             "name_suffix": "",
@@ -539,6 +544,7 @@ class TestFamilies(unittest.TestCase):
                             "death": {},
                             "gramps_id": "I2115",
                             "handle": "cc82060516c6c141500",
+                            "name_display": ", صالح",
                             "name_given": "صالح",
                             "name_surname": "",
                             "name_suffix": "",
@@ -796,6 +802,7 @@ class TestFamiliesHandle(unittest.TestCase):
                         "death": {},
                         "gramps_id": "I0124",
                         "handle": "1GWJQCGOOZ8FJW3YK9",
+                        "name_display": "Garner, Stephen Gerard",
                         "name_given": "Stephen Gerard",
                         "name_surname": "Garner",
                         "name_suffix": "",
@@ -815,6 +822,7 @@ class TestFamiliesHandle(unittest.TestCase):
                         "death": {},
                         "gramps_id": "I0125",
                         "handle": "IGWJQCSVT8NXTFXOFJ",
+                        "name_display": "Garner, Daniel Patrick",
                         "name_given": "Daniel Patrick",
                         "name_surname": "Garner",
                         "name_suffix": "",
@@ -849,6 +857,7 @@ class TestFamiliesHandle(unittest.TestCase):
                     "death": {},
                     "gramps_id": "I0017",
                     "handle": "KLTJQC70XVZJSPQ43U",
+                    "name_display": "Garner, Gerard Stephen",
                     "name_given": "Gerard Stephen",
                     "name_surname": "Garner",
                     "name_suffix": "",
@@ -880,6 +889,7 @@ class TestFamiliesHandle(unittest.TestCase):
                     "death": {},
                     "gramps_id": "I0123",
                     "handle": "JFWJQCRREDFKZLDKVD",
+                    "name_display": "George, Elizabeth",
                     "name_given": "Elizabeth",
                     "name_surname": "George",
                     "name_suffix": "",
@@ -898,6 +908,7 @@ class TestFamiliesHandle(unittest.TestCase):
                             "death": {},
                             "gramps_id": "I0124",
                             "handle": "1GWJQCGOOZ8FJW3YK9",
+                            "name_display": "Garner, Stephen Gerard",
                             "name_given": "Stephen Gerard",
                             "name_surname": "Garner",
                             "name_suffix": "",
@@ -914,6 +925,7 @@ class TestFamiliesHandle(unittest.TestCase):
                             "death": {},
                             "gramps_id": "I0125",
                             "handle": "IGWJQCSVT8NXTFXOFJ",
+                            "name_display": "Garner, Daniel Patrick",
                             "name_given": "Daniel Patrick",
                             "name_surname": "Garner",
                             "name_suffix": "",
@@ -930,6 +942,7 @@ class TestFamiliesHandle(unittest.TestCase):
                             "death": {},
                             "gramps_id": "I0123",
                             "handle": "JFWJQCRREDFKZLDKVD",
+                            "name_display": "George, Elizabeth",
                             "name_given": "Elizabeth",
                             "name_surname": "George",
                             "name_suffix": "",
@@ -946,6 +959,7 @@ class TestFamiliesHandle(unittest.TestCase):
                             "death": {},
                             "gramps_id": "I0017",
                             "handle": "KLTJQC70XVZJSPQ43U",
+                            "name_display": "Garner, Gerard Stephen",
                             "name_given": "Gerard Stephen",
                             "name_surname": "Garner",
                             "name_suffix": "",
@@ -962,6 +976,26 @@ class TestFamiliesHandle(unittest.TestCase):
         rv = check_success(self, TEST_URL + "7MTJQCHRUUYSUA8ABB?profile=all&locale=de")
         self.assertEqual(rv["profile"]["father"]["birth"]["age"], "0 Tage")
         self.assertEqual(rv["profile"]["father"]["birth"]["type"], "Geburt")
+
+    def test_get_families_handle_parameter_profile_expected_result_with_name_format(
+        self,
+    ):
+        """Test response as expected."""
+        rv = check_success(
+            self,
+            TEST_URL
+            + "7MTJQCHRUUYSUA8ABB?profile=all&name_format=%25f%20%28%25c%29%20%25L",
+        )
+        self.assertEqual(
+            rv["profile"]["children"][0]["name_display"], "Stephen Gerard GARNER"
+        )
+        self.assertEqual(
+            rv["profile"]["father"]["name_display"], "Gerard Stephen GARNER"
+        )
+        self.assertEqual(
+            rv["profile"]["references"]["person"][1]["name_display"],
+            "Daniel Patrick GARNER",
+        )
 
     def test_get_families_handle_parameter_backlinks_validate_semantics(self):
         """Test invalid backlinks parameter and values."""

@@ -50,7 +50,11 @@ class PersonResourceHelper(GrampsObjectResourceHelper):
         db_handle = self.db_handle
         if "profile" in args:
             obj.profile = get_person_profile_for_object(
-                db_handle, obj, args["profile"], locale=locale
+                db_handle,
+                obj,
+                args["profile"],
+                locale=locale,
+                name_format=args.get("name_format"),
             )
         if "extend" in args:
             obj.extended = get_extended_attributes(db_handle, obj, args)
