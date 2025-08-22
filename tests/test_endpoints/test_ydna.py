@@ -109,5 +109,11 @@ class TestYDnaEndpoint(unittest.TestCase):
         assert rv.status_code == 201
         rv = self.client.get(f"/api/people/{handle}/ydna", headers=headers)
         assert rv.status_code == 200
-        assert isinstance(rv.json, list)
-        assert all("name" in item and "age_info" in item for item in rv.json)
+        assert "clade_lineage" in rv.json
+        assert all(
+            "name" in item and "age_info" in item for item in rv.json["clade_lineage"]
+        )
+        assert "raw_data" not in rv.json
+        rv = self.client.get(f"/api/people/{handle}/ydna?raw=1", headers=headers)
+        assert "raw_data" in rv.json
+        assert rv.json["raw_data"] == ydna_string

@@ -46,7 +46,11 @@ class PersonYDnaResource(ProtectedResource):
     )
     @request_cache_decorator
     def get(self, args: dict, handle: str):
-        """Get the Y-DNA data."""
+        """Get Y-DNA data.
+
+        The raw data is expected to be in a person attribute of type 'Y-DNA'
+        in a format the yclade library understands.
+        """
         db_handle = get_db_handle()
         try:
             person: Person | None = db_handle.get_person_from_handle(handle)
@@ -76,4 +80,7 @@ class PersonYDnaResource(ProtectedResource):
         clade_lineage = yclade.find.get_clade_lineage(
             tree=tree_data, node=most_likely_clade
         )
-        return [asdict(clade_info) for clade_info in clade_lineage]
+        result = {"clade_lineage": [asdict(clade_info) for clade_info in clade_lineage]}
+        if args["raw"]:
+            result["raw_data"] = snp_string
+        return result
