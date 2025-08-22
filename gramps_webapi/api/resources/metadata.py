@@ -20,6 +20,8 @@
 
 """Metadata API resource."""
 
+from importlib import metadata
+
 import gramps_ql as gql
 import object_ql as oql
 import pytesseract
@@ -125,6 +127,7 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
             },
             "gramps_ql": {"version": gql.__version__},
             "object_ql": {"version": oql.__version__},
+            "yclade": {"version": metadata.version("yclade")},
             "locale": {
                 "lang": GRAMPS_LOCALE.lang,
                 "language": GRAMPS_LOCALE.language[0],
