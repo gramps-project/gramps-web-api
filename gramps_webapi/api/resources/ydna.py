@@ -80,7 +80,10 @@ class PersonYDnaResource(ProtectedResource):
         clade_lineage = yclade.find.get_clade_lineage(
             tree=tree_data, node=most_likely_clade
         )
-        result = {"clade_lineage": [asdict(clade_info) for clade_info in clade_lineage]}
+        result = {
+            "clade_lineage": [asdict(clade_info) for clade_info in clade_lineage],
+            "tree_version": tree_data.version,
+        }
         if args["raw"]:
             result["raw_data"] = snp_string
         return result
