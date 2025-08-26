@@ -28,7 +28,7 @@ import os
 import smtplib
 import socket
 from email.message import EmailMessage
-from email.utils import make_msgid
+from email.utils import formatdate, make_msgid
 from http import HTTPStatus
 from typing import Any, BinaryIO, NoReturn, Sequence
 
@@ -532,6 +532,7 @@ def send_email(
     msg["From"] = from_email
     msg["To"] = ", ".join(to)
     msg["Message-ID"] = make_msgid()
+    msg["Date"] = formatdate(localtime=True)
 
     host = get_config("EMAIL_HOST")
     port = int(get_config("EMAIL_PORT"))
