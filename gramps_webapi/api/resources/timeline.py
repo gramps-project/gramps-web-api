@@ -43,6 +43,7 @@ from ..util import get_db_handle, get_locale_for_language, use_args
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .filters import apply_filter
+from ...const import NAME_FORMAT_REGEXP
 from .util import (
     get_person_profile_for_object,
     get_place_profile_for_object,
@@ -540,7 +541,7 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "last": fields.Boolean(load_default=True),
             "locale": fields.Str(load_default=None),
-            "name_format": fields.Str(validate=validate.Length(min=1)),
+            "name_format": fields.Str(validate=validate.Regexp(NAME_FORMAT_REGEXP)),
             "offspring": fields.Integer(
                 load_default=1, validate=validate.Range(min=1, max=5)
             ),
@@ -633,7 +634,7 @@ class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
             "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
             "locale": fields.Str(load_default=None),
-            "name_format": fields.Str(validate=validate.Length(min=1)),
+            "name_format": fields.Str(validate=validate.Regexp(NAME_FORMAT_REGEXP)),
             "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
             "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
             "ratings": fields.Boolean(load_default=False),

@@ -782,7 +782,7 @@ class TestEventsHandle(unittest.TestCase):
         """Test response as expected."""
         rv = check_success(
             self,
-            TEST_URL + "a5af0eb6dd140de132c?profile=all&name_format=Given%20SURNAME",
+            TEST_URL + "a5af0eb6dd140de132c?profile=all&name_format=%25f%20%25M",
         )
         self.assertEqual(
             rv["profile"],

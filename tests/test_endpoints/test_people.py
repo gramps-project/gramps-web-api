@@ -1290,7 +1290,7 @@ class TestPeopleHandle(unittest.TestCase):
         rv = check_success(
             self,
             TEST_URL
-            + "0PWJQCZYFXOS0HGREE?profile=all&name_format=Given%20%28Common%29%20SURNAME",
+            + "0PWJQCZYFXOS0HGREE?profile=all&name_format=%25f%20%28%25x%29%20%25M",
         )
         self.assertEqual(
             rv["profile"]["name_display"], "Mary Grace Elizabeth (Mary) WARNER"

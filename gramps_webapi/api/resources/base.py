@@ -37,7 +37,7 @@ from webargs import fields, validate
 from gramps_webapi.types import ResponseReturnValue
 
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
-from ...const import GRAMPS_OBJECT_PLURAL
+from ...const import GRAMPS_OBJECT_PLURAL, NAME_FORMAT_REGEXP
 from ..auth import require_permissions
 from ..cache import request_cache_decorator
 from ..search import SearchIndexer, get_search_indexer
@@ -210,7 +210,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             "locale": fields.Str(
                 load_default=None, validate=validate.Length(min=1, max=5)
             ),
-            "name_format": fields.Str(validate=validate.Length(min=1)),
+            "name_format": fields.Str(validate=validate.Regexp(NAME_FORMAT_REGEXP)),
             "profile": fields.DelimitedList(
                 fields.Str(validate=validate.Length(min=1)),
                 validate=validate.ContainsOnly(
@@ -377,7 +377,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             "soundex": fields.Boolean(load_default=False),
             "strip": fields.Boolean(load_default=False),
             "filemissing": fields.Boolean(load_default=False),
-            "name_format": fields.Str(validate=validate.Length(min=1)),
+            "name_format": fields.Str(validate=validate.Regexp(NAME_FORMAT_REGEXP)),
         },
         location="query",
     )

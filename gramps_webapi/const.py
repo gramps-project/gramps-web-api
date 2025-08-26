@@ -200,3 +200,7 @@ DISABLED_EXPORTERS = ["gpkg"]
 TELEMETRY_ENDPOINT = "https://telemetry-cloud-run-442080026669.europe-west1.run.app"
 TELEMETRY_TIMESTAMP_KEY = "telemetry_last_sent"
 TELEMETRY_SERVER_ID_KEY = "telemetry_server_uuid"
+
+NAME_FORMAT_REGEXP = (
+    r'^(%[%tTfFlLcCxXiImMyYoOrRpPqQsSnNgG]|%[0-2][mMyY]|[ "\',.:;\]\]\(\)\{\}\&\@])*$'
+)
