@@ -60,7 +60,6 @@ from .telemetry import (
     update_telemetry_timestamp,
 )
 from .util import (
-    abort_with_message,
     check_quota_people,
     close_db,
     get_config,
@@ -497,7 +496,7 @@ def process_transactions(
                     ):
                         if num_people_added or num_people_deleted:
                             update_usage_people(tree=tree, user_id=user_id)
-                        abort_with_message(409, "Object has changed")
+                        raise ValueError("Object has changed")
                     new_data = item["new"]
                     if new_data:
                         new_obj = gramps_object_from_dict(new_data)
@@ -515,11 +514,11 @@ def process_transactions(
                     else:
                         if num_people_added or num_people_deleted:
                             update_usage_people(tree=tree, user_id=user_id)
-                        abort_with_message(400, "Unexpected transaction type")
+                        raise ValueError("Unexpected transaction type")
                 except (KeyError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
                     if num_people_added or num_people_deleted:
                         update_usage_people(tree=tree, user_id=user_id)
-                    abort_with_message(400, "Error while processing transaction")
+                    raise ValueError("Error while processing transaction")
             trans_dict = transaction_to_json(trans)
     finally:
         # close the *writeable* db handle regardless of errors
@@ -570,7 +569,7 @@ def handle_commit(trans: DbTxn, class_name: str, obj) -> None:
 def handle_add(trans: DbTxn, class_name: str, obj) -> None:
     """Handle an add action."""
     if class_name != "Tag" and not obj.gramps_id:
-        abort_with_message(400, "Gramps ID missing")
+        raise ValueError("Gramps ID missing")
     handle_commit(trans, class_name, obj)
 
 
