@@ -120,6 +120,7 @@ from .resources.user import (
     UsersResource,
     UserTriggerResetPasswordResource,
 )
+from .resources.ydna import PersonYDnaResource
 from .util import get_db_handle, get_tree_from_jwt, use_args
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
@@ -157,6 +158,7 @@ register_endpt(
     "/people/<string:handle>/dna/matches",
     "person-dna-matches",
 )
+register_endpt(PersonYDnaResource, "/people/<string:handle>/ydna", "person-ydna")
 register_endpt(PeopleResource, "/people/", "people")
 # Families
 register_endpt(

@@ -97,6 +97,9 @@ RUN ARCH=$(uname -m) && \
 model = SentenceTransformer('sentence-transformers/distiluse-base-multilingual-cased-v2')"; \
     fi
 
+# download and cache YFull tree for yclade
+RUN python3 -c "import yclade; yclade.tree.download_yfull_tree()"
+
 EXPOSE 5000
 
 COPY docker-entrypoint.sh /

@@ -1329,6 +1329,47 @@ paths:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
 
+  /people/{handle}/dna/ydna:
+    get:
+      tags:
+        - people
+      summary: Get Y-DNA clade lineage for a person
+      description: >
+        Returns the Y-DNA clade lineage for the person with the given handle, including clade age and confidence intervals if available.
+      parameters:
+        - name: handle
+          in: path
+          required: true
+          type: string
+          description: The handle of the person.
+        - name: raw
+          in: query
+          required: false
+          type: boolean
+          description: If true, include raw data in the response.
+      responses:
+        200:
+          description: Successful response with clade lineage information.
+          schema:
+            type: object
+            properties:
+              clade_lineage:
+                type: array
+                items:
+                  $ref: '#/definitions/CladeInfo'
+              raw_data:
+                description: The raw Y chromosome SNP data in a format compatible with the yclade library.
+                type: string
+                example: M215+, BY61636-, FTF15749-, TY15744-
+        401:
+          description: "Unauthorized: Missing authorization header."
+        404:
+          description: "Person not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
+
+
 ##############################################################################
 # Endpoint - Families
 ##############################################################################
@@ -7511,6 +7552,66 @@ paths:
 ##############################################################################
 
 definitions:
+
+##############################################################################
+# Model - CladeAgeInfo
+##############################################################################
+
+  CladeAgeInfo:
+    type: object
+    properties:
+      formed:
+        type: number
+        format: float
+        description: How many years ago the clade was formed.
+        nullable: true
+        example: 4500
+      formed_confidence_interval:
+        type: array
+        items:
+          type: number
+          format: float
+        minItems: 2
+        maxItems: 2
+        description: 95% confidence interval for the formed age.
+        nullable: true
+      most_recent_common_ancestor:
+        type: number
+        format: float
+        description: How many years ago the most recent common ancestor was born.
+        nullable: true
+        example: 3800
+      most_recent_common_ancestor_confidence_interval:
+        type: array
+        items:
+          type: number
+          format: float
+        minItems: 2
+        maxItems: 2
+        description: 95% confidence interval for the most recent common ancestor age.
+        nullable: true
+
+##############################################################################
+# Model - CladeInfo
+##############################################################################
+
+  CladeInfo:
+    type: object
+    properties:
+      name:
+        type: string
+        description: The ID of the clade.
+        example: BY61636
+      age_info:
+        $ref: '#/definitions/CladeAgeInfo'
+        description: The age information for the clade.
+        nullable: true
+      score:
+        type: number
+        format: float
+        description: The score for the clade (optional).
+        nullable: true
+        example: 9.0
 
 ##############################################################################
 # Model - Token
