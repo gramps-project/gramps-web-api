@@ -379,7 +379,7 @@ class TestTransactionResource(unittest.TestCase):
         rv = self.client.post(
             "/api/transactions/?background=1", json=trans, headers=headers
         )
-        self.assertEqual(rv.status_code, 400)
+        self.assertEqual(rv.status_code, 500)
 
     def test_missing_gramps_id(self):
         """Add with missing gramps ID."""
@@ -397,7 +397,7 @@ class TestTransactionResource(unittest.TestCase):
         rv = self.client.post(
             "/api/transactions/?background=1", json=trans, headers=headers
         )
-        self.assertEqual(rv.status_code, 400)
+        self.assertEqual(rv.status_code, 500)
 
     def test_gramps60_issue(self):
         """Test for an issue that occurred after upgrading to Gramps 6.0"""

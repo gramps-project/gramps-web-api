@@ -47,6 +47,7 @@ from .media_importer import MediaImporter
 from .report import run_report
 from .resources.delete import delete_all_objects
 from .resources.util import (
+    abort_with_message,
     app_has_semantic_search,
     dry_run_import,
     run_import,
@@ -75,7 +76,10 @@ def run_task(task: Task, **kwargs) -> Union[AsyncResult, Any]:
     """Send a task to the task queue or run immediately if no queue set up."""
     if not current_app.config["CELERY_CONFIG"]:
         with current_app.app_context():
-            return task(**kwargs)
+            try:
+                return task(**kwargs)
+            except Exception as exc:
+                abort_with_message(500, str(exc))
     return task.delay(**kwargs)
 
 
