@@ -203,7 +203,7 @@ class TestImportersExtensionFile(unittest.TestCase):
             data=file_obj,
             headers=headers,
         )
-        assert rv.status_code == 405
+        assert rv.status_code == 500
         rv = check_success(self, f"{BASE_URL}/people/")
         assert len(rv) == 0
         with self.test_app.app_context():

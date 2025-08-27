@@ -70,9 +70,12 @@ class TransactionsResource(ProtectedResource):
             if isinstance(task, AsyncResult):
                 return make_task_response(task)
             return task, 200
-        trans_dict = process_transactions(
-            tree=tree, user_id=user_id, payload=payload, force=args["force"]
-        )
+        try:
+            trans_dict = process_transactions(
+                tree=tree, user_id=user_id, payload=payload, force=args["force"]
+            )
+        except ValueError as exc:
+            abort_with_message(400, str(exc))
         res = Response(
             response=json.dumps(trans_dict),
             status=200,

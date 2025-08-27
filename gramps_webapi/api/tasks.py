@@ -47,6 +47,7 @@ from .media_importer import MediaImporter
 from .report import run_report
 from .resources.delete import delete_all_objects
 from .resources.util import (
+    abort_with_message,
     app_has_semantic_search,
     dry_run_import,
     run_import,
@@ -60,7 +61,6 @@ from .telemetry import (
     update_telemetry_timestamp,
 )
 from .util import (
-    abort_with_message,
     check_quota_people,
     close_db,
     get_config,
@@ -76,7 +76,10 @@ def run_task(task: Task, **kwargs) -> Union[AsyncResult, Any]:
     """Send a task to the task queue or run immediately if no queue set up."""
     if not current_app.config["CELERY_CONFIG"]:
         with current_app.app_context():
-            return task(**kwargs)
+            try:
+                return task(**kwargs)
+            except Exception as exc:
+                abort_with_message(500, str(exc))
     return task.delay(**kwargs)
 
 
@@ -497,7 +500,7 @@ def process_transactions(
                     ):
                         if num_people_added or num_people_deleted:
                             update_usage_people(tree=tree, user_id=user_id)
-                        abort_with_message(409, "Object has changed")
+                        raise ValueError("Object has changed")
                     new_data = item["new"]
                     if new_data:
                         new_obj = gramps_object_from_dict(new_data)
@@ -515,11 +518,11 @@ def process_transactions(
                     else:
                         if num_people_added or num_people_deleted:
                             update_usage_people(tree=tree, user_id=user_id)
-                        abort_with_message(400, "Unexpected transaction type")
+                        raise ValueError("Unexpected transaction type")
                 except (KeyError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
                     if num_people_added or num_people_deleted:
                         update_usage_people(tree=tree, user_id=user_id)
-                    abort_with_message(400, "Error while processing transaction")
+                    raise ValueError("Error while processing transaction")
             trans_dict = transaction_to_json(trans)
     finally:
         # close the *writeable* db handle regardless of errors
@@ -570,7 +573,7 @@ def handle_commit(trans: DbTxn, class_name: str, obj) -> None:
 def handle_add(trans: DbTxn, class_name: str, obj) -> None:
     """Handle an add action."""
     if class_name != "Tag" and not obj.gramps_id:
-        abort_with_message(400, "Gramps ID missing")
+        raise ValueError("Gramps ID missing")
     handle_commit(trans, class_name, obj)
 
 
