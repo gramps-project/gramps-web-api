@@ -201,6 +201,5 @@ TELEMETRY_ENDPOINT = "https://telemetry-cloud-run-442080026669.europe-west1.run.
 TELEMETRY_TIMESTAMP_KEY = "telemetry_last_sent"
 TELEMETRY_SERVER_ID_KEY = "telemetry_server_uuid"
 
-NAME_FORMAT_REGEXP = (
-    r'^(%[%tTfFlLcCxXiImMyYoOrRpPqQsSnNgG]|%[0-2][mMyY]|[ "\',.:;\]\]\(\)\{\}\&\@])*$'
-)
+# Regular expression for allowed values of the `name_format` query parameter.
+NAME_FORMAT_REGEXP = r"^(%[%tTfFlLcCxXiImMyYoOrRpPqQsSnNgG]|%[0-2][mMyY]|[ \u0022\u0027,.:;\]\[\(\)\{\}\&\@])*$"
