@@ -21,11 +21,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Set
 
 import sifts
 from gramps.gen.db.base import DbReadBase
 
+from ...types import ProgressCallback
 from .text import iter_obj_strings, obj_strings_from_handle
 from ..util import get_total_number_of_objects, get_object_timestamps
 
@@ -39,7 +40,7 @@ class SearchIndexerBase:
     def __init__(
         self,
         tree: str,
-        db_url: Optional[str] = None,
+        db_url: str | None = None,
         embedding_function: Callable | None = None,
         use_fts: bool = True,
         use_semantic_text: bool = False,
@@ -126,7 +127,7 @@ class SearchIndexerBase:
         self.index_public.add(contents=contents, ids=ids, metadatas=metadatas)
 
     def reindex_full(
-        self, db_handle: DbReadBase, progress_cb: Optional[Callable] = None
+        self, db_handle: DbReadBase, progress_cb: ProgressCallback | None = None
     ):
         """Reindex the whole database."""
         total = get_total_number_of_objects(db_handle)
@@ -213,7 +214,7 @@ class SearchIndexerBase:
             self._add_objects([obj_dict])
 
     def reindex_incremental(
-        self, db_handle: DbReadBase, progress_cb: Optional[Callable] = None
+        self, db_handle: DbReadBase, progress_cb: ProgressCallback | None = None
     ):
         """Update the index incrementally."""
         update_info = self._get_update_info(db_handle)
@@ -287,10 +288,10 @@ class SearchIndexerBase:
         page: int,
         pagesize: int,
         include_private: bool = True,
-        sort: Optional[List[str]] = None,
-        object_types: Optional[List[str]] = None,
-        change_op: Optional[str] = None,
-        change_value: Optional[float] = None,
+        sort: List[str] | None = None,
+        object_types: List[str] | None = None,
+        change_op: str | None = None,
+        change_value: float | None = None,
         include_content: bool = False,
     ):
         """Search the index.
@@ -338,7 +339,7 @@ class SearchIndexer(SearchIndexerBase):
     def __init__(
         self,
         tree: str,
-        db_url: Optional[str] = None,
+        db_url: str | None = None,
     ):
         """Initialize the indexer."""
         super().__init__(
@@ -355,7 +356,7 @@ class SemanticSearchIndexer(SearchIndexerBase):
     def __init__(
         self,
         tree: str,
-        db_url: Optional[str] = None,
+        db_url: str | None = None,
         embedding_function: Callable | None = None,
     ):
         """Initialize the indexer."""

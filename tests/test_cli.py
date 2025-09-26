@@ -154,6 +154,10 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
             ],
         )
         assert result.exit_code == 0
+        # The log messages go to the logger, not stdout, so we can't check for them in result.output
+        # But we can ensure there's no error output and the command succeeded
+        assert "Error" not in result.output
+        assert "Exception" not in result.output
 
     def test_search_reindex_full(self):
         tree = WebDbManager(name=self.name).dirname
@@ -169,6 +173,10 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
             ],
         )
         assert result.exit_code == 0
+        # The log messages go to the logger, not stdout, so we can't check for them in result.output
+        # But we can ensure there's no error output and the command succeeded
+        assert "Error" not in result.output
+        assert "Exception" not in result.output
 
     def test_search_reindex_incremental_notree(self):
         tree = WebDbManager(name=self.name).dirname
@@ -182,6 +190,10 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
             ],
         )
         assert result.exit_code == 0
+        # The log messages go to the logger, not stdout, so we can't check for them in result.output
+        # But we can ensure there's no error output and the command succeeded
+        assert "Error" not in result.output
+        assert "Exception" not in result.output
 
     def test_search_reindex_full_notree(self):
         tree = WebDbManager(name=self.name).dirname
@@ -195,3 +207,30 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
             ],
         )
         assert result.exit_code == 0
+        # The log messages go to the logger, not stdout, so we can't check for them in result.output
+        # But we can ensure there's no error output and the command succeeded
+        assert "Error" not in result.output
+        assert "Exception" not in result.output
+
+    def test_search_reindex_with_broken_progress_callback(self):
+        """Test that would catch the original bug where progress_callback_count was undefined."""
+        tree = WebDbManager(name=self.name).dirname
+        
+        # Temporarily break the progress callback by patching it to raise an error
+        with patch('gramps_webapi.__main__.progress_callback_count_factory') as mock_factory:
+            mock_factory.side_effect = NameError("name 'progress_callback_count' is not defined")
+            
+            result = self.runner.invoke(
+                cli,
+                [
+                    "--config",
+                    self.config_file.name,
+                    "search",
+                    "--tree",
+                    tree,
+                    "index-full",
+                ],
+            )
+            # With the improved error handling, this should now fail with a non-zero exit code
+            assert result.exit_code != 0
+            assert "Indexing failed" in result.output

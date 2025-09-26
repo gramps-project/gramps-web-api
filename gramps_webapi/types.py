@@ -22,7 +22,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, NewType, Union
+from typing import Any, NewType, Protocol, Union
 
 import flask.typing
 
@@ -32,3 +32,10 @@ FilenameOrPath = Union[str, Path]
 TransactionJson = list[dict[str, Any]]
 ResponseReturnValue = flask.typing.ResponseReturnValue
 MatchSegment = dict[str, Union[float, int, str, None]]
+
+
+class ProgressCallback(Protocol):
+    """Protocol for progress callback functions."""
+
+    def __call__(self, current: int, total: int, prev: int | None = None) -> None:
+        """Call the progress callback with current progress, total items, and optional previous value."""
