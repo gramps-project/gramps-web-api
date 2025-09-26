@@ -92,6 +92,11 @@ from .resources.token import (
     TokenRefreshResource,
     TokenResource,
 )
+from .resources.oidc import (
+    OIDCCallbackResource,
+    OIDCConfigResource,
+    OIDCLoginResource,
+)
 from .resources.transactions import TransactionsResource
 from .resources.translations import TranslationResource, TranslationsResource
 from .resources.trees import (
@@ -148,6 +153,10 @@ register_endpt(
 register_endpt(TokenResource, "/token/", "token")
 register_endpt(TokenRefreshResource, "/token/refresh/", "token_refresh")
 register_endpt(TokenCreateOwnerResource, "/token/create_owner/", "token_create_owner")
+# OIDC
+register_endpt(OIDCLoginResource, "/oidc/login/", "oidcloginresource")
+register_endpt(OIDCCallbackResource, "/oidc/callback/", "oidccallbackresource")
+register_endpt(OIDCConfigResource, "/oidc/config/", "oidcconfigresource")
 # People
 register_endpt(
     PersonTimelineResource, "/people/<string:handle>/timeline", "person-timeline"

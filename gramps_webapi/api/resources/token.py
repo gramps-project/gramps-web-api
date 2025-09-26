@@ -37,6 +37,7 @@ from ...auth import (
     get_permissions,
     is_tree_disabled,
 )
+from ...auth.oidc import is_oidc_enabled
 from ...auth.const import CLAIM_LIMITED_SCOPE, SCOPE_CREATE_ADMIN, SCOPE_CREATE_OWNER
 from ...const import TREE_MULTI
 from ..ratelimiter import limiter
@@ -80,6 +81,11 @@ class TokenResource(Resource):
     )
     def post(self, args):
         """Post username and password to fetch a token."""
+        # Check if local authentication is disabled when OIDC is enabled
+        if (is_oidc_enabled() and
+            current_app.config.get("OIDC_DISABLE_LOCAL_AUTH", False)):
+            abort_with_message(403, "Local authentication is disabled. Please use OIDC authentication.")
+
         if "username" not in args or "password" not in args:
             abort_with_message(401, "Missing username or password")
         if not authorized(args.get("username"), args.get("password")):

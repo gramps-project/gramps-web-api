@@ -40,6 +40,7 @@ from .api.tasks import run_task, send_telemetry_task
 from .api.telemetry import should_send_telemetry
 from .api.util import close_db, get_tree_from_jwt
 from .auth import user_db
+from .auth.oidc import init_oidc
 from .config import DefaultConfig, DefaultConfigJWT
 from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI
 from .dbmanager import WebDbManager
@@ -145,6 +146,9 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
 
     app.config["SQLALCHEMY_DATABASE_URI"] = app.config["USER_DB_URI"]
     user_db.init_app(app)
+
+    # initialize OIDC if enabled
+    init_oidc(app)
 
     request_cache.init_app(app, config=app.config["REQUEST_CACHE_CONFIG"])
     thumbnail_cache.init_app(app, config=app.config["THUMBNAIL_CACHE_CONFIG"])
