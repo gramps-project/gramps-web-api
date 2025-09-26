@@ -23,6 +23,7 @@ import io
 import os
 import shutil
 import tempfile
+from importlib.resources import as_file, files
 from pathlib import Path
 from typing import BinaryIO, Callable
 
@@ -30,7 +31,6 @@ import ffmpeg
 from pdf2image import convert_from_path
 from PIL import Image, ImageOps
 from PIL.Image import Image as ImageType
-from pkg_resources import resource_filename  # type: ignore[import-untyped]
 
 from gramps_webapi.const import MIME_PDF
 from gramps_webapi.types import FilenameOrPath
@@ -230,12 +230,11 @@ def detect_faces(stream: BinaryIO) -> list[tuple[float, float, float, float]]:
     assert cv_image is not None, "cv_image is None"  # for type checker
 
     # Load the YuNet model
-    model_path = resource_filename(
-        "gramps_webapi", "data/face_detection_yunet_2023mar.onnx"
-    )
-    face_detector = cv2.FaceDetectorYN.create(
-        model_path, "", (320, 320), score_threshold=0.5
-    )
+    ref = files("gramps_webapi") / "data/face_detection_yunet_2023mar.onnx"
+    with as_file(ref) as model_path:
+        face_detector = cv2.FaceDetectorYN.create(
+            str(model_path), "", (320, 320), score_threshold=0.5
+        )
 
     # Set input image size for YuNet
     height, width, _ = cv_image.shape

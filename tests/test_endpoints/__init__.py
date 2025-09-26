@@ -20,12 +20,11 @@
 """Tests for the `gramps_webapi.api` module."""
 
 import os
-import shutil
+from importlib.resources import as_file, files
 from unittest.mock import patch
 
 import yaml
 from jsonschema import RefResolver
-from pkg_resources import resource_filename
 
 from gramps_webapi.api.search import get_search_indexer
 from gramps_webapi.app import create_app
@@ -41,8 +40,10 @@ from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EXAMPLE_GRAMPS_AUTH_CONFIG
 from gramps_webapi.dbmanager import WebDbManager
 from tests import TEST_GRAMPSHOME, ExampleDbSQLite
 
-with open(resource_filename("gramps_webapi", "data/apispec.yaml")) as file_handle:
-    API_SCHEMA = yaml.safe_load(file_handle)
+ref = files("gramps_webapi") / "data/apispec.yaml"
+with as_file(ref) as file_path:
+    with open(file_path, encoding="utf-8") as file_handle:
+        API_SCHEMA = yaml.safe_load(file_handle)
 
 API_RESOLVER = RefResolver(base_uri="", referrer=API_SCHEMA, store={"": API_SCHEMA})
 

@@ -19,27 +19,40 @@
 
 """Constants for the web API."""
 
+import atexit
 import shutil
+from contextlib import ExitStack
+from importlib.resources import as_file, files
 
 import gramps.gen.lib as lib
 from gramps.gen.plug import CATEGORY_DRAW, CATEGORY_GRAPHVIZ, CATEGORY_TEXT
-from pkg_resources import resource_filename  # type: ignore[import-untyped]
 
 from ._version import __version__ as VERSION
 
 # the value of the TREE config option that enables multi-tree support
 TREE_MULTI = "*"
 
-# files
-TEST_CONFIG = resource_filename("gramps_webapi", "data/test.cfg")
-TEST_AUTH_CONFIG = resource_filename("gramps_webapi", "data/test_auth.cfg")
-TEST_EXAMPLE_GRAMPS_CONFIG = resource_filename(
+# Helper function to get resource file paths with managed cleanup
+_file_manager = ExitStack()
+atexit.register(_file_manager.close)
+
+
+def _get_resource_path(package: str, resource_path: str) -> str:
+    """Get the file system path for a package resource with managed cleanup."""
+    ref = files(package) / resource_path
+    return str(_file_manager.enter_context(as_file(ref)))
+
+
+# Configuration files
+TEST_CONFIG = _get_resource_path("gramps_webapi", "data/test.cfg")
+TEST_AUTH_CONFIG = _get_resource_path("gramps_webapi", "data/test_auth.cfg")
+TEST_EXAMPLE_GRAMPS_CONFIG = _get_resource_path(
     "gramps_webapi", "data/example_gramps.cfg"
 )
-TEST_EXAMPLE_GRAMPS_AUTH_CONFIG = resource_filename(
+TEST_EXAMPLE_GRAMPS_AUTH_CONFIG = _get_resource_path(
     "gramps_webapi", "data/example_gramps_auth.cfg"
 )
-TEST_EMPTY_GRAMPS_AUTH_CONFIG = resource_filename(
+TEST_EMPTY_GRAMPS_AUTH_CONFIG = _get_resource_path(
     "gramps_webapi", "data/empty_gramps_auth.cfg"
 )
 

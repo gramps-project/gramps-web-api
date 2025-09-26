@@ -215,11 +215,15 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
     def test_search_reindex_with_broken_progress_callback(self):
         """Test that would catch the original bug where progress_callback_count was undefined."""
         tree = WebDbManager(name=self.name).dirname
-        
+
         # Temporarily break the progress callback by patching it to raise an error
-        with patch('gramps_webapi.__main__.progress_callback_count_factory') as mock_factory:
-            mock_factory.side_effect = NameError("name 'progress_callback_count' is not defined")
-            
+        with patch(
+            "gramps_webapi.__main__.progress_callback_count_factory"
+        ) as mock_factory:
+            mock_factory.side_effect = NameError(
+                "name 'progress_callback_count' is not defined"
+            )
+
             result = self.runner.invoke(
                 cli,
                 [
