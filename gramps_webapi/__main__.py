@@ -30,12 +30,12 @@ import time
 import warnings
 import webbrowser
 from threading import Thread
-
 import click
 import waitress  # type: ignore
 
 from .api.search import get_search_indexer, get_semantic_search_indexer
 from .api.tasks import send_email_confirm_email, send_email_reset_password
+from .types import ProgressCallback
 from .api.util import close_db, get_db_manager, list_trees
 from .app import create_app
 from .auth import add_user, delete_user, fill_tree, user_db
@@ -259,17 +259,22 @@ def search(ctx, tree, semantic):
             ctx.obj["search_indexer"] = get_search_indexer(tree=tree)
 
 
-def progress_callback_count(
-    app, current: int, total: int, prev: int | None = None
-) -> None:
-    if total == 0:
-        return
-    pct = int(100 * current / total)
-    if prev is None:
-        prev = current - 1
-    pct_prev = int(100 * prev / total)
-    if current == 0 or pct != pct_prev:
-        app.logger.info(f"Progress: {pct}%")
+def progress_callback_count_factory(app) -> ProgressCallback:
+    """Create a progress callback function that logs progress to the app logger."""
+
+    def progress_callback_count(
+        current: int, total: int, prev: int | None = None
+    ) -> None:
+        if total == 0:
+            return
+        pct = int(100 * current / total)
+        if prev is None:
+            prev = current - 1
+        pct_prev = int(100 * prev / total)
+        if current == 0 or pct != pct_prev:
+            app.logger.info(f"Progress: {pct}%")
+
+    return progress_callback_count
 
 
 @search.command("index-full")
@@ -284,9 +289,10 @@ def index_full(ctx):
 
     t0 = time.time()
     try:
-        indexer.reindex_full(db, progress_cb=progress_callback_count)
-    except:
+        indexer.reindex_full(db, progress_cb=progress_callback_count_factory(app))
+    except Exception as e:
         app.logger.exception("Error during indexing")
+        raise click.ClickException(f"Indexing failed: {e}")
     finally:
         close_db(db)
     app.logger.info(f"Done building search index in {time.time() - t0:.0f} seconds.")
@@ -302,9 +308,12 @@ def index_incremental(ctx):
     db = db_manager.get_db().db
 
     try:
-        indexer.reindex_incremental(db, progress_cb=progress_callback_count)
-    except Exception:
+        indexer.reindex_incremental(
+            db, progress_cb=progress_callback_count_factory(app)
+        )
+    except Exception as e:
         app.logger.exception("Error during indexing")
+        raise click.ClickException(f"Indexing failed: {e}")
     finally:
         close_db(db)
     app.logger.info("Done updating search index.")
