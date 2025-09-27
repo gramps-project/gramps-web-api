@@ -41,14 +41,15 @@ from .const import (
 logger = logging.getLogger(__name__)
 
 
-def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> int:
+def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> Optional[int]:
     """Map OIDC claims to Gramps roles based on environment variables.
 
     Args:
         user_claims: The user claims from OIDC token
         role_claim: The claim to look for roles/groups (e.g., 'groups', 'roles', 'realm_access.roles')
 
-    Returns the highest role the user is entitled to based on claim membership.
+    Returns the highest role the user is entitled to based on claim membership,
+    or None if no role mapping is configured (to preserve existing roles).
     Environment variables should be named OIDC_GROUP_<ROLE>.
     """
     role_mapping = {
@@ -59,6 +60,12 @@ def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> int:
         ROLE_MEMBER: os.getenv("OIDC_GROUP_MEMBER", ""),
         ROLE_GUEST: os.getenv("OIDC_GROUP_GUEST", ""),
     }
+
+    # Check if any role mapping is configured
+    has_role_mapping = any(group_name.strip() for group_name in role_mapping.values())
+    if not has_role_mapping:
+        logger.info("No OIDC role mapping configured (no OIDC_GROUP_* environment variables set). Preserving existing user roles.")
+        return None
 
     # Extract user groups/roles from claims
     user_groups = []
@@ -79,7 +86,7 @@ def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> int:
         elif isinstance(claim_value, str):
             user_groups = [claim_value]
 
-    # Fallback: if no groups found, assign default guest role
+    # Fallback: if no groups found in claims, assign default guest role
     if not user_groups:
         logger.warning(f"No {role_claim} found in user claims. Available claims: {list(user_claims.keys())}. Assigning guest role.")
         return ROLE_GUEST
@@ -104,39 +111,59 @@ def create_or_update_oidc_user(
 
     Returns the user GUID.
     """
-    username = userinfo.get("preferred_username") or userinfo.get("sub")
+    from flask import current_app
+
+    # Get username from configurable claim with fallback to 'sub'
+    username_claim = current_app.config.get("OIDC_USERNAME_CLAIM", "preferred_username")
+    username = userinfo.get(username_claim) or userinfo.get("sub")
+
     email = userinfo.get("email", "")
     full_name = userinfo.get("name", "")
     groups = userinfo.get("groups", [])
 
     if not username:
-        raise ValueError("No username found in OIDC userinfo")
+        available_claims = ", ".join(userinfo.keys())
+        raise ValueError(f"No username found in OIDC userinfo. Tried claim '{username_claim}' and fallback 'sub'. Available claims: {available_claims}")
 
-    from flask import current_app
     role_claim = current_app.config.get("OIDC_ROLE_CLAIM", "groups")
-    role = get_role_from_claims(userinfo, role_claim)
+    role_from_claims = get_role_from_claims(userinfo, role_claim)
 
     existing_user = get_user_details(username)
 
     if existing_user:
         user_guid = get_guid(username)
         logger.info(f"Updating existing OIDC user: {username}")
-        modify_user(
-            name=username,
-            fullname=full_name,
-            email=email,
-            role=role,
-            tree=tree,
-        )
+
+        # Only update role if role mapping is configured
+        if role_from_claims is not None:
+            modify_user(
+                name=username,
+                fullname=full_name,
+                email=email,
+                role=role_from_claims,
+                tree=tree,
+            )
+        else:
+            # Preserve existing role when no role mapping is configured
+            modify_user(
+                name=username,
+                fullname=full_name,
+                email=email,
+                tree=tree,
+            )
     else:
         logger.info(f"Creating new OIDC user: {username}")
         random_password = secrets.token_urlsafe(32)
+
+        # For new users, use role from claims if available, otherwise default to GUEST
+        final_role = role_from_claims if role_from_claims is not None else ROLE_GUEST
+
         add_user(
             name=username,
             password=random_password,
             fullname=full_name,
             email=email,
-            role=role,
+            role=final_role,
             tree=tree,
         )
         user_guid = get_guid(username)

@@ -149,8 +149,6 @@ class OIDCConfigResource(Resource):
 
         return {
             "enabled": True,
-            "issuer": current_app.config["OIDC_ISSUER"],
-            "client_id": current_app.config["OIDC_CLIENT_ID"],
             "login_url": url_for("api.oidcloginresource", _external=True),
             "disable_local_auth": current_app.config.get("OIDC_DISABLE_LOCAL_AUTH", False),
             "auto_redirect": current_app.config.get("OIDC_AUTO_REDIRECT", True),

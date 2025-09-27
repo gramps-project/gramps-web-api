@@ -45,7 +45,7 @@ dependencies = [
     "sifts>=0.8.3",
     "requests",
     "yclade>=0.5.0",
-    "Authlib>=1.2.0",
+    "Authlib>=1.6.4",
     "gunicorn",
 ]
 
