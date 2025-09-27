@@ -84,6 +84,7 @@ class DefaultConfig(object):
     OIDC_DISABLE_LOCAL_AUTH = False
     OIDC_AUTO_REDIRECT = True
     OIDC_USERNAME_CLAIM = "preferred_username"
+    OIDC_NAME = "OIDC"
 
 
 class DefaultConfigJWT(object):

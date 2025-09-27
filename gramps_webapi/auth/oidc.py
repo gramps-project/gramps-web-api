@@ -117,7 +117,7 @@ def get_provider_config(provider_id: str, app=None) -> Optional[Dict]:
             return None
 
         return {
-            "name": "OIDC",
+            "name": app.config.get("OIDC_NAME", "OIDC"),
             "client_id": client_id,
             "client_secret": app.config.get("OIDC_CLIENT_SECRET"),
             "issuer": issuer,
