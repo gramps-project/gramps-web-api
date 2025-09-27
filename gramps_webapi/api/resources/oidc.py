@@ -26,7 +26,7 @@ from flask import current_app, request, session, url_for
 from webargs import fields
 
 from ...auth import get_name, get_permissions, is_tree_disabled
-from ...auth.oidc import create_or_update_oidc_user, is_oidc_enabled
+from ...auth.oidc import create_or_update_oidc_user, is_oidc_enabled, get_available_oidc_providers, get_provider_config
 from ...const import TREE_MULTI
 from ..ratelimiter import limiter
 from ..util import abort_with_message, get_tree_id, use_args
@@ -43,20 +43,34 @@ class OIDCLoginResource(Resource):
     """
 
     @limiter.limit("5/minute")
-    def get(self):
+    @use_args(
+        {
+            "provider": fields.Str(required=True),
+        },
+        location="query",
+    )
+    def get(self, args):
         """Redirect to OIDC provider for authentication."""
         if not is_oidc_enabled():
             abort_with_message(404, "OIDC authentication is not enabled")
+
+        provider_id = args.get("provider")
+
+        # Validate provider is available
+        available_providers = get_available_oidc_providers()
+        if provider_id not in available_providers:
+            abort_with_message(400, f"Provider '{provider_id}' is not available")
 
         oauth = current_app.extensions.get("authlib.integrations.flask_client")
         if not oauth:
             abort_with_message(500, "OIDC client not properly initialized")
 
-        oidc_client = oauth.gramps
+        oidc_client = getattr(oauth, f"gramps_{provider_id}", None)
+        if not oidc_client:
+            abort_with_message(500, f"OIDC client for provider '{provider_id}' not found")
 
-        redirect_uri = current_app.config["OIDC_REDIRECT_URI"]
-        if not redirect_uri:
-            redirect_uri = url_for("api.oidccallbackresource", _external=True)
+        # Build redirect URI with provider parameter
+        redirect_uri = url_for("api.oidccallbackresource", provider=provider_id, _external=True)
 
         authorization_url = oidc_client.authorize_redirect(redirect_uri)
         return authorization_url
@@ -71,6 +85,7 @@ class OIDCCallbackResource(Resource):
     @limiter.limit("5/minute")
     @use_args(
         {
+            "provider": fields.Str(required=True),
             "tree": fields.Str(required=False),
             "code": fields.Str(required=False),
             "state": fields.Str(required=False),
@@ -85,19 +100,36 @@ class OIDCCallbackResource(Resource):
         if not is_oidc_enabled():
             abort_with_message(404, "OIDC authentication is not enabled")
 
+        provider_id = args.get("provider")
+
+        # Validate provider is available
+        available_providers = get_available_oidc_providers()
+        if provider_id not in available_providers:
+            abort_with_message(400, f"Provider '{provider_id}' is not available")
+
         oauth = current_app.extensions.get("authlib.integrations.flask_client")
         if not oauth:
             abort_with_message(500, "OIDC client not properly initialized")
 
-        oidc_client = oauth.gramps
+        oidc_client = getattr(oauth, f"gramps_{provider_id}", None)
+        if not oidc_client:
+            abort_with_message(500, f"OIDC client for provider '{provider_id}' not found")
 
         try:
             token = oidc_client.authorize_access_token()
-            # Get userinfo from the userinfo endpoint instead of parsing ID token
-            userinfo = oidc_client.userinfo(token=token)
+
+            # Handle different provider types for userinfo
+            if provider_id == "github":
+                # GitHub OAuth 2.0 - get user info from API
+                resp = oidc_client.get("user", token=token)
+                userinfo = resp.json()
+            else:
+                # Standard OIDC - get userinfo from userinfo endpoint
+                userinfo = oidc_client.userinfo(token=token)
+
         except Exception as e:
-            logger.error(f"OIDC callback error: {e}")
-            abort_with_message(401, "OIDC authentication failed")
+            logger.error(f"OIDC callback error for provider '{provider_id}': {e}")
+            abort_with_message(401, f"OIDC authentication failed for {provider_id}")
 
         tree = args.get("tree")
         if (
@@ -108,7 +140,7 @@ class OIDCCallbackResource(Resource):
             abort_with_message(403, "Not allowed in single-tree setup")
 
         try:
-            user_id = create_or_update_oidc_user(userinfo, tree)
+            user_id = create_or_update_oidc_user(userinfo, tree, provider_id)
             username = get_name(user_id)
             tree_id = get_tree_id(user_id)
 
@@ -135,7 +167,7 @@ class OIDCCallbackResource(Resource):
             return redirect(redirect_url)
 
         except ValueError as e:
-            logger.error(f"Error creating/updating OIDC user: {e}")
+            logger.error(f"Error creating/updating OIDC user for provider '{provider_id}': {e}")
             abort_with_message(400, f"Error processing user: {str(e)}")
 
 
@@ -147,9 +179,24 @@ class OIDCConfigResource(Resource):
         if not is_oidc_enabled():
             return {"enabled": False}
 
+        available_providers = get_available_oidc_providers()
+        if not available_providers:
+            return {"enabled": False}
+
+        # Build provider list with display information
+        providers = []
+        for provider_id in available_providers:
+            provider_config = get_provider_config(provider_id)
+            if provider_config:
+                providers.append({
+                    "id": provider_id,
+                    "name": provider_config["name"],
+                    "login_url": url_for("api.oidcloginresource", provider=provider_id, _external=True),
+                })
+
         return {
             "enabled": True,
-            "login_url": url_for("api.oidcloginresource", _external=True),
+            "providers": providers,
             "disable_local_auth": current_app.config.get("OIDC_DISABLE_LOCAL_AUTH", False),
             "auto_redirect": current_app.config.get("OIDC_AUTO_REDIRECT", True),
         }

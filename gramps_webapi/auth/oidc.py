@@ -40,6 +40,99 @@ from .const import (
 
 logger = logging.getLogger(__name__)
 
+# Built-in provider configurations
+BUILTIN_PROVIDERS = {
+    "google": {
+        "name": "Google",
+        "issuer": "https://accounts.google.com",
+        "scopes": "openid email profile",
+        "username_claim": "email",
+    },
+    "microsoft": {
+        "name": "Microsoft",
+        "issuer": "https://login.microsoftonline.com/common/v2.0",
+        "scopes": "openid email profile",
+        "username_claim": "preferred_username",
+    },
+    "github": {
+        "name": "GitHub",
+        "issuer": "https://github.com",
+        "auth_url": "https://github.com/login/oauth/authorize",
+        "token_url": "https://github.com/login/oauth/access_token",
+        "userinfo_url": "https://api.github.com/user",
+        "scopes": "user:email",
+        "username_claim": "login",
+    }
+}
+
+
+def get_available_oidc_providers() -> List[str]:
+    """Auto-detect available OIDC providers from environment variables.
+
+    Scans for OIDC_{PROVIDER}_CLIENT_ID environment variables to determine
+    which providers are configured.
+
+    Returns:
+        List of provider names (e.g., ['google', 'microsoft', 'github', 'custom'])
+    """
+    providers = []
+
+    # Check for built-in providers
+    for provider_id in BUILTIN_PROVIDERS.keys():
+        client_id_key = f"OIDC_{provider_id.upper()}_CLIENT_ID"
+        if os.getenv(client_id_key):
+            providers.append(provider_id)
+
+    # Check for custom provider (optional)
+    if os.getenv("OIDC_CLIENT_ID") and os.getenv("OIDC_ISSUER"):
+        providers.append("custom")
+
+    return providers
+
+
+def get_provider_config(provider_id: str) -> Optional[Dict]:
+    """Get configuration for a specific OIDC provider.
+
+    Args:
+        provider_id: Provider identifier (e.g., 'google', 'microsoft', 'github', 'custom')
+
+    Returns:
+        Provider configuration dict or None if not configured
+    """
+    if provider_id == "custom":
+        # Custom provider configuration
+        if not (os.getenv("OIDC_CLIENT_ID") and os.getenv("OIDC_ISSUER")):
+            return None
+
+        return {
+            "name": "OIDC",
+            "client_id": os.getenv("OIDC_CLIENT_ID"),
+            "client_secret": os.getenv("OIDC_CLIENT_SECRET"),
+            "issuer": os.getenv("OIDC_ISSUER"),
+            "scopes": os.getenv("OIDC_SCOPES", "openid email profile"),
+            "username_claim": os.getenv("OIDC_USERNAME_CLAIM", "preferred_username"),
+            "openid_config_url": os.getenv("OIDC_OPENID_CONFIG_URL"),
+        }
+
+    if provider_id not in BUILTIN_PROVIDERS:
+        return None
+
+    # Built-in provider configuration
+    provider_upper = provider_id.upper()
+    client_id = os.getenv(f"OIDC_{provider_upper}_CLIENT_ID")
+    client_secret = os.getenv(f"OIDC_{provider_upper}_CLIENT_SECRET")
+
+    if not (client_id and client_secret):
+        return None
+
+    config = BUILTIN_PROVIDERS[provider_id].copy()
+    config.update({
+        "client_id": client_id,
+        "client_secret": client_secret,
+    })
+
+    return config
+
 
 def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> Optional[int]:
     """Map OIDC claims to Gramps roles based on environment variables.
@@ -105,25 +198,44 @@ def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> Optio
 
 def create_or_update_oidc_user(
     userinfo: Dict,
-    tree: Optional[str] = None
+    tree: Optional[str] = None,
+    provider_id: str = "custom"
 ) -> str:
     """Create or update a user based on OIDC userinfo.
+
+    Args:
+        userinfo: User information from OIDC provider
+        tree: Tree identifier (optional)
+        provider_id: OIDC provider identifier
 
     Returns the user GUID.
     """
     from flask import current_app
 
-    # Get username from configurable claim with fallback to 'sub'
-    username_claim = current_app.config.get("OIDC_USERNAME_CLAIM", "preferred_username")
+    # Get provider-specific configuration
+    provider_config = get_provider_config(provider_id)
+    if not provider_config:
+        raise ValueError(f"Provider '{provider_id}' is not configured")
+
+    # Get username from provider-specific claim with fallback to 'sub'
+    username_claim = provider_config.get("username_claim", "preferred_username")
     username = userinfo.get(username_claim) or userinfo.get("sub")
 
     email = userinfo.get("email", "")
     full_name = userinfo.get("name", "")
-    groups = userinfo.get("groups", [])
+
+    # For GitHub, get email from separate API call if not in userinfo
+    if provider_id == "github" and not email:
+        email = userinfo.get("email") or f"{userinfo.get('login', 'user')}@users.noreply.github.com"
 
     if not username:
         available_claims = ", ".join(userinfo.keys())
-        raise ValueError(f"No username found in OIDC userinfo. Tried claim '{username_claim}' and fallback 'sub'. Available claims: {available_claims}")
+        raise ValueError(f"No username found in OIDC userinfo for provider '{provider_id}'. Tried claim '{username_claim}' and fallback 'sub'. Available claims: {available_claims}")
+
+    # Add provider prefix to username to avoid conflicts between providers
+    # Custom provider gets no prefix for cleaner usernames in self-hosted systems
+    if provider_id != "custom":
+        username = f"{provider_id}:{username}"
 
     role_claim = current_app.config.get("OIDC_ROLE_CLAIM", "groups")
     role_from_claims = get_role_from_claims(userinfo, role_claim)
@@ -177,21 +289,56 @@ def init_oidc(app):
         return None
 
     oauth = OAuth(app)
+    providers = get_available_oidc_providers()
 
-    oidc_client = oauth.register(
-        name="gramps",
-        client_id=app.config["OIDC_CLIENT_ID"],
-        client_secret=app.config["OIDC_CLIENT_SECRET"],
-        server_metadata_url=app.config.get(
-            "OIDC_OPENID_CONFIG_URL",
-            f"{app.config['OIDC_ISSUER']}/.well-known/openid-configuration"
-        ),
-        client_kwargs={
-            "scope": app.config.get("OIDC_SCOPES", "openid email profile"),
-        },
-    )
+    if not providers:
+        logger.warning("OIDC is enabled but no providers are configured")
+        return None
 
-    return oidc_client
+    # Register each available provider
+    for provider_id in providers:
+        provider_config = get_provider_config(provider_id)
+        if not provider_config:
+            logger.warning(f"Skipping provider '{provider_id}' - configuration incomplete")
+            continue
+
+        try:
+            # Use provider-specific configuration
+            client_kwargs = {"scope": provider_config["scopes"]}
+
+            # Handle different provider types
+            if provider_id == "github":
+                # GitHub uses OAuth 2.0, not OIDC
+                oauth.register(
+                    name=f"gramps_{provider_id}",
+                    client_id=provider_config["client_id"],
+                    client_secret=provider_config["client_secret"],
+                    access_token_url=provider_config["token_url"],
+                    authorize_url=provider_config["auth_url"],
+                    api_base_url="https://api.github.com/",
+                    client_kwargs=client_kwargs,
+                )
+            else:
+                # Standard OIDC providers
+                server_metadata_url = provider_config.get(
+                    "openid_config_url",
+                    f"{provider_config['issuer']}/.well-known/openid-configuration"
+                )
+
+                oauth.register(
+                    name=f"gramps_{provider_id}",
+                    client_id=provider_config["client_id"],
+                    client_secret=provider_config["client_secret"],
+                    server_metadata_url=server_metadata_url,
+                    client_kwargs=client_kwargs,
+                )
+
+            logger.info(f"Registered OIDC provider: {provider_config['name']} ({provider_id})")
+
+        except Exception as e:
+            logger.error(f"Failed to register OIDC provider '{provider_id}': {e}")
+
+    return oauth
 
 
 def is_oidc_enabled() -> bool:
