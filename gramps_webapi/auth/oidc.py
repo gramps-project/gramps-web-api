@@ -131,8 +131,8 @@ def get_provider_config(provider_id: str, app=None) -> Optional[Dict]:
 
     # Built-in provider configuration
     provider_upper = provider_id.upper()
-    client_id = os.getenv(f"OIDC_{provider_upper}_CLIENT_ID")
-    client_secret = os.getenv(f"OIDC_{provider_upper}_CLIENT_SECRET")
+    client_id = app.config.get(f"OIDC_{provider_upper}_CLIENT_ID")
+    client_secret = app.config.get(f"OIDC_{provider_upper}_CLIENT_SECRET")
 
     if not (client_id and client_secret):
         return None
@@ -155,21 +155,23 @@ def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> Optio
 
     Returns the highest role the user is entitled to based on claim membership,
     or None if no role mapping is configured (to preserve existing roles).
-    Environment variables should be named OIDC_GROUP_<ROLE>.
+    Environment variables should be named GRAMPSWEB_OIDC_GROUP_<ROLE>.
     """
+    from flask import current_app
+
     role_mapping = {
-        ROLE_ADMIN: os.getenv("OIDC_GROUP_ADMIN", ""),
-        ROLE_OWNER: os.getenv("OIDC_GROUP_OWNER", ""),
-        ROLE_EDITOR: os.getenv("OIDC_GROUP_EDITOR", ""),
-        ROLE_CONTRIBUTOR: os.getenv("OIDC_GROUP_CONTRIBUTOR", ""),
-        ROLE_MEMBER: os.getenv("OIDC_GROUP_MEMBER", ""),
-        ROLE_GUEST: os.getenv("OIDC_GROUP_GUEST", ""),
+        ROLE_ADMIN: current_app.config.get("OIDC_GROUP_ADMIN", ""),
+        ROLE_OWNER: current_app.config.get("OIDC_GROUP_OWNER", ""),
+        ROLE_EDITOR: current_app.config.get("OIDC_GROUP_EDITOR", ""),
+        ROLE_CONTRIBUTOR: current_app.config.get("OIDC_GROUP_CONTRIBUTOR", ""),
+        ROLE_MEMBER: current_app.config.get("OIDC_GROUP_MEMBER", ""),
+        ROLE_GUEST: current_app.config.get("OIDC_GROUP_GUEST", ""),
     }
 
     # Check if any role mapping is configured
     has_role_mapping = any(group_name.strip() for group_name in role_mapping.values())
     if not has_role_mapping:
-        logger.info("No OIDC role mapping configured (no OIDC_GROUP_* environment variables set). Preserving existing user roles.")
+        logger.info("No OIDC role mapping configured (no GRAMPSWEB_OIDC_GROUP_* environment variables set). Preserving existing user roles.")
         return None
 
     # Extract user groups/roles from claims
