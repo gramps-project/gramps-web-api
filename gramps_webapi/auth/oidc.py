@@ -66,52 +66,64 @@ BUILTIN_PROVIDERS = {
 }
 
 
-def get_available_oidc_providers() -> List[str]:
-    """Auto-detect available OIDC providers from environment variables.
+def get_available_oidc_providers(app=None) -> List[str]:
+    """Auto-detect available OIDC providers from Flask configuration.
 
-    Scans for OIDC_{PROVIDER}_CLIENT_ID environment variables to determine
+    Scans for OIDC_{PROVIDER}_CLIENT_ID configuration values to determine
     which providers are configured.
 
     Returns:
         List of provider names (e.g., ['google', 'microsoft', 'github', 'custom'])
     """
+    if app is None:
+        from flask import current_app
+        app = current_app
+
     providers = []
 
     # Check for built-in providers
     for provider_id in BUILTIN_PROVIDERS.keys():
         client_id_key = f"OIDC_{provider_id.upper()}_CLIENT_ID"
-        if os.getenv(client_id_key):
+        if app.config.get(client_id_key):
             providers.append(provider_id)
 
     # Check for custom provider (optional)
-    if os.getenv("OIDC_CLIENT_ID") and os.getenv("OIDC_ISSUER"):
+    if app.config.get("OIDC_CLIENT_ID") and app.config.get("OIDC_ISSUER"):
         providers.append("custom")
 
     return providers
 
 
-def get_provider_config(provider_id: str) -> Optional[Dict]:
+def get_provider_config(provider_id: str, app=None) -> Optional[Dict]:
     """Get configuration for a specific OIDC provider.
 
     Args:
         provider_id: Provider identifier (e.g., 'google', 'microsoft', 'github', 'custom')
+        app: Flask app instance (optional, defaults to current_app)
 
     Returns:
         Provider configuration dict or None if not configured
     """
+    if app is None:
+        from flask import current_app
+        app = current_app
+
     if provider_id == "custom":
         # Custom provider configuration
-        if not (os.getenv("OIDC_CLIENT_ID") and os.getenv("OIDC_ISSUER")):
+        client_id = app.config.get("OIDC_CLIENT_ID")
+        issuer = app.config.get("OIDC_ISSUER")
+
+        if not (client_id and issuer):
             return None
 
         return {
             "name": "OIDC",
-            "client_id": os.getenv("OIDC_CLIENT_ID"),
-            "client_secret": os.getenv("OIDC_CLIENT_SECRET"),
-            "issuer": os.getenv("OIDC_ISSUER"),
-            "scopes": os.getenv("OIDC_SCOPES", "openid email profile"),
-            "username_claim": os.getenv("OIDC_USERNAME_CLAIM", "preferred_username"),
-            "openid_config_url": os.getenv("OIDC_OPENID_CONFIG_URL"),
+            "client_id": client_id,
+            "client_secret": app.config.get("OIDC_CLIENT_SECRET"),
+            "issuer": issuer,
+            "scopes": app.config.get("OIDC_SCOPES", "openid email profile"),
+            "username_claim": app.config.get("OIDC_USERNAME_CLAIM", "preferred_username"),
+            "openid_config_url": app.config.get("OIDC_OPENID_CONFIG_URL"),
         }
 
     if provider_id not in BUILTIN_PROVIDERS:
@@ -289,7 +301,7 @@ def init_oidc(app):
         return None
 
     oauth = OAuth(app)
-    providers = get_available_oidc_providers()
+    providers = get_available_oidc_providers(app)
 
     if not providers:
         logger.warning("OIDC is enabled but no providers are configured")
@@ -297,7 +309,7 @@ def init_oidc(app):
 
     # Register each available provider
     for provider_id in providers:
-        provider_config = get_provider_config(provider_id)
+        provider_config = get_provider_config(provider_id, app)
         if not provider_config:
             logger.warning(f"Skipping provider '{provider_id}' - configuration incomplete")
             continue
