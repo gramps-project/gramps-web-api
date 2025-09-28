@@ -2,6 +2,7 @@
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
 # Copyright (C) 2020-2022      David Straub
+# Copyright (C) 2025           Alexander Bocken
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
