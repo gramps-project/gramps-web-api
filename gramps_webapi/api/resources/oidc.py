@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020-2024      David Straub
+# Copyright (C) 2025           Alexander Bocken
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -17,7 +17,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""OIDC authentication endpoint blueprint."""
+"""OIDC authentication resources."""
 
 import logging
 from urllib.parse import urlencode
@@ -29,7 +29,7 @@ from ...auth import get_name, get_permissions, is_tree_disabled
 from ...auth.oidc import create_or_update_oidc_user, is_oidc_enabled, get_available_oidc_providers, get_provider_config
 from ...const import TREE_MULTI
 from ..ratelimiter import limiter
-from ..util import abort_with_message, get_tree_id, use_args
+from ..util import abort_with_message, get_config, get_tree_id, use_args
 from . import Resource
 from .token import get_tokens
 
@@ -52,7 +52,7 @@ class OIDCLoginResource(Resource):
     def get(self, args):
         """Redirect to OIDC provider for authentication."""
         if not is_oidc_enabled():
-            abort_with_message(404, "OIDC authentication is not enabled")
+            abort_with_message(405, "OIDC authentication is not enabled")
 
         provider_id = args.get("provider")
 
@@ -98,7 +98,7 @@ class OIDCCallbackResource(Resource):
     def get(self, args):
         """Handle OIDC callback and create JWT tokens."""
         if not is_oidc_enabled():
-            abort_with_message(404, "OIDC authentication is not enabled")
+            abort_with_message(405, "OIDC authentication is not enabled")
 
         provider_id = args.get("provider")
 
@@ -128,7 +128,7 @@ class OIDCCallbackResource(Resource):
                 userinfo = oidc_client.userinfo(token=token)
 
         except Exception as e:
-            logger.error(f"OIDC callback error for provider '{provider_id}': {e}")
+            logger.exception(f"OIDC callback error for provider '{provider_id}'")
             abort_with_message(401, f"OIDC authentication failed for {provider_id}")
 
         tree = args.get("tree")
@@ -159,7 +159,7 @@ class OIDCCallbackResource(Resource):
 
             # Redirect to frontend with tokens in URL fragment (more secure than query)
             from flask import redirect
-            frontend_url = current_app.config.get("FRONTEND_URL", "http://localhost:8001")
+            frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
 
             # Use URL fragment to pass tokens (not sent to server)
             redirect_url = f"{frontend_url}/#access_token={tokens['access_token']}&refresh_token={tokens['refresh_token']}&token_type=Bearer"

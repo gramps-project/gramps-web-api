@@ -27,6 +27,7 @@ services:
       GRAMPSWEB_CELERY_CONFIG__broker_url: redis://redis:6379/0
       GRAMPSWEB_CELERY_CONFIG__result_backend: redis://redis:6379/0
       GRAMPSWEB_LOG_LEVEL: DEBUG
+      GRAMPSWEB_FRONTEND_URL: http://localhost:8001
 
   redis:
     image: valkey/valkey:alpine

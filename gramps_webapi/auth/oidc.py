@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020-2024      David Straub
+# Copyright (C) 2025           Alexander Bocken
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -76,7 +76,6 @@ def get_available_oidc_providers(app=None) -> List[str]:
         List of provider names (e.g., ['google', 'microsoft', 'github', 'custom'])
     """
     if app is None:
-        from flask import current_app
         app = current_app
 
     providers = []
@@ -105,7 +104,6 @@ def get_provider_config(provider_id: str, app=None) -> Optional[Dict]:
         Provider configuration dict or None if not configured
     """
     if app is None:
-        from flask import current_app
         app = current_app
 
     if provider_id == "custom":
@@ -157,7 +155,6 @@ def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> Optio
     or None if no role mapping is configured (to preserve existing roles).
     Environment variables should be named GRAMPSWEB_OIDC_GROUP_<ROLE>.
     """
-    from flask import current_app
 
     role_mapping = {
         ROLE_ADMIN: current_app.config.get("OIDC_GROUP_ADMIN", ""),
@@ -171,7 +168,7 @@ def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> Optio
     # Check if any role mapping is configured
     has_role_mapping = any(group_name.strip() for group_name in role_mapping.values())
     if not has_role_mapping:
-        logger.info("No OIDC role mapping configured (no GRAMPSWEB_OIDC_GROUP_* environment variables set). Preserving existing user roles.")
+        logger.info("No OIDC role mapping configured (no OIDC_GROUP_* configuration options set). Preserving existing user roles.")
         return None
 
     # Extract user groups/roles from claims
@@ -212,8 +209,8 @@ def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> Optio
 
 def create_or_update_oidc_user(
     userinfo: Dict,
-    tree: Optional[str] = None,
-    provider_id: str = "custom"
+    tree: Optional[str],
+    provider_id: str
 ) -> str:
     """Create or update a user based on OIDC userinfo.
 
@@ -224,7 +221,6 @@ def create_or_update_oidc_user(
 
     Returns the user GUID.
     """
-    from flask import current_app
 
     # Get provider-specific configuration
     provider_config = get_provider_config(provider_id)
@@ -238,9 +234,6 @@ def create_or_update_oidc_user(
     email = userinfo.get("email", "")
     full_name = userinfo.get("name", "")
 
-    # For GitHub, get email from separate API call if not in userinfo
-    if provider_id == "github" and not email:
-        email = userinfo.get("email") or f"{userinfo.get('login', 'user')}@users.noreply.github.com"
 
     if not username:
         available_claims = ", ".join(userinfo.keys())
