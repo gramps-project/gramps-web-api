@@ -169,6 +169,94 @@ paths:
 
 
 ##############################################################################
+# Endpoint - OIDC Authentication
+##############################################################################
+
+  /oidc/config:
+    get:
+      tags:
+      - authentication
+      summary: "Get OIDC configuration and available providers."
+      operationId: getOIDCConfig
+      responses:
+        200:
+          description: "OK: Successful operation."
+          schema:
+            $ref: "#/definitions/OIDCConfig"
+
+  /oidc/login/:
+    get:
+      tags:
+      - authentication
+      summary: "Initiate OIDC login flow."
+      operationId: oidcLogin
+      parameters:
+      - name: provider
+        in: query
+        required: true
+        type: string
+        description: "The OIDC provider ID (e.g., google, microsoft, github, custom)"
+        example: "google"
+      responses:
+        302:
+          description: "Redirect: Redirects to OIDC provider for authentication."
+        400:
+          description: "Bad Request: Invalid or unavailable provider."
+        404:
+          description: "Not Found: OIDC authentication is not enabled."
+        500:
+          description: "Internal Server Error: OIDC client not properly initialized."
+
+  /oidc/callback/:
+    get:
+      tags:
+      - authentication
+      summary: "Handle OIDC callback and create JWT tokens."
+      operationId: oidcCallback
+      parameters:
+      - name: provider
+        in: query
+        required: true
+        type: string
+        description: "The OIDC provider ID"
+        example: "google"
+      - name: code
+        in: query
+        required: false
+        type: string
+        description: "Authorization code from OIDC provider"
+      - name: state
+        in: query
+        required: false
+        type: string
+        description: "State parameter from OIDC provider"
+      - name: session_state
+        in: query
+        required: false
+        type: string
+        description: "Session state parameter from OIDC provider"
+      - name: error
+        in: query
+        required: false
+        type: string
+        description: "Error parameter from OIDC provider"
+      - name: error_description
+        in: query
+        required: false
+        type: string
+        description: "Error description from OIDC provider"
+      responses:
+        302:
+          description: "Redirect: Redirects to frontend with JWT tokens."
+        400:
+          description: "Bad Request: Invalid provider or authentication error."
+        404:
+          description: "Not Found: OIDC authentication is not enabled."
+        500:
+          description: "Internal Server Error: OIDC client error."
+
+
+##############################################################################
 # Endpoint - Users
 ##############################################################################
 
@@ -7640,6 +7728,43 @@ definitions:
       access_token:
         description: Access token
         type: string
+
+  OIDCConfig:
+    type: object
+    properties:
+      enabled:
+        description: Whether OIDC authentication is enabled
+        type: boolean
+        example: true
+      providers:
+        description: List of available OIDC providers
+        type: array
+        items:
+          $ref: "#/definitions/OIDCProvider"
+      disable_local_auth:
+        description: Whether local username/password authentication is disabled
+        type: boolean
+        example: false
+      auto_redirect:
+        description: Whether to automatically redirect to OIDC when only one provider is configured
+        type: boolean
+        example: false
+
+  OIDCProvider:
+    type: object
+    properties:
+      id:
+        description: Provider identifier
+        type: string
+        example: "google"
+      name:
+        description: Provider display name
+        type: string
+        example: "Google"
+      login_url:
+        description: URL to initiate login with this provider
+        type: string
+        example: "https://api.example.com/oidc/login/?provider=google"
 
 ##############################################################################
 # Model - Date
