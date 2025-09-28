@@ -188,7 +188,7 @@ class TestOIDCEndpoints(unittest.TestCase):
         }
 
         rv = self.client.get(BASE_URL + "/oidc/callback/?code=auth_code&state=abc123&provider=gramps")
-        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.status_code, 302)  # Redirect response
 
         # Verify the flow
         mock_oidc_client.authorize_access_token.assert_called_once()
@@ -196,15 +196,18 @@ class TestOIDCEndpoints(unittest.TestCase):
         mock_create_user.assert_called_once_with(mock_userinfo, None, "gramps")
         mock_get_tokens.assert_called_once()
 
-        # Verify response contains tokens and frontend_url
-        data = rv.get_json()
-        self.assertIn("access_token", data)
-        self.assertIn("refresh_token", data)
-        self.assertIn("token_type", data)
-        self.assertIn("frontend_url", data)
-        self.assertEqual(data["access_token"], "jwt_access_token")
-        self.assertEqual(data["refresh_token"], "jwt_refresh_token")
-        self.assertEqual(data["token_type"], "Bearer")
+        # Verify redirect location and cookies
+        self.assertIn("/oidc/complete", rv.location)
+        self.assertIn("oidc_access_token", [cookie.name for cookie in rv.cookies])
+        self.assertIn("oidc_refresh_token", [cookie.name for cookie in rv.cookies])
+
+        # Verify cookie values
+        access_cookie = next(cookie for cookie in rv.cookies if cookie.name == "oidc_access_token")
+        refresh_cookie = next(cookie for cookie in rv.cookies if cookie.name == "oidc_refresh_token")
+        self.assertEqual(access_cookie.value, "jwt_access_token")
+        self.assertEqual(refresh_cookie.value, "jwt_refresh_token")
+        self.assertTrue(access_cookie.httponly)
+        self.assertTrue(refresh_cookie.httponly)
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch("gramps_webapi.api.resources.oidc.current_app")

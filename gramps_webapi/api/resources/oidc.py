@@ -157,53 +157,36 @@ class OIDCCallbackResource(Resource):
                 fresh=True,
             )
 
-            # Check if this is a browser request vs API request
-            from flask import redirect, request as flask_request
+            # Redirect to frontend with secure HTTP-only cookies
+            from flask import redirect, make_response
             frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
+            response = make_response(redirect(f"{frontend_url}/oidc/complete"))
 
-            # Check Accept header to determine if this is a browser or API request
-            accept_header = flask_request.headers.get('Accept', '')
-            is_browser_request = 'text/html' in accept_header
+            # Set HTTP-only cookies (secure=False for localhost development)
+            import os
+            is_development = os.getenv('FLASK_ENV') == 'development' or 'localhost' in frontend_url or '127.0.0.1' in frontend_url
 
-            if is_browser_request:
-                # Browser request: redirect to frontend with secure HTTP-only cookies
-                from flask import make_response
-                response = make_response(redirect(f"{frontend_url}/oidc/complete"))
+            response.set_cookie(
+                'oidc_access_token',
+                tokens['access_token'],
+                max_age=300,  # 5 minutes
+                httponly=True,
+                secure=not is_development,  # Allow HTTP in development
+                samesite='Lax',
+                path='/'
+            )
+            response.set_cookie(
+                'oidc_refresh_token',
+                tokens['refresh_token'],
+                max_age=300,  # 5 minutes
+                httponly=True,
+                secure=not is_development,  # Allow HTTP in development
+                samesite='Lax',
+                path='/'
+            )
 
-                # Set HTTP-only cookies (secure=False for localhost development)
-                import os
-                is_development = os.getenv('FLASK_ENV') == 'development' or 'localhost' in frontend_url or '127.0.0.1' in frontend_url
-
-                response.set_cookie(
-                    'oidc_access_token',
-                    tokens['access_token'],
-                    max_age=300,  # 5 minutes
-                    httponly=True,
-                    secure=not is_development,  # Allow HTTP in development
-                    samesite='Lax',
-                    path='/'
-                )
-                response.set_cookie(
-                    'oidc_refresh_token',
-                    tokens['refresh_token'],
-                    max_age=300,  # 5 minutes
-                    httponly=True,
-                    secure=not is_development,  # Allow HTTP in development
-                    samesite='Lax',
-                    path='/'
-                )
-
-                logger.info(f"Set OIDC cookies, redirecting to {frontend_url}/oidc/complete")
-                return response
-            else:
-                # API request: return JSON response
-                from flask import jsonify
-                return jsonify({
-                    'access_token': tokens['access_token'],
-                    'refresh_token': tokens['refresh_token'],
-                    'token_type': 'Bearer',
-                    'frontend_url': frontend_url
-                })
+            logger.info(f"Set OIDC cookies, redirecting to {frontend_url}/oidc/complete")
+            return response
 
         except ValueError as e:
             logger.error(f"Error creating/updating OIDC user for provider '{provider_id}': {e}")
