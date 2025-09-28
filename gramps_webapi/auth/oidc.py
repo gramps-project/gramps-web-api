@@ -28,6 +28,9 @@ from typing import Dict, List, Optional, Set
 from authlib.integrations.flask_client import OAuth
 from flask import current_app, session
 
+from ..api.tasks import run_task, send_email_new_user
+from ..const import TREE_MULTI
+
 from . import (
     add_user,
     create_oidc_account,
@@ -42,6 +45,7 @@ from . import (
 from .const import (
     ROLE_ADMIN,
     ROLE_CONTRIBUTOR,
+    ROLE_DISABLED,
     ROLE_EDITOR,
     ROLE_GUEST,
     ROLE_MEMBER,
@@ -349,8 +353,8 @@ def create_or_update_oidc_user(
 
     random_password = secrets.token_urlsafe(32)
 
-    # For new users, use role from claims if available, otherwise default to GUEST
-    final_role = role_from_claims if role_from_claims is not None else ROLE_GUEST
+    # For new users, use role from claims if available, otherwise default to DISABLED
+    final_role = role_from_claims if role_from_claims is not None else ROLE_DISABLED
 
     add_user(
         name=final_username,
@@ -365,6 +369,21 @@ def create_or_update_oidc_user(
 
     # Create OIDC account association
     create_oidc_account(user_guid, provider_id, subject_id, email)
+
+    # Send notification email to admins about new user (only for new users with ROLE_DISABLED)
+    if final_role == ROLE_DISABLED:
+        from ..api.util import get_tree_id
+        user_tree = get_tree_id(user_guid)
+        is_multi = current_app.config["TREE"] == TREE_MULTI
+        run_task(
+            send_email_new_user,
+            username=final_username,
+            fullname=full_name or "",
+            email=email,
+            tree=user_tree,
+            # for single-tree setups, send e-mail also to admins
+            include_admins=not is_multi,
+        )
 
     return user_guid
 
