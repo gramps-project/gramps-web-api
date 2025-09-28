@@ -158,7 +158,10 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
     if app.config.get("CORS_ORIGINS"):
         CORS(
             app,
-            resources={f"{API_PREFIX}/*": {"origins": app.config["CORS_ORIGINS"]}},
+            resources={f"{API_PREFIX}/*": {
+                "origins": app.config["CORS_ORIGINS"],
+                "supports_credentials": True
+            }},
         )
 
     # enable gzip compression

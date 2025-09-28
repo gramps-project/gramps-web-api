@@ -157,18 +157,114 @@ class OIDCCallbackResource(Resource):
                 fresh=True,
             )
 
-            # Redirect to frontend with tokens in URL fragment (more secure than query)
-            from flask import redirect
+            # Check if this is a browser request vs API request
+            from flask import redirect, request as flask_request
             frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
 
-            # Use URL fragment to pass tokens (not sent to server)
-            redirect_url = f"{frontend_url}/#access_token={tokens['access_token']}&refresh_token={tokens['refresh_token']}&token_type=Bearer"
+            # Check Accept header to determine if this is a browser or API request
+            accept_header = flask_request.headers.get('Accept', '')
+            is_browser_request = 'text/html' in accept_header
 
-            return redirect(redirect_url)
+            if is_browser_request:
+                # Browser request: redirect to frontend with secure HTTP-only cookies
+                from flask import make_response
+                response = make_response(redirect(f"{frontend_url}/oidc/complete"))
+
+                # Set HTTP-only cookies (secure=False for localhost development)
+                import os
+                is_development = os.getenv('FLASK_ENV') == 'development' or 'localhost' in frontend_url or '127.0.0.1' in frontend_url
+
+                response.set_cookie(
+                    'oidc_access_token',
+                    tokens['access_token'],
+                    max_age=300,  # 5 minutes
+                    httponly=True,
+                    secure=not is_development,  # Allow HTTP in development
+                    samesite='Lax',
+                    path='/'
+                )
+                response.set_cookie(
+                    'oidc_refresh_token',
+                    tokens['refresh_token'],
+                    max_age=300,  # 5 minutes
+                    httponly=True,
+                    secure=not is_development,  # Allow HTTP in development
+                    samesite='Lax',
+                    path='/'
+                )
+
+                logger.info(f"Set OIDC cookies, redirecting to {frontend_url}/oidc/complete")
+                return response
+            else:
+                # API request: return JSON response
+                from flask import jsonify
+                return jsonify({
+                    'access_token': tokens['access_token'],
+                    'refresh_token': tokens['refresh_token'],
+                    'token_type': 'Bearer',
+                    'frontend_url': frontend_url
+                })
 
         except ValueError as e:
             logger.error(f"Error creating/updating OIDC user for provider '{provider_id}': {e}")
             abort_with_message(400, f"Error processing user: {str(e)}")
+
+
+class OIDCTokenExchangeResource(Resource):
+    """Resource for securely exchanging OIDC tokens from cookies."""
+
+    @limiter.limit("10/minute")
+    def get(self):
+        """Exchange HTTP-only cookies for tokens that can be stored in localStorage."""
+        from flask import request as flask_request, make_response, jsonify
+        import os
+
+        logger.info("OIDC token exchange request received")
+        logger.info(f"Cookies received: {list(flask_request.cookies.keys())}")
+
+        # Get tokens from HTTP-only cookies
+        access_token = flask_request.cookies.get('oidc_access_token')
+        refresh_token = flask_request.cookies.get('oidc_refresh_token')
+
+        logger.info(f"Access token found: {bool(access_token)}")
+        logger.info(f"Refresh token found: {bool(refresh_token)}")
+
+        if not access_token or not refresh_token:
+            logger.error("No OIDC tokens found in cookies")
+            abort_with_message(400, "No OIDC tokens found in cookies")
+
+        # Return tokens and clear cookies
+        response = make_response(jsonify({
+            'access_token': access_token,
+            'refresh_token': refresh_token,
+            'token_type': 'Bearer'
+        }))
+
+        # Clear the temporary cookies with same settings as when they were set
+        frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
+        is_development = os.getenv('FLASK_ENV') == 'development' or 'localhost' in frontend_url or '127.0.0.1' in frontend_url
+
+        response.set_cookie(
+            'oidc_access_token',
+            '',
+            expires=0,
+            httponly=True,
+            secure=not is_development,
+            samesite='Lax',
+            path='/'
+        )
+        response.set_cookie(
+            'oidc_refresh_token',
+            '',
+            expires=0,
+            httponly=True,
+            secure=not is_development,
+            samesite='Lax',
+            path='/'
+        )
+
+        logger.info("OIDC token exchange successful, cookies cleared")
+        return response
 
 
 class OIDCConfigResource(Resource):

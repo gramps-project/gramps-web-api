@@ -175,7 +175,7 @@ class TestOIDCEndpoints(unittest.TestCase):
             "groups": ["gramps-editors"],
         }
         mock_oidc_client.authorize_access_token.return_value = mock_token
-        mock_oidc_client.parse_id_token.return_value = mock_userinfo
+        mock_oidc_client.userinfo.return_value = mock_userinfo
 
         # Mock user creation and token generation
         mock_create_user.return_value = "user-guid-123"
@@ -187,19 +187,24 @@ class TestOIDCEndpoints(unittest.TestCase):
             "refresh_token": "jwt_refresh_token",
         }
 
-        rv = self.client.get(BASE_URL + "/oidc/callback/?code=auth_code&state=abc123")
+        rv = self.client.get(BASE_URL + "/oidc/callback/?code=auth_code&state=abc123&provider=gramps")
         self.assertEqual(rv.status_code, 200)
 
         # Verify the flow
         mock_oidc_client.authorize_access_token.assert_called_once()
-        mock_oidc_client.parse_id_token.assert_called_once_with(mock_token)
-        mock_create_user.assert_called_once_with(mock_userinfo, None)
+        mock_oidc_client.userinfo.assert_called_once_with(token=mock_token)
+        mock_create_user.assert_called_once_with(mock_userinfo, None, "gramps")
         mock_get_tokens.assert_called_once()
 
-        # Verify response contains tokens
+        # Verify response contains tokens and frontend_url
         data = rv.get_json()
         self.assertIn("access_token", data)
         self.assertIn("refresh_token", data)
+        self.assertIn("token_type", data)
+        self.assertIn("frontend_url", data)
+        self.assertEqual(data["access_token"], "jwt_access_token")
+        self.assertEqual(data["refresh_token"], "jwt_refresh_token")
+        self.assertEqual(data["token_type"], "Bearer")
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch("gramps_webapi.api.resources.oidc.current_app")
@@ -239,7 +244,7 @@ class TestOIDCEndpoints(unittest.TestCase):
         mock_token = {"access_token": "test_token"}
         mock_userinfo = {"sub": "user123", "groups": []}
         mock_oidc_client.authorize_access_token.return_value = mock_token
-        mock_oidc_client.parse_id_token.return_value = mock_userinfo
+        mock_oidc_client.userinfo.return_value = mock_userinfo
         mock_create_user.side_effect = ValueError("Invalid user data")
 
         rv = self.client.get(BASE_URL + "/oidc/callback/?code=auth_code")
@@ -269,7 +274,7 @@ class TestOIDCEndpoints(unittest.TestCase):
             mock_token = {"access_token": "test_token"}
             mock_userinfo = {"sub": "user123", "groups": []}
             mock_oidc_client.authorize_access_token.return_value = mock_token
-            mock_oidc_client.parse_id_token.return_value = mock_userinfo
+            mock_oidc_client.userinfo.return_value = mock_userinfo
 
             with patch("gramps_webapi.api.resources.oidc.create_or_update_oidc_user", return_value="user123"):
                 with patch("gramps_webapi.api.resources.oidc.get_name", return_value="testuser"):
