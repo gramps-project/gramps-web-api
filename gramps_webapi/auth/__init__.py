@@ -191,7 +191,7 @@ def get_pwhash(username: str) -> str:
     return user.pwhash
 
 
-def _get_user_detail(user, include_guid: bool = False):
+def _get_user_detail(user, include_guid: bool = False, include_oidc_accounts: bool = False):
     details = {
         "name": user.name,
         "email": user.email,
@@ -201,6 +201,16 @@ def _get_user_detail(user, include_guid: bool = False):
     }
     if include_guid:
         details["user_id"] = user.id
+    if include_oidc_accounts:
+        oidc_accounts = get_user_oidc_accounts(user.id)
+        details["oidc_accounts"] = oidc_accounts
+        # Add a simplified account source summary for frontend display
+        if oidc_accounts:
+            from ..api.util import get_config
+            oidc_name = get_config("OIDC_NAME") or "Custom OIDC"
+            details["account_source"] = oidc_name
+        else:
+            details["account_source"] = "Local"
     return details
 
 
@@ -214,7 +224,7 @@ def get_user_details(username: str) -> Optional[Dict[str, Any]]:
 
 
 def get_all_user_details(
-    tree: Optional[str], include_treeless=False, include_guid: bool = False
+    tree: Optional[str], include_treeless=False, include_guid: bool = False, include_oidc_accounts: bool = False
 ) -> List[Dict[str, Any]]:
     """Return details about all users.
 
@@ -222,6 +232,7 @@ def get_all_user_details(
     If tree is not None, only return users of given tree.
 
     If include_treeless is True, include also users with empty tree ID.
+    If include_oidc_accounts is True, include OIDC provider information.
     """
     query = user_db.session.query(User)  # pylint: disable=no-member
     if tree:
@@ -230,7 +241,7 @@ def get_all_user_details(
         else:
             query = query.filter(User.tree == tree)
     users = query.all()
-    return [_get_user_detail(user, include_guid=include_guid) for user in users]
+    return [_get_user_detail(user, include_guid=include_guid, include_oidc_accounts=include_oidc_accounts) for user in users]
 
 
 def get_permissions(username: str, tree: str) -> Set[str]:
@@ -416,6 +427,106 @@ def is_tree_disabled(tree: str) -> bool:
     return tree_obj.enabled == 0
 
 
+def create_oidc_account(
+    user_id: str,
+    provider_id: str,
+    subject_id: str,
+    email: Optional[str] = None
+) -> None:
+    """Create a new OIDC account association."""
+    from datetime import datetime
+    oidc_account = OIDCAccount(
+        user_id=user_id,
+        provider_id=provider_id,
+        subject_id=subject_id,
+        email=email,
+        last_login=datetime.utcnow()
+    )
+    user_db.session.add(oidc_account)  # pylint: disable=no-member
+    user_db.session.commit()  # pylint: disable=no-member
+
+
+def get_oidc_account(provider_id: str, subject_id: str) -> Optional[str]:
+    """Get user ID by OIDC provider_id and subject_id."""
+    query = user_db.session.query(OIDCAccount.user_id)  # pylint: disable=no-member
+    oidc_account = query.filter_by(provider_id=provider_id, subject_id=subject_id).scalar()
+    return oidc_account
+
+
+def update_oidc_account_login(provider_id: str, subject_id: str) -> None:
+    """Update last login time for an OIDC account."""
+    from datetime import datetime
+    query = user_db.session.query(OIDCAccount)  # pylint: disable=no-member
+    oidc_account = query.filter_by(provider_id=provider_id, subject_id=subject_id).scalar()
+    if oidc_account:
+        oidc_account.last_login = datetime.utcnow()
+        user_db.session.commit()  # pylint: disable=no-member
+
+
+def find_user_by_email(email: str) -> Optional[str]:
+    """Find user ID by email address for account linking."""
+    query = user_db.session.query(User.id)  # pylint: disable=no-member
+    user_id = query.filter_by(email=email).scalar()
+    return user_id
+
+
+def get_user_oidc_accounts(user_id: str) -> List[Dict[str, Any]]:
+    """Get all OIDC accounts associated with a user."""
+    query = user_db.session.query(OIDCAccount)  # pylint: disable=no-member
+    oidc_accounts = query.filter_by(user_id=user_id).all()
+    return [{
+        "provider_id": account.provider_id,
+        "subject_id": account.subject_id,
+        "email": account.email,
+        "created_at": account.created_at,
+        "last_login": account.last_login
+    } for account in oidc_accounts]
+
+
+def canonicalize_google_email(email: str) -> str:
+    """Canonicalize Google email addresses for consistent matching.
+
+    Google email addresses are case-insensitive and ignore dots in the local part.
+    This function normalizes them to their canonical form for consistent matching.
+    """
+    if not email or "@" not in email:
+        return email
+
+    local_part, domain = email.rsplit("@", 1)
+    domain = domain.lower()
+
+    # Only canonicalize for Google domains
+    if domain not in ("gmail.com", "googlemail.com"):
+        return email.lower()
+
+    # Remove dots from local part and convert to lowercase
+    canonical_local = local_part.replace(".", "").lower()
+
+    # Normalize googlemail.com to gmail.com
+    canonical_domain = "gmail.com" if domain == "googlemail.com" else domain
+
+    return f"{canonical_local}@{canonical_domain}"
+
+
+def find_user_by_canonical_email(email: str, provider_id: str) -> Optional[str]:
+    """Find user by email with Google canonicalization if applicable."""
+    if provider_id == "google":
+        canonical_email = canonicalize_google_email(email)
+
+        # Try to find users with the canonical form
+        query = user_db.session.query(User.id, User.email)  # pylint: disable=no-member
+        users = query.filter(User.email.isnot(None)).all()
+
+        for user_id, user_email in users:
+            if canonicalize_google_email(user_email) == canonical_email:
+                return user_id
+
+        return None
+    else:
+        # For non-Google providers, use exact email matching
+        return find_user_by_email(email)
+
+
 class User(user_db.Model):  # type: ignore
     """User table class for sqlalchemy."""
 
@@ -466,3 +577,25 @@ class Tree(user_db.Model):  # type: ignore
     def __repr__(self):
         """Return string representation of instance."""
         return f"<Tree(id='{self.id}')>"
+
+
+class OIDCAccount(user_db.Model):  # type: ignore
+    """OIDC account association table for secure provider_id and subject_id mapping."""
+
+    __tablename__ = "oidc_accounts"
+
+    id = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+    user_id = mapped_column(GUID, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider_id = mapped_column(sa.String(64), nullable=False)
+    subject_id = mapped_column(sa.String(255), nullable=False)
+    email = mapped_column(sa.String(255), nullable=True, index=True)
+    created_at = mapped_column(sa.DateTime, nullable=False, server_default=sa.func.now())
+    last_login = mapped_column(sa.DateTime, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint('provider_id', 'subject_id', name='uq_oidc_provider_subject'),
+    )
+
+    def __repr__(self):
+        """Return string representation of instance."""
+        return f"<OIDCAccount(provider_id='{self.provider_id}', subject_id='{self.subject_id}', user_id='{self.user_id}')>"

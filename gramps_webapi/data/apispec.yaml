@@ -271,6 +271,29 @@ paths:
       responses:
         200:
           description: "OK: Successful operation."
+          schema:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  description: "The user's username."
+                  type: string
+                email:
+                  description: "The user's e-mail address."
+                  type: string
+                full_name:
+                  description: "The user's full name."
+                  type: string
+                role:
+                  description: "The user's role ID."
+                  type: number
+                tree:
+                  description: "The user's tree."
+                  type: string
+                account_source:
+                  description: "The source of the user account (e.g., 'Local' or OIDC provider name)."
+                  type: string
         401:
           description: "Unauthorized: Missing authorization header."
         422:
@@ -332,6 +355,27 @@ paths:
       responses:
         200:
           description: "OK: Successful operation."
+          schema:
+            type: object
+            properties:
+              name:
+                description: "The user's username."
+                type: string
+              email:
+                description: "The user's e-mail address."
+                type: string
+              full_name:
+                description: "The user's full name."
+                type: string
+              role:
+                description: "The user's role ID."
+                type: number
+              tree:
+                description: "The user's tree."
+                type: string
+              account_source:
+                description: "The source of the user account (e.g., 'Local' or OIDC provider name)."
+                type: string
         401:
           description: "Unauthorized: Missing authorization header."
         403:
