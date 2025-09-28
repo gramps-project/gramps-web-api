@@ -202,8 +202,8 @@ paths:
           description: "Redirect: Redirects to OIDC provider for authentication."
         400:
           description: "Bad Request: Invalid or unavailable provider."
-        404:
-          description: "Not Found: OIDC authentication is not enabled."
+        405:
+          description: "Method Not Allowed: OIDC authentication is not enabled."
         500:
           description: "Internal Server Error: OIDC client not properly initialized."
 
@@ -250,8 +250,8 @@ paths:
           description: "Redirect: Redirects to frontend with JWT tokens."
         400:
           description: "Bad Request: Invalid provider or authentication error."
-        404:
-          description: "Not Found: OIDC authentication is not enabled."
+        405:
+          description: "Method Not Allowed: OIDC authentication is not enabled."
         500:
           description: "Internal Server Error: OIDC client error."
 
