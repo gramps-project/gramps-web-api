@@ -20,12 +20,14 @@
 """OIDC authentication resources."""
 
 import logging
+from typing import Optional
 from urllib.parse import urlencode
 
-from flask import current_app, request, session, url_for
+from flask import current_app, request, session, url_for, redirect, jsonify, render_template
+from gettext import gettext as _
 from webargs import fields
 
-from ...auth import get_name, get_permissions, is_tree_disabled
+from ...auth import get_name, get_permissions, is_tree_disabled, get_user_details
 from ...auth.oidc import create_or_update_oidc_user, is_oidc_enabled, get_available_oidc_providers, get_provider_config
 from ...const import TREE_MULTI
 from ..ratelimiter import limiter
@@ -34,6 +36,11 @@ from . import Resource
 from .token import get_tokens
 
 logger = logging.getLogger(__name__)
+
+
+def _is_development_environment(frontend_url: Optional[str]) -> bool:
+    """Check if we're in a development environment for cookie security settings."""
+    return current_app.debug or ('localhost' in (frontend_url or '') or '127.0.0.1' in (frontend_url or ''))
 
 
 class OIDCLoginResource(Resource):
@@ -147,6 +154,18 @@ class OIDCCallbackResource(Resource):
             if is_tree_disabled(tree=tree_id):
                 abort_with_message(503, "This tree is temporarily disabled")
 
+            # Check if user account is disabled (same as local auth flow)
+            user_details = get_user_details(username)
+            if user_details and user_details["role"] < 0:
+                # User account is disabled - show confirmation page like local registration
+                title = _("Account Under Review")
+                message = _(
+                    "Your account has been created successfully. "
+                    "An administrator will review your account request and activate it shortly."
+                )
+                return render_template("confirmation.html", title=title, message=message)
+
+            # User is enabled - proceed with normal token flow
             permissions = get_permissions(username=username, tree=tree_id)
 
             tokens = get_tokens(
@@ -158,13 +177,11 @@ class OIDCCallbackResource(Resource):
             )
 
             # Redirect to frontend with secure HTTP-only cookies
-            from flask import redirect, make_response
             frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
-            response = make_response(redirect(f"{frontend_url}/oidc/complete"))
+            response = redirect(f"{frontend_url}/oidc/complete")
 
             # Set HTTP-only cookies (secure=False for localhost development)
-            import os
-            is_development = os.getenv('FLASK_ENV') == 'development' or 'localhost' in frontend_url or '127.0.0.1' in frontend_url
+            is_development = _is_development_environment(frontend_url)
 
             response.set_cookie(
                 'oidc_access_token',
@@ -189,7 +206,7 @@ class OIDCCallbackResource(Resource):
             return response
 
         except ValueError as e:
-            logger.error(f"Error creating/updating OIDC user for provider '{provider_id}': {e}")
+            logger.exception(f"Error creating/updating OIDC user for provider '{provider_id}'")
             abort_with_message(400, f"Error processing user: {str(e)}")
 
 
@@ -199,15 +216,12 @@ class OIDCTokenExchangeResource(Resource):
     @limiter.limit("10/minute")
     def get(self):
         """Exchange HTTP-only cookies for tokens that can be stored in localStorage."""
-        from flask import request as flask_request, make_response, jsonify
-        import os
-
         logger.info("OIDC token exchange request received")
-        logger.info(f"Cookies received: {list(flask_request.cookies.keys())}")
+        logger.info(f"Cookies received: {list(request.cookies.keys())}")
 
         # Get tokens from HTTP-only cookies
-        access_token = flask_request.cookies.get('oidc_access_token')
-        refresh_token = flask_request.cookies.get('oidc_refresh_token')
+        access_token = request.cookies.get('oidc_access_token')
+        refresh_token = request.cookies.get('oidc_refresh_token')
 
         logger.info(f"Access token found: {bool(access_token)}")
         logger.info(f"Refresh token found: {bool(refresh_token)}")
@@ -217,15 +231,15 @@ class OIDCTokenExchangeResource(Resource):
             abort_with_message(400, "No OIDC tokens found in cookies")
 
         # Return tokens and clear cookies
-        response = make_response(jsonify({
+        response = jsonify({
             'access_token': access_token,
             'refresh_token': refresh_token,
             'token_type': 'Bearer'
-        }))
+        })
 
         # Clear the temporary cookies with same settings as when they were set
         frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
-        is_development = os.getenv('FLASK_ENV') == 'development' or 'localhost' in frontend_url or '127.0.0.1' in frontend_url
+        is_development = _is_development_environment(frontend_url)
 
         response.set_cookie(
             'oidc_access_token',

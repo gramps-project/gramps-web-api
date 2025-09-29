@@ -27,7 +27,6 @@ def upgrade():
         sa.Column('subject_id', sa.String(255), nullable=False),
         sa.Column('email', sa.String(255), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.Column('last_login', sa.DateTime(), nullable=True),
         sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
         sa.UniqueConstraint('provider_id', 'subject_id', name='uq_oidc_provider_subject'),
         sa.Index('ix_oidc_accounts_user_id', 'user_id'),

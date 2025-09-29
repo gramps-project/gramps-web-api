@@ -20,7 +20,6 @@
 """OIDC authentication support."""
 
 import logging
-import os
 import secrets
 import uuid
 from typing import Dict, List, Optional, Set
@@ -29,18 +28,18 @@ from authlib.integrations.flask_client import OAuth
 from flask import current_app, session
 
 from ..api.tasks import run_task, send_email_new_user
+from ..api.util import get_tree_id
 from ..const import TREE_MULTI
 
 from . import (
     add_user,
     create_oidc_account,
-    find_user_by_canonical_email,
     get_all_user_details,
     get_guid,
+    get_name,
     get_oidc_account,
     get_user_details,
     modify_user,
-    update_oidc_account_login,
 )
 from .const import (
     ROLE_ADMIN,
@@ -206,7 +205,7 @@ def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> Optio
 
     # Fallback: if no groups found in claims, assign default guest role
     if not user_groups:
-        logger.warning(f"No {role_claim} found in user claims. Available claims: {list(user_claims.keys())}. Assigning guest role.")
+        logger.warning(f"No '{role_claim}' claim found in user claims. Assigning guest role.")
         return ROLE_GUEST
 
     highest_role = ROLE_GUEST
@@ -228,14 +227,11 @@ def create_or_update_oidc_user(
 ) -> str:
     """Create or update a user based on OIDC userinfo using secure sub claim mapping.
 
-    New authentication flow:
+    Authentication flow:
     1. Extract sub claim from ID token (this is the unique, non-reassignable identifier)
     2. Look up oidc_accounts table for (provider_id, subject_id) pair
     3. If found: Log in existing user and update last login
-    4. If not found:
-       - Optionally try email matching for account linking
-       - Create new user account
-       - Store new oidc_accounts entry
+    4. If not found: Create new user account and store new oidc_accounts entry
 
     Args:
         userinfo: User information from OIDC provider
@@ -272,11 +268,7 @@ def create_or_update_oidc_user(
         # Existing OIDC account found - log in user and update info
         logger.info(f"Existing OIDC user found for {provider_id}:{subject_id}")
 
-        # Update last login time
-        update_oidc_account_login(provider_id, subject_id)
-
         # Get the existing username and update user info if needed
-        from . import get_name
         existing_username = get_name(existing_user_id)
 
         # Only update role if role mapping is configured
@@ -299,42 +291,7 @@ def create_or_update_oidc_user(
 
         return existing_user_id
 
-    # Step 2: No OIDC account exists - try email-based account linking if enabled
-    linked_user_id = None
-    if email and current_app.config.get("OIDC_ENABLE_EMAIL_LINKING", True):
-        linked_user_id = find_user_by_canonical_email(email, provider_id)
-
-        if linked_user_id:
-            logger.info(f"Linking existing user account via email for {provider_id}:{subject_id}")
-
-            # Create OIDC account association
-            create_oidc_account(linked_user_id, provider_id, subject_id, email)
-
-            # Get the existing username and update user info
-            from . import get_name
-            existing_username = get_name(linked_user_id)
-
-            # Only update role if role mapping is configured
-            if role_from_claims is not None:
-                modify_user(
-                    name=existing_username,
-                    fullname=full_name,
-                    email=email,
-                    role=role_from_claims,
-                    tree=tree,
-                )
-            else:
-                # Preserve existing role when no role mapping is configured
-                modify_user(
-                    name=existing_username,
-                    fullname=full_name,
-                    email=email,
-                    tree=tree,
-                )
-
-            return linked_user_id
-
-    # Step 3: Create new user account
+    # Step 2: Create new user account (email linking removed for security)
     logger.info(f"Creating new OIDC user for {provider_id}:{subject_id}")
 
     # Generate a clean username - for custom providers use the display username as-is,
@@ -372,7 +329,6 @@ def create_or_update_oidc_user(
 
     # Send notification email to admins about new user (only for new users with ROLE_DISABLED)
     if final_role == ROLE_DISABLED:
-        from ..api.util import get_tree_id
         user_tree = get_tree_id(user_guid)
         is_multi = current_app.config["TREE"] == TREE_MULTI
         run_task(

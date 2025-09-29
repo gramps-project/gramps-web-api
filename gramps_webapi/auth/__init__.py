@@ -22,13 +22,16 @@
 
 import secrets
 import uuid
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Set, Union
 
 import sqlalchemy as sa
+from flask import current_app
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError, StatementError
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.sql.functions import coalesce
+
 
 from ..const import DB_CONFIG_ALLOWED_KEYS
 from .const import PERMISSIONS, PERM_USE_CHAT, ROLE_ADMIN, ROLE_OWNER
@@ -207,8 +210,7 @@ def _get_user_detail(user, include_guid: bool = False, include_oidc_accounts: bo
         details["oidc_accounts"] = oidc_accounts
         # Add a simplified account source summary for frontend display
         if oidc_accounts:
-            from ..api.util import get_config
-            oidc_name = get_config("OIDC_NAME") or "Custom OIDC"
+            oidc_name = current_app.config.get("OIDC_NAME") or "Custom OIDC"
             details["account_source"] = oidc_name
         else:
             details["account_source"] = "Local"
@@ -435,13 +437,11 @@ def create_oidc_account(
     email: Optional[str] = None
 ) -> None:
     """Create a new OIDC account association."""
-    from datetime import datetime
     oidc_account = OIDCAccount(
         user_id=user_id,
         provider_id=provider_id,
         subject_id=subject_id,
         email=email,
-        last_login=datetime.utcnow()
     )
     user_db.session.add(oidc_account)  # pylint: disable=no-member
     user_db.session.commit()  # pylint: disable=no-member
@@ -454,23 +454,6 @@ def get_oidc_account(provider_id: str, subject_id: str) -> Optional[str]:
     return oidc_account
 
 
-def update_oidc_account_login(provider_id: str, subject_id: str) -> None:
-    """Update last login time for an OIDC account."""
-    from datetime import datetime
-    query = user_db.session.query(OIDCAccount)  # pylint: disable=no-member
-    oidc_account = query.filter_by(provider_id=provider_id, subject_id=subject_id).scalar()
-    if oidc_account:
-        oidc_account.last_login = datetime.utcnow()
-        user_db.session.commit()  # pylint: disable=no-member
-
-
-def find_user_by_email(email: str) -> Optional[str]:
-    """Find user ID by email address for account linking."""
-    query = user_db.session.query(User.id)  # pylint: disable=no-member
-    user_id = query.filter_by(email=email).scalar()
-    return user_id
-
-
 def get_user_oidc_accounts(user_id: str) -> List[Dict[str, Any]]:
     """Get all OIDC accounts associated with a user."""
     query = user_db.session.query(OIDCAccount)  # pylint: disable=no-member
@@ -480,52 +463,7 @@ def get_user_oidc_accounts(user_id: str) -> List[Dict[str, Any]]:
         "subject_id": account.subject_id,
         "email": account.email,
         "created_at": account.created_at,
-        "last_login": account.last_login
     } for account in oidc_accounts]
-
-
-def canonicalize_google_email(email: str) -> str:
-    """Canonicalize Google email addresses for consistent matching.
-
-    Google email addresses are case-insensitive and ignore dots in the local part.
-    This function normalizes them to their canonical form for consistent matching.
-    """
-    if not email or "@" not in email:
-        return email
-
-    local_part, domain = email.rsplit("@", 1)
-    domain = domain.lower()
-
-    # Only canonicalize for Google domains
-    if domain not in ("gmail.com", "googlemail.com"):
-        return email.lower()
-
-    # Remove dots from local part and convert to lowercase
-    canonical_local = local_part.replace(".", "").lower()
-
-    # Normalize googlemail.com to gmail.com
-    canonical_domain = "gmail.com" if domain == "googlemail.com" else domain
-
-    return f"{canonical_local}@{canonical_domain}"
-
-
-def find_user_by_canonical_email(email: str, provider_id: str) -> Optional[str]:
-    """Find user by email with Google canonicalization if applicable."""
-    if provider_id == "google":
-        canonical_email = canonicalize_google_email(email)
-
-        # Try to find users with the canonical form
-        query = user_db.session.query(User.id, User.email)  # pylint: disable=no-member
-        users = query.filter(User.email.isnot(None)).all()
-
-        for user_id, user_email in users:
-            if canonicalize_google_email(user_email) == canonical_email:
-                return user_id
-
-        return None
-    else:
-        # For non-Google providers, use exact email matching
-        return find_user_by_email(email)
 
 
 class User(user_db.Model):  # type: ignore
@@ -591,7 +529,6 @@ class OIDCAccount(user_db.Model):  # type: ignore
     subject_id = mapped_column(sa.String(255), nullable=False)
     email = mapped_column(sa.String(255), nullable=True, index=True)
     created_at = mapped_column(sa.DateTime, nullable=False, server_default=sa.func.now())
-    last_login = mapped_column(sa.DateTime, nullable=True)
 
     __table_args__ = (
         sa.UniqueConstraint('provider_id', 'subject_id', name='uq_oidc_provider_subject'),
