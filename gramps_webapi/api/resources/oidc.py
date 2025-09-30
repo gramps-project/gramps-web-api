@@ -144,7 +144,11 @@ class OIDCCallbackResource(Resource):
             and current_app.config["TREE"] != TREE_MULTI
             and tree != current_app.config["TREE"]
         ):
-            abort_with_message(403, "Not allowed in single-tree setup")
+        if (
+            !tree
+            and current_app.config["TREE"] == TREE_MULTI
+        ):
+            abort_with_message(403, "Tree is required")
 
         try:
             user_id = create_or_update_oidc_user(userinfo, tree, provider_id)
