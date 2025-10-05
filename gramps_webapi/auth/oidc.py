@@ -27,9 +27,11 @@ from typing import Dict, List, Optional, Set
 from authlib.integrations.flask_client import OAuth
 from flask import current_app, session
 
-from ..api.tasks import run_task, send_email_new_user
-from ..api.util import get_tree_id
 from ..const import TREE_MULTI
+
+# NOTE: Imports from api.tasks and api.util are done inside functions to avoid
+# circular import (oidc.py -> api -> oidc.py). This is an intentional exception
+# to the top-level import standard.
 
 from . import (
     add_user,
@@ -332,6 +334,10 @@ def create_or_update_oidc_user(
 
     # Send notification email to admins about new user (only for new users with ROLE_DISABLED)
     if final_role == ROLE_DISABLED:
+        # Lazy imports to avoid circular dependency
+        from ..api.tasks import run_task, send_email_new_user
+        from ..api.util import get_tree_id
+
         user_tree = get_tree_id(user_guid)
         is_multi = current_app.config["TREE"] == TREE_MULTI
         run_task(
@@ -403,8 +409,3 @@ def init_oidc(app):
             logger.error(f"Failed to register OIDC provider '{provider_id}': {e}")
 
     return oauth
-
-
-def is_oidc_enabled() -> bool:
-    """Check if OIDC is enabled in the current app."""
-    return current_app.config.get("OIDC_ENABLED", False)

@@ -28,7 +28,8 @@ from gettext import gettext as _
 from webargs import fields
 
 from ...auth import get_name, get_permissions, is_tree_disabled, get_user_details
-from ...auth.oidc import create_or_update_oidc_user, is_oidc_enabled, get_available_oidc_providers, get_provider_config
+from ...auth.oidc import create_or_update_oidc_user, get_available_oidc_providers, get_provider_config
+from ...auth.oidc_helpers import is_oidc_enabled
 from ...const import TREE_MULTI
 from ..ratelimiter import limiter
 from ..util import abort_with_message, get_config, get_tree_id, use_args
@@ -144,8 +145,9 @@ class OIDCCallbackResource(Resource):
             and current_app.config["TREE"] != TREE_MULTI
             and tree != current_app.config["TREE"]
         ):
+            abort_with_message(403, f"Invalid tree: {tree}")
         if (
-            !tree
+            not tree
             and current_app.config["TREE"] == TREE_MULTI
         ):
             abort_with_message(403, "Tree is required")

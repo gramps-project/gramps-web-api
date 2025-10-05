@@ -37,7 +37,7 @@ from ...auth import (
     get_permissions,
     is_tree_disabled,
 )
-from ...auth.oidc import is_oidc_enabled
+from ...auth.oidc_helpers import is_oidc_enabled
 from ...auth.const import CLAIM_LIMITED_SCOPE, SCOPE_CREATE_ADMIN, SCOPE_CREATE_OWNER
 from ...const import TREE_MULTI
 from ..ratelimiter import limiter

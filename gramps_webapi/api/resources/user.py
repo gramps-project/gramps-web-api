@@ -42,7 +42,7 @@ from ...auth import (
     get_user_oidc_accounts,
     modify_user,
 )
-from ...auth.oidc import is_oidc_enabled
+from ...auth.oidc_helpers import is_oidc_enabled
 from ...auth.const import (
     CLAIM_LIMITED_SCOPE,
     PERM_ADD_OTHER_TREE_USER,

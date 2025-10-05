@@ -367,9 +367,8 @@ class TestCreateOrUpdateOidcUser:
     @patch("gramps_webapi.auth.oidc.get_name")
     @patch("gramps_webapi.auth.oidc.modify_user")
     @patch("gramps_webapi.auth.oidc.get_provider_config")
-    @patch("gramps_webapi.auth.oidc.current_app")
     def test_existing_user_with_role_mapping(
-        self, mock_app, mock_get_config, mock_modify, mock_get_name, mock_get_oidc
+        self, mock_get_config, mock_modify, mock_get_name, mock_get_oidc
     ):
         """Test updating an existing OIDC user with role mapping."""
         # Mock existing OIDC account
@@ -381,12 +380,6 @@ class TestCreateOrUpdateOidcUser:
             "username_claim": "preferred_username",
         }
 
-        # Mock role mapping configured
-        mock_app.config.get.side_effect = lambda key, default="": {
-            "OIDC_ROLE_CLAIM": "groups",
-            "OIDC_GROUP_EDITOR": "editor-group",
-        }.get(key, default)
-
         userinfo = {
             "sub": "provider-sub-123",
             "preferred_username": "testuser",
@@ -395,8 +388,12 @@ class TestCreateOrUpdateOidcUser:
             "groups": ["editor-group"],
         }
 
-        with patch("gramps_webapi.auth.oidc.get_role_from_claims", return_value=ROLE_EDITOR):
-            result = create_or_update_oidc_user(userinfo, "test_tree", "google")
+        mock_app = MagicMock()
+        mock_app.config.get.return_value = "groups"
+
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
+            with patch("gramps_webapi.auth.oidc.get_role_from_claims", return_value=ROLE_EDITOR):
+                result = create_or_update_oidc_user(userinfo, "test_tree", "google")
 
         assert result == "existing-user-guid"
         mock_modify.assert_called_once_with(
@@ -411,15 +408,13 @@ class TestCreateOrUpdateOidcUser:
     @patch("gramps_webapi.auth.oidc.get_name")
     @patch("gramps_webapi.auth.oidc.modify_user")
     @patch("gramps_webapi.auth.oidc.get_provider_config")
-    @patch("gramps_webapi.auth.oidc.current_app")
     def test_existing_user_no_role_mapping(
-        self, mock_app, mock_get_config, mock_modify, mock_get_name, mock_get_oidc
+        self, mock_get_config, mock_modify, mock_get_name, mock_get_oidc
     ):
         """Test updating existing user without role mapping preserves role."""
         mock_get_oidc.return_value = "existing-user-guid"
         mock_get_name.return_value = "testuser"
         mock_get_config.return_value = {"username_claim": "preferred_username"}
-        mock_app.config.get.return_value = ""
 
         userinfo = {
             "sub": "provider-sub-123",
@@ -428,8 +423,12 @@ class TestCreateOrUpdateOidcUser:
             "name": "Test User",
         }
 
-        with patch("gramps_webapi.auth.oidc.get_role_from_claims", return_value=None):
-            result = create_or_update_oidc_user(userinfo, "test_tree", "google")
+        mock_app = MagicMock()
+        mock_app.config.get.return_value = "groups"
+
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
+            with patch("gramps_webapi.auth.oidc.get_role_from_claims", return_value=None):
+                result = create_or_update_oidc_user(userinfo, "test_tree", "google")
 
         # Should not pass role parameter
         mock_modify.assert_called_once_with(
@@ -445,18 +444,15 @@ class TestCreateOrUpdateOidcUser:
     @patch("gramps_webapi.auth.oidc.get_guid")
     @patch("gramps_webapi.auth.oidc.create_oidc_account")
     @patch("gramps_webapi.auth.oidc.get_provider_config")
-    @patch("gramps_webapi.auth.oidc.current_app")
     @patch("gramps_webapi.auth.oidc.secrets.token_urlsafe")
-    @patch("gramps_webapi.auth.oidc.run_task")
     def test_new_user_google_provider(
-        self, mock_run_task, mock_token, mock_app, mock_get_config,
+        self, mock_token, mock_get_config,
         mock_create_oidc, mock_get_guid, mock_add_user, mock_get_user, mock_get_oidc
     ):
         """Test creating new user with Google provider."""
         mock_token.return_value = "random-password-123"
         mock_get_guid.return_value = "new-user-guid"
         mock_get_config.return_value = {"username_claim": "email"}
-        mock_app.config = {"TREE": "single_tree"}
 
         userinfo = {
             "sub": "google-sub-12345",
@@ -464,8 +460,15 @@ class TestCreateOrUpdateOidcUser:
             "name": "New User",
         }
 
-        with patch("gramps_webapi.auth.oidc.get_role_from_claims", return_value=ROLE_DISABLED):
-            result = create_or_update_oidc_user(userinfo, "test_tree", "google")
+        mock_app = MagicMock()
+        mock_app.config = {"TREE": "single_tree"}
+
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
+            with patch("gramps_webapi.auth.oidc.get_role_from_claims", return_value=ROLE_DISABLED):
+                # Mock get_tree_id and run_task to avoid database/task access in disabled role path
+                with patch("gramps_webapi.api.util.get_tree_id", return_value="test_tree"):
+                    with patch("gramps_webapi.api.tasks.run_task"):
+                        result = create_or_update_oidc_user(userinfo, "test_tree", "google")
 
         assert result == "new-user-guid"
 
@@ -486,18 +489,15 @@ class TestCreateOrUpdateOidcUser:
     @patch("gramps_webapi.auth.oidc.get_guid")
     @patch("gramps_webapi.auth.oidc.create_oidc_account")
     @patch("gramps_webapi.auth.oidc.get_provider_config")
-    @patch("gramps_webapi.auth.oidc.current_app")
     @patch("gramps_webapi.auth.oidc.secrets.token_urlsafe")
-    @patch("gramps_webapi.auth.oidc.run_task")
     def test_new_user_custom_provider(
-        self, mock_run_task, mock_token, mock_app, mock_get_config,
+        self, mock_token, mock_get_config,
         mock_create_oidc, mock_get_guid, mock_add_user, mock_get_user, mock_get_oidc
     ):
         """Test creating new user with custom provider - no prefix."""
         mock_token.return_value = "random-password-123"
         mock_get_guid.return_value = "new-user-guid"
         mock_get_config.return_value = {"username_claim": "preferred_username"}
-        mock_app.config = {"TREE": "single_tree"}
 
         userinfo = {
             "sub": "custom-sub-12345",
@@ -505,8 +505,15 @@ class TestCreateOrUpdateOidcUser:
             "email": "custom@example.com",
         }
 
-        with patch("gramps_webapi.auth.oidc.get_role_from_claims", return_value=ROLE_DISABLED):
-            result = create_or_update_oidc_user(userinfo, None, PROVIDER_CUSTOM)
+        mock_app = MagicMock()
+        mock_app.config = {"TREE": "single_tree"}
+
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
+            with patch("gramps_webapi.auth.oidc.get_role_from_claims", return_value=ROLE_DISABLED):
+                # Mock get_tree_id and run_task to avoid database/task access in disabled role path
+                with patch("gramps_webapi.api.util.get_tree_id", return_value="test_tree"):
+                    with patch("gramps_webapi.api.tasks.run_task"):
+                        result = create_or_update_oidc_user(userinfo, None, PROVIDER_CUSTOM)
 
         # Username should NOT be prefixed for custom provider
         call_kwargs = mock_add_user.call_args[1]
@@ -518,18 +525,15 @@ class TestCreateOrUpdateOidcUser:
     @patch("gramps_webapi.auth.oidc.get_guid")
     @patch("gramps_webapi.auth.oidc.create_oidc_account")
     @patch("gramps_webapi.auth.oidc.get_provider_config")
-    @patch("gramps_webapi.auth.oidc.current_app")
     @patch("gramps_webapi.auth.oidc.secrets.token_urlsafe")
-    @patch("gramps_webapi.auth.oidc.run_task")
     def test_new_user_username_conflict_resolution(
-        self, mock_run_task, mock_token, mock_app, mock_get_config,
+        self, mock_token, mock_get_config,
         mock_create_oidc, mock_get_guid, mock_add_user, mock_get_user, mock_get_oidc
     ):
         """Test username conflict resolution with counter suffix."""
         mock_token.return_value = "random-password"
         mock_get_guid.return_value = "new-user-guid"
         mock_get_config.return_value = {"username_claim": "preferred_username"}
-        mock_app.config = {"TREE": "single_tree"}
 
         # Simulate existing users
         mock_get_user.side_effect = [
@@ -543,8 +547,15 @@ class TestCreateOrUpdateOidcUser:
             "preferred_username": "testuser",
         }
 
-        with patch("gramps_webapi.auth.oidc.get_role_from_claims", return_value=ROLE_DISABLED):
-            create_or_update_oidc_user(userinfo, None, "google")
+        mock_app = MagicMock()
+        mock_app.config = {"TREE": "single_tree"}
+
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
+            with patch("gramps_webapi.auth.oidc.get_role_from_claims", return_value=ROLE_DISABLED):
+                # Mock get_tree_id and run_task to avoid database/task access in disabled role path
+                with patch("gramps_webapi.api.util.get_tree_id", return_value="test_tree"):
+                    with patch("gramps_webapi.api.tasks.run_task"):
+                        create_or_update_oidc_user(userinfo, None, "google")
 
         # Should use google_testuser_2
         call_kwargs = mock_add_user.call_args[1]
