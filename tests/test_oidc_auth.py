@@ -19,138 +19,386 @@
 
 """Tests for OIDC authentication logic."""
 
-import unittest
+import pytest
 from unittest.mock import MagicMock, patch
 
 from gramps_webapi.auth.const import (
     ROLE_ADMIN,
     ROLE_CONTRIBUTOR,
+    ROLE_DISABLED,
     ROLE_EDITOR,
     ROLE_GUEST,
     ROLE_MEMBER,
     ROLE_OWNER,
 )
 from gramps_webapi.auth.oidc import (
+    BUILTIN_PROVIDERS,
+    PROVIDER_CUSTOM,
     create_or_update_oidc_user,
-    get_role_from_groups,
+    get_available_oidc_providers,
+    get_provider_config,
+    get_role_from_claims,
     init_oidc,
 )
 
 
-class TestOIDCAuth(unittest.TestCase):
-    """Test cases for OIDC authentication logic."""
+class TestGetRoleFromClaims:
+    """Test cases for get_role_from_claims function."""
 
-    def test_get_role_from_groups_empty_groups(self):
+    def test_no_role_mapping_configured(self):
+        """Test when no role mapping is configured - should return None to preserve existing roles."""
+        mock_app = MagicMock()
+        mock_app.config.get.return_value = ""
+
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
+            user_claims = {"groups": ["some-group"]}
+            role = get_role_from_claims(user_claims)
+            assert role is None
+
+    def test_empty_groups_with_mapping(self):
         """Test role mapping with empty groups list."""
-        with patch.dict("os.environ", {}, clear=True):
-            role = get_role_from_groups([])
-            self.assertEqual(role, ROLE_GUEST)
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default="": {
+            "OIDC_GROUP_ADMIN": "admin-group",
+            "OIDC_GROUP_EDITOR": "editor-group",
+        }.get(key, default)
 
-    def test_get_role_from_groups_no_matching_groups(self):
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
+            user_claims = {"groups": []}
+            role = get_role_from_claims(user_claims)
+            assert role == ROLE_GUEST
+
+    def test_no_matching_groups(self):
         """Test role mapping with no matching groups."""
-        with patch.dict(
-            "os.environ",
-            {
-                "OIDC_GROUP_ADMIN": "admin-group",
-                "OIDC_GROUP_EDITOR": "editor-group",
-            },
-            clear=True,
-        ):
-            role = get_role_from_groups(["unknown-group", "another-unknown"])
-            self.assertEqual(role, ROLE_GUEST)
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default="": {
+            "OIDC_GROUP_ADMIN": "admin-group",
+            "OIDC_GROUP_EDITOR": "editor-group",
+        }.get(key, default)
 
-    def test_get_role_from_groups_single_match(self):
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
+            user_claims = {"groups": ["unknown-group", "another-unknown"]}
+            role = get_role_from_claims(user_claims)
+            assert role == ROLE_GUEST
+
+    def test_single_role_match(self):
         """Test role mapping with single matching group."""
-        with patch.dict(
-            "os.environ",
-            {
-                "OIDC_GROUP_ADMIN": "admin-group",
-                "OIDC_GROUP_EDITOR": "editor-group",
-                "OIDC_GROUP_MEMBER": "member-group",
-            },
-            clear=True,
-        ):
-            # Test each role level
-            self.assertEqual(get_role_from_groups(["admin-group"]), ROLE_ADMIN)
-            self.assertEqual(get_role_from_groups(["editor-group"]), ROLE_EDITOR)
-            self.assertEqual(get_role_from_groups(["member-group"]), ROLE_MEMBER)
+        mock_app = MagicMock()
 
-    def test_get_role_from_groups_multiple_matches_precedence(self):
+        # Test admin role
+        mock_app.config.get.side_effect = lambda key, default="": {
+            "OIDC_GROUP_ADMIN": "admin-group",
+        }.get(key, default)
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
+            assert get_role_from_claims({"groups": ["admin-group"]}) == ROLE_ADMIN
+
+        # Test editor role
+        mock_app.config.get.side_effect = lambda key, default="": {
+            "OIDC_GROUP_EDITOR": "editor-group",
+        }.get(key, default)
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
+            assert get_role_from_claims({"groups": ["editor-group"]}) == ROLE_EDITOR
+
+        # Test member role
+        mock_app.config.get.side_effect = lambda key, default="": {
+            "OIDC_GROUP_MEMBER": "member-group",
+        }.get(key, default)
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
+            assert get_role_from_claims({"groups": ["member-group"]}) == ROLE_MEMBER
+
+    def test_multiple_matches_highest_precedence_wins(self):
         """Test role mapping with multiple matching groups - highest precedence wins."""
-        with patch.dict(
-            "os.environ",
-            {
-                "OIDC_GROUP_ADMIN": "admin-group",
-                "OIDC_GROUP_OWNER": "owner-group",
-                "OIDC_GROUP_EDITOR": "editor-group",
-                "OIDC_GROUP_CONTRIBUTOR": "contributor-group",
-                "OIDC_GROUP_MEMBER": "member-group",
-                "OIDC_GROUP_GUEST": "guest-group",
-            },
-            clear=True,
-        ):
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default="": {
+            "OIDC_GROUP_ADMIN": "admin-group",
+            "OIDC_GROUP_OWNER": "owner-group",
+            "OIDC_GROUP_EDITOR": "editor-group",
+            "OIDC_GROUP_CONTRIBUTOR": "contributor-group",
+            "OIDC_GROUP_MEMBER": "member-group",
+            "OIDC_GROUP_GUEST": "guest-group",
+        }.get(key, default)
+
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
             # Admin (5) should win over all others
-            role = get_role_from_groups(["member-group", "admin-group", "editor-group"])
-            self.assertEqual(role, ROLE_ADMIN)
+            role = get_role_from_claims({"groups": ["member-group", "admin-group", "editor-group"]})
+            assert role == ROLE_ADMIN
 
             # Owner (4) should win over lower roles
-            role = get_role_from_groups(["member-group", "owner-group", "contributor-group"])
-            self.assertEqual(role, ROLE_OWNER)
+            role = get_role_from_claims({"groups": ["member-group", "owner-group", "contributor-group"]})
+            assert role == ROLE_OWNER
 
             # Editor (3) should win over lower roles
-            role = get_role_from_groups(["member-group", "editor-group", "guest-group"])
-            self.assertEqual(role, ROLE_EDITOR)
+            role = get_role_from_claims({"groups": ["member-group", "editor-group", "guest-group"]})
+            assert role == ROLE_EDITOR
 
-    def test_get_role_from_groups_environment_variable_formats(self):
-        """Test role mapping with various environment variable formats."""
-        with patch.dict(
-            "os.environ",
-            {
-                "OIDC_GROUP_ADMIN": "gramps-admins,super-admins",  # Comma-separated not supported
-                "OIDC_GROUP_EDITOR": "gramps-editors",
-            },
-            clear=True,
-        ):
-            # Only exact matches should work
-            self.assertEqual(get_role_from_groups(["gramps-editors"]), ROLE_EDITOR)
-            self.assertEqual(get_role_from_groups(["super-admins"]), ROLE_GUEST)  # No match
-            self.assertEqual(get_role_from_groups(["gramps-admins,super-admins"]), ROLE_ADMIN)  # Exact match
-
-    def test_get_role_from_groups_case_sensitivity(self):
+    def test_case_sensitivity(self):
         """Test role mapping is case-sensitive."""
-        with patch.dict(
-            "os.environ",
-            {"OIDC_GROUP_ADMIN": "Admin-Group"},
-            clear=True,
-        ):
-            self.assertEqual(get_role_from_groups(["Admin-Group"]), ROLE_ADMIN)
-            self.assertEqual(get_role_from_groups(["admin-group"]), ROLE_GUEST)
-            self.assertEqual(get_role_from_groups(["ADMIN-GROUP"]), ROLE_GUEST)
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default="": {
+            "OIDC_GROUP_ADMIN": "Admin-Group",
+        }.get(key, default)
 
-    @patch("gramps_webapi.auth.oidc.get_user_details")
-    @patch("gramps_webapi.auth.oidc.get_guid")
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
+            assert get_role_from_claims({"groups": ["Admin-Group"]}) == ROLE_ADMIN
+            assert get_role_from_claims({"groups": ["admin-group"]}) == ROLE_GUEST
+            assert get_role_from_claims({"groups": ["ADMIN-GROUP"]}) == ROLE_GUEST
+
+    def test_custom_role_claim(self):
+        """Test using custom role claim (not 'groups')."""
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default="": {
+            "OIDC_GROUP_ADMIN": "admin-role",
+            "OIDC_GROUP_EDITOR": "editor-role",
+        }.get(key, default)
+
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
+            # Test with 'roles' claim
+            user_claims = {"roles": ["admin-role", "other-role"]}
+            role = get_role_from_claims(user_claims, role_claim="roles")
+            assert role == ROLE_ADMIN
+
+    def test_nested_role_claim(self):
+        """Test using nested role claim like 'realm_access.roles'."""
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default="": {
+            "OIDC_GROUP_ADMIN": "admin-role",
+        }.get(key, default)
+
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
+            user_claims = {
+                "realm_access": {
+                    "roles": ["admin-role", "other-role"]
+                }
+            }
+            role = get_role_from_claims(user_claims, role_claim="realm_access.roles")
+            assert role == ROLE_ADMIN
+
+    def test_string_claim_value(self):
+        """Test handling claim value as string instead of list."""
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default="": {
+            "OIDC_GROUP_ADMIN": "admin-group",
+        }.get(key, default)
+
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
+            user_claims = {"groups": "admin-group"}  # String instead of list
+            role = get_role_from_claims(user_claims)
+            assert role == ROLE_ADMIN
+
+
+class TestGetAvailableOidcProviders:
+    """Test cases for get_available_oidc_providers function."""
+
+    def test_no_providers_configured(self):
+        """Test when no providers are configured."""
+        mock_app = MagicMock()
+        mock_app.config.get.return_value = None
+
+        providers = get_available_oidc_providers(mock_app)
+        assert providers == []
+
+    def test_single_builtin_provider(self):
+        """Test with single built-in provider configured."""
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default=None: {
+            "OIDC_GOOGLE_CLIENT_ID": "google-client-id",
+        }.get(key, default)
+
+        providers = get_available_oidc_providers(mock_app)
+        assert "google" in providers
+        assert "microsoft" not in providers
+        assert "custom" not in providers
+
+    def test_multiple_builtin_providers(self):
+        """Test with multiple built-in providers configured."""
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default=None: {
+            "OIDC_GOOGLE_CLIENT_ID": "google-client-id",
+            "OIDC_MICROSOFT_CLIENT_ID": "microsoft-client-id",
+            "OIDC_GITHUB_CLIENT_ID": "github-client-id",
+        }.get(key, default)
+
+        providers = get_available_oidc_providers(mock_app)
+        assert "google" in providers
+        assert "microsoft" in providers
+        assert "github" in providers
+        assert len(providers) == 3
+
+    def test_custom_provider(self):
+        """Test custom provider configuration."""
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default=None: {
+            "OIDC_CLIENT_ID": "custom-client-id",
+            "OIDC_ISSUER": "https://custom-issuer.com",
+        }.get(key, default)
+
+        providers = get_available_oidc_providers(mock_app)
+        assert PROVIDER_CUSTOM in providers
+        assert len(providers) == 1
+
+    def test_custom_and_builtin_providers(self):
+        """Test mix of custom and built-in providers."""
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default=None: {
+            "OIDC_GOOGLE_CLIENT_ID": "google-client-id",
+            "OIDC_CLIENT_ID": "custom-client-id",
+            "OIDC_ISSUER": "https://custom-issuer.com",
+        }.get(key, default)
+
+        providers = get_available_oidc_providers(mock_app)
+        assert "google" in providers
+        assert PROVIDER_CUSTOM in providers
+        assert len(providers) == 2
+
+    def test_custom_provider_missing_issuer(self):
+        """Test custom provider with missing issuer is not detected."""
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default=None: {
+            "OIDC_CLIENT_ID": "custom-client-id",
+            # Missing OIDC_ISSUER
+        }.get(key, default)
+
+        providers = get_available_oidc_providers(mock_app)
+        assert PROVIDER_CUSTOM not in providers
+
+
+class TestGetProviderConfig:
+    """Test cases for get_provider_config function."""
+
+    def test_google_provider_config(self):
+        """Test getting Google provider configuration."""
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default=None: {
+            "OIDC_GOOGLE_CLIENT_ID": "google-client-id",
+            "OIDC_GOOGLE_CLIENT_SECRET": "google-secret",
+        }.get(key, default)
+
+        config = get_provider_config("google", mock_app)
+        assert config is not None
+        assert config["client_id"] == "google-client-id"
+        assert config["client_secret"] == "google-secret"
+        assert config["issuer"] == "https://accounts.google.com"
+        assert config["username_claim"] == "email"
+
+    def test_microsoft_provider_config(self):
+        """Test getting Microsoft provider configuration."""
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default=None: {
+            "OIDC_MICROSOFT_CLIENT_ID": "ms-client-id",
+            "OIDC_MICROSOFT_CLIENT_SECRET": "ms-secret",
+        }.get(key, default)
+
+        config = get_provider_config("microsoft", mock_app)
+        assert config is not None
+        assert config["client_id"] == "ms-client-id"
+        assert config["issuer"] == "https://login.microsoftonline.com/common/v2.0"
+        assert config["username_claim"] == "preferred_username"
+
+    def test_github_provider_config(self):
+        """Test getting GitHub provider configuration."""
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default=None: {
+            "OIDC_GITHUB_CLIENT_ID": "github-client-id",
+            "OIDC_GITHUB_CLIENT_SECRET": "github-secret",
+        }.get(key, default)
+
+        config = get_provider_config("github", mock_app)
+        assert config is not None
+        assert config["client_id"] == "github-client-id"
+        assert config["auth_url"] == "https://github.com/login/oauth/authorize"
+        assert config["token_url"] == "https://github.com/login/oauth/access_token"
+        assert config["username_claim"] == "login"
+
+    def test_custom_provider_config(self):
+        """Test getting custom provider configuration."""
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default=None: {
+            "OIDC_CLIENT_ID": "custom-client-id",
+            "OIDC_CLIENT_SECRET": "custom-secret",
+            "OIDC_ISSUER": "https://custom-issuer.com",
+            "OIDC_SCOPES": "openid email profile custom_scope",
+            "OIDC_USERNAME_CLAIM": "sub",
+            "OIDC_NAME": "My Custom Provider",
+        }.get(key, default)
+
+        config = get_provider_config(PROVIDER_CUSTOM, mock_app)
+        assert config is not None
+        assert config["client_id"] == "custom-client-id"
+        assert config["client_secret"] == "custom-secret"
+        assert config["issuer"] == "https://custom-issuer.com"
+        assert config["scopes"] == "openid email profile custom_scope"
+        assert config["username_claim"] == "sub"
+        assert config["name"] == "My Custom Provider"
+
+    def test_custom_provider_defaults(self):
+        """Test custom provider with default values."""
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default=None: {
+            "OIDC_CLIENT_ID": "custom-client-id",
+            "OIDC_ISSUER": "https://custom-issuer.com",
+        }.get(key, default)
+
+        config = get_provider_config(PROVIDER_CUSTOM, mock_app)
+        assert config is not None
+        assert config["scopes"] == "openid email profile"  # Default
+        assert config["username_claim"] == "preferred_username"  # Default
+        assert config["name"] == "OIDC"  # Default
+
+    def test_provider_not_configured(self):
+        """Test getting config for provider that isn't configured."""
+        mock_app = MagicMock()
+        mock_app.config.get.return_value = None
+
+        config = get_provider_config("google", mock_app)
+        assert config is None
+
+    def test_unknown_provider(self):
+        """Test getting config for unknown provider."""
+        mock_app = MagicMock()
+
+        config = get_provider_config("unknown_provider", mock_app)
+        assert config is None
+
+
+class TestCreateOrUpdateOidcUser:
+    """Test cases for create_or_update_oidc_user function."""
+
+    @patch("gramps_webapi.auth.oidc.get_oidc_account")
+    @patch("gramps_webapi.auth.oidc.get_name")
     @patch("gramps_webapi.auth.oidc.modify_user")
-    def test_create_or_update_oidc_user_existing_user(self, mock_modify, mock_get_guid, mock_get_details):
-        """Test updating an existing OIDC user."""
-        # Mock existing user
-        mock_get_details.return_value = {"name": "testuser", "role": ROLE_MEMBER}
-        mock_get_guid.return_value = "user-guid-123"
+    @patch("gramps_webapi.auth.oidc.get_provider_config")
+    @patch("gramps_webapi.auth.oidc.current_app")
+    def test_existing_user_with_role_mapping(
+        self, mock_app, mock_get_config, mock_modify, mock_get_name, mock_get_oidc
+    ):
+        """Test updating an existing OIDC user with role mapping."""
+        # Mock existing OIDC account
+        mock_get_oidc.return_value = "existing-user-guid"
+        mock_get_name.return_value = "testuser"
+
+        # Mock provider config
+        mock_get_config.return_value = {
+            "username_claim": "preferred_username",
+        }
+
+        # Mock role mapping configured
+        mock_app.config.get.side_effect = lambda key, default="": {
+            "OIDC_ROLE_CLAIM": "groups",
+            "OIDC_GROUP_EDITOR": "editor-group",
+        }.get(key, default)
 
         userinfo = {
+            "sub": "provider-sub-123",
             "preferred_username": "testuser",
             "email": "test@example.com",
             "name": "Test User",
             "groups": ["editor-group"],
         }
 
-        with patch.dict(
-            "os.environ",
-            {"OIDC_GROUP_EDITOR": "editor-group"},
-            clear=True,
-        ):
-            result = create_or_update_oidc_user(userinfo, "test_tree")
+        with patch("gramps_webapi.auth.oidc.get_role_from_claims", return_value=ROLE_EDITOR):
+            result = create_or_update_oidc_user(userinfo, "test_tree", "google")
 
-        self.assertEqual(result, "user-guid-123")
+        assert result == "existing-user-guid"
         mock_modify.assert_called_once_with(
             name="testuser",
             fullname="Test User",
@@ -159,103 +407,208 @@ class TestOIDCAuth(unittest.TestCase):
             tree="test_tree",
         )
 
-    @patch("gramps_webapi.auth.oidc.get_user_details", return_value=None)
-    @patch("gramps_webapi.auth.oidc.add_user")
-    @patch("gramps_webapi.auth.oidc.get_guid")
-    @patch("gramps_webapi.auth.oidc.secrets.token_urlsafe")
-    def test_create_or_update_oidc_user_new_user(self, mock_token, mock_get_guid, mock_add_user, mock_get_details):
-        """Test creating a new OIDC user."""
-        mock_token.return_value = "random-password-123"
-        mock_get_guid.return_value = "new-user-guid"
+    @patch("gramps_webapi.auth.oidc.get_oidc_account")
+    @patch("gramps_webapi.auth.oidc.get_name")
+    @patch("gramps_webapi.auth.oidc.modify_user")
+    @patch("gramps_webapi.auth.oidc.get_provider_config")
+    @patch("gramps_webapi.auth.oidc.current_app")
+    def test_existing_user_no_role_mapping(
+        self, mock_app, mock_get_config, mock_modify, mock_get_name, mock_get_oidc
+    ):
+        """Test updating existing user without role mapping preserves role."""
+        mock_get_oidc.return_value = "existing-user-guid"
+        mock_get_name.return_value = "testuser"
+        mock_get_config.return_value = {"username_claim": "preferred_username"}
+        mock_app.config.get.return_value = ""
 
         userinfo = {
-            "preferred_username": "newuser",
-            "email": "new@example.com",
-            "name": "New User",
-            "groups": ["contributor-group"],
+            "sub": "provider-sub-123",
+            "preferred_username": "testuser",
+            "email": "test@example.com",
+            "name": "Test User",
         }
 
-        with patch.dict(
-            "os.environ",
-            {"OIDC_GROUP_CONTRIBUTOR": "contributor-group"},
-            clear=True,
-        ):
-            result = create_or_update_oidc_user(userinfo, "test_tree")
+        with patch("gramps_webapi.auth.oidc.get_role_from_claims", return_value=None):
+            result = create_or_update_oidc_user(userinfo, "test_tree", "google")
 
-        self.assertEqual(result, "new-user-guid")
-        mock_add_user.assert_called_once_with(
-            name="newuser",
-            password="random-password-123",
-            fullname="New User",
-            email="new@example.com",
-            role=ROLE_CONTRIBUTOR,
+        # Should not pass role parameter
+        mock_modify.assert_called_once_with(
+            name="testuser",
+            fullname="Test User",
+            email="test@example.com",
             tree="test_tree",
         )
 
-    @patch("gramps_webapi.auth.oidc.get_user_details", return_value=None)
-    def test_create_or_update_oidc_user_fallback_to_sub(self, mock_get_details):
-        """Test user creation when preferred_username is missing."""
-        userinfo = {
-            "sub": "user-12345",
-            "email": "sub@example.com",
-            "groups": [],
-        }
-
-        with patch("gramps_webapi.auth.oidc.add_user") as mock_add_user:
-            with patch("gramps_webapi.auth.oidc.get_guid", return_value="sub-user-guid"):
-                result = create_or_update_oidc_user(userinfo)
-
-        self.assertEqual(result, "sub-user-guid")
-        # Should use 'sub' as username when preferred_username is missing
-        mock_add_user.assert_called_once()
-        args, kwargs = mock_add_user.call_args
-        self.assertEqual(kwargs["name"], "user-12345")
-
-    def test_create_or_update_oidc_user_no_username(self):
-        """Test user creation fails when no username is available."""
-        userinfo = {
-            "email": "noname@example.com",
-            "groups": [],
-        }
-
-        with self.assertRaises(ValueError) as context:
-            create_or_update_oidc_user(userinfo)
-
-        self.assertIn("No username found", str(context.exception))
-
+    @patch("gramps_webapi.auth.oidc.get_oidc_account", return_value=None)
     @patch("gramps_webapi.auth.oidc.get_user_details", return_value=None)
     @patch("gramps_webapi.auth.oidc.add_user")
-    def test_create_or_update_oidc_user_default_guest_role(self, mock_add_user, mock_get_details):
-        """Test new user gets guest role when no groups match."""
+    @patch("gramps_webapi.auth.oidc.get_guid")
+    @patch("gramps_webapi.auth.oidc.create_oidc_account")
+    @patch("gramps_webapi.auth.oidc.get_provider_config")
+    @patch("gramps_webapi.auth.oidc.current_app")
+    @patch("gramps_webapi.auth.oidc.secrets.token_urlsafe")
+    @patch("gramps_webapi.auth.oidc.run_task")
+    def test_new_user_google_provider(
+        self, mock_run_task, mock_token, mock_app, mock_get_config,
+        mock_create_oidc, mock_get_guid, mock_add_user, mock_get_user, mock_get_oidc
+    ):
+        """Test creating new user with Google provider."""
+        mock_token.return_value = "random-password-123"
+        mock_get_guid.return_value = "new-user-guid"
+        mock_get_config.return_value = {"username_claim": "email"}
+        mock_app.config = {"TREE": "single_tree"}
+
         userinfo = {
-            "preferred_username": "guestuser",
-            "groups": ["unknown-group"],
+            "sub": "google-sub-12345",
+            "email": "newuser@gmail.com",
+            "name": "New User",
         }
 
-        with patch("gramps_webapi.auth.oidc.get_guid", return_value="guest-guid"):
-            result = create_or_update_oidc_user(userinfo)
+        with patch("gramps_webapi.auth.oidc.get_role_from_claims", return_value=ROLE_DISABLED):
+            result = create_or_update_oidc_user(userinfo, "test_tree", "google")
 
+        assert result == "new-user-guid"
+
+        # Username should be prefixed with provider for builtin providers
         mock_add_user.assert_called_once()
-        args, kwargs = mock_add_user.call_args
-        self.assertEqual(kwargs["role"], ROLE_GUEST)
+        call_kwargs = mock_add_user.call_args[1]
+        assert call_kwargs["name"] == "google_newuser@gmail.com"
+        assert call_kwargs["role"] == ROLE_DISABLED
 
-    def test_init_oidc_disabled(self):
+        # Should create OIDC account association
+        mock_create_oidc.assert_called_once_with(
+            "new-user-guid", "google", "google-sub-12345", "newuser@gmail.com"
+        )
+
+    @patch("gramps_webapi.auth.oidc.get_oidc_account", return_value=None)
+    @patch("gramps_webapi.auth.oidc.get_user_details", return_value=None)
+    @patch("gramps_webapi.auth.oidc.add_user")
+    @patch("gramps_webapi.auth.oidc.get_guid")
+    @patch("gramps_webapi.auth.oidc.create_oidc_account")
+    @patch("gramps_webapi.auth.oidc.get_provider_config")
+    @patch("gramps_webapi.auth.oidc.current_app")
+    @patch("gramps_webapi.auth.oidc.secrets.token_urlsafe")
+    @patch("gramps_webapi.auth.oidc.run_task")
+    def test_new_user_custom_provider(
+        self, mock_run_task, mock_token, mock_app, mock_get_config,
+        mock_create_oidc, mock_get_guid, mock_add_user, mock_get_user, mock_get_oidc
+    ):
+        """Test creating new user with custom provider - no prefix."""
+        mock_token.return_value = "random-password-123"
+        mock_get_guid.return_value = "new-user-guid"
+        mock_get_config.return_value = {"username_claim": "preferred_username"}
+        mock_app.config = {"TREE": "single_tree"}
+
+        userinfo = {
+            "sub": "custom-sub-12345",
+            "preferred_username": "customuser",
+            "email": "custom@example.com",
+        }
+
+        with patch("gramps_webapi.auth.oidc.get_role_from_claims", return_value=ROLE_DISABLED):
+            result = create_or_update_oidc_user(userinfo, None, PROVIDER_CUSTOM)
+
+        # Username should NOT be prefixed for custom provider
+        call_kwargs = mock_add_user.call_args[1]
+        assert call_kwargs["name"] == "customuser"
+
+    @patch("gramps_webapi.auth.oidc.get_oidc_account", return_value=None)
+    @patch("gramps_webapi.auth.oidc.get_user_details")
+    @patch("gramps_webapi.auth.oidc.add_user")
+    @patch("gramps_webapi.auth.oidc.get_guid")
+    @patch("gramps_webapi.auth.oidc.create_oidc_account")
+    @patch("gramps_webapi.auth.oidc.get_provider_config")
+    @patch("gramps_webapi.auth.oidc.current_app")
+    @patch("gramps_webapi.auth.oidc.secrets.token_urlsafe")
+    @patch("gramps_webapi.auth.oidc.run_task")
+    def test_new_user_username_conflict_resolution(
+        self, mock_run_task, mock_token, mock_app, mock_get_config,
+        mock_create_oidc, mock_get_guid, mock_add_user, mock_get_user, mock_get_oidc
+    ):
+        """Test username conflict resolution with counter suffix."""
+        mock_token.return_value = "random-password"
+        mock_get_guid.return_value = "new-user-guid"
+        mock_get_config.return_value = {"username_claim": "preferred_username"}
+        mock_app.config = {"TREE": "single_tree"}
+
+        # Simulate existing users
+        mock_get_user.side_effect = [
+            {"name": "google_testuser"},  # First attempt - exists
+            {"name": "google_testuser_1"},  # Second attempt - exists
+            None,  # Third attempt - available
+        ]
+
+        userinfo = {
+            "sub": "google-sub-123",
+            "preferred_username": "testuser",
+        }
+
+        with patch("gramps_webapi.auth.oidc.get_role_from_claims", return_value=ROLE_DISABLED):
+            create_or_update_oidc_user(userinfo, None, "google")
+
+        # Should use google_testuser_2
+        call_kwargs = mock_add_user.call_args[1]
+        assert call_kwargs["name"] == "google_testuser_2"
+
+    @patch("gramps_webapi.auth.oidc.get_provider_config")
+    def test_missing_sub_claim(self, mock_get_config):
+        """Test that missing 'sub' claim raises ValueError."""
+        mock_get_config.return_value = {"username_claim": "preferred_username"}
+
+        userinfo = {
+            "preferred_username": "testuser",
+            "email": "test@example.com",
+            # Missing 'sub' claim
+        }
+
+        with pytest.raises(ValueError, match="No 'sub' claim found"):
+            create_or_update_oidc_user(userinfo, None, "google")
+
+    @patch("gramps_webapi.auth.oidc.get_provider_config", return_value=None)
+    def test_invalid_provider(self, mock_get_config):
+        """Test that invalid provider raises ValueError."""
+        userinfo = {"sub": "test-sub"}
+
+        with pytest.raises(ValueError, match="not configured"):
+            create_or_update_oidc_user(userinfo, None, "invalid_provider")
+
+
+class TestInitOidc:
+    """Test cases for init_oidc function."""
+
+    def test_oidc_disabled(self):
         """Test OIDC initialization when disabled."""
         mock_app = MagicMock()
         mock_app.config.get.return_value = False
 
         result = init_oidc(mock_app)
-        self.assertIsNone(result)
+        assert result is None
 
     @patch("gramps_webapi.auth.oidc.OAuth")
-    def test_init_oidc_enabled(self, mock_oauth_class):
-        """Test OIDC initialization when enabled."""
+    @patch("gramps_webapi.auth.oidc.get_available_oidc_providers")
+    def test_oidc_enabled_no_providers(self, mock_get_providers, mock_oauth_class):
+        """Test OIDC initialization with no providers configured."""
         mock_app = MagicMock()
-        mock_app.config = {
-            "OIDC_ENABLED": True,
-            "OIDC_CLIENT_ID": "test-client-id",
-            "OIDC_CLIENT_SECRET": "test-secret",
-            "OIDC_ISSUER": "https://test-issuer.com",
+        mock_app.config.get.return_value = True
+        mock_get_providers.return_value = []
+
+        result = init_oidc(mock_app)
+        assert result is None
+
+    @patch("gramps_webapi.auth.oidc.OAuth")
+    @patch("gramps_webapi.auth.oidc.get_available_oidc_providers")
+    @patch("gramps_webapi.auth.oidc.get_provider_config")
+    def test_init_google_provider(self, mock_get_config, mock_get_providers, mock_oauth_class):
+        """Test initializing Google provider."""
+        mock_app = MagicMock()
+        mock_app.config.get.return_value = True
+        mock_get_providers.return_value = ["google"]
+        mock_get_config.return_value = {
+            "name": "Google",
+            "client_id": "google-client-id",
+            "client_secret": "google-secret",
+            "issuer": "https://accounts.google.com",
+            "scopes": "openid email profile",
         }
 
         mock_oauth = MagicMock()
@@ -263,73 +616,65 @@ class TestOIDCAuth(unittest.TestCase):
 
         result = init_oidc(mock_app)
 
-        # Verify OAuth was initialized
-        mock_oauth_class.assert_called_once_with(mock_app)
+        assert result == mock_oauth
         mock_oauth.register.assert_called_once()
+        call_kwargs = mock_oauth.register.call_args[1]
+        assert call_kwargs["name"] == "gramps_google"
+        assert call_kwargs["client_id"] == "google-client-id"
 
-        # Verify registration parameters
-        args, kwargs = mock_oauth.register.call_args
-        self.assertEqual(kwargs["name"], "gramps")
-        self.assertEqual(kwargs["client_id"], "test-client-id")
-        self.assertEqual(kwargs["client_secret"], "test-secret")
-        self.assertIn("openid email profile groups", kwargs["client_kwargs"]["scope"])
+    @patch("gramps_webapi.auth.oidc.OAuth")
+    @patch("gramps_webapi.auth.oidc.get_available_oidc_providers")
+    @patch("gramps_webapi.auth.oidc.get_provider_config")
+    def test_init_github_provider(self, mock_get_config, mock_get_providers, mock_oauth_class):
+        """Test initializing GitHub provider (OAuth 2.0, not OIDC)."""
+        mock_app = MagicMock()
+        mock_app.config.get.return_value = True
+        mock_get_providers.return_value = ["github"]
+        mock_get_config.return_value = {
+            "name": "GitHub",
+            "client_id": "github-client-id",
+            "client_secret": "github-secret",
+            "auth_url": "https://github.com/login/oauth/authorize",
+            "token_url": "https://github.com/login/oauth/access_token",
+            "scopes": "user:email",
+        }
 
-    def test_userinfo_variations(self):
-        """Test handling various userinfo formats from different OIDC providers."""
-        test_cases = [
-            # Standard OIDC userinfo
-            {
-                "userinfo": {
-                    "preferred_username": "standarduser",
-                    "email": "standard@example.com",
-                    "name": "Standard User",
-                    "groups": ["editor-group"],
-                },
-                "expected_username": "standarduser",
-                "expected_role": ROLE_EDITOR,
-            },
-            # Azure AD format
-            {
-                "userinfo": {
-                    "preferred_username": "azureuser@tenant.onmicrosoft.com",
-                    "email": "azure@example.com",
-                    "name": "Azure User",
-                    "groups": ["admin-group"],
-                },
-                "expected_username": "azureuser@tenant.onmicrosoft.com",
-                "expected_role": ROLE_ADMIN,
-            },
-            # Minimal userinfo
-            {
-                "userinfo": {
-                    "sub": "minimal123",
-                    "groups": ["member-group"],
-                },
-                "expected_username": "minimal123",
-                "expected_role": ROLE_MEMBER,
-            },
-        ]
+        mock_oauth = MagicMock()
+        mock_oauth_class.return_value = mock_oauth
 
-        with patch.dict(
-            "os.environ",
-            {
-                "OIDC_GROUP_ADMIN": "admin-group",
-                "OIDC_GROUP_EDITOR": "editor-group",
-                "OIDC_GROUP_MEMBER": "member-group",
-            },
-            clear=True,
-        ):
-            for case in test_cases:
-                with self.subTest(case=case):
-                    with patch("gramps_webapi.auth.oidc.get_user_details", return_value=None):
-                        with patch("gramps_webapi.auth.oidc.add_user") as mock_add_user:
-                            with patch("gramps_webapi.auth.oidc.get_guid", return_value="test-guid"):
-                                create_or_update_oidc_user(case["userinfo"])
+        init_oidc(mock_app)
 
-                    mock_add_user.assert_called_once()
-                    args, kwargs = mock_add_user.call_args
-                    self.assertEqual(kwargs["name"], case["expected_username"])
-                    self.assertEqual(kwargs["role"], case["expected_role"])
+        # Should use OAuth 2.0 registration (not OIDC)
+        call_kwargs = mock_oauth.register.call_args[1]
+        assert call_kwargs["access_token_url"] == "https://github.com/login/oauth/access_token"
+        assert call_kwargs["authorize_url"] == "https://github.com/login/oauth/authorize"
 
-if __name__ == "__main__":
-    unittest.main()
+    @patch("gramps_webapi.auth.oidc.OAuth")
+    @patch("gramps_webapi.auth.oidc.get_available_oidc_providers")
+    @patch("gramps_webapi.auth.oidc.get_provider_config")
+    def test_init_multiple_providers(self, mock_get_config, mock_get_providers, mock_oauth_class):
+        """Test initializing multiple providers."""
+        mock_app = MagicMock()
+        mock_app.config.get.return_value = True
+        mock_get_providers.return_value = ["google", "microsoft", PROVIDER_CUSTOM]
+
+        # Return different configs for each provider
+        def get_config_side_effect(provider_id, app=None):
+            configs = {
+                "google": {"name": "Google", "client_id": "g-id", "client_secret": "g-secret",
+                          "issuer": "https://accounts.google.com", "scopes": "openid email"},
+                "microsoft": {"name": "Microsoft", "client_id": "ms-id", "client_secret": "ms-secret",
+                             "issuer": "https://login.microsoftonline.com/common/v2.0", "scopes": "openid email"},
+                PROVIDER_CUSTOM: {"name": "Custom", "client_id": "c-id", "client_secret": "c-secret",
+                                 "issuer": "https://custom.com", "scopes": "openid email"},
+            }
+            return configs.get(provider_id)
+
+        mock_get_config.side_effect = get_config_side_effect
+        mock_oauth = MagicMock()
+        mock_oauth_class.return_value = mock_oauth
+
+        init_oidc(mock_app)
+
+        # Should register all three providers
+        assert mock_oauth.register.call_count == 3

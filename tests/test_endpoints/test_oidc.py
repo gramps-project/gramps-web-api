@@ -286,7 +286,3 @@ class TestOIDCEndpoints(unittest.TestCase):
                         self.assertEqual(rv.status_code, 503)
                         data = rv.get_json()
                         self.assertIn("temporarily disabled", data["message"])
-
-
-if __name__ == "__main__":
-    unittest.main()
