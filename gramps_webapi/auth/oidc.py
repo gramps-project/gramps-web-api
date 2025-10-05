@@ -390,18 +390,21 @@ def init_oidc(app):
                 )
             else:
                 # Standard OIDC providers
-                server_metadata_url = provider_config.get(
-                    "openid_config_url",
-                    f"{provider_config['issuer']}/.well-known/openid-configuration"
-                )
+                # Use explicit config URL if provided, otherwise construct from issuer
+                server_metadata_url = provider_config.get("openid_config_url")
+                if not server_metadata_url:
+                    server_metadata_url = f"{provider_config['issuer']}/.well-known/openid-configuration"
 
-                oauth.register(
+                client = oauth.register(
                     name=f"gramps_{provider_id}",
                     client_id=provider_config["client_id"],
                     client_secret=provider_config["client_secret"],
                     server_metadata_url=server_metadata_url,
                     client_kwargs=client_kwargs,
                 )
+
+                # Explicitly load server metadata to ensure it's available at startup
+                client.load_server_metadata()
 
             logger.info(f"Registered OIDC provider: {provider_config['name']} ({provider_id})")
 
