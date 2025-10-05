@@ -30,7 +30,7 @@ from gramps.gen.dbstate import DbState
 from gramps.gen.lib import Person, Surname
 
 from gramps_webapi.app import create_app
-from gramps_webapi.auth import add_user, user_db
+from gramps_webapi.auth import add_user, user_db, get_guid, get_permissions
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER, ROLE_EDITOR
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 from gramps_webapi.dbmanager import WebDbManager
@@ -208,32 +208,41 @@ class TestPerson(unittest.TestCase):
         assert "access_token" in rv.json
         assert rv.json["access_token"] != 1
 
-    @patch("gramps_webapi.auth.oidc.is_oidc_enabled", return_value=True)
+    @patch("gramps_webapi.api.resources.token.is_oidc_enabled", return_value=True)
     def test_token_endpoint_disabled_local_auth(self, mock_oidc_enabled):
         """Test token endpoint when local auth is disabled."""
-        with patch.dict("os.environ", {"GRAMPSWEB_OIDC_DISABLE_LOCAL_AUTH": "true"}):
+        with self.app.app_context():
+            self.app.config["OIDC_DISABLE_LOCAL_AUTH"] = True
             rv = self.client.post(
                 "/api/token/", json={"username": "user", "password": "123"}
             )
             assert rv.status_code == 403
-            assert "Local authentication is disabled" in rv.json["message"]
+            # Check error message is in the response
+            error_data = rv.json.get("error")
+            assert error_data is not None
+            assert "Local authentication is disabled" in error_data.get("message")
+            # Clean up
+            self.app.config["OIDC_DISABLE_LOCAL_AUTH"] = False
 
-    @patch("gramps_webapi.auth.oidc.is_oidc_enabled", return_value=False)
+    @patch("gramps_webapi.api.resources.token.is_oidc_enabled", return_value=False)
     def test_token_endpoint_local_auth_enabled_when_oidc_disabled(self, mock_oidc_enabled):
         """Test token endpoint works normally when OIDC is disabled."""
-        with patch.dict("os.environ", {"GRAMPSWEB_OIDC_DISABLE_LOCAL_AUTH": "true"}):
+        with self.app.app_context():
+            self.app.config["OIDC_DISABLE_LOCAL_AUTH"] = True
             # Should work normally since OIDC is disabled
             rv = self.client.post(
                 "/api/token/", json={"username": "user", "password": "123"}
             )
             assert rv.status_code == 200
             assert "access_token" in rv.json
+            # Clean up
+            self.app.config["OIDC_DISABLE_LOCAL_AUTH"] = False
 
     @patch("gramps_webapi.auth.oidc.create_or_update_oidc_user")
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     def test_oidc_authentication_flow_integration(self, mock_oidc_enabled, mock_create_user):
         """Test OIDC authentication flow integration with JWT tokens."""
-        from gramps_webapi.auth import get_tokens
+        from gramps_webapi.api.resources.token import get_tokens
         from gramps_webapi.auth.const import ROLE_EDITOR
 
         # Mock OIDC user creation to return an existing user
@@ -256,7 +265,15 @@ class TestPerson(unittest.TestCase):
 
         # Simulate successful OIDC authentication by generating tokens directly
         with self.app.app_context():
-            tokens = get_tokens("oidc_user")
+            user_guid = get_guid("oidc_user")
+            permissions = get_permissions("oidc_user", tree)
+            tokens = get_tokens(
+                user_id=user_guid,
+                permissions=permissions,
+                tree_id=tree,
+                include_refresh=True,
+                fresh=True
+            )
             access_token = tokens["access_token"]
             refresh_token = tokens["refresh_token"]
 
@@ -284,7 +301,8 @@ class TestPerson(unittest.TestCase):
         assert rv.status_code == 200
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
-    def test_oidc_and_local_auth_coexistence(self, mock_oidc_enabled):
+    @patch("gramps_webapi.api.resources.oidc.get_available_oidc_providers", return_value=["google"])
+    def test_oidc_and_local_auth_coexistence(self, mock_providers, mock_oidc_enabled):
         """Test that OIDC and local authentication can coexist."""
         # Test local authentication still works
         rv = self.client.post(
@@ -309,12 +327,12 @@ class TestPerson(unittest.TestCase):
 
     def test_oidc_disabled_fallback(self):
         """Test that system works normally when OIDC is disabled."""
-        # Test that OIDC endpoints return 404 when disabled
-        rv = self.client.get("/api/oidc/login/")
-        assert rv.status_code == 404
+        # Test that OIDC endpoints return 405 when disabled
+        rv = self.client.get("/api/oidc/login/?provider=google")
+        assert rv.status_code == 405
 
-        rv = self.client.get("/api/oidc/callback/")
-        assert rv.status_code == 404
+        rv = self.client.get("/api/oidc/callback/?provider=google")
+        assert rv.status_code == 405
 
         # Test that local authentication still works
         rv = self.client.post(
