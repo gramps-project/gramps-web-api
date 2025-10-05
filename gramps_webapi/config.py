@@ -82,7 +82,7 @@ class DefaultConfig(object):
     OIDC_REDIRECT_URI = ""
     OIDC_ENABLED = False
     OIDC_DISABLE_LOCAL_AUTH = False
-    OIDC_AUTO_REDIRECT = True
+    OIDC_AUTO_REDIRECT = False
     OIDC_USERNAME_CLAIM = "preferred_username"
     OIDC_NAME = "OIDC"
 
