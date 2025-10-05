@@ -53,6 +53,9 @@ from .const import (
 
 logger = logging.getLogger(__name__)
 
+# Provider identifier for custom OIDC configurations
+PROVIDER_CUSTOM = "custom"
+
 # Built-in provider configurations
 BUILTIN_PROVIDERS = {
     "google": {
@@ -101,7 +104,7 @@ def get_available_oidc_providers(app=None) -> List[str]:
 
     # Check for custom provider (optional)
     if app.config.get("OIDC_CLIENT_ID") and app.config.get("OIDC_ISSUER"):
-        providers.append("custom")
+        providers.append(PROVIDER_CUSTOM)
 
     return providers
 
@@ -119,7 +122,7 @@ def get_provider_config(provider_id: str, app=None) -> Optional[Dict]:
     if app is None:
         app = current_app
 
-    if provider_id == "custom":
+    if provider_id == PROVIDER_CUSTOM:
         # Custom provider configuration
         client_id = app.config.get("OIDC_CLIENT_ID")
         issuer = app.config.get("OIDC_ISSUER")
@@ -296,7 +299,7 @@ def create_or_update_oidc_user(
 
     # Generate a clean username - for custom providers use the display username as-is,
     # for others prefix with provider to avoid conflicts
-    if provider_id == "custom":
+    if provider_id == PROVIDER_CUSTOM:
         final_username = display_username or f"user_{uuid.uuid4().hex[:8]}"
     else:
         final_username = f"{provider_id}_{display_username or uuid.uuid4().hex[:8]}"
