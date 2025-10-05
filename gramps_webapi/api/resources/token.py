@@ -51,11 +51,14 @@ def get_tokens(
     tree_id: str,
     include_refresh: bool = False,
     fresh: bool = False,
+    oidc_provider: str = None,
 ):
     """Create access token (and refresh token if desired)."""
     claims: dict[str, Any] = {"permissions": list(permissions)}
     if tree_id:
         claims["tree"] = tree_id
+    if oidc_provider:
+        claims["oidc_provider"] = oidc_provider
     access_token = create_access_token(
         identity=str(user_id), additional_claims=claims, fresh=fresh
     )

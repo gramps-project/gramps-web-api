@@ -93,9 +93,11 @@ from .resources.token import (
     TokenResource,
 )
 from .resources.oidc import (
+    OIDCBackchannelLogoutResource,
     OIDCCallbackResource,
     OIDCConfigResource,
     OIDCLoginResource,
+    OIDCLogoutResource,
     OIDCTokenExchangeResource,
 )
 from .resources.transactions import TransactionsResource
@@ -159,6 +161,8 @@ register_endpt(OIDCLoginResource, "/oidc/login/", "oidcloginresource")
 register_endpt(OIDCCallbackResource, "/oidc/callback/", "oidccallbackresource")
 register_endpt(OIDCConfigResource, "/oidc/config/", "oidcconfigresource")
 register_endpt(OIDCTokenExchangeResource, "/oidc/tokens/", "oidctokenexchangeresource")
+register_endpt(OIDCLogoutResource, "/oidc/logout/", "oidclogoutresource")
+register_endpt(OIDCBackchannelLogoutResource, "/oidc/backchannel-logout/", "oidcbackchannellogoutresource")
 # People
 register_endpt(
     PersonTimelineResource, "/people/<string:handle>/timeline", "person-timeline"

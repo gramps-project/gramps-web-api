@@ -255,6 +255,69 @@ paths:
         500:
           description: "Internal Server Error: OIDC client error."
 
+  /oidc/logout/:
+    get:
+      tags:
+      - authentication
+      summary: "Get OIDC logout URL for a provider."
+      operationId: oidcLogout
+      parameters:
+      - name: provider
+        in: query
+        required: true
+        type: string
+        description: "The OIDC provider ID"
+        example: "google"
+      - name: id_token
+        in: query
+        required: false
+        type: string
+        description: "ID token to use as id_token_hint"
+      - name: post_logout_redirect_uri
+        in: query
+        required: false
+        type: string
+        description: "URI to redirect to after logout"
+      responses:
+        200:
+          description: "OK: Returns logout URL or null if provider doesn't support logout."
+          schema:
+            type: object
+            properties:
+              logout_url:
+                type: string
+                description: "The end_session_endpoint URL with parameters, or null if not available"
+        400:
+          description: "Bad Request: Invalid or unavailable provider."
+        405:
+          description: "Method Not Allowed: OIDC authentication is not enabled."
+        500:
+          description: "Internal Server Error: OIDC client error."
+
+  /oidc/backchannel-logout/:
+    post:
+      tags:
+      - authentication
+      summary: "Handle OIDC backchannel logout request from provider."
+      operationId: oidcBackchannelLogout
+      consumes:
+      - application/x-www-form-urlencoded
+      parameters:
+      - name: logout_token
+        in: formData
+        required: true
+        type: string
+        description: "The logout token JWT from the OIDC provider"
+      responses:
+        200:
+          description: "OK: Logout request processed successfully."
+        400:
+          description: "Bad Request: Invalid or missing logout_token."
+        405:
+          description: "Method Not Allowed: OIDC authentication is not enabled."
+        500:
+          description: "Internal Server Error: Error processing logout request."
+
 
 ##############################################################################
 # Endpoint - Users

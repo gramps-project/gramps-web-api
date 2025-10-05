@@ -286,3 +286,296 @@ class TestOIDCEndpoints(unittest.TestCase):
                         self.assertEqual(rv.status_code, 503)
                         data = rv.get_json()
                         self.assertIn("temporarily disabled", data["message"])
+
+
+class TestOIDCLogoutEndpoint(unittest.TestCase):
+    """Test cases for OIDC logout endpoint."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_oidc_logout_disabled(self):
+        """Test OIDC logout endpoint when OIDC is disabled."""
+        rv = self.client.get(BASE_URL + "/oidc/logout/?provider=google")
+        self.assertEqual(rv.status_code, 405)
+        data = rv.get_json()
+        self.assertIn("not enabled", data["error"]["message"])
+
+    @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
+    @patch("gramps_webapi.api.resources.oidc.get_available_oidc_providers")
+    def test_oidc_logout_invalid_provider(self, mock_providers, mock_oidc_enabled):
+        """Test OIDC logout with invalid provider."""
+        mock_providers.return_value = ["google", "microsoft"]
+
+        rv = self.client.get(BASE_URL + "/oidc/logout/?provider=invalid")
+        self.assertEqual(rv.status_code, 400)
+        data = rv.get_json()
+        self.assertIn("not available", data["error"]["message"])
+
+    @patch("gramps_webapi.api.resources.oidc.get_available_oidc_providers")
+    @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled")
+    def test_oidc_logout_no_client(self, mock_oidc_enabled, mock_providers):
+        """Test OIDC logout when OAuth client is not initialized."""
+        mock_oidc_enabled.return_value = True
+        mock_providers.return_value = ["google"]
+
+        rv = self.client.get(BASE_URL + "/oidc/logout/?provider=google")
+        # Should return 500 when client not found
+        self.assertEqual(rv.status_code, 500)
+
+
+
+
+class TestOIDCBackchannelLogout(unittest.TestCase):
+    """Test cases for OIDC backchannel logout endpoint."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def tearDown(self):
+        """Clear blocklist after each test."""
+        from gramps_webapi.auth.token_blocklist import _BLOCKLIST, _BLOCKLIST_TIMESTAMPS
+        _BLOCKLIST.clear()
+        _BLOCKLIST_TIMESTAMPS.clear()
+
+    def test_backchannel_logout_disabled(self):
+        """Test backchannel logout when OIDC is disabled."""
+        rv = self.client.post(BASE_URL + "/oidc/backchannel-logout/")
+        self.assertEqual(rv.status_code, 405)
+        data = rv.get_json()
+        self.assertIn("not enabled", data["error"]["message"])
+
+    @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
+    def test_backchannel_logout_missing_token(self, mock_oidc_enabled):
+        """Test backchannel logout with missing logout_token."""
+        rv = self.client.post(BASE_URL + "/oidc/backchannel-logout/")
+        self.assertEqual(rv.status_code, 400)
+        data = rv.get_json()
+        self.assertIn("logout_token is required", data["error"]["message"])
+
+    @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
+    def test_backchannel_logout_invalid_token(self, mock_oidc_enabled):
+        """Test backchannel logout with invalid JWT."""
+        rv = self.client.post(
+            BASE_URL + "/oidc/backchannel-logout/",
+            data={"logout_token": "invalid.jwt.token"}
+        )
+        self.assertEqual(rv.status_code, 400)
+        data = rv.get_json()
+        self.assertIn("Invalid logout_token", data["error"]["message"])
+
+    @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
+    @patch("gramps_webapi.api.resources.oidc.jwt.decode")
+    def test_backchannel_logout_missing_sub_and_sid(self, mock_jwt_decode, mock_oidc_enabled):
+        """Test backchannel logout token without sub or sid claim."""
+        mock_jwt_decode.return_value = {
+            "iss": "https://issuer.com",
+            "aud": "client-id",
+            "jti": "logout-jti-123"
+        }
+
+        rv = self.client.post(
+            BASE_URL + "/oidc/backchannel-logout/",
+            data={"logout_token": "valid.jwt.token"}
+        )
+        self.assertEqual(rv.status_code, 400)
+        data = rv.get_json()
+        self.assertIn("must contain either sub or sid", data["error"]["message"])
+
+    @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
+    @patch("gramps_webapi.api.resources.oidc.jwt.decode")
+    def test_backchannel_logout_with_nonce(self, mock_jwt_decode, mock_oidc_enabled):
+        """Test backchannel logout token with nonce (invalid per spec)."""
+        mock_jwt_decode.return_value = {
+            "sub": "user123",
+            "nonce": "some-nonce",
+            "jti": "logout-jti-123"
+        }
+
+        rv = self.client.post(
+            BASE_URL + "/oidc/backchannel-logout/",
+            data={"logout_token": "valid.jwt.token"}
+        )
+        self.assertEqual(rv.status_code, 400)
+        data = rv.get_json()
+        self.assertIn("must not contain nonce", data["error"]["message"])
+
+    @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
+    @patch("gramps_webapi.api.resources.oidc.jwt.decode")
+    def test_backchannel_logout_missing_event_type(self, mock_jwt_decode, mock_oidc_enabled):
+        """Test backchannel logout token without required event type."""
+        mock_jwt_decode.return_value = {
+            "sub": "user123",
+            "events": {},
+            "jti": "logout-jti-123"
+        }
+
+        rv = self.client.post(
+            BASE_URL + "/oidc/backchannel-logout/",
+            data={"logout_token": "valid.jwt.token"}
+        )
+        self.assertEqual(rv.status_code, 400)
+        data = rv.get_json()
+        self.assertIn("missing required event type", data["error"]["message"])
+
+    @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
+    @patch("gramps_webapi.api.resources.oidc.jwt.decode")
+    @patch("gramps_webapi.api.resources.oidc.add_jti_to_blocklist")
+    def test_backchannel_logout_valid_token(
+        self, mock_add_to_blocklist, mock_jwt_decode, mock_oidc_enabled
+    ):
+        """Test backchannel logout with valid logout_token."""
+        mock_jwt_decode.return_value = {
+            "sub": "user123",
+            "sid": "session-456",
+            "events": {
+                "http://schemas.openid.net/event/backchannel-logout": {}
+            },
+            "jti": "logout-jti-123"
+        }
+
+        rv = self.client.post(
+            BASE_URL + "/oidc/backchannel-logout/",
+            data={"logout_token": "valid.jwt.token"}
+        )
+        self.assertEqual(rv.status_code, 200)
+
+        # Verify JTI was added to blocklist
+        mock_add_to_blocklist.assert_called_once_with("logout-jti-123")
+
+    @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
+    @patch("gramps_webapi.api.resources.oidc.jwt.decode")
+    @patch("gramps_webapi.api.resources.oidc.add_jti_to_blocklist")
+    def test_backchannel_logout_with_sub_only(
+        self, mock_add_to_blocklist, mock_jwt_decode, mock_oidc_enabled
+    ):
+        """Test backchannel logout with only sub claim (no sid)."""
+        mock_jwt_decode.return_value = {
+            "sub": "user123",
+            "events": {
+                "http://schemas.openid.net/event/backchannel-logout": {}
+            },
+            "jti": "logout-jti-456"
+        }
+
+        rv = self.client.post(
+            BASE_URL + "/oidc/backchannel-logout/",
+            data={"logout_token": "valid.jwt.token"}
+        )
+        self.assertEqual(rv.status_code, 200)
+        mock_add_to_blocklist.assert_called_once_with("logout-jti-456")
+
+    @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
+    @patch("gramps_webapi.api.resources.oidc.jwt.decode")
+    @patch("gramps_webapi.api.resources.oidc.add_jti_to_blocklist")
+    def test_backchannel_logout_with_sid_only(
+        self, mock_add_to_blocklist, mock_jwt_decode, mock_oidc_enabled
+    ):
+        """Test backchannel logout with only sid claim (no sub)."""
+        mock_jwt_decode.return_value = {
+            "sid": "session-789",
+            "events": {
+                "http://schemas.openid.net/event/backchannel-logout": {}
+            },
+            "jti": "logout-jti-789"
+        }
+
+        rv = self.client.post(
+            BASE_URL + "/oidc/backchannel-logout/",
+            data={"logout_token": "valid.jwt.token"}
+        )
+        self.assertEqual(rv.status_code, 200)
+        mock_add_to_blocklist.assert_called_once_with("logout-jti-789")
+
+
+class TestTokenBlocklist(unittest.TestCase):
+    """Test cases for token blocklist functionality."""
+
+    def setUp(self):
+        """Clear blocklist before each test."""
+        from gramps_webapi.auth.token_blocklist import _BLOCKLIST, _BLOCKLIST_TIMESTAMPS
+        _BLOCKLIST.clear()
+        _BLOCKLIST_TIMESTAMPS.clear()
+
+    def test_add_jti_to_blocklist(self):
+        """Test adding a JTI to the blocklist."""
+        from gramps_webapi.auth.token_blocklist import (
+            add_jti_to_blocklist,
+            is_jti_blocklisted,
+            get_blocklist_size,
+        )
+
+        jti = "test-jti-123"
+        add_jti_to_blocklist(jti)
+
+        self.assertTrue(is_jti_blocklisted(jti))
+        self.assertEqual(get_blocklist_size(), 1)
+
+    def test_is_jti_not_blocklisted(self):
+        """Test checking a JTI that is not blocklisted."""
+        from gramps_webapi.auth.token_blocklist import is_jti_blocklisted
+
+        self.assertFalse(is_jti_blocklisted("non-existent-jti"))
+
+    def test_cleanup_expired_jtis_no_expiration(self):
+        """Test cleanup when no JTIs have expired."""
+        from gramps_webapi.auth.token_blocklist import (
+            add_jti_to_blocklist,
+            cleanup_expired_jtis,
+            get_blocklist_size,
+        )
+
+        add_jti_to_blocklist("recent-jti")
+        removed = cleanup_expired_jtis(max_age_hours=24)
+
+        self.assertEqual(removed, 0)
+        self.assertEqual(get_blocklist_size(), 1)
+
+    def test_cleanup_expired_jtis_with_expiration(self):
+        """Test cleanup removes old JTIs."""
+        from datetime import datetime, timedelta
+        from gramps_webapi.auth.token_blocklist import (
+            add_jti_to_blocklist,
+            cleanup_expired_jtis,
+            is_jti_blocklisted,
+            get_blocklist_size,
+            _BLOCKLIST_TIMESTAMPS,
+        )
+
+        jti = "old-jti"
+        add_jti_to_blocklist(jti)
+
+        # Manually backdate timestamp to 25 hours ago
+        _BLOCKLIST_TIMESTAMPS[jti] = datetime.now() - timedelta(hours=25)
+
+        removed = cleanup_expired_jtis(max_age_hours=24)
+
+        self.assertEqual(removed, 1)
+        self.assertFalse(is_jti_blocklisted(jti))
+        self.assertEqual(get_blocklist_size(), 0)
+
+    def test_oidc_provider_in_token_claims(self):
+        """Test that OIDC provider is included in token claims."""
+        from gramps_webapi.api.resources.token import get_tokens
+
+        with patch("gramps_webapi.api.resources.token.create_access_token") as mock_access:
+            with patch("gramps_webapi.api.resources.token.create_refresh_token") as mock_refresh:
+                get_tokens(
+                    user_id="test-user",
+                    permissions=["ViewPrivate"],
+                    tree_id="test-tree",
+                    include_refresh=True,
+                    fresh=True,
+                    oidc_provider="google",
+                )
+
+                # Check that create_access_token was called with oidc_provider in claims
+                call_args = mock_access.call_args
+                additional_claims = call_args.kwargs.get("additional_claims", {})
+
+                self.assertIn("oidc_provider", additional_claims)
+                self.assertEqual(additional_claims["oidc_provider"], "google")
