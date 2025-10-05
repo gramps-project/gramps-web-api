@@ -66,21 +66,21 @@ class TestOIDCEndpoints(unittest.TestCase):
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch("gramps_webapi.api.resources.oidc.get_available_oidc_providers", return_value=["custom"])
     @patch("gramps_webapi.api.resources.oidc.get_provider_config")
-    @patch("gramps_webapi.api.resources.oidc.current_app", new_callable=MagicMock)
-    def test_oidc_config_with_disabled_local_auth(self, mock_app, mock_get_provider_config, mock_get_providers, mock_oidc_enabled):
+    def test_oidc_config_with_disabled_local_auth(self, mock_get_provider_config, mock_get_providers, mock_oidc_enabled):
         """Test OIDC config endpoint with local auth disabled."""
         mock_get_provider_config.return_value = {"name": "Custom Provider"}
-        mock_app.config.get.side_effect = lambda key, default=None: {
+
+        # Patch the app config directly on the test client's app
+        with patch.object(self.client.application.config, 'get', side_effect=lambda key, default=None: {
             "OIDC_DISABLE_LOCAL_AUTH": True,
             "OIDC_AUTO_REDIRECT": False,
-        }.get(key, default)
-
-        rv = self.client.get(BASE_URL + "/oidc/config/")
-        self.assertEqual(rv.status_code, 200)
-        data = rv.get_json()
-        self.assertTrue(data.get("enabled"))
-        self.assertTrue(data.get("disable_local_auth"))
-        self.assertFalse(data.get("auto_redirect"))
+        }.get(key, default)):
+            rv = self.client.get(BASE_URL + "/oidc/config/")
+            self.assertEqual(rv.status_code, 200)
+            data = rv.get_json()
+            self.assertTrue(data.get("enabled"))
+            self.assertTrue(data.get("disable_local_auth"))
+            self.assertFalse(data.get("auto_redirect"))
 
     def test_oidc_login_disabled(self):
         """Test OIDC login endpoint when OIDC is disabled."""
@@ -91,36 +91,35 @@ class TestOIDCEndpoints(unittest.TestCase):
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch("gramps_webapi.api.resources.oidc.get_available_oidc_providers", return_value=["custom"])
-    @patch("gramps_webapi.api.resources.oidc.current_app", new_callable=MagicMock)
-    def test_oidc_login_no_client(self, mock_app, mock_providers, mock_oidc_enabled):
+    def test_oidc_login_no_client(self, mock_providers, mock_oidc_enabled):
         """Test OIDC login when OAuth client is not initialized."""
-        mock_app.extensions.get.return_value = None
-        rv = self.client.get(BASE_URL + "/oidc/login/?provider=custom")
-        self.assertEqual(rv.status_code, 500)
-        data = rv.get_json()
-        self.assertIn("not properly initialized", data["error"]["message"])
+        # Patch the extensions dict on the test client's app
+        with patch.dict(self.client.application.extensions, {"authlib.integrations.flask_client": None}, clear=False):
+            rv = self.client.get(BASE_URL + "/oidc/login/?provider=custom")
+            self.assertEqual(rv.status_code, 500)
+            data = rv.get_json()
+            self.assertIn("not properly initialized", data["error"]["message"])
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch("gramps_webapi.api.resources.oidc.get_available_oidc_providers", return_value=["custom"])
-    @patch("gramps_webapi.api.resources.oidc.current_app", new_callable=MagicMock)
-    def test_oidc_login_success(self, mock_app, mock_providers, mock_oidc_enabled):
+    def test_oidc_login_success(self, mock_providers, mock_oidc_enabled):
         """Test successful OIDC login redirect."""
         # Mock OAuth client
         mock_oauth = MagicMock()
         mock_oidc_client = MagicMock()
         mock_oauth.gramps_custom = mock_oidc_client
-        mock_app.extensions.get.return_value = mock_oauth
-        mock_app.config = {"OIDC_REDIRECT_URI": "http://test.com/callback"}
 
         # Mock the authorize_redirect to return a redirect response
         mock_response = MagicMock()
         mock_response.status_code = 302
         mock_oidc_client.authorize_redirect.return_value = mock_response
 
-        rv = self.client.get(BASE_URL + "/oidc/login/?provider=custom")
-        # The actual redirect handling depends on the OAuth library
-        # We just verify the client method was called
-        mock_oidc_client.authorize_redirect.assert_called_once()
+        # Patch the extensions dict on the test client's app
+        with patch.dict(self.client.application.extensions, {"authlib.integrations.flask_client": mock_oauth}, clear=False):
+            rv = self.client.get(BASE_URL + "/oidc/login/?provider=custom")
+            # The actual redirect handling depends on the OAuth library
+            # We just verify the client method was called
+            mock_oidc_client.authorize_redirect.assert_called_once()
 
     def test_oidc_callback_disabled(self):
         """Test OIDC callback endpoint when OIDC is disabled."""
@@ -131,18 +130,17 @@ class TestOIDCEndpoints(unittest.TestCase):
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch("gramps_webapi.api.resources.oidc.get_available_oidc_providers", return_value=["custom"])
-    @patch("gramps_webapi.api.resources.oidc.current_app", new_callable=MagicMock)
-    def test_oidc_callback_no_client(self, mock_app, mock_providers, mock_oidc_enabled):
+    def test_oidc_callback_no_client(self, mock_providers, mock_oidc_enabled):
         """Test OIDC callback when OAuth client is not initialized."""
-        mock_app.extensions.get.return_value = None
-        rv = self.client.get(BASE_URL + "/oidc/callback/?code=test123&provider=custom")
-        self.assertEqual(rv.status_code, 500)
-        data = rv.get_json()
-        self.assertIn("not properly initialized", data["error"]["message"])
+        # Patch the extensions dict on the test client's app
+        with patch.dict(self.client.application.extensions, {"authlib.integrations.flask_client": None}, clear=False):
+            rv = self.client.get(BASE_URL + "/oidc/callback/?code=test123&provider=custom")
+            self.assertEqual(rv.status_code, 500)
+            data = rv.get_json()
+            self.assertIn("not properly initialized", data["error"]["message"])
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch("gramps_webapi.api.resources.oidc.get_available_oidc_providers", return_value=["custom"])
-    @patch("gramps_webapi.api.resources.oidc.current_app", new_callable=MagicMock)
     @patch("gramps_webapi.api.resources.oidc.create_or_update_oidc_user")
     @patch("gramps_webapi.api.resources.oidc.get_name")
     @patch("gramps_webapi.api.resources.oidc.get_tree_id")
@@ -157,7 +155,6 @@ class TestOIDCEndpoints(unittest.TestCase):
         mock_get_tree_id,
         mock_get_name,
         mock_create_user,
-        mock_app,
         mock_providers,
         mock_oidc_enabled,
     ):
@@ -166,8 +163,6 @@ class TestOIDCEndpoints(unittest.TestCase):
         mock_oauth = MagicMock()
         mock_oidc_client = MagicMock()
         mock_oauth.gramps_custom = mock_oidc_client
-        mock_app.extensions.get.return_value = mock_oauth
-        mock_app.config = {"TREE": "test_tree"}
 
         # Mock token and userinfo
         mock_token = {"access_token": "test_token"}
@@ -191,64 +186,64 @@ class TestOIDCEndpoints(unittest.TestCase):
             "refresh_token": "jwt_refresh_token",
         }
 
-        rv = self.client.get(BASE_URL + "/oidc/callback/?code=auth_code&state=abc123&provider=custom")
-        self.assertEqual(rv.status_code, 302)  # Redirect response
+        # Patch the extensions dict and config on the test client's app
+        with patch.dict(self.client.application.extensions, {"authlib.integrations.flask_client": mock_oauth}, clear=False):
+            with patch.dict(self.client.application.config, {"TREE": "test_tree"}):
+                rv = self.client.get(BASE_URL + "/oidc/callback/?code=auth_code&state=abc123&provider=custom")
+                self.assertEqual(rv.status_code, 302)  # Redirect response
 
-        # Verify the flow
-        mock_oidc_client.authorize_access_token.assert_called_once()
-        mock_oidc_client.userinfo.assert_called_once_with(token=mock_token)
-        mock_create_user.assert_called_once_with(mock_userinfo, None, "custom")
-        mock_get_tokens.assert_called_once()
+                # Verify the flow
+                mock_oidc_client.authorize_access_token.assert_called_once()
+                mock_oidc_client.userinfo.assert_called_once_with(token=mock_token)
+                mock_create_user.assert_called_once_with(mock_userinfo, None, "custom")
+                mock_get_tokens.assert_called_once()
 
-        # Verify redirect location
-        self.assertIn("/oidc/complete", rv.location)
+                # Verify redirect location
+                self.assertIn("/oidc/complete", rv.location)
 
-        # Verify cookies are set
-        set_cookie_headers = rv.headers.getlist("Set-Cookie")
-        self.assertTrue(any("oidc_access_token" in cookie for cookie in set_cookie_headers))
-        self.assertTrue(any("oidc_refresh_token" in cookie for cookie in set_cookie_headers))
+                # Verify cookies are set
+                set_cookie_headers = rv.headers.getlist("Set-Cookie")
+                self.assertTrue(any("oidc_access_token" in cookie for cookie in set_cookie_headers))
+                self.assertTrue(any("oidc_refresh_token" in cookie for cookie in set_cookie_headers))
 
-        # Verify HttpOnly flag is set
-        access_token_cookie = next(cookie for cookie in set_cookie_headers if "oidc_access_token" in cookie)
-        refresh_token_cookie = next(cookie for cookie in set_cookie_headers if "oidc_refresh_token" in cookie)
-        self.assertIn("HttpOnly", access_token_cookie)
-        self.assertIn("HttpOnly", refresh_token_cookie)
+                # Verify HttpOnly flag is set
+                access_token_cookie = next(cookie for cookie in set_cookie_headers if "oidc_access_token" in cookie)
+                refresh_token_cookie = next(cookie for cookie in set_cookie_headers if "oidc_refresh_token" in cookie)
+                self.assertIn("HttpOnly", access_token_cookie)
+                self.assertIn("HttpOnly", refresh_token_cookie)
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch("gramps_webapi.api.resources.oidc.get_available_oidc_providers", return_value=["custom"])
-    @patch("gramps_webapi.api.resources.oidc.current_app", new_callable=MagicMock)
-    def test_oidc_callback_auth_failure(self, mock_app, mock_providers, mock_oidc_enabled):
+    def test_oidc_callback_auth_failure(self, mock_providers, mock_oidc_enabled):
         """Test OIDC callback with authentication failure."""
         # Mock OAuth client that raises an exception
         mock_oauth = MagicMock()
         mock_oidc_client = MagicMock()
         mock_oauth.gramps_custom = mock_oidc_client
-        mock_app.extensions.get.return_value = mock_oauth
 
         # Mock authorization failure
         mock_oidc_client.authorize_access_token.side_effect = Exception(
             "Invalid authorization code"
         )
 
-        rv = self.client.get(BASE_URL + "/oidc/callback/?code=invalid_code&provider=custom")
-        self.assertEqual(rv.status_code, 401)
-        data = rv.get_json()
-        self.assertIn("authentication failed", data["error"]["message"])
+        # Patch the extensions dict on the test client's app
+        with patch.dict(self.client.application.extensions, {"authlib.integrations.flask_client": mock_oauth}, clear=False):
+            rv = self.client.get(BASE_URL + "/oidc/callback/?code=invalid_code&provider=custom")
+            self.assertEqual(rv.status_code, 401)
+            data = rv.get_json()
+            self.assertIn("authentication failed", data["error"]["message"])
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch("gramps_webapi.api.resources.oidc.get_available_oidc_providers", return_value=["custom"])
-    @patch("gramps_webapi.api.resources.oidc.current_app", new_callable=MagicMock)
     @patch("gramps_webapi.api.resources.oidc.create_or_update_oidc_user")
     def test_oidc_callback_user_creation_failure(
-        self, mock_create_user, mock_app, mock_providers, mock_oidc_enabled
+        self, mock_create_user, mock_providers, mock_oidc_enabled
     ):
         """Test OIDC callback with user creation failure."""
         # Mock OAuth client
         mock_oauth = MagicMock()
         mock_oidc_client = MagicMock()
         mock_oauth.gramps_custom = mock_oidc_client
-        mock_app.extensions.get.return_value = mock_oauth
-        mock_app.config = {"TREE": "test_tree"}
 
         # Mock successful token exchange but user creation failure
         mock_token = {"access_token": "test_token"}
@@ -257,10 +252,13 @@ class TestOIDCEndpoints(unittest.TestCase):
         mock_oidc_client.userinfo.return_value = mock_userinfo
         mock_create_user.side_effect = ValueError("Invalid user data")
 
-        rv = self.client.get(BASE_URL + "/oidc/callback/?code=auth_code&provider=custom")
-        self.assertEqual(rv.status_code, 400)
-        data = rv.get_json()
-        self.assertIn("Error processing user", data["error"]["message"])
+        # Patch the extensions dict and config on the test client's app
+        with patch.dict(self.client.application.extensions, {"authlib.integrations.flask_client": mock_oauth}, clear=False):
+            with patch.dict(self.client.application.config, {"TREE": "test_tree"}):
+                rv = self.client.get(BASE_URL + "/oidc/callback/?code=auth_code&provider=custom")
+                self.assertEqual(rv.status_code, 400)
+                data = rv.get_json()
+                self.assertIn("Error processing user", data["error"]["message"])
 
     def test_oidc_callback_missing_code(self):
         """Test OIDC callback without authorization code."""
@@ -271,15 +269,13 @@ class TestOIDCEndpoints(unittest.TestCase):
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch("gramps_webapi.api.resources.oidc.get_available_oidc_providers", return_value=["custom"])
-    @patch("gramps_webapi.api.resources.oidc.current_app", new_callable=MagicMock)
-    def test_oidc_callback_tree_disabled(self, mock_app, mock_providers, mock_oidc_enabled):
+    def test_oidc_callback_tree_disabled(self, mock_providers, mock_oidc_enabled):
         """Test OIDC callback when tree is disabled."""
         with patch("gramps_webapi.api.resources.oidc.is_tree_disabled", return_value=True):
             # Mock OAuth client
             mock_oauth = MagicMock()
             mock_oidc_client = MagicMock()
             mock_oauth.gramps_custom = mock_oidc_client
-            mock_app.extensions.get.return_value = mock_oauth
 
             # Mock successful token exchange
             mock_token = {"access_token": "test_token"}
@@ -290,10 +286,13 @@ class TestOIDCEndpoints(unittest.TestCase):
             with patch("gramps_webapi.api.resources.oidc.create_or_update_oidc_user", return_value="user123"):
                 with patch("gramps_webapi.api.resources.oidc.get_name", return_value="testuser"):
                     with patch("gramps_webapi.api.resources.oidc.get_tree_id", return_value="disabled_tree"):
-                        rv = self.client.get(BASE_URL + "/oidc/callback/?code=auth_code&provider=custom")
-                        self.assertEqual(rv.status_code, 503)
-                        data = rv.get_json()
-                        self.assertIn("temporarily disabled", data["error"]["message"])
+                        # Patch the extensions dict on the test client's app
+                        with patch.dict(self.client.application.extensions, {"authlib.integrations.flask_client": mock_oauth}, clear=False):
+                            # Need to provide tree parameter since TREE_MULTI is enabled in test config
+                            rv = self.client.get(BASE_URL + "/oidc/callback/?code=auth_code&provider=custom&tree=disabled_tree")
+                            self.assertEqual(rv.status_code, 503)
+                            data = rv.get_json()
+                            self.assertIn("temporarily disabled", data["error"]["message"])
 
 
 class TestOIDCLogoutEndpoint(unittest.TestCase):
