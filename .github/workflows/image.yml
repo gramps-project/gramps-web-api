@@ -39,11 +39,10 @@ jobs:
           push: true
           tags: |
             dmstraub/gramps-webapi:latest-devel
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
-          progress: plain
 
       - name: Build and push release image
         if: github.event_name == 'release'
@@ -53,8 +52,7 @@ jobs:
           tags: |
             dmstraub/gramps-webapi:${{ github.event.release.tag_name }}
             dmstraub/gramps-webapi:latest
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
-          progress: plain
