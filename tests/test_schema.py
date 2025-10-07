@@ -20,10 +20,10 @@
 """Tests for the `gramps_webapi.api` module."""
 
 import unittest
+from importlib.resources import as_file, files
 
 import yaml
-from jsonschema import Draft4Validator, validate
-from pkg_resources import resource_filename
+from jsonschema import Draft4Validator
 
 
 class TestSchema(unittest.TestCase):
@@ -32,9 +32,9 @@ class TestSchema(unittest.TestCase):
     def test_schema(self):
         """Check schema for validity."""
         # check it loads okay
-        with open(
-            resource_filename("gramps_webapi", "data/apispec.yaml")
-        ) as file_handle:
-            api_schema = yaml.safe_load(file_handle)
+        ref = files("gramps_webapi") / "data/apispec.yaml"
+        with as_file(ref) as file_path:
+            with open(file_path, encoding="utf-8") as file_handle:
+                api_schema = yaml.safe_load(file_handle)
         # check structure
         Draft4Validator.check_schema(api_schema)

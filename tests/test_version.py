@@ -20,9 +20,9 @@
 """Test consistent version numbers."""
 
 import unittest
+from importlib.resources import as_file, files
 
 import yaml
-from pkg_resources import resource_filename
 
 from gramps_webapi import __version__
 
@@ -32,8 +32,8 @@ class TestVersion(unittest.TestCase):
 
     def test_version(self):
         """Test version in setup and apispec are equal."""
-        with open(
-            resource_filename("gramps_webapi", "data/apispec.yaml")
-        ) as file_handle:
-            schema = yaml.safe_load(file_handle)
+        ref = files("gramps_webapi") / "data/apispec.yaml"
+        with as_file(ref) as file_path:
+            with open(file_path, encoding="utf-8") as file_handle:
+                schema = yaml.safe_load(file_handle)
         self.assertEqual(__version__, schema["info"]["version"])
