@@ -592,6 +592,8 @@ class UserConfirmEmailResource(LimitedScopeProtectedResource):
                 tree=tree,
                 # for single-tree setups, send e-mail also to admins
                 include_admins=not is_multi,
+                # for single-tree setups, send e-mail to users with empty tree ID
+                include_treeless=not is_multi,
             )
         title = _("E-mail address confirmation")
         message = _(

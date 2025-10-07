@@ -40,6 +40,7 @@ from .sql_guid import GUID
 
 user_db = SQLAlchemy()
 
+
 def add_user(
     name: str,
     password: str,
@@ -261,17 +262,20 @@ def get_permissions(username: str, tree: str) -> Set[str]:
     return permissions
 
 
-def get_owner_emails(tree: str, include_admins: bool = False) -> List[str]:
+def get_owner_emails(
+    tree: str, include_admins: bool = False, include_treeless: bool = False
+) -> List[str]:
     """Get e-mail addresses of all tree owners (and optionally include site admins)."""
     query = user_db.session.query(User)  # pylint: disable=no-member
-    if include_admins:
-        users = (
-            query.filter_by(tree=tree)
-            .filter(sa.or_(User.role == ROLE_OWNER, User.role == ROLE_ADMIN))
-            .all()
-        )
+    if include_treeless:
+        query = query.filter(sa.or_(User.tree == tree, User.tree.is_(None)))
     else:
-        users = query.filter_by(tree=tree, role=ROLE_OWNER).all()
+        query = query.filter(User.tree == tree)
+    if include_admins:
+        query = query.filter(sa.or_(User.role == ROLE_OWNER, User.role == ROLE_ADMIN))
+    else:
+        query = query.filter_by(role=ROLE_OWNER)
+    users = query.all()
     return [user.email for user in users if user.email]
 
 
