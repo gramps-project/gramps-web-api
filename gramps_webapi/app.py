@@ -40,6 +40,8 @@ from .api.tasks import run_task, send_telemetry_task
 from .api.telemetry import should_send_telemetry
 from .api.util import close_db, get_tree_from_jwt
 from .auth import user_db
+from .auth.oidc import init_oidc
+from .auth.token_blocklist import is_jti_blocklisted
 from .config import DefaultConfig, DefaultConfigJWT
 from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI
 from .dbmanager import WebDbManager
@@ -141,10 +143,19 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
     app.config.from_object(DefaultConfigJWT)
 
     # instantiate JWT manager
-    JWTManager(app)
+    jwt = JWTManager(app)
+
+    # Register token blocklist callback for OIDC backchannel logout
+    @jwt.token_in_blocklist_loader
+    def check_if_token_revoked(jwt_header, jwt_payload):
+        jti = jwt_payload.get("jti")
+        return is_jti_blocklisted(jti) if jti else False
 
     app.config["SQLALCHEMY_DATABASE_URI"] = app.config["USER_DB_URI"]
     user_db.init_app(app)
+
+    # initialize OIDC if enabled
+    init_oidc(app)
 
     request_cache.init_app(app, config=app.config["REQUEST_CACHE_CONFIG"])
     thumbnail_cache.init_app(app, config=app.config["THUMBNAIL_CACHE_CONFIG"])
@@ -154,7 +165,10 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
     if app.config.get("CORS_ORIGINS"):
         CORS(
             app,
-            resources={f"{API_PREFIX}/*": {"origins": app.config["CORS_ORIGINS"]}},
+            resources={f"{API_PREFIX}/*": {
+                "origins": app.config["CORS_ORIGINS"],
+                "supports_credentials": True
+            }},
         )
 
     # enable gzip compression

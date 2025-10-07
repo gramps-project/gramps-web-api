@@ -2,6 +2,7 @@
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
 # Copyright (C) 2020-2023      David Straub
+# Copyright (C) 2025           Alexander Bocken
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -38,8 +39,10 @@ from ...auth import (
     get_number_users,
     get_pwhash,
     get_user_details,
+    get_user_oidc_accounts,
     modify_user,
 )
+from ...auth.oidc_helpers import is_oidc_enabled
 from ...auth.const import (
     CLAIM_LIMITED_SCOPE,
     PERM_ADD_OTHER_TREE_USER,
@@ -119,15 +122,18 @@ class UsersResource(ProtectedResource):
 
     def get(self):
         """Get users' details."""
+        # Always include OIDC account information if OIDC is enabled
+        include_oidc = is_oidc_enabled()
+
         if has_permissions([PERM_VIEW_OTHER_TREE_USER]):
             # return all users from all trees
-            return jsonify(get_all_user_details(tree=None)), 200
+            return jsonify(get_all_user_details(tree=None, include_oidc_accounts=include_oidc)), 200
         require_permissions([PERM_VIEW_OTHER_USER])
         tree = get_tree_from_jwt()
         # return only this tree's users
         # only include treeless users in single-tree setup
         is_single = current_app.config["TREE"] != TREE_MULTI
-        details = get_all_user_details(tree=tree, include_treeless=is_single)
+        details = get_all_user_details(tree=tree, include_treeless=is_single, include_oidc_accounts=include_oidc)
         return (
             jsonify(details),
             200,
@@ -200,6 +206,15 @@ class UserResource(UserChangeBase):
         if details is None:
             # user does not exist
             abort_with_message(404, "User does not exist")
+
+        # Always include OIDC account information if OIDC is enabled and user has permissions
+        if is_oidc_enabled() and has_permissions([PERM_VIEW_OTHER_USER]):
+            try:
+                user_id = get_guid(user_name)
+                details["oidc_accounts"] = get_user_oidc_accounts(user_id)
+            except ValueError:
+                pass  # User not found, skip OIDC info
+
         return jsonify(details), 200
 
     @use_args(

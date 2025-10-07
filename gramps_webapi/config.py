@@ -76,6 +76,15 @@ class DefaultConfig(object):
     LLM_MAX_CONTEXT_LENGTH = 50000
     VECTOR_EMBEDDING_MODEL = ""
     DISABLE_TELEMETRY = False
+    OIDC_ISSUER = ""
+    OIDC_CLIENT_ID = ""
+    OIDC_CLIENT_SECRET = ""
+    OIDC_REDIRECT_URI = ""
+    OIDC_ENABLED = False
+    OIDC_DISABLE_LOCAL_AUTH = False
+    OIDC_AUTO_REDIRECT = False
+    OIDC_USERNAME_CLAIM = "preferred_username"
+    OIDC_NAME = "OIDC"
 
 
 class DefaultConfigJWT(object):
