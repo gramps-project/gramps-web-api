@@ -213,6 +213,18 @@ class OIDCCallbackResource(Resource):
                 path='/'
             )
 
+            # Store id_token if available (needed for OIDC logout)
+            if token.get('id_token'):
+                response.set_cookie(
+                    'oidc_id_token',
+                    token['id_token'],
+                    max_age=300,  # 5 minutes
+                    httponly=True,
+                    secure=not is_development,  # Allow HTTP in development
+                    samesite='Lax',
+                    path='/'
+                )
+
             logger.info(f"Set OIDC cookies, redirecting to {frontend_url}/oidc/complete")
             return response
 
@@ -233,20 +245,28 @@ class OIDCTokenExchangeResource(Resource):
         # Get tokens from HTTP-only cookies
         access_token = request.cookies.get('oidc_access_token')
         refresh_token = request.cookies.get('oidc_refresh_token')
+        id_token = request.cookies.get('oidc_id_token')
 
         logger.info(f"Access token found: {bool(access_token)}")
         logger.info(f"Refresh token found: {bool(refresh_token)}")
+        logger.info(f"ID token found: {bool(id_token)}")
 
         if not access_token or not refresh_token:
             logger.error("No OIDC tokens found in cookies")
             abort_with_message(400, "No OIDC tokens found in cookies")
 
         # Return tokens and clear cookies
-        response = jsonify({
+        response_data = {
             'access_token': access_token,
             'refresh_token': refresh_token,
             'token_type': 'Bearer'
-        })
+        }
+
+        # Include id_token if available (needed for OIDC logout)
+        if id_token:
+            response_data['id_token'] = id_token
+
+        response = jsonify(response_data)
 
         # Clear the temporary cookies with same settings as when they were set
         frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
@@ -263,6 +283,15 @@ class OIDCTokenExchangeResource(Resource):
         )
         response.set_cookie(
             'oidc_refresh_token',
+            '',
+            expires=0,
+            httponly=True,
+            secure=not is_development,
+            samesite='Lax',
+            path='/'
+        )
+        response.set_cookie(
+            'oidc_id_token',
             '',
             expires=0,
             httponly=True,
