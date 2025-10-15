@@ -23,15 +23,26 @@ import json
 from typing import Dict
 
 from flask import Response, current_app
+from flask_jwt_extended import get_jwt_identity
+from gramps.gen.db import REFERENCE_KEY
 from gramps.gen.db.dbconst import TXNADD, TXNDEL, TXNUPD
 from webargs import fields, validate
 
 from ...auth import get_all_user_details
-from ...auth.const import PERM_VIEW_PRIVATE
+from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ, PERM_VIEW_PRIVATE
 from ...const import TREE_MULTI
+from ...types import ResponseReturnValue
 from ..auth import require_permissions
-from ..util import get_db_handle, get_tree_from_jwt, use_args
+from ..tasks import AsyncResult, make_task_response, process_transactions, run_task
+from ..util import (
+    abort_with_message,
+    get_db_handle,
+    get_tree_from_jwt,
+    get_tree_from_jwt_or_fail,
+    use_args,
+)
 from . import ProtectedResource
+from .util import reverse_transaction
 
 trans_code = {"delete": TXNDEL, "add": TXNADD, "update": TXNUPD}
 
@@ -83,7 +94,7 @@ class TransactionsHistoryResource(ProtectedResource):
 
 
 class TransactionHistoryResource(ProtectedResource):
-    """Resource for database transaction history."""
+    """Resource for viewing individual transaction history."""
 
     @use_args(
         {
@@ -93,7 +104,7 @@ class TransactionHistoryResource(ProtectedResource):
         location="query",
     )
     def get(self, args: Dict, transaction_id: int) -> Response:
-        """Return a list of transactions."""
+        """Return a single transaction."""
         require_permissions([PERM_VIEW_PRIVATE])
         db_handle = get_db_handle()
         undodb = db_handle.undodb
@@ -108,6 +119,69 @@ class TransactionHistoryResource(ProtectedResource):
         transaction = fix_transaction_user(transaction, user_dict)
 
         return transaction
+
+
+class TransactionUndoResource(ProtectedResource):
+    """Resource for undoing transactions."""
+
+    @use_args(
+        {
+            "force": fields.Boolean(load_default=False),
+        },
+        location="query",
+    )
+    def post(self, args: Dict, transaction_id: int) -> ResponseReturnValue:
+        """Undo a transaction using background processing."""
+        require_permissions([PERM_ADD_OBJ, PERM_EDIT_OBJ, PERM_DEL_OBJ])
+
+        # Get the transaction to undo
+        db_handle = get_db_handle()
+        undodb = db_handle.undodb
+        try:
+            transaction = undodb.get_transaction(
+                transaction_id=transaction_id,
+                old_data=True,
+                new_data=True,
+            )
+        except AttributeError:
+            # This happens when get_transaction returns None and we try to call _to_dict()
+            abort_with_message(404, f"Transaction {transaction_id} not found")
+
+        if not transaction:
+            abort_with_message(404, f"Transaction {transaction_id} not found")
+
+        # Convert transaction to the format expected by reverse_transaction
+        # Skip reference entries as they are handled automatically by the database
+        payload = []
+        for change in transaction["changes"]:
+            if str(change["obj_class"]) == str(REFERENCE_KEY):
+                continue  # Skip reference entries
+            item = {
+                "type": {0: "add", 1: "update", 2: "delete"}[change["trans_type"]],
+                "_class": change["obj_class"],
+                "handle": change["obj_handle"],
+                "old": change.get("old_data"),
+                "new": change.get("new_data"),
+            }
+            payload.append(item)
+
+        # Reverse the transaction
+        reversed_payload = reverse_transaction(payload)
+
+        tree = get_tree_from_jwt_or_fail()
+        user_id = get_jwt_identity()
+
+        # Always use background processing for undo operations
+        task = run_task(
+            process_transactions,
+            tree=tree,
+            user_id=user_id,
+            payload=reversed_payload,
+            force=args["force"],
+        )
+        if isinstance(task, AsyncResult):
+            return make_task_response(task)
+        return task, 200
 
 
 def get_user_dict() -> Dict[str, Dict[str, str]]:
