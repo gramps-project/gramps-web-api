@@ -601,7 +601,6 @@ class TestTransactionHistoryResource(unittest.TestCase):
         assert rv.status_code == 200
         result = rv.json
 
-        print(f"DEBUG: result = {result}")
 
         # Should NOT be able to undo without force due to changes
         assert result["can_undo_without_force"] is False
