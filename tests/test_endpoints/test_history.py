@@ -552,3 +552,64 @@ class TestTransactionHistoryResource(unittest.TestCase):
         assert rv.status_code == 200
         rv = self.client.get(f"/api/people/{person2_handle}", headers=headers)
         assert rv.status_code == 200
+
+    def test_undo_check_endpoint(self):
+        """Test the GET method on undo endpoint to check if transaction can be undone."""
+        headers = get_headers(self.client, "editor", "123")
+
+        # Add a person
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        person = rv.json[0]["new"]
+        person_handle = person["handle"]
+
+        # Get transaction history
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        transactions = rv.json
+        transaction_id = transactions[0]["id"]
+
+        # Check if we can undo the transaction (should be OK since nothing changed)
+        rv = self.client.get(
+            f"/api/transactions/history/{transaction_id}/undo", headers=headers
+        )
+        assert rv.status_code == 200
+        result = rv.json
+
+        # Should be able to undo without force
+        assert result["can_undo_without_force"] is True
+        assert result["transaction_id"] == transaction_id
+        assert result["conflicts_count"] == 0
+        assert result["total_changes"] >= 1  # At least one change (person creation)
+        assert isinstance(result["conflicts"], list)
+
+        # Now modify the person to create a conflict
+        rv = self.client.get(f"/api/people/{person_handle}", headers=headers)
+        assert rv.status_code == 200
+        person_data = rv.json
+        person_data["gramps_id"] = "I9999"  # Change something
+
+        rv = self.client.put(
+            f"/api/people/{person_handle}", json=person_data, headers=headers
+        )
+        assert rv.status_code == 200
+
+        # Check undo again - should now have conflicts
+        rv = self.client.get(
+            f"/api/transactions/history/{transaction_id}/undo", headers=headers
+        )
+        assert rv.status_code == 200
+        result = rv.json
+
+        print(f"DEBUG: result = {result}")
+
+        # Should NOT be able to undo without force due to changes
+        assert result["can_undo_without_force"] is False
+        assert result["conflicts_count"] > 0
+        assert len(result["conflicts"]) > 0
+
+        # Check conflict details
+        conflict = result["conflicts"][0]
+        assert conflict["object_class"] == "Person"
+        assert conflict["handle"] == person_handle
+        assert conflict["conflict_type"] == "object_changed"

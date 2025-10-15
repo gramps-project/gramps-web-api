@@ -5147,6 +5147,68 @@ paths:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
   /transactions/history/{transaction_id}/undo:
+    get:
+      tags:
+      - transactions
+      summary: "Check if a specific database transaction can be undone without conflicts."
+      operationId: checkUndoTransaction
+      security:
+        - Bearer: []
+      parameters:
+      - name: transaction_id
+        in: path
+        required: true
+        type: integer
+        description: "The ID of the transaction to check for undo feasibility."
+      responses:
+        200:
+          description: "OK: Undo feasibility check completed successfully."
+          schema:
+            type: object
+            properties:
+              transaction_id:
+                type: integer
+                description: "The ID of the transaction that was checked."
+              can_undo_without_force:
+                type: boolean
+                description: "Whether the transaction can be undone without using the force parameter."
+              total_changes:
+                type: integer
+                description: "Total number of changes in the transaction."
+              conflicts_count:
+                type: integer
+                description: "Number of conflicts that would prevent undo without force."
+              conflicts:
+                type: array
+                description: "List of specific conflicts found during the check."
+                items:
+                  type: object
+                  properties:
+                    change_index:
+                      type: integer
+                      description: "Index of the conflicting change within the transaction."
+                    object_class:
+                      type: string
+                      description: "Class of the conflicting object (e.g., 'Person', 'Family')."
+                    handle:
+                      type: string
+                      description: "Handle of the conflicting object."
+                    conflict_type:
+                      type: string
+                      description: "Type of conflict (e.g., 'object_changed', 'object_exists')."
+                    description:
+                      type: string
+                      description: "Human-readable description of the conflict."
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        403:
+          description: "Forbidden: Insufficient permissions to check undo transactions."
+        404:
+          description: "Not Found: Transaction with the specified ID was not found."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
     post:
       tags:
       - transactions
