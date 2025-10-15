@@ -5146,6 +5146,52 @@ paths:
         422:
           description: "Unprocessable Entity: Invalid or bad parameter provided."
 
+  /transactions/history/{transaction_id}/undo:
+    post:
+      tags:
+      - transactions
+      summary: "Undo a specific database transaction using background processing."
+      operationId: undoTransaction
+      security:
+        - Bearer: []
+      parameters:
+      - name: transaction_id
+        in: path
+        required: true
+        type: integer
+        description: "The ID of the transaction to undo."
+      - name: force
+        in: query
+        required: false
+        type: boolean
+        description: "If true, force undoing the transaction even if objects have been modified since the original transaction."
+      responses:
+        200:
+          description: "OK: Transaction undo completed successfully."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Transaction"
+        202:
+          description: "Accepted: Transaction undo will be applied in the background."
+          schema:
+            type: object
+            properties:
+              task:
+                $ref: "#/definitions/TaskReference"
+        400:
+          description: "Bad Request: Malformed request could not be parsed."
+        401:
+          description: "Unauthorized: Missing authorization header."
+        403:
+          description: "Forbidden: Insufficient permissions to undo transactions."
+        404:
+          description: "Not Found: Transaction with the specified ID was not found."
+        409:
+          description: "Conflict: Objects have changed since the original transaction and force parameter was not used."
+        422:
+          description: "Unprocessable Entity: Invalid or bad parameter provided."
+
 
 
 ##############################################################################
