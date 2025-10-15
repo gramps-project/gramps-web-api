@@ -150,7 +150,7 @@ class TransactionUndoResource(ProtectedResource):
             abort_with_message(404, f"Transaction {transaction_id} not found")
 
         # Check each change in the transaction for conflicts
-        conflicts = []
+        conflicts: list[dict] = []
         can_undo_without_force = True
 
         for change in transaction["changes"]:
