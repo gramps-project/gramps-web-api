@@ -58,14 +58,12 @@ ENV GRAMPSHOME=/root
 ENV GRAMPS_DATABASE_PATH=/root/.gramps/grampsdb
 
 # install PostgreSQL addon
-RUN wget https://github.com/gramps-project/addons/archive/refs/heads/master.zip \
-    && unzip -p master.zip addons-master/gramps$GRAMPS_VERSION/download/PostgreSQL.addon.tgz | \
-    tar -xvz -C /root/gramps/gramps$GRAMPS_VERSION/plugins \
-    && unzip -p master.zip addons-master/gramps$GRAMPS_VERSION/download/SharedPostgreSQL.addon.tgz | \
-    tar -xvz -C /root/gramps/gramps$GRAMPS_VERSION/plugins \
-    && unzip -p master.zip addons-master/gramps$GRAMPS_VERSION/download/FilterRules.addon.tgz | \
-    tar -xvz -C /root/gramps/gramps$GRAMPS_VERSION/plugins \
-    && rm master.zip
+RUN wget https://github.com/gramps-project/addons/archive/refs/heads/master.zip && \
+    for addon in PostgreSQL SharedPostgreSQL FilterRules JSON; do \
+        unzip -p master.zip addons-master/gramps$GRAMPS_VERSION/download/$addon.addon.tgz | \
+        tar -xvz -C /root/gramps/gramps$GRAMPS_VERSION/plugins; \
+    done && \
+    rm master.zip
 
 # install gunicorn
 RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
