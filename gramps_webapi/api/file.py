@@ -287,6 +287,3 @@ def process_file(stream: Union[Any, BinaryIO]) -> Tuple[str, int, BinaryIO]:
         raise IOError("Unable to process file.")
     fp.seek(0)
     return checksum, size, fp
-
-
-# -*- file contents end - DO NOT MODIFY ABOVE THIS LINE -*-
