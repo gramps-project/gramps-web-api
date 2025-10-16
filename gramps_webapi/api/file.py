@@ -118,7 +118,7 @@ class FileHandler:
         except pytesseract.TesseractNotFoundError:
             abort_with_message(501, "Tesseract is not installed")
         fobj = self.get_file_object()
-        image: Image = Image.open(fobj)
+        image: Image.Image = Image.open(fobj)
         try:
             image = image.convert("RGB")
         except Exception:
