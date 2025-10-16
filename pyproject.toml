@@ -31,7 +31,7 @@ dependencies = [
     "webargs",
     "SQLAlchemy>=2.0.0",
     "pdf2image",
-    "Pillow",
+    "Pillow<12.0.0",
     "bleach[css]>=5.0.0",
     "jsonschema",
     "ffmpeg-python",
