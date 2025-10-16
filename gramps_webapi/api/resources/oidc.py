@@ -207,7 +207,7 @@ class OIDCCallbackResource(Resource):
 
             # Redirect to frontend with secure HTTP-only cookies
             frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
-            response = redirect(f"{frontend_url}/oidc/complete")
+            response = redirect(f"{frontend_url.rstrip('/')}/oidc/complete")
 
             # Set HTTP-only cookies (secure=False for localhost development)
             is_development = _is_development_environment(frontend_url)
