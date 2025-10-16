@@ -67,6 +67,15 @@ class TestOcr(unittest.TestCase):
 
     def test_get_ocr(self):
         """Test OCR."""
+        # Log versions for debugging
+        try:
+            import PIL
+            import pytesseract
+            print(f"PIL version: {PIL.__version__}")
+            print(f"Tesseract version: {pytesseract.get_tesseract_version()}")
+        except Exception as e:
+            print(f"Version logging failed: {e}")
+        
         # get token
         rv = self.client.post(
             "/api/token/", json={"username": "owner", "password": "123"}
@@ -77,12 +86,15 @@ class TestOcr(unittest.TestCase):
         # create image
         image = Image.new("RGB", (300, 100), "white")
         draw = ImageDraw.Draw(image)
-        for font_name in ["Helvetica.ttf", "Arial.ttf", "DejaVuSans"]:
+        for font_name in ["DejaVuSans.ttf", "DejaVuSans", "Helvetica.ttf", "Arial.ttf"]:
             try:
                 font = ImageFont.truetype(font_name, 18)
                 break
             except OSError:
                 pass
+        else:
+            # Use default font if no truetype fonts are available
+            font = ImageFont.load_default()
         draw.text((10, 10), "OCR Demo", font=font, fill="black")
 
         # post image
@@ -90,7 +102,7 @@ class TestOcr(unittest.TestCase):
         image.save(image_bytes_io, format="PNG")
         image_bytes = image_bytes_io.getvalue()
         rv = self.client.post(
-            TEST_URL, headers=headers, data=image_bytes, content_type="image/jpeg"
+            TEST_URL, headers=headers, data=image_bytes, content_type="image/png"
         )
         assert rv.status_code == 201
         assert len(rv.json) == 1

@@ -116,6 +116,11 @@ class FileHandler:
             abort_with_message(501, "Tesseract is not installed")
         fobj = self.get_file_object()
         image = Image.open(fobj)
+        try:
+            image = image.convert("RGB")
+        except Exception:
+            # keep original if conversion fails
+            pass
         if output_format == "string":
             data = pytesseract.image_to_string(image, lang=lang)
         elif output_format == "boxes":
