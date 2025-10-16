@@ -80,7 +80,7 @@ BUILTIN_PROVIDERS = {
         "userinfo_url": "https://api.github.com/user",
         "scopes": "user:email",
         "username_claim": "login",
-    }
+    },
 }
 
 
@@ -138,7 +138,9 @@ def get_provider_config(provider_id: str, app=None) -> Optional[Dict]:
             "client_secret": app.config.get("OIDC_CLIENT_SECRET"),
             "issuer": issuer,
             "scopes": app.config.get("OIDC_SCOPES", "openid email profile"),
-            "username_claim": app.config.get("OIDC_USERNAME_CLAIM", "preferred_username"),
+            "username_claim": app.config.get(
+                "OIDC_USERNAME_CLAIM", "preferred_username"
+            ),
             "openid_config_url": app.config.get("OIDC_OPENID_CONFIG_URL"),
         }
 
@@ -154,15 +156,19 @@ def get_provider_config(provider_id: str, app=None) -> Optional[Dict]:
         return None
 
     config = BUILTIN_PROVIDERS[provider_id].copy()
-    config.update({
-        "client_id": client_id,
-        "client_secret": client_secret,
-    })
+    config.update(
+        {
+            "client_id": client_id,
+            "client_secret": client_secret,
+        }
+    )
 
     return config
 
 
-def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> Optional[int]:
+def get_role_from_claims(
+    user_claims: dict, role_claim: str = "groups"
+) -> Optional[int]:
     """Map OIDC claims to Gramps roles based on environment variables.
 
     Args:
@@ -186,15 +192,17 @@ def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> Optio
     # Check if any role mapping is configured
     has_role_mapping = any(group_name.strip() for group_name in role_mapping.values())
     if not has_role_mapping:
-        logger.info("No OIDC role mapping configured (no OIDC_GROUP_* configuration options set). Preserving existing user roles.")
+        logger.info(
+            "No OIDC role mapping configured (no OIDC_GROUP_* configuration options set). Preserving existing user roles."
+        )
         return None
 
     # Extract user groups/roles from claims
     user_groups = []
 
     # Handle nested claims like 'realm_access.roles'
-    if '.' in role_claim:
-        claim_parts = role_claim.split('.')
+    if "." in role_claim:
+        claim_parts = role_claim.split(".")
         claim_value = user_claims
         for part in claim_parts:
             claim_value = claim_value.get(part, {})
@@ -210,7 +218,9 @@ def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> Optio
 
     # Fallback: if no groups found in claims, assign default guest role
     if not user_groups:
-        logger.warning(f"No '{role_claim}' claim found in user claims. Assigning guest role.")
+        logger.warning(
+            f"No '{role_claim}' claim found in user claims. Assigning guest role."
+        )
         return ROLE_GUEST
 
     highest_role = ROLE_GUEST
@@ -226,9 +236,7 @@ def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> Optio
 
 
 def create_or_update_oidc_user(
-    userinfo: Dict,
-    tree: Optional[str],
-    provider_id: str
+    userinfo: Dict, tree: Optional[str], provider_id: str
 ) -> str:
     """Create or update a user based on OIDC userinfo using secure sub claim mapping.
 
@@ -250,7 +258,9 @@ def create_or_update_oidc_user(
     subject_id = userinfo.get("sub")
     if not subject_id:
         available_claims = ", ".join(userinfo.keys())
-        raise ValueError(f"No 'sub' claim found in OIDC userinfo for provider '{provider_id}'. Available claims: {available_claims}")
+        raise ValueError(
+            f"No 'sub' claim found in OIDC userinfo for provider '{provider_id}'. Available claims: {available_claims}"
+        )
 
     email = userinfo.get("email", "")
     full_name = userinfo.get("name", "")
@@ -348,6 +358,7 @@ def create_or_update_oidc_user(
             tree=user_tree,
             # for single-tree setups, send e-mail also to admins
             include_admins=not is_multi,
+            include_treeless=not is_multi,
         )
 
     return user_guid
@@ -369,7 +380,9 @@ def init_oidc(app):
     for provider_id in providers:
         provider_config = get_provider_config(provider_id, app)
         if not provider_config:
-            logger.warning(f"Skipping provider '{provider_id}' - configuration incomplete")
+            logger.warning(
+                f"Skipping provider '{provider_id}' - configuration incomplete"
+            )
             continue
 
         try:
@@ -393,7 +406,9 @@ def init_oidc(app):
                 # Use explicit config URL if provided, otherwise construct from issuer
                 server_metadata_url = provider_config.get("openid_config_url")
                 if not server_metadata_url:
-                    server_metadata_url = f"{provider_config['issuer']}/.well-known/openid-configuration"
+                    server_metadata_url = (
+                        f"{provider_config['issuer']}/.well-known/openid-configuration"
+                    )
 
                 client = oauth.register(
                     name=f"gramps_{provider_id}",
@@ -406,7 +421,9 @@ def init_oidc(app):
                 # Explicitly load server metadata to ensure it's available at startup
                 client.load_server_metadata()
 
-            logger.info(f"Registered OIDC provider: {provider_config['name']} ({provider_id})")
+            logger.info(
+                f"Registered OIDC provider: {provider_config['name']} ({provider_id})"
+            )
 
         except Exception as e:
             logger.error(f"Failed to register OIDC provider '{provider_id}': {e}")

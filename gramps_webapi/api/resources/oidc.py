@@ -19,19 +19,29 @@
 
 """OIDC authentication resources."""
 
-import json
 import logging
+from gettext import gettext as _
 from typing import Optional
 from urllib.parse import urlencode
 
 import jwt
-from flask import current_app, request, session, url_for, redirect, jsonify, render_template
-from flask_jwt_extended import decode_token
-from gettext import gettext as _
+from flask import (
+    current_app,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
+from marshmallow import EXCLUDE
 from webargs import fields
 
-from ...auth import get_name, get_permissions, is_tree_disabled, get_user_details
-from ...auth.oidc import create_or_update_oidc_user, get_available_oidc_providers, get_provider_config
+from ...auth import get_name, get_permissions, get_user_details, is_tree_disabled
+from ...auth.oidc import (
+    create_or_update_oidc_user,
+    get_available_oidc_providers,
+    get_provider_config,
+)
 from ...auth.oidc_helpers import is_oidc_enabled
 from ...auth.token_blocklist import add_jti_to_blocklist
 from ...const import TREE_MULTI
@@ -45,7 +55,9 @@ logger = logging.getLogger(__name__)
 
 def _is_development_environment(frontend_url: Optional[str]) -> bool:
     """Check if we're in a development environment for cookie security settings."""
-    return current_app.debug or ('localhost' in (frontend_url or '') or '127.0.0.1' in (frontend_url or ''))
+    return current_app.debug or (
+        "localhost" in (frontend_url or "") or "127.0.0.1" in (frontend_url or "")
+    )
 
 
 class OIDCLoginResource(Resource):
@@ -79,10 +91,14 @@ class OIDCLoginResource(Resource):
 
         oidc_client = getattr(oauth, f"gramps_{provider_id}", None)
         if not oidc_client:
-            abort_with_message(500, f"OIDC client for provider '{provider_id}' not found")
+            abort_with_message(
+                500, f"OIDC client for provider '{provider_id}' not found"
+            )
 
         # Build redirect URI with provider parameter
-        redirect_uri = url_for("api.oidccallbackresource", provider=provider_id, _external=True)
+        redirect_uri = url_for(
+            "api.oidccallbackresource", provider=provider_id, _external=True
+        )
 
         authorization_url = oidc_client.authorize_redirect(redirect_uri)
         return authorization_url
@@ -106,6 +122,7 @@ class OIDCCallbackResource(Resource):
             "error_description": fields.Str(required=False),
         },
         location="query",
+        unknown=EXCLUDE,
     )
     def get(self, args):
         """Handle OIDC callback and create JWT tokens."""
@@ -125,7 +142,9 @@ class OIDCCallbackResource(Resource):
 
         oidc_client = getattr(oauth, f"gramps_{provider_id}", None)
         if not oidc_client:
-            abort_with_message(500, f"OIDC client for provider '{provider_id}' not found")
+            abort_with_message(
+                500, f"OIDC client for provider '{provider_id}' not found"
+            )
 
         try:
             token = oidc_client.authorize_access_token()
@@ -150,10 +169,7 @@ class OIDCCallbackResource(Resource):
             and tree != current_app.config["TREE"]
         ):
             abort_with_message(403, f"Invalid tree: {tree}")
-        if (
-            not tree
-            and current_app.config["TREE"] == TREE_MULTI
-        ):
+        if not tree and current_app.config["TREE"] == TREE_MULTI:
             abort_with_message(403, "Tree is required")
 
         try:
@@ -173,7 +189,9 @@ class OIDCCallbackResource(Resource):
                     "Your account has been created successfully. "
                     "An administrator will review your account request and activate it shortly."
                 )
-                return render_template("confirmation.html", title=title, message=message)
+                return render_template(
+                    "confirmation.html", title=title, message=message
+                )
 
             # User is enabled - proceed with normal token flow
             permissions = get_permissions(username=username, tree=tree_id)
@@ -195,41 +213,45 @@ class OIDCCallbackResource(Resource):
             is_development = _is_development_environment(frontend_url)
 
             response.set_cookie(
-                'oidc_access_token',
-                tokens['access_token'],
+                "oidc_access_token",
+                tokens["access_token"],
                 max_age=300,  # 5 minutes
                 httponly=True,
                 secure=not is_development,  # Allow HTTP in development
-                samesite='Lax',
-                path='/'
+                samesite="Lax",
+                path="/",
             )
             response.set_cookie(
-                'oidc_refresh_token',
-                tokens['refresh_token'],
+                "oidc_refresh_token",
+                tokens["refresh_token"],
                 max_age=300,  # 5 minutes
                 httponly=True,
                 secure=not is_development,  # Allow HTTP in development
-                samesite='Lax',
-                path='/'
+                samesite="Lax",
+                path="/",
             )
 
             # Store id_token if available (needed for OIDC logout)
-            if token.get('id_token'):
+            if token.get("id_token"):
                 response.set_cookie(
-                    'oidc_id_token',
-                    token['id_token'],
+                    "oidc_id_token",
+                    token["id_token"],
                     max_age=300,  # 5 minutes
                     httponly=True,
                     secure=not is_development,  # Allow HTTP in development
-                    samesite='Lax',
-                    path='/'
+                    samesite="Lax",
+                    path="/",
                 )
 
-            logger.info(f"Set OIDC cookies, redirecting to {frontend_url}/oidc/complete")
+            logger.info(
+                f"Set OIDC cookies, redirecting to {frontend_url}/oidc/complete"
+            )
             return response
 
         except ValueError as e:
-            logger.exception(f"Error creating/updating OIDC user for provider '{provider_id}'")
+            logger.exception(
+                f"Error creating/updating OIDC user for provider '{provider_id}'"
+            )
             abort_with_message(400, f"Error processing user: {str(e)}")
 
 
@@ -243,9 +265,9 @@ class OIDCTokenExchangeResource(Resource):
         logger.info(f"Cookies received: {list(request.cookies.keys())}")
 
         # Get tokens from HTTP-only cookies
-        access_token = request.cookies.get('oidc_access_token')
-        refresh_token = request.cookies.get('oidc_refresh_token')
-        id_token = request.cookies.get('oidc_id_token')
+        access_token = request.cookies.get("oidc_access_token")
+        refresh_token = request.cookies.get("oidc_refresh_token")
+        id_token = request.cookies.get("oidc_id_token")
 
         logger.info(f"Access token found: {bool(access_token)}")
         logger.info(f"Refresh token found: {bool(refresh_token)}")
@@ -257,14 +279,14 @@ class OIDCTokenExchangeResource(Resource):
 
         # Return tokens and clear cookies
         response_data = {
-            'access_token': access_token,
-            'refresh_token': refresh_token,
-            'token_type': 'Bearer'
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "Bearer",
         }
 
         # Include id_token if available (needed for OIDC logout)
         if id_token:
-            response_data['id_token'] = id_token
+            response_data["id_token"] = id_token
 
         response = jsonify(response_data)
 
@@ -273,31 +295,31 @@ class OIDCTokenExchangeResource(Resource):
         is_development = _is_development_environment(frontend_url)
 
         response.set_cookie(
-            'oidc_access_token',
-            '',
+            "oidc_access_token",
+            "",
             expires=0,
             httponly=True,
             secure=not is_development,
-            samesite='Lax',
-            path='/'
+            samesite="Lax",
+            path="/",
         )
         response.set_cookie(
-            'oidc_refresh_token',
-            '',
+            "oidc_refresh_token",
+            "",
             expires=0,
             httponly=True,
             secure=not is_development,
-            samesite='Lax',
-            path='/'
+            samesite="Lax",
+            path="/",
         )
         response.set_cookie(
-            'oidc_id_token',
-            '',
+            "oidc_id_token",
+            "",
             expires=0,
             httponly=True,
             secure=not is_development,
-            samesite='Lax',
-            path='/'
+            samesite="Lax",
+            path="/",
         )
 
         logger.info("OIDC token exchange successful, cookies cleared")
@@ -321,16 +343,24 @@ class OIDCConfigResource(Resource):
         for provider_id in available_providers:
             provider_config = get_provider_config(provider_id)
             if provider_config:
-                providers.append({
-                    "id": provider_id,
-                    "name": provider_config["name"],
-                    "login_url": url_for("api.oidcloginresource", provider=provider_id, _external=True),
-                })
+                providers.append(
+                    {
+                        "id": provider_id,
+                        "name": provider_config["name"],
+                        "login_url": url_for(
+                            "api.oidcloginresource",
+                            provider=provider_id,
+                            _external=True,
+                        ),
+                    }
+                )
 
         return {
             "enabled": True,
             "providers": providers,
-            "disable_local_auth": current_app.config.get("OIDC_DISABLE_LOCAL_AUTH", False),
+            "disable_local_auth": current_app.config.get(
+                "OIDC_DISABLE_LOCAL_AUTH", False
+            ),
             "auto_redirect": current_app.config.get("OIDC_AUTO_REDIRECT", True),
         }
 
@@ -368,12 +398,16 @@ class OIDCLogoutResource(Resource):
 
         oidc_client = getattr(oauth, f"gramps_{provider_id}", None)
         if not oidc_client:
-            abort_with_message(500, f"OIDC client for provider '{provider_id}' not found")
+            abort_with_message(
+                500, f"OIDC client for provider '{provider_id}' not found"
+            )
 
         try:
             # Load server metadata to get end_session_endpoint
             oidc_client.load_server_metadata()
-            end_session_endpoint = oidc_client.server_metadata.get("end_session_endpoint")
+            end_session_endpoint = oidc_client.server_metadata.get(
+                "end_session_endpoint"
+            )
 
             if not end_session_endpoint:
                 # Provider doesn't support OIDC logout - graceful degradation
@@ -384,7 +418,9 @@ class OIDCLogoutResource(Resource):
             if args.get("id_token"):
                 params["id_token_hint"] = args.get("id_token")
             if args.get("post_logout_redirect_uri"):
-                params["post_logout_redirect_uri"] = args.get("post_logout_redirect_uri")
+                params["post_logout_redirect_uri"] = args.get(
+                    "post_logout_redirect_uri"
+                )
 
             logout_url = end_session_endpoint
             if params:
@@ -423,13 +459,17 @@ class OIDCBackchannelLogoutResource(Resource):
 
         try:
             # Decode the logout token without verification first to get the issuer
-            unverified_claims = jwt.decode(logout_token, options={"verify_signature": False})
+            unverified_claims = jwt.decode(
+                logout_token, options={"verify_signature": False}
+            )
         except jwt.InvalidTokenError as e:
             logger.exception("Invalid logout_token in backchannel logout request")
             abort_with_message(400, f"Invalid logout_token: {str(e)}")
 
-        logger.info(f"Received backchannel logout for sub={unverified_claims.get('sub')}, "
-                   f"sid={unverified_claims.get('sid')}")
+        logger.info(
+            f"Received backchannel logout for sub={unverified_claims.get('sub')}, "
+            f"sid={unverified_claims.get('sid')}"
+        )
 
         # Validate the logout token structure per OIDC Back-Channel Logout spec
         if "sub" not in unverified_claims and "sid" not in unverified_claims:
