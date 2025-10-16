@@ -73,7 +73,9 @@ class FileHandler:
         """Check if the file exists."""
         raise NotImplementedError
 
-    def send_file(self, etag: Optional[str] = None, download: bool = False, filename: str = ""):
+    def send_file(
+        self, etag: Optional[str] = None, download: bool = False, filename: str = ""
+    ):
         """Send media file to client."""
         raise NotImplementedError
 
@@ -116,7 +118,7 @@ class FileHandler:
         except pytesseract.TesseractNotFoundError:
             abort_with_message(501, "Tesseract is not installed")
         fobj = self.get_file_object()
-        image = Image.open(fobj)
+        image: Image = Image.open(fobj)
         try:
             image = image.convert("RGB")
         except Exception:
@@ -285,5 +287,6 @@ def process_file(stream: Union[Any, BinaryIO]) -> Tuple[str, int, BinaryIO]:
         raise IOError("Unable to process file.")
     fp.seek(0)
     return checksum, size, fp
+
 
 # -*- file contents end - DO NOT MODIFY ABOVE THIS LINE -*-
