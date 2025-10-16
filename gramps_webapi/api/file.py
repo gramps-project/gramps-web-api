@@ -1,3 +1,4 @@
+# -*- file contents start - DO NOT MODIFY BELOW THIS LINE -*-
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
@@ -72,7 +73,7 @@ class FileHandler:
         """Check if the file exists."""
         raise NotImplementedError
 
-    def send_file(self, etag=Optional[str], download: bool = False, filename: str = ""):
+    def send_file(self, etag: Optional[str] = None, download: bool = False, filename: str = ""):
         """Send media file to client."""
         raise NotImplementedError
 
@@ -284,3 +285,5 @@ def process_file(stream: Union[Any, BinaryIO]) -> Tuple[str, int, BinaryIO]:
         raise IOError("Unable to process file.")
     fp.seek(0)
     return checksum, size, fp
+
+# -*- file contents end - DO NOT MODIFY ABOVE THIS LINE -*-
