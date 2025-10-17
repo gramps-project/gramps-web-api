@@ -262,3 +262,353 @@ class TestTransactionHistoryResource(unittest.TestCase):
         headers = get_headers(self.client, "member", "123")
         rv = self.client.get("/api/transactions/history/", headers=headers)
         assert rv.status_code == 200
+
+    def test_undo_transaction_add(self):
+        """Test undoing a transaction that added a person."""
+        headers = get_headers(self.client, "editor", "123")
+
+        # Add a person
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        person = rv.json[0]["new"]
+        person_handle = person["handle"]
+
+        # Verify person exists
+        rv = self.client.get(f"/api/people/{person_handle}", headers=headers)
+        assert rv.status_code == 200
+
+        # Get transaction history
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        transactions = rv.json
+        assert len(transactions) == 1
+        transaction_id = transactions[0]["id"]
+
+        # Undo the transaction
+        rv = self.client.post(
+            f"/api/transactions/history/{transaction_id}/undo", headers=headers
+        )
+        assert rv.status_code == 200
+
+        # Verify person no longer exists
+        rv = self.client.get(f"/api/people/{person_handle}", headers=headers)
+        assert rv.status_code == 404
+
+        # Verify we have two transactions now (add + undo)
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        transactions = rv.json
+        assert len(transactions) == 2
+
+    def test_undo_transaction_update(self):
+        """Test undoing a transaction that updated a person."""
+        headers = get_headers(self.client, "editor", "123")
+
+        # Add a person
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        person = rv.json[0]["new"]
+        person_handle = person["handle"]
+        original_gramps_id = person["gramps_id"]
+
+        # Update the person
+        person["gramps_id"] = "UPDATED_ID"
+        rv = self.client.put(
+            f"/api/people/{person_handle}", json=person, headers=headers
+        )
+        assert rv.status_code == 200
+
+        # Verify update
+        rv = self.client.get(f"/api/people/{person_handle}", headers=headers)
+        assert rv.status_code == 200
+        updated_person = rv.json
+        assert updated_person["gramps_id"] == "UPDATED_ID"
+
+        # Get the update transaction (should be transaction ID 2)
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        transactions = rv.json
+        assert len(transactions) == 2
+        update_transaction_id = transactions[1]["id"]  # Second transaction
+
+        # Undo the update transaction
+        rv = self.client.post(
+            f"/api/transactions/history/{update_transaction_id}/undo", headers=headers
+        )
+        assert rv.status_code == 200
+
+        # Verify person has original gramps_id
+        rv = self.client.get(f"/api/people/{person_handle}", headers=headers)
+        assert rv.status_code == 200
+        reverted_person = rv.json
+        assert reverted_person["gramps_id"] == original_gramps_id
+
+    def test_undo_transaction_delete(self):
+        """Test undoing a transaction that deleted a person."""
+        headers = get_headers(self.client, "editor", "123")
+
+        # Add a person
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        person = rv.json[0]["new"]
+        person_handle = person["handle"]
+
+        # Delete the person
+        rv = self.client.delete(f"/api/people/{person_handle}", headers=headers)
+        assert rv.status_code == 200
+
+        # Verify person is deleted
+        rv = self.client.get(f"/api/people/{person_handle}", headers=headers)
+        assert rv.status_code == 404
+
+        # Get the delete transaction (should be transaction ID 2)
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        transactions = rv.json
+        assert len(transactions) == 2
+        delete_transaction_id = transactions[1]["id"]  # Second transaction
+
+        # Undo the delete transaction (use force=1 since the object was deleted)
+        rv = self.client.post(
+            f"/api/transactions/history/{delete_transaction_id}/undo?force=1",
+            headers=headers,
+        )
+        assert rv.status_code == 200
+
+        # Verify person exists again
+        rv = self.client.get(f"/api/people/{person_handle}", headers=headers)
+        assert rv.status_code == 200
+
+    def test_undo_transaction_background(self):
+        """Test undoing a transaction (background processing is now default)."""
+        headers = get_headers(self.client, "editor", "123")
+
+        # Add a person
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        person = rv.json[0]["new"]
+        person_handle = person["handle"]
+
+        # Get transaction history
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        transactions = rv.json
+        transaction_id = transactions[0]["id"]
+
+        rv = self.client.post(
+            f"/api/transactions/history/{transaction_id}/undo",
+            headers=headers,
+        )
+        assert rv.status_code == 200
+
+        # Verify person no longer exists
+        rv = self.client.get(f"/api/people/{person_handle}", headers=headers)
+        assert rv.status_code == 404
+
+    def test_undo_transaction_not_found(self):
+        """Test undoing a non-existent transaction."""
+        headers = get_headers(self.client, "editor", "123")
+
+        # Try to undo a non-existent transaction
+        rv = self.client.post("/api/transactions/history/999/undo", headers=headers)
+        assert rv.status_code == 404
+
+    def test_undo_transaction_permissions(self):
+        """Test that only users with proper permissions can undo transactions."""
+        headers_editor = get_headers(self.client, "editor", "123")
+        headers_guest = get_headers(self.client, "user", "123")
+
+        # Add a person as editor
+        rv = self.client.post("/api/people/", json={}, headers=headers_editor)
+        assert rv.status_code == 201
+
+        # Get transaction history
+        rv = self.client.get("/api/transactions/history/", headers=headers_editor)
+        assert rv.status_code == 200
+        transactions = rv.json
+        transaction_id = transactions[0]["id"]
+
+        # Try to undo as guest (should fail)
+        rv = self.client.post(
+            f"/api/transactions/history/{transaction_id}/undo", headers=headers_guest
+        )
+        assert rv.status_code == 403
+
+    def test_undo_endpoint(self):
+        """Test that the undo endpoint works correctly."""
+        headers = get_headers(self.client, "editor", "123")
+
+        # Add two people
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        person1_handle = rv.json[0]["new"]["handle"]
+
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        person2_handle = rv.json[0]["new"]["handle"]
+
+        # Get transaction history
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        transactions = rv.json
+        assert len(transactions) == 2
+
+        # Test the /undo route /transactions/history/{id}/undo
+        transaction_id_1 = transactions[0]["id"]
+        rv = self.client.post(
+            f"/api/transactions/history/{transaction_id_1}/undo", headers=headers
+        )
+        assert rv.status_code == 200
+
+        # Verify first person is gone
+        rv = self.client.get(f"/api/people/{person1_handle}", headers=headers)
+        assert rv.status_code == 404
+
+        # Test the /undo route for second transaction
+        transaction_id_2 = transactions[1]["id"]
+        rv = self.client.post(
+            f"/api/transactions/history/{transaction_id_2}/undo", headers=headers
+        )
+        assert rv.status_code == 200
+
+        # Verify second person is gone
+        rv = self.client.get(f"/api/people/{person2_handle}", headers=headers)
+        assert rv.status_code == 404
+
+    def test_undo_person_reference(self):
+        """Test undoing a transaction that added a person reference between two people."""
+        headers = get_headers(self.client, "editor", "123")
+
+        # Add first person
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        person1 = rv.json[0]["new"]
+        person1_handle = person1["handle"]
+
+        # Add second person
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        person2 = rv.json[0]["new"]
+        person2_handle = person2["handle"]
+
+        # Get person1 data to modify
+        rv = self.client.get(f"/api/people/{person1_handle}", headers=headers)
+        assert rv.status_code == 200
+        person1_data = rv.json
+
+        # Add person reference from person1 to person2
+        person1_data["person_ref_list"] = [
+            {
+                "_class": "PersonRef",
+                "ref": person2_handle,
+                "rel": "Unknown",
+                "private": False,
+            }
+        ]
+
+        # Update person1 with the person reference
+        rv = self.client.put(
+            f"/api/people/{person1_handle}", json=person1_data, headers=headers
+        )
+        assert rv.status_code == 200
+
+        # Verify the person reference was added
+        rv = self.client.get(f"/api/people/{person1_handle}", headers=headers)
+        assert rv.status_code == 200
+        updated_person1 = rv.json
+        assert len(updated_person1["person_ref_list"]) == 1
+        assert updated_person1["person_ref_list"][0]["ref"] == person2_handle
+
+        # Get transaction history - should have 3 transactions (add person1, add person2, add reference)
+        rv = self.client.get("/api/transactions/history/?old=1&new=1", headers=headers)
+        assert rv.status_code == 200
+        transactions = rv.json
+        assert len(transactions) == 3
+
+        # The reference addition should be the third transaction
+        reference_transaction_id = transactions[2]["id"]
+
+        # Undo the person reference transaction
+        rv = self.client.post(
+            f"/api/transactions/history/{reference_transaction_id}/undo",
+            headers=headers,
+        )
+        if rv.status_code != 200:
+            # Try with force if it fails due to object changes
+            rv = self.client.post(
+                f"/api/transactions/history/{reference_transaction_id}/undo?force=1",
+                headers=headers,
+            )
+        assert rv.status_code == 200
+
+        # Verify the person reference was removed
+        rv = self.client.get(f"/api/people/{person1_handle}", headers=headers)
+        assert rv.status_code == 200
+        reverted_person1 = rv.json
+        assert len(reverted_person1["person_ref_list"]) == 0
+
+        # Verify both people still exist
+        rv = self.client.get(f"/api/people/{person1_handle}", headers=headers)
+        assert rv.status_code == 200
+        rv = self.client.get(f"/api/people/{person2_handle}", headers=headers)
+        assert rv.status_code == 200
+
+    def test_undo_check_endpoint(self):
+        """Test the GET method on undo endpoint to check if transaction can be undone."""
+        headers = get_headers(self.client, "editor", "123")
+
+        # Add a person
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        person = rv.json[0]["new"]
+        person_handle = person["handle"]
+
+        # Get transaction history
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        transactions = rv.json
+        transaction_id = transactions[0]["id"]
+
+        # Check if we can undo the transaction (should be OK since nothing changed)
+        rv = self.client.get(
+            f"/api/transactions/history/{transaction_id}/undo", headers=headers
+        )
+        assert rv.status_code == 200
+        result = rv.json
+
+        # Should be able to undo without force
+        assert result["can_undo_without_force"] is True
+        assert result["transaction_id"] == transaction_id
+        assert result["conflicts_count"] == 0
+        assert result["total_changes"] >= 1  # At least one change (person creation)
+        assert isinstance(result["conflicts"], list)
+
+        # Now modify the person to create a conflict
+        rv = self.client.get(f"/api/people/{person_handle}", headers=headers)
+        assert rv.status_code == 200
+        person_data = rv.json
+        person_data["gramps_id"] = "I9999"  # Change something
+
+        rv = self.client.put(
+            f"/api/people/{person_handle}", json=person_data, headers=headers
+        )
+        assert rv.status_code == 200
+
+        # Check undo again - should now have conflicts
+        rv = self.client.get(
+            f"/api/transactions/history/{transaction_id}/undo", headers=headers
+        )
+        assert rv.status_code == 200
+        result = rv.json
+
+
+        # Should NOT be able to undo without force due to changes
+        assert result["can_undo_without_force"] is False
+        assert result["conflicts_count"] > 0
+        assert len(result["conflicts"]) > 0
+
+        # Check conflict details
+        conflict = result["conflicts"][0]
+        assert conflict["object_class"] == "Person"
+        assert conflict["handle"] == person_handle
+        assert conflict["conflict_type"] == "object_changed"
