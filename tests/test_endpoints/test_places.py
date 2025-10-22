@@ -538,6 +538,9 @@ class TestPlacesHandle(unittest.TestCase):
                         "type": "Nazione",
                     },
                 ],
+                "place_references": [
+                    {"value": "Llano", "date_str": ""},
+                ],
                 "type": "Città",
             },
         )
@@ -574,6 +577,7 @@ class TestPlacesHandle(unittest.TestCase):
                         "type": "Country",
                     },
                 ],
+                "place_references": [{"date_str": "", "value": "Russia"}],
                 "references": {},
                 "type": "City",
             },
