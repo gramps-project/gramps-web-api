@@ -96,9 +96,6 @@ class OIDCLoginResource(Resource):
 
         # Build redirect URI with provider parameter using BASE_URL
         base_url = get_config("BASE_URL")
-        if not base_url:
-            # Fallback to request URL if BASE_URL not configured
-            base_url = request.host_url.rstrip("/")
         redirect_uri = (
             f"{base_url.rstrip('/')}/api/oidc/callback/?provider={provider_id}"
         )
