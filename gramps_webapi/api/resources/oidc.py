@@ -31,7 +31,6 @@ from flask import (
     redirect,
     render_template,
     request,
-    url_for,
 )
 from marshmallow import EXCLUDE
 from webargs import fields
@@ -95,9 +94,13 @@ class OIDCLoginResource(Resource):
                 500, f"OIDC client for provider '{provider_id}' not found"
             )
 
-        # Build redirect URI with provider parameter
-        redirect_uri = url_for(
-            "api.oidccallbackresource", provider=provider_id, _external=True
+        # Build redirect URI with provider parameter using BASE_URL
+        base_url = get_config("BASE_URL")
+        if not base_url:
+            # Fallback to request URL if BASE_URL not configured
+            base_url = request.host_url.rstrip("/")
+        redirect_uri = (
+            f"{base_url.rstrip('/')}/api/oidc/callback/?provider={provider_id}"
         )
 
         authorization_url = oidc_client.authorize_redirect(redirect_uri)
@@ -339,6 +342,7 @@ class OIDCConfigResource(Resource):
             return {"enabled": False}
 
         # Build provider list with display information
+        base_url = get_config("BASE_URL")
         providers = []
         for provider_id in available_providers:
             provider_config = get_provider_config(provider_id)
@@ -347,11 +351,7 @@ class OIDCConfigResource(Resource):
                     {
                         "id": provider_id,
                         "name": provider_config["name"],
-                        "login_url": url_for(
-                            "api.oidcloginresource",
-                            provider=provider_id,
-                            _external=True,
-                        ),
+                        "login_url": f"{base_url.rstrip('/')}/api/oidc/login/?provider={provider_id}",
                     }
                 )
 
