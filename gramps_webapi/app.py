@@ -157,18 +157,29 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
     # initialize OIDC if enabled
     init_oidc(app)
 
-    request_cache.init_app(app, config=app.config["REQUEST_CACHE_CONFIG"])
-    thumbnail_cache.init_app(app, config=app.config["THUMBNAIL_CACHE_CONFIG"])
-    persistent_cache.init_app(app, config=app.config["PERSISTENT_CACHE_CONFIG"])
+    if os.getenv("DISABLE_CACHES") != "1":
+        request_cache.init_app(app, config=app.config["REQUEST_CACHE_CONFIG"])
+        thumbnail_cache.init_app(app, config=app.config["THUMBNAIL_CACHE_CONFIG"])
+        persistent_cache.init_app(app, config=app.config["PERSISTENT_CACHE_CONFIG"])
+    else:
+        app.logger.info(
+            "Caches are disabled (DISABLE_CACHES is set). Caches should be enabled in production environment.",
+        )
+        null_cache_config = {"CACHE_TYPE": "null"}
+        request_cache.init_app(app, config=null_cache_config)
+        thumbnail_cache.init_app(app, config=null_cache_config)
+        persistent_cache.init_app(app, config=null_cache_config)
 
     # enable CORS for /api/... resources
     if app.config.get("CORS_ORIGINS"):
         CORS(
             app,
-            resources={f"{API_PREFIX}/*": {
-                "origins": app.config["CORS_ORIGINS"],
-                "supports_credentials": True
-            }},
+            resources={
+                f"{API_PREFIX}/*": {
+                    "origins": app.config["CORS_ORIGINS"],
+                    "supports_credentials": True,
+                }
+            },
         )
 
     # enable gzip compression
