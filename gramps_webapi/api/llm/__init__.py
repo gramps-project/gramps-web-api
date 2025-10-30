@@ -52,16 +52,20 @@ def answer_prompt(prompt: str, system_prompt: str, config: dict | None = None) -
     model = config.get("LLM_MODEL")  # type: ignore
     assert model is not None, "No LLM model specified"  # mypy; shouldn't happen
 
+    logger = get_logger()
     try:
         response = client.chat.completions.create(
             messages=messages,  # type: ignore
             model=model,
         )
-    except RateLimitError:
+    except RateLimitError as exc:
+        logger.exception("Chat API rate limit exceeded: %s", exc)
         abort_with_message(500, "Chat API rate limit exceeded.")
-    except APIError:
+    except APIError as exc:
+        logger.exception("Chat API error encountered: %s", exc)
         abort_with_message(500, "Chat API error encountered.")
-    except Exception:
+    except Exception as exc:
+        logger.exception("Unexpected error: %s", exc)
         abort_with_message(500, "Unexpected error.")
 
     try:
