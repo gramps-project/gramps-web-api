@@ -53,18 +53,20 @@ class ChatResource(ProtectedResource):
         """Create a chat response."""
         require_permissions({PERM_USE_CHAT})
         check_quota_ai(requested=1)
-        # import here to avoid error if OpenAI-Python is not installed
-        from gramps_webapi.api.llm import answer_prompt_retrieve
+        # import here to avoid error if AI dependencies are not installed
+        from gramps_webapi.api.llm import answer_with_agent
 
         tree = get_tree_from_jwt()
+
         try:
-            response = answer_prompt_retrieve(
+            response = answer_with_agent(
                 prompt=args["query"],
                 tree=tree,
                 include_private=has_permissions({PERM_VIEW_PRIVATE}),
                 history=args.get("history"),
             )
-        except ValueError:
-            abort_with_message(422, "Invalid message format")
+        except ValueError as e:
+            abort_with_message(422, f"Invalid message format: {str(e)}")
+
         update_usage_ai(new=1)
         return {"response": response}
