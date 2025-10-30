@@ -221,9 +221,9 @@ def get_role_from_claims(
         logger.warning(
             f"No '{role_claim}' claim found in user claims. Assigning guest role."
         )
-        return ROLE_GUEST
+        return ROLE_DISABLED
 
-    highest_role = ROLE_GUEST
+    highest_role = ROLE_DISABLED
 
     for role_level in sorted(role_mapping.keys(), reverse=True):
         group_name = role_mapping[role_level]
