@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from flask import current_app
 from openai import APIError, OpenAI, RateLimitError
 from pydantic_ai.exceptions import ModelRetry, UnexpectedModelBehavior
+from pydantic_ai.messages import ModelRequest, ModelResponse, UserPromptPart, TextPart
 
 from .agent import create_agent
 from .deps import AgentDeps
@@ -70,12 +73,12 @@ def answer_prompt(prompt: str, system_prompt: str, config: dict | None = None) -
     except Exception as exc:
         logger.exception("Unexpected error: %s", exc)
         abort_with_message(500, "Unexpected error.")
+        raise  # mypy; unreachable
 
     try:
         answer = response.to_dict()["choices"][0]["message"]["content"]  # type: ignore
     except (KeyError, IndexError):
         abort_with_message(500, "Error parsing chat API response.")
-        raise  # mypy; unreachable
 
     return sanitize_answer(answer)
 
@@ -163,16 +166,25 @@ def answer_with_agent(
     )
 
     # Build message history for the agent
-    message_history = []
+    message_history: list[ModelRequest | ModelResponse] = []
     if history:
         for message in history:
             if "role" not in message or "message" not in message:
                 raise ValueError(f"Invalid message format: {message}")
             role = message["role"].lower()
             if role in ["ai", "system", "assistant"]:
-                message_history.append({"role": "model", "content": message["message"]})
+                # AI/assistant messages become ModelResponse
+                message_history.append(
+                    ModelResponse(
+                        parts=[TextPart(content=message["message"])],
+                        timestamp=datetime.now(),
+                    )
+                )
             elif role != "error":  # skip error messages
-                message_history.append({"role": "user", "content": message["message"]})
+                # User messages become ModelRequest
+                message_history.append(
+                    ModelRequest(parts=[UserPromptPart(content=message["message"])])
+                )
 
     try:
         # Run the agent
@@ -188,7 +200,7 @@ def answer_with_agent(
         abort_with_message(500, "Chat API rate limit exceeded.")
     except APIError:
         abort_with_message(500, "Chat API error encountered.")
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         logger.error("Unexpected error in agent: %s", e)
         abort_with_message(500, "Unexpected error.")
 
