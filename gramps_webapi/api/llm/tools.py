@@ -44,7 +44,7 @@ def log_tool_call(func):
 
 
 @log_tool_call
-def get_current_date(ctx: RunContext[AgentDeps]) -> str:  # noqa: ARG001
+def get_current_date(_ctx: RunContext[AgentDeps]) -> str:
     """Get the current date.
 
     Use this tool when you need to know today's date or the current time.
@@ -103,7 +103,7 @@ def search_genealogy_database(
             return "No results found in the genealogy database."
 
         # Build context from search results
-        context_parts = []
+        context_parts: list[str] = []
         max_length = ctx.deps.max_context_length
         current_length = 0
 

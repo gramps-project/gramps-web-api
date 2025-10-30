@@ -70,15 +70,15 @@ class TestChat(unittest.TestCase):
         assert rv.json[0]["object"]["gramps_id"] == "N02"  # Pizza!
         assert rv.json[1]["object"]["gramps_id"] == "N01"
 
-    @patch("gramps_webapi.api.llm.agent.create_agent")
+    @patch("gramps_webapi.api.llm.create_agent")
     def test_chat(self, mock_create_agent):
         # Mock the agent and its response
         mock_agent = MagicMock()
         mock_create_agent.return_value = mock_agent
 
-        # Mock the run_sync result
+        # Mock the run_sync result - must match AgentRunResult structure
         mock_result = MagicMock()
-        mock_result.data = "Pizza of course!"
+        mock_result.response.text = "Pizza of course!"
         mock_agent.run_sync.return_value = mock_result
         header = fetch_header(self.client, empty_db=True)
         header_editor = fetch_header(self.client, empty_db=True, role=ROLE_EDITOR)
