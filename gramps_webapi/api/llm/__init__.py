@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from flask import current_app
 from openai import APIError, OpenAI, RateLimitError
+from pydantic_ai.exceptions import ModelRetry, UnexpectedModelBehavior
 
+from .agent import create_agent
+from .deps import AgentDeps
 from ..search import get_semantic_search_indexer
 from ..util import abort_with_message, get_logger
 
@@ -109,7 +112,7 @@ def contextualize_prompt(prompt: str, context: str) -> str:
 
 def retrieve(tree: str, prompt: str, include_private: bool, num_results: int = 10):
     searcher = get_semantic_search_indexer(tree)
-    total, hits = searcher.search(
+    _, hits = searcher.search(
         query=prompt,
         page=1,
         pagesize=num_results,
@@ -119,12 +122,94 @@ def retrieve(tree: str, prompt: str, include_private: bool, num_results: int = 1
     return [hit["content"] for hit in hits]
 
 
+def answer_with_agent(
+    prompt: str,
+    tree: str,
+    include_private: bool,
+    history: list | None = None,
+) -> str:
+    """Answer a prompt using Pydantic AI agent.
+
+    The agent has access to tools including genealogy database search.
+
+    Args:
+        prompt: The user's question/prompt
+        tree: The tree identifier
+        include_private: Whether to include private information
+        history: Optional chat history
+
+    Returns:
+        The agent's response
+    """
+    logger = get_logger()
+
+    # Get configuration
+    config = current_app.config
+    model_name = config.get("LLM_MODEL")
+    base_url = config.get("LLM_BASE_URL")
+    max_context_length = config.get("LLM_MAX_CONTEXT_LENGTH", 50000)
+
+    if not model_name:
+        raise ValueError("No LLM model specified")
+
+    # Create agent
+    agent = create_agent(model_name=model_name, base_url=base_url)
+
+    # Create dependencies
+    deps = AgentDeps(
+        tree=tree,
+        include_private=include_private,
+        max_context_length=max_context_length,
+    )
+
+    # Build message history for the agent
+    message_history = []
+    if history:
+        for message in history:
+            if "role" not in message or "message" not in message:
+                raise ValueError(f"Invalid message format: {message}")
+            role = message["role"].lower()
+            if role in ["ai", "system", "assistant"]:
+                message_history.append({"role": "model", "content": message["message"]})
+            elif role != "error":  # skip error messages
+                message_history.append({"role": "user", "content": message["message"]})
+
+    try:
+        # Run the agent
+        logger.debug("Running Pydantic AI agent with prompt: '%s'", prompt)
+        result = agent.run_sync(prompt, deps=deps, message_history=message_history)
+        response_text = result.response.text or ""
+        logger.debug("Agent response: '%s'", response_text)
+        return sanitize_answer(response_text)
+    except (UnexpectedModelBehavior, ModelRetry) as e:
+        logger.error("Pydantic AI error: %s", e)
+        abort_with_message(500, "Error communicating with the AI model")
+    except RateLimitError:
+        abort_with_message(500, "Chat API rate limit exceeded.")
+    except APIError:
+        abort_with_message(500, "Chat API error encountered.")
+    except Exception as e:
+        logger.error("Unexpected error in agent: %s", e)
+        abort_with_message(500, "Unexpected error.")
+
+
 def answer_prompt_retrieve(
     prompt: str,
     tree: str,
     include_private: bool,
     history: list | None = None,
 ) -> str:
+    """Answer a prompt using RAG (Retrieval-Augmented Generation).
+
+    Args:
+        prompt: The user's question/prompt
+        tree: The tree identifier
+        include_private: Whether to include private information
+        history: Optional chat history
+
+    Returns:
+        The response
+    """
     logger = get_logger()
 
     if not history:

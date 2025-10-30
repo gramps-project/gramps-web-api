@@ -70,33 +70,16 @@ class TestChat(unittest.TestCase):
         assert rv.json[0]["object"]["gramps_id"] == "N02"  # Pizza!
         assert rv.json[1]["object"]["gramps_id"] == "N01"
 
-    @patch("gramps_webapi.api.llm.get_client")
-    def test_chat(self, mock_get_client):
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
+    @patch("gramps_webapi.api.llm.agent.create_agent")
+    def test_chat(self, mock_create_agent):
+        # Mock the agent and its response
+        mock_agent = MagicMock()
+        mock_create_agent.return_value = mock_agent
 
-        def mock_reply(system_prompt, user_prompt):
-            if "Pizza" in system_prompt and "dinner" in user_prompt:
-                return "Pizza of course!"
-            else:
-                return "I don't know."
-
-        def mock_chat_completion_create(messages, model):
-            return MagicMock(
-                to_dict=lambda: {
-                    "choices": [
-                        {
-                            "message": {
-                                "content": mock_reply(
-                                    messages[0]["content"], messages[1]["content"]
-                                )
-                            }
-                        }
-                    ]
-                }
-            )
-
-        mock_client.chat.completions.create.side_effect = mock_chat_completion_create
+        # Mock the run_sync result
+        mock_result = MagicMock()
+        mock_result.data = "Pizza of course!"
+        mock_agent.run_sync.return_value = mock_result
         header = fetch_header(self.client, empty_db=True)
         header_editor = fetch_header(self.client, empty_db=True, role=ROLE_EDITOR)
         rv = self.client.get("/api/trees/", headers=header)
