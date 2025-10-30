@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020      David Straub
+# Copyright (C) 2020-2025 David Straub
 # Copyright (C) 2020      Christopher Horn
 #
 # This program is free software; you can redistribute it and/or modify
@@ -168,7 +168,10 @@ def get_event_participants_for_handle(
             continue
         seen.add(backref_handle)
         if class_name == "Person":
-            person = db_handle.get_person_from_handle(backref_handle)
+            try:
+                person = db_handle.get_person_from_handle(backref_handle)
+            except HandleError:
+                continue
             if not person:
                 continue
             for event_ref in person.get_event_ref_list():
@@ -176,11 +179,14 @@ def get_event_participants_for_handle(
                     result["people"].append(
                         (
                             event_ref.get_role(),
-                            db_handle.get_person_from_handle(backref_handle),
+                            person,
                         )
                     )
         elif class_name == "Family":
-            family = db_handle.get_family_from_handle(backref_handle)
+            try:
+                family = db_handle.get_family_from_handle(backref_handle)
+            except HandleError:
+                continue
             if not family:
                 continue
             for event_ref in family.get_event_ref_list():
@@ -188,7 +194,7 @@ def get_event_participants_for_handle(
                     result["families"].append(
                         (
                             event_ref.get_role(),
-                            db_handle.get_family_from_handle(backref_handle),
+                            family,
                         )
                     )
     return result
