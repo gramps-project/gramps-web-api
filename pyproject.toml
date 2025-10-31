@@ -49,9 +49,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ai = ["sentence-transformers[onnx,openvino]", "openai", "accelerate", "pydantic-ai[openai]"]
+ai = ["sentence-transformers[onnx,openvino]", "accelerate", "pydantic-ai[openai]"]
 test = ["pytest", "PyYAML"]
-all = ["sentence-transformers[onnx,openvino]", "openai", "accelerate", "pydantic-ai[openai]", "pytest", "PyYAML"]
+all = ["sentence-transformers[onnx,openvino]", "accelerate", "pydantic-ai[openai]", "pytest", "PyYAML"]
 
 [project.urls]
 homepage = "https://github.com/gramps-project/gramps-web-api"
