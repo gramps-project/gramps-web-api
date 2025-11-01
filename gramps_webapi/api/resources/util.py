@@ -464,11 +464,14 @@ def get_place_profile_for_object(
             )
             for parent_place in parent_places_handles
         ]
-        profile["place_references"] = [
+        profile["direct_parent_places"] = [
             {
-                "value": cast(Place, db_handle.get_place_from_handle(place_ref.ref))
-                .get_name()
-                .value,
+                "place": get_place_profile_for_object(
+                    db_handle=db_handle,
+                    place=db_handle.get_place_from_handle(place_ref.ref),
+                    locale=locale,
+                    parent_places=False,
+                ),
                 "date_str": locale.date_displayer.display(place_ref.date),
             }
             for place_ref in place.get_placeref_list()
