@@ -12,6 +12,11 @@
       },
       "runOptions": {
         "instanceLimit": 1
+      },
+      "options": {
+        "env": {
+          "DISABLE_CACHES": "1"
+        }
       }
     },
     {
