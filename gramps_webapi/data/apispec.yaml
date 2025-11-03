@@ -9344,6 +9344,18 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/PlaceProfile"
+      direct_parent_places:
+        description: "A list of direct parent places with the corresponding dates."
+        type: array
+        items:
+          type: object
+          properties:
+            date_str:
+              description: "Date on which the parent place belongs to the place under view."
+              type: string
+              example: "1800 to 1950"
+            place:
+              $ref: "#/definitions/PlaceProfile"
       references:
         description: "References from other objects"
         type: object

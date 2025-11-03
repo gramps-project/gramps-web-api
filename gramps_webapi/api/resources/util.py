@@ -451,31 +451,53 @@ def get_place_profile_for_object(
                 break
             if handle is None or handle in parent_places_handles:
                 break
-            _place = db_handle.get_place_from_handle(handle)
+            _place = None
+            try:
+                _place = db_handle.get_place_from_handle(handle)
+            except HandleError:
+                break
             if _place is None:
                 break
             parent_places_handles.append(handle)
-        profile["parent_places"] = [
-            get_place_profile_for_object(
-                db_handle=db_handle,
-                place=db_handle.get_place_from_handle(parent_place),
-                locale=locale,
-                parent_places=False,
-            )
-            for parent_place in parent_places_handles
-        ]
-        profile["direct_parent_places"] = [
-            {
-                "place": get_place_profile_for_object(
-                    db_handle=db_handle,
-                    place=db_handle.get_place_from_handle(place_ref.ref),
-                    locale=locale,
-                    parent_places=False,
-                ),
-                "date_str": locale.date_displayer.display(place_ref.date),
-            }
-            for place_ref in place.get_placeref_list()
-        ]
+
+        parent_places_value = []
+        for parent_place in parent_places_handles:
+            try:
+                place_value = db_handle.get_place_from_handle(parent_place)
+                if place_value is None:
+                    continue
+                parent_places_value.append(
+                    get_place_profile_for_object(
+                        db_handle=db_handle,
+                        place=place_value,
+                        locale=locale,
+                        parent_places=False,
+                    )
+                )
+            except HandleError:
+                continue
+        profile["parent_places"] = parent_places_value
+
+        direct_parent_places_value = []
+        for place_ref in place.get_placeref_list():
+            try:
+                place_value = db_handle.get_place_from_handle(place_ref.ref)
+                if place_value is None:
+                    continue
+                direct_parent_places_value.append(
+                    {
+                        "place": get_place_profile_for_object(
+                            db_handle=db_handle,
+                            place=place_value,
+                            locale=locale,
+                            parent_places=False,
+                        ),
+                        "date_str": locale.date_displayer.display(place_ref.date),
+                    }
+                )
+            except HandleError:
+                continue
+        profile["direct_parent_places"] = direct_parent_places_value
     return profile
 
 
