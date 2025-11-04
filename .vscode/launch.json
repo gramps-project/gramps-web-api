@@ -1,0 +1,30 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Web API",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "gramps_webapi",
+            "args": [
+                "run",
+                "--port",
+                "5555",
+                "--host",
+                "0.0.0.0"
+            ],
+            "env": {
+                "DISABLE_CACHES": "1"
+            },
+        },
+        {
+            "name": "Current Test File",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "${file}"
+            ],
+        }
+    ]
+}
