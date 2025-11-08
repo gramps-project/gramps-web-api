@@ -538,6 +538,20 @@ class TestPlacesHandle(unittest.TestCase):
                         "type": "Nazione",
                     },
                 ],
+                "direct_parent_places": [
+                    {
+                        "place": {
+                            "alternate_names": [],
+                            "alternate_place_names": [],
+                            "gramps_id": "P0194",
+                            "lat": 0,
+                            "long": 0,
+                            "name": "Llano",
+                            "type": "Contea",
+                        },
+                        "date_str": "",
+                    },
+                ],
                 "type": "Città",
             },
         )
@@ -573,6 +587,20 @@ class TestPlacesHandle(unittest.TestCase):
                         "name": "Russia",
                         "type": "Country",
                     },
+                ],
+                "direct_parent_places": [
+                    {
+                        "place": {
+                            "alternate_names": [],
+                            "alternate_place_names": [],
+                            "gramps_id": "P0442",
+                            "lat": 0,
+                            "long": 0,
+                            "name": "Russia",
+                            "type": "Country",
+                        },
+                        "date_str": "",
+                    }
                 ],
                 "references": {},
                 "type": "City",
