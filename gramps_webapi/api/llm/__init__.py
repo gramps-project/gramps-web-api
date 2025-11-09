@@ -196,15 +196,14 @@ def answer_with_agent(
     except (UnexpectedModelBehavior, ModelRetry) as e:
         logger.error("Pydantic AI error: %s", e)
         abort_with_message(500, "Error communicating with the AI model")
-    except RateLimitError:
+        raise
         abort_with_message(500, "Chat API rate limit exceeded.")
-    except APIError:
+        raise
         abort_with_message(500, "Chat API error encountered.")
-    except Exception as e:  # pylint: disable=broad-except
+        raise
         logger.error("Unexpected error in agent: %s", e)
         abort_with_message(500, "Unexpected error.")
-
-
+        raise
 def answer_prompt_retrieve(
     prompt: str,
     tree: str,
