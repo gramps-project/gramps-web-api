@@ -141,11 +141,18 @@ def get_tree(guid: str) -> Optional[str]:
 
 
 def delete_user(name: str) -> None:
-    """Delete an existing user."""
+    """Delete an existing user and their associated OIDC accounts."""
     query = user_db.session.query(User)  # pylint: disable=no-member
     user = query.filter_by(name=name).scalar()
     if user is None:
         raise ValueError(f"User {name} not found")
+
+    # Manually delete associated OIDC accounts first.
+    # This is needed because SQLite does not enforce foreign key constraints by default.
+    user_db.session.query(OIDCAccount).filter_by(
+        user_id=user.id
+    ).delete()  # pylint: disable=no-member
+
     user_db.session.delete(user)  # pylint: disable=no-member
     user_db.session.commit()  # pylint: disable=no-member
 
@@ -196,7 +203,9 @@ def get_pwhash(username: str) -> str:
     return user.pwhash
 
 
-def _get_user_detail(user, include_guid: bool = False, include_oidc_accounts: bool = False):
+def _get_user_detail(
+    user, include_guid: bool = False, include_oidc_accounts: bool = False
+):
     details = {
         "name": user.name,
         "email": user.email,
@@ -228,7 +237,10 @@ def get_user_details(username: str) -> Optional[Dict[str, Any]]:
 
 
 def get_all_user_details(
-    tree: Optional[str], include_treeless=False, include_guid: bool = False, include_oidc_accounts: bool = False
+    tree: Optional[str],
+    include_treeless=False,
+    include_guid: bool = False,
+    include_oidc_accounts: bool = False,
 ) -> List[Dict[str, Any]]:
     """Return details about all users.
 
@@ -245,7 +257,12 @@ def get_all_user_details(
         else:
             query = query.filter(User.tree == tree)
     users = query.all()
-    return [_get_user_detail(user, include_guid=include_guid, include_oidc_accounts=include_oidc_accounts) for user in users]
+    return [
+        _get_user_detail(
+            user, include_guid=include_guid, include_oidc_accounts=include_oidc_accounts
+        )
+        for user in users
+    ]
 
 
 def get_permissions(username: str, tree: str) -> Set[str]:
@@ -435,10 +452,7 @@ def is_tree_disabled(tree: str) -> bool:
 
 
 def create_oidc_account(
-    user_id: str,
-    provider_id: str,
-    subject_id: str,
-    email: Optional[str] = None
+    user_id: str, provider_id: str, subject_id: str, email: Optional[str] = None
 ) -> None:
     """Create a new OIDC account association."""
     oidc_account = OIDCAccount(
@@ -454,7 +468,9 @@ def create_oidc_account(
 def get_oidc_account(provider_id: str, subject_id: str) -> Optional[str]:
     """Get user ID by OIDC provider_id and subject_id."""
     query = user_db.session.query(OIDCAccount.user_id)  # pylint: disable=no-member
-    oidc_account = query.filter_by(provider_id=provider_id, subject_id=subject_id).scalar()
+    oidc_account = query.filter_by(
+        provider_id=provider_id, subject_id=subject_id
+    ).scalar()
     return oidc_account
 
 
@@ -462,12 +478,15 @@ def get_user_oidc_accounts(user_id: str) -> List[Dict[str, Any]]:
     """Get all OIDC accounts associated with a user."""
     query = user_db.session.query(OIDCAccount)  # pylint: disable=no-member
     oidc_accounts = query.filter_by(user_id=user_id).all()
-    return [{
-        "provider_id": account.provider_id,
-        "subject_id": account.subject_id,
-        "email": account.email,
-        "created_at": account.created_at,
-    } for account in oidc_accounts]
+    return [
+        {
+            "provider_id": account.provider_id,
+            "subject_id": account.subject_id,
+            "email": account.email,
+            "created_at": account.created_at,
+        }
+        for account in oidc_accounts
+    ]
 
 
 class User(user_db.Model):  # type: ignore
@@ -528,14 +547,20 @@ class OIDCAccount(user_db.Model):  # type: ignore
     __tablename__ = "oidc_accounts"
 
     id = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
-    user_id = mapped_column(GUID, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = mapped_column(
+        GUID, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     provider_id = mapped_column(sa.String(64), nullable=False)
     subject_id = mapped_column(sa.String(255), nullable=False)
     email = mapped_column(sa.String(255), nullable=True, index=True)
-    created_at = mapped_column(sa.DateTime, nullable=False, server_default=sa.func.now())
+    created_at = mapped_column(
+        sa.DateTime, nullable=False, server_default=sa.func.now()
+    )
 
     __table_args__ = (
-        sa.UniqueConstraint('provider_id', 'subject_id', name='uq_oidc_provider_subject'),
+        sa.UniqueConstraint(
+            "provider_id", "subject_id", name="uq_oidc_provider_subject"
+        ),
     )
 
     def __repr__(self):
