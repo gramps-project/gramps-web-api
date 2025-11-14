@@ -94,11 +94,10 @@ class OIDCLoginResource(Resource):
                 500, f"OIDC client for provider '{provider_id}' not found"
             )
 
-        # Build redirect URI with provider parameter using BASE_URL
+        # Build redirect URI with provider in path (Microsoft-compatible)
+        # Using path parameter instead of query parameter for broader compatibility
         base_url = get_config("BASE_URL")
-        redirect_uri = (
-            f"{base_url.rstrip('/')}/api/oidc/callback/?provider={provider_id}"
-        )
+        redirect_uri = f"{base_url.rstrip('/')}/api/oidc/callback/{provider_id}"
 
         authorization_url = oidc_client.authorize_redirect(redirect_uri)
         return authorization_url
@@ -107,13 +106,16 @@ class OIDCLoginResource(Resource):
 class OIDCCallbackResource(Resource):
     """Resource for handling OIDC callback.
 
-    Endpoint: /api/oidc/callback/
+    Endpoint: /api/oidc/callback/ (legacy with query param)
+    Endpoint: /api/oidc/callback/<provider_id> (path param, Microsoft-compatible)
     """
 
     @limiter.limit("5/minute")
     @use_args(
         {
-            "provider": fields.Str(required=True),
+            "provider": fields.Str(
+                required=False
+            ),  # Optional for backwards compatibility
             "tree": fields.Str(required=False),
             "code": fields.Str(required=False),
             "state": fields.Str(required=False),
@@ -124,12 +126,21 @@ class OIDCCallbackResource(Resource):
         location="query",
         unknown=EXCLUDE,
     )
-    def get(self, args):
-        """Handle OIDC callback and create JWT tokens."""
+    def get(self, args, provider_id=None):
+        """Handle OIDC callback and create JWT tokens.
+
+        Args:
+            args: Query parameters
+            provider_id: Provider ID from path parameter (if using path-based route)
+        """
         if not is_oidc_enabled():
             abort_with_message(405, "OIDC authentication is not enabled")
 
-        provider_id = args.get("provider")
+        # Support both path parameter (new, Microsoft-compatible) and query parameter (legacy)
+        provider_id = provider_id or args.get("provider")
+
+        if not provider_id:
+            abort_with_message(400, "Provider ID is required")
 
         # Validate provider is available
         available_providers = get_available_oidc_providers()
