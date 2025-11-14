@@ -211,7 +211,8 @@ paths:
     get:
       tags:
       - authentication
-      summary: "Handle OIDC callback and create JWT tokens."
+      summary: "Handle OIDC callback and create JWT tokens (legacy query parameter format)."
+      description: "Legacy endpoint for backwards compatibility. New deployments should use /oidc/callback/{provider_id} instead."
       operationId: oidcCallback
       parameters:
       - name: provider
@@ -220,6 +221,55 @@ paths:
         type: string
         description: "The OIDC provider ID"
         example: "google"
+      - name: code
+        in: query
+        required: false
+        type: string
+        description: "Authorization code from OIDC provider"
+      - name: state
+        in: query
+        required: false
+        type: string
+        description: "State parameter from OIDC provider"
+      - name: session_state
+        in: query
+        required: false
+        type: string
+        description: "Session state parameter from OIDC provider"
+      - name: error
+        in: query
+        required: false
+        type: string
+        description: "Error parameter from OIDC provider"
+      - name: error_description
+        in: query
+        required: false
+        type: string
+        description: "Error description from OIDC provider"
+      responses:
+        302:
+          description: "Redirect: Redirects to frontend with JWT tokens."
+        400:
+          description: "Bad Request: Invalid provider or authentication error."
+        405:
+          description: "Method Not Allowed: OIDC authentication is not enabled."
+        500:
+          description: "Internal Server Error: OIDC client error."
+
+  /oidc/callback/{provider_id}:
+    get:
+      tags:
+      - authentication
+      summary: "Handle OIDC callback and create JWT tokens (path parameter format)."
+      description: "Path-based endpoint compatible with providers that disallow query parameters in redirect URIs. This is the preferred format for new deployments."
+      operationId: oidcCallbackProvider
+      parameters:
+      - name: provider_id
+        in: path
+        required: true
+        type: string
+        description: "The OIDC provider ID (e.g., 'google', 'microsoft', 'github')"
+        example: "microsoft"
       - name: code
         in: query
         required: false

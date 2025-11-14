@@ -168,6 +168,11 @@ register_endpt(TokenCreateOwnerResource, "/token/create_owner/", "token_create_o
 # OIDC
 register_endpt(OIDCLoginResource, "/oidc/login/", "oidcloginresource")
 register_endpt(OIDCCallbackResource, "/oidc/callback/", "oidccallbackresource")
+register_endpt(
+    OIDCCallbackResource,
+    "/oidc/callback/<string:provider_id>",
+    "oidccallbackresource_provider",
+)
 register_endpt(OIDCConfigResource, "/oidc/config/", "oidcconfigresource")
 register_endpt(OIDCTokenExchangeResource, "/oidc/tokens/", "oidctokenexchangeresource")
 register_endpt(OIDCLogoutResource, "/oidc/logout/", "oidclogoutresource")
