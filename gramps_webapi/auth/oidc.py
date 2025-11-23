@@ -273,8 +273,11 @@ def create_or_update_oidc_user(
     username_claim = provider_config.get("username_claim", "preferred_username")
     display_username = userinfo.get(username_claim) or userinfo.get("sub")
 
-    role_claim = current_app.config.get("OIDC_ROLE_CLAIM", "groups")
-    role_from_claims = get_role_from_claims(userinfo, role_claim)
+    # Role mapping only applies to custom provider
+    role_from_claims = None
+    if provider_id == PROVIDER_CUSTOM:
+        role_claim = current_app.config.get("OIDC_ROLE_CLAIM", "groups")
+        role_from_claims = get_role_from_claims(userinfo, role_claim)
 
     # Step 1: Check if OIDC account association already exists
     existing_user_id = get_oidc_account(provider_id, subject_id)
@@ -286,7 +289,7 @@ def create_or_update_oidc_user(
         # Get the existing username and update user info if needed
         existing_username = get_name(existing_user_id)
 
-        # Only update role if role mapping is configured
+        # Only update role if role mapping is configured (custom provider only)
         if role_from_claims is not None:
             modify_user(
                 name=existing_username,
@@ -296,7 +299,7 @@ def create_or_update_oidc_user(
                 tree=tree,
             )
         else:
-            # Preserve existing role when no role mapping is configured
+            # Preserve existing role when no role mapping is configured or for built-in providers
             modify_user(
                 name=existing_username,
                 fullname=full_name,
@@ -325,7 +328,8 @@ def create_or_update_oidc_user(
 
     random_password = secrets.token_urlsafe(32)
 
-    # For new users, use role from claims if available, otherwise default to DISABLED
+    # For new users, use role from claims if available (custom provider only),
+    # otherwise default to DISABLED
     final_role = role_from_claims if role_from_claims is not None else ROLE_DISABLED
 
     add_user(
