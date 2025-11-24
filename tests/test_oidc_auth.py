@@ -372,7 +372,7 @@ class TestCreateOrUpdateOidcUser:
     def test_existing_user_with_role_mapping(
         self, mock_get_config, mock_modify, mock_get_name, mock_get_oidc
     ):
-        """Test updating an existing OIDC user with role mapping."""
+        """Test updating an existing OIDC user with role mapping (custom provider only)."""
         # Mock existing OIDC account
         mock_get_oidc.return_value = "existing-user-guid"
         mock_get_name.return_value = "testuser"
@@ -391,13 +391,18 @@ class TestCreateOrUpdateOidcUser:
         }
 
         mock_app = MagicMock()
-        mock_app.config.get.return_value = "groups"
+        mock_app.config.get.side_effect = lambda key, default="": {
+            "OIDC_ROLE_CLAIM": "groups",
+            "OIDC_GROUP_EDITOR": "editor-group",
+            "OIDC_GROUP_ADMIN": "",
+            "OIDC_GROUP_OWNER": "",
+            "OIDC_GROUP_CONTRIBUTOR": "",
+            "OIDC_GROUP_MEMBER": "",
+            "OIDC_GROUP_GUEST": "",
+        }.get(key, default)
 
         with patch("gramps_webapi.auth.oidc.current_app", mock_app):
-            with patch(
-                "gramps_webapi.auth.oidc.get_role_from_claims", return_value=ROLE_EDITOR
-            ):
-                result = create_or_update_oidc_user(userinfo, "test_tree", "google")
+            result = create_or_update_oidc_user(userinfo, "test_tree", PROVIDER_CUSTOM)
 
         assert result == "existing-user-guid"
         mock_modify.assert_called_once_with(
