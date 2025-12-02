@@ -595,6 +595,128 @@ class TestFilterEventsTool(unittest.TestCase):
                 f"Result should contain event links but got: {result[:300]}",
             )
 
+    def test_filter_by_event_type_occupation(self):
+        """Test filtering by Occupation event type."""
+        result = self._filter_events(event_type="Occupation")
+        self.assertNotIn("Error", result)
+        # If occupations exist, should return data; if not, should say so clearly
+
+    def test_filter_births_in_1850(self):
+        """Test: 'births in 1850'"""
+        result = self._filter_events(
+            event_type="Birth", date_after="1850", date_before="1850"
+        )
+        self.assertNotIn("Error", result)
+        # Should find births in 1850 or explicitly say none found
+        if "No events found" not in result:
+            self.assertIn("Birth", result)
+            self.assertGreater(len(result), 200, "Should return meaningful birth data")
+
+    def test_filter_marriages_in_1800s(self):
+        """Test: 'marriages in the 1800s'"""
+        result = self._filter_events(
+            event_type="Marriage", date_after="1800", date_before="1899"
+        )
+        self.assertNotIn("Error", result)
+        # Large date range should find some marriages
+        if "No events found" not in result:
+            self.assertIn("Marriage", result)
+            self.assertGreater(len(result), 200)
+
+    def test_filter_deaths_1890_to_1895(self):
+        """Test: 'deaths between 1890 and 1895'"""
+        result = self._filter_events(
+            event_type="Death", date_after="1890", date_before="1895"
+        )
+        self.assertNotIn("Error", result)
+        # This range had 61+ events in db, should find deaths
+        if "No events found" not in result:
+            self.assertIn("Death", result)
+            self.assertGreater(len(result), 200)
+
+    def test_filter_events_after_1900(self):
+        """Test: 'events after 1900'"""
+        result = self._filter_events(date_after="1900")
+        self.assertNotIn("Error", result)
+        # Should find some events after 1900
+        self.assertNotIn(
+            "No events found", result, "Database should have events after 1900"
+        )
+        self.assertGreater(len(result), 200)
+
+    def test_filter_events_before_1800(self):
+        """Test: 'events before 1800'"""
+        result = self._filter_events(date_before="1800")
+        self.assertNotIn("Error", result)
+        # May or may not have events before 1800
+
+
+class TestFilterPeopleRealWorldQueries(unittest.TestCase):
+    """Test filter_people with real-world query patterns."""
+
+    def setUp(self):
+        self.ctx = MagicMock()
+        self.ctx.deps = AgentDeps(
+            tree=TEST_TREE,
+            include_private=True,
+            max_context_length=100000,
+            user_id="test_user",
+        )
+
+    def _filter_people(self, **kwargs):
+        """Helper to call filter_people with test context."""
+        with TEST_APP.app_context():
+            return filter_people(self.ctx, **kwargs)
+
+    def test_find_surname_smith(self):
+        """Test: 'people with surname Smith'"""
+        result = self._filter_people(surname="Smith")
+        self.assertNotIn("Error", result)
+        # May or may not have Smiths
+
+    def test_born_before_1900(self):
+        """Test: 'people born before 1900'"""
+        result = self._filter_people(birth_year_before="1900")
+        self.assertNotIn("Error", result)
+        # Should definitely find people born before 1900
+        self.assertNotIn(
+            "No people found", result, "Database should have people born before 1900"
+        )
+        self.assertGreater(len(result), 200)
+        self.assertIn("/person/", result, "Should contain person links")
+
+    def test_born_between_1850_1900(self):
+        """Test: 'people born between 1850-1900'"""
+        result = self._filter_people(birth_year_after="1850", birth_year_before="1900")
+        self.assertNotIn("Error", result)
+        # Should find people in this range
+        self.assertNotIn(
+            "No people found", result, "Database should have people born 1850-1900"
+        )
+        self.assertGreater(len(result), 200)
+
+    def test_male_ancestors(self):
+        """Test: 'male ancestors of person I0044'"""
+        result = self._filter_people(ancestor_of="I0044", is_male=True)
+        self.assertNotIn("Error", result)
+        # I0044 should have some male ancestors
+        if "No people found" not in result:
+            self.assertGreater(len(result), 100)
+
+    def test_alive_in_1880(self):
+        """Test: 'who was alive in 1880'"""
+        result = self._filter_people(probably_alive_on_date="1880-01-01")
+        self.assertNotIn("Error", result)
+        # Should find people alive in 1880
+        if "No people found" not in result:
+            self.assertGreater(len(result), 100)
+
+    def test_born_in_massachusetts(self):
+        """Test: 'births in Massachusetts'"""
+        result = self._filter_people(birth_place="Massachusetts")
+        self.assertNotIn("Error", result)
+        # May or may not have Massachusetts births
+
 
 if __name__ == "__main__":
     unittest.main()
