@@ -45,14 +45,7 @@ def log_tool_call(func):
 
 @log_tool_call
 def get_current_date(_ctx: RunContext[AgentDeps]) -> str:
-    """Get the current date.
-
-    Use this tool when you need to know today's date or the current time.
-    This is helpful for date-related queries or calculating time periods.
-
-    Returns:
-        The current date in ISO format (YYYY-MM-DD).
-    """
+    """Returns today's date in ISO format (YYYY-MM-DD)."""
     logger = get_logger()
 
     result = datetime.now().date().isoformat()
@@ -64,18 +57,14 @@ def get_current_date(_ctx: RunContext[AgentDeps]) -> str:
 def search_genealogy_database(
     ctx: RunContext[AgentDeps], query: str, max_results: int = 20
 ) -> str:
-    """Search the genealogy database for relevant information.
-
-    Use this tool to find information about people, families, events, places,
-    or any other genealogical data in the user's family tree. The search uses
-    semantic similarity to find the most relevant results.
+    """Searches the user's family tree using semantic similarity.
 
     Args:
-        query: The search query describing what information you're looking for
-        max_results: Maximum number of results to return (default: 20, max: 50)
+        query: Search query for genealogical information
+        max_results: Maximum results to return (default: 20, max: 50)
 
     Returns:
-        A formatted string containing the search results with relevant genealogical data.
+        Formatted genealogical data including people, families, events, and places.
     """
 
     logger = get_logger()
