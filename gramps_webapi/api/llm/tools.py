@@ -54,7 +54,6 @@ def get_current_date(_ctx: RunContext[AgentDeps]) -> str:
         The current date in ISO format (YYYY-MM-DD).
     """
     logger = get_logger()
-    logger.debug("Tool called: get_current_date")
 
     result = datetime.now().date().isoformat()
     logger.debug("Tool get_current_date returned: %s", result)
@@ -80,11 +79,6 @@ def search_genealogy_database(
     """
 
     logger = get_logger()
-    logger.debug(
-        "Tool called: search_genealogy_database(query=%r, max_results=%d)",
-        query,
-        max_results,
-    )
 
     # Limit max_results to reasonable bounds
     max_results = min(max(1, max_results), 50)
