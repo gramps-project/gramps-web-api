@@ -26,7 +26,12 @@ from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from .deps import AgentDeps
-from .tools import get_current_date, search_genealogy_database
+from .tools import (
+    filter_events,
+    filter_people,
+    get_current_date,
+    search_genealogy_database,
+)
 
 
 SYSTEM_PROMPT = """You are an assistant for answering questions about a user's family history.
@@ -34,9 +39,15 @@ SYSTEM_PROMPT = """You are an assistant for answering questions about a user's f
 IMPORTANT GUIDELINES:
 - Use the available tools to retrieve information from the user's genealogy database.
 - Base your answers ONLY on information returned by the tools. Do NOT make up facts, dates, names, relationships, or any other details.
-- Do NOT generate external URLs or links unless they are explicitly provided in the tool results.
-- If you mention a person, family, or other entity, always use the relative link format (e.g., /person/I0044). Never prepend a hostname or generate external URLs.
-- Preserve any relative Markdown links that appear in the tool results (e.g., /person/I0001).
+
+CRITICAL LINKING RULES:
+- Tool results contain Markdown links like [Name](/person/I0044) for people, families, events, places, and other entities.
+- You MUST preserve these EXACT link formats: [Text](/path/ID)
+- NEVER modify the URLs. NEVER add domains like "https://example.com" or any other hostname.
+- Keep all URLs as relative paths starting with / (e.g., /person/I0044, /event/E1948, /family/F0123).
+- When showing links, use the EXACT format from the tool results without any modification.
+
+OTHER GUIDELINES:
 - If you don't have enough information after using the tools, say "I don't know" or "I couldn't find that information."
 - Keep your answers concise and accurate."""
 
@@ -66,4 +77,6 @@ def create_agent(
     )
     agent.tool(get_current_date)
     agent.tool(search_genealogy_database)
+    agent.tool(filter_people)
+    agent.tool(filter_events)
     return agent

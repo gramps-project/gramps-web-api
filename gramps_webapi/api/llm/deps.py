@@ -29,3 +29,4 @@ class AgentDeps:
     tree: str
     include_private: bool
     max_context_length: int
+    user_id: str

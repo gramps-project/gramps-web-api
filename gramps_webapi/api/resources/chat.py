@@ -19,6 +19,7 @@
 
 """AI chat endpoint."""
 
+from flask_jwt_extended import get_jwt_identity
 from marshmallow import Schema
 from webargs import fields
 
@@ -59,10 +60,12 @@ class ChatResource(ProtectedResource):
         tree = get_tree_from_jwt()
 
         try:
+            user_id = get_jwt_identity()
             response = answer_with_agent(
                 prompt=args["query"],
                 tree=tree,
                 include_private=has_permissions({PERM_VIEW_PRIVATE}),
+                user_id=user_id,
                 history=args.get("history"),
             )
         except ValueError as e:
