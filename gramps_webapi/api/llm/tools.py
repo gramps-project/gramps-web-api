@@ -669,7 +669,7 @@ def filter_people(
             if db_handle is not None:
                 try:
                     db_handle.close()
-                except:  # pylint: disable=bare-except
+                except Exception:  # pylint: disable=broad-except
                     pass
             return f"Error filtering people: {str(e)}"
 
