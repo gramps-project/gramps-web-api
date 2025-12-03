@@ -749,16 +749,16 @@ def filter_events(
             }
         )
 
-        if participant_id:
-            person_filter_rules = [{"name": "HasIdOf", "values": [participant_id]}]
-            person_filter_json = json.dumps({"rules": person_filter_rules})
+    if participant_id:
+        person_filter_rules = [{"name": "HasIdOf", "values": [participant_id]}]
+        person_filter_json = json.dumps({"rules": person_filter_rules})
 
-            rules.append(
-                {
-                    "name": "MatchesPersonFilter",
-                    "values": [person_filter_json, "1" if participant_role else "0"],
-                }
-            )
+        rules.append(
+            {
+                "name": "MatchesPersonFilter",
+                "values": [person_filter_json, "1" if participant_role else "0"],
+            }
+        )
 
     if not rules:
         return (
