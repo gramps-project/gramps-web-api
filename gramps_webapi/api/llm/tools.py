@@ -730,10 +730,7 @@ def filter_events(
 
     rules: list[dict[str, Any]] = []
 
-    if event_type:
-        rules.append({"name": "HasType", "values": [event_type]})
-
-    if date_before or date_after or place or description_contains:
+    if event_type or date_before or date_after or place or description_contains:
         date_expr = _build_date_expression(before=date_before, after=date_after)
         rules.append(
             {
