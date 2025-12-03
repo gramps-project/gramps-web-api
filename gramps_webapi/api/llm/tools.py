@@ -271,7 +271,7 @@ def _apply_gramps_filter(
         if db_handle is not None:
             try:
                 db_handle.close()
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=broad-except
                 pass
         return f"Error filtering {namespace.lower()}s: {str(e)}"
 
