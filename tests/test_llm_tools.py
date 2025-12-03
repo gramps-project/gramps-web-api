@@ -363,6 +363,33 @@ class TestFilterPeopleTool(unittest.TestCase):
                 "Should handle invalid ID gracefully",
             )
 
+    def test_filter_with_relationship_display(self):
+        """Test filtering with show_relation_with to display relationships."""
+        # Find ancestors of Lewis Anderson Garner (I0044) and show their relationship to him
+        result = self._filter_people(
+            ancestor_of="I0044", ancestor_generations=2, show_relation_with="I0044"
+        )
+
+        self.assertNotIn("Error", result)
+        # Should contain relationship markers like [father], [mother], [grandfather], etc.
+        # The exact relationships depend on the data, but we should see brackets
+        if "No people found" not in result:
+            # At least one relationship should be shown with brackets
+            self.assertTrue(
+                "[" in result and "]" in result,
+                "Should contain relationship markers in brackets",
+            )
+
+    def test_filter_with_relationship_display_invalid_anchor(self):
+        """Test show_relation_with with invalid anchor person ID."""
+        # Should handle gracefully even if anchor person doesn't exist
+        result = self._filter_people(
+            ancestor_of="I0044", ancestor_generations=2, show_relation_with="INVALID"
+        )
+
+        # Should still return results, just without relationship prefixes
+        self.assertNotIn("Error", result)
+
 
 class TestFilterEventsTool(unittest.TestCase):
     """Test cases for the filter_events tool."""

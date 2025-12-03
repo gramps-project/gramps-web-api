@@ -29,6 +29,7 @@ from typing import Any
 from pydantic_ai import RunContext
 
 from ..resources.filters import apply_filter
+from ..resources.util import get_one_relationship
 from ..search import get_semantic_search_indexer
 from ..search.text import obj_strings_from_object
 from ..util import get_db_outside_request, get_logger
@@ -57,12 +58,46 @@ def _build_date_expression(before: str, after: str) -> str:
     return ""
 
 
+def _get_relationship_prefix(db_handle, anchor_person, result_person, logger) -> str:
+    """Get a relationship string prefix for a result person.
+
+    Args:
+        db_handle: Database handle
+        anchor_person: The Person object to calculate relationship from
+        result_person: The Person object to calculate relationship to
+        logger: Logger instance
+
+    Returns:
+        A formatted relationship prefix like "[grandfather] " or empty string
+    """
+    try:
+        rel_string, dist_orig, dist_other = get_one_relationship(
+            db_handle=db_handle,
+            person1=anchor_person,
+            person2=result_person,
+            depth=10,
+        )
+        if rel_string and rel_string.lower() not in ["", "self"]:
+            return f"[{rel_string}] "
+        elif dist_orig == 0 and dist_other == 0:
+            return "[self] "
+    except Exception as e:  # pylint: disable=broad-except
+        logger.warning(
+            "Error calculating relationship between %s and %s: %s",
+            anchor_person.gramps_id,
+            result_person.gramps_id,
+            e,
+        )
+    return ""
+
+
 def _apply_gramps_filter(
     ctx: RunContext[AgentDeps],
     namespace: str,
     rules: list[dict[str, Any]],
     max_results: int,
     empty_message: str = "No results found matching the filter criteria.",
+    show_relation_with: str = "",
 ) -> str:
     """Apply a Gramps filter and return formatted results.
 
@@ -73,6 +108,7 @@ def _apply_gramps_filter(
     - Context length limiting
     - Truncation messages
     - Error handling
+    - Optional relationship calculation
 
     Args:
         ctx: The Pydantic AI run context with dependencies
@@ -80,6 +116,7 @@ def _apply_gramps_filter(
         rules: List of filter rule dictionaries
         max_results: Maximum number of results to return (already validated)
         empty_message: Message to return when no results found
+        show_relation_with: Gramps ID of anchor person for relationship calculation (Person namespace only)
 
     Returns:
         Formatted string with matching objects or error message
@@ -123,6 +160,21 @@ def _apply_gramps_filter(
         max_length = ctx.deps.max_context_length
         current_length = 0
 
+        # Get the anchor person for relationship calculation if requested
+        anchor_person = None
+        if show_relation_with and namespace == "Person":
+            try:
+                anchor_person = db_handle.get_person_from_gramps_id(show_relation_with)
+                if not anchor_person:
+                    logger.warning(
+                        "Anchor person %s not found for relationship calculation",
+                        show_relation_with,
+                    )
+            except Exception as e:  # pylint: disable=broad-except
+                logger.warning(
+                    "Error fetching anchor person %s: %s", show_relation_with, e
+                )
+
         # Get the appropriate method to fetch objects
         get_method_name = f"get_{namespace.lower()}_from_handle"
         get_method = getattr(db_handle, get_method_name)
@@ -153,6 +205,13 @@ def _apply_gramps_filter(
 
                 if not content:
                     continue
+
+                # Add relationship prefix if anchor person is set
+                if anchor_person and namespace == "Person":
+                    rel_prefix = _get_relationship_prefix(
+                        db_handle, anchor_person, obj, logger
+                    )
+                    content = rel_prefix + content
 
                 if current_length + len(content) > max_length:
                     logger.debug(
@@ -310,8 +369,13 @@ def filter_people(
     degrees_of_separation: int = 2,
     combine_filters: str = "and",
     max_results: int = 50,
+    show_relation_with: str = "",
 ) -> str:
     """Filters people in the family tree based on simple criteria.
+
+    IMPORTANT: When filtering by relationships (ancestor_of, descendant_of, degrees_of_separation_from),
+    ALWAYS set show_relation_with to the same Gramps ID to get relationship labels in results.
+    Without it, you cannot determine specific relationships like "grandfather" vs "father".
 
     Args:
         given_name: Given/first name to search for (partial match)
@@ -336,6 +400,8 @@ def filter_people(
             first cousin=4, brother-in-law=2
         combine_filters: How to combine multiple filters: "and" (default) or "or"
         max_results: Maximum results to return (default: 50, max: 100)
+        show_relation_with: Gramps ID of person to show relationships relative to (e.g., "I0044").
+            When set, each result will include the relationship to this anchor person.
 
     Returns:
         Formatted list of people matching the filter criteria.
@@ -344,10 +410,11 @@ def filter_people(
         - Find people with surname Smith: surname="Smith"
         - Find people born before 1900: birth_year_before="1900"
         - Find people born between 1850-1900: birth_year_after="1850", birth_year_before="1900"
-        - Find male ancestors: ancestor_of="I0044", is_male=True
         - Find who was alive in 1880: probably_alive_on_date="1880-01-01"
         - Find cousins: has_common_ancestor_with="I0044"
-        - Find close relatives (parents, siblings, grandparents, spouses): degrees_of_separation_from="I0044", degrees_of_separation=2
+        - Find someone's parents (with labels): ancestor_of="I0044", ancestor_generations=1, show_relation_with="I0044"
+        - Find someone's grandfathers (with labels): ancestor_of="I0044", ancestor_generations=2, is_male=True, show_relation_with="I0044"
+        - Find siblings (with labels): degrees_of_separation_from="I0044", degrees_of_separation=2, show_relation_with="I0044"
         - Find extended family (uncles, aunts): degrees_of_separation_from="I0044", degrees_of_separation=3
     """
     logger = get_logger()
@@ -376,7 +443,7 @@ def filter_people(
         rules.append(
             {
                 "name": "IsLessThanNthGenerationAncestorOf",
-                "values": [ancestor_of, str(ancestor_generations)],
+                "values": [ancestor_of, str(ancestor_generations + 1)],
             }
         )
 
@@ -384,7 +451,7 @@ def filter_people(
         rules.append(
             {
                 "name": "IsLessThanNthGenerationDescendantOf",
-                "values": [descendant_of, str(descendant_generations)],
+                "values": [descendant_of, str(descendant_generations + 1)],
             }
         )
 
@@ -472,6 +539,23 @@ def filter_people(
             max_length = ctx.deps.max_context_length
             current_length = 0
 
+            # Get the anchor person for relationship calculation if requested
+            anchor_person = None
+            if show_relation_with:
+                try:
+                    anchor_person = db_handle.get_person_from_gramps_id(
+                        show_relation_with
+                    )
+                    if not anchor_person:
+                        logger.warning(
+                            "Anchor person %s not found for relationship calculation",
+                            show_relation_with,
+                        )
+                except Exception as e:  # pylint: disable=broad-except
+                    logger.warning(
+                        "Error fetching anchor person %s: %s", show_relation_with, e
+                    )
+
             for handle in matching_handles:
                 try:
                     person = db_handle.get_person_from_handle(handle)
@@ -492,6 +576,13 @@ def filter_people(
                             if ctx.deps.include_private
                             else obj_dict["string_public"]
                         )
+
+                        # Add relationship prefix if anchor person is set
+                        if anchor_person:
+                            rel_prefix = _get_relationship_prefix(
+                                db_handle, anchor_person, person, logger
+                            )
+                            content = rel_prefix + content
 
                         if current_length + len(content) > max_length:
                             logger.debug(
@@ -548,6 +639,7 @@ def filter_people(
         rules=rules,
         max_results=max_results,
         empty_message="No people found matching the filter criteria.",
+        show_relation_with=show_relation_with,
     )
 
 
