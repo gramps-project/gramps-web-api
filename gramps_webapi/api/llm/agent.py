@@ -68,12 +68,14 @@ OTHER GUIDELINES:
 def create_agent(
     model_name: str,
     base_url: str | None = None,
+    system_prompt_override: str | None = None,
 ) -> Agent[AgentDeps, str]:
     """Create a Pydantic AI agent with the specified model.
 
     Args:
         model_name: The name of the LLM model to use
         base_url: Optional base URL for the OpenAI-compatible API
+        system_prompt_override: Optional override for the system prompt
 
     Returns:
         A configured Pydantic AI agent
@@ -83,10 +85,13 @@ def create_agent(
         model_name,
         provider=provider,
     )
+
+    system_prompt = system_prompt_override or SYSTEM_PROMPT
+
     agent = Agent(
         model,
         deps_type=AgentDeps,
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=system_prompt,
     )
     agent.tool(get_current_date)
     agent.tool(search_genealogy_database)

@@ -50,12 +50,17 @@ def answer_with_agent(
     model_name = config.get("LLM_MODEL")
     base_url = config.get("LLM_BASE_URL")
     max_context_length = config.get("LLM_MAX_CONTEXT_LENGTH", 50000)
+    system_prompt_override = config.get("LLM_SYSTEM_PROMPT")
 
     if not model_name:
         raise ValueError("No LLM model specified")
 
     # Create agent
-    agent = create_agent(model_name=model_name, base_url=base_url)
+    agent = create_agent(
+        model_name=model_name,
+        base_url=base_url,
+        system_prompt_override=system_prompt_override,
+    )
 
     # Create dependencies
     deps = AgentDeps(
