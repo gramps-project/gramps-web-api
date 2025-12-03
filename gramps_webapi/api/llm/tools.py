@@ -726,8 +726,6 @@ def filter_events(
         - "events before 1900": filter_events(date_before="1900")
         - "events for person I0044": filter_events(participant_id="I0044")
     """
-    logger = get_logger()
-
     max_results = min(max(1, max_results), 100)
 
     rules: list[dict[str, Any]] = []
