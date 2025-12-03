@@ -158,6 +158,7 @@ def _apply_gramps_filter(
 
         context_parts: list[str] = []
         max_length = ctx.deps.max_context_length
+        per_item_max = 10000  # Maximum chars per individual item (prevents one huge note from blocking all results)
         current_length = 0
 
         # Get the anchor person for relationship calculation if requested
@@ -213,6 +214,20 @@ def _apply_gramps_filter(
                     )
                     content = rel_prefix + content
 
+                # Truncate individual items if they're too long
+                if len(content) > per_item_max:
+                    content = (
+                        content[:per_item_max]
+                        + "\n\n[Content truncated due to length...]"
+                    )
+                    logger.debug(
+                        "Truncated %s content from %d to %d chars",
+                        namespace,
+                        len(content) - per_item_max,
+                        per_item_max,
+                    )
+
+                # Check if adding this item would exceed total limit
                 if current_length + len(content) > max_length:
                     logger.debug(
                         "Reached max context length (%d chars), stopping at %d results",
@@ -318,10 +333,23 @@ def search_genealogy_database(
 
         context_parts: list[str] = []
         max_length = ctx.deps.max_context_length
+        per_item_max = 10000  # Maximum chars per individual item
         current_length = 0
 
         for hit in hits:
             content = hit.get("content", "")
+
+            # Truncate individual items if they're too long
+            if len(content) > per_item_max:
+                content = (
+                    content[:per_item_max] + "\n\n[Content truncated due to length...]"
+                )
+                logger.debug(
+                    "Truncated search result from %d to %d chars",
+                    len(content) - per_item_max,
+                    per_item_max,
+                )
+
             if current_length + len(content) > max_length:
                 logger.debug(
                     "Reached max context length (%d chars), stopping at %d results",
@@ -537,6 +565,7 @@ def filter_people(
 
             context_parts: list[str] = []
             max_length = ctx.deps.max_context_length
+            per_item_max = 10000  # Maximum chars per individual item
             current_length = 0
 
             # Get the anchor person for relationship calculation if requested
@@ -583,6 +612,18 @@ def filter_people(
                                 db_handle, anchor_person, person, logger
                             )
                             content = rel_prefix + content
+
+                        # Truncate individual items if they're too long
+                        if len(content) > per_item_max:
+                            content = (
+                                content[:per_item_max]
+                                + "\n\n[Content truncated due to length...]"
+                            )
+                            logger.debug(
+                                "Truncated Person content from %d to %d chars",
+                                len(content) - per_item_max,
+                                per_item_max,
+                            )
 
                         if current_length + len(content) > max_length:
                             logger.debug(
