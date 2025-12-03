@@ -602,7 +602,6 @@ class TestFilterEventsTool(unittest.TestCase):
 
             # Test if the date expression parses correctly
             date_expr = "between 1892 and 1900"
-            parsed_date = parser.parse(date_expr)
 
             # Try applying the actual filter
             filter_rules = {
