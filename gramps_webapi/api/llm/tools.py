@@ -306,6 +306,8 @@ def filter_people(
     is_female: bool = False,
     probably_alive_on_date: str = "",
     has_common_ancestor_with: str = "",
+    degrees_of_separation_from: str = "",
+    degrees_of_separation: int = 2,
     combine_filters: str = "and",
     max_results: int = 50,
 ) -> str:
@@ -328,6 +330,10 @@ def filter_people(
         is_female: Filter to only females (True/False)
         probably_alive_on_date: Date to check if person was likely alive (YYYY-MM-DD)
         has_common_ancestor_with: Gramps ID to find people sharing an ancestor (e.g., "I0044")
+        degrees_of_separation_from: Gramps ID of person to find relatives connected to (e.g., "I0044")
+        degrees_of_separation: Maximum relationship path length (default: 2). Each parent-child
+            or spousal connection counts as 1. Examples: sibling=2, grandparent=2, uncle=3,
+            first cousin=4, brother-in-law=2
         combine_filters: How to combine multiple filters: "and" (default) or "or"
         max_results: Maximum results to return (default: 50, max: 100)
 
@@ -341,6 +347,8 @@ def filter_people(
         - Find male ancestors: ancestor_of="I0044", is_male=True
         - Find who was alive in 1880: probably_alive_on_date="1880-01-01"
         - Find cousins: has_common_ancestor_with="I0044"
+        - Find close relatives (parents, siblings, grandparents, spouses): degrees_of_separation_from="I0044", degrees_of_separation=2
+        - Find extended family (uncles, aunts): degrees_of_separation_from="I0044", degrees_of_separation=3
     """
     logger = get_logger()
 
@@ -384,6 +392,28 @@ def filter_people(
         rules.append(
             {"name": "HasCommonAncestorWith", "values": [has_common_ancestor_with]}
         )
+
+    if degrees_of_separation_from:
+        # Check if DegreesOfSeparation filter is available (from FilterRules addon)
+        from ..resources.filters import get_rule_list
+
+        available_rules = [rule.__name__ for rule in get_rule_list("Person")]  # type: ignore
+        if "DegreesOfSeparation" in available_rules:
+            rules.append(
+                {
+                    "name": "DegreesOfSeparation",
+                    "values": [degrees_of_separation_from, str(degrees_of_separation)],
+                }
+            )
+        else:
+            logger.warning(
+                "DegreesOfSeparation filter not available. "
+                "Install FilterRules addon to use this feature."
+            )
+            return (
+                "DegreesOfSeparation filter is not available. "
+                "The FilterRules addon must be installed to use this feature."
+            )
 
     if is_male:
         rules.append({"name": "IsMale", "values": []})

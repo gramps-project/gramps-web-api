@@ -7,6 +7,13 @@ set -e
 pip install -r requirements-dev.txt
 pip install -e .[ai]
 
+# Copy Gramps addons from build location to runtime location
+mkdir -p /workspaces/web-api/data/gramps/gramps60/plugins
+if [ -d /home/vscode/gramps/gramps60/plugins ] && [ "$(ls -A /home/vscode/gramps/gramps60/plugins)" ]; then
+    echo "Copying Gramps addons to runtime location..."
+    cp -rn /home/vscode/gramps/gramps60/plugins/* /workspaces/web-api/data/gramps/gramps60/plugins/
+fi
+
 mkdir -p /workspaces/web-api/data/grampsdb
 # Check if the grampsdb directory is empty
 if [ -z "$(ls -A /workspaces/web-api/data/grampsdb)" ]; then

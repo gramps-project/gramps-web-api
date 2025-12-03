@@ -326,6 +326,43 @@ class TestFilterPeopleTool(unittest.TestCase):
 
         self.assertNotIn("Error", result)
 
+    def test_filter_degrees_of_separation(self):
+        """Test filtering by degrees of separation."""
+        result = self._filter_people(
+            degrees_of_separation_from="I0552", degrees_of_separation=2
+        )
+
+        # Filter may not be available if FilterRules addon is not installed
+        if "not available" in result:
+            self.assertIn("FilterRules addon", result)
+        else:
+            self.assertNotIn("Error", result)
+            # Should return people within 2 degrees of separation from I0552
+            self.assertGreater(len(result), 0, "Should find relatives within 2 degrees")
+
+    def test_filter_degrees_of_separation_with_gender(self):
+        """Test degrees of separation combined with gender filter."""
+        result = self._filter_people(
+            degrees_of_separation_from="I0044", degrees_of_separation=3, is_male=True
+        )
+
+        # Filter may not be available if FilterRules addon is not installed
+        if "not available" not in result:
+            self.assertNotIn("Error", result)
+
+    def test_filter_degrees_of_separation_invalid_id(self):
+        """Test degrees of separation with invalid Gramps ID."""
+        result = self._filter_people(
+            degrees_of_separation_from="INVALID", degrees_of_separation=2
+        )
+
+        # Should return no results, error gracefully, or report filter not available
+        if "not available" not in result:
+            self.assertTrue(
+                "No people found" in result or "Error" not in result,
+                "Should handle invalid ID gracefully",
+            )
+
 
 class TestFilterEventsTool(unittest.TestCase):
     """Test cases for the filter_events tool."""
