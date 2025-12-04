@@ -82,7 +82,6 @@ def answer_with_agent(
                 message_history.append(
                     ModelResponse(
                         parts=[TextPart(content=message["message"])],
-                        timestamp=datetime.now(),
                     )
                 )
             elif role != "error":  # skip error messages
