@@ -638,3 +638,25 @@ def send_telemetry_task(tree: str):
     # if the request fails, an exception will be raised
     send_telemetry(data=data)
     update_telemetry_timestamp()
+
+
+@shared_task()
+def process_chat(
+    tree: str,
+    user_id: str,
+    query: str,
+    include_private: bool,
+    history: list | None = None,
+) -> dict:
+    """Process a chat query with the AI agent."""
+    # import here to avoid error if AI dependencies are not installed
+    from gramps_webapi.api.llm import answer_with_agent
+
+    response = answer_with_agent(
+        prompt=query,
+        tree=tree,
+        include_private=include_private,
+        user_id=user_id,
+        history=history,
+    )
+    return {"response": response}

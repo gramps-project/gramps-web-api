@@ -6680,32 +6680,64 @@ paths:
 ##############################################################################
 
   /chat:
-    get:
+    post:
       tags:
       - chat
       summary: "Answer a chat prompt."
       operationId: completeChat
       security:
         - Bearer: []
+      consumes:
+        - application/json
       parameters:
-      - name: query
-        in: query
-        required: true
-        type: string
-        description: "The query prompt."
-      - name: history
-        in: query
-        required: false
-        type: string
-        description: >
-          An optional JSON object with a history of chat messages.
-          It should be an array of objects that have two string properties: `role` being one of `human` or `ai`, and `message` being the message content.
-        example: "[{\"role\":\"human\",\"message\":\"Hello AI!\"},{\"role\":\"ai\",\"message\":\"Hello Human!\"}]"
+        - name: background
+          in: query
+          required: false
+          type: boolean
+          default: false
+          description: "If true, the chat will be processed in the background and status 202 will be returned."
+        - in: body
+          name: source
+          description: The chat query and optional history
+          schema:
+            type: object
+            required:
+              - query
+            properties:
+              query:
+                type: string
+                description: "The query prompt."
+              history:
+                type: array
+                description: >
+                  An optional array of chat message objects with a history of the conversation.
+                  Each message object should have `role` (one of 'human', 'ai', 'system', 'assistant', or 'error') and `message` (the message content).
+                items:
+                  type: object
+                  properties:
+                    role:
+                      type: string
+                      description: "The role of the message sender."
+                    message:
+                      type: string
+                      description: "The message content."
+                example:
+                  - role: "human"
+                    message: "Hello AI!"
+                  - role: "ai"
+                    message: "Hello Human!"
       responses:
         200:
           description: "OK: Successful operation."
           schema:
             $ref: "#/definitions/ChatResponse"
+        202:
+          description: "Accepted: chat will be processed in the background."
+          schema:
+            type: object
+            properties:
+              task:
+                $ref: "#/definitions/TaskReference"
         401:
           description: "Unauthorized: Missing authorization header."
         403:

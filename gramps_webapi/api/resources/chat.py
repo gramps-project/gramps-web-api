@@ -24,12 +24,13 @@ from marshmallow import Schema
 from webargs import fields
 
 from ..util import (
-    get_tree_from_jwt,
+    get_tree_from_jwt_or_fail,
     use_args,
     abort_with_message,
     check_quota_ai,
     update_usage_ai,
 )
+from ..tasks import AsyncResult, make_task_response, process_chat, run_task
 from . import ProtectedResource
 from ...auth.const import PERM_USE_CHAT, PERM_VIEW_PRIVATE
 from ..auth import has_permissions, require_permissions
@@ -50,26 +51,44 @@ class ChatResource(ProtectedResource):
         },
         location="json",
     )
-    def post(self, args):
+    @use_args(
+        {
+            "background": fields.Boolean(load_default=False),
+        },
+        location="query",
+    )
+    def post(self, args_json, args_query):
         """Create a chat response."""
         require_permissions({PERM_USE_CHAT})
         check_quota_ai(requested=1)
-        # import here to avoid error if AI dependencies are not installed
-        from gramps_webapi.api.llm import answer_with_agent
+        tree = get_tree_from_jwt_or_fail()
+        user_id = get_jwt_identity()
+        include_private = has_permissions({PERM_VIEW_PRIVATE})
 
-        tree = get_tree_from_jwt()
+        if args_query["background"]:
+            task = run_task(
+                process_chat,
+                tree=tree,
+                user_id=user_id,
+                query=args_json["query"],
+                include_private=include_private,
+                history=args_json.get("history"),
+            )
+            if isinstance(task, AsyncResult):
+                return make_task_response(task)
+            update_usage_ai(new=1)
+            return task, 200
 
         try:
-            user_id = get_jwt_identity()
-            response = answer_with_agent(
-                prompt=args["query"],
+            result = process_chat(
                 tree=tree,
-                include_private=has_permissions({PERM_VIEW_PRIVATE}),
                 user_id=user_id,
-                history=args.get("history"),
+                query=args_json["query"],
+                include_private=include_private,
+                history=args_json.get("history"),
             )
         except ValueError:
             abort_with_message(422, "Invalid message format")
 
         update_usage_ai(new=1)
-        return {"response": response}
+        return result

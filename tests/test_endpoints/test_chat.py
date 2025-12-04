@@ -101,3 +101,39 @@ class TestChat(unittest.TestCase):
         assert rv.status_code == 200
         assert "response" in rv.json
         assert rv.json["response"] == "Pizza of course!"
+
+    @patch("gramps_webapi.api.llm.create_agent")
+    def test_chat_background(self, mock_create_agent):
+        # Mock the agent and its response
+        mock_agent = MagicMock()
+        mock_create_agent.return_value = mock_agent
+
+        # Mock the run_sync result - must match AgentRunResult structure
+        mock_result = MagicMock()
+        mock_result.response.text = "Pizza of course!"
+        mock_agent.run_sync.return_value = mock_result
+
+        header = fetch_header(self.client, empty_db=True)
+
+        # Set up permissions to allow AI chat for owner
+        rv = self.client.get("/api/trees/", headers=header)
+        assert rv.status_code == 200
+        tree_id = rv.json[0]["id"]
+        rv = self.client.put(
+            f"/api/trees/{tree_id}", json={"min_role_ai": ROLE_OWNER}, headers=header
+        )
+        assert rv.status_code == 200
+
+        # Refresh header after setting permissions
+        header = fetch_header(self.client, empty_db=True)
+
+        query = "What should I have for dinner tonight?"
+
+        # Test with background=true query param (should return immediately with 200 since no Celery)
+        rv = self.client.post(
+            "/api/chat/?background=true", json={"query": query}, headers=header
+        )
+        # When CELERY_CONFIG is not set, the task runs synchronously and returns 200
+        assert rv.status_code == 200
+        assert "response" in rv.json
+        assert rv.json["response"] == "Pizza of course!"
