@@ -75,7 +75,7 @@ def extract_metadata_from_result(result) -> dict:
 
         elif isinstance(msg, ModelRequest):
             # ModelRequest.parts can contain ToolReturnPart among other types
-            for part in msg.parts:
+            for part in msg.parts:  # type: ignore[assignment]
                 if isinstance(part, ToolReturnPart):
                     tool_call_id = part.tool_call_id
                     if tool_call_id in tool_call_map:

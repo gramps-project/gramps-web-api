@@ -107,7 +107,7 @@ def create_agent(
     # If model name has a provider prefix (e.g., "mistral:model-name"),
     # let Pydantic AI handle provider detection automatically
     if ":" in model_name:
-        model = model_name
+        model: str | OpenAIChatModel = model_name
     else:
         # Otherwise, use OpenAI-compatible provider with optional base_url
         provider = OpenAIProvider(base_url=base_url)

@@ -666,7 +666,7 @@ def process_chat(
     )
 
     response_text = sanitize_answer(result.response.text or "")
-    response_dict = {"response": response_text}
+    response_dict: dict[str, Any] = {"response": response_text}
 
     if verbose:
         response_dict["metadata"] = extract_metadata_from_result(result)
