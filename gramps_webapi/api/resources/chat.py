@@ -54,6 +54,7 @@ class ChatResource(ProtectedResource):
     @use_args(
         {
             "background": fields.Boolean(load_default=False),
+            "verbose": fields.Boolean(load_default=False),
         },
         location="query",
     )
@@ -73,6 +74,7 @@ class ChatResource(ProtectedResource):
                 query=args_json["query"],
                 include_private=include_private,
                 history=args_json.get("history"),
+                verbose=args_query["verbose"],
             )
             if isinstance(task, AsyncResult):
                 return make_task_response(task)
@@ -86,6 +88,7 @@ class ChatResource(ProtectedResource):
                 query=args_json["query"],
                 include_private=include_private,
                 history=args_json.get("history"),
+                verbose=args_query["verbose"],
             )
         except ValueError:
             abort_with_message(422, "Invalid message format")

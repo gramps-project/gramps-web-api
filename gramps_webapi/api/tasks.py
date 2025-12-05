@@ -647,16 +647,28 @@ def process_chat(
     query: str,
     include_private: bool,
     history: list | None = None,
+    verbose: bool = False,
 ) -> dict:
     """Process a chat query with the AI agent."""
     # import here to avoid error if AI dependencies are not installed
-    from gramps_webapi.api.llm import answer_with_agent
+    from gramps_webapi.api.llm import (
+        answer_with_agent,
+        extract_metadata_from_result,
+        sanitize_answer,
+    )
 
-    response = answer_with_agent(
+    result = answer_with_agent(
         prompt=query,
         tree=tree,
         include_private=include_private,
         user_id=user_id,
         history=history,
     )
-    return {"response": response}
+
+    response_text = sanitize_answer(result.response.text or "")
+    response_dict = {"response": response_text}
+
+    if verbose:
+        response_dict["metadata"] = extract_metadata_from_result(result)
+
+    return response_dict

@@ -22,13 +22,77 @@ def sanitize_answer(answer: str) -> str:
     return answer
 
 
+def extract_metadata_from_result(result) -> dict:
+    """Extract metadata from AgentRunResult.
+
+    Args:
+        result: AgentRunResult from Pydantic AI
+
+    Returns:
+        Dictionary containing run metadata including tool calls
+    """
+    from pydantic_ai.messages import (
+        ModelResponse,
+        ModelRequest,
+        ToolCallPart,
+        ToolReturnPart,
+    )
+
+    # Extract tool calls from message history
+    tools_used = []
+    tool_call_map = {}
+    step = 0
+
+    for msg in result.all_messages():
+        if isinstance(msg, ModelResponse):
+            for part in msg.parts:
+                if isinstance(part, ToolCallPart):
+                    step += 1
+                    tool_call_id = part.tool_call_id
+                    tool_info = {
+                        "step": step,
+                        "name": part.tool_name,
+                        "args": (
+                            part.args_as_dict()
+                            if hasattr(part, "args_as_dict")
+                            else part.args
+                        ),
+                    }
+                    tool_call_map[tool_call_id] = tool_info
+
+        elif isinstance(msg, ModelRequest):
+            for part in msg.parts:
+                if isinstance(part, ToolReturnPart):
+                    tool_call_id = part.tool_call_id
+                    if tool_call_id in tool_call_map:
+                        # Add this tool to the list now that we have both call and return
+                        tools_used.append(tool_call_map[tool_call_id])
+
+    # Build metadata dictionary
+    usage = result.usage()
+    metadata = {
+        "run_id": result.run_id,
+        "timestamp": result.timestamp().isoformat(),
+        "usage": {
+            "requests": usage.requests,
+            "input_tokens": usage.input_tokens,
+            "output_tokens": usage.output_tokens,
+            "total_tokens": usage.total_tokens,
+            "tool_calls": usage.tool_calls,
+        },
+        "tools_used": tools_used,
+    }
+
+    return metadata
+
+
 def answer_with_agent(
     prompt: str,
     tree: str,
     include_private: bool,
     user_id: str,
     history: list | None = None,
-) -> str:
+):
     """Answer a prompt using Pydantic AI agent.
 
     The agent has access to tools including genealogy database search.
@@ -41,7 +105,7 @@ def answer_with_agent(
         history: Optional chat history
 
     Returns:
-        The agent's response
+        AgentRunResult containing the response and metadata
     """
     logger = get_logger()
 
@@ -93,9 +157,8 @@ def answer_with_agent(
     try:
         logger.debug("Running Pydantic AI agent with prompt: '%s'", prompt)
         result = agent.run_sync(prompt, deps=deps, message_history=message_history)
-        response_text = result.response.text or ""
-        logger.debug("Agent response: '%s'", response_text)
-        return sanitize_answer(response_text)
+        logger.debug("Agent response: '%s'", result.response.text or "")
+        return result
     except (UnexpectedModelBehavior, ModelRetry) as e:
         logger.error("Pydantic AI error: %s", e)
         abort_with_message(500, "Error communicating with the AI model")
