@@ -272,10 +272,11 @@ class SearchIndexerBase:
     @staticmethod
     def _format_hit(hit, rank, include_content: bool) -> Dict[str, Any]:
         """Format a search hit."""
+        score = hit.get("rank")
         formatted_hit = {
             "handle": hit["metadata"]["handle"],
             "object_type": hit["metadata"]["type"],
-            "score": hit.get("rank"),
+            "score": float(score) if score is not None else None,
             "rank": rank,
         }
         if include_content:

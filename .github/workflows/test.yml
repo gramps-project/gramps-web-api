@@ -12,6 +12,14 @@ jobs:
         python-version: ["3.10", "3.13"]
     steps:
       - uses: actions/checkout@v4
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo apt-get clean
+          df -h
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
@@ -25,6 +33,11 @@ jobs:
           pip install -r requirements-dev.txt
           pip install .[ai]
           pip list
+      - name: Clean up package caches
+        run: |
+          sudo apt-get clean
+          pip cache purge
+          df -h
       - name: Run type checker
         run: mypy --install-types --non-interactive --ignore-missing-imports --exclude build .
       - name: Test with pytest

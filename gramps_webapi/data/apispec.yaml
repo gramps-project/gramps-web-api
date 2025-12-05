@@ -6680,32 +6680,70 @@ paths:
 ##############################################################################
 
   /chat:
-    get:
+    post:
       tags:
       - chat
       summary: "Answer a chat prompt."
       operationId: completeChat
       security:
         - Bearer: []
+      consumes:
+        - application/json
       parameters:
-      - name: query
-        in: query
-        required: true
-        type: string
-        description: "The query prompt."
-      - name: history
-        in: query
-        required: false
-        type: string
-        description: >
-          An optional JSON object with a history of chat messages.
-          It should be an array of objects that have two string properties: `role` being one of `human` or `ai`, and `message` being the message content.
-        example: "[{\"role\":\"human\",\"message\":\"Hello AI!\"},{\"role\":\"ai\",\"message\":\"Hello Human!\"}]"
+        - name: background
+          in: query
+          required: false
+          type: boolean
+          default: false
+          description: "If true, the chat will be processed in the background and status 202 will be returned."
+        - name: verbose
+          in: query
+          required: false
+          type: boolean
+          default: false
+          description: "If true, the response will include detailed metadata about the agent's execution, including tool calls and usage statistics."
+        - in: body
+          name: source
+          description: The chat query and optional history
+          schema:
+            type: object
+            required:
+              - query
+            properties:
+              query:
+                type: string
+                description: "The query prompt."
+              history:
+                type: array
+                description: >
+                  An optional array of chat message objects with a history of the conversation.
+                  Each message object should have `role` (one of 'human', 'ai', 'system', 'assistant', or 'error') and `message` (the message content).
+                items:
+                  type: object
+                  properties:
+                    role:
+                      type: string
+                      description: "The role of the message sender."
+                    message:
+                      type: string
+                      description: "The message content."
+                example:
+                  - role: "human"
+                    message: "Hello AI!"
+                  - role: "ai"
+                    message: "Hello Human!"
       responses:
         200:
           description: "OK: Successful operation."
           schema:
             $ref: "#/definitions/ChatResponse"
+        202:
+          description: "Accepted: chat will be processed in the background."
+          schema:
+            type: object
+            properties:
+              task:
+                $ref: "#/definitions/TaskReference"
         401:
           description: "Unauthorized: Missing authorization header."
         403:
@@ -11278,6 +11316,63 @@ definitions:
       response:
         type: string
         example: "I don't know."
+      metadata:
+        type: object
+        description: "Optional metadata about the agent's execution (included when verbose=true)."
+        properties:
+          run_id:
+            type: string
+            description: "Unique identifier for this agent run."
+            example: "abc123def456"
+          timestamp:
+            type: string
+            format: date-time
+            description: "ISO 8601 timestamp when the run occurred."
+            example: "2025-12-05T10:30:00Z"
+          usage:
+            type: object
+            description: "Token usage and request statistics."
+            properties:
+              requests:
+                type: integer
+                description: "Number of LLM requests made."
+                example: 2
+              input_tokens:
+                type: integer
+                description: "Number of input tokens used."
+                example: 1234
+              output_tokens:
+                type: integer
+                description: "Number of output tokens generated."
+                example: 567
+              total_tokens:
+                type: integer
+                description: "Total number of tokens used."
+                example: 1801
+              tool_calls:
+                type: integer
+                description: "Number of tool calls made."
+                example: 2
+          tools_used:
+            type: array
+            description: "List of tools called during execution."
+            items:
+              type: object
+              properties:
+                step:
+                  type: integer
+                  description: "Sequential step number of this tool call."
+                  example: 1
+                name:
+                  type: string
+                  description: "Name of the tool that was called."
+                  example: "search_genealogy_database"
+                args:
+                  type: object
+                  description: "Arguments passed to the tool."
+                  example:
+                    query: "John Smith"
+                    max_results: 20
 
 ##############################################################################
 # Model - Living

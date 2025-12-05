@@ -74,6 +74,7 @@ class DefaultConfig(object):
     LLM_BASE_URL = None
     LLM_MODEL = ""
     LLM_MAX_CONTEXT_LENGTH = 50000
+    LLM_SYSTEM_PROMPT = None
     VECTOR_EMBEDDING_MODEL = ""
     DISABLE_TELEMETRY = False
     OIDC_ISSUER = ""

@@ -35,7 +35,7 @@ dependencies = [
     "bleach[css]>=5.0.0",
     "jsonschema",
     "ffmpeg-python",
-    "boto3<1.36.0",
+    "boto3",
     "alembic",
     "celery[redis]",
     "Unidecode",
@@ -49,9 +49,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ai = ["sentence-transformers[onnx,openvino]", "openai", "accelerate"]
+ai = ["sentence-transformers[onnx,openvino]>=4.1.0", "accelerate", "pydantic-ai[openai]>=1.0.0,<2.0.0"]
 test = ["pytest", "PyYAML"]
-all = ["sentence-transformers[onnx,openvino]", "openai", "accelerate", "pytest", "PyYAML"]
+all = ["sentence-transformers[onnx,openvino]>=4.1.0", "accelerate", "pydantic-ai[openai]>=1.0.0,<2.0.0", "pytest", "PyYAML"]
 
 [project.urls]
 homepage = "https://github.com/gramps-project/gramps-web-api"
