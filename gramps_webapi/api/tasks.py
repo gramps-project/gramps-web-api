@@ -648,7 +648,7 @@ def process_chat(
     include_private: bool,
     history: list | None = None,
     verbose: bool = False,
-) -> dict:
+) -> dict[str, Any]:
     """Process a chat query with the AI agent."""
     # import here to avoid error if AI dependencies are not installed
     from gramps_webapi.api.llm import (

@@ -64,7 +64,7 @@ Without show_relation_with, you cannot distinguish between generations or relati
 
 FORMATTING RULES (CRITICAL)
 
-Tool results contain links like [Name](/person/I0044). Copy these EXACTLY as they appear. Never modify the URLs.
+Tool results contain links like [Name](/person/I0044). Copy these EXACTLY as they appear. Never modify the URLs. Do NOT strip links, always keep links if possible.
 
 Never change /person/I0044 to # or remove it. Keep the exact path.
 
@@ -92,18 +92,29 @@ def create_agent(
     """Create a Pydantic AI agent with the specified model.
 
     Args:
-        model_name: The name of the LLM model to use
-        base_url: Optional base URL for the OpenAI-compatible API
+        model_name: The name of the LLM model to use. If it contains a colon (e.g.,
+            "mistral:mistral-large-latest" or "openai:gpt-4"), it will be treated
+            as a provider-prefixed model name and Pydantic AI will handle provider
+            detection automatically. Otherwise, it will be treated as an OpenAI-compatible
+            model name.
+        base_url: Optional base URL for the OpenAI-compatible API (ignored if model_name
+            contains a provider prefix)
         system_prompt_override: Optional override for the system prompt
 
     Returns:
         A configured Pydantic AI agent
     """
-    provider = OpenAIProvider(base_url=base_url)
-    model = OpenAIChatModel(
-        model_name,
-        provider=provider,
-    )
+    # If model name has a provider prefix (e.g., "mistral:model-name"),
+    # let Pydantic AI handle provider detection automatically
+    if ":" in model_name:
+        model = model_name
+    else:
+        # Otherwise, use OpenAI-compatible provider with optional base_url
+        provider = OpenAIProvider(base_url=base_url)
+        model = OpenAIChatModel(
+            model_name,
+            provider=provider,
+        )
 
     system_prompt = system_prompt_override or SYSTEM_PROMPT
 

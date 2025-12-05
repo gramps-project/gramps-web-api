@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
+from typing import Any
 
 from flask import current_app
 from pydantic_ai.exceptions import ModelRetry, UnexpectedModelBehavior
@@ -19,6 +21,17 @@ def sanitize_answer(answer: str) -> str:
     answer = answer.replace("https://www.example.com", "")
     answer = answer.replace("https://example.com", "")
     answer = answer.replace("http://example.com", "")
+
+    # Remove forbidden markdown formatting that some models add despite instructions
+    # Remove bold: **text** -> text
+    answer = re.sub(r"\*\*(.*?)\*\*", r"\1", answer)
+    # Remove headers: ### text -> text (at start of line)
+    answer = re.sub(r"^#+\s+", "", answer, flags=re.MULTILINE)
+    # Remove bullet points: - text or * text -> text (at start of line)
+    answer = re.sub(r"^[-*]\s+", "", answer, flags=re.MULTILINE)
+    # Remove horizontal rules: --- or *** or ___ (at start of line)
+    answer = re.sub(r"^[-*_]{3,}\s*$", "", answer, flags=re.MULTILINE)
+
     return answer
 
 
@@ -39,7 +52,7 @@ def extract_metadata_from_result(result) -> dict:
     )
 
     # Extract tool calls from message history
-    tools_used = []
+    tools_used: list[dict[str, Any]] = []
     tool_call_map = {}
     step = 0
 
@@ -61,6 +74,7 @@ def extract_metadata_from_result(result) -> dict:
                     tool_call_map[tool_call_id] = tool_info
 
         elif isinstance(msg, ModelRequest):
+            # ModelRequest.parts can contain ToolReturnPart among other types
             for part in msg.parts:
                 if isinstance(part, ToolReturnPart):
                     tool_call_id = part.tool_call_id
