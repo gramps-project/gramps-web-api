@@ -538,17 +538,38 @@ def send_email(
     port = int(get_config("EMAIL_PORT"))
     user = get_config("EMAIL_HOST_USER")
     password = get_config("EMAIL_HOST_PASSWORD")
+    use_ssl = get_config("EMAIL_USE_SSL")
+    use_starttls = get_config("EMAIL_USE_STARTTLS")
     use_tls = get_config("EMAIL_USE_TLS")
+
+    if use_ssl is None and use_starttls is None and use_tls is not None:
+        current_app.logger.warning(
+            "EMAIL_USE_TLS is deprecated. Use EMAIL_USE_SSL or EMAIL_USE_STARTTLS instead."
+        )
+
     try:
         smtp: smtplib.SMTP | smtplib.SMTP_SSL
-        if use_tls:
+        if use_ssl:
             smtp = smtplib.SMTP_SSL(host=host, port=port, timeout=10)
-        else:
+            smtp.ehlo()
+        elif use_starttls:
             smtp = smtplib.SMTP(host=host, port=port, timeout=10)
             smtp.ehlo()
-            if port != 25:
-                smtp.starttls()
+            smtp.starttls()
+            smtp.ehlo()
+        elif use_ssl is False:
+            smtp = smtplib.SMTP(host=host, port=port, timeout=10)
+            smtp.ehlo()
+        else:
+            if use_tls:
+                smtp = smtplib.SMTP_SSL(host=host, port=port, timeout=10)
                 smtp.ehlo()
+            else:
+                smtp = smtplib.SMTP(host=host, port=port, timeout=10)
+                smtp.ehlo()
+                if port != 25:
+                    smtp.starttls()
+                    smtp.ehlo()
         if user:
             smtp.login(user, password)
         smtp.send_message(msg)
