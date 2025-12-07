@@ -37,23 +37,23 @@ from .deps import AgentDeps
 
 
 def _build_date_expression(before: str, after: str) -> str:
-    """Build a Gramps date expression from before/after parameters.
+    """Build a date string from before/after parameters.
 
     Args:
         before: Year before which to filter (e.g., "1900")
         after: Year after which to filter (e.g., "1850")
 
     Returns:
-        A date expression string for Gramps filters:
+        A date string for Gramps filters:
         - "between 1850 and 1900" for date ranges
         - "after 1850" for only after
         - "before 1900" for only before
     """
     if before and after:
         return f"between {after} and {before}"
-    elif after:
+    if after:
         return f"after {after}"
-    elif before:
+    if before:
         return f"before {before}"
     return ""
 
@@ -158,7 +158,7 @@ def _apply_gramps_filter(
 
         context_parts: list[str] = []
         max_length = ctx.deps.max_context_length
-        per_item_max = 10000  # Maximum chars per individual item (prevents one huge note from blocking all results)
+        per_item_max = 10000  # Maximum chars per individual item
         current_length = 0
 
         # Get the anchor person for relationship calculation if requested

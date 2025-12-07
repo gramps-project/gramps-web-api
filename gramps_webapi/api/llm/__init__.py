@@ -3,16 +3,22 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
 from typing import Any
 
 from flask import current_app
 from pydantic_ai.exceptions import ModelRetry, UnexpectedModelBehavior
-from pydantic_ai.messages import ModelRequest, ModelResponse, UserPromptPart, TextPart
+from pydantic_ai.messages import (
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
 
+from ..util import abort_with_message, get_logger
 from .agent import create_agent
 from .deps import AgentDeps
-from ..util import abort_with_message, get_logger
 
 
 def sanitize_answer(answer: str) -> str:
@@ -35,7 +41,7 @@ def sanitize_answer(answer: str) -> str:
     return answer
 
 
-def extract_metadata_from_result(result) -> dict:
+def extract_metadata_from_result(result) -> dict[str, Any]:
     """Extract metadata from AgentRunResult.
 
     Args:
@@ -44,14 +50,6 @@ def extract_metadata_from_result(result) -> dict:
     Returns:
         Dictionary containing run metadata including tool calls
     """
-    from pydantic_ai.messages import (
-        ModelResponse,
-        ModelRequest,
-        ToolCallPart,
-        ToolReturnPart,
-    )
-
-    # Extract tool calls from message history
     tools_used: list[dict[str, Any]] = []
     tool_call_map = {}
     step = 0
@@ -79,10 +77,8 @@ def extract_metadata_from_result(result) -> dict:
                 if isinstance(part, ToolReturnPart):
                     tool_call_id = part.tool_call_id
                     if tool_call_id in tool_call_map:
-                        # Add this tool to the list now that we have both call and return
                         tools_used.append(tool_call_map[tool_call_id])
 
-    # Build metadata dictionary
     usage = result.usage()
     metadata = {
         "run_id": result.run_id,
@@ -109,8 +105,6 @@ def answer_with_agent(
 ):
     """Answer a prompt using Pydantic AI agent.
 
-    The agent has access to tools including genealogy database search.
-
     Args:
         prompt: The user's question/prompt
         tree: The tree identifier
@@ -133,14 +127,12 @@ def answer_with_agent(
     if not model_name:
         raise ValueError("No LLM model specified")
 
-    # Create agent
     agent = create_agent(
         model_name=model_name,
         base_url=base_url,
         system_prompt_override=system_prompt_override,
     )
 
-    # Create dependencies
     deps = AgentDeps(
         tree=tree,
         include_private=include_private,
@@ -148,7 +140,6 @@ def answer_with_agent(
         user_id=user_id,
     )
 
-    # Build message history for the agent
     message_history: list[ModelRequest | ModelResponse] = []
     if history:
         for message in history:
@@ -156,14 +147,12 @@ def answer_with_agent(
                 raise ValueError(f"Invalid message format: {message}")
             role = message["role"].lower()
             if role in ["ai", "system", "assistant"]:
-                # AI/assistant messages become ModelResponse
                 message_history.append(
                     ModelResponse(
                         parts=[TextPart(content=message["message"])],
                     )
                 )
             elif role != "error":  # skip error messages
-                # User messages become ModelRequest
                 message_history.append(
                     ModelRequest(parts=[UserPromptPart(content=message["message"])])
                 )

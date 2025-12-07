@@ -95,10 +95,10 @@ def create_agent(
         model_name: The name of the LLM model to use. If it contains a colon (e.g.,
             "mistral:mistral-large-latest" or "openai:gpt-4"), it will be treated
             as a provider-prefixed model name and Pydantic AI will handle provider
-            detection automatically. Otherwise, it will be treated as an OpenAI-compatible
-            model name.
-        base_url: Optional base URL for the OpenAI-compatible API (ignored if model_name
-            contains a provider prefix)
+            detection automatically. Otherwise, it will be treated as an OpenAI
+            compatible model name.
+        base_url: Optional base URL for the OpenAI-compatible API (ignored if
+            model_name contains a provider prefix)
         system_prompt_override: Optional override for the system prompt
 
     Returns:
