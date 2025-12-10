@@ -1,5 +1,4 @@
 import pytest
-import smtplib
 from gramps.gen.lib.json_utils import data_to_object
 
 from gramps_webapi.api import util
