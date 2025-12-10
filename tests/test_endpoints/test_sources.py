@@ -407,7 +407,7 @@ class TestSourcesHandle(unittest.TestCase):
 
     def test_get_sources_handle_parameter_strip_expected_result(self):
         """Test strip parameter produces expected result."""
-        check_strip_parameter(self, TEST_URL + "X5TJQC9JXU4RKT6VAX")
+        check_strip_parameter(self, TEST_URL + "X5TJQC9JXU4RKT6VAX", paginate=False)
 
     def test_get_sources_handle_parameter_keys_validate_semantics(self):
         """Test invalid keys parameter and values."""

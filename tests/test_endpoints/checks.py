@@ -110,17 +110,34 @@ def check_totals(test, url, total, role=ROLE_OWNER):
     return rv.json
 
 
-def check_strip_parameter(test, url, role=ROLE_OWNER):
-    """Test that strip parameter produces expected result."""
+def check_strip_parameter(test, url, role=ROLE_OWNER, paginate=True):
+    """Test that strip parameter produces expected result.
+
+    Args:
+        test: Test case instance
+        url: URL to test
+        role: Role for authentication
+        paginate: Whether to add pagination parameters (True for list endpoints,
+                  False for single-object endpoints). Defaults to True.
+    """
     header = fetch_header(test.client, role=role)
 
-    # Optimization: Use pagination to limit results instead of fetching all records
+    # Optimization: Use pagination to limit results for list endpoints
     # This reduces test time from ~180s to <1s while still validating the functionality
+    # Note: paginate=False must be used for single-object endpoints (e.g., /api/people/HANDLE)
+    # as pagination on single objects causes 422 errors
     separator = "&" if "?" in url else "?"
-    limit_url = f"{url}{separator}page=1&pagesize=5"
+
+    if paginate:
+        limit_url = f"{url}{separator}page=1&pagesize=5"
+    else:
+        limit_url = url
+
+    # Recalculate separator after potentially adding pagination
+    strip_separator = "&" if "?" in limit_url else "?"
 
     baseline = test.client.get(limit_url, headers=header)
-    rv = test.client.get(f"{limit_url}&strip=1", headers=header)
+    rv = test.client.get(f"{limit_url}{strip_separator}strip=1", headers=header)
     test.assertEqual(rv.status_code, 200)
     if isinstance(rv.json, type([])):
         for item in baseline.json:

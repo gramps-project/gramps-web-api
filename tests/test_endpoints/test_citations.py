@@ -391,7 +391,7 @@ class TestCitationsHandle(unittest.TestCase):
 
     def test_get_citations_handle_parameter_strip_expected_result(self):
         """Test strip parameter produces expected result."""
-        check_strip_parameter(self, TEST_URL + "c140db880395cadf318")
+        check_strip_parameter(self, TEST_URL + "c140db880395cadf318", paginate=False)
 
     def test_get_citations_handle_parameter_keys_validate_semantics(self):
         """Test invalid keys parameter and values."""
