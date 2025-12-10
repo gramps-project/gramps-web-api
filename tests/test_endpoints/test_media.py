@@ -403,7 +403,7 @@ class TestMediaHandle(unittest.TestCase):
 
     def test_get_media_handle_parameter_strip_expected_result(self):
         """Test strip parameter produces expected result."""
-        check_strip_parameter(self, TEST_URL + "B1AUFQV7H8R9NR4SZM")
+        check_strip_parameter(self, TEST_URL + "B1AUFQV7H8R9NR4SZM", paginate=False)
 
     def test_get_media_handle_parameter_keys_validate_semantics(self):
         """Test invalid keys parameter and values."""
