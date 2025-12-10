@@ -19,9 +19,8 @@
 
 """Tests for the /api/places endpoints using example_gramps."""
 
-import unittest
 
-from . import BASE_URL, get_object_count, get_test_client
+from . import BASE_URL
 from .checks import (
     check_boolean_parameter,
     check_conforms_to_schema,
@@ -42,280 +41,261 @@ from .checks import (
 TEST_URL = BASE_URL + "/places/"
 
 
-class TestPlaces(unittest.TestCase):
+class TestPlaces:
     """Test cases for the /api/places endpoint for a list of places."""
 
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
-
-    def test_get_places_requires_token(self):
+    def test_get_places_requires_token(self, test_adapter):
         """Test authorization required."""
-        check_requires_token(self, TEST_URL)
+        check_requires_token(test_adapter, TEST_URL)
 
-    def test_get_places_conforms_to_schema(self):
+    def test_get_places_conforms_to_schema(self, test_adapter):
         """Test conforms to schema."""
-        check_conforms_to_schema(
-            self, TEST_URL + "?extend=all&profile=all&backlinks=1", "Place"
+        check_conforms_to_schema(test_adapter, TEST_URL + "?extend=all&profile=all&backlinks=1", "Place"
         )
 
-    def test_get_places_expected_results_total(self):
+    def test_get_places_expected_results_total(self, test_adapter, example_object_counts):
         """Test expected number of results returned."""
-        check_totals(self, TEST_URL + "?keys=handle", get_object_count("places"))
+        check_totals(test_adapter, TEST_URL + "?keys=handle", example_object_counts["places"])
 
-    def test_get_places_expected_results(self):
+    def test_get_places_expected_results(self, test_adapter):
         """Test some expected results returned."""
-        rv = check_success(self, TEST_URL)
+        rv = check_success(test_adapter, TEST_URL)
         # check first expected record
-        self.assertEqual(rv[0]["gramps_id"], "P0441")
-        self.assertEqual(rv[0]["handle"], "dd445e5bfcc17bd1838")
+        assert rv[0]["gramps_id"] == "P0441"
+        assert rv[0]["handle"] == "dd445e5bfcc17bd1838"
         # check last expected record
-        self.assertEqual(rv[-1]["gramps_id"], "P0438")
-        self.assertEqual(rv[-1]["handle"], "d583a5b8b586fb992c8")
+        assert rv[-1]["gramps_id"] == "P0438"
+        assert rv[-1]["handle"] == "d583a5b8b586fb992c8"
 
-    def test_get_places_validate_semantics(self):
+    def test_get_places_validate_semantics(self, test_adapter):
         """Test invalid parameters and values."""
-        check_invalid_semantics(self, TEST_URL + "?junk_parm=1")
+        check_invalid_semantics(test_adapter, TEST_URL + "?junk_parm=1")
 
-    def test_get_places_parameter_gramps_id_validate_semantics(self):
+    def test_get_places_parameter_gramps_id_validate_semantics(self, test_adapter):
         """Test invalid gramps_id parameter and values."""
-        check_invalid_semantics(self, TEST_URL + "?gramps_id", check="base")
+        check_invalid_semantics(test_adapter, TEST_URL + "?gramps_id", check="base")
 
-    def test_get_places_parameter_gramps_id_missing_content(self):
+    def test_get_places_parameter_gramps_id_missing_content(self, test_adapter):
         """Test response for missing gramps_id object."""
-        check_resource_missing(self, TEST_URL + "?gramps_id=does_not_exist")
+        check_resource_missing(test_adapter, TEST_URL + "?gramps_id=does_not_exist")
 
-    def test_get_places_parameter_gramps_id_expected_result(self):
+    def test_get_places_parameter_gramps_id_expected_result(self, test_adapter):
         """Test gramps_id parameter returns expected result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=P1108")
-        self.assertEqual(len(rv), 1)
-        self.assertEqual(rv[0]["handle"], "B9VKQCD14KD2OH3QZY")
+        rv = check_success(test_adapter, TEST_URL + "?gramps_id=P1108")
+        assert len(rv) == 1
+        assert rv[0]["handle"] == "B9VKQCD14KD2OH3QZY"
 
-    def test_get_places_parameter_strip_validate_semantics(self):
+    def test_get_places_parameter_strip_validate_semantics(self, test_adapter):
         """Test invalid strip parameter and values."""
-        check_invalid_semantics(self, TEST_URL + "?strip", check="boolean")
+        check_invalid_semantics(test_adapter, TEST_URL + "?strip", check="boolean")
 
-    def test_get_places_parameter_strip_expected_result(self):
+    def test_get_places_parameter_strip_expected_result(self, test_adapter):
         """Test strip parameter produces expected result."""
-        check_strip_parameter(self, TEST_URL)
+        check_strip_parameter(test_adapter, TEST_URL)
 
-    def test_get_places_parameter_keys_validate_semantics(self):
+    def test_get_places_parameter_keys_validate_semantics(self, test_adapter):
         """Test invalid keys parameter and values."""
-        check_invalid_semantics(self, TEST_URL + "?keys", check="base")
+        check_invalid_semantics(test_adapter, TEST_URL + "?keys", check="base")
 
-    def test_get_places_parameter_keys_expected_result_single_key(self):
+    def test_get_places_parameter_keys_expected_result_single_key(self, test_adapter):
         """Test keys parameter for some single keys produces expected result."""
-        check_keys_parameter(self, TEST_URL, ["alt_loc", "handle", "urls"])
+        check_keys_parameter(test_adapter, TEST_URL, ["alt_loc", "handle", "urls"])
 
-    def test_get_places_parameter_keys_expected_result_multiple_keys(self):
+    def test_get_places_parameter_keys_expected_result_multiple_keys(self, test_adapter):
         """Test keys parameter for multiple keys produces expected result."""
-        check_keys_parameter(self, TEST_URL, [",".join(["alt_loc", "handle", "urls"])])
+        check_keys_parameter(test_adapter, TEST_URL, [",".join(["alt_loc", "handle", "urls"])])
 
-    def test_get_places_parameter_skipkeys_validate_semantics(self):
+    def test_get_places_parameter_skipkeys_validate_semantics(self, test_adapter):
         """Test invalid skipkeys parameter and values."""
-        check_invalid_semantics(self, TEST_URL + "?skipkeys", check="base")
+        check_invalid_semantics(test_adapter, TEST_URL + "?skipkeys", check="base")
 
-    def test_get_places_parameter_skipkeys_expected_result_single_key(self):
+    def test_get_places_parameter_skipkeys_expected_result_single_key(self, test_adapter):
         """Test skipkeys parameter for some single keys produces expected result."""
-        check_skipkeys_parameter(self, TEST_URL, ["alt_loc", "handle", "urls"])
+        check_skipkeys_parameter(test_adapter, TEST_URL, ["alt_loc", "handle", "urls"])
 
-    def test_get_places_parameter_skipkeys_expected_result_multiple_keys(self):
+    def test_get_places_parameter_skipkeys_expected_result_multiple_keys(self, test_adapter):
         """Test skipkeys parameter for multiple keys produces expected result."""
-        check_skipkeys_parameter(
-            self, TEST_URL, [",".join(["alt_loc", "handle", "urls"])]
+        check_skipkeys_parameter(test_adapter, TEST_URL, [",".join(["alt_loc", "handle", "urls"])]
         )
 
-    def test_get_places_parameter_page_validate_semantics(self):
+    def test_get_places_parameter_page_validate_semantics(self, test_adapter):
         """Test invalid page parameter and values."""
-        check_invalid_semantics(self, TEST_URL + "?page", check="number")
+        check_invalid_semantics(test_adapter, TEST_URL + "?page", check="number")
 
-    def test_get_places_parameter_pagesize_validate_semantics(self):
+    def test_get_places_parameter_pagesize_validate_semantics(self, test_adapter):
         """Test invalid pagesize parameter and values."""
-        check_invalid_semantics(self, TEST_URL + "?pagesize", check="number")
+        check_invalid_semantics(test_adapter, TEST_URL + "?pagesize", check="number")
 
-    def test_get_places_parameter_page_pagesize_expected_result(self):
+    def test_get_places_parameter_page_pagesize_expected_result(self, test_adapter):
         """Test page and pagesize parameters produce expected result."""
-        check_paging_parameters(self, TEST_URL + "?keys=handle", 4, join="&")
+        check_paging_parameters(test_adapter, TEST_URL + "?keys=handle", 4, join="&")
 
-    def test_get_places_parameter_sort_validate_semantics(self):
+    def test_get_places_parameter_sort_validate_semantics(self, test_adapter):
         """Test invalid sort parameter and values."""
-        check_invalid_semantics(self, TEST_URL + "?sort", check="list")
+        check_invalid_semantics(test_adapter, TEST_URL + "?sort", check="list")
 
-    def test_get_places_parameter_sort_change_ascending_expected_result(self):
+    def test_get_places_parameter_sort_change_ascending_expected_result(self, test_adapter):
         """Test sort parameter change ascending result."""
-        check_sort_parameter(self, TEST_URL, "change")
+        check_sort_parameter(test_adapter, TEST_URL, "change")
 
-    def test_get_places_parameter_sort_change_descending_expected_result(self):
+    def test_get_places_parameter_sort_change_descending_expected_result(self, test_adapter):
         """Test sort parameter change descending result."""
-        check_sort_parameter(self, TEST_URL, "change", direction="-")
+        check_sort_parameter(test_adapter, TEST_URL, "change", direction="-")
 
-    def test_get_places_parameter_sort_gramps_id_ascending_expected_result(self):
+    def test_get_places_parameter_sort_gramps_id_ascending_expected_result(self, test_adapter):
         """Test sort parameter gramps_id ascending result."""
-        rv = check_sort_parameter(self, TEST_URL, "gramps_id")
-        self.assertEqual(rv[0]["gramps_id"], "P0000")
-        self.assertEqual(rv[-1]["gramps_id"], "P1703")
+        rv = check_sort_parameter(test_adapter, TEST_URL, "gramps_id")
+        assert rv[0]["gramps_id"] == "P0000"
+        assert rv[-1]["gramps_id"] == "P1703"
 
-    def test_get_places_parameter_sort_gramps_id_descending_expected_result(self):
+    def test_get_places_parameter_sort_gramps_id_descending_expected_result(self, test_adapter):
         """Test sort parameter gramps_id descending result."""
-        rv = check_sort_parameter(self, TEST_URL, "gramps_id", direction="-")
-        self.assertEqual(rv[0]["gramps_id"], "P1703")
-        self.assertEqual(rv[-1]["gramps_id"], "P0000")
+        rv = check_sort_parameter(test_adapter, TEST_URL, "gramps_id", direction="-")
+        assert rv[0]["gramps_id"] == "P1703"
+        assert rv[-1]["gramps_id"] == "P0000"
 
-    def test_get_places_parameter_sort_latitude_ascending_expected_result(self):
+    def test_get_places_parameter_sort_latitude_ascending_expected_result(self, test_adapter):
         """Test sort parameter latitude ascending result."""
-        check_sort_parameter(self, TEST_URL, "latitude", value_key="lat")
+        check_sort_parameter(test_adapter, TEST_URL, "latitude", value_key="lat")
 
-    def test_get_places_parameter_sort_latitude_descending_expected_result(self):
+    def test_get_places_parameter_sort_latitude_descending_expected_result(self, test_adapter):
         """Test sort parameter latitude descending result."""
-        check_sort_parameter(self, TEST_URL, "latitude", value_key="lat", direction="-")
+        check_sort_parameter(test_adapter, TEST_URL, "latitude", value_key="lat", direction="-")
 
-    def test_get_places_parameter_sort_longitude_ascending_expected_result(self):
+    def test_get_places_parameter_sort_longitude_ascending_expected_result(self, test_adapter):
         """Test sort parameter longitude ascending result."""
-        check_sort_parameter(self, TEST_URL, "longitude", value_key="long")
+        check_sort_parameter(test_adapter, TEST_URL, "longitude", value_key="long")
 
-    def test_get_places_parameter_sort_longitude_descending_expected_result(self):
+    def test_get_places_parameter_sort_longitude_descending_expected_result(self, test_adapter):
         """Test sort parameter longitude descending result."""
-        check_sort_parameter(
-            self, TEST_URL, "longitude", value_key="long", direction="-"
+        check_sort_parameter(test_adapter, TEST_URL, "longitude", value_key="long", direction="-"
         )
 
-    def test_get_places_parameter_sort_private_ascending_expected_result(self):
+    def test_get_places_parameter_sort_private_ascending_expected_result(self, test_adapter):
         """Test sort parameter private ascending result."""
-        check_sort_parameter(self, TEST_URL, "private")
+        check_sort_parameter(test_adapter, TEST_URL, "private")
 
-    def test_get_places_parameter_sort_private_descending_expected_result(self):
+    def test_get_places_parameter_sort_private_descending_expected_result(self, test_adapter):
         """Test sort parameter private descending result."""
-        check_sort_parameter(self, TEST_URL, "private", direction="-")
+        check_sort_parameter(test_adapter, TEST_URL, "private", direction="-")
 
-    def test_get_places_parameter_sort_title_ascending_expected_result(self):
+    def test_get_places_parameter_sort_title_ascending_expected_result(self, test_adapter):
         """Test sort parameter title ascending result."""
-        rv = check_success(self, TEST_URL + "?keys=title&sort=+title")
-        self.assertEqual(rv[0]["title"], "Aberdeen, SD")
-        self.assertEqual(rv[-1]["title"], "Σιάτιστα")
+        rv = check_success(test_adapter, TEST_URL + "?keys=title&sort=+title")
+        assert rv[0]["title"] == "Aberdeen, SD"
+        assert rv[-1]["title"] == "Σιάτιστα"
 
-    def test_get_places_parameter_sort_title_descending_expected_result(self):
+    def test_get_places_parameter_sort_title_descending_expected_result(self, test_adapter):
         """Test sort parameter title descending result."""
-        rv = check_success(self, TEST_URL + "?keys=title&sort=-title")
-        self.assertEqual(rv[0]["title"], "Σιάτιστα")
-        self.assertEqual(rv[-1]["title"], "Aberdeen, SD")
+        rv = check_success(test_adapter, TEST_URL + "?keys=title&sort=-title")
+        assert rv[0]["title"] == "Σιάτιστα"
+        assert rv[-1]["title"] == "Aberdeen, SD"
 
-    def test_get_places_parameter_sort_type_ascending_expected_result(self):
+    def test_get_places_parameter_sort_type_ascending_expected_result(self, test_adapter):
         """Test sort parameter type ascending result."""
-        check_sort_parameter(self, TEST_URL, "type", value_key="place_type")
+        check_sort_parameter(test_adapter, TEST_URL, "type", value_key="place_type")
 
-    def test_get_places_parameter_sort_type_descending_expected_result(self):
+    def test_get_places_parameter_sort_type_descending_expected_result(self, test_adapter):
         """Test sort parameter type descending result."""
-        check_sort_parameter(
-            self, TEST_URL, "type", value_key="place_type", direction="-"
+        check_sort_parameter(test_adapter, TEST_URL, "type", value_key="place_type", direction="-"
         )
 
-    def test_get_places_parameter_sort_type_ascending_expected_result_with_locale(self):
+    def test_get_places_parameter_sort_type_ascending_expected_result_with_locale(self, test_adapter):
         """Test sort parameter type ascending result using different locale."""
-        rv = check_success(self, TEST_URL + "?keys=place_type&sort=+type&locale=de")
-        self.assertEqual(rv[0]["place_type"], "State")
-        self.assertEqual(rv[-1]["place_type"], "City")
+        rv = check_success(test_adapter, TEST_URL + "?keys=place_type&sort=+type&locale=de")
+        assert rv[0]["place_type"] == "State"
+        assert rv[-1]["place_type"] == "City"
 
     def test_get_places_parameter_sort_type_descending_expected_result_with_locale(
-        self,
+        self, test_adapter
     ):
         """Test sort parameter type descending result using different locale."""
-        rv = check_success(self, TEST_URL + "?keys=place_type&sort=-type&locale=de")
-        self.assertEqual(rv[0]["place_type"], "City")
-        self.assertEqual(rv[-1]["place_type"], "State")
+        rv = check_success(test_adapter, TEST_URL + "?keys=place_type&sort=-type&locale=de")
+        assert rv[0]["place_type"] == "City"
+        assert rv[-1]["place_type"] == "State"
 
-    def test_get_places_parameter_filter_validate_semantics(self):
+    def test_get_places_parameter_filter_validate_semantics(self, test_adapter):
         """Test invalid rules parameter and values."""
-        check_invalid_semantics(self, TEST_URL + "?filter", check="base")
+        check_invalid_semantics(test_adapter, TEST_URL + "?filter", check="base")
 
-    def test_get_places_parameter_filter_missing_content(self):
+    def test_get_places_parameter_filter_missing_content(self, test_adapter):
         """Test response when missing the filter."""
-        check_resource_missing(self, TEST_URL + "?filter=ReallyNotARealFilterYouSee")
+        check_resource_missing(test_adapter, TEST_URL + "?filter=ReallyNotARealFilterYouSee")
 
-    def test_get_places_parameter_rules_validate_syntax(self):
+    def test_get_places_parameter_rules_validate_syntax(self, test_adapter):
         """Test invalid rules syntax."""
-        check_invalid_syntax(
-            self, TEST_URL + '?rules={"rules"[{"name":"HasNoLatOrLon"}]}'
+        check_invalid_syntax(test_adapter, TEST_URL + '?rules={"rules"[{"name":"HasNoLatOrLon"}]}'
         )
 
-    def test_get_places_parameter_rules_validate_semantics(self):
+    def test_get_places_parameter_rules_validate_semantics(self, test_adapter):
         """Test invalid rules parameter and values."""
-        check_invalid_semantics(self, TEST_URL + "?rules", check="base")
-        check_invalid_semantics(
-            self,
+        check_invalid_semantics(test_adapter, TEST_URL + "?rules", check="base")
+        check_invalid_semantics(test_adapter,
             TEST_URL + '?rules={"some":"where","rules":[{"name":"HasNoLatOrLon"}]}',
         )
-        check_invalid_semantics(
-            self,
+        check_invalid_semantics(test_adapter,
             TEST_URL + '?rules={"function":"none","rules":[{"name":"HasNoLatOrLon"}]}',
         )
 
-    def test_get_places_parameter_rules_missing_content(self):
+    def test_get_places_parameter_rules_missing_content(self, test_adapter):
         """Test rules parameter missing request content."""
-        check_resource_missing(self, TEST_URL + '?rules={"rules":[{"name":"Shire"}]}')
+        check_resource_missing(test_adapter, TEST_URL + '?rules={"rules":[{"name":"Shire"}]}')
 
-    def test_get_places_parameter_rules_expected_response_single_rule(self):
+    def test_get_places_parameter_rules_expected_response_single_rule(self, test_adapter):
         """Test rules parameter expected response for a single rule."""
-        rv = check_success(
-            self, TEST_URL + '?keys=lat,long&rules={"rules":[{"name":"HasNoLatOrLon"}]}'
+        rv = check_success(test_adapter, TEST_URL + '?keys=lat,long&rules={"rules":[{"name":"HasNoLatOrLon"}]}'
         )
         for item in rv:
-            self.assertEqual(item["lat"], "")
-            self.assertEqual(item["long"], "")
+            assert item["lat"] == ""
+            assert item["long"] == ""
 
-    def test_get_places_parameter_rules_expected_response_multiple_rules(self):
+    def test_get_places_parameter_rules_expected_response_multiple_rules(self, test_adapter):
         """Test rules parameter expected response for multiple rules."""
-        rv = check_success(
-            self,
+        rv = check_success(test_adapter,
             TEST_URL
             + '?keys=lat,long,place_type&rules={"rules":[{"name":"HasData","values":["","City","",""]},{"name":"HasNoLatOrLon"}]}',
         )
         for item in rv:
-            self.assertEqual(item["lat"], "")
-            self.assertEqual(item["long"], "")
-            self.assertEqual(item["place_type"], "City")
+            assert item["lat"] == ""
+            assert item["long"] == ""
+            assert item["place_type"] == "City"
 
-    def test_get_places_parameter_rules_expected_response_or_function(self):
+    def test_get_places_parameter_rules_expected_response_or_function(self, test_adapter):
         """Test rules parameter expected response for or function."""
-        rv = check_success(
-            self,
+        rv = check_success(test_adapter,
             TEST_URL
             + '?keys=handle&rules={"function":"or","rules":[{"name":"HasData","values":["","City","",""]},{"name":"HasNoLatOrLon"}]}',
         )
-        self.assertEqual(len(rv), 1296)
+        assert len(rv) == 1296
 
-    def test_get_places_parameter_rules_expected_response_one_function(self):
+    def test_get_places_parameter_rules_expected_response_one_function(self, test_adapter):
         """Test rules parameter expected response for one function."""
-        rv = check_success(
-            self,
+        rv = check_success(test_adapter,
             TEST_URL
             + '?keys=handle&rules={"function":"one","rules":[{"name":"HasData","values":["","City","",""]},{"name":"HasNoLatOrLon"}]}',
         )
-        self.assertEqual(len(rv), 811)
+        assert len(rv) == 811
 
-    def test_get_places_parameter_rules_expected_response_invert(self):
+    def test_get_places_parameter_rules_expected_response_invert(self, test_adapter):
         """Test rules parameter expected response for invert option."""
-        rv = check_success(
-            self,
+        rv = check_success(test_adapter,
             TEST_URL
             + '?keys=handle&rules={"invert":true,"rules":[{"name":"HasNoLatOrLon"}]}',
         )
-        self.assertEqual(len(rv), 373)
+        assert len(rv) == 373
 
-    def test_get_places_parameter_extend_validate_semantics(self):
+    def test_get_places_parameter_extend_validate_semantics(self, test_adapter):
         """Test invalid extend parameter and values."""
-        check_invalid_semantics(self, TEST_URL + "?extend", check="list")
+        check_invalid_semantics(test_adapter, TEST_URL + "?extend", check="list")
 
-    def test_get_places_parameter_extend_expected_result_citation_list(self):
+    def test_get_places_parameter_extend_expected_result_citation_list(self, test_adapter):
         """Test extend citation_list result."""
-        check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=P1108", "citation_list", "citations", join="&"
+        check_single_extend_parameter(test_adapter, TEST_URL + "?gramps_id=P1108", "citation_list", "citations", join="&"
         )
 
-    def test_get_places_parameter_extend_expected_result_media_list(self):
+    def test_get_places_parameter_extend_expected_result_media_list(self, test_adapter):
         """Test extend media_list result."""
-        check_single_extend_parameter(
-            self,
+        check_single_extend_parameter(test_adapter,
             TEST_URL + "?gramps_id=P1108",
             "media_list",
             "media",
@@ -323,186 +303,161 @@ class TestPlaces(unittest.TestCase):
             reference=True,
         )
 
-    def test_get_places_parameter_extend_expected_result_note_list(self):
+    def test_get_places_parameter_extend_expected_result_note_list(self, test_adapter):
         """Test extend notes result."""
-        check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=P1108", "note_list", "notes", join="&"
+        check_single_extend_parameter(test_adapter, TEST_URL + "?gramps_id=P1108", "note_list", "notes", join="&"
         )
 
-    def test_get_places_parameter_extend_expected_result_tag_list(self):
+    def test_get_places_parameter_extend_expected_result_tag_list(self, test_adapter):
         """Test extend tag_list result."""
-        check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=P1108", "tag_list", "tags", join="&"
+        check_single_extend_parameter(test_adapter, TEST_URL + "?gramps_id=P1108", "tag_list", "tags", join="&"
         )
 
-    def test_get_places_parameter_extend_expected_result_all(self):
+    def test_get_places_parameter_extend_expected_result_all(self, test_adapter):
         """Test extend all result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=P1108&extend=all&keys=extended")
-        self.assertEqual(len(rv[0]["extended"]), 4)
+        rv = check_success(test_adapter, TEST_URL + "?gramps_id=P1108&extend=all&keys=extended")
+        assert len(rv[0]["extended"]) == 4
         for key in ["citations", "media", "notes", "tags"]:
-            self.assertIn(key, rv[0]["extended"])
+            assert key in rv[0]["extended"]
 
-    def test_get_places_parameter_extend_expected_result_multiple_keys(self):
+    def test_get_places_parameter_extend_expected_result_multiple_keys(self, test_adapter):
         """Test extend result for multiple keys."""
-        rv = check_success(
-            self,
+        rv = check_success(test_adapter,
             TEST_URL
             + "?gramps_id=P1108&extend=note_list,tag_list&keys=note_list,tag_list,extended",
         )
-        self.assertEqual(len(rv[0]["extended"]), 2)
-        self.assertIn("notes", rv[0]["extended"])
-        self.assertIn("tags", rv[0]["extended"])
+        assert len(rv[0]["extended"]) == 2
+        assert "notes" in rv[0]["extended"]
+        assert "tags" in rv[0]["extended"]
 
-    def test_get_places_parameter_backlinks_validate_semantics(self):
+    def test_get_places_parameter_backlinks_validate_semantics(self, test_adapter):
         """Test invalid backlinks parameter and values."""
-        check_invalid_semantics(self, TEST_URL + "?backlinks", check="boolean")
+        check_invalid_semantics(test_adapter, TEST_URL + "?backlinks", check="boolean")
 
-    def test_get_places_parameter_backlinks_expected_result(self):
+    def test_get_places_parameter_backlinks_expected_result(self, test_adapter):
         """Test backlinks expected result."""
-        rv = check_success(
-            self, TEST_URL + "?gramps_id=P1108&keys=backlinks&backlinks=1"
+        rv = check_success(test_adapter, TEST_URL + "?gramps_id=P1108&keys=backlinks&backlinks=1"
         )
         for key in ["a5af0ec23c136ad6742", "a5af0ec27662bcd851c"]:
-            self.assertIn(key, rv[0]["backlinks"]["event"])
+            assert key in rv[0]["backlinks"]["event"]
 
 
-class TestPlacesHandle(unittest.TestCase):
+class TestPlacesHandle:
     """Test cases for the /api/places/{handle} endpoint for a specific place."""
 
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
-
-    def test_get_places_handle_requires_token(self):
+    def test_get_places_handle_requires_token(self, test_adapter):
         """Test authorization required."""
-        check_requires_token(self, TEST_URL + "09UJQCF3TNGH9GU0P1")
+        check_requires_token(test_adapter, TEST_URL + "09UJQCF3TNGH9GU0P1")
 
-    def test_get_places_handle_conforms_to_schema(self):
+    def test_get_places_handle_conforms_to_schema(self, test_adapter):
         """Test conforms to schema."""
-        check_conforms_to_schema(
-            self,
+        check_conforms_to_schema(test_adapter,
             TEST_URL + "09UJQCF3TNGH9GU0P1?extend=all&profile=all&backlinks=1",
             "Place",
         )
 
-    def test_get_places_handle_missing_content(self):
+    def test_get_places_handle_missing_content(self, test_adapter):
         """Test response for missing content."""
-        check_resource_missing(self, TEST_URL + "does_not_exist")
+        check_resource_missing(test_adapter, TEST_URL + "does_not_exist")
 
-    def test_get_places_handle_expected_result(self):
+    def test_get_places_handle_expected_result(self, test_adapter):
         """Test response for a specific event."""
-        rv = check_success(self, TEST_URL + "YNUJQC8YM5EGRG868J")
-        self.assertEqual(rv["gramps_id"], "P1678")
+        rv = check_success(test_adapter, TEST_URL + "YNUJQC8YM5EGRG868J")
+        assert rv["gramps_id"] == "P1678"
 
-    def test_get_places_handle_validate_semantics(self):
+    def test_get_places_handle_validate_semantics(self, test_adapter):
         """Test invalid parameters and values."""
-        check_invalid_semantics(self, TEST_URL + "YNUJQC8YM5EGRG868J?junk_parm=1")
+        check_invalid_semantics(test_adapter, TEST_URL + "YNUJQC8YM5EGRG868J?junk_parm=1")
 
-    def test_get_places_handle_parameter_strip_validate_semantics(self):
+    def test_get_places_handle_parameter_strip_validate_semantics(self, test_adapter):
         """Test invalid strip parameter and values."""
-        check_invalid_semantics(self, TEST_URL + "YNUJQC8YM5EGRG868J?strip")
+        check_invalid_semantics(test_adapter, TEST_URL + "YNUJQC8YM5EGRG868J?strip")
 
-    def test_get_places_handle_parameter_strip_expected_result(self):
+    def test_get_places_handle_parameter_strip_expected_result(self, test_adapter):
         """Test strip parameter produces expected result."""
-        check_strip_parameter(self, TEST_URL + "YNUJQC8YM5EGRG868J", paginate=False)
+        check_strip_parameter(test_adapter, TEST_URL + "YNUJQC8YM5EGRG868J", paginate=False)
 
-    def test_get_places_handle_parameter_keys_validate_semantics(self):
+    def test_get_places_handle_parameter_keys_validate_semantics(self, test_adapter):
         """Test invalid keys parameter and values."""
-        check_invalid_semantics(
-            self, TEST_URL + "YNUJQC8YM5EGRG868J?keys", check="base"
+        check_invalid_semantics(test_adapter, TEST_URL + "YNUJQC8YM5EGRG868J?keys", check="base"
         )
 
-    def test_get_places_handle_parameter_keys_expected_result_single_key(self):
+    def test_get_places_handle_parameter_keys_expected_result_single_key(self, test_adapter):
         """Test keys parameter for some single keys produces expected result."""
-        check_keys_parameter(
-            self, TEST_URL + "YNUJQC8YM5EGRG868J", ["alt_loc", "handle", "urls"]
+        check_keys_parameter(test_adapter, TEST_URL + "YNUJQC8YM5EGRG868J", ["alt_loc", "handle", "urls"]
         )
 
-    def test_get_places_handle_parameter_keys_expected_result_multiple_keys(self):
+    def test_get_places_handle_parameter_keys_expected_result_multiple_keys(self, test_adapter):
         """Test keys parameter for multiple keys produces expected result."""
-        check_keys_parameter(
-            self,
+        check_keys_parameter(test_adapter,
             TEST_URL + "YNUJQC8YM5EGRG868J",
             [",".join(["alt_loc", "handle", "urls"])],
         )
 
-    def test_get_places_handle_parameter_skipkeys_validate_semantics(self):
+    def test_get_places_handle_parameter_skipkeys_validate_semantics(self, test_adapter):
         """Test invalid skipkeys parameter and values."""
-        check_invalid_semantics(
-            self, TEST_URL + "YNUJQC8YM5EGRG868J?skipkeys", check="base"
+        check_invalid_semantics(test_adapter, TEST_URL + "YNUJQC8YM5EGRG868J?skipkeys", check="base"
         )
 
-    def test_get_places_handle_parameter_skipkeys_expected_result_single_key(self):
+    def test_get_places_handle_parameter_skipkeys_expected_result_single_key(self, test_adapter):
         """Test skipkeys parameter for some single keys produces expected result."""
-        check_skipkeys_parameter(
-            self, TEST_URL + "YNUJQC8YM5EGRG868J", ["alt_loc", "handle", "urls"]
+        check_skipkeys_parameter(test_adapter, TEST_URL + "YNUJQC8YM5EGRG868J", ["alt_loc", "handle", "urls"]
         )
 
-    def test_get_places_handle_parameter_skipkeys_expected_result_multiple_keys(self):
+    def test_get_places_handle_parameter_skipkeys_expected_result_multiple_keys(self, test_adapter):
         """Test skipkeys parameter for multiple keys produces expected result."""
-        check_skipkeys_parameter(
-            self,
+        check_skipkeys_parameter(test_adapter,
             TEST_URL + "YNUJQC8YM5EGRG868J",
             [",".join(["alt_loc", "handle", "urls"])],
         )
 
-    def test_get_places_handle_parameter_extend_validate_semantics(self):
+    def test_get_places_handle_parameter_extend_validate_semantics(self, test_adapter):
         """Test invalid extend parameter and values."""
-        check_invalid_semantics(
-            self, TEST_URL + "YNUJQC8YM5EGRG868J?extend", check="list"
+        check_invalid_semantics(test_adapter, TEST_URL + "YNUJQC8YM5EGRG868J?extend", check="list"
         )
 
-    def test_get_places_handle_parameter_extend_expected_result_citation_list(self):
+    def test_get_places_handle_parameter_extend_expected_result_citation_list(self, test_adapter):
         """Test extend citation_list result."""
-        check_single_extend_parameter(
-            self, TEST_URL + "YNUJQC8YM5EGRG868J", "citation_list", "citations"
+        check_single_extend_parameter(test_adapter, TEST_URL + "YNUJQC8YM5EGRG868J", "citation_list", "citations"
         )
 
-    def test_get_places_handle_parameter_extend_expected_result_media_list(self):
+    def test_get_places_handle_parameter_extend_expected_result_media_list(self, test_adapter):
         """Test extend media_list result."""
-        check_single_extend_parameter(
-            self, TEST_URL + "YNUJQC8YM5EGRG868J", "media_list", "media", reference=True
+        check_single_extend_parameter(test_adapter, TEST_URL + "YNUJQC8YM5EGRG868J", "media_list", "media", reference=True
         )
 
-    def test_get_places_handle_parameter_extend_expected_result_notes(self):
+    def test_get_places_handle_parameter_extend_expected_result_notes(self, test_adapter):
         """Test extend notes result."""
-        check_single_extend_parameter(
-            self, TEST_URL + "YNUJQC8YM5EGRG868J", "note_list", "notes"
+        check_single_extend_parameter(test_adapter, TEST_URL + "YNUJQC8YM5EGRG868J", "note_list", "notes"
         )
 
-    def test_get_places_handle_parameter_extend_expected_result_tag_list(self):
+    def test_get_places_handle_parameter_extend_expected_result_tag_list(self, test_adapter):
         """Test extend tag_list result."""
-        check_single_extend_parameter(
-            self, TEST_URL + "YNUJQC8YM5EGRG868J", "tag_list", "tags"
+        check_single_extend_parameter(test_adapter, TEST_URL + "YNUJQC8YM5EGRG868J", "tag_list", "tags"
         )
 
-    def test_get_places_handle_parameter_extend_expected_result_all(self):
+    def test_get_places_handle_parameter_extend_expected_result_all(self, test_adapter):
         """Test extend all result."""
-        rv = check_success(
-            self, TEST_URL + "YNUJQC8YM5EGRG868J?extend=all&keys=extended"
+        rv = check_success(test_adapter, TEST_URL + "YNUJQC8YM5EGRG868J?extend=all&keys=extended"
         )
-        self.assertEqual(len(rv["extended"]), 4)
+        assert len(rv["extended"]) == 4
         for key in ["citations", "media", "notes", "tags"]:
-            self.assertIn(key, rv["extended"])
+            assert key in rv["extended"]
 
-    def test_get_places_handle_parameter_extend_expected_result_multiple_keys(self):
+    def test_get_places_handle_parameter_extend_expected_result_multiple_keys(self, test_adapter):
         """Test extend result for multiple keys."""
-        rv = check_success(
-            self,
+        rv = check_success(test_adapter,
             TEST_URL
             + "YNUJQC8YM5EGRG868J?extend=note_list,tag_list&keys=note_list,tag_list,extended",
         )
-        self.assertEqual(len(rv["extended"]), 2)
-        self.assertIn("notes", rv["extended"])
-        self.assertIn("tags", rv["extended"])
+        assert len(rv["extended"]) == 2
+        assert "notes" in rv["extended"]
+        assert "tags" in rv["extended"]
 
-    def test_get_places_handle_parameter_profile(self):
+    def test_get_places_handle_parameter_profile(self, test_adapter):
         """Test place profile."""
-        rv = check_success(self, TEST_URL + "08TJQCCFIX31BXPNXN?profile=self&locale=it")
-        self.assertEqual(
-            rv["profile"],
-            {
+        rv = check_success(test_adapter, TEST_URL + "08TJQCCFIX31BXPNXN?profile=self&locale=it")
+        assert rv["profile"] == {
                 "alternate_names": [],
                 "alternate_place_names": [],
                 "gramps_id": "P0860",
@@ -553,18 +508,13 @@ class TestPlacesHandle(unittest.TestCase):
                     },
                 ],
                 "type": "Città",
-            },
-        )
+            }
 
-    def test_get_places_handle_parameter_profile_alternative_names(self):
+    def test_get_places_handle_parameter_profile_alternative_names(self, test_adapter):
         """Test place profile."""
-        rv = check_success(
-            self, TEST_URL + "fce62795df51c5d8ae432e3942c?profile=all&locale=en"
+        rv = check_success(test_adapter, TEST_URL + "fce62795df51c5d8ae432e3942c?profile=all&locale=en"
         )
-        self.maxDiff = None
-        self.assertEqual(
-            rv["profile"],
-            {
+        assert rv["profile"] == {
                 "alternate_names": ["Leningrad", "Petrograd"],
                 "alternate_place_names": [
                     {
@@ -604,28 +554,25 @@ class TestPlacesHandle(unittest.TestCase):
                 ],
                 "references": {},
                 "type": "City",
-            },
-        )
+            }
 
-    def test_get_places_handle_parameter_backlinks_validate_semantics(self):
+    def test_get_places_handle_parameter_backlinks_validate_semantics(self, test_adapter):
         """Test invalid backlinks parameter and values."""
-        check_invalid_semantics(
-            self, TEST_URL + "YNUJQC8YM5EGRG868J?backlinks", check="boolean"
+        check_invalid_semantics(test_adapter, TEST_URL + "YNUJQC8YM5EGRG868J?backlinks", check="boolean"
         )
 
-    def test_get_places_handle_parameter_backlinks_expected_result(self):
+    def test_get_places_handle_parameter_backlinks_expected_result(self, test_adapter):
         """Test backlinks expected result."""
-        rv = check_boolean_parameter(self, TEST_URL + "09UJQCF3TNGH9GU0P1", "backlinks")
+        rv = check_boolean_parameter(test_adapter, TEST_URL + "09UJQCF3TNGH9GU0P1", "backlinks")
         for key in ["a5af0ec6378200d83f5", "a5af0ec671815ecc2b6"]:
-            self.assertIn(key, rv["backlinks"]["event"])
+            assert key in rv["backlinks"]["event"]
 
-    def test_get_places_handle_parameter_backlinks_expected_results_extended(self):
+    def test_get_places_handle_parameter_backlinks_expected_results_extended(self, test_adapter):
         """Test backlinks extended result."""
-        rv = check_success(
-            self, TEST_URL + "09UJQCF3TNGH9GU0P1?backlinks=1&extend=backlinks"
+        rv = check_success(test_adapter, TEST_URL + "09UJQCF3TNGH9GU0P1?backlinks=1&extend=backlinks"
         )
-        self.assertIn("backlinks", rv)
-        self.assertIn("extended", rv)
-        self.assertIn("backlinks", rv["extended"])
+        assert "backlinks" in rv
+        assert "extended" in rv
+        assert "backlinks" in rv["extended"]
         for obj in rv["extended"]["backlinks"]["event"]:
-            self.assertIn(obj["handle"], ["a5af0ec6378200d83f5", "a5af0ec671815ecc2b6"])
+            assert obj["handle"] in ["a5af0ec6378200d83f5", "a5af0ec671815ecc2b6"]
