@@ -5,7 +5,9 @@
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
   "postCreateCommand": "scripts/start_dev_container.sh",
   "postStartCommand": "pip install -e .[ai]",
-  "appPort": ["5555:5555"],
+  "appPort": [
+    "5555:5555"
+  ],
   "customizations": {
     "vscode": {
       "extensions": [
@@ -16,7 +18,9 @@
         "GitHub.copilot"
       ],
       "settings": {
-        "python.experiments.optOutFrom": ["pythonTestAdapter"],
+        "python.experiments.optOutFrom": [
+          "pythonTestAdapter"
+        ],
         "editor.formatOnSave": true,
         "files.trimTrailingWhitespace": true,
         "[python]": {
@@ -24,5 +28,11 @@
         }
       }
     }
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "containerEnv": {
+    "GH_REPO": "gramps-project/gramps-web-api"
   }
 }
