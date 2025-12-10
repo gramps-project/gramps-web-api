@@ -526,10 +526,10 @@ def _resolve_smtp_config(
     Can be removed once EMAIL_USE_TLS is fully deprecated.
     """
     # If new params are set, use them
-    if use_ssl is not None:
-        return use_ssl, False
-    if use_starttls is not None:
-        return False, use_starttls
+    if use_ssl is True:
+        return True, False
+    if use_starttls is True:
+        return False, True
 
     # Legacy EMAIL_USE_TLS behavior
     if use_tls:
