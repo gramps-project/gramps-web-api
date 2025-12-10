@@ -214,3 +214,48 @@ def test_send_email_legacy_use_tls_false(mock_app, mock_smtp, mock_smtp_ssl, moc
     mock_smtp.assert_called_once()
     mock_smtp_instance.starttls.assert_called_once()
     mock_smtp_ssl.assert_not_called()
+
+
+@patch("gramps_webapi.api.util.smtplib.SMTP_SSL")
+@patch("gramps_webapi.api.util.smtplib.SMTP")
+@patch("gramps_webapi.api.util.current_app")
+def test_send_email_ssl_false_starttls_true(mock_app, mock_smtp, mock_smtp_ssl, mock_get_config):
+    """Test that EMAIL_USE_SSL=false doesn't prevent EMAIL_USE_STARTTLS=true from working."""
+    mock_get_config["EMAIL_USE_SSL"] = False
+    mock_get_config["EMAIL_USE_STARTTLS"] = True
+    mock_get_config["EMAIL_PORT"] = "587"
+
+    mock_smtp_instance = MagicMock()
+    mock_smtp.return_value = mock_smtp_instance
+
+    send_email("Subject", "Body", ["test@example.com"])
+
+    # Should use SMTP with STARTTLS (not blocked by use_ssl=False)
+    mock_smtp.assert_called_once()
+    mock_smtp_instance.starttls.assert_called_once()
+    mock_smtp_ssl.assert_not_called()
+    # Should NOT log deprecation warning (new params are used)
+    mock_app.logger.warning.assert_not_called()
+
+
+@patch("gramps_webapi.api.util.smtplib.SMTP_SSL")
+@patch("gramps_webapi.api.util.smtplib.SMTP")
+@patch("gramps_webapi.api.util.current_app")
+def test_send_email_legacy_use_tls_false_deprecation_warning(mock_app, mock_smtp, mock_smtp_ssl, mock_get_config):
+    """Test that legacy EMAIL_USE_TLS=false logs deprecation warning."""
+    mock_get_config["EMAIL_USE_TLS"] = False
+    mock_get_config["EMAIL_PORT"] = "587"
+
+    mock_smtp_instance = MagicMock()
+    mock_smtp.return_value = mock_smtp_instance
+
+    send_email("Subject", "Body", ["test@example.com"])
+
+    mock_smtp.assert_called_once()
+    mock_smtp_instance.starttls.assert_called_once()
+    mock_smtp_ssl.assert_not_called()
+
+    # Should log deprecation warning
+    mock_app.logger.warning.assert_called_once()
+    warning_msg = mock_app.logger.warning.call_args[0][0]
+    assert "deprecated" in warning_msg.lower()
