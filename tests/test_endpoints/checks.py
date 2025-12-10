@@ -113,12 +113,12 @@ def check_totals(test, url, total, role=ROLE_OWNER):
 def check_strip_parameter(test, url, role=ROLE_OWNER):
     """Test that strip parameter produces expected result."""
     header = fetch_header(test.client, role=role)
-    
+
     # Optimization: Use pagination to limit results instead of fetching all records
     # This reduces test time from ~180s to <1s while still validating the functionality
     separator = "&" if "?" in url else "?"
     limit_url = f"{url}{separator}page=1&pagesize=5"
-    
+
     baseline = test.client.get(limit_url, headers=header)
     rv = test.client.get(f"{limit_url}&strip=1", headers=header)
     test.assertEqual(rv.status_code, 200)
@@ -202,7 +202,13 @@ def check_paging_parameters(test, url, size, join="?", role=ROLE_OWNER):
 
 
 def check_sort_parameter(
-    test, url, sort_key, value_key=None, direction="+", join="?", role=ROLE_OWNER,
+    test,
+    url,
+    sort_key,
+    value_key=None,
+    direction="+",
+    join="?",
+    role=ROLE_OWNER,
 ):
     """Test that sort parameter produces expected result."""
     header = fetch_header(test.client, role=role)
@@ -229,7 +235,13 @@ def check_sort_parameter(
 
 
 def check_single_extend_parameter(
-    test, url, key, extended_key, join="?", reference=False, role=ROLE_OWNER,
+    test,
+    url,
+    key,
+    extended_key,
+    join="?",
+    reference=False,
+    role=ROLE_OWNER,
 ):
     """Test that extend parameter produces expected result for a single key."""
 
