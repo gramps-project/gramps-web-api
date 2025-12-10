@@ -522,8 +522,7 @@ def _resolve_smtp_config(
 ) -> tuple[bool, bool]:
     """Helper to resolve SMTP encryption settings.
 
-    Handles backward compatibility with EMAIL_USE_TLS.
-    Can be removed once EMAIL_USE_TLS is fully deprecated.
+    Return tuple[bool, bool]: (use_ssl, use_starttls)
     """
     # If new params are set, use them
     if use_ssl is True:
