@@ -27,7 +27,7 @@ IMPORTANT NOTES:
    - Import the example Gramps database (~10-15s)
    - Create empty database (~5s)
    - Index both databases (~20-30s)
-   
+
    After this initial setup, ALL subsequent tests in the same session are FAST
    because they reuse the same database and indexes.
 
@@ -35,7 +35,7 @@ IMPORTANT NOTES:
    - `example_*` fixtures: Session-scoped, shared across ALL tests
      → Use for READ-ONLY tests (GET requests)
      → Very fast after initial setup
-   
+
    - `isolated_*` fixtures: Function-scoped, fresh database per test
      → Use for WRITE tests (POST/PUT/DELETE)
      → Takes ~40s per test (creates fresh DB + indexes)
@@ -94,7 +94,7 @@ TEST_USERS = {
 @pytest.fixture(scope="session")
 def example_gramps_db():
     """Create example database once for all tests (session-scoped).
-    
+
     This database should be treated as READ-ONLY by tests.
     Tests that need to modify data should use `isolated_example_db` instead.
     """
@@ -106,7 +106,7 @@ def example_gramps_db():
 @pytest.fixture(scope="session")
 def example_app(example_gramps_db):
     """Create Flask app with example database (session-scoped).
-    
+
     This app uses the shared example database and is intended for READ-ONLY tests.
     """
     with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EXAMPLE_GRAMPS_AUTH_CONFIG}):
@@ -120,7 +120,7 @@ def example_app(example_gramps_db):
             },
             config_from_env=False,
         )
-    
+
     with test_app.app_context():
         user_db.create_all()
 
@@ -145,14 +145,14 @@ def example_app(example_gramps_db):
             db = db_state.db
             search_index.reindex_full(db)
             db_state.db.close()
-    
+
     yield test_app
 
 
 @pytest.fixture(scope="session")
 def example_client(example_app):
     """Create test client for example app (session-scoped).
-    
+
     Use this client for READ-ONLY tests that don't modify the database.
     """
     return example_app.test_client()
@@ -161,14 +161,14 @@ def example_client(example_app):
 @pytest.fixture(scope="session")
 def example_object_counts(example_app, example_gramps_db):
     """Get object counts from example database (session-scoped).
-    
+
     Returns a dict with counts for each object type.
     """
     with example_app.app_context():
         db_manager = WebDbManager(name=example_gramps_db.name)
         db_state = db_manager.get_db()
         db = db_state.db
-        
+
         counts = {
             "people": db.get_number_of_people(),
             "families": db.get_number_of_families(),
@@ -181,7 +181,7 @@ def example_object_counts(example_app, example_gramps_db):
             "notes": db.get_number_of_notes(),
             "tags": db.get_number_of_tags(),
         }
-        
+
         db_state.db.close()
         return counts
 
@@ -189,17 +189,18 @@ def example_object_counts(example_app, example_gramps_db):
 @pytest.fixture
 def isolated_example_db():
     """Create a fresh copy of the example database for tests that modify data.
-    
+
     This is function-scoped, so each test gets a fresh database.
     Use this for tests that POST, PUT, PATCH, or DELETE.
     """
     # Create unique name for this test run
     import uuid
+
     unique_name = f"test_isolated_{uuid.uuid4().hex[:8]}"
-    
+
     test_db = ExampleDbSQLite(name=unique_name)
     yield test_db
-    
+
     # Cleanup: remove the database
     dbman = CLIDbManager(DbState())
     try:
@@ -211,7 +212,7 @@ def isolated_example_db():
 @pytest.fixture
 def isolated_app(isolated_example_db):
     """Create Flask app with isolated database for tests that modify data.
-    
+
     This is function-scoped, so each test gets a fresh app and database.
     """
     with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EXAMPLE_GRAMPS_AUTH_CONFIG}):
@@ -225,7 +226,7 @@ def isolated_app(isolated_example_db):
             },
             config_from_env=False,
         )
-    
+
     with test_app.app_context():
         user_db.create_all()
 
@@ -247,14 +248,14 @@ def isolated_app(isolated_example_db):
         db = db_state.db
         search_index.reindex_full(db)
         db_state.db.close()
-    
+
     yield test_app
 
 
 @pytest.fixture
 def isolated_client(isolated_app):
     """Create test client with isolated database for tests that modify data.
-    
+
     Use this client for tests that POST, PUT, PATCH, or DELETE.
     Each test gets a fresh database through the isolated_app fixture.
     """
@@ -262,52 +263,50 @@ def isolated_client(isolated_app):
 
 
 @pytest.fixture
-def auth_headers(example_client) -> Dict[str, Dict[str, str]]:
+def auth_headers(example_client) -> Dict[int, Dict[str, str]]:
     """Get auth headers for all test users (uses session-scoped client).
-    
+
     Returns a dict mapping role to auth headers:
     {
-        'owner': {'Authorization': 'Bearer ...'},
-        'admin': {'Authorization': 'Bearer ...'},
+        ROLE_OWNER: {'Authorization': 'Bearer ...'},
+        ROLE_ADMIN: {'Authorization': 'Bearer ...'},
         ...
     }
     """
     headers = {}
-    
+
     for role, user in TEST_USERS.items():
         rv = example_client.post(
-            "/api/token/",
-            json={"username": user["name"], "password": user["password"]}
+            "/api/token/", json={"username": user["name"], "password": user["password"]}
         )
         if rv.status_code == 200:
             access_token = rv.json["access_token"]
             headers[role] = {"Authorization": f"Bearer {access_token}"}
-    
+
     return headers
 
 
 @pytest.fixture
-def isolated_auth_headers(isolated_client) -> Dict[str, Dict[str, str]]:
+def isolated_auth_headers(isolated_client) -> Dict[int, Dict[str, str]]:
     """Get auth headers for isolated database tests.
-    
+
     Returns a dict mapping role to auth headers:
     {
-        'owner': {'Authorization': 'Bearer ...'},
-        'admin': {'Authorization': 'Bearer ...'},
+        ROLE_OWNER: {'Authorization': 'Bearer ...'},
+        ROLE_ADMIN: {'Authorization': 'Bearer ...'},
         ...
     }
     """
     headers = {}
-    
+
     for role, user in TEST_USERS.items():
         rv = isolated_client.post(
-            "/api/token/",
-            json={"username": user["name"], "password": user["password"]}
+            "/api/token/", json={"username": user["name"], "password": user["password"]}
         )
         if rv.status_code == 200:
             access_token = rv.json["access_token"]
             headers[role] = {"Authorization": f"Bearer {access_token}"}
-    
+
     return headers
 
 
@@ -319,39 +318,41 @@ def isolated_auth_headers(isolated_client) -> Dict[str, Dict[str, str]]:
 
 class PytestTestAdapter:
     """Adapter to make unittest-style tests work with pytest fixtures.
-    
+
     This provides the .client and .assertEqual() interface expected by
     the check functions in tests/test_endpoints/checks.py.
     """
-    
+
     def __init__(self, client):
         """Initialize with a test client."""
         self.client = client
-    
+
     def assertEqual(self, first, second, msg=None):
         """Pytest-compatible assertEqual."""
         assert first == second, msg or f"{first} != {second}"
-    
+
     def assertIsInstance(self, obj, cls, msg=None):
         """Pytest-compatible assertIsInstance."""
         assert isinstance(obj, cls), msg or f"{obj} is not an instance of {cls}"
-    
+
     def assertIn(self, member, container, msg=None):
         """Pytest-compatible assertIn."""
         assert member in container, msg or f"{member} not found in {container}"
-    
+
     def assertNotIn(self, member, container, msg=None):
         """Pytest-compatible assertNotIn."""
-        assert member not in container, msg or f"{member} unexpectedly found in {container}"
-    
+        assert member not in container, (
+            msg or f"{member} unexpectedly found in {container}"
+        )
+
     def assertLessEqual(self, first, second, msg=None):
         """Pytest-compatible assertLessEqual."""
         assert first <= second, msg or f"{first} > {second}"
-    
+
     def assertGreaterEqual(self, first, second, msg=None):
         """Pytest-compatible assertGreaterEqual."""
         assert first >= second, msg or f"{first} < {second}"
-    
+
     def assertTrue(self, expr, msg=None):
         """Pytest-compatible assertTrue."""
         assert expr, msg or f"Expression is not True"
@@ -360,9 +361,9 @@ class PytestTestAdapter:
 @pytest.fixture
 def test_adapter(example_client):
     """Create a test adapter for example_client (session-scoped, read-only).
-    
+
     This allows unittest-style check functions to work with pytest fixtures:
-    
+
     Usage:
         def test_something(test_adapter):
             check_success(test_adapter, "/api/people/")
@@ -373,7 +374,7 @@ def test_adapter(example_client):
 @pytest.fixture
 def isolated_test_adapter(isolated_client):
     """Create a test adapter for isolated_client (function-scoped, for writes).
-    
+
     Usage:
         def test_create_something(isolated_test_adapter):
             check_success(isolated_test_adapter, "/api/people/")
@@ -383,15 +384,16 @@ def isolated_test_adapter(isolated_client):
 
 # Helper functions for backward compatibility with unittest-style tests
 
+
 def get_example_client_for_unittest():
     """Helper to get the example client from within unittest.TestCase.
-    
+
     This allows unittest-style tests to access the session-scoped fixtures
     without converting the entire test class to pytest.
-    
+
     Usage in test:
         from tests.conftest import get_example_client_for_unittest
-        
+
         def test_something(self):
             client = get_example_client_for_unittest()
             rv = client.get('/api/people/')
