@@ -110,7 +110,7 @@ def check_totals(test, url, total, role=ROLE_OWNER):
     return rv.json
 
 
-def check_strip_parameter(test, url, join="?", role=ROLE_OWNER):
+def check_strip_parameter(test, url, role=ROLE_OWNER):
     """Test that strip parameter produces expected result."""
     header = fetch_header(test.client, role=role)
     

@@ -236,7 +236,7 @@ class TestSearch(unittest.TestCase):
 
     def test_get_search_parameter_strip_expected_result(self):
         """Test strip parameter produces expected result."""
-        check_strip_parameter(self, TEST_URL + "?query=Abigail", join="&")
+        check_strip_parameter(self, TEST_URL + "?query=Abigail")
 
     def test_get_search_parameter_profile_validate_semantics(self):
         """Test invalid profile parameter and values."""
