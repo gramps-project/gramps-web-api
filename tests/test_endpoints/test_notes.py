@@ -111,17 +111,23 @@ class TestNotes:
 
     def test_get_notes_parameter_keys_expected_result_multiple_keys(self, test_adapter):
         """Test keys parameter for multiple keys produces expected result."""
-        check_keys_parameter(test_adapter, TEST_URL, [",".join(["change", "handle", "type"])])
+        check_keys_parameter(
+            test_adapter, TEST_URL, [",".join(["change", "handle", "type"])]
+        )
 
     def test_get_notes_parameter_skipkeys_validate_semantics(self, test_adapter):
         """Test invalid skipkeys parameter and values."""
         check_invalid_semantics(test_adapter, TEST_URL + "?skipkeys", check="base")
 
-    def test_get_notes_parameter_skipkeys_expected_result_single_key(self, test_adapter):
+    def test_get_notes_parameter_skipkeys_expected_result_single_key(
+        self, test_adapter
+    ):
         """Test skipkeys parameter for some single keys produces expected result."""
         check_skipkeys_parameter(test_adapter, TEST_URL, ["change", "handle", "type"])
 
-    def test_get_notes_parameter_skipkeys_expected_result_multiple_keys(self, test_adapter):
+    def test_get_notes_parameter_skipkeys_expected_result_multiple_keys(
+        self, test_adapter
+    ):
         """Test skipkeys parameter for multiple keys produces expected result."""
         check_skipkeys_parameter(
             test_adapter, TEST_URL, [",".join(["change", "handle", "type"])]
@@ -143,61 +149,85 @@ class TestNotes:
         """Test invalid sort parameter and values."""
         check_invalid_semantics(test_adapter, TEST_URL + "?sort", check="list")
 
-    def test_get_notes_parameter_sort_change_ascending_expected_result(self, test_adapter):
+    def test_get_notes_parameter_sort_change_ascending_expected_result(
+        self, test_adapter
+    ):
         """Test sort parameter change ascending result."""
         check_sort_parameter(test_adapter, TEST_URL, "change")
 
-    def test_get_notes_parameter_sort_change_descending_expected_result(self, test_adapter):
+    def test_get_notes_parameter_sort_change_descending_expected_result(
+        self, test_adapter
+    ):
         """Test sort parameter change descending result."""
         check_sort_parameter(test_adapter, TEST_URL, "change", direction="-")
 
-    def test_get_notes_parameter_sort_gramps_id_ascending_expected_result(self, test_adapter):
+    def test_get_notes_parameter_sort_gramps_id_ascending_expected_result(
+        self, test_adapter
+    ):
         """Test sort parameter gramps_id ascending result."""
         rv = check_success(test_adapter, TEST_URL + "?keys=gramps_id&sort=+gramps_id")
         assert rv[0]["gramps_id"] == "_custom1"
         assert rv[-1]["gramps_id"] == "N0015"
 
-    def test_get_notes_parameter_sort_gramps_id_descending_expected_result(self, test_adapter):
+    def test_get_notes_parameter_sort_gramps_id_descending_expected_result(
+        self, test_adapter
+    ):
         """Test sort parameter gramps_id descending result."""
         rv = check_success(test_adapter, TEST_URL + "?keys=gramps_id&sort=-gramps_id")
         assert rv[0]["gramps_id"] == "N0015"
         assert rv[-1]["gramps_id"] == "_custom1"
 
-    def test_get_notes_parameter_sort_private_ascending_expected_result(self, test_adapter):
+    def test_get_notes_parameter_sort_private_ascending_expected_result(
+        self, test_adapter
+    ):
         """Test sort parameter private ascending result."""
         check_sort_parameter(test_adapter, TEST_URL, "private")
 
-    def test_get_notes_parameter_sort_private_descending_expected_result(self, test_adapter):
+    def test_get_notes_parameter_sort_private_descending_expected_result(
+        self, test_adapter
+    ):
         """Test sort parameter private descending result."""
         check_sort_parameter(test_adapter, TEST_URL, "private", direction="-")
 
-    def test_get_notes_parameter_sort_text_ascending_expected_result(self, test_adapter):
+    def test_get_notes_parameter_sort_text_ascending_expected_result(
+        self, test_adapter
+    ):
         """Test sort parameter text ascending result."""
         rv = check_success(test_adapter, TEST_URL + "?keys=text,handle&sort=+text")
         assert rv[0]["handle"] == "b39feb55e1173f4a699"
         assert rv[-1]["handle"] == "ac380498c020c7bcdc7"
 
-    def test_get_notes_parameter_sort_text_descending_expected_result(self, test_adapter):
+    def test_get_notes_parameter_sort_text_descending_expected_result(
+        self, test_adapter
+    ):
         """Test sort parameter text descending result."""
         rv = check_success(test_adapter, TEST_URL + "?keys=text,handle&sort=-text")
         assert rv[0]["handle"] == "ac380498c020c7bcdc7"
         assert rv[-1]["handle"] == "b39feb55e1173f4a699"
 
-    def test_get_notes_parameter_sort_type_ascending_expected_result(self, test_adapter):
+    def test_get_notes_parameter_sort_type_ascending_expected_result(
+        self, test_adapter
+    ):
         """Test sort parameter type ascending result."""
         check_sort_parameter(test_adapter, TEST_URL, "type")
 
-    def test_get_notes_parameter_sort_type_descending_expected_result(self, test_adapter):
+    def test_get_notes_parameter_sort_type_descending_expected_result(
+        self, test_adapter
+    ):
         """Test sort parameter type descending result."""
         check_sort_parameter(test_adapter, TEST_URL, "type", direction="-")
 
-    def test_get_notes_parameter_sort_type_ascending_expected_result_with_locale(self, test_adapter):
+    def test_get_notes_parameter_sort_type_ascending_expected_result_with_locale(
+        self, test_adapter
+    ):
         """Test sort parameter type ascending result using different locale."""
         rv = check_success(test_adapter, TEST_URL + "?keys=type&sort=+type&locale=de")
         assert rv[0]["type"] == "Transcript"
         assert rv[-1]["type"] == "Source text"
 
-    def test_get_notes_parameter_sort_type_descending_expected_result_with_locale(self, test_adapter):
+    def test_get_notes_parameter_sort_type_descending_expected_result_with_locale(
+        self, test_adapter
+    ):
         """Test sort parameter type descending result using different locale."""
         rv = check_success(test_adapter, TEST_URL + "?keys=type&sort=-type&locale=de")
         assert rv[0]["type"] == "Source text"
@@ -209,7 +239,9 @@ class TestNotes:
 
     def test_get_notes_parameter_filter_missing_content(self, test_adapter):
         """Test response when missing the filter."""
-        check_resource_missing(test_adapter, TEST_URL + "?filter=ReallyNotARealFilterYouSee")
+        check_resource_missing(
+            test_adapter, TEST_URL + "?filter=ReallyNotARealFilterYouSee"
+        )
 
     def test_get_notes_parameter_rules_validate_syntax(self, test_adapter):
         """Test invalid rules syntax."""
@@ -238,7 +270,9 @@ class TestNotes:
             test_adapter, TEST_URL + '?rules={"rules":[{"name":"Grey Havens"}]}'
         )
 
-    def test_get_notes_parameter_rules_expected_response_single_rule(self, test_adapter):
+    def test_get_notes_parameter_rules_expected_response_single_rule(
+        self, test_adapter
+    ):
         """Test rules parameter expected response for a single rule."""
         rv = check_success(
             test_adapter,
@@ -248,7 +282,9 @@ class TestNotes:
         for item in rv:
             assert item["type"] == "Person Note"
 
-    def test_get_notes_parameter_rules_expected_response_multiple_rules(self, test_adapter):
+    def test_get_notes_parameter_rules_expected_response_multiple_rules(
+        self, test_adapter
+    ):
         """Test rules parameter expected response for multiple rules."""
         rv = check_success(
             test_adapter,
@@ -257,7 +293,9 @@ class TestNotes:
         )
         assert rv == []
 
-    def test_get_notes_parameter_rules_expected_response_or_function(self, test_adapter):
+    def test_get_notes_parameter_rules_expected_response_or_function(
+        self, test_adapter
+    ):
         """Test rules parameter expected response for or function."""
         rv = check_success(
             test_adapter,
@@ -266,7 +304,9 @@ class TestNotes:
         )
         assert len(rv) == 3
 
-    def test_get_notes_parameter_rules_expected_response_one_function(self, test_adapter):
+    def test_get_notes_parameter_rules_expected_response_one_function(
+        self, test_adapter
+    ):
         """Test rules parameter expected response for one function."""
         rv = check_success(
             test_adapter,
@@ -296,7 +336,9 @@ class TestNotes:
 
     def test_get_notes_parameter_extend_expected_result_all(self, test_adapter):
         """Test extend all result."""
-        rv = check_success(test_adapter, TEST_URL + "?gramps_id=N0011&extend=all&keys=extended")
+        rv = check_success(
+            test_adapter, TEST_URL + "?gramps_id=N0011&extend=all&keys=extended"
+        )
         assert len(rv[0]["extended"]) == 1
         for key in ["tags"]:
             assert key in rv[0]["extended"]
@@ -307,7 +349,9 @@ class TestNotes:
 
     def test_get_notes_parameter_backlinks_expected_result(self, test_adapter):
         """Test backlinks expected result."""
-        rv = check_success(test_adapter, TEST_URL + "?page=1&keys=backlinks&backlinks=1")
+        rv = check_success(
+            test_adapter, TEST_URL + "?page=1&keys=backlinks&backlinks=1"
+        )
         for key in ["GNUJQCL9MD64AM56OH"]:
             assert key in rv[0]["backlinks"]["person"]
 
@@ -339,7 +383,9 @@ class TestNotesHandle:
 
     def test_get_notes_handle_validate_semantics(self, test_adapter):
         """Test invalid parameters and values."""
-        check_invalid_semantics(test_adapter, TEST_URL + "ac3804aac6b762b75a5?junk_parm=1")
+        check_invalid_semantics(
+            test_adapter, TEST_URL + "ac3804aac6b762b75a5?junk_parm=1"
+        )
 
     def test_get_notes_handle_parameter_strip_validate_semantics(self, test_adapter):
         """Test invalid strip parameter and values."""
@@ -349,7 +395,9 @@ class TestNotesHandle:
 
     def test_get_notes_handle_parameter_strip_expected_result(self, test_adapter):
         """Test strip parameter produces expected result."""
-        check_strip_parameter(test_adapter, TEST_URL + "ac3804aac6b762b75a5", paginate=False)
+        check_strip_parameter(
+            test_adapter, TEST_URL + "ac3804aac6b762b75a5", paginate=False
+        )
 
     def test_get_notes_handle_parameter_keys_validate_semantics(self, test_adapter):
         """Test invalid keys parameter and values."""
@@ -357,13 +405,17 @@ class TestNotesHandle:
             test_adapter, TEST_URL + "ac3804aac6b762b75a5?keys", check="base"
         )
 
-    def test_get_notes_handle_parameter_keys_expected_result_single_key(self, test_adapter):
+    def test_get_notes_handle_parameter_keys_expected_result_single_key(
+        self, test_adapter
+    ):
         """Test keys parameter for some single keys produces expected result."""
         check_keys_parameter(
             test_adapter, TEST_URL + "ac3804aac6b762b75a5", ["change", "handle", "type"]
         )
 
-    def test_get_notes_handle_parameter_keys_expected_result_multiple_keys(self, test_adapter):
+    def test_get_notes_handle_parameter_keys_expected_result_multiple_keys(
+        self, test_adapter
+    ):
         """Test keys parameter for multiple keys produces expected result."""
         check_keys_parameter(
             test_adapter,
@@ -377,13 +429,17 @@ class TestNotesHandle:
             test_adapter, TEST_URL + "ac3804aac6b762b75a5?skipkeys", check="base"
         )
 
-    def test_get_notes_handle_parameter_skipkeys_expected_result_single_key(self, test_adapter):
+    def test_get_notes_handle_parameter_skipkeys_expected_result_single_key(
+        self, test_adapter
+    ):
         """Test skipkeys parameter for some single keys produces expected result."""
         check_skipkeys_parameter(
             test_adapter, TEST_URL + "ac3804aac6b762b75a5", ["change", "handle", "type"]
         )
 
-    def test_get_notes_handle_parameter_skipkeys_expected_result_multiple_keys(self, test_adapter):
+    def test_get_notes_handle_parameter_skipkeys_expected_result_multiple_keys(
+        self, test_adapter
+    ):
         """Test skipkeys parameter for multiple keys produces expected result."""
         check_skipkeys_parameter(
             test_adapter,
@@ -397,7 +453,9 @@ class TestNotesHandle:
             test_adapter, TEST_URL + "ac3804aac6b762b75a5?extend", check="list"
         )
 
-    def test_get_notes_handle_parameter_extend_expected_result_tag_list(self, test_adapter):
+    def test_get_notes_handle_parameter_extend_expected_result_tag_list(
+        self, test_adapter
+    ):
         """Test extend tag_list result."""
         check_single_extend_parameter(
             test_adapter, TEST_URL + "ac3804aac6b762b75a5", "tag_list", "tags"
@@ -412,7 +470,9 @@ class TestNotesHandle:
         for key in ["tags"]:
             assert key in rv["extended"]
 
-    def test_get_notes_handle_parameter_backlinks_validate_semantics(self, test_adapter):
+    def test_get_notes_handle_parameter_backlinks_validate_semantics(
+        self, test_adapter
+    ):
         """Test invalid backlinks parameter and values."""
         check_invalid_semantics(
             test_adapter, TEST_URL + "b39ff01f75c1f76859a?backlinks", check="boolean"
@@ -426,7 +486,9 @@ class TestNotesHandle:
         for key in ["GNUJQCL9MD64AM56OH"]:
             assert key in rv["backlinks"]["person"]
 
-    def test_get_notes_handle_parameter_backlinks_expected_results_extended(self, test_adapter):
+    def test_get_notes_handle_parameter_backlinks_expected_results_extended(
+        self, test_adapter
+    ):
         """Test backlinks extended result."""
         rv = check_success(
             test_adapter, TEST_URL + "b39ff01f75c1f76859a?backlinks=1&extend=backlinks"
@@ -466,4 +528,7 @@ class TestNotesHandle:
         assert "html" in rv["formatted"]
         html = rv["formatted"]["html"]
         assert isinstance(html, str)
-        assert '<a href="__I0044__GNUJQCL9MD64AM56OH__person__">Lewis Anderson Garner</a>' in html
+        assert (
+            '<a href="__I0044__GNUJQCL9MD64AM56OH__person__">Lewis Anderson Garner</a>'
+            in html
+        )
