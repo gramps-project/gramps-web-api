@@ -230,18 +230,21 @@ class TestUser(unittest.TestCase):
         assert rv.status_code == 404
 
     def test_reset_password_trigger_status(self):
-        with patch("smtplib.SMTP_SSL") as mock_smtp:
+        with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
+            mock_smtp_instance = MagicMock()
+            mock_smtp.return_value = mock_smtp_instance
             rv = self.client.post(BASE_URL + "/users/user/password/reset/trigger/")
             assert rv.status_code == 201
+            mock_smtp_instance.send_message.assert_called_once()
 
     def test_reset_password(self):
-        with patch("smtplib.SMTP_SSL") as mock_smtp:
+        with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
+            mock_smtp_instance = MagicMock()
+            mock_smtp.return_value = mock_smtp_instance
             rv = self.client.post(BASE_URL + "/users/user/password/reset/trigger/")
             assert rv.status_code == 201
-            context = mock_smtp.return_value
-            context.send_message.assert_called()
-            name, args, kwargs = context.method_calls.pop(0)
-            msg = args[0]
+            mock_smtp_instance.send_message.assert_called_once()
+            msg = mock_smtp_instance.send_message.call_args[0][0]
             # extract the token from the message body
             body = msg.get_body().get_payload().replace("=\n", "")
             matches = re.findall(
@@ -542,7 +545,9 @@ class TestUser(unittest.TestCase):
         assert rv.status_code == 200
 
     def test_register_user(self):
-        with patch("smtplib.SMTP_SSL") as mock_smtp:
+        with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
+            mock_smtp_instance = MagicMock()
+            mock_smtp.return_value = mock_smtp_instance
             # role is not allowed
             rv = self.client.post(
                 BASE_URL + "/users/new_user_2/register/",
