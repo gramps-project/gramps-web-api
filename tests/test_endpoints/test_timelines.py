@@ -113,7 +113,7 @@ class TestTimelinesPeople:
         )
 
     def test_get_timelines_people_parameter_skipkeys_expected_result_multiple_keys(
-        self,
+        self, test_adapter
     ):
         """Test skipkeys parameter for multiple keys produces expected result."""
         check_skipkeys_parameter(
@@ -451,7 +451,7 @@ class TestTimelinesFamilies:
         )
 
     def test_get_timelines_families_parameter_skipkeys_expected_result_multiple_keys(
-        self,
+        self, test_adapter
     ):
         """Test skipkeys parameter for multiple keys produces expected result."""
         check_skipkeys_parameter(
