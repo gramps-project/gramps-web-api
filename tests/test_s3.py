@@ -29,7 +29,7 @@ from moto import mock_s3
 
 from gramps_webapi.api.media import MediaHandler
 from gramps_webapi.api.s3 import get_object_keys_size
-from .test_endpoints.test_upload import get_image
+from .test_endpoints.unittest_tests.test_upload import get_image
 
 
 BUCKET = "test-s3-bucket"

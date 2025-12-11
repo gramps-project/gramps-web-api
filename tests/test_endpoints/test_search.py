@@ -47,7 +47,7 @@ def search_engine(request, example_app):
     """Create a search engine with a temporary index for testing."""
     # Use the example_app's client
     client = example_app.test_client()
-    
+
     index_dir = tempfile.mkdtemp()
     dbmgr = WebDbManager(name="example_gramps", create_if_missing=False)
     tree = dbmgr.dirname

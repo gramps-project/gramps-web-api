@@ -95,9 +95,13 @@ class TestTags:
 
     def test_get_tags_parameter_skipkeys_expected_result_single_key(self, test_adapter):
         """Test skipkeys parameter for some single keys produces expected result."""
-        check_skipkeys_parameter(test_adapter, TEST_URL, ["change", "handle", "priority"])
+        check_skipkeys_parameter(
+            test_adapter, TEST_URL, ["change", "handle", "priority"]
+        )
 
-    def test_get_tags_parameter_skipkeys_expected_result_multiple_keys(self, test_adapter):
+    def test_get_tags_parameter_skipkeys_expected_result_multiple_keys(
+        self, test_adapter
+    ):
         """Test skipkeys parameter for multiple keys produces expected result."""
         check_skipkeys_parameter(
             test_adapter, TEST_URL, [",".join(["change", "handle", "priority"])]
@@ -119,11 +123,15 @@ class TestTags:
         """Test invalid sort parameter and values."""
         check_invalid_semantics(test_adapter, TEST_URL + "?sort", check="list")
 
-    def test_get_tags_parameter_sort_change_ascending_expected_result(self, test_adapter):
+    def test_get_tags_parameter_sort_change_ascending_expected_result(
+        self, test_adapter
+    ):
         """Test sort parameter change ascending result."""
         check_sort_parameter(test_adapter, TEST_URL, "change")
 
-    def test_get_tags_parameter_sort_change_descending_expected_result(self, test_adapter):
+    def test_get_tags_parameter_sort_change_descending_expected_result(
+        self, test_adapter
+    ):
         """Test sort parameter change descending result."""
         check_sort_parameter(test_adapter, TEST_URL, "change", direction="-")
 
@@ -133,25 +141,35 @@ class TestTags:
         assert rv[0]["name"] == "complete"
         assert rv[-1]["name"] == "ToDo"
 
-    def test_get_tags_parameter_sort_name_descending_expected_result(self, test_adapter):
+    def test_get_tags_parameter_sort_name_descending_expected_result(
+        self, test_adapter
+    ):
         """Test sort parameter name descending result."""
         rv = check_success(test_adapter, TEST_URL + "?sort=-name&keys=name")
         assert rv[0]["name"] == "ToDo"
         assert rv[-1]["name"] == "complete"
 
-    def test_get_tags_parameter_sort_color_ascending_expected_result(self, test_adapter):
+    def test_get_tags_parameter_sort_color_ascending_expected_result(
+        self, test_adapter
+    ):
         """Test sort parameter color ascending result."""
         check_sort_parameter(test_adapter, TEST_URL, "color")
 
-    def test_get_tags_parameter_sort_color_descending_expected_result(self, test_adapter):
+    def test_get_tags_parameter_sort_color_descending_expected_result(
+        self, test_adapter
+    ):
         """Test sort parameter color descending result."""
         check_sort_parameter(test_adapter, TEST_URL, "color", direction="-")
 
-    def test_get_tags_parameter_sort_priority_ascending_expected_result(self, test_adapter):
+    def test_get_tags_parameter_sort_priority_ascending_expected_result(
+        self, test_adapter
+    ):
         """Test sort parameter priority ascending result."""
         check_sort_parameter(test_adapter, TEST_URL, "priority")
 
-    def test_get_tags_parameter_sort_priority_descending_expected_result(self, test_adapter):
+    def test_get_tags_parameter_sort_priority_descending_expected_result(
+        self, test_adapter
+    ):
         """Test sort parameter priority descending result."""
         check_sort_parameter(test_adapter, TEST_URL, "priority", direction="-")
 
@@ -161,7 +179,9 @@ class TestTags:
 
     def test_get_tags_parameter_backlinks_expected_result(self, test_adapter):
         """Test backlinks expected result."""
-        rv = check_success(test_adapter, TEST_URL + "?page=1&keys=backlinks&backlinks=1")
+        rv = check_success(
+            test_adapter, TEST_URL + "?page=1&keys=backlinks&backlinks=1"
+        )
         assert "JF5KQC2L6ABI0MVD3E" in rv[0]["backlinks"]["person"]
 
 
@@ -198,7 +218,9 @@ class TestTagsHandle:
 
     def test_get_tags_handle_parameter_strip_expected_result(self, test_adapter):
         """Test strip parameter produces expected result."""
-        check_strip_parameter(test_adapter, TEST_URL + "bb80c2b235b0a1b3f49", paginate=False)
+        check_strip_parameter(
+            test_adapter, TEST_URL + "bb80c2b235b0a1b3f49", paginate=False
+        )
 
     def test_get_tags_handle_parameter_keys_validate_semantics(self, test_adapter):
         """Test invalid keys parameter and values."""
@@ -206,13 +228,19 @@ class TestTagsHandle:
             test_adapter, TEST_URL + "bb80c2b235b0a1b3f49?keys", check="base"
         )
 
-    def test_get_tags_handle_parameter_keys_expected_result_single_key(self, test_adapter):
+    def test_get_tags_handle_parameter_keys_expected_result_single_key(
+        self, test_adapter
+    ):
         """Test keys parameter for some single keys produces expected result."""
         check_keys_parameter(
-            test_adapter, TEST_URL + "bb80c2b235b0a1b3f49", ["change", "handle", "priority"]
+            test_adapter,
+            TEST_URL + "bb80c2b235b0a1b3f49",
+            ["change", "handle", "priority"],
         )
 
-    def test_get_tags_handle_parameter_keys_expected_result_multiple_keys(self, test_adapter):
+    def test_get_tags_handle_parameter_keys_expected_result_multiple_keys(
+        self, test_adapter
+    ):
         """Test keys parameter for multiple keys produces expected result."""
         check_keys_parameter(
             test_adapter,
@@ -226,13 +254,19 @@ class TestTagsHandle:
             test_adapter, TEST_URL + "bb80c2b235b0a1b3f49?skipkeys", check="base"
         )
 
-    def test_get_tags_handle_parameter_skipkeys_expected_result_single_key(self, test_adapter):
+    def test_get_tags_handle_parameter_skipkeys_expected_result_single_key(
+        self, test_adapter
+    ):
         """Test skipkeys parameter for some single keys produces expected result."""
         check_skipkeys_parameter(
-            test_adapter, TEST_URL + "bb80c2b235b0a1b3f49", ["change", "handle", "priority"]
+            test_adapter,
+            TEST_URL + "bb80c2b235b0a1b3f49",
+            ["change", "handle", "priority"],
         )
 
-    def test_get_tags_handle_parameter_skipkeys_expected_result_multiple_keys(self, test_adapter):
+    def test_get_tags_handle_parameter_skipkeys_expected_result_multiple_keys(
+        self, test_adapter
+    ):
         """Test skipkeys parameter for multiple keys produces expected result."""
         check_skipkeys_parameter(
             test_adapter,
@@ -254,7 +288,9 @@ class TestTagsHandle:
         for key in ["b39ff01f75c1f76859a", "b39fe2e143d1e599450"]:
             assert key in rv["backlinks"]["note"]
 
-    def test_get_tags_handle_parameter_backlinks_expected_results_extended(self, test_adapter):
+    def test_get_tags_handle_parameter_backlinks_expected_results_extended(
+        self, test_adapter
+    ):
         """Test backlinks extended result."""
         rv = check_success(
             test_adapter, TEST_URL + "bb80c2b235b0a1b3f49?backlinks=1&extend=backlinks"
