@@ -22,13 +22,13 @@
 import unittest
 
 from . import BASE_URL, get_test_client
-from .checks import (
+from ..checks import (
     check_conforms_to_schema,
     check_invalid_semantics,
     check_requires_token,
     check_success,
 )
-from .util import fetch_header
+from ..util import fetch_header
 
 TEST_URL = BASE_URL + "/facts/"
 

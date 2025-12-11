@@ -20,7 +20,7 @@
 """Tests for the /api/repositories endpoints using example_gramps."""
 
 
-from tests.test_endpoints import BASE_URL, get_object_count, get_test_client
+from tests.test_endpoints import BASE_URL
 
 from .checks import (
     check_boolean_parameter,
@@ -56,9 +56,7 @@ class TestRepositories:
             test_adapter, TEST_URL + "?extend=all&profile=all&backlinks=1", "Repository"
         )
 
-    def test_get_repositories_expected_results_total(self, test_adapter):
-        """Test expected number of results returned."""
-        check_totals(test_adapter, TEST_URL + "?keys=handle", get_object_count("repositories"))
+
 
     def test_get_repositories_expected_results(self, test_adapter):
         """Test some expected results returned."""

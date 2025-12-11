@@ -20,7 +20,7 @@
 """Tests for the /api/living endpoints using example_gramps."""
 
 
-from . import BASE_URL, get_test_client
+from . import BASE_URL
 from .checks import (
     check_conforms_to_schema,
     check_invalid_semantics,

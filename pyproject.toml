@@ -69,3 +69,6 @@ version = {attr = "gramps_webapi.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["gramps_webapi", "gramps_webapi.*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

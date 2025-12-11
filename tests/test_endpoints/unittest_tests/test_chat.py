@@ -26,7 +26,7 @@ from urllib.parse import quote
 
 
 from . import BASE_URL, get_test_client
-from .util import fetch_header
+from ..util import fetch_header
 
 from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_OWNER
 

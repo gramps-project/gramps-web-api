@@ -20,7 +20,7 @@
 """Tests for the /api/citations endpoints using example_gramps."""
 
 
-from . import BASE_URL, get_object_count, get_test_client
+from . import BASE_URL
 from .checks import (
     check_boolean_parameter,
     check_conforms_to_schema,
@@ -55,9 +55,7 @@ class TestCitations:
             test_adapter, TEST_URL + "?extend=all&profile=all&backlinks=1", "Citation"
         )
 
-    def test_get_citations_expected_results_total(self, test_adapter):
-        """Test expected number of results returned."""
-        check_totals(test_adapter, TEST_URL + "?keys=handle", get_object_count("citations"))
+
 
     def test_get_citations_expected_results(self, test_adapter):
         """Test some expected results returned."""

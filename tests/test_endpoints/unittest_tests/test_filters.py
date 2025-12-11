@@ -28,14 +28,14 @@ from jsonschema import validate
 from gramps_webapi.const import GRAMPS_NAMESPACES
 
 from . import API_RESOLVER, API_SCHEMA, BASE_URL, get_test_client
-from .checks import (
+from ..checks import (
     check_filter_create_update_delete,
     check_invalid_semantics,
     check_requires_token,
     check_resource_missing,
     check_success,
 )
-from .util import fetch_header
+from ..util import fetch_header
 
 TEST_URL = BASE_URL + "/filters/"
 

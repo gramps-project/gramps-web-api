@@ -20,7 +20,7 @@
 """Tests for the /api/tags endpoints using example_gramps."""
 
 
-from . import BASE_URL, get_object_count, get_test_client
+from . import BASE_URL
 from .checks import (
     check_boolean_parameter,
     check_conforms_to_schema,
@@ -51,9 +51,9 @@ class TestTags:
         """Test conforms to schema."""
         check_conforms_to_schema(test_adapter, TEST_URL, "Tag")
 
-    def test_get_tags_expected_results_total(self, test_adapter):
+    def test_get_tags_expected_results_total(self, test_adapter, example_object_counts):
         """Test expected number of results returned."""
-        check_totals(test_adapter, TEST_URL, get_object_count("tags"))
+        check_totals(test_adapter, TEST_URL, example_object_counts["tags"])
 
     def test_get_tags_expected_results(self, test_adapter):
         """Test some expected results returned."""

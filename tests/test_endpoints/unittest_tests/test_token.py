@@ -33,7 +33,7 @@ from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 from gramps_webapi.dbmanager import WebDbManager
 
 from . import BASE_URL, TEST_USERS, get_test_client
-from .util import fetch_header
+from ..util import fetch_header
 
 
 class TestToken(unittest.TestCase):

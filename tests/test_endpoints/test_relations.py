@@ -21,7 +21,7 @@
 
 import pytest
 
-from . import BASE_URL, get_test_client
+from . import BASE_URL
 from .checks import (
     check_invalid_semantics,
     check_requires_token,
@@ -34,11 +34,6 @@ TEST_URL = BASE_URL + "/relations/"
 
 class TestRelations:
     """Test cases for the /api/relations/{handle1}/{handle2} endpoint."""
-
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
 
     def test_get_relations_requires_token(self, test_adapter):
         """Test authorization required."""
@@ -125,11 +120,6 @@ class TestRelations:
 
 class TestRelationsAll:
     """Test cases for the /api/relations/{handle1}/{handle2}/all endpoint."""
-
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
 
     def test_get_relations_all_requires_token(self, test_adapter):
         """Test authorization required."""

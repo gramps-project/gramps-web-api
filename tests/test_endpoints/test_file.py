@@ -26,7 +26,7 @@ from PIL import Image
 
 from gramps_webapi.const import MIME_JPEG
 
-from . import BASE_URL, get_test_client
+from . import BASE_URL
 from .checks import check_requires_token, check_success
 
 TEST_URL = BASE_URL + "/media/"
@@ -34,11 +34,6 @@ TEST_URL = BASE_URL + "/media/"
 
 class TestFile:
     """Test cases for the /api/media/{}/file endpoint."""
-
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
 
     def test_get_file_requires_token(self, test_adapter):
         """Test authorization required."""
@@ -56,11 +51,6 @@ class TestFile:
 
 class TestThumbnail:
     """Test cases for the /api/media/{}/thumbnail endpoint."""
-
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
 
     def test_get_thumbnail_small_requires_token(self, test_adapter):
         """Test authorization required."""
@@ -120,11 +110,6 @@ class TestThumbnail:
 class TestCropped:
     """Test cases for the /api/media/{}/cropped endpoint."""
 
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
-
     def test_get_cropped_requires_token(self, test_adapter):
         """Test authorization required."""
         check_requires_token(test_adapter, TEST_URL + "b39fe1cfc1305ac4a21/cropped/10/80/20/100"
@@ -150,11 +135,6 @@ class TestCropped:
 
 class TestCroppedThumbnail:
     """Test cases for the /api/media/{}/cropped/thumbnail endpoints."""
-
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
 
     def test_get_cropped_thumbnail_small_requires_token(self, test_adapter):
         """Test authorization required."""
@@ -227,11 +207,6 @@ class TestCroppedThumbnail:
 
 class TestFaceDetection:
     """Test cases for the /api/media/{}/face_detection endpoint."""
-
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
 
     def test_get_faces_requires_token(self, test_adapter):
         """Test authorization required."""

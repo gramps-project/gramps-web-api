@@ -21,16 +21,10 @@
 
 import pytest
 
-from . import get_test_client
 
 
 class TestBookmarks:
     """Test cases for the /api/ready endpoint."""
-
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
 
     def test_ready(self, test_adapter):
         """Test authorization required."""

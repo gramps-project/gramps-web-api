@@ -36,7 +36,7 @@ from gramps_webapi.const import (
 )
 
 from . import BASE_URL, TEST_USERS, get_test_client
-from .checks import (
+from ..checks import (
     check_conforms_to_schema,
     check_invalid_semantics,
     check_invalid_syntax,
@@ -44,7 +44,7 @@ from .checks import (
     check_resource_missing,
     check_success,
 )
-from .util import fetch_header
+from ..util import fetch_header
 
 TEST_URL = BASE_URL + "/reports/"
 

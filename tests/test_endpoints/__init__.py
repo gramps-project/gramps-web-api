@@ -20,13 +20,10 @@
 """Tests for the `gramps_webapi.api` module.
 
 This module contains only constants and schema definitions that are used by
-both pytest-based and unittest-based tests.
+pytest-based tests.
 
-For unittest-based tests, the setUpModule() function has been moved to
-unittest_setup.py to avoid triggering database setup when pytest tests
-import from this package.
-
-TODO: Once all tests are converted to pytest, this can be further simplified.
+Unittest-based tests have been moved to the unittest_tests/ subdirectory.
+Pytest will not discover them there, preventing duplicate database setup.
 """
 
 from importlib.resources import as_file, files
@@ -62,16 +59,14 @@ TEST_USERS = {
     ROLE_GUEST: {"name": "guest", "password": "def"},
 }
 
-# Re-export functions from unittest_setup for backward compatibility
-# These will only work for unittest-based tests that call setUpModule()
-from .unittest_setup import get_object_count, get_test_client, setUpModule
-
 __all__ = [
     "API_SCHEMA",
     "API_RESOLVER",
     "BASE_URL",
     "TEST_USERS",
-    "get_object_count",
-    "get_test_client",
-    "setUpModule",
+    "ROLE_ADMIN",
+    "ROLE_EDITOR",
+    "ROLE_GUEST",
+    "ROLE_MEMBER",
+    "ROLE_OWNER",
 ]

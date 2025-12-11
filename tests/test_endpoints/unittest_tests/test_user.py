@@ -49,7 +49,7 @@ from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 from gramps_webapi.dbmanager import WebDbManager
 
 from . import BASE_URL
-from .util import fetch_header
+from ..util import fetch_header
 
 
 class TestUser(unittest.TestCase):

@@ -38,7 +38,19 @@ from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EXAMPLE_GRAMPS_AUTH_CONFIG
 from gramps_webapi.dbmanager import WebDbManager
 from tests import ExampleDbSQLite
 
-from . import TEST_USERS
+from .. import TEST_USERS, BASE_URL, API_SCHEMA, API_RESOLVER
+
+# Import roles used by tests
+from gramps_webapi.auth.const import (
+    ROLE_GUEST,
+    ROLE_MEMBER,
+    ROLE_OWNER,
+    ROLE_EDITOR,
+    ROLE_ADMIN,
+)
+
+# Import checks module so unittest tests can use: from . import checks
+from .. import checks
 
 # Global state for unittest tests (initialized by setUpModule)
 TEST_CLIENT = None

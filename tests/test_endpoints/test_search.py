@@ -30,7 +30,7 @@ from gramps_webapi.api.search import SearchIndexer
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 from gramps_webapi.dbmanager import WebDbManager
 
-from . import BASE_URL, get_test_client
+from . import BASE_URL
 from .checks import (
     check_invalid_semantics,
     check_requires_token,
@@ -43,9 +43,11 @@ TEST_URL = BASE_URL + "/search/"
 
 
 @pytest.fixture(scope="class")
-def search_engine(request):
+def search_engine(request, example_app):
     """Create a search engine with a temporary index for testing."""
-    client = get_test_client()
+    # Use the example_app's client
+    client = example_app.test_client()
+    
     index_dir = tempfile.mkdtemp()
     dbmgr = WebDbManager(name="example_gramps", create_if_missing=False)
     tree = dbmgr.dirname
@@ -71,7 +73,7 @@ def search_engine(request):
 class TestSearchEngine:
     """Test cases for full-text search engine."""
 
-    def test_reindexing(self, test_adapter):
+    def test_reindexing(self):
         """Test if reindexing again leads to doubled rv."""
         total, rv = self.search.search("I0044", page=1, pagesize=10)
         assert len(rv) == 1
@@ -81,7 +83,7 @@ class TestSearchEngine:
         total, rv = self.search.search("I0044", page=1, pagesize=10)
         assert len(rv) == 1
 
-    def test_reindexing_incremental(self, test_adapter):
+    def test_reindexing_incremental(self):
         """Test if reindexing again leads to doubled rv."""
         total, rv = self.search.search("I0044", page=1, pagesize=10)
         assert len(rv) == 1
@@ -91,7 +93,7 @@ class TestSearchEngine:
         total, rv = self.search.search("I0044", page=1, pagesize=10)
         assert len(rv) == 1
 
-    def test_search_method(self, test_adapter):
+    def test_search_method(self):
         """Test search engine returns an expected result."""
         total, rv = self.search.search("Lewis von", page=1, pagesize=20)
         assert {(hit["object_type"], hit["handle"]) for hit in rv} == {

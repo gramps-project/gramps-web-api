@@ -33,16 +33,16 @@ from gramps_webapi.auth import add_user, set_tree_details, user_db
 from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EMPTY_GRAMPS_AUTH_CONFIG
 
-from .. import ExampleDbInMemory
+from tests import ExampleDbInMemory
 from . import BASE_URL, TEST_USERS, get_test_client
-from .checks import (
+from ..checks import (
     check_conforms_to_schema,
     check_invalid_semantics,
     check_requires_token,
     check_resource_missing,
     check_success,
 )
-from .util import fetch_header
+from ..util import fetch_header
 
 TEST_URL = BASE_URL + "/importers/"
 

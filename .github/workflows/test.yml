@@ -41,5 +41,7 @@ jobs:
           df -h
       - name: Run type checker
         run: mypy --install-types --non-interactive --ignore-missing-imports --exclude build .
-      - name: Test with pytest
-        run: pytest -x
+      - name: Test with pytest (converted tests)
+        run: pytest -x -s --ignore=tests/test_endpoints/unittest_tests
+      - name: Test with pytest (unittest-style tests)
+        run: pytest tests/test_endpoints/unittest_tests -x -s
