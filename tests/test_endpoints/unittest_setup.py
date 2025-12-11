@@ -47,7 +47,7 @@ TEST_OBJECT_COUNTS = None
 
 def get_object_count(gramps_object):
     """Return count for an object type in database.
-    
+
     Used by unittest-based tests. Pytest tests should use the
     example_object_counts fixture instead.
     """
@@ -56,7 +56,7 @@ def get_object_count(gramps_object):
 
 def get_test_client():
     """Return test client.
-    
+
     Used by unittest-based tests. Pytest tests should use the
     test_adapter fixture instead.
     """
@@ -65,28 +65,32 @@ def get_test_client():
 
 def setUpModule():
     """Test module setup for unittest-based tests.
-    
+
     This function creates:
     - Example Gramps database
     - Empty database
     - Test users for both databases
     - Search indexes for both databases
     - Flask test client
-    
+
     This setup takes ~40 seconds and is called once per unittest test module.
-    
+
     NOTE: Pytest-based tests do NOT use this function. They use session-scoped
     fixtures in conftest.py instead, which run once for ALL tests (~40s total).
-    
+
     TODO: Delete this function once all tests are converted to pytest.
     """
+    import time
+
     global TEST_CLIENT, TEST_OBJECT_COUNTS
+
+    start = time.time()
+    print(f"\n[SETUP] Unittest setUpModule starting...", flush=True)
 
     # create a database with the Gramps example tree
     test_db = ExampleDbSQLite(name="example_gramps")
 
     with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EXAMPLE_GRAMPS_AUTH_CONFIG}):
-
         test_app = create_app(
             config={
                 "TESTING": True,
@@ -119,7 +123,10 @@ def setUpModule():
             db_state = db_manager.get_db()
             search_index = get_search_indexer(tree)
             db = db_state.db
+            index_start = time.time()
             search_index.reindex_full(db)
+            index_elapsed = time.time() - index_start
+            print(f"[SETUP] {db_name}: indexed in {index_elapsed:.1f}s", flush=True)
     TEST_OBJECT_COUNTS = {
         "people": db_state.db.get_number_of_people(),
         "families": db_state.db.get_number_of_families(),
@@ -133,3 +140,6 @@ def setUpModule():
         "tags": db_state.db.get_number_of_tags(),
     }
     db_state.db.close()
+
+    elapsed = time.time() - start
+    print(f"[SETUP] Unittest setUpModule complete in {elapsed:.1f}s", flush=True)

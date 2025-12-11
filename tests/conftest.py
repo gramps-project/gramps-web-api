@@ -98,7 +98,13 @@ def example_gramps_db():
     This database should be treated as READ-ONLY by tests.
     Tests that need to modify data should use `isolated_example_db` instead.
     """
+    import time
+
+    start = time.time()
+    print(f"\n[SETUP] Creating example database...", flush=True)
     test_db = ExampleDbSQLite(name="example_gramps")
+    elapsed = time.time() - start
+    print(f"[SETUP] Example database created in {elapsed:.1f}s", flush=True)
     yield test_db
     # Cleanup handled by tearDownModule in tests/__init__.py
 
@@ -109,6 +115,11 @@ def example_app(example_gramps_db):
 
     This app uses the shared example database and is intended for READ-ONLY tests.
     """
+    import time
+
+    start = time.time()
+    print(f"[SETUP] Creating Flask app and indexing databases...", flush=True)
+
     with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EXAMPLE_GRAMPS_AUTH_CONFIG}):
         test_app = create_app(
             config={
@@ -126,6 +137,7 @@ def example_app(example_gramps_db):
 
         # Create also an empty db in addition to the example db
         for db_name in ["empty_db", example_gramps_db.name]:
+            db_start = time.time()
             db_manager = WebDbManager(name=db_name, create_if_missing=True)
             tree = db_manager.dirname
 
@@ -140,12 +152,21 @@ def example_app(example_gramps_db):
                 )
 
             # Index the database
+            index_start = time.time()
             db_state = db_manager.get_db()
             search_index = get_search_indexer(tree)
             db = db_state.db
             search_index.reindex_full(db)
             db_state.db.close()
+            index_elapsed = time.time() - index_start
+            db_elapsed = time.time() - db_start
+            print(
+                f"[SETUP] {db_name}: indexed in {index_elapsed:.1f}s (total {db_elapsed:.1f}s)",
+                flush=True,
+            )
 
+    elapsed = time.time() - start
+    print(f"[SETUP] Pytest session setup complete in {elapsed:.1f}s", flush=True)
     yield test_app
 
 
