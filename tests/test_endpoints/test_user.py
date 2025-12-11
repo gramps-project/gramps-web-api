@@ -23,6 +23,7 @@ import os
 import re
 import unittest
 from unittest.mock import patch
+from unittest.mock import MagicMock
 
 import pytest
 from celery.result import AsyncResult
@@ -625,7 +626,9 @@ class TestUser(unittest.TestCase):
             assert rv.status_code == 403
 
     def test_confirm_email(self):
-        with patch("smtplib.SMTP_SSL") as mock_smtp:
+        with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
+            mock_smtp_instance = MagicMock()
+            mock_smtp.return_value = mock_smtp_instance
             rv = self.client.post(
                 BASE_URL + "/users/new_user_3/register/",
                 json={
@@ -636,6 +639,8 @@ class TestUser(unittest.TestCase):
                 },
             )
             assert rv.status_code == 201
+            mock_smtp_instance.send_message.assert_called_once()
+            msg = mock_smtp_instance.send_message.call_args[0][0]
             context = mock_smtp.return_value
             context.send_message.assert_called()
             name, args, kwargs = context.method_calls.pop(0)
