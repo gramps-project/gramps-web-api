@@ -24,6 +24,8 @@ import shutil
 import tempfile
 from urllib.parse import quote
 
+import pytest
+
 from gramps_webapi.api.search import SearchIndexer
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 from gramps_webapi.dbmanager import WebDbManager
@@ -40,14 +42,34 @@ from .util import fetch_header
 TEST_URL = BASE_URL + "/search/"
 
 
+@pytest.fixture(scope="class")
+def search_engine(request):
+    """Create a search engine with a temporary index for testing."""
+    client = get_test_client()
+    index_dir = tempfile.mkdtemp()
+    dbmgr = WebDbManager(name="example_gramps", create_if_missing=False)
+    tree = dbmgr.dirname
+    db_url = f"sqlite:///{index_dir}/search_index.db"
+    search = SearchIndexer(tree, db_url)
+    db = dbmgr.get_db().db
+    search.reindex_full(db)
+    db.close()
+
+    # Store on the test class for access via self
+    request.cls.client = client
+    request.cls.index_dir = index_dir
+    request.cls.dbmgr = dbmgr
+    request.cls.search = search
+
+    yield search
+
+    # Cleanup
+    shutil.rmtree(index_dir)
+
+
+@pytest.mark.usefixtures("search_engine")
 class TestSearchEngine:
     """Test cases for full-text search engine."""
-
-    @classmethod
-    @classmethod
-    def tearDownClass(cls):
-        """Remove the temporary index directory."""
-        shutil.rmtree(cls.index_dir)
 
     def test_reindexing(self, test_adapter):
         """Test if reindexing again leads to doubled rv."""
@@ -73,20 +95,19 @@ class TestSearchEngine:
         """Test search engine returns an expected result."""
         total, rv = self.search.search("Lewis von", page=1, pagesize=20)
         assert {(hit["object_type"], hit["handle"]) for hit in rv} == {
-                ("person", "GNUJQCL9MD64AM56OH"),
-                ("family", "9OUJQCBOHW9UEK9CNV"),
-                ("note", "d0436be64ac277b615b79b34e72"),
-                ("event", "a5af0ecb107303354a0"),  # person event
-                ("event", "a5af0ecb11f5ac3110e"),  # person event
-                ("event", "a5af0ecb12e29af8a5d"),  # person event
-                ("event", "a5af0ed5df832ee65c1"),  # family event
-            }
+            ("person", "GNUJQCL9MD64AM56OH"),
+            ("family", "9OUJQCBOHW9UEK9CNV"),
+            ("note", "d0436be64ac277b615b79b34e72"),
+            ("event", "a5af0ecb107303354a0"),  # person event
+            ("event", "a5af0ecb11f5ac3110e"),  # person event
+            ("event", "a5af0ecb12e29af8a5d"),  # person event
+            ("event", "a5af0ed5df832ee65c1"),  # family event
+        }
 
 
 class TestSearch:
     """Test cases for the /api/search endpoint for full-text searches."""
 
-    @classmethod
     def test_get_search_requires_token(self, test_adapter):
         """Test authorization required."""
         check_requires_token(test_adapter, TEST_URL + "?query=microfilm")
@@ -99,7 +120,11 @@ class TestSearch:
     def test_get_search_expected_result_text_string(self, test_adapter):
         """Test expected result querying for text."""
         rv = check_success(test_adapter, TEST_URL + "?query=microfilm")
-        assert {hit["handle"] for hit in rv} == {"b39fe2e143d1e599450", "b39fe3f390e30bd2b99", "b39fe1cfc1305ac4a21"}
+        assert {hit["handle"] for hit in rv} == {
+            "b39fe2e143d1e599450",
+            "b39fe3f390e30bd2b99",
+            "b39fe1cfc1305ac4a21",
+        }
         assert rv[0]["object_type"] in ["source", "note"]
         assert rv[0]["rank"] == 0
         assert isinstance(rv[0]["score"], float)
@@ -107,7 +132,11 @@ class TestSearch:
     def test_get_search_expected_result_text_string_wildcard(self, test_adapter):
         """Test expected result querying for text."""
         rv = check_success(test_adapter, TEST_URL + "?query=micr*")
-        assert {hit["handle"] for hit in rv} == {"b39fe2e143d1e599450", "b39fe3f390e30bd2b99", "b39fe1cfc1305ac4a21"}
+        assert {hit["handle"] for hit in rv} == {
+            "b39fe2e143d1e599450",
+            "b39fe3f390e30bd2b99",
+            "b39fe1cfc1305ac4a21",
+        }
         assert rv[0]["object_type"] in ["source", "note"]
         assert rv[0]["rank"] == 0
         assert isinstance(rv[0]["score"], float)
@@ -127,11 +156,15 @@ class TestSearch:
     def test_get_search_expected_result_unicode(self, test_adapter):
         """Test expected result querying for a Unicode decoded string."""
         # 斎藤 is transliterated as Zhai Teng
-        rv = check_success(test_adapter, TEST_URL + f"?query={quote('Zhai Teng')}&type=person")
+        rv = check_success(
+            test_adapter, TEST_URL + f"?query={quote('Zhai Teng')}&type=person"
+        )
         assert len(rv) == 1
         assert "object" in rv[0]
         assert rv[0]["object"]["gramps_id"] == "I0761"
-        rv = check_success(test_adapter, TEST_URL + f"?query={quote('斎藤')}&type=person")
+        rv = check_success(
+            test_adapter, TEST_URL + f"?query={quote('斎藤')}&type=person"
+        )
         assert len(rv) == 1
         assert "object" in rv[0]
         assert rv[0]["object"]["gramps_id"] == "I0761"
@@ -139,18 +172,24 @@ class TestSearch:
     def test_get_search_expected_result_unicode_2(self, test_adapter):
         """Test expected result querying for a Unicode decoded string."""
         # Шестаков is transliterated as Shestakov
-        rv = check_success(test_adapter, TEST_URL + f"?query={quote('Shestakov')}&type=person")
+        rv = check_success(
+            test_adapter, TEST_URL + f"?query={quote('Shestakov')}&type=person"
+        )
         assert len(rv) == 1
         assert "object" in rv[0]
         assert rv[0]["object"]["gramps_id"] == "I0972"
-        rv = check_success(test_adapter, TEST_URL + f"?query={quote('Шестаков')}&type=person")
+        rv = check_success(
+            test_adapter, TEST_URL + f"?query={quote('Шестаков')}&type=person"
+        )
         assert len(rv) == 1
         assert "object" in rv[0]
         assert rv[0]["object"]["gramps_id"] == "I0972"
 
     def test_get_search_expected_result_no_hits(self, test_adapter):
         """Test expected result when no hits."""
-        rv = check_success(test_adapter, TEST_URL + "?query=LoremIpsumDolorSitAmet", full=True)
+        rv = check_success(
+            test_adapter, TEST_URL + "?query=LoremIpsumDolorSitAmet", full=True
+        )
         assert rv.json == []
         count = rv.headers.pop("X-Total-Count")
         assert count == "0"
@@ -205,11 +244,15 @@ class TestSearch:
 
     def test_get_search_parameter_profile_validate_semantics(self, test_adapter):
         """Test invalid profile parameter and values."""
-        check_invalid_semantics(test_adapter, TEST_URL + "?query=Abigail&profile", check="list")
+        check_invalid_semantics(
+            test_adapter, TEST_URL + "?query=Abigail&profile", check="list"
+        )
 
     def test_get_search_parameter_profile_expected_result(self, test_adapter):
         """Test expected response."""
-        rv = check_success(test_adapter, TEST_URL + "?query=Lewis%20von&page=1&profile=all")
+        rv = check_success(
+            test_adapter, TEST_URL + "?query=Lewis%20von&page=1&profile=all"
+        )
         assert rv[0]["object_type"] == "person"
         assert "profile" in rv[0]["object"]
         assert rv[0]["object"]["profile"]["name_given"] == "Lewis Anderson"
@@ -220,9 +263,13 @@ class TestSearch:
             test_adapter, TEST_URL + "?query=Abigail&profile=self&locale", check="base"
         )
 
-    def test_get_search_parameter_profile_expected_result_with_locale(self, test_adapter):
+    def test_get_search_parameter_profile_expected_result_with_locale(
+        self, test_adapter
+    ):
         """Test expected profile response for a locale."""
-        rv = check_success(test_adapter, TEST_URL + "?query=Lewis%20von&profile=self&locale=de")
+        rv = check_success(
+            test_adapter, TEST_URL + "?query=Lewis%20von&profile=self&locale=de"
+        )
         assert rv[0]["object_type"] == "person"
         assert "profile" in rv[0]["object"]
         assert rv[0]["object"]["profile"]["name_given"] == "Lewis Anderson"
