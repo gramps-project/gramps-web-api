@@ -19,12 +19,12 @@
 
 """Tests for the /ready endpoint."""
 
-import unittest
+import pytest
 
 from . import get_test_client
 
 
-class TestBookmarks(unittest.TestCase):
+class TestBookmarks:
     """Test cases for the /api/ready endpoint."""
 
     @classmethod
@@ -32,8 +32,8 @@ class TestBookmarks(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_ready(self):
+    def test_ready(self, test_adapter):
         """Test authorization required."""
-        rv = self.client.get("/ready")
+        rv = test_adapter.client.get("/ready")
         assert rv.status_code == 200
         assert rv.json == {"status": "ready"}

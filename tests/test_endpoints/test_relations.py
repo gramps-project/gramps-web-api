@@ -19,7 +19,7 @@
 
 """Tests for the /api/relations endpoints using example_gramps."""
 
-import unittest
+import pytest
 
 from . import BASE_URL, get_test_client
 from .checks import (
@@ -32,7 +32,7 @@ from .checks import (
 TEST_URL = BASE_URL + "/relations/"
 
 
-class TestRelations(unittest.TestCase):
+class TestRelations:
     """Test cases for the /api/relations/{handle1}/{handle2} endpoint."""
 
     @classmethod
@@ -40,81 +40,90 @@ class TestRelations(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_get_relations_requires_token(self):
+    def test_get_relations_requires_token(self, test_adapter):
         """Test authorization required."""
-        check_requires_token(self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L")
-
-    def test_get_relations_expected_result(self):
-        """Test request produces expected result."""
-        rv = check_success(self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L")
-        self.assertEqual(
-            rv,
-            {
-                "distance_common_origin": 5,
-                "distance_common_other": 1,
-                "relationship_string": "second great stepgrandaunt",
-            },
+        check_requires_token(
+            test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L"
         )
 
-    def test_get_relations_missing_content(self):
-        """Test response for missing content."""
-        check_resource_missing(self, TEST_URL + "9BXKQC1PVLPYFMD6IX")
-        check_resource_missing(self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR1")
-        check_resource_missing(self, TEST_URL + "9BXKQC1PVLPYFMD6I/ORFKQC4KLWEGTGR19L")
+    def test_get_relations_expected_result(self, test_adapter):
+        """Test request produces expected result."""
+        rv = check_success(
+            test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L"
+        )
+        assert rv == {
+            "distance_common_origin": 5,
+            "distance_common_other": 1,
+            "relationship_string": "second great stepgrandaunt",
+        }
 
-    def test_get_relations_validate_semantics(self):
+    def test_get_relations_missing_content(self, test_adapter):
+        """Test response for missing content."""
+        check_resource_missing(test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6IX")
+        check_resource_missing(
+            test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR1"
+        )
+        check_resource_missing(
+            test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6I/ORFKQC4KLWEGTGR19L"
+        )
+
+    def test_get_relations_validate_semantics(self, test_adapter):
         """Test invalid parameters and values."""
         check_invalid_semantics(
-            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?junk=1"
+            test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?junk=1"
         )
 
-    def test_get_relations_parameter_depth_validate_semantics(self):
+    def test_get_relations_parameter_depth_validate_semantics(self, test_adapter):
         """Test invalid depth parameter and values."""
         check_invalid_semantics(
-            self,
+            test_adapter,
             TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?depth",
             check="number",
         )
 
-    def test_get_relations_parameter_depth_expected_result(self):
+    def test_get_relations_parameter_depth_expected_result(self, test_adapter):
         """Test depth parameter working as expected."""
         rv = check_success(
-            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?depth=5"
+            test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?depth=5"
         )
-        self.assertEqual(rv["relationship_string"], "")
+        assert rv["relationship_string"] == ""
         rv = check_success(
-            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?depth=6"
+            test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?depth=6"
         )
-        self.assertEqual(rv["relationship_string"], "second great stepgrandaunt")
+        assert rv["relationship_string"] == "second great stepgrandaunt"
 
-    def test_get_relations_parameter_locale_validate_semantics(self):
+    def test_get_relations_parameter_locale_validate_semantics(self, test_adapter):
         """Test invalid locale parameter and values."""
         check_invalid_semantics(
-            self,
+            test_adapter,
             TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?locale",
             check="base",
         )
 
-    def test_get_relations_parameter_locale_expected_result(self):
+    def test_get_relations_parameter_locale_expected_result(self, test_adapter):
         """Test locale parameter working as expected."""
-        rv = check_success(self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L")
-        self.assertEqual(rv["relationship_string"], "second great stepgrandaunt")
         rv = check_success(
-            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?locale=de"
+            test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L"
         )
-        self.assertEqual(rv["relationship_string"], "Stief-/Adoptivalttante")
+        assert rv["relationship_string"] == "second great stepgrandaunt"
+        rv = check_success(
+            test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L?locale=de"
+        )
+        assert rv["relationship_string"] == "Stief-/Adoptivalttante"
 
-    def test_get_relations_parameter_locale_expected_result_partner(self):
+    def test_get_relations_parameter_locale_expected_result_partner(self, test_adapter):
         """Test locale parameter working as expected."""
-        rv = check_success(self, TEST_URL + "cc8205d87831c772e87/cc8205d872f532ab14e")
-        self.assertEqual(rv["relationship_string"], "husband")
         rv = check_success(
-            self, TEST_URL + "cc8205d87831c772e87/cc8205d872f532ab14e?locale=it"
+            test_adapter, TEST_URL + "cc8205d87831c772e87/cc8205d872f532ab14e"
         )
-        self.assertEqual(rv["relationship_string"], "marito")
+        assert rv["relationship_string"] == "husband"
+        rv = check_success(
+            test_adapter, TEST_URL + "cc8205d87831c772e87/cc8205d872f532ab14e?locale=it"
+        )
+        assert rv["relationship_string"] == "marito"
 
 
-class TestRelationsAll(unittest.TestCase):
+class TestRelationsAll:
     """Test cases for the /api/relations/{handle1}/{handle2}/all endpoint."""
 
     @classmethod
@@ -122,66 +131,71 @@ class TestRelationsAll(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def test_get_relations_all_requires_token(self):
+    def test_get_relations_all_requires_token(self, test_adapter):
         """Test authorization required."""
         check_requires_token(
-            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all"
+            test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all"
         )
 
-    def test_get_relations_all_expected_result(self):
+    def test_get_relations_all_expected_result(self, test_adapter):
         """Test response for valid request."""
-        rv = check_success(self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all")
-        self.assertIn("common_ancestors", rv[0])
-        self.assertEqual(rv[0]["relationship_string"], "second great stepgrandaunt")
+        rv = check_success(
+            test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all"
+        )
+        assert "common_ancestors" in rv[0]
+        assert rv[0]["relationship_string"] == "second great stepgrandaunt"
 
-    def test_get_relations_all_missing_content(self):
+    def test_get_relations_all_missing_content(self, test_adapter):
         """Test response for missing content."""
-        check_resource_missing(self, TEST_URL + "9BXKQC1PVLPYFMD6IX/all")
+        check_resource_missing(test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6IX/all")
         check_resource_missing(
-            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR1/all"
+            test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR1/all"
         )
         check_resource_missing(
-            self, TEST_URL + "9BXKQC1PVLPYFMD6I/ORFKQC4KLWEGTGR19L/all"
+            test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6I/ORFKQC4KLWEGTGR19L/all"
         )
 
-    def test_get_relations_all_validate_semantics(self):
+    def test_get_relations_all_validate_semantics(self, test_adapter):
         """Test invalid parameters and values."""
         check_invalid_semantics(
-            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?junk=1"
+            test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?junk=1"
         )
 
-    def test_get_relations_all_parameter_depth_validate_semantics(self):
+    def test_get_relations_all_parameter_depth_validate_semantics(self, test_adapter):
         """Test invalid depth parameter and values."""
         check_invalid_semantics(
-            self,
+            test_adapter,
             TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?depth",
             check="number",
         )
 
-    def test_get_relations_all_parameter_depth_expected_result(self):
+    def test_get_relations_all_parameter_depth_expected_result(self, test_adapter):
         """Test depth parameter working as expected."""
         rv = check_success(
-            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?depth=5"
+            test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?depth=5"
         )
-        self.assertEqual(rv, [{}])
+        assert rv == [{}]
         rv = check_success(
-            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?depth=6"
+            test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?depth=6"
         )
-        self.assertEqual(rv[0]["relationship_string"], "second great stepgrandaunt")
+        assert rv[0]["relationship_string"] == "second great stepgrandaunt"
 
-    def test_get_relations_all_parameter_locale_validate_semantics(self):
+    def test_get_relations_all_parameter_locale_validate_semantics(self, test_adapter):
         """Test invalid locale parameter and values."""
         check_invalid_semantics(
-            self,
+            test_adapter,
             TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?locale",
             check="base",
         )
 
-    def test_get_relations_all_parameter_locale_expected_result(self):
+    def test_get_relations_all_parameter_locale_expected_result(self, test_adapter):
         """Test locale parameter working as expected."""
-        rv = check_success(self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all")
-        self.assertEqual(rv[0]["relationship_string"], "second great stepgrandaunt")
         rv = check_success(
-            self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?locale=de"
+            test_adapter, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all"
         )
-        self.assertEqual(rv[0]["relationship_string"], "Stief-/Adoptivalttante")
+        assert rv[0]["relationship_string"] == "second great stepgrandaunt"
+        rv = check_success(
+            test_adapter,
+            TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?locale=de",
+        )
+        assert rv[0]["relationship_string"] == "Stief-/Adoptivalttante"
