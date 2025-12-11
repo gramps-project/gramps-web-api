@@ -19,7 +19,6 @@
 
 """Tests for the /api/metadata endpoint using example_gramps."""
 
-import unittest
 
 from . import BASE_URL, get_test_client
 from .checks import check_conforms_to_schema, check_requires_token
@@ -27,21 +26,16 @@ from .checks import check_conforms_to_schema, check_requires_token
 TEST_URL = BASE_URL + "/metadata/"
 
 
-class TestMetadata(unittest.TestCase):
+class TestMetadata:
     """Test cases for the /api/metadata endpoint."""
 
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
-
-    def test_get_metadata_requires_token(self):
+    def test_get_metadata_requires_token(self, test_adapter):
         """Test authorization required."""
-        check_requires_token(self, TEST_URL)
+        check_requires_token(test_adapter, TEST_URL)
 
-    def test_get_metadata_conforms_to_schema(self):
+    def test_get_metadata_conforms_to_schema(self, test_adapter):
         """Test conforms to schema."""
-        res = check_conforms_to_schema(self, TEST_URL, "Metadata")
+        res = check_conforms_to_schema(test_adapter, TEST_URL, "Metadata")
         assert res["database"]["type"] == "sqlite"
         assert "search" in res
         assert "sifts" in res["search"]

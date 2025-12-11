@@ -19,7 +19,6 @@
 
 """Tests for the /api/name-formats endpoint using example_gramps."""
 
-import unittest
 
 from . import BASE_URL, get_test_client
 from .checks import check_conforms_to_schema, check_requires_token
@@ -27,18 +26,13 @@ from .checks import check_conforms_to_schema, check_requires_token
 TEST_URL = BASE_URL + "/name-formats/"
 
 
-class TestNameFormats(unittest.TestCase):
+class TestNameFormats:
     """Test cases for the /api/name-formats endpoint."""
 
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
-
-    def test_get_name_formats_requires_token(self):
+    def test_get_name_formats_requires_token(self, test_adapter):
         """Test authorization required."""
-        check_requires_token(self, TEST_URL)
+        check_requires_token(test_adapter, TEST_URL)
 
-    def test_get_name_formats_conforms_to_schema(self):
+    def test_get_name_formats_conforms_to_schema(self, test_adapter):
         """Test conformity to schema."""
-        check_conforms_to_schema(self, TEST_URL, "NameFormat")
+        check_conforms_to_schema(test_adapter, TEST_URL, "NameFormat")
