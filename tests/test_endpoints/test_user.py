@@ -641,10 +641,6 @@ class TestUser(unittest.TestCase):
             assert rv.status_code == 201
             mock_smtp_instance.send_message.assert_called_once()
             msg = mock_smtp_instance.send_message.call_args[0][0]
-            context = mock_smtp.return_value
-            context.send_message.assert_called()
-            name, args, kwargs = context.method_calls.pop(0)
-            msg = args[0]
             # extract the token from the message body
             body = msg.get_body().get_payload().replace("=\n", "")
             matches = re.findall(
