@@ -23,6 +23,7 @@ import os
 import re
 import unittest
 from unittest.mock import patch
+from unittest.mock import MagicMock
 
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
@@ -141,12 +142,12 @@ class TestConfig(unittest.TestCase):
         """Check that the config options are picked up in the reset email."""
 
         def get_from_host():
-            with patch("smtplib.SMTP_SSL") as mock_smtp:
+            with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
+                mock_smtp_instance = MagicMock()
+                mock_smtp.return_value = mock_smtp_instance
                 self.client.post(f"{BASE_URL}/users/user/password/reset/trigger/")
-                context = mock_smtp.return_value
-                context.send_message.assert_called()
-                name, args, kwargs = context.method_calls.pop(0)
-                msg = args[0]
+                mock_smtp_instance.send_message.assert_called_once()
+                msg = mock_smtp_instance.send_message.call_args[0][0]
                 body = msg.get_body().get_payload().replace("=\n", "")
                 matches = re.findall(r".*(https?://[^/]+)/api", body)
                 host = matches[0]

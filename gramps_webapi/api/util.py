@@ -514,6 +514,29 @@ def get_buffer_for_file(filename: str, delete=True, not_found=False) -> BinaryIO
     return buffer
 
 
+def _resolve_smtp_config(
+    use_ssl: bool | None,
+    use_starttls: bool | None,
+    use_tls: bool | None,
+    port: int
+) -> tuple[bool, bool]:
+    """Helper to resolve SMTP encryption settings.
+
+    Return tuple[bool, bool]: (use_ssl, use_starttls)"""
+    if use_ssl is True:
+        return True, False
+    if use_starttls is True:
+        return False, True
+
+    if use_ssl is False or use_starttls is False:
+        return False, False
+
+    if use_tls:
+        return True, False
+    else:
+        return False, (port != 25)
+
+
 def send_email(
     subject: str,
     body: str,
@@ -538,17 +561,32 @@ def send_email(
     port = int(get_config("EMAIL_PORT"))
     user = get_config("EMAIL_HOST_USER")
     password = get_config("EMAIL_HOST_PASSWORD")
+    use_ssl = get_config("EMAIL_USE_SSL")
+    use_starttls = get_config("EMAIL_USE_STARTTLS")
     use_tls = get_config("EMAIL_USE_TLS")
+
+    if use_ssl is None and use_starttls is None and use_tls is not None:
+        current_app.logger.warning(
+            "EMAIL_USE_TLS is deprecated. Use EMAIL_USE_SSL or EMAIL_USE_STARTTLS instead."
+        )
+
+    # Resolve config
+    use_ssl, use_starttls = _resolve_smtp_config(use_ssl, use_starttls, use_tls, port)
+
     try:
         smtp: smtplib.SMTP | smtplib.SMTP_SSL
-        if use_tls:
+        if use_ssl:
             smtp = smtplib.SMTP_SSL(host=host, port=port, timeout=10)
+            smtp.ehlo()
+        elif use_starttls:
+            smtp = smtplib.SMTP(host=host, port=port, timeout=10)
+            smtp.ehlo()
+            smtp.starttls()
+            smtp.ehlo()
         else:
             smtp = smtplib.SMTP(host=host, port=port, timeout=10)
             smtp.ehlo()
-            if port != 25:
-                smtp.starttls()
-                smtp.ehlo()
+
         if user:
             smtp.login(user, password)
         smtp.send_message(msg)
