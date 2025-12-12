@@ -522,19 +522,19 @@ def _resolve_smtp_config(
 ) -> tuple[bool, bool]:
     """Helper to resolve SMTP encryption settings.
 
-    Return tuple[bool, bool]: (use_ssl, use_starttls)
-    """
-    # If new params are set, use them
+    Return tuple[bool, bool]: (use_ssl, use_starttls)"""
     if use_ssl is True:
         return True, False
     if use_starttls is True:
         return False, True
 
-    # Legacy EMAIL_USE_TLS behavior
+    if use_ssl is False or use_starttls is False:
+        return False, False
+
     if use_tls:
-        return True, False  # SSL
+        return True, False
     else:
-        return False, (port != 25)  # STARTTLS if not port 25
+        return False, (port != 25)
 
 
 def send_email(
