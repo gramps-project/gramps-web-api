@@ -1210,6 +1210,29 @@ def _get_class_name(super_name, key_name) -> str:
     raise ValueError(f"Unknown classes: {super_name}, {key_name}")
 
 
+def _event_refs_changed(obj_old: Person, obj_new: Person) -> bool:
+    """Check if the event_ref_list has changed between old and new Person objects.
+
+    Returns True if the event references have changed (added, removed, or modified),
+    False if they are identical.
+    """
+    old_refs = obj_old.get_event_ref_list()
+    new_refs = obj_new.get_event_ref_list()
+
+    if len(old_refs) != len(new_refs):
+        return True
+
+    for old_ref, new_ref in zip(old_refs, new_refs):
+        # Compare the event handle references
+        if old_ref.ref != new_ref.ref:
+            return True
+        # Compare the role
+        if old_ref.role != new_ref.role:
+            return True
+
+    return False
+
+
 def update_object(
     db_handle: DbWriteBase,
     obj: GrampsObject,
@@ -1241,7 +1264,15 @@ def update_object(
                 db_handle=db_handle, obj_old=obj_old, obj=obj, trans=trans
             )
         elif obj_class == "person":
-            db_handle.set_birth_death_index(obj)
+            # Only recalculate birth/death indices if event references changed.
+            # This avoids potential issues with reading Events from the database
+            # during write transactions on some storage backends (e.g., NAS).
+            handle_func = db_handle.method("get_%s_from_handle", obj_class)
+            obj_old = handle_func(obj.handle)
+            if _event_refs_changed(obj_old, obj):
+                db_handle.set_birth_death_index(obj)
+            # If event refs haven't changed, keep the existing indices from the
+            # incoming object (which should match what's in the database)
         return commit_method(obj, trans)
     except AttributeError as exc:
         raise ValueError("Database does not support writing.") from exc
