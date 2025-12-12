@@ -127,135 +127,109 @@ def mock_get_config():
         yield config
 
 
-@patch("gramps_webapi.api.util.current_app")
 @patch("gramps_webapi.api.util.smtplib.SMTP_SSL")
 @patch("gramps_webapi.api.util.smtplib.SMTP")
-def test_send_email_uses_smtp_ssl(mock_smtp, mock_smtp_ssl, mock_app, mock_get_config):
+def test_send_email_uses_smtp_ssl(mock_smtp, mock_smtp_ssl, mock_get_config):
     """Test that EMAIL_USE_SSL=true uses SMTP_SSL."""
     mock_get_config["EMAIL_USE_SSL"] = True
     mock_get_config["EMAIL_PORT"] = "465"
-
     mock_smtp_ssl.return_value = MagicMock()
-
-    send_email("Subject", "Body", ["test@example.com"])
-
+    with patch("gramps_webapi.api.util.current_app"):
+        send_email("Subject", "Body", ["test@example.com"])
     mock_smtp_ssl.assert_called_once()
     mock_smtp.assert_not_called()
 
 
-@patch("gramps_webapi.api.util.current_app")
 @patch("gramps_webapi.api.util.smtplib.SMTP_SSL")
 @patch("gramps_webapi.api.util.smtplib.SMTP")
-def test_send_email_uses_starttls(mock_smtp, mock_smtp_ssl, mock_app, mock_get_config):
+def test_send_email_uses_starttls(mock_smtp, mock_smtp_ssl, mock_get_config):
     """Test that EMAIL_USE_STARTTLS=true uses SMTP with starttls."""
     mock_get_config["EMAIL_USE_STARTTLS"] = True
     mock_get_config["EMAIL_PORT"] = "587"
-
     mock_smtp_instance = MagicMock()
     mock_smtp.return_value = mock_smtp_instance
-
-    send_email("Subject", "Body", ["test@example.com"])
-
+    with patch("gramps_webapi.api.util.current_app"):
+        send_email("Subject", "Body", ["test@example.com"])
     mock_smtp.assert_called_once()
     mock_smtp_instance.starttls.assert_called_once()
     mock_smtp_ssl.assert_not_called()
 
 
-@patch("gramps_webapi.api.util.current_app")
 @patch("gramps_webapi.api.util.smtplib.SMTP_SSL")
 @patch("gramps_webapi.api.util.smtplib.SMTP")
-def test_send_email_uses_plain_smtp(mock_smtp, mock_smtp_ssl, mock_app, mock_get_config):
+def test_send_email_uses_plain_smtp(mock_smtp, mock_smtp_ssl, mock_get_config):
     """Test that neither SSL nor STARTTLS uses plain SMTP."""
     mock_get_config["EMAIL_USE_SSL"] = False
     mock_get_config["EMAIL_USE_STARTTLS"] = False
     mock_get_config["EMAIL_PORT"] = "25"
-
     mock_smtp_instance = MagicMock()
     mock_smtp.return_value = mock_smtp_instance
-
-    send_email("Subject", "Body", ["test@example.com"])
-
+    with patch("gramps_webapi.api.util.current_app"):
+        send_email("Subject", "Body", ["test@example.com"])
     mock_smtp.assert_called_once()
     mock_smtp_instance.starttls.assert_not_called()
     mock_smtp_ssl.assert_not_called()
 
 
-@patch("gramps_webapi.api.util.current_app")
 @patch("gramps_webapi.api.util.smtplib.SMTP_SSL")
 @patch("gramps_webapi.api.util.smtplib.SMTP")
-def test_send_email_legacy_use_tls_true(mock_smtp, mock_smtp_ssl, mock_app, mock_get_config):
+def test_send_email_legacy_use_tls_true(mock_smtp, mock_smtp_ssl, mock_get_config):
     """Test legacy EMAIL_USE_TLS=true uses SMTP_SSL."""
     mock_get_config["EMAIL_USE_TLS"] = True
     mock_get_config["EMAIL_PORT"] = "465"
-
     mock_smtp_ssl.return_value = MagicMock()
-
-    send_email("Subject", "Body", ["test@example.com"])
-
+    with patch("gramps_webapi.api.util.current_app") as mock_app:
+        send_email("Subject", "Body", ["test@example.com"])
+        mock_app.logger.warning.assert_called_once()
     mock_smtp_ssl.assert_called_once()
     mock_smtp.assert_not_called()
-    # Should also log deprecation warning
-    mock_app.logger.warning.assert_called_once()
 
 
-@patch("gramps_webapi.api.util.current_app")
 @patch("gramps_webapi.api.util.smtplib.SMTP_SSL")
 @patch("gramps_webapi.api.util.smtplib.SMTP")
-def test_send_email_legacy_use_tls_false(mock_smtp, mock_smtp_ssl, mock_app, mock_get_config):
+def test_send_email_legacy_use_tls_false(mock_smtp, mock_smtp_ssl, mock_get_config):
     """Test legacy EMAIL_USE_TLS=false uses STARTTLS on port 587."""
     mock_get_config["EMAIL_USE_TLS"] = False
     mock_get_config["EMAIL_PORT"] = "587"
-
     mock_smtp_instance = MagicMock()
     mock_smtp.return_value = mock_smtp_instance
-
-    send_email("Subject", "Body", ["test@example.com"])
-
+    with patch("gramps_webapi.api.util.current_app"):
+        send_email("Subject", "Body", ["test@example.com"])
     mock_smtp.assert_called_once()
     mock_smtp_instance.starttls.assert_called_once()
     mock_smtp_ssl.assert_not_called()
 
 
-@patch("gramps_webapi.api.util.current_app")
 @patch("gramps_webapi.api.util.smtplib.SMTP_SSL")
 @patch("gramps_webapi.api.util.smtplib.SMTP")
-def test_send_email_ssl_false_starttls_true(mock_smtp, mock_smtp_ssl, mock_app, mock_get_config):
+def test_send_email_ssl_false_starttls_true(mock_smtp, mock_smtp_ssl, mock_get_config):
     """Test that EMAIL_USE_SSL=false doesn't prevent EMAIL_USE_STARTTLS=true from working."""
     mock_get_config["EMAIL_USE_SSL"] = False
     mock_get_config["EMAIL_USE_STARTTLS"] = True
     mock_get_config["EMAIL_PORT"] = "587"
-
     mock_smtp_instance = MagicMock()
     mock_smtp.return_value = mock_smtp_instance
-
-    send_email("Subject", "Body", ["test@example.com"])
-
-    # Should use SMTP with STARTTLS (not blocked by use_ssl=False)
+    with patch("gramps_webapi.api.util.current_app") as mock_app:
+        send_email("Subject", "Body", ["test@example.com"])
+        mock_app.logger.warning.assert_not_called()
     mock_smtp.assert_called_once()
     mock_smtp_instance.starttls.assert_called_once()
     mock_smtp_ssl.assert_not_called()
-    # Should NOT log deprecation warning (new params are used)
-    mock_app.logger.warning.assert_not_called()
 
 
-@patch("gramps_webapi.api.util.current_app")
 @patch("gramps_webapi.api.util.smtplib.SMTP_SSL")
 @patch("gramps_webapi.api.util.smtplib.SMTP")
-def test_send_email_legacy_use_tls_false_deprecation_warning(mock_smtp, mock_smtp_ssl, mock_app, mock_get_config):
+def test_send_email_legacy_use_tls_false_deprecation_warning(mock_smtp, mock_smtp_ssl, mock_get_config):
     """Test that legacy EMAIL_USE_TLS=false logs deprecation warning."""
     mock_get_config["EMAIL_USE_TLS"] = False
     mock_get_config["EMAIL_PORT"] = "587"
-
     mock_smtp_instance = MagicMock()
     mock_smtp.return_value = mock_smtp_instance
-
-    send_email("Subject", "Body", ["test@example.com"])
-
+    with patch("gramps_webapi.api.util.current_app") as mock_app:
+        send_email("Subject", "Body", ["test@example.com"])
+        mock_app.logger.warning.assert_called_once()
+        warning_msg = mock_app.logger.warning.call_args[0][0]
+        assert "deprecated" in warning_msg.lower()
     mock_smtp.assert_called_once()
     mock_smtp_instance.starttls.assert_called_once()
     mock_smtp_ssl.assert_not_called()
-
-    # Should log deprecation warning
-    mock_app.logger.warning.assert_called_once()
-    warning_msg = mock_app.logger.warning.call_args[0][0]
-    assert "deprecated" in warning_msg.lower()
