@@ -43,7 +43,16 @@ RUN ARCH=$(uname -m) && \
         # PyTorch and opencv not supported on armv7l
         python3 -m pip install --break-system-packages --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch; \
         python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
-        opencv-python opencv-contrib-python sentence-transformers; \
+        opencv-python opencv-contrib-python; \
+    fi
+
+# Install AI dependencies - install the full extras here to cache slow dependency resolution
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" != "armv7l" ]; then \
+        python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
+        'sentence-transformers[onnx,openvino]>=4.1.0' \
+        accelerate \
+        'pydantic-ai[openai]>=1.0.0,<2.0.0'; \
     fi
 
 # download and cache sentence transformer model
