@@ -46,22 +46,13 @@ RUN ARCH=$(uname -m) && \
         opencv-python opencv-contrib-python; \
     fi
 
-# Install AI dependencies - install the full extras here to cache slow dependency resolution
+# Install AI dependencies - skip openvino extras to avoid dependency resolution timeout
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" != "armv7l" ]; then \
-        if [ "$ARCH" = "x86_64" ]; then \
-            # OpenVINO only available on x86_64/amd64
-            python3 -m pip install --break-system-packages --no-cache-dir \
-            'sentence-transformers[onnx,openvino]>=4.1.0' \
-            accelerate \
-            'pydantic-ai[openai]>=1.0.0,<2.0.0'; \
-        else \
-            # arm64/aarch64: install without openvino, use piwheels
-            python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
-            'sentence-transformers>=4.1.0' \
-            accelerate \
-            'pydantic-ai[openai]>=1.0.0,<2.0.0'; \
-        fi; \
+        python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
+        'sentence-transformers>=4.1.0' \
+        accelerate \
+        'pydantic-ai[openai]>=1.0.0,<2.0.0'; \
     fi
 
 # download and cache sentence transformer model
