@@ -45,6 +45,8 @@ jobs:
       - name: Build and push devel image
         uses: docker/build-push-action@v6
         with:
+          context: .
+          file: ./Dockerfile
           push: true
           tags: |
             dmstraub/gramps-webapi:latest-devel
@@ -55,8 +57,10 @@ jobs:
 
       - name: Build and push release image
         if: github.event_name == 'release'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
+          context: .
+          file: ./Dockerfile
           push: true
           tags: |
             dmstraub/gramps-webapi:${{ github.event.release.tag_name }}
