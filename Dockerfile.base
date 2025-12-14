@@ -37,6 +37,10 @@ ENV OMP_NUM_THREADS=1
 RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
     gunicorn
 
+# Install PyICU (slow to compile on ARM, so pre-install in base image)
+RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
+    PyICU
+
 # Install PyTorch based on architecture
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" != "armv7l" ]; then \
