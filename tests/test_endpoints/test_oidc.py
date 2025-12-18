@@ -406,6 +406,72 @@ class TestOIDCEndpoints(unittest.TestCase):
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch(
         "gramps_webapi.api.resources.oidc.get_available_oidc_providers",
+        return_value=["microsoft"],
+    )
+    @patch("gramps_webapi.api.resources.oidc.create_or_update_oidc_user")
+    @patch("gramps_webapi.api.resources.oidc.get_name")
+    @patch("gramps_webapi.api.resources.oidc.get_tree_id")
+    @patch("gramps_webapi.api.resources.oidc.get_permissions")
+    @patch("gramps_webapi.api.resources.oidc.is_tree_disabled", return_value=False)
+    @patch("gramps_webapi.api.resources.oidc.get_tokens")
+    def test_oidc_callback_microsoft_claims_options(
+        self,
+        mock_get_tokens,
+        mock_tree_disabled,
+        mock_get_permissions,
+        mock_get_tree_id,
+        mock_get_name,
+        mock_create_user,
+        mock_providers,
+        mock_oidc_enabled,
+    ):
+        """Test OIDC callback for Microsoft uses claims_options to skip issuer validation."""
+        # Mock OAuth client and token exchange
+        mock_oauth = MagicMock()
+        mock_oidc_client = MagicMock()
+        mock_oauth.gramps_microsoft = mock_oidc_client
+
+        # Mock token and userinfo
+        mock_token = {"access_token": "test_token"}
+        mock_userinfo = {
+            "sub": "user123",
+            "preferred_username": "testuser",
+            "email": "test@example.com",
+        }
+        mock_oidc_client.authorize_access_token.return_value = mock_token
+        mock_oidc_client.userinfo.return_value = mock_userinfo
+
+        # Mock user creation and token generation
+        mock_create_user.return_value = "user-guid-123"
+        mock_get_name.return_value = "testuser"
+        mock_get_tree_id.return_value = "test_tree"
+        mock_get_permissions.return_value = {"EditObject"}
+        mock_get_tokens.return_value = {
+            "access_token": "jwt_access_token",
+            "refresh_token": "jwt_refresh_token",
+        }
+
+        # Test that Microsoft provider passes claims_options to skip issuer validation
+        with patch.dict(
+            self.client.application.extensions,
+            {"authlib.integrations.flask_client": mock_oauth},
+            clear=False,
+        ):
+            with patch.dict(self.client.application.config, {"TREE": "test_tree"}):
+                rv = self.client.get(
+                    BASE_URL + "/oidc/callback/microsoft?code=auth_code&state=abc123"
+                )
+                self.assertEqual(rv.status_code, 302)  # Redirect response
+
+                # Verify authorize_access_token was called with claims_options
+                # to skip issuer validation (needed for Microsoft OIDC)
+                mock_oidc_client.authorize_access_token.assert_called_once_with(
+                    claims_options={"iss": {"essential": False}}
+                )
+
+    @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
+    @patch(
+        "gramps_webapi.api.resources.oidc.get_available_oidc_providers",
         return_value=["google"],
     )
     @patch("gramps_webapi.api.resources.oidc.create_or_update_oidc_user")
@@ -465,6 +531,10 @@ class TestOIDCEndpoints(unittest.TestCase):
 
                 # Verify the flow worked with provider from query param
                 mock_create_user.assert_called_once_with(mock_userinfo, None, "google")
+
+                # Verify authorize_access_token was called without claims_options
+                # (standard OIDC flow for non-Microsoft providers)
+                mock_oidc_client.authorize_access_token.assert_called_once_with()
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch(

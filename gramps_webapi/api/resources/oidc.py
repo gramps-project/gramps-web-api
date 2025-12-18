@@ -158,7 +158,19 @@ class OIDCCallbackResource(Resource):
             )
 
         try:
-            token = oidc_client.authorize_access_token()
+            # Microsoft OIDC has a known issue where the issuer claim in the token
+            # may not match the issuer in the discovery document when using /common.
+            # Skip issuer validation for Microsoft to handle tenant-specific issuers.
+            # Security note: This does not allow arbitrary OIDC providers, because
+            # `provider_id` was already validated against the configured providers
+            # list via `get_available_oidc_providers()` and mapped to a preconfigured
+            # client (`gramps_<provider_id>`) before reaching this code.
+            if provider_id == "microsoft":
+                token = oidc_client.authorize_access_token(
+                    claims_options={"iss": {"essential": False}}
+                )
+            else:
+                token = oidc_client.authorize_access_token()
 
             # Handle different provider types for userinfo
             if provider_id == "github":
@@ -169,8 +181,8 @@ class OIDCCallbackResource(Resource):
                 # Standard OIDC - get userinfo from userinfo endpoint
                 userinfo = oidc_client.userinfo(token=token)
 
-        except Exception as e:
-            logger.exception(f"OIDC callback error for provider '{provider_id}'")
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("OIDC callback error for provider '%s'", provider_id)
             abort_with_message(401, f"OIDC authentication failed for {provider_id}")
 
         tree = args.get("tree")
