@@ -181,8 +181,8 @@ class OIDCCallbackResource(Resource):
                 # Standard OIDC - get userinfo from userinfo endpoint
                 userinfo = oidc_client.userinfo(token=token)
 
-        except Exception as e:
-            logger.exception(f"OIDC callback error for provider '{provider_id}'")
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("OIDC callback error for provider '%s'", provider_id)
             abort_with_message(401, f"OIDC authentication failed for {provider_id}")
 
         tree = args.get("tree")
