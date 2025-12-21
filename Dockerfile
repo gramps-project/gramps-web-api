@@ -25,13 +25,8 @@ ENV GRAMPS_DATABASE_PATH=/root/.gramps/grampsdb
 
 # copy package source and install
 COPY . /app/src
-RUN ARCH=$(uname -m) && \
-    if [ "$ARCH" = "armv7l" ]; then \
-        python3 -m pip install --break-system-packages --no-cache-dir /app/src; \
-    else \
-        python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
-        /app/src[ai]; \
-    fi
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
+    /app/src[ai]
 
 # download and cache YFull tree for yclade
 RUN python3 -c "import yclade; yclade.tree.download_yfull_tree()"

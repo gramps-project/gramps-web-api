@@ -19,7 +19,49 @@ RUN apt-get update && apt-get install -y \
   unzip \
   libpq-dev postgresql-client postgresql-client-common python3-psycopg2 \
   libgl1-mesa-dev libgtk2.0-dev libatlas-base-dev \
-  tesseract-ocr tesseract-ocr-all \
+  tesseract-ocr \
+  tesseract-ocr-ara \
+  tesseract-ocr-bul \
+  tesseract-ocr-bre \
+  tesseract-ocr-cat \
+  tesseract-ocr-ces \
+  tesseract-ocr-dan \
+  tesseract-ocr-deu \
+  tesseract-ocr-ell \
+  tesseract-ocr-eng \
+  tesseract-ocr-epo \
+  tesseract-ocr-spa \
+  tesseract-ocr-fin \
+  tesseract-ocr-fra \
+  tesseract-ocr-gle \
+  tesseract-ocr-heb \
+  tesseract-ocr-hrv \
+  tesseract-ocr-hun \
+  tesseract-ocr-isl \
+  tesseract-ocr-ind \
+  tesseract-ocr-ita \
+  tesseract-ocr-jpn \
+  tesseract-ocr-kor \
+  tesseract-ocr-lit \
+  tesseract-ocr-lav \
+  tesseract-ocr-mkd \
+  tesseract-ocr-nor \
+  tesseract-ocr-nld \
+  tesseract-ocr-pol \
+  tesseract-ocr-por \
+  tesseract-ocr-ron \
+  tesseract-ocr-rus \
+  tesseract-ocr-slk \
+  tesseract-ocr-slv \
+  tesseract-ocr-sqi \
+  tesseract-ocr-srp \
+  tesseract-ocr-swe \
+  tesseract-ocr-tam \
+  tesseract-ocr-tur \
+  tesseract-ocr-ukr \
+  tesseract-ocr-vie \
+  tesseract-ocr-chi-sim \
+  tesseract-ocr-chi-tra \
   libopenblas-dev cmake \
   && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8 \
   && rm -rf /var/lib/apt/lists/*
@@ -34,37 +76,27 @@ ENV LC_ALL en_US.utf8
 ENV OMP_NUM_THREADS=1
 
 # install gunicorn
-RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
     gunicorn
 
 # Install PyICU (slow to compile on ARM, so pre-install in base image)
-RUN python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
     PyICU
 
-# Install PyTorch based on architecture
-RUN ARCH=$(uname -m) && \
-    if [ "$ARCH" != "armv7l" ]; then \
-        # PyTorch and opencv not supported on armv7l
-        python3 -m pip install --break-system-packages --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch; \
-        python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
-        opencv-python opencv-contrib-python; \
-    fi
+# Install PyTorch and opencv
+RUN python3 -m pip install --break-system-packages --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
+    opencv-python opencv-contrib-python
 
-# Install AI dependencies - skip openvino extras to avoid dependency resolution timeout
-RUN ARCH=$(uname -m) && \
-    if [ "$ARCH" != "armv7l" ]; then \
-        python3 -m pip install --break-system-packages --no-cache-dir --extra-index-url https://www.piwheels.org/simple \
-        'sentence-transformers>=4.1.0' \
-        accelerate \
-        'pydantic-ai[openai]>=1.0.0,<2.0.0'; \
-    fi
+# Install AI dependencies
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
+    'sentence-transformers>=4.1.0' \
+    accelerate \
+    'pydantic-ai[openai]>=1.0.0,<2.0.0'
 
 # download and cache sentence transformer model
-RUN ARCH=$(uname -m) && \
-    if [ "$ARCH" != "armv7l" ]; then \
-        python3 -c "from sentence_transformers import SentenceTransformer; \
-model = SentenceTransformer('sentence-transformers/distiluse-base-multilingual-cased-v2')"; \
-    fi
+RUN python3 -c "from sentence_transformers import SentenceTransformer; \
+model = SentenceTransformer('sentence-transformers/distiluse-base-multilingual-cased-v2');"
 
 # install Gramps addons
 RUN mkdir -p /root/gramps/gramps$GRAMPS_VERSION/plugins && \
