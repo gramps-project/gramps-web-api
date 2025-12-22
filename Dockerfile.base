@@ -75,6 +75,9 @@ ENV LC_ALL en_US.utf8
 # limit pytorch to 1 thread
 ENV OMP_NUM_THREADS=1
 
+# install wheel first to enable binary packages for all pip installs
+RUN python3 -m pip install --break-system-packages --no-cache-dir wheel
+
 # install gunicorn
 RUN python3 -m pip install --break-system-packages --no-cache-dir \
     gunicorn
@@ -91,8 +94,9 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir \
 # Install AI dependencies
 RUN python3 -m pip install --break-system-packages --no-cache-dir \
     'sentence-transformers>=4.1.0' \
-    accelerate \
-    'pydantic-ai[openai]>=1.0.0,<2.0.0'
+    'accelerate' \
+    'pydantic-ai[openai]>=1.0.0,<2.0.0' \
+    --only-binary=:all:
 
 # download and cache sentence transformer model
 RUN python3 -c "from sentence_transformers import SentenceTransformer; \
