@@ -5,7 +5,7 @@ ENV GRAMPS_VERSION=60
 
 WORKDIR /app
 
-ENV PYTHONPATH="${PYTHONPATH}:/usr/lib/python3/dist-packages"
+ENV PYTHONPATH="/usr/lib/python3/dist-packages"
 
 # install poppler (needed for PDF thumbnails)
 # ffmpeg (needed for video thumbnails)
@@ -68,9 +68,9 @@ RUN apt-get update && apt-get install -y \
 
 # set locale
 RUN localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
-ENV LANGUAGE en_US.utf8
-ENV LANG en_US.utf8
-ENV LC_ALL en_US.utf8
+ENV LANGUAGE=en_US.utf8
+ENV LANG=en_US.utf8
+ENV LC_ALL=en_US.utf8
 
 # limit pytorch to 1 thread
 ENV OMP_NUM_THREADS=1
@@ -95,8 +95,7 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir \
 RUN python3 -m pip install --break-system-packages --no-cache-dir \
     'sentence-transformers>=4.1.0' \
     'accelerate' \
-    'pydantic-ai[openai]>=1.0.0,<2.0.0' \
-    --only-binary=:all:
+    'pydantic-ai[openai]>=1.0.0,<2.0.0'
 
 # download and cache sentence transformer model
 RUN python3 -c "from sentence_transformers import SentenceTransformer; \
