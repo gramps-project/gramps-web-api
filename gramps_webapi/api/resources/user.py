@@ -239,8 +239,8 @@ class UserResource(UserChangeBase):
         user_name, other_tree = self.prepare_edit(user_name)
 
         if "name_new" in args:
-            new_name = args["name_new"]
-            if not new_name or new_name.strip() == "":
+            new_name = args["name_new"].strip()
+            if not new_name:
                 abort_with_message(400, "Username cannot be empty")
             if new_name in ["-", "_"]:
                 abort_with_message(400, "Username cannot be a reserved name")
@@ -251,6 +251,8 @@ class UserResource(UserChangeBase):
                     abort_with_message(409, "Username already exists")
             except ValueError:
                 pass
+            # Update args with the stripped username for later use
+            args["name_new"] = new_name
 
         if "role" in args:
             if args["role"] >= ROLE_ADMIN:
