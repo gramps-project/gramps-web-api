@@ -33,10 +33,13 @@ from gramps.gen.dbstate import DbState
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import (
     add_user,
+    create_oidc_account,
     delete_user,
     get_all_user_details,
+    get_guid,
     get_number_users,
     get_user_details,
+    get_user_oidc_accounts,
     user_db,
 )
 from gramps_webapi.auth.const import (
@@ -1376,3 +1379,55 @@ class TestUserNameChange(unittest.TestCase):
         )
         assert rv.status_code == 200
         assert rv.json["name"] == "testuser"
+
+    def test_change_username_oidc_account_preserved(self):
+        """Test that OIDC account associations are preserved after username change."""
+        # Create a user
+        with self.app.app_context():
+            add_user(
+                name="oidcuser",
+                password="testpass",
+                email="oidc@example.com",
+                role=ROLE_MEMBER,
+                tree=self.tree,
+            )
+            # Get user GUID and create OIDC association
+            user_id = get_guid("oidcuser")
+            create_oidc_account(
+                user_id=user_id,
+                provider_id="google",
+                subject_id="google-user-12345",
+                email="oidc@example.com",
+            )
+            # Verify OIDC account exists before rename
+            oidc_accounts_before = get_user_oidc_accounts(user_id)
+            assert len(oidc_accounts_before) == 1
+            assert oidc_accounts_before[0]["provider_id"] == "google"
+            assert oidc_accounts_before[0]["subject_id"] == "google-user-12345"
+
+        # Change username
+        rv = self.client.put(
+            BASE_URL + "/users/oidcuser/",
+            headers={"Authorization": f"Bearer {self.token}"},
+            json={"name_new": "renamedoidcuser"},
+        )
+        assert rv.status_code == 200
+
+        # Verify the username changed
+        rv = self.client.get(
+            BASE_URL + "/users/renamedoidcuser/",
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        assert rv.status_code == 200
+        assert rv.json["name"] == "renamedoidcuser"
+
+        # Verify in database that the OIDC link still exists and points to the same user_id
+        with self.app.app_context():
+            new_user_id = get_guid("renamedoidcuser")
+            # User ID should remain the same (GUIDs don't change)
+            assert new_user_id == user_id
+            # OIDC account associations should be preserved
+            oidc_accounts_after = get_user_oidc_accounts(new_user_id)
+            assert len(oidc_accounts_after) == 1
+            assert oidc_accounts_after[0]["provider_id"] == "google"
+            assert oidc_accounts_after[0]["subject_id"] == "google-user-12345"
