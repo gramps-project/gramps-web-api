@@ -1495,7 +1495,7 @@ def dry_run_import(
     run_import(
         db_handle=db_handle, file_name=file_name, extension=extension, delete=False
     )
-    return {
+    result = {
         "people": db_handle.get_number_of_people(),
         "families": db_handle.get_number_of_families(),
         "sources": db_handle.get_number_of_sources(),
@@ -1507,6 +1507,8 @@ def dry_run_import(
         "notes": db_handle.get_number_of_notes(),
         "tags": db_handle.get_number_of_tags(),
     }
+    db_handle.close()
+    return result
 
 
 def app_has_semantic_search() -> bool:
