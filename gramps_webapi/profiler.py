@@ -24,7 +24,7 @@ import os
 import statistics
 import sys
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import click
 
@@ -183,7 +183,7 @@ def get_default_person_gramps_id(
 
 
 def get_default_endpoints(
-    tree_id: str, default_person_gramps_id: Optional[str] = None
+    default_person_gramps_id: Optional[str] = None,
 ) -> List[Dict[str, str]]:
     """Get the default list of endpoints to profile.
 
@@ -233,6 +233,7 @@ def get_default_endpoints(
             {
                 "name": "Events by Date",
                 "method": "GET",
+                # Using */12/30 to match any year, December 30 (a common date pattern)
                 "path": "/api/events/?dates=*/12/30&profile=all&sort=-date&locale=en&pagesize=10&page=1",
             },
             {
@@ -276,6 +277,8 @@ def profile_endpoint_with_test_client(
     for _ in range(warmup):
         if method == "GET":
             client.get(path, headers=headers)
+        else:
+            client.post(path, headers=headers)
 
     # Actual profiling runs
     for _ in range(iterations):
@@ -298,6 +301,8 @@ def profile_endpoint_with_test_client(
                 elif isinstance(data, dict) and "results" in data:
                     object_count = len(data["results"])
             except Exception:
+                # Best-effort object counting only; ignore any errors when
+                # parsing or inspecting the response so profiling can proceed.
                 pass
 
     return response_times, status_codes, object_count
@@ -369,6 +374,7 @@ def profile_endpoint_with_http(
                     elif isinstance(data, dict) and "results" in data:
                         object_count = len(data["results"])
                 except Exception:
+                    # Best-effort object counting: ignore JSON/structure issues so profiling can continue.
                     pass
         except requests.exceptions.Timeout:
             end_time = time.perf_counter()
@@ -408,7 +414,18 @@ def authenticate_remote(url: str, username: str, password: str) -> str:
             click.echo(f"Error: Authentication failed (status {response.status_code})")
             click.echo(response.text)
             sys.exit(1)
-        return response.json()["access_token"]
+        try:
+            data = response.json()
+        except ValueError as e:
+            click.echo(f"Error: Failed to parse authentication response as JSON: {e}")
+            click.echo(response.text)
+            sys.exit(1)
+        token = data.get("access_token")
+        if not token:
+            click.echo("Error: Authentication response did not contain 'access_token'.")
+            click.echo(response.text)
+            sys.exit(1)
+        return token
     except requests.exceptions.Timeout:
         click.echo(
             f"Error: Authentication request timed out after 30 seconds. "
@@ -426,7 +443,7 @@ def authenticate_remote(url: str, username: str, password: str) -> str:
         sys.exit(1)
 
 
-def authenticate_local(app, username: str, password: str) -> Tuple[any, str]:
+def authenticate_local(username: str, password: str) -> Tuple[Any, str]:
     """Authenticate with test client and return (client, token)."""
     # Ensure caches are disabled
     os.environ["DISABLE_CACHES"] = "1"
@@ -434,7 +451,7 @@ def authenticate_local(app, username: str, password: str) -> Tuple[any, str]:
     # Import here to avoid circular dependency
     from .app import create_app
 
-    # Recreate app with caching disabled
+    # Create app with caching disabled
     app = create_app()
     client = app.test_client()
 
@@ -445,11 +462,27 @@ def authenticate_local(app, username: str, password: str) -> Tuple[any, str]:
         click.echo(rv.data.decode())
         sys.exit(1)
 
-    return client, rv.json["access_token"]
+    token = rv.json.get("access_token")
+    if not token:
+        click.echo("Error: Authentication response did not contain 'access_token'.")
+        click.echo(rv.data.decode())
+        sys.exit(1)
+
+    return client, token
 
 
 def calculate_statistics(response_times: List[float], status_codes: List[int]) -> Dict:
     """Calculate statistics from profiling results."""
+    if not response_times:
+        return {
+            "mean_ms": 0.0,
+            "median_ms": 0.0,
+            "stddev_ms": 0.0,
+            "min_ms": 0.0,
+            "max_ms": 0.0,
+            "all_success": False,
+        }
+
     mean_time = statistics.mean(response_times)
     median_time = statistics.median(response_times)
     stddev_time = statistics.stdev(response_times) if len(response_times) > 1 else 0.0
@@ -549,7 +582,6 @@ def save_results_json(
 
 
 def run_profiler(
-    app,
     tree: str,
     username: str,
     password: str,
@@ -569,7 +601,7 @@ def run_profiler(
         token = authenticate_remote(url, username, password)
         client = None
     else:
-        client, token = authenticate_local(app, username, password)
+        client, token = authenticate_local(username, password)
 
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -590,7 +622,7 @@ def run_profiler(
         click.echo()
 
     # Get list of endpoints to profile
-    endpoints = get_default_endpoints(tree, default_person_gramps_id)
+    endpoints = get_default_endpoints(default_person_gramps_id)
 
     click.echo(
         f"Profiling {len(endpoints)} endpoints with {iterations} iterations each..."

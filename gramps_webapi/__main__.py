@@ -392,8 +392,8 @@ def profile():
 )
 @click.option(
     "--password",
-    required=True,
-    help="Password for authentication",
+    default=None,
+    help="Password for authentication (will be prompted if not provided)",
 )
 @click.option(
     "--url",
@@ -428,24 +428,26 @@ def profile_run(ctx, tree, username, password, url, iterations, warmup, output):
     Examples:
 
     \b
-    # Profile using test client (local, fast)
-    gramps-web profile run --tree my_tree --username admin --password secret
+    # Profile using test client (local, fast) - will prompt for password
+    gramps-web profile run --tree my_tree --username admin
 
     \b
     # Profile a running server (realistic, includes network)
-    gramps-web profile run --tree my_tree --username admin --password secret \\
+    gramps-web profile run --tree my_tree --username admin \\
         --url http://localhost:5555
 
     \b
     # Save results to JSON file
-    gramps-web profile run --tree my_tree --username admin --password secret \\
+    gramps-web profile run --tree my_tree --username admin \\
         --output results.json
     """
     from .profiler import run_profiler
 
-    run_profiler(
-        ctx.obj["app"], tree, username, password, url, iterations, warmup, output
-    )
+    # Prompt for password if not provided (more secure than command-line argument)
+    if password is None:
+        password = click.prompt("Password", hide_input=True)
+
+    run_profiler(tree, username, password, url, iterations, warmup, output)
 
 
 if __name__ == "__main__":
