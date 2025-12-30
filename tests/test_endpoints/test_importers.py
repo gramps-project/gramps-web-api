@@ -208,3 +208,128 @@ class TestImportersExtensionFile(unittest.TestCase):
         assert len(rv) == 0
         with self.test_app.app_context():
             set_tree_details(self.tree, quota_people=None)
+
+    def test_importers_gedcom7_file(self):
+        """Test importing a GEDCOM 7 file."""
+        # Create a sample GEDCOM 7 file
+        gedcom7_content = b"""0 HEAD
+1 GEDC
+2 VERS 7.0
+0 @I1@ INDI
+1 NAME John /Doe/
+2 GIVN John
+2 SURN Doe
+1 SEX M
+1 BIRT
+2 DATE 1 JAN 1950
+0 @I2@ INDI
+1 NAME Jane /Smith/
+2 GIVN Jane
+2 SURN Smith
+1 SEX F
+1 BIRT
+2 DATE 15 MAR 1952
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 MARR
+2 DATE 10 JUN 1975
+0 TRLR
+"""
+        file_obj = io.BytesIO(gedcom7_content)
+        headers = fetch_header(self.client, role=ROLE_OWNER)
+        # Get current counts
+        rv = check_success(self, f"{BASE_URL}/people/")
+        people_before = len(rv)
+        rv = check_success(self, f"{BASE_URL}/families/")
+        families_before = len(rv)
+        # import GEDCOM 7 file
+        rv = self.client.post(
+            f"{TEST_URL}ged/file",
+            data=file_obj,
+            headers=headers,
+        )
+        assert rv.status_code == 201
+        # database should have 2 more people
+        rv = check_success(self, f"{BASE_URL}/people/")
+        assert len(rv) == people_before + 2
+        # database should have 1 more family
+        rv = check_success(self, f"{BASE_URL}/families/")
+        assert len(rv) == families_before + 1
+
+    def test_importers_gedcom55_file(self):
+        """Test importing a GEDCOM 5.5 file."""
+        # Create a sample GEDCOM 5.5 file
+        gedcom55_content = b"""0 HEAD
+1 SOUR Test
+1 GEDC
+2 VERS 5.5
+2 FORM LINEAGE-LINKED
+0 @I1@ INDI
+1 NAME Alice /Brown/
+1 SEX F
+1 BIRT
+2 DATE 25 DEC 1960
+0 @I2@ INDI
+1 NAME Bob /Brown/
+1 SEX M
+0 TRLR
+"""
+        file_obj = io.BytesIO(gedcom55_content)
+        headers = fetch_header(self.client, role=ROLE_OWNER)
+        # Get current count of people
+        rv = check_success(self, f"{BASE_URL}/people/")
+        people_before = len(rv)
+        # import GEDCOM 5.5 file
+        rv = self.client.post(
+            f"{TEST_URL}ged/file",
+            data=file_obj,
+            headers=headers,
+        )
+        assert rv.status_code == 201
+        # database should have 2 more people
+        rv = check_success(self, f"{BASE_URL}/people/")
+        assert len(rv) == people_before + 2
+
+    def test_importers_gedcom7_with_events(self):
+        """Test importing a GEDCOM 7 file with events."""
+        # Create a GEDCOM 7 file with various events
+        gedcom7_content = b"""0 HEAD
+1 GEDC
+2 VERS 7.0
+0 @I1@ INDI
+1 NAME Mary /Johnson/
+2 GIVN Mary
+2 SURN Johnson
+1 SEX F
+1 BIRT
+2 DATE 5 FEB 1945
+2 PLAC London, England
+1 DEAT
+2 DATE 20 JUL 2020
+2 PLAC Manchester, England
+0 @E1@ EVEN
+1 TYPE Military Service
+1 DATE 1963
+0 TRLR
+"""
+        file_obj = io.BytesIO(gedcom7_content)
+        headers = fetch_header(self.client, role=ROLE_OWNER)
+        # Get current counts
+        rv = check_success(self, f"{BASE_URL}/people/")
+        people_before = len(rv)
+        rv = check_success(self, f"{BASE_URL}/events/")
+        events_before = len(rv)
+        # import GEDCOM 7 file
+        rv = self.client.post(
+            f"{TEST_URL}ged/file",
+            data=file_obj,
+            headers=headers,
+        )
+        assert rv.status_code == 201
+        # verify person was imported
+        rv = check_success(self, f"{BASE_URL}/people/")
+        assert len(rv) == people_before + 1
+        # verify events were imported (at least birth and death)
+        rv = check_success(self, f"{BASE_URL}/events/")
+        assert len(rv) >= events_before + 2
