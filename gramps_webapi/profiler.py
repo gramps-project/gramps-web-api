@@ -233,8 +233,7 @@ def get_default_endpoints(
             {
                 "name": "Events by Date",
                 "method": "GET",
-                # Using */12/30 to match any year, December 30 (a common date pattern)
-                "path": "/api/events/?dates=*/12/30&profile=all&sort=-date&locale=en&pagesize=10&page=1",
+                "path": "/api/events/?dates=*/6/*&profile=all&sort=-date&locale=en&pagesize=10&page=1",
             },
             {
                 "name": "Places List",
