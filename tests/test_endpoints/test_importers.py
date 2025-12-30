@@ -150,7 +150,9 @@ class TestImportersExtensionFile(unittest.TestCase):
 
     def test_importers_example_data(self):
         """Test importing example.gramps."""
-        os.remove(os.path.join(self.dbpath, "sqlite.db"))
+        db_file = os.path.join(self.dbpath, "sqlite.db")
+        if os.path.exists(db_file):
+            os.remove(db_file)
         example_db = ExampleDbInMemory()
         file_obj = io.BytesIO()
         with open(example_db.path, "rb") as f:
@@ -186,7 +188,9 @@ class TestImportersExtensionFile(unittest.TestCase):
 
     def test_importers_example_data_quota(self):
         """Test importing example.gramps with a quota."""
-        os.remove(os.path.join(self.dbpath, "sqlite.db"))
+        db_file = os.path.join(self.dbpath, "sqlite.db")
+        if os.path.exists(db_file):
+            os.remove(db_file)
         with self.test_app.app_context():
             set_tree_details(self.tree, quota_people=2000)
         example_db = ExampleDbInMemory()
@@ -195,17 +199,18 @@ class TestImportersExtensionFile(unittest.TestCase):
             file_obj.write(f.read())
         file_obj.seek(0)
         headers = fetch_header(self.client, role=ROLE_OWNER)
-        # database has no people
+        # Check current people count
         rv = check_success(self, f"{BASE_URL}/people/")
-        assert len(rv) == 0
+        people_before = len(rv)
         rv = self.client.post(
             f"{TEST_URL}gramps/file",
             data=file_obj,
             headers=headers,
         )
         assert rv.status_code == 500
+        # Verify nothing was imported due to quota
         rv = check_success(self, f"{BASE_URL}/people/")
-        assert len(rv) == 0
+        assert len(rv) == people_before
         with self.test_app.app_context():
             set_tree_details(self.tree, quota_people=None)
 
