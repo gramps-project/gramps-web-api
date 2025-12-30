@@ -209,6 +209,34 @@ class TestImportersExtensionFile(unittest.TestCase):
         with self.test_app.app_context():
             set_tree_details(self.tree, quota_people=None)
 
+
+class TestImportersGedcom(unittest.TestCase):
+    """Test cases for GEDCOM import functionality."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.name = "gedcom_test"
+        cls.dbman = CLIDbManager(DbState())
+        cls.dbpath, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EMPTY_GRAMPS_AUTH_CONFIG}):
+            cls.test_app = create_app(config_from_env=False, config={"TREE": cls.name})
+        cls.test_app.config["TESTING"] = True
+        cls.client = cls.test_app.test_client()
+        cls.tree = os.path.basename(cls.dbpath)
+        with cls.test_app.app_context():
+            user_db.create_all()
+            for role in TEST_USERS:
+                add_user(
+                    name=TEST_USERS[role]["name"],
+                    password=TEST_USERS[role]["password"],
+                    role=role,
+                )
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.dbman.remove_database(cls.name)
+
     def test_importers_gedcom7_file(self):
         """Test importing a GEDCOM 7 file."""
         # Create a sample GEDCOM 7 file
