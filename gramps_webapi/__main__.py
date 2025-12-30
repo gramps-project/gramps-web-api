@@ -373,6 +373,81 @@ def migrate_gramps_undodb(ctx):
         close_db(db_handle)
 
 
+@cli.group("profile", help="Profile API endpoint performance.")
+def profile():
+    """Profile endpoint performance."""
+    pass
+
+
+@profile.command("run")
+@click.option(
+    "--tree",
+    required=True,
+    help="Tree ID to profile (required for JWT token)",
+)
+@click.option(
+    "--username",
+    required=True,
+    help="Username for authentication",
+)
+@click.option(
+    "--password",
+    required=True,
+    help="Password for authentication",
+)
+@click.option(
+    "--url",
+    default=None,
+    help="Server URL for remote profiling (e.g., http://localhost:5555). If not set, uses test client.",
+)
+@click.option(
+    "--iterations",
+    default=10,
+    type=int,
+    help="Number of iterations per endpoint (default: 10)",
+)
+@click.option(
+    "--warmup",
+    default=2,
+    type=int,
+    help="Number of warmup runs before profiling (default: 2)",
+)
+@click.option(
+    "--output",
+    default=None,
+    help="Output JSON file path (optional)",
+)
+@click.pass_context
+def profile_run(ctx, tree, username, password, url, iterations, warmup, output):
+    """Profile API endpoint performance.
+
+    This command measures the response time of typical API endpoints to help
+    identify performance bottlenecks. Caching is automatically disabled for
+    accurate measurements.
+
+    Examples:
+
+    \b
+    # Profile using test client (local, fast)
+    gramps-web profile run --tree my_tree --username admin --password secret
+
+    \b
+    # Profile a running server (realistic, includes network)
+    gramps-web profile run --tree my_tree --username admin --password secret \\
+        --url http://localhost:5555
+
+    \b
+    # Save results to JSON file
+    gramps-web profile run --tree my_tree --username admin --password secret \\
+        --output results.json
+    """
+    from .profiler import run_profiler
+
+    run_profiler(
+        ctx.obj["app"], tree, username, password, url, iterations, warmup, output
+    )
+
+
 if __name__ == "__main__":
     try:
         cli(
