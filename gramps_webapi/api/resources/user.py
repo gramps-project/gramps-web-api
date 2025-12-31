@@ -127,13 +127,20 @@ class UsersResource(ProtectedResource):
 
         if has_permissions([PERM_VIEW_OTHER_TREE_USER]):
             # return all users from all trees
-            return jsonify(get_all_user_details(tree=None, include_oidc_accounts=include_oidc)), 200
+            return (
+                jsonify(
+                    get_all_user_details(tree=None, include_oidc_accounts=include_oidc)
+                ),
+                200,
+            )
         require_permissions([PERM_VIEW_OTHER_USER])
         tree = get_tree_from_jwt()
         # return only this tree's users
         # only include treeless users in single-tree setup
         is_single = current_app.config["TREE"] != TREE_MULTI
-        details = get_all_user_details(tree=tree, include_treeless=is_single, include_oidc_accounts=include_oidc)
+        details = get_all_user_details(
+            tree=tree, include_treeless=is_single, include_oidc_accounts=include_oidc
+        )
         return (
             jsonify(details),
             200,
@@ -221,6 +228,7 @@ class UserResource(UserChangeBase):
         {
             "email": fields.Str(required=False),
             "full_name": fields.Str(required=False),
+            "name_new": fields.Str(required=False),
             "role": fields.Int(required=False),
             "tree": fields.Str(required=False),
         },
@@ -229,6 +237,23 @@ class UserResource(UserChangeBase):
     def put(self, args, user_name: str):
         """Update a user's details."""
         user_name, other_tree = self.prepare_edit(user_name)
+
+        if "name_new" in args:
+            new_name = args["name_new"].strip()
+            if not new_name:
+                abort_with_message(400, "Username cannot be empty")
+            if new_name in ["-", "_"]:
+                abort_with_message(400, "Username cannot be a reserved name")
+            try:
+                existing_id = get_guid(new_name)
+                current_id = get_guid(user_name)
+                if existing_id != current_id:
+                    abort_with_message(409, "Username already exists")
+            except ValueError:
+                pass
+            # Update args with the stripped username for later use
+            args["name_new"] = new_name
+
         if "role" in args:
             if args["role"] >= ROLE_ADMIN:
                 # only admins can elevate users to admins
@@ -243,6 +268,7 @@ class UserResource(UserChangeBase):
                 abort_with_message(422, "Tree does not exist")
         modify_user(
             name=user_name,
+            name_new=args.get("name_new"),
             email=args.get("email"),
             fullname=args.get("full_name"),
             role=args.get("role"),
