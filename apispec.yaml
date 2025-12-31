@@ -516,18 +516,30 @@ paths:
             full_name:
               description: "The new user's full name."
               type: string
+            name_new:
+              description: "The new username (for renaming the user)."
+              type: string
+              minLength: 1
+              pattern: '^(?!-$)(?!_$).*$'
             role:
               description: "An integer user role ID."
               type: number
+            tree:
+              description: "The tree ID the user belongs to."
+              type: string
       responses:
         200:
           description: "OK: Successful operation."
+        400:
+          description: "Bad Request: Invalid username (empty or reserved)."
         401:
           description: "Unauthorized: Missing authorization header."
         403:
           description: "Unauthorized: insufficient permissions."
         404:
           description: "Not found: User does not exist."
+        409:
+          description: "Conflict: Username already exists."
         422:
           description: "Unprocessable Entity: Invalid token."
     post:
