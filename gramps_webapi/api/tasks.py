@@ -236,12 +236,12 @@ def import_file(
     self, tree: str, user_id: str, file_name: str, extension: str, delete: bool = True
 ):
     """Import a file."""
-    object_counts = dry_run_import(file_name=file_name)
+    object_counts = dry_run_import(file_name=file_name, extension=extension)
     if object_counts is None:
         raise ValueError(f"Failed importing {extension} file")
     check_quota_people(to_add=object_counts["people"], tree=tree, user_id=user_id)
     db_handle = get_db_outside_request(
-        tree=tree, view_private=True, readonly=True, user_id=user_id
+        tree=tree, view_private=True, readonly=False, user_id=user_id
     )
     try:
         run_import(

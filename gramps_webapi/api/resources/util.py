@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 import os
+import re
 from hashlib import sha256
 from http import HTTPStatus
 from typing import Any, Literal, Optional, Union, cast
@@ -37,7 +38,7 @@ from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import KEY_TO_CLASS_MAP, DbTxn
 from gramps.gen.db.base import DbReadBase, DbWriteBase
 from gramps.gen.db.dbconst import TXNADD, TXNDEL, TXNUPD
-from gramps.gen.db.utils import import_as_dict
+from gramps.gen.db.utils import make_database
 from gramps.gen.display.name import NameDisplay
 from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
@@ -71,6 +72,8 @@ from gramps.gen.utils.db import (
 from gramps.gen.utils.grampslocale import GrampsLocale
 from gramps.gen.utils.id import create_id
 from gramps.gen.utils.place import conv_lat_lon
+
+import gramps_gedcom7
 
 from ...const import DISABLED_IMPORTERS, SEX_FEMALE, SEX_MALE, SEX_UNKNOWN
 from ...types import FilenameOrPath, Handle, TransactionJson
@@ -1400,14 +1403,60 @@ def get_importers(extension: str | None = None):
     return importers
 
 
+def detect_gedcom_major_version(path: str) -> int:
+    """Detect the GEDCOM version from a GEDCOM file.
+
+    Args:
+        path: Path to the GEDCOM file.
+
+    Returns:
+        The major version number (e.g., 5 or 7). Returns 0 if not found.
+
+    This function parses the GEDCOM file header looking for the VERS tag
+    within the HEAD section. It uses latin-1 encoding which is compatible
+    with both GEDCOM 5.x (ANSEL) and GEDCOM 7.x (UTF-8) files.
+    """
+    with open(path, encoding="latin-1") as f:
+        in_head = False
+        for line in f:
+            parts = line.strip().split(maxsplit=2)
+            if len(parts) < 2:
+                continue
+
+            level, tag = parts[0], parts[1]
+
+            if level == "0":
+                if tag == "HEAD":
+                    in_head = True
+                elif in_head:
+                    break
+
+            elif in_head and tag == "VERS" and len(parts) == 3:
+                version = parts[2]
+                match = re.search(r"\d+", version)
+                gedcom_major_version = int(match.group()) if match else 0
+                return gedcom_major_version
+
+    return 0
+
+
 def run_import(
-    db_handle: DbReadBase,
+    db_handle: DbWriteBase,
     file_name: FilenameOrPath,
     extension: str,
     delete: bool = True,
     task: Optional[Task] = None,
 ) -> None:
     """Import a file."""
+    if extension.lower() == "ged" and detect_gedcom_major_version(str(file_name)) == 7:
+        try:
+            gramps_gedcom7.import_gedcom(input_file=file_name, db=db_handle)
+        except Exception as e:
+            abort_with_message(500, f"Import failed: {e}")
+        finally:
+            if delete:
+                os.remove(file_name)
+        return
     plugin_manager = BasePluginManager.get_instance()
     for plugin in plugin_manager.get_import_plugins():
         if extension == plugin.get_extension():
@@ -1426,12 +1475,27 @@ def run_import(
 
 def dry_run_import(
     file_name: FilenameOrPath,
+    extension: str,
 ) -> Optional[dict[str, int]]:
     """Import a file into an in-memory database and returns object counts."""
-    db_handle: DbReadBase = import_as_dict(filename=file_name, user=User())
-    if db_handle is None:
-        return None
-    return {
+    db_handle = make_database("sqlite")
+    db_handle.load(":memory:")
+    db_handle.set_feature("skip-import-additions", True)
+    db_handle.set_prefixes(
+        config.get("preferences.iprefix"),
+        config.get("preferences.oprefix"),
+        config.get("preferences.fprefix"),
+        config.get("preferences.sprefix"),
+        config.get("preferences.cprefix"),
+        config.get("preferences.pprefix"),
+        config.get("preferences.eprefix"),
+        config.get("preferences.rprefix"),
+        config.get("preferences.nprefix"),
+    )
+    run_import(
+        db_handle=db_handle, file_name=file_name, extension=extension, delete=False
+    )
+    result = {
         "people": db_handle.get_number_of_people(),
         "families": db_handle.get_number_of_families(),
         "sources": db_handle.get_number_of_sources(),
@@ -1443,6 +1507,8 @@ def dry_run_import(
         "notes": db_handle.get_number_of_notes(),
         "tags": db_handle.get_number_of_tags(),
     }
+    db_handle.close()
+    return result
 
 
 def app_has_semantic_search() -> bool:
