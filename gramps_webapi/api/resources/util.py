@@ -1451,24 +1451,16 @@ def remove_mediapath_from_gramps_xml(file_name: FilenameOrPath) -> None:
     Args:
         file_name: Path to the Gramps XML file.
     """
-    # First, detect if file is gzipped by trying to read it
-    is_compressed = False
+    # Try to read as gzipped file first
     try:
         with gzip.open(file_name, "rb") as f:
-            # Try to read first few bytes to confirm it's gzipped
-            f.read(10)
-            is_compressed = True
-    except (OSError, gzip.BadGzipFile):
-        # Not gzipped or can't read as gzip
-        is_compressed = False
-
-    # Read the file content
-    if is_compressed:
-        with gzip.open(file_name, "rb") as f:
             content = f.read()
-    else:
+        is_compressed = True
+    except (OSError, gzip.BadGzipFile):
+        # Not gzipped or can't read as gzip: fall back to plain file
         with open(file_name, "rb") as f:
             content = f.read()
+        is_compressed = False
 
     # Remove the mediapath tag using regex
     # Match <mediapath>...</mediapath> or <mediapath/> (empty tag)

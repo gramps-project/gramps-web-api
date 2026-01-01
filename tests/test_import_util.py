@@ -48,7 +48,9 @@ class TestRemoveMediapathFromGrampsXml(unittest.TestCase):
 </database>
 """
 
-        with tempfile.NamedTemporaryFile(mode="wb", suffix=".gramps", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", suffix=".gramps", delete=False
+        ) as f:
             temp_file = f.name
             f.write(xml_content)
 
@@ -83,7 +85,9 @@ class TestRemoveMediapathFromGrampsXml(unittest.TestCase):
 </database>
 """
 
-        with tempfile.NamedTemporaryFile(mode="wb", suffix=".gramps", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", suffix=".gramps", delete=False
+        ) as f:
             temp_file = f.name
             with gzip.open(f, "wb") as gz:
                 gz.write(xml_content)
@@ -118,7 +122,9 @@ class TestRemoveMediapathFromGrampsXml(unittest.TestCase):
 </database>
 """
 
-        with tempfile.NamedTemporaryFile(mode="wb", suffix=".gramps", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", suffix=".gramps", delete=False
+        ) as f:
             temp_file = f.name
             f.write(xml_content)
 
@@ -149,7 +155,9 @@ class TestRemoveMediapathFromGrampsXml(unittest.TestCase):
 </database>
 """
 
-        with tempfile.NamedTemporaryFile(mode="wb", suffix=".gramps", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", suffix=".gramps", delete=False
+        ) as f:
             temp_file = f.name
             f.write(xml_content)
 
@@ -183,7 +191,9 @@ class TestRemoveMediapathFromGrampsXml(unittest.TestCase):
 </database>
 """
 
-        with tempfile.NamedTemporaryFile(mode="wb", suffix=".gramps", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", suffix=".gramps", delete=False
+        ) as f:
             temp_file = f.name
             f.write(xml_content)
 
@@ -214,7 +224,9 @@ class TestRemoveMediapathFromGrampsXml(unittest.TestCase):
 </database>
 """
 
-        with tempfile.NamedTemporaryFile(mode="wb", suffix=".gramps", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", suffix=".gramps", delete=False
+        ) as f:
             temp_file = f.name
             f.write(xml_content)
 
@@ -259,7 +271,9 @@ class TestRemoveMediapathFromGrampsXml(unittest.TestCase):
 </database>
 """
 
-        with tempfile.NamedTemporaryFile(mode="wb", suffix=".gramps", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", suffix=".gramps", delete=False
+        ) as f:
             temp_file = f.name
             f.write(xml_content)
 
@@ -280,7 +294,7 @@ class TestRemoveMediapathFromGrampsXml(unittest.TestCase):
             self.assertIn(b"<namemaps>", result)
             self.assertIn(b'<map type="group_as"', result)
             self.assertIn(b"<people>", result)
-            self.assertIn(b"<name type=\"Birth Name\">", result)
+            self.assertIn(b'<name type="Birth Name">', result)
             self.assertIn(b"<first>John</first>", result)
             self.assertIn(b"<surname>Doe</surname>", result)
         finally:
