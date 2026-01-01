@@ -22,6 +22,7 @@
 
 from __future__ import annotations
 
+import gzip
 import os
 import re
 from hashlib import sha256
@@ -1440,6 +1441,50 @@ def detect_gedcom_major_version(path: str) -> int:
     return 0
 
 
+def remove_mediapath_from_gramps_xml(file_name: FilenameOrPath) -> None:
+    """Remove the <mediapath> tag from a Gramps XML file.
+
+    This function handles both compressed (.gramps with gzip) and uncompressed
+    Gramps XML files. The <mediapath> tag can cause import failures and needs
+    to be removed before import.
+
+    Args:
+        file_name: Path to the Gramps XML file.
+    """
+    # First, detect if file is gzipped by trying to read it
+    is_compressed = False
+    try:
+        with gzip.open(file_name, "rb") as f:
+            # Try to read first few bytes to confirm it's gzipped
+            f.read(10)
+            is_compressed = True
+    except (OSError, gzip.BadGzipFile):
+        # Not gzipped or can't read as gzip
+        is_compressed = False
+
+    # Read the file content
+    if is_compressed:
+        with gzip.open(file_name, "rb") as f:
+            content = f.read()
+    else:
+        with open(file_name, "rb") as f:
+            content = f.read()
+
+    # Remove the mediapath tag using regex
+    # Match <mediapath>...</mediapath> or <mediapath/> (empty tag)
+    # The pattern handles both multiline and single-line cases
+    pattern = rb"<mediapath\s*>.*?</mediapath\s*>|<mediapath\s*/>"
+    content_modified = re.sub(pattern, b"", content, flags=re.DOTALL)
+
+    # Write back to the file
+    if is_compressed:
+        with gzip.open(file_name, "wb") as f:
+            f.write(content_modified)
+    else:
+        with open(file_name, "wb") as f:
+            f.write(content_modified)
+
+
 def run_import(
     db_handle: DbWriteBase,
     file_name: FilenameOrPath,
@@ -1457,6 +1502,16 @@ def run_import(
             if delete:
                 os.remove(file_name)
         return
+    if extension.lower() == "gramps":
+        # Remove mediapath tag from Gramps XML files before import
+        # This is necessary because the mediapath tag can cause import failures
+        try:
+            remove_mediapath_from_gramps_xml(file_name)
+        except Exception as e:
+            # Log the error but continue with import attempt
+            current_app.logger.warning(
+                f"Failed to remove mediapath tag from {file_name}: {e}"
+            )
     plugin_manager = BasePluginManager.get_instance()
     for plugin in plugin_manager.get_import_plugins():
         if extension == plugin.get_extension():
