@@ -92,6 +92,8 @@ from .resources.timeline import (
     TimelinePeopleResource,
 )
 from .resources.token import (
+    LoginResource,
+    LoginTokenResource,
     TokenCreateOwnerResource,
     TokenRefreshResource,
     TokenResource,
@@ -165,6 +167,9 @@ register_endpt(
 register_endpt(TokenResource, "/token/", "token")
 register_endpt(TokenRefreshResource, "/token/refresh/", "token_refresh")
 register_endpt(TokenCreateOwnerResource, "/token/create_owner/", "token_create_owner")
+# Login (programmatic)
+register_endpt(LoginResource, "/login/", "login")
+register_endpt(LoginTokenResource, "/login/token/", "login_token")
 # OIDC
 register_endpt(OIDCLoginResource, "/oidc/login/", "oidcloginresource")
 register_endpt(OIDCCallbackResource, "/oidc/callback/", "oidccallbackresource")
