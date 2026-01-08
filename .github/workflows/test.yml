@@ -25,6 +25,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Cache Hugging Face models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-models-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            hf-models-
       - name: Install Ubuntu dependencies
         run: sudo apt update && sudo apt-get -y install gettext appstream pkg-config libcairo2-dev gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev libopencv-dev tesseract-ocr tesseract-ocr-all gir1.2-pango-1.0
       - name: Install Python dependencies
@@ -34,6 +41,11 @@ jobs:
           pip install -r requirements-dev.txt
           pip install .[ai]
           pip list
+      - name: Pre-download Hugging Face model
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/paraphrase-albert-small-v2')"
       - name: Clean up package caches
         run: |
           sudo apt-get clean
@@ -42,4 +54,6 @@ jobs:
       - name: Run type checker
         run: mypy --install-types --non-interactive --ignore-missing-imports --exclude build .
       - name: Test with pytest
+        env:
+          HF_HUB_OFFLINE: 1
         run: pytest -x
