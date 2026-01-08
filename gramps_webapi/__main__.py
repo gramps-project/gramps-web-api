@@ -429,16 +429,16 @@ def profile_run(ctx, tree, username, password, url, iterations, warmup, output):
 
     \b
     # Profile using test client (local, fast) - will prompt for password
-    gramps-web profile run --tree my_tree --username admin
+    python3 -m gramps_webapi profile run --tree my_tree --username admin
 
     \b
     # Profile a running server (realistic, includes network)
-    gramps-web profile run --tree my_tree --username admin \\
+    python3 -m gramps_webapi profile run --tree my_tree --username admin \\
         --url http://localhost:5555
 
     \b
     # Save results to JSON file
-    gramps-web profile run --tree my_tree --username admin \\
+    python3 -m gramps_webapi profile run --tree my_tree --username admin \\
         --output results.json
     """
     from .profiler import run_profiler
