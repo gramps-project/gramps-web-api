@@ -20,9 +20,10 @@
 """OIDC authentication resources."""
 
 import logging
+import ipaddress
 from gettext import gettext as _
 from typing import Optional
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import jwt
 from flask import (
@@ -58,6 +59,16 @@ def _is_development_environment(frontend_url: Optional[str]) -> bool:
         "localhost" in (frontend_url or "") or "127.0.0.1" in (frontend_url or "")
     )
 
+def _is_local_deployment(frontend_url: Optional[str]) -> bool:
+    """Check if we're in local environment for cookie security settings."""
+    if frontend_url and frontend_url.startswith("http://"):
+        try:
+            hostname = urlparse(frontend_url).hostname
+            ip = ipaddress.ip_address(hostname)
+            return ip.is_private
+        except ValueError:
+            return False
+    return False
 
 class OIDCLoginResource(Resource):
     """Resource for initiating OIDC login flow.
@@ -232,15 +243,15 @@ class OIDCCallbackResource(Resource):
             frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
             response = redirect(f"{frontend_url.rstrip('/')}/oidc/complete")
 
-            # Set HTTP-only cookies (secure=False for localhost development)
-            is_development = _is_development_environment(frontend_url)
+            # Set HTTP-only cookies (secure=False for local dev or deployments environments)
+            allow_insecure = _is_development_environment(frontend_url) or _is_local_deployment(frontend_url)
 
             response.set_cookie(
                 "oidc_access_token",
                 tokens["access_token"],
                 max_age=300,  # 5 minutes
                 httponly=True,
-                secure=not is_development,  # Allow HTTP in development
+                secure=not allow_insecure,  # Allow HTTP in local environments
                 samesite="Lax",
                 path="/",
             )
@@ -249,7 +260,7 @@ class OIDCCallbackResource(Resource):
                 tokens["refresh_token"],
                 max_age=300,  # 5 minutes
                 httponly=True,
-                secure=not is_development,  # Allow HTTP in development
+                secure=not allow_insecure,  # Allow HTTP in local environments
                 samesite="Lax",
                 path="/",
             )
@@ -261,7 +272,7 @@ class OIDCCallbackResource(Resource):
                     token["id_token"],
                     max_age=300,  # 5 minutes
                     httponly=True,
-                    secure=not is_development,  # Allow HTTP in development
+                    secure=not allow_insecure,  # Allow HTTP in local environments
                     samesite="Lax",
                     path="/",
                 )
@@ -315,14 +326,15 @@ class OIDCTokenExchangeResource(Resource):
 
         # Clear the temporary cookies with same settings as when they were set
         frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
-        is_development = _is_development_environment(frontend_url)
+        # Set HTTP-only cookies (secure=False for local dev or deployments environments)
+        allow_insecure = _is_development_environment(frontend_url) or _is_local_deployment(frontend_url)
 
         response.set_cookie(
             "oidc_access_token",
             "",
             expires=0,
             httponly=True,
-            secure=not is_development,
+            secure=not allow_insecure,
             samesite="Lax",
             path="/",
         )
@@ -331,7 +343,7 @@ class OIDCTokenExchangeResource(Resource):
             "",
             expires=0,
             httponly=True,
-            secure=not is_development,
+            secure=not allow_insecure,
             samesite="Lax",
             path="/",
         )
@@ -340,7 +352,7 @@ class OIDCTokenExchangeResource(Resource):
             "",
             expires=0,
             httponly=True,
-            secure=not is_development,
+            secure=not allow_insecure,
             samesite="Lax",
             path="/",
         )
