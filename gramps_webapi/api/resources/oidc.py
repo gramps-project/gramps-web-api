@@ -64,6 +64,8 @@ def _is_local_deployment(frontend_url: Optional[str]) -> bool:
     if frontend_url and frontend_url.startswith("http://"):
         try:
             hostname = urlparse(frontend_url).hostname
+            if hostname is None:
+                return False
             ip = ipaddress.ip_address(hostname)
             return ip.is_private
         except ValueError:
