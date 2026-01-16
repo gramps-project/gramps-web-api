@@ -190,7 +190,7 @@ def modify_user(
         # PostgreSQL: "users_name_key" or "users_email_key"
         # SQLite: "users.name" or "users.email"
         if "users_name_key" in reason or "users.name" in reason:
-            message = "Username already exists"
+            message = "User already exists"
         elif "users_email_key" in reason or "users.email" in reason:
             message = "E-mail already exists"
         else:
