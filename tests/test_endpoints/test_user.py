@@ -472,7 +472,7 @@ class TestUser(unittest.TestCase):
         )
         assert rv.status_code == 200
         token_owner = rv.json["access_token"]
-        # Try to change user's email to owner's email (duplicate)
+        # Owner tries to change user's email to owner's existing email (duplicate)
         rv = self.client.put(
             BASE_URL + "/users/user/",
             headers={"Authorization": f"Bearer {token_owner}"},
