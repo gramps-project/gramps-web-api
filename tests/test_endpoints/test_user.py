@@ -465,6 +465,22 @@ class TestUser(unittest.TestCase):
             },
         )
 
+    def test_edit_user_duplicate_email(self):
+        """Test that duplicate email returns 409 Conflict."""
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token_owner = rv.json["access_token"]
+        # Try to change user's email to owner's email (duplicate)
+        rv = self.client.put(
+            BASE_URL + "/users/user/",
+            headers={"Authorization": f"Bearer {token_owner}"},
+            json={"email": "owner@example.com"},
+        )
+        assert rv.status_code == 409
+        assert "E-mail already exists" in rv.json["error"]["message"]
+
     def test_add_user(self):
         rv = self.client.post(
             BASE_URL + "/token/", json={"username": "user", "password": "123"}

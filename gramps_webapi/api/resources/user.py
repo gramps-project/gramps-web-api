@@ -266,14 +266,17 @@ class UserResource(UserChangeBase):
             require_permissions([PERM_EDIT_USER_TREE])
             if not tree_exists(args["tree"]):
                 abort_with_message(422, "Tree does not exist")
-        modify_user(
-            name=user_name,
-            name_new=args.get("name_new"),
-            email=args.get("email"),
-            fullname=args.get("full_name"),
-            role=args.get("role"),
-            tree=args.get("tree"),
-        )
+        try:
+            modify_user(
+                name=user_name,
+                name_new=args.get("name_new"),
+                email=args.get("email"),
+                fullname=args.get("full_name"),
+                role=args.get("role"),
+                tree=args.get("tree"),
+            )
+        except ValueError as exc:
+            abort_with_message(409, str(exc))
         return "", 200
 
     @use_args(
