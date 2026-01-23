@@ -181,7 +181,25 @@ def modify_user(
         user.role = role
     if tree is not None:
         user.tree = tree
-    user_db.session.commit()  # pylint: disable=no-member
+    try:
+        user_db.session.commit()  # pylint: disable=no-member
+    except IntegrityError as exc:
+        user_db.session.rollback()  # pylint: disable=no-member
+        reason = str(exc.orig.args) if exc.orig else ""
+        # Check for unique constraint violations on username or email
+        # PostgreSQL: "users_name_key" or "users_email_key"
+        # SQLite: "users.name" or "users.email"
+        if "users_name_key" in reason or "users.name" in reason:
+            message = "User already exists"
+            raise ValueError(message) from exc
+        elif "users_email_key" in reason or "users.email" in reason:
+            message = "E-mail already exists"
+            raise ValueError(message) from exc
+        else:
+            # Let unexpected database errors bubble up as IntegrityError
+            # This will result in a 500 error, which is appropriate for
+            # unexpected database issues
+            raise
 
 
 def authorized(username: str, password: str) -> bool:
