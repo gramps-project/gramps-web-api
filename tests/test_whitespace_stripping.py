@@ -19,8 +19,6 @@
 
 """Tests for whitespace stripping functionality."""
 
-import os
-import tempfile
 import unittest
 from unittest.mock import MagicMock
 
@@ -238,6 +236,7 @@ class TestStripTrailingWhitespaceDatabase(unittest.TestCase):
 
         # Run the whitespace stripping
         fixes = strip_trailing_whitespace(self.db, None)
+        self.assertEqual(fixes, 0)
 
         # This person should not be counted in fixes since it had no trailing whitespace
         person_after = self.db.get_person_from_gramps_id("I0002")
@@ -262,7 +261,3 @@ class TestStripTrailingWhitespaceDatabase(unittest.TestCase):
         finally:
             empty_db.close()
             self.dbman.remove_database(empty_name)
-
-
-if __name__ == "__main__":
-    unittest.main()
