@@ -191,11 +191,15 @@ def modify_user(
         # SQLite: "users.name" or "users.email"
         if "users_name_key" in reason or "users.name" in reason:
             message = "User already exists"
+            raise ValueError(message) from exc
         elif "users_email_key" in reason or "users.email" in reason:
             message = "E-mail already exists"
+            raise ValueError(message) from exc
         else:
-            message = "Unexpected database error while trying to modify user"
-        raise ValueError(message) from exc
+            # Let unexpected database errors bubble up as IntegrityError
+            # This will result in a 500 error, which is appropriate for
+            # unexpected database issues
+            raise
 
 
 def authorized(username: str, password: str) -> bool:
