@@ -22,6 +22,7 @@
 from typing import BinaryIO, Dict, Optional
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import ClientError
 from flask import current_app, redirect, send_file
 from gramps.gen.db.base import DbReadBase
@@ -33,14 +34,14 @@ from .util import abort_with_message
 
 
 def get_client(endpoint_url: Optional[str] = None):
-    """Return an S3 client."""
-    return boto3.client(
-        "s3",
-        endpoint_url=endpoint_url,
-        config=boto3.session.Config(
-            s3={"addressing_style": "path"}, signature_version="s3v4"
-        ),
+    """Return an S3 client configured for GCS compatibility."""
+    config = Config(
+        s3={"addressing_style": "path"},
+        signature_version="s3v4",
+        request_checksum_calculation="when_required",
+        response_checksum_validation="when_supported",
     )
+    return boto3.client("s3", endpoint_url=endpoint_url, config=config)
 
 
 def get_object_name(checksum: str, prefix: Optional[str] = None):
