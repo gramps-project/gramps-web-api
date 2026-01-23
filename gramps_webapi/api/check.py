@@ -283,15 +283,14 @@ def strip_trailing_whitespace(
                         commit_obj(obj_modified, trans)
                         fixes += 1
 
-                    processed += 1
-                    if progress_cb and processed % 100 == 0:
-                        progress_cb(current=processed, total=total_objects)
-
                 except Exception as e:
                     # Log but don't fail - continue processing other objects
                     logger = get_logger()
                     logger.error(f"Error processing {obj_type_name} {handle}: {e}")
-                    continue
+                finally:
+                    processed += 1
+                    if progress_cb and processed % 100 == 0:
+                        progress_cb(current=processed, total=total_objects)
 
     if progress_cb:
         progress_cb(current=total_objects, total=total_objects)
