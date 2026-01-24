@@ -26,7 +26,8 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.db import DbTxn
 from gramps.gen.db.utils import make_database
 from gramps.gen.dbstate import DbState
-from gramps.gen.lib import Person, Note, StyledText
+from gramps.gen.lib import Person, Note, StyledText, Tag
+from gramps.gen.lib.surname import Surname
 
 from gramps_webapi.api.check import strip_trailing_whitespace
 from gramps_webapi.api.resources.util import fix_object_dict
@@ -125,12 +126,88 @@ class TestStripWhitespaceRecursive(unittest.TestCase):
         self.assertEqual(result["coords"], ("10.5", "20.3"))
         self.assertEqual(result["values"], [("a", "b"), ("c", "d")])
 
+    def test_styled_text_not_stripped(self):
+        """Test that StyledText strings are NOT stripped (position-dependent tags)."""
+        styled_text = {
+            "_class": "StyledText",
+            "string": "  This text has spaces at both ends  ",
+            "tags": [(0, 4, ("bold",))],  # Tag positions depend on string position
+        }
+        result = strip_whitespace_recursive(styled_text)
+        # StyledText string should NOT be stripped to preserve tag positions
+        self.assertEqual(result["string"], "  This text has spaces at both ends  ")
+        self.assertEqual(result["_class"], "StyledText")
+        self.assertEqual(result["tags"], [(0, 4, ("bold",))])
+
+    def test_styled_text_in_note_dict(self):
+        """Test that StyledText within Note objects is not stripped."""
+        note_dict = {
+            "_class": "Note",
+            "handle": "  abc123  ",  # Should NOT be stripped (handle is an ID field)
+            "text": {
+                "_class": "StyledText",
+                "string": "  Important note.  ",  # Should NOT be stripped
+                "tags": [],
+            },
+        }
+        result = strip_whitespace_recursive(note_dict)
+        self.assertEqual(result["handle"], "  abc123  ")  # NOT stripped (ID field)
+        self.assertEqual(
+            result["text"]["string"], "  Important note.  "
+        )  # NOT stripped
+
+    def test_surname_prefix_connector_not_stripped(self):
+        """Test that Surname.prefix and Surname.connector are NOT stripped (XML attributes)."""
+        surname_dict = {
+            "_class": "Surname",
+            "surname": "  Smith  ",  # Regular field - SHOULD be stripped
+            "prefix": "  von  ",  # XML attribute - should NOT be stripped
+            "connector": "  de  ",  # XML attribute - should NOT be stripped
+        }
+        result = strip_whitespace_recursive(surname_dict)
+        self.assertEqual(result["surname"], "Smith")  # Stripped
+        self.assertEqual(result["prefix"], "  von  ")  # NOT stripped
+        self.assertEqual(result["connector"], "  de  ")  # NOT stripped
+
+    def test_tag_name_not_stripped(self):
+        """Test that Tag.name is NOT stripped (uses escxml() only)."""
+        tag_dict = {
+            "_class": "Tag",
+            "name": "  Important Tag  ",  # Uses escxml() - should NOT be stripped
+            "handle": "  tag123  ",  # ID field - should NOT be stripped
+        }
+        result = strip_whitespace_recursive(tag_dict)
+        self.assertEqual(result["name"], "  Important Tag  ")  # NOT stripped
+        self.assertEqual(result["handle"], "  tag123  ")  # NOT stripped (ID field)
+
+    def test_repository_ref_call_number_not_stripped(self):
+        """Test that RepositoryRef.call_number is NOT stripped (uses escxml() only)."""
+        repo_ref_dict = {
+            "_class": "RepositoryRef",
+            "call_number": "  MS-123  ",  # Uses escxml() - should NOT be stripped
+            "ref": "  repo456  ",  # ID field - should NOT be stripped
+        }
+        result = strip_whitespace_recursive(repo_ref_dict)
+        self.assertEqual(result["call_number"], "  MS-123  ")  # NOT stripped
+        self.assertEqual(result["ref"], "  repo456  ")  # NOT stripped (ID field)
+
+    def test_person_ref_relation_not_stripped(self):
+        """Test that PersonRef.relation is NOT stripped (uses escxml() only)."""
+        person_ref_dict = {
+            "_class": "PersonRef",
+            "relation": "  Friend  ",  # Uses escxml() - should NOT be stripped
+            "ref": "  person789  ",  # ID field - should NOT be stripped
+        }
+        result = strip_whitespace_recursive(person_ref_dict)
+        self.assertEqual(result["relation"], "  Friend  ")  # NOT stripped
+        self.assertEqual(result["ref"], "  person789  ")  # NOT stripped (ID field)
+
 
 class TestFixObjectDict(unittest.TestCase):
     """Test that fix_object_dict properly strips whitespace."""
 
     def test_fix_object_dict_strips_whitespace(self):
-        """Test that fix_object_dict strips whitespace from string values."""
+        """Test that fix_object_dict strips whitespace except in StyledText and ID fields."""
         obj_dict = {
             "_class": "Note",
             "text": {"_class": "StyledText", "string": "  This is a note.  "},
@@ -138,9 +215,11 @@ class TestFixObjectDict(unittest.TestCase):
             "gramps_id": "  N0001  ",
         }
         result = fix_object_dict(obj_dict)
-        self.assertEqual(result["text"]["string"], "This is a note.")
-        self.assertEqual(result["handle"], "abc123")
-        self.assertEqual(result["gramps_id"], "N0001")
+        # StyledText string should NOT be stripped (preserves tag positions)
+        self.assertEqual(result["text"]["string"], "  This is a note.  ")
+        # ID fields should NOT be stripped either
+        self.assertEqual(result["handle"], "abc123  ")
+        self.assertEqual(result["gramps_id"], "  N0001  ")
 
     def test_fix_object_dict_preserves_class(self):
         """Test that _class is preserved."""
@@ -197,8 +276,7 @@ class TestStripTrailingWhitespaceDatabase(unittest.TestCase):
         progress_callback.assert_called()
 
     def test_strip_whitespace_from_note(self):
-        """Test stripping whitespace from note objects."""
-        # Create a note with trailing whitespace
+        """Test that StyledText in notes is NOT stripped (preserves tag positions)."""  # Create a note with trailing whitespace in StyledText
         note = Note()
         note.set_gramps_id("N0001")
         styled_text = StyledText()
@@ -211,12 +289,14 @@ class TestStripTrailingWhitespaceDatabase(unittest.TestCase):
         # Run the whitespace stripping
         fixes = strip_trailing_whitespace(self.db, None)
 
-        # Verify the note was fixed
-        self.assertGreaterEqual(fixes, 1)
+        # StyledText should NOT be stripped, so no fixes for this note
+        # (Other objects from previous tests may have been fixed though)
 
-        # Retrieve and check the note
+        # Retrieve and check the note - whitespace should be preserved
         note_check = self.db.get_note_from_gramps_id("N0001")
-        self.assertEqual(note_check.get_styledtext().string, "This is a test note.")
+        self.assertEqual(
+            note_check.get_styledtext().string, "This is a test note.  "
+        )  # NOT stripped
 
     def test_no_changes_needed(self):
         """Test that objects without trailing whitespace are not modified."""

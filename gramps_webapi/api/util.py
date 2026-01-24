@@ -515,10 +515,7 @@ def get_buffer_for_file(filename: str, delete=True, not_found=False) -> BinaryIO
 
 
 def _resolve_smtp_config(
-    use_ssl: bool | None,
-    use_starttls: bool | None,
-    use_tls: bool | None,
-    port: int
+    use_ssl: bool | None, use_starttls: bool | None, use_tls: bool | None, port: int
 ) -> tuple[bool, bool]:
     """Helper to resolve SMTP encryption settings.
 
@@ -821,26 +818,65 @@ def gramps_object_from_dict(data: dict[str, Any]):
     return data_to_object(complete_gramps_object_dict(data))
 
 
-def strip_whitespace_recursive(obj: Any) -> Any:
+def strip_whitespace_recursive(obj: Any, parent_class: str | None = None) -> Any:
     """Strip leading and trailing whitespace from all string values recursively.
-    
+
     This normalizes string data to match Gramps XML export behavior, which strips
-    whitespace from all string values. Helps maintain consistency between database
-    and XML round-trips.
-    
+    whitespace from regular string fields using fix() but does NOT strip:
+    - StyledText strings (which have position-dependent formatting tags)
+    - Handle fields (UUIDs - written directly without fix())
+    - gramps_id fields (written with escxml() only, not fix())
+    - Reference handles in hlink attributes
+    - Specific attribute fields that use escxml() only:
+      * Surname.prefix, Surname.connector (written as XML attributes)
+      * RepositoryRef.call_number (written with escxml())
+      * PersonRef.relation (written with escxml())
+      * Tag.name (written with escxml())
+
     Args:
         obj: Any Python object (str, dict, list, tuple, or other)
-        
+        parent_class: The _class value of the parent object (for context-specific rules)
+
     Returns:
-        The same object with all string values stripped of leading/trailing whitespace
+        The same object with string values stripped, except StyledText strings,
+        identifier fields, and specific attribute fields
     """
     if isinstance(obj, str):
         return obj.strip()
     elif isinstance(obj, dict):
-        return {k: strip_whitespace_recursive(v) for k, v in obj.items()}
+        # Get the object's class for context-specific rules
+        obj_class = obj.get("_class")
+
+        # Skip stripping StyledText strings - they have position-dependent tags
+        if obj_class == "StyledText" and "string" in obj:
+            # Return StyledText as-is, don't strip the string
+            return obj
+
+        # For all other dicts, recursively strip but skip certain fields
+        result = {}
+        for k, v in obj.items():
+            # Don't strip these identifier fields - they're not passed through fix()
+            if k in ("handle", "gramps_id", "ref"):
+                result[k] = v  # Keep as-is
+            # Don't strip fields that are written as XML attributes with escxml() only
+            elif obj_class == "Surname" and k in ("prefix", "connector"):
+                result[k] = v  # Keep as-is
+            elif obj_class == "RepositoryRef" and k == "call_number":
+                result[k] = v  # Keep as-is
+            elif obj_class == "PersonRef" and k == "relation":
+                result[k] = v  # Keep as-is
+            elif obj_class == "Tag" and k == "name":
+                result[k] = v  # Keep as-is
+            else:
+                result[k] = strip_whitespace_recursive(v, parent_class=obj_class)
+        return result
     elif isinstance(obj, list):
-        return [strip_whitespace_recursive(item) for item in obj]
+        return [
+            strip_whitespace_recursive(item, parent_class=parent_class) for item in obj
+        ]
     elif isinstance(obj, tuple):
-        return tuple(strip_whitespace_recursive(item) for item in obj)
+        return tuple(
+            strip_whitespace_recursive(item, parent_class=parent_class) for item in obj
+        )
     else:
         return obj
