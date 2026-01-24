@@ -1,7 +1,7 @@
 swagger: "2.0"
 info:
   title: "Gramps Web API"
-  version: "3.7.0"
+  version: "3.7.1"
   description: >
     The Gramps Web API is a REST API that provides access to family tree databases generated and maintained with Gramps, a popular Open Source genealogical research software package.
 
