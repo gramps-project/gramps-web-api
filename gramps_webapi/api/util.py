@@ -819,28 +819,3 @@ def gramps_object_from_dict(data: dict[str, Any]):
     The dictionary can be incomplete, i.e. not contain all properties of
     the object class."""
     return data_to_object(complete_gramps_object_dict(data))
-
-
-def strip_whitespace_recursive(obj: Any) -> Any:
-    """Strip leading and trailing whitespace from all string values recursively.
-    
-    This normalizes string data to match Gramps XML export behavior, which strips
-    whitespace from all string values. Helps maintain consistency between database
-    and XML round-trips.
-    
-    Args:
-        obj: Any Python object (str, dict, list, tuple, or other)
-        
-    Returns:
-        The same object with all string values stripped of leading/trailing whitespace
-    """
-    if isinstance(obj, str):
-        return obj.strip()
-    elif isinstance(obj, dict):
-        return {k: strip_whitespace_recursive(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [strip_whitespace_recursive(item) for item in obj]
-    elif isinstance(obj, tuple):
-        return tuple(strip_whitespace_recursive(item) for item in obj)
-    else:
-        return obj

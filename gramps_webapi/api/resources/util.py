@@ -84,7 +84,6 @@ from ..util import (
     abort_with_message,
     get_db_handle,
     get_tree_from_jwt,
-    strip_whitespace_recursive,
 )
 
 pd = PlaceDisplay()
@@ -1102,11 +1101,7 @@ def fix_object_dict(object_dict: dict, class_name: Optional[str] = None):
     - class names
     - Gramps types are turned from strings into dictionaries
     - Gramps type names are translated to the default Gramps locale
-    - Strips leading/trailing whitespace from all string values to match XML export
     """
-    # First, strip whitespace from all string values
-    object_dict = strip_whitespace_recursive(object_dict)
-    
     d_out = {}
     class_name = class_name or object_dict.get("_class")
     if not class_name:
