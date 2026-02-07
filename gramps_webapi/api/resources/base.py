@@ -282,6 +282,11 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         if not obj:
             abort_with_message(400, "Empty object")
         db_handle = self.db_handle_writable
+        # For Person objects, set birth/death indices before the transaction,
+        # matching desktop Gramps (editperson.py). This avoids reading events
+        # during a write transaction, which can fail on some storage backends.
+        if self.gramps_class_name == "Person":
+            db_handle.set_birth_death_index(obj)
         with DbTxn(f"Edit {self.gramps_class_name}", db_handle) as trans:
             try:
                 update_object(db_handle, obj, trans)

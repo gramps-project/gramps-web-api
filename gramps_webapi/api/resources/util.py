@@ -1240,8 +1240,6 @@ def update_object(
             update_family_update_refs(
                 db_handle=db_handle, obj_old=obj_old, obj=obj, trans=trans
             )
-        elif obj_class == "person":
-            db_handle.set_birth_death_index(obj)
         return commit_method(obj, trans)
     except AttributeError as exc:
         raise ValueError("Database does not support writing.") from exc
