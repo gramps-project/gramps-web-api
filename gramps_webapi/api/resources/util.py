@@ -1094,6 +1094,24 @@ def xml_to_locale(gramps_type_name: str, string: str) -> str:
     return str(typ)
 
 
+def _set_type_from_string(type_obj, string_value: str) -> None:
+    """Set a GrampsType from either an XML (English) or localized string.
+
+    The frontend may send either English XML strings (e.g. "Birth") or
+    localized strings (e.g. "Geburt" in German), depending on the
+    ``valueNonLocal`` property of ``GrampsjsFormSelectType``.
+
+    This function first tries ``set_from_xml_str()`` which handles English
+    XML strings via ``_E2IMAP``. If the string is not recognized (i.e. falls
+    back to Custom), it tries ``set()`` which handles localized strings via
+    ``_S2IMAP``.
+    """
+    type_obj.set_from_xml_str(string_value)
+    if type_obj.is_custom() and string_value not in type_obj._E2IMAP:
+        # set_from_xml_str didn't recognize it — try localized string
+        type_obj.set(string_value)
+
+
 def fix_object_dict(object_dict: dict, class_name: Optional[str] = None):
     """Restore a Gramps object in simplified representation to its full form.
 
@@ -1116,17 +1134,17 @@ def fix_object_dict(object_dict: dict, class_name: Optional[str] = None):
                 if class_name == "Family":
                     _class = "FamilyRelType"
                     obj = gramps.gen.lib.__dict__[_class]()
-                    obj.set_from_xml_str(v)
+                    _set_type_from_string(obj, v)
                     d_out[k] = object_to_dict(obj)
                 elif class_name == "RepoRef":
                     _class = "SourceMediaType"
                     obj = gramps.gen.lib.__dict__[_class]()
-                    obj.set_from_xml_str(v)
+                    _set_type_from_string(obj, v)
                     d_out[k] = object_to_dict(obj)
                 else:
                     _class = f"{class_name}Type"
                     obj = gramps.gen.lib.__dict__[_class]()
-                    obj.set_from_xml_str(v)
+                    _set_type_from_string(obj, v)
                     d_out[k] = object_to_dict(obj)
             else:
                 d_out[k] = v
@@ -1134,7 +1152,7 @@ def fix_object_dict(object_dict: dict, class_name: Optional[str] = None):
             if isinstance(v, str):
                 _class = "EventRoleType"
                 obj = gramps.gen.lib.__dict__[_class]()
-                obj.set_from_xml_str(v)
+                _set_type_from_string(obj, v)
                 d_out[k] = object_to_dict(obj)
             else:
                 d_out[k] = v
@@ -1142,7 +1160,7 @@ def fix_object_dict(object_dict: dict, class_name: Optional[str] = None):
             if isinstance(v, str):
                 _class = "NameOriginType"
                 obj = gramps.gen.lib.__dict__[_class]()
-                obj.set_from_xml_str(v)
+                _set_type_from_string(obj, v)
                 d_out[k] = object_to_dict(obj)
             else:
                 d_out[k] = v
