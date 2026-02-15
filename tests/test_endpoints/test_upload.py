@@ -45,10 +45,10 @@ def get_headers(client, user: str, password: str) -> Dict[str, str]:
     return {"Authorization": "Bearer {}".format(access_token)}
 
 
-def get_image(color):
+def get_image(color, width=50, height=50):
     """Get a JPEG image and checksum."""
     image_file = BytesIO()
-    image = Image.new("RGBA", size=(50, 50), color=color)
+    image = Image.new("RGBA", size=(width, height), color=color)
     image.save(image_file, "png")
     image_file.seek(0)
     checksum = hashlib.md5(image_file.getbuffer()).hexdigest()

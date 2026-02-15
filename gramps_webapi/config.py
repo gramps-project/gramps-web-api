@@ -23,6 +23,8 @@ import datetime
 from pathlib import Path
 from typing import Dict
 
+from PIL.Image import MAX_IMAGE_PIXELS
+
 
 class DefaultConfig(object):
     """Default configuration object."""
@@ -88,6 +90,7 @@ class DefaultConfig(object):
     OIDC_AUTO_REDIRECT = False
     OIDC_USERNAME_CLAIM = "preferred_username"
     OIDC_NAME = "OIDC"
+    PILLOW_MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 
 
 class DefaultConfigJWT(object):

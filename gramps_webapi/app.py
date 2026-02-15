@@ -31,6 +31,7 @@ from flask_jwt_extended import JWTManager, verify_jwt_in_request
 from flask_jwt_extended.exceptions import WrongTokenError
 from gramps.gen.config import config as gramps_config
 from gramps.gen.config import set as setconfig
+from PIL import Image
 
 from .api import api_blueprint
 from .api.cache import persistent_cache, request_cache, thumbnail_cache
@@ -181,6 +182,18 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
                 }
             },
         )
+
+    if max_pixels_param := app.config.get("PILLOW_MAX_IMAGE_PIXELS"):
+        try:
+            max_pixels = int(max_pixels_param)
+            if max_pixels <= 0:
+                raise ValueError("PILLOW_MAX_IMAGE_PIXELS must be positive")
+            Image.MAX_IMAGE_PIXELS = max_pixels
+        except ValueError as e:
+            app.logger.warning(
+                "Error parsing PILLOW_MAX_IMAGE_PIXELS value %r; using Pillow default.",
+                max_pixels_param,
+            )
 
     # enable gzip compression
     Compress(app)
