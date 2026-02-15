@@ -189,8 +189,11 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
             if max_pixels <= 0:
                 raise ValueError("PILLOW_MAX_IMAGE_PIXELS must be positive")
             Image.MAX_IMAGE_PIXELS = max_pixels
-        except (TypeError, ValueError) as e:
-            raise ValueError(f"Error parsing PILLOW_MAX_IMAGE_PIXELS: {e}") from e
+        except ValueError as e:
+            app.logger.warning(
+                "Error parsing PILLOW_MAX_IMAGE_PIXELS value %r; using Pillow default.",
+                max_pixels_param,
+            )
 
     # enable gzip compression
     Compress(app)

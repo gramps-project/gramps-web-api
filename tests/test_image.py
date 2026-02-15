@@ -17,28 +17,41 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""Tests for the `gramps_webapi.api.file` module."""
+"""Tests for PILLOW_MAX_IMAGE_PIXELS configuration and image handling"""
 
 import pytest
 from gramps_webapi.app import create_app
 from gramps_webapi.api.image import ThumbnailHandler
 from PIL.Image import DecompressionBombError
+from PIL import Image
 
 from .test_endpoints.test_upload import get_image
 
 
-def test_file_max_pillow_image_pixels_greater():
+# fixture for restoring Pillow library default config values
+@pytest.fixture(scope="module", autouse=True)
+def setup_and_teardown():
+    # save PIL.Image.MAX_IMAGE_PIXELS before tests
+    saved_max_image_pixels = Image.MAX_IMAGE_PIXELS
+
+    yield
+
+    # restore
+    Image.MAX_IMAGE_PIXELS = saved_max_image_pixels
+
+
+def test_file_max_pillow_image_pixels_greater_or_equal():
     img, _, _ = get_image(0, 500, 500)
     fh = ThumbnailHandler(img, "image/png")
 
-    # max image pixels lower than pic -> error
+    # max image pixels greate or equal than pic -> no error
     opts = {
         "TREE": "test",
         "SECRET_KEY": "test",
         "USER_DB_URI": "sqlite:///:memory:",
         "PILLOW_MAX_IMAGE_PIXELS": 500 * 500,
     }
-    app = create_app(
+    create_app( # create app for test setup of parameter PIL.Image.MAX_IMAGE_PIXELS
         config=opts,
         config_from_env=False,
     )
@@ -46,7 +59,8 @@ def test_file_max_pillow_image_pixels_greater():
 
 
 def test_file_max_pillow_image_pixels_lower():
-    img, _, _ = get_image(0, 500, 500)
+    width, height = 10, 10
+    img, _, _ = get_image(0, width, height)
     fh = ThumbnailHandler(img, "image/png")
 
     # max image pixels lower than pic -> error
@@ -54,9 +68,38 @@ def test_file_max_pillow_image_pixels_lower():
         "TREE": "test",
         "SECRET_KEY": "test",
         "USER_DB_URI": "sqlite:///:memory:",
-        "PILLOW_MAX_IMAGE_PIXELS": 100,
+        "PILLOW_MAX_IMAGE_PIXELS": width*height//2-1,
+        # set width*height-1=10*10-1=49 cause PIL throw warning if
+        # width*height < PILLOW_MAX_IMAGE_PIXELS and
+        # width*height/2 > PILLOW_MAX_IMAGE_PIXELS;
+        # throw panic if width*height > PILLOW_MAX_IMAGE_PIXELS
     }
-    app = create_app(
+    create_app(
+        config=opts,
+        config_from_env=False,
+    )
+    with pytest.raises(DecompressionBombError):
+        fh.get_image()
+
+# Tests negative and None values of PILLOW_MAX_IMAGE_PIXELS
+def test_file_max_pillow_image_pixels_incorrect():
+    img, _, _ = get_image(0, 500, 500)
+    fh = ThumbnailHandler(img, "image/png")
+    opts = {
+        "TREE": "test",
+        "SECRET_KEY": "test",
+        "USER_DB_URI": "sqlite:///:memory:",
+        "PILLOW_MAX_IMAGE_PIXELS": -100,
+    }
+    create_app(
+        config=opts,
+        config_from_env=False,
+    )
+    with pytest.raises(DecompressionBombError):
+        fh.get_image()
+
+    opts["PILLOW_MAX_IMAGE_PIXELS"] = None
+    create_app(
         config=opts,
         config_from_env=False,
     )
