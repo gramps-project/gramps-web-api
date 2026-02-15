@@ -19,6 +19,7 @@
 
 """Tests for PILLOW_MAX_IMAGE_PIXELS configuration and image handling"""
 
+import os
 import pytest
 from gramps_webapi.app import create_app
 from gramps_webapi.api.image import ThumbnailHandler
@@ -31,12 +32,14 @@ from .test_endpoints.test_upload import get_image
 # fixture for restoring Pillow library default config values
 @pytest.fixture(scope="module", autouse=True)
 def setup_and_teardown():
-    # save PIL.Image.MAX_IMAGE_PIXELS before tests
+    # save PIL.Image.MAX_IMAGE_PIXELS and ENV_CONFIG_FILE before tests
     saved_max_image_pixels = Image.MAX_IMAGE_PIXELS
-
+    from gramps_webapi.const import ENV_CONFIG_FILE
+    old = os.environ.pop(ENV_CONFIG_FILE, None)
     yield
-
     # restore
+    if old:
+        os.environ[ENV_CONFIG_FILE] = old
     Image.MAX_IMAGE_PIXELS = saved_max_image_pixels
 
 
