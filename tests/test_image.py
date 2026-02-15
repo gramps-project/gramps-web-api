@@ -35,8 +35,11 @@ def setup_and_teardown():
     # save PIL.Image.MAX_IMAGE_PIXELS and ENV_CONFIG_FILE before tests
     saved_max_image_pixels = Image.MAX_IMAGE_PIXELS
     from gramps_webapi.const import ENV_CONFIG_FILE
+    # set it to None to prevent the config from loading
     old = os.environ.pop(ENV_CONFIG_FILE, None)
+
     yield
+
     # restore
     if old:
         os.environ[ENV_CONFIG_FILE] = old
