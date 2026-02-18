@@ -1,4 +1,3 @@
-version: "3.8"
 services:
   devcontainer:
     build:
@@ -25,6 +24,11 @@ services:
       GRAMPSWEB_SECRET_KEY: QAVoeYDzkQves9iDZ5PkxfdUoVElVMVYPqz-QXha6yE
       GRAMPSWEB_CORS_ORIGINS: "*"
       GRAMPSWEB_VECTOR_EMBEDDING_MODEL: sentence-transformers/distiluse-base-multilingual-cased-v2
+      # To use Ollama for embeddings instead of local SentenceTransformer,
+      # start with: docker compose --profile ollama up -d
+      # Then uncomment the following lines and comment out the line above:
+      # GRAMPSWEB_EMBEDDING_BASE_URL: http://ollama:11434
+      # GRAMPSWEB_VECTOR_EMBEDDING_MODEL: nomic-embed-text
       GRAMPSWEB_CELERY_CONFIG__broker_url: redis://redis:6379/0
       GRAMPSWEB_CELERY_CONFIG__result_backend: redis://redis:6379/0
       GRAMPSWEB_LOG_LEVEL: DEBUG
@@ -35,3 +39,16 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles:
+      - ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+
+volumes:
+  ollama-data:

@@ -79,7 +79,9 @@ class DefaultConfig(object):
     LLM_MODEL = ""
     LLM_MAX_CONTEXT_LENGTH = 50000
     LLM_SYSTEM_PROMPT = None
-    VECTOR_EMBEDDING_MODEL = ""
+    VECTOR_EMBEDDING_MODEL = ""  # Model name for semantic search embeddings
+    EMBEDDING_BASE_URL = None  # If set, use remote OpenAI-compatible API instead of local model
+    EMBEDDING_API_KEY = None  # Optional API key for authenticated embedding providers
     DISABLE_TELEMETRY = False
     OIDC_ISSUER = ""
     OIDC_CLIENT_ID = ""
