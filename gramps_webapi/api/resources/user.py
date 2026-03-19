@@ -492,7 +492,7 @@ class UserChangePasswordResource(UserChangeBase):
     def post(self, args, user_name: str):
         """Post new password."""
         user_name, _ = self.prepare_edit(user_name)
-        if len(args["new_password"]) == "":
+        if not args["new_password"]:
             abort_with_message(400, "Empty password provided")
         if not authorized(user_name, args["old_password"]):
             abort_with_message(403, "Old password incorrect")
@@ -548,7 +548,7 @@ class UserResetPasswordResource(LimitedScopeProtectedResource):
     )
     def post(self, args):
         """Post new password."""
-        if args["new_password"] == "":
+        if not args["new_password"]:
             abort_with_message(400, "Empty password provided")
         claims = get_jwt()
         if claims[CLAIM_LIMITED_SCOPE] != SCOPE_RESET_PW:
