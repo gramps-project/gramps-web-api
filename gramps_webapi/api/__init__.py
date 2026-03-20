@@ -21,7 +21,8 @@
 
 from typing import Type
 
-from flask import Blueprint, current_app
+from flask import current_app
+from flask_smorest import Blueprint
 from webargs import fields, validate
 
 from ..const import API_PREFIX

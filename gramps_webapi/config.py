@@ -25,11 +25,20 @@ from typing import Dict
 
 from PIL.Image import MAX_IMAGE_PIXELS
 
+from ._version import __version__
+
 
 class DefaultConfig(object):
     """Default configuration object."""
 
     PROPAGATE_EXCEPTIONS = True
+    API_TITLE = "Gramps Web API"
+    API_VERSION = __version__
+    OPENAPI_VERSION = "3.0.3"
+    OPENAPI_URL_PREFIX = "/"
+    OPENAPI_JSON_PATH = "api/openapi.json"
+    OPENAPI_SWAGGER_UI_PATH = "/api/swagger-ui"
+    OPENAPI_SWAGGER_UI_URL = "https://cdn.jsdelivr.net/npm/swagger-ui-dist/"
     SEARCH_INDEX_DIR = "indexdir"  # deprecated!
     SEARCH_INDEX_DB_URI = ""
     EMAIL_HOST = "localhost"

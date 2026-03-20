@@ -24,6 +24,7 @@ import os
 import warnings
 from typing import Any, Dict, Optional
 
+import flask_smorest
 from flask import Flask, abort, g, send_from_directory
 from flask_compress import Compress
 from flask_cors import CORS
@@ -216,7 +217,8 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
             return send_from_directory(static_path, "index.html")
 
     # register the API blueprint
-    app.register_blueprint(api_blueprint)
+    api = flask_smorest.Api(app)
+    api.register_blueprint(api_blueprint)
     limiter.init_app(app)
 
     # instantiate celery
