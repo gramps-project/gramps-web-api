@@ -36,10 +36,12 @@ from gramps.gen.utils.db import (
     get_marriage_or_fallback,
 )
 from gramps.gen.utils.grampslocale import GrampsLocale
+from marshmallow import Schema
 from webargs import fields, validate
 
 from ...types import Handle
-from ..util import get_db_handle, get_locale_for_language, use_args
+from ..blueprint import api_blueprint
+from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .filters import apply_filter
@@ -514,62 +516,55 @@ def prepare_events(args: Dict):
     return events
 
 
+class PersonTimelineQueryArgs(Schema):
+    """Query arguments for GET /people/<handle>/timeline."""
+
+    ancestors = fields.Integer(load_default=1, validate=validate.Range(min=1, max=5))
+    dates = fields.Str(
+        load_default=None,
+        validate=validate.Regexp(
+            r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
+            r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
+            r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
+            r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
+        ),
+    )
+    discard_empty = fields.Boolean(load_default=True)
+    event_classes = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
+    )
+    events = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    first = fields.Boolean(load_default=True)
+    keys = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    last = fields.Boolean(load_default=True)
+    locale = fields.Str(load_default=None)
+    name_format = fields.Str(validate=validate.Regexp(NAME_FORMAT_REGEXP))
+    offspring = fields.Integer(load_default=1, validate=validate.Range(min=1, max=5))
+    omit_anchor = fields.Boolean(load_default=True)
+    page = fields.Integer(load_default=0, validate=validate.Range(min=1))
+    pagesize = fields.Integer(load_default=20, validate=validate.Range(min=1))
+    precision = fields.Integer(load_default=1, validate=validate.Range(min=1, max=3))
+    ratings = fields.Boolean(load_default=False)
+    relative_event_classes = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
+    )
+    relative_events = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+    )
+    relatives = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        validate=validate.ContainsOnly(choices=RELATIVES),
+    )
+    skipkeys = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    strip = fields.Boolean(load_default=False)
+
+
 class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
     """Person timeline resource."""
 
-    @use_args(
-        {
-            "ancestors": fields.Integer(
-                load_default=1, validate=validate.Range(min=1, max=5)
-            ),
-            "dates": fields.Str(
-                load_default=None,
-                validate=validate.Regexp(
-                    r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
-                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
-                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
-                    r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
-                ),
-            ),
-            "discard_empty": fields.Boolean(load_default=True),
-            "event_classes": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
-            ),
-            "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "first": fields.Boolean(load_default=True),
-            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "last": fields.Boolean(load_default=True),
-            "locale": fields.Str(load_default=None),
-            "name_format": fields.Str(validate=validate.Regexp(NAME_FORMAT_REGEXP)),
-            "offspring": fields.Integer(
-                load_default=1, validate=validate.Range(min=1, max=5)
-            ),
-            "omit_anchor": fields.Boolean(load_default=True),
-            "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
-            "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
-            "precision": fields.Integer(
-                load_default=1, validate=validate.Range(min=1, max=3)
-            ),
-            "ratings": fields.Boolean(load_default=False),
-            "relative_event_classes": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
-            ),
-            "relative_events": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-            ),
-            "relatives": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(choices=RELATIVES),
-            ),
-            "skipkeys": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "strip": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(PersonTimelineQueryArgs, location="query")
     def get(self, args: Dict, handle: str):
         """Get list of events in timeline for a person."""
         locale = get_locale_for_language(args["locale"], default=True)
@@ -612,40 +607,38 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, payload, args, total_items=len(timeline.timeline))
 
 
+class FamilyTimelineQueryArgs(Schema):
+    """Query arguments for GET /families/<handle>/timeline."""
+
+    dates = fields.Str(
+        load_default=None,
+        validate=validate.Regexp(
+            r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
+            r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
+            r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
+            r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
+        ),
+    )
+    discard_empty = fields.Boolean(load_default=True)
+    event_classes = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
+    )
+    events = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    keys = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    locale = fields.Str(load_default=None)
+    name_format = fields.Str(validate=validate.Regexp(NAME_FORMAT_REGEXP))
+    page = fields.Integer(load_default=0, validate=validate.Range(min=1))
+    pagesize = fields.Integer(load_default=20, validate=validate.Range(min=1))
+    ratings = fields.Boolean(load_default=False)
+    skipkeys = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    strip = fields.Boolean(load_default=False)
+
+
 class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
     """Family timeline resource."""
 
-    @use_args(
-        {
-            "dates": fields.Str(
-                load_default=None,
-                validate=validate.Regexp(
-                    r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
-                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
-                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
-                    r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
-                ),
-            ),
-            "discard_empty": fields.Boolean(load_default=True),
-            "event_classes": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
-            ),
-            "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "locale": fields.Str(load_default=None),
-            "name_format": fields.Str(validate=validate.Regexp(NAME_FORMAT_REGEXP)),
-            "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
-            "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
-            "ratings": fields.Boolean(load_default=False),
-            "skipkeys": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "strip": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(FamilyTimelineQueryArgs, location="query")
     def get(self, args: Dict, handle: str):
         """Get list of events in timeline for a family."""
         locale = get_locale_for_language(args["locale"], default=True)
@@ -670,52 +663,45 @@ class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, payload, args, total_items=len(timeline.timeline))
 
 
+class TimelinePeopleQueryArgs(Schema):
+    """Query arguments for GET /people/timeline."""
+
+    anchor = fields.Str(validate=validate.Length(min=1))
+    dates = fields.Str(
+        load_default=None,
+        validate=validate.Regexp(
+            r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
+            r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
+            r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
+            r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
+        ),
+    )
+    discard_empty = fields.Boolean(load_default=True)
+    event_classes = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
+    )
+    events = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    filter = fields.Str(validate=validate.Length(min=1))
+    first = fields.Boolean(load_default=True)
+    handles = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    keys = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    last = fields.Boolean(load_default=True)
+    locale = fields.Str(load_default=None, validate=validate.Length(min=1, max=5))
+    omit_anchor = fields.Boolean(load_default=True)
+    page = fields.Integer(load_default=0, validate=validate.Range(min=1))
+    pagesize = fields.Integer(load_default=20, validate=validate.Range(min=1))
+    precision = fields.Integer(load_default=1, validate=validate.Range(min=1, max=3))
+    ratings = fields.Boolean(load_default=False)
+    rules = fields.Str(validate=validate.Length(min=1))
+    skipkeys = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    strip = fields.Boolean(load_default=False)
+
+
 class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
     """People timeline resource."""
 
-    @use_args(
-        {
-            "anchor": fields.Str(validate=validate.Length(min=1)),
-            "dates": fields.Str(
-                load_default=None,
-                validate=validate.Regexp(
-                    r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
-                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
-                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
-                    r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
-                ),
-            ),
-            "discard_empty": fields.Boolean(load_default=True),
-            "event_classes": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
-            ),
-            "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "filter": fields.Str(validate=validate.Length(min=1)),
-            "first": fields.Boolean(load_default=True),
-            "handles": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "last": fields.Boolean(load_default=True),
-            "locale": fields.Str(
-                load_default=None, validate=validate.Length(min=1, max=5)
-            ),
-            "omit_anchor": fields.Boolean(load_default=True),
-            "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
-            "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
-            "precision": fields.Integer(
-                load_default=1, validate=validate.Range(min=1, max=3)
-            ),
-            "ratings": fields.Boolean(load_default=False),
-            "rules": fields.Str(validate=validate.Length(min=1)),
-            "skipkeys": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "strip": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(TimelinePeopleQueryArgs, location="query")
     def get(self, args: Dict):
         """Get consolidated list of events in timeline for a list of people."""
         db_handle = get_db_handle()
@@ -761,45 +747,40 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, payload, args, total_items=len(timeline.timeline))
 
 
+class TimelineFamiliesQueryArgs(Schema):
+    """Query arguments for GET /families/timeline."""
+
+    dates = fields.Str(
+        load_default=None,
+        validate=validate.Regexp(
+            r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
+            r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
+            r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
+            r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
+        ),
+    )
+    discard_empty = fields.Boolean(load_default=True)
+    event_classes = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
+    )
+    events = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    filter = fields.Str(validate=validate.Length(min=1))
+    keys = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    handles = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    locale = fields.Str(load_default=None, validate=validate.Length(min=1, max=5))
+    page = fields.Integer(load_default=0, validate=validate.Range(min=1))
+    pagesize = fields.Integer(load_default=20, validate=validate.Range(min=1))
+    ratings = fields.Boolean(load_default=False)
+    rules = fields.Str(validate=validate.Length(min=1))
+    skipkeys = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    strip = fields.Boolean(load_default=False)
+
+
 class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
     """Families timeline resource."""
 
-    @use_args(
-        {
-            "dates": fields.Str(
-                load_default=None,
-                validate=validate.Regexp(
-                    r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
-                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
-                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
-                    r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
-                ),
-            ),
-            "discard_empty": fields.Boolean(load_default=True),
-            "event_classes": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
-            ),
-            "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "filter": fields.Str(validate=validate.Length(min=1)),
-            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "handles": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "locale": fields.Str(
-                load_default=None, validate=validate.Length(min=1, max=5)
-            ),
-            "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
-            "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
-            "ratings": fields.Boolean(load_default=False),
-            "rules": fields.Str(validate=validate.Length(min=1)),
-            "skipkeys": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "strip": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(TimelineFamiliesQueryArgs, location="query")
     def get(self, args: Dict):
         """Get consolidated list of events in timeline for a list of families."""
         db_handle = get_db_handle()

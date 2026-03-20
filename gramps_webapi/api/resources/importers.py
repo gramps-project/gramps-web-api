@@ -44,7 +44,7 @@ class ImportersResource(ProtectedResource, GrampsJSONEncoder):
     """Importers resource."""
 
     @api_blueprint.arguments(Schema(), location="query")
-    def get(self, args, extension: str = None) -> Response:
+    def get(self, args, extension: str | None = None) -> Response:
         """Get all available importer attributes."""
         get_db_handle()  # needed to load plugins
         return self.response(200, get_importers())

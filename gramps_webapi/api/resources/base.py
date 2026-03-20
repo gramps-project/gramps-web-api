@@ -31,6 +31,7 @@ from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.utils.grampslocale import GrampsLocale
+from marshmallow import Schema
 from pyparsing.exceptions import ParseBaseException
 from webargs import fields, validate
 
@@ -39,6 +40,7 @@ from gramps_webapi.types import ResponseReturnValue
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ...const import GRAMPS_OBJECT_PLURAL, NAME_FORMAT_REGEXP
 from ..auth import require_permissions
+from ..blueprint import api_blueprint
 from ..cache import request_cache_decorator
 from ..search import SearchIndexer, get_search_indexer
 from ..tasks import run_task, update_search_indices_from_transaction
@@ -49,7 +51,6 @@ from ..util import (
     get_tree_from_jwt_or_fail,
     gramps_object_from_dict,
     update_usage_people,
-    use_args,
 )
 from . import ProtectedResource, Resource
 from .delete import delete_object
@@ -172,68 +173,63 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
         return query_method(handle)
 
 
+class GrampsObjectQueryArgs(Schema):
+    """Query arguments for GET /object/<handle>."""
+
+    backlinks = fields.Boolean(load_default=False)
+    extend = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        validate=validate.ContainsOnly(
+            choices=[
+                "all",
+                "citation_list",
+                "event_ref_list",
+                "family_list",
+                "note_list",
+                "parent_family_list",
+                "person_ref_list",
+                "primary_parent_family",
+                "place",
+                "source_handle",
+                "father_handle",
+                "mother_handle",
+                "media_list",
+                "reporef_list",
+                "tag_list",
+                "backlinks",
+                "child_ref_list",
+            ]
+        ),
+    )
+    formats = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    format_options = fields.Str(validate=validate.Length(min=1))
+    keys = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    locale = fields.Str(load_default=None, validate=validate.Length(min=1, max=5))
+    name_format = fields.Str(validate=validate.Regexp(NAME_FORMAT_REGEXP))
+    profile = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        validate=validate.ContainsOnly(
+            choices=[
+                "all",
+                "self",
+                "families",
+                "events",
+                "age",
+                "span",
+                "ratings",
+                "references",
+            ]
+        ),
+    )
+    skipkeys = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    soundex = fields.Boolean(load_default=False)
+    strip = fields.Boolean(load_default=False)
+
+
 class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
     """Resource for a single object."""
 
-    @use_args(
-        {
-            "backlinks": fields.Boolean(load_default=False),
-            "extend": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(
-                    choices=[
-                        "all",
-                        "citation_list",
-                        "event_ref_list",
-                        "family_list",
-                        "note_list",
-                        "parent_family_list",
-                        "person_ref_list",
-                        "primary_parent_family",
-                        "place",
-                        "source_handle",
-                        "father_handle",
-                        "mother_handle",
-                        "media_list",
-                        "reporef_list",
-                        "tag_list",
-                        "backlinks",
-                        "child_ref_list",
-                    ]
-                ),
-            ),
-            "formats": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "format_options": fields.Str(validate=validate.Length(min=1)),
-            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "locale": fields.Str(
-                load_default=None, validate=validate.Length(min=1, max=5)
-            ),
-            "name_format": fields.Str(validate=validate.Regexp(NAME_FORMAT_REGEXP)),
-            "profile": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(
-                    choices=[
-                        "all",
-                        "self",
-                        "families",
-                        "events",
-                        "age",
-                        "span",
-                        "ratings",
-                        "references",
-                    ]
-                ),
-            ),
-            "skipkeys": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "soundex": fields.Boolean(load_default=False),
-            "strip": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(GrampsObjectQueryArgs, location="query")
     @request_cache_decorator
     def get(self, args: dict, handle: str) -> ResponseReturnValue:
         """Get the object."""
@@ -300,87 +296,82 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         return self.response(200, trans_dict, total_items=len(trans_dict))
 
 
+class GrampsObjectsQueryArgs(Schema):
+    """Query arguments for GET /objects/."""
+
+    backlinks = fields.Boolean(load_default=False)
+    dates = fields.Str(
+        load_default=None,
+        validate=validate.Regexp(
+            r"^([0-9]+|\*)/([1-9]|1[0-2]|\*)/([1-9]|1[0-9]|2[0-9]|3[0-1]|\*)$|"
+            r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
+            r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
+            r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
+            r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
+        ),
+    )
+    extend = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        validate=validate.ContainsOnly(
+            choices=[
+                "all",
+                "citation_list",
+                "event_ref_list",
+                "family_list",
+                "note_list",
+                "parent_family_list",
+                "person_ref_list",
+                "primary_parent_family",
+                "place",
+                "source_handle",
+                "father_handle",
+                "mother_handle",
+                "media_list",
+                "reporef_list",
+                "tag_list",
+                "backlinks",
+                "child_ref_list",
+            ]
+        ),
+    )
+    filter = fields.Str(validate=validate.Length(min=1))
+    formats = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    format_options = fields.Str(validate=validate.Length(min=1))
+    gql = fields.Str(validate=validate.Length(min=1))
+    oql = fields.Str(validate=validate.Length(min=1))
+    gramps_id = fields.Str(validate=validate.Length(min=1))
+    keys = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    locale = fields.Str(load_default=None, validate=validate.Length(min=1, max=5))
+    page = fields.Integer(load_default=0, validate=validate.Range(min=1))
+    pagesize = fields.Integer(load_default=20, validate=validate.Range(min=1))
+    profile = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        validate=validate.ContainsOnly(
+            choices=[
+                "all",
+                "self",
+                "families",
+                "events",
+                "age",
+                "span",
+                "ratings",
+                "references",
+            ]
+        ),
+    )
+    rules = fields.Str(validate=validate.Length(min=1))
+    skipkeys = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    sort = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    soundex = fields.Boolean(load_default=False)
+    strip = fields.Boolean(load_default=False)
+    filemissing = fields.Boolean(load_default=False)
+    name_format = fields.Str(validate=validate.Regexp(NAME_FORMAT_REGEXP))
+
+
 class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
     """Resource for multiple objects."""
 
-    @use_args(
-        {
-            "backlinks": fields.Boolean(load_default=False),
-            "dates": fields.Str(
-                load_default=None,
-                validate=validate.Regexp(
-                    r"^([0-9]+|\*)/([1-9]|1[0-2]|\*)/([1-9]|1[0-9]|2[0-9]|3[0-1]|\*)$|"
-                    r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
-                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
-                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
-                    r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
-                ),
-            ),
-            "extend": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(
-                    choices=[
-                        "all",
-                        "citation_list",
-                        "event_ref_list",
-                        "family_list",
-                        "note_list",
-                        "parent_family_list",
-                        "person_ref_list",
-                        "primary_parent_family",
-                        "place",
-                        "source_handle",
-                        "father_handle",
-                        "mother_handle",
-                        "media_list",
-                        "reporef_list",
-                        "tag_list",
-                        "backlinks",
-                        "child_ref_list",
-                    ]
-                ),
-            ),
-            "filter": fields.Str(validate=validate.Length(min=1)),
-            "formats": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "format_options": fields.Str(validate=validate.Length(min=1)),
-            "gql": fields.Str(validate=validate.Length(min=1)),
-            "oql": fields.Str(validate=validate.Length(min=1)),
-            "gramps_id": fields.Str(validate=validate.Length(min=1)),
-            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "locale": fields.Str(
-                load_default=None, validate=validate.Length(min=1, max=5)
-            ),
-            "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
-            "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
-            "profile": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(
-                    choices=[
-                        "all",
-                        "self",
-                        "families",
-                        "events",
-                        "age",
-                        "span",
-                        "ratings",
-                        "references",
-                    ]
-                ),
-            ),
-            "rules": fields.Str(validate=validate.Length(min=1)),
-            "skipkeys": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "sort": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "soundex": fields.Boolean(load_default=False),
-            "strip": fields.Boolean(load_default=False),
-            "filemissing": fields.Boolean(load_default=False),
-            "name_format": fields.Str(validate=validate.Regexp(NAME_FORMAT_REGEXP)),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(GrampsObjectsQueryArgs, location="query")
     @request_cache_decorator
     def get(self, args: dict) -> ResponseReturnValue:
         """Get all objects."""
