@@ -26,9 +26,11 @@ from typing import Dict, List, Union
 from flask import Response, abort
 from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.utils.grampslocale import GrampsLocale
+from marshmallow import Schema
 from webargs import fields, validate
 
-from ..util import abort_with_message, get_locale_for_language, use_args
+from ..blueprint import api_blueprint
+from ..util import abort_with_message, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -59,13 +61,22 @@ class Sort:
         return native_locale.sort_key(data["native"])
 
 
+class TranslationGetArgs(Schema):
+    """Query arguments for GET /translations/<language>/."""
+
+    strings = fields.Str(required=True)
+
+
+class TranslationPostArgs(Schema):
+    """Body arguments for POST /translations/<language>/."""
+
+    strings = fields.List(fields.Str(), required=True)
+
+
 class TranslationResource(ProtectedResource, GrampsJSONEncoder):
     """Translation resource."""
 
-    @use_args(
-        {"strings": fields.Str(required=True)},
-        location="query",
-    )
+    @api_blueprint.arguments(TranslationGetArgs, location="query")
     def get(self, args: Dict, language: str) -> Response:
         """Get translation."""
         try:
@@ -74,10 +85,7 @@ class TranslationResource(ProtectedResource, GrampsJSONEncoder):
             abort_with_message(400, "Error parsing strings")
         return self._get_or_post(strings=strings, language=language)
 
-    @use_args(
-        {"strings": fields.List(fields.Str, required=True)},
-        location="json",
-    )
+    @api_blueprint.arguments(TranslationPostArgs, location="json")
     def post(self, args: Dict, language: str) -> Response:
         """Get translation for posted strings."""
         return self._get_or_post(strings=args["strings"], language=language)
@@ -101,18 +109,17 @@ class TranslationResource(ProtectedResource, GrampsJSONEncoder):
         abort(404)
 
 
+class TranslationsQueryArgs(Schema):
+    """Query arguments for GET /translations/."""
+
+    locale = fields.Str(load_default=None, validate=validate.Length(min=1, max=5))
+    sort = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+
+
 class TranslationsResource(ProtectedResource, GrampsJSONEncoder):
     """Translations resource."""
 
-    @use_args(
-        {
-            "locale": fields.Str(
-                load_default=None, validate=validate.Length(min=1, max=5)
-            ),
-            "sort": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(TranslationsQueryArgs, location="query")
     def get(self, args: dict) -> Response:
         """Get available translations."""
         default_locale = GrampsLocale(lang="en")

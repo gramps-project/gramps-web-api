@@ -136,8 +136,6 @@ from .resources.ydna import PersonYDnaResource
 from .blueprint import api_blueprint
 from .util import get_db_handle, get_tree_from_jwt, parser, use_args
 
-api_blueprint.ARGUMENTS_PARSER = parser
-
 
 def register_endpt(resource: Type[Resource], url: str, name: str):
     """Register an endpoint."""

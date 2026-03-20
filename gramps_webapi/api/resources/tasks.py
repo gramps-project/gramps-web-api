@@ -19,19 +19,31 @@
 
 """Background task resources."""
 
-# import json
 from http import HTTPStatus
 
 from celery.result import AsyncResult
 from flask import abort
 from gramps.gen.lib.json_utils import object_to_string
+from marshmallow import Schema
+from webargs import fields
 
+from ..blueprint import api_blueprint
 from . import ProtectedResource
+
+
+class TaskStatusSchema(Schema):
+    """Response schema for GET /tasks/<task_id>."""
+
+    state = fields.Str()
+    result_object = fields.Raw()
+    info = fields.Str()
+    result = fields.Str()
 
 
 class TaskResource(ProtectedResource):
     """Resource for a single task."""
 
+    @api_blueprint.response(200, TaskStatusSchema)
     def get(self, task_id: str):
         """Get info about a task."""
         task = AsyncResult(task_id)

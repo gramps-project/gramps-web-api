@@ -32,6 +32,7 @@ from gramps.gen.db.base import DbReadBase
 from gramps.gen.db.generic import DbGeneric
 from gramps.gen.db.utils import get_dbid_from_path
 from gramps.gen.utils.grampslocale import INCOMPLETE_TRANSLATIONS
+from marshmallow import Schema
 from webargs import fields
 
 from gramps_webapi.const import TREE_MULTI, VERSION
@@ -39,8 +40,9 @@ from gramps_webapi.const import TREE_MULTI, VERSION
 from ...auth.const import PERM_VIEW_PRIVATE
 from ...dbmanager import WebDbManager
 from ..auth import has_permissions
+from ..blueprint import api_blueprint
 from ..search import get_search_indexer, get_semantic_search_indexer
-from ..util import get_db_handle, get_tree_from_jwt_or_fail, use_args
+from ..util import get_db_handle, get_tree_from_jwt_or_fail
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -56,6 +58,12 @@ def get_dbid_from_tree_id(tree_id: str) -> str:
     return get_dbid_from_path(db_path)
 
 
+class MetadataQueryArgs(Schema):
+    """Query arguments for GET /metadata/."""
+
+    surnames = fields.Boolean(load_default=False)
+
+
 class MetadataResource(ProtectedResource, GrampsJSONEncoder):
     """Metadata resource."""
 
@@ -64,12 +72,7 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
         """Get the database instance."""
         return get_db_handle()
 
-    @use_args(
-        {
-            "surnames": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(MetadataQueryArgs, location="query")
     def get(self, args) -> Response:
         """Get active database and application related metadata information."""
         catalog = GRAMPS_LOCALE.get_language_dict()

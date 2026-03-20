@@ -22,5 +22,7 @@
 from flask_smorest import Blueprint
 
 from ..const import API_PREFIX
+from .util import parser
 
 api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
+api_blueprint.ARGUMENTS_PARSER = parser

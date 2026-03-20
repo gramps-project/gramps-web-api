@@ -21,10 +21,22 @@
 
 from flask import Response
 from gramps.gen.db.base import DbReadBase
+from marshmallow import Schema
+from webargs import fields
 
+from ..blueprint import api_blueprint
 from ..util import get_db_handle
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+
+
+class NameFormatSchema(Schema):
+    """Schema for a single name format entry."""
+
+    number = fields.Int()
+    name = fields.Str()
+    format = fields.Str()
+    active = fields.Bool()
 
 
 class NameFormatsResource(ProtectedResource, GrampsJSONEncoder):
@@ -35,6 +47,7 @@ class NameFormatsResource(ProtectedResource, GrampsJSONEncoder):
         """Get the database instance."""
         return get_db_handle()
 
+    @api_blueprint.response(200, NameFormatSchema(many=True))
     def get(self) -> Response:
         """Get list of name formats."""
         formats = []
