@@ -141,7 +141,15 @@ api_blueprint.ARGUMENTS_PARSER = parser
 
 def register_endpt(resource: Type[Resource], url: str, name: str):
     """Register an endpoint."""
-    api_blueprint.add_url_rule(url, endpoint=name, view_func=resource)
+    # Register all HTTP methods explicitly so Werkzeug always finds the route
+    # and returns 405 (not 404) for methods the view doesn't implement.
+    # flask-smorest still only documents methods actually defined on the class.
+    api_blueprint.add_url_rule(
+        url,
+        endpoint=name,
+        view_func=resource,
+        methods=["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH"],
+    )
 
 
 # Objects
