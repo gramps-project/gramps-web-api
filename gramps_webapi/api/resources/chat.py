@@ -25,11 +25,11 @@ from webargs import fields
 
 from ..util import (
     get_tree_from_jwt_or_fail,
-    use_args,
     abort_with_message,
     check_quota_ai,
     update_usage_ai,
 )
+from ..blueprint import api_blueprint
 from ..tasks import AsyncResult, make_task_response, process_chat, run_task
 from . import ProtectedResource
 from ...auth.const import PERM_USE_CHAT, PERM_VIEW_PRIVATE
@@ -41,23 +41,25 @@ class ChatMessageSchema(Schema):
     message = fields.Str(required=True)
 
 
+class ChatBodyArgs(Schema):
+    """Body arguments for POST /chat/."""
+
+    query = fields.Str(required=True)
+    history = fields.List(fields.Nested(ChatMessageSchema), required=False)
+
+
+class ChatQueryArgs(Schema):
+    """Query arguments for POST /chat/."""
+
+    background = fields.Boolean(load_default=False)
+    verbose = fields.Boolean(load_default=False)
+
+
 class ChatResource(ProtectedResource):
     """AI chat resource."""
 
-    @use_args(
-        {
-            "query": fields.Str(required=True),
-            "history": fields.List(fields.Nested(ChatMessageSchema), required=False),
-        },
-        location="json",
-    )
-    @use_args(
-        {
-            "background": fields.Boolean(load_default=False),
-            "verbose": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(ChatBodyArgs, location="json")
+    @api_blueprint.arguments(ChatQueryArgs, location="query")
     def post(self, args_json, args_query):
         """Create a chat response."""
         require_permissions({PERM_USE_CHAT})

@@ -32,6 +32,7 @@ from gramps.gen.errors import HandleError
 from gramps.gen.lib import Citation, Note, Person
 from gramps.gen.relationship import get_relationship_calculator
 from gramps.gen.utils.grampslocale import GrampsLocale
+from marshmallow import Schema
 from webargs import fields, validate
 
 from gramps_webapi.api.dna import parse_raw_dna_match_string
@@ -39,8 +40,9 @@ from gramps_webapi.api.people_families_cache import CachePeopleFamiliesProxy
 from gramps_webapi.types import Handle, MatchSegment, ResponseReturnValue
 
 from ...types import Handle
+from ..blueprint import api_blueprint
 from ..cache import request_cache_decorator
-from ..util import get_db_handle, get_locale_for_language, use_args
+from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .util import get_person_profile_for_handle
 
@@ -49,18 +51,17 @@ SIDE_MATERNAL = "M"
 SIDE_PATERNAL = "P"
 
 
+class DnaMatchesQueryArgs(Schema):
+    """Query arguments for GET /people/<handle>/dna/matches."""
+
+    locale = fields.Str(load_default=None, validate=validate.Length(min=2, max=5))
+    raw = fields.Bool(load_default=False)
+
+
 class PersonDnaMatchesResource(ProtectedResource):
     """Resource for getting DNA match data for a person."""
 
-    @use_args(
-        {
-            "locale": fields.Str(
-                load_default=None, validate=validate.Length(min=2, max=5)
-            ),
-            "raw": fields.Bool(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(DnaMatchesQueryArgs, location="query")
     @request_cache_decorator
     def get(self, args: dict, handle: str):
         """Get the DNA match data."""
@@ -93,13 +94,16 @@ class PersonDnaMatchesResource(ProtectedResource):
         return matches
 
 
+class DnaMatchParserBodyArgs(Schema):
+    """Body arguments for POST /dna/match-parser/."""
+
+    string = fields.Str(required=True)
+
+
 class DnaMatchParserResource(ProtectedResource):
     """DNA match parser resource."""
 
-    @use_args(
-        {"string": fields.Str(required=True)},
-        location="json",
-    )
+    @api_blueprint.arguments(DnaMatchParserBodyArgs, location="json")
     def post(self, args: dict) -> ResponseReturnValue:
         """Parse DNA match string."""
         return parse_raw_dna_match_string(args["string"])
