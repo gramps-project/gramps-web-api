@@ -22,7 +22,6 @@
 from typing import Type
 
 from flask import current_app
-from flask_smorest import Blueprint
 from webargs import fields, validate
 
 from ..const import API_PREFIX
@@ -134,14 +133,15 @@ from .resources.user import (
     UserTriggerResetPasswordResource,
 )
 from .resources.ydna import PersonYDnaResource
-from .util import get_db_handle, get_tree_from_jwt, use_args
+from .blueprint import api_blueprint
+from .util import get_db_handle, get_tree_from_jwt, parser, use_args
 
-api_blueprint = Blueprint("api", __name__, url_prefix=API_PREFIX)
+api_blueprint.ARGUMENTS_PARSER = parser
 
 
 def register_endpt(resource: Type[Resource], url: str, name: str):
     """Register an endpoint."""
-    api_blueprint.add_url_rule(url, view_func=resource.as_view(name))
+    api_blueprint.add_url_rule(url, endpoint=name, view_func=resource)
 
 
 # Objects
