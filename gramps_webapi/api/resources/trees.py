@@ -60,7 +60,11 @@ from ..tasks import (
     run_task,
     upgrade_database_schema,
 )
-from ..util import abort_with_message, get_tree_from_jwt_or_fail, list_trees, use_args
+from marshmallow import Schema
+from webargs import fields
+
+from ..blueprint import api_blueprint
+from ..util import abort_with_message, get_tree_from_jwt_or_fail, list_trees
 from . import ProtectedResource
 
 # legal tree dirnames
@@ -107,6 +111,15 @@ def get_tree_ids() -> List[str]:
     return [os.path.basename(details[1]) for details in tree_details]
 
 
+class TreeCreateBodyArgs(Schema):
+    """Body arguments for POST /trees/."""
+
+    name = fields.Str(required=True)
+    quota_media = fields.Integer(required=False)
+    quota_people = fields.Integer(required=False)
+    min_role_ai = fields.Integer(required=False)
+
+
 class TreesResource(ProtectedResource):
     """Resource for getting info about trees."""
 
@@ -120,15 +133,7 @@ class TreesResource(ProtectedResource):
             tree_ids = [user_tree_id]
         return [get_tree_details(tree_id) for tree_id in tree_ids]
 
-    @use_args(
-        {
-            "name": fields.Str(required=True),
-            "quota_media": fields.Integer(required=False),
-            "quota_people": fields.Integer(required=False),
-            "min_role_ai": fields.Integer(required=False),
-        },
-        location="json",
-    )
+    @api_blueprint.arguments(TreeCreateBodyArgs, location="json")
     def post(self, args):
         """Create a new tree."""
         if current_app.config["TREE"] != TREE_MULTI:
@@ -153,6 +158,15 @@ class TreesResource(ProtectedResource):
         return get_tree_details(tree_id), 201
 
 
+class TreeUpdateBodyArgs(Schema):
+    """Body arguments for PUT /trees/<tree_id>/."""
+
+    name = fields.Str(required=False, load_default=None)
+    quota_media = fields.Integer(required=False)
+    quota_people = fields.Integer(required=False)
+    min_role_ai = fields.Integer(required=False)
+
+
 class TreeResource(ProtectedResource):
     """Resource for a single tree."""
 
@@ -170,15 +184,7 @@ class TreeResource(ProtectedResource):
                     abort_with_message(403, "Not authorized to view other trees")
         return get_tree_details(tree_id)
 
-    @use_args(
-        {
-            "name": fields.Str(required=False, load_default=None),
-            "quota_media": fields.Integer(required=False),
-            "quota_people": fields.Integer(required=False),
-            "min_role_ai": fields.Integer(required=False),
-        },
-        location="json",
-    )
+    @api_blueprint.arguments(TreeUpdateBodyArgs, location="json")
     def put(self, args, tree_id: str):
         """Modify a tree."""
         if tree_id == "-":

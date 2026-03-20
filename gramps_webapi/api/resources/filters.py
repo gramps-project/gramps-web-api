@@ -34,7 +34,8 @@ from webargs import ValidationError, fields, validate
 
 from ...const import GRAMPS_NAMESPACES
 from ...types import Handle
-from ..util import abort_with_message, use_args
+from ..blueprint import api_blueprint
+from ..util import abort_with_message
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -217,10 +218,7 @@ class CustomFilterSchema(FilterSchema):
 class FiltersResources(ProtectedResource, GrampsJSONEncoder):
     """Filters resources."""
 
-    @use_args(
-        {},
-        location="query",
-    )
+    @api_blueprint.arguments(Schema(), location="query")
     def get(self, args: Dict[str, str]) -> Response:
         """Get available custom filters and rules."""
         results = {}
@@ -231,18 +229,17 @@ class FiltersResources(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, results)
 
 
+class FiltersQueryArgs(Schema):
+    """Query arguments for GET /filters/<namespace>/."""
+
+    filters = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    rules = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+
+
 class FiltersResource(ProtectedResource, GrampsJSONEncoder):
     """Filters resource."""
 
-    @use_args(
-        {
-            "filters": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "rules": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(FiltersQueryArgs, location="query")
     def get(self, args: Dict[str, str], namespace: str) -> Response:
         """Get available custom filters and rules."""
         try:
@@ -258,7 +255,7 @@ class FiltersResource(ProtectedResource, GrampsJSONEncoder):
             return self.response(200, {"filters": filter_list})
         return self.response(200, {"filters": filter_list, "rules": rule_list})
 
-    @use_args(CustomFilterSchema(), location="json")
+    @api_blueprint.arguments(CustomFilterSchema(), location="json")
     def post(self, args: Dict, namespace: str) -> Response:
         """Create a custom filter."""
         try:
@@ -275,7 +272,7 @@ class FiltersResource(ProtectedResource, GrampsJSONEncoder):
         filters.CustomFilters.save()
         return self.response(201, {"message": "Added filter: " + new_filter.get_name()})
 
-    @use_args(CustomFilterSchema(), location="json")
+    @api_blueprint.arguments(CustomFilterSchema(), location="json")
     def put(self, args: Dict, namespace: str) -> Response:
         """Update a custom filter."""
         try:
@@ -296,6 +293,12 @@ class FiltersResource(ProtectedResource, GrampsJSONEncoder):
         return abort(404)
 
 
+class FilterDeleteQueryArgs(Schema):
+    """Query arguments for DELETE /filters/<namespace>/<name>/."""
+
+    force = fields.Str(validate=validate.Length(equal=0))
+
+
 class FilterResource(ProtectedResource, GrampsJSONEncoder):
     """Filter resource."""
 
@@ -312,12 +315,7 @@ class FilterResource(ProtectedResource, GrampsJSONEncoder):
             abort(404)
         return self.response(200, filter_list[0])
 
-    @use_args(
-        {
-            "force": fields.Str(validate=validate.Length(equal=0)),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(FilterDeleteQueryArgs, location="query")
     def delete(self, args: Dict, namespace: str, name: str) -> Response:
         """Delete a custom filter."""
         try:

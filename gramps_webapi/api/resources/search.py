@@ -30,11 +30,13 @@ from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.utils.grampslocale import GrampsLocale
+from marshmallow import Schema
 from webargs import fields, validate
 
 from ...auth.const import PERM_TRIGGER_REINDEX, PERM_VIEW_PRIVATE
 from ...const import PRIMARY_GRAMPS_OBJECTS
 from ..auth import has_permissions, require_permissions
+from ..blueprint import api_blueprint
 from ..search import (
     SearchIndexer,
     SemanticSearchIndexer,
@@ -52,7 +54,6 @@ from ..util import (
     get_db_handle,
     get_locale_for_language,
     get_tree_from_jwt_or_fail,
-    use_args,
 )
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
@@ -65,6 +66,31 @@ from .util import (
     get_person_profile_for_object,
     get_place_profile_for_object,
 )
+
+
+class SearchQueryArgs(Schema):
+    """Query arguments for GET /search/."""
+
+    locale = fields.Str(load_default=None, validate=validate.Length(min=1, max=5))
+    query = fields.Str(required=True, validate=validate.Length(min=1))
+    semantic = fields.Boolean(load_default=False)
+    page = fields.Int(load_default=1, validate=validate.Range(min=1))
+    pagesize = fields.Int(load_default=20, validate=validate.Range(min=1))
+    sort = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    profile = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        validate=validate.ContainsOnly(
+            choices=["all", "self", "families", "events", "age", "span"]
+        ),
+    )
+    strip = fields.Boolean(load_default=False)
+    type = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        validate=validate.ContainsOnly(
+            choices=[t.lower() for t in PRIMARY_GRAMPS_OBJECTS]
+        ),
+    )
+    change = fields.Str(validate=validate.Length(min=2))
 
 
 class SearchResource(GrampsJSONEncoder, ProtectedResource):
@@ -124,33 +150,7 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
 
         return obj
 
-    @use_args(
-        {
-            "locale": fields.Str(
-                load_default=None, validate=validate.Length(min=1, max=5)
-            ),
-            "query": fields.Str(required=True, validate=validate.Length(min=1)),
-            "semantic": fields.Boolean(load_default=False),
-            "page": fields.Int(load_default=1, validate=validate.Range(min=1)),
-            "pagesize": fields.Int(load_default=20, validate=validate.Range(min=1)),
-            "sort": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "profile": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(
-                    choices=["all", "self", "families", "events", "age", "span"]
-                ),
-            ),
-            "strip": fields.Boolean(load_default=False),
-            "type": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(
-                    choices=[t.lower() for t in PRIMARY_GRAMPS_OBJECTS]
-                ),
-            ),
-            "change": fields.Str(validate=validate.Length(min=2)),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(SearchQueryArgs, location="query")
     def get(self, args: Dict):
         """Get search result."""
         tree = get_tree_from_jwt_or_fail()
@@ -206,16 +206,17 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
         return self.response(200, payload=hits or [], args=args, total_items=total)
 
 
+class SearchIndexQueryArgs(Schema):
+    """Query arguments for POST /search/index/."""
+
+    full = fields.Boolean(load_default=False)
+    semantic = fields.Boolean(load_default=False)
+
+
 class SearchIndexResource(ProtectedResource):
     """Resource to trigger a search reindex."""
 
-    @use_args(
-        {
-            "full": fields.Boolean(load_default=False),
-            "semantic": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(SearchIndexQueryArgs, location="query")
     def post(self, args: Dict):
         """Trigger a reindex."""
         require_permissions([PERM_TRIGGER_REINDEX])
