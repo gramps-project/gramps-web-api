@@ -22,28 +22,29 @@
 from __future__ import annotations
 from dataclasses import asdict
 
+from marshmallow import Schema
 import yclade
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Person
 from webargs import fields, validate
 
+from ..blueprint import api_blueprint
 from ..cache import request_cache_decorator
-from ..util import get_db_handle, use_args, abort_with_message
+from ..util import get_db_handle, abort_with_message
 from . import ProtectedResource
+
+
+class PersonYDnaQueryArgs(Schema):
+    """Query arguments for GET /people/<handle>/ydna."""
+
+    locale = fields.Str(load_default=None, validate=validate.Length(min=2, max=5))
+    raw = fields.Bool(load_default=False)
 
 
 class PersonYDnaResource(ProtectedResource):
     """Resource for getting Y-DNA data for a person."""
 
-    @use_args(
-        {
-            "locale": fields.Str(
-                load_default=None, validate=validate.Length(min=2, max=5)
-            ),
-            "raw": fields.Bool(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(PersonYDnaQueryArgs, location="query")
     @request_cache_decorator
     def get(self, args: dict, handle: str):
         """Get Y-DNA data.

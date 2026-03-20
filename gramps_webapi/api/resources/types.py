@@ -37,9 +37,10 @@ from gramps.gen.lib.repotype import RepositoryType
 from gramps.gen.lib.srcattrtype import SrcAttributeType
 from gramps.gen.lib.srcmediatype import SourceMediaType
 from gramps.gen.lib.urltype import UrlType
+from marshmallow import Schema
 from webargs import fields
 
-from ..util import use_args
+from ..blueprint import api_blueprint
 from ..util import get_db_handle
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
@@ -157,15 +158,16 @@ def get_custom_types(db_handle: DbReadBase, datatype: str) -> Optional[List]:
     return result
 
 
+class TypesLocaleArgs(Schema):
+    """Query arguments for type endpoints with locale."""
+
+    locale = fields.Boolean(load_default=False)
+
+
 class DefaultTypesResource(ProtectedResource, GrampsJSONEncoder):
     """Default types resource."""
 
-    @use_args(
-        {
-            "locale": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(TypesLocaleArgs, location="query")
     def get(self, args: Dict) -> Response:
         """Return a list of available default types."""
         result = {}
@@ -177,12 +179,7 @@ class DefaultTypesResource(ProtectedResource, GrampsJSONEncoder):
 class DefaultTypeResource(ProtectedResource, GrampsJSONEncoder):
     """Default type resource."""
 
-    @use_args(
-        {
-            "locale": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(TypesLocaleArgs, location="query")
     def get(self, args: Dict, datatype: str) -> Response:
         """Return a list of values for a default type."""
         result = get_default_types(datatype, args["locale"])
@@ -194,11 +191,8 @@ class DefaultTypeResource(ProtectedResource, GrampsJSONEncoder):
 class DefaultTypeMapResource(ProtectedResource, GrampsJSONEncoder):
     """Default type resource."""
 
-    @use_args(
-        {},
-        location="query",
-    )
-    def get(self, args: Dict, datatype: str) -> Response:
+    @api_blueprint.arguments(Schema(), location="query")
+    def get(self, args, datatype: str) -> Response:
         """Return the map for a default type."""
         if datatype in _DEFAULT_TYPE_CLASSES:
             types = _DEFAULT_TYPE_CLASSES[datatype]
@@ -213,11 +207,8 @@ class DefaultTypeMapResource(ProtectedResource, GrampsJSONEncoder):
 class CustomTypesResource(ProtectedResource, GrampsJSONEncoder):
     """Custom types resource."""
 
-    @use_args(
-        {},
-        location="query",
-    )
-    def get(self, args: Dict) -> Response:
+    @api_blueprint.arguments(Schema(), location="query")
+    def get(self, args) -> Response:
         """Return a list of available custom types."""
         result = {}
         for datatype in _CUSTOM_RECORD_TYPES:
@@ -228,11 +219,8 @@ class CustomTypesResource(ProtectedResource, GrampsJSONEncoder):
 class CustomTypeResource(ProtectedResource, GrampsJSONEncoder):
     """Custom type resource."""
 
-    @use_args(
-        {},
-        location="query",
-    )
-    def get(self, args: Dict, datatype: str) -> Response:
+    @api_blueprint.arguments(Schema(), location="query")
+    def get(self, args, datatype: str) -> Response:
         """Return list of values for the custom type."""
         result = get_custom_types(get_db_handle(), datatype)
         if result is None:
@@ -243,12 +231,7 @@ class CustomTypeResource(ProtectedResource, GrampsJSONEncoder):
 class TypesResource(ProtectedResource, GrampsJSONEncoder):
     """Types resource."""
 
-    @use_args(
-        {
-            "locale": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(TypesLocaleArgs, location="query")
     def get(self, args: Dict) -> Response:
         """Return list of values for the custom type."""
         custom = {}
