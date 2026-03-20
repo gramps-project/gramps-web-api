@@ -19,6 +19,9 @@
 
 """API resource endpoints."""
 
+import typing as t
+
+from flask import abort, current_app, request
 from flask.views import MethodView
 
 from ..auth import (
@@ -32,6 +35,20 @@ from gramps_webapi.types import ResponseReturnValue
 
 class Resource(MethodView):
     """Base class for API resources."""
+
+    def dispatch_request(self, /, *args: t.Any, **kwargs: t.Any) -> ResponseReturnValue:
+        """Dispatch to the appropriate method handler, returning 405 for undefined methods.
+
+        Flask 3.x MethodView raises AssertionError for undefined methods; we
+        override to return a proper 405 response so that routes registered with
+        all HTTP methods (needed for correct 405 vs 404 routing) behave correctly.
+        """
+        meth = getattr(self, request.method.lower(), None)
+        if meth is None and request.method == "HEAD":
+            meth = getattr(self, "get", None)
+        if meth is None:
+            abort(405)
+        return current_app.ensure_sync(meth)(*args, **kwargs)
 
 
 class ProtectedResource(Resource):
