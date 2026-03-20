@@ -29,27 +29,36 @@ from flask import Response, abort, request
 from gramps.gen.db import DbTxn
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Media
+from marshmallow import Schema
 from webargs import fields
 
 from ...auth.const import PERM_EDIT_OBJ
 from ..auth import require_permissions
+from ..blueprint import api_blueprint
 from ..file import process_file
 from ..media import check_quota_media, get_media_handler, update_usage_media
-from ..util import abort_with_message, get_db_handle, get_tree_from_jwt, use_args
+from ..util import abort_with_message, get_db_handle, get_tree_from_jwt
 from . import ProtectedResource
 from .util import transaction_to_json, update_object
+
+
+class MediaFileGetQueryArgs(Schema):
+    """Query arguments for GET /media/<handle>/file."""
+
+    download = fields.Boolean(load_default=False)
+    jwt = fields.String(required=False)
+
+
+class MediaFilePutQueryArgs(Schema):
+    """Query arguments for PUT /media/<handle>/file."""
+
+    uploadmissing = fields.Boolean(load_default=False)
 
 
 class MediaFileResource(ProtectedResource):
     """Resource for media files."""
 
-    @use_args(
-        {
-            "download": fields.Boolean(load_default=False),
-            "jwt": fields.String(required=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(MediaFileGetQueryArgs, location="query")
     def get(self, args: Dict, handle) -> Response:
         """Download a file."""
         db_handle = get_db_handle()
@@ -67,12 +76,7 @@ class MediaFileResource(ProtectedResource):
             etag=obj.checksum, download=download, filename=filename
         )
 
-    @use_args(
-        {
-            "uploadmissing": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(MediaFilePutQueryArgs, location="query")
     def put(self, args: Dict, handle: str) -> Response:
         """Upload a file and update the media object."""
         require_permissions([PERM_EDIT_OBJ])
