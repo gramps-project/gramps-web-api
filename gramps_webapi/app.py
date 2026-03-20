@@ -221,6 +221,19 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
     api.register_blueprint(api_blueprint)
     limiter.init_app(app)
 
+    # Flask 3.x removed the exc.response early-return from handle_http_exception,
+    # so flask-smorest's handler now intercepts every HTTPException and reformats
+    # it, breaking the {"error": {...}} format produced by abort_with_message.
+    # Re-introduce the exc.response check here, delegating to smorest only when
+    # there is no pre-built custom response.
+    from werkzeug.exceptions import HTTPException
+
+    @app.errorhandler(HTTPException)
+    def handle_http_exception(e):
+        if e.response is not None:
+            return e.response
+        return api.handle_http_exception(e)
+
     # instantiate celery
     create_celery(app)
 
