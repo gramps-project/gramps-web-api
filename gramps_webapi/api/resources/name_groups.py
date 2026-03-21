@@ -41,10 +41,13 @@ class NameGroupSchema(Schema):
         metadata={"description": "The surname to be grouped."},
     )
     group = fields.Str(
-        metadata={"description": "The canonical surname this surname should be grouped with."},
+        metadata={
+            "description": "The canonical surname this surname should be grouped with."
+        },
     )
 
 
+@api_blueprint.doc(tags=["Name Groups"])
 class NameGroupsResource(ProtectedResource, GrampsJSONEncoder):
     """Name group mappings resource."""
 

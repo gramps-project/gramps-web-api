@@ -59,6 +59,7 @@ class RelationQueryArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Relations"])
 class RelationResource(ProtectedResource, GrampsJSONEncoder):
     """Relation resource."""
 
@@ -98,6 +99,7 @@ class RelationResource(ProtectedResource, GrampsJSONEncoder):
         )
 
 
+@api_blueprint.doc(tags=["Relations"])
 class RelationsResource(ProtectedResource, GrampsJSONEncoder):
     """Relations resource."""
 

@@ -26,6 +26,8 @@ from .base import (
     GrampsObjectsProtectedResource,
 )
 
+from ..blueprint import api_blueprint
+
 
 class TagResourceHelper(GrampsObjectResourceHelper):
     """Tag resource helper."""
@@ -33,9 +35,11 @@ class TagResourceHelper(GrampsObjectResourceHelper):
     gramps_class_name = "Tag"
 
 
+@api_blueprint.doc(tags=["Tags"])
 class TagResource(GrampsObjectProtectedResource, TagResourceHelper):
     """Tag resource."""
 
 
+@api_blueprint.doc(tags=["Tags"])
 class TagsResource(GrampsObjectsProtectedResource, TagResourceHelper):
     """Tags resource."""

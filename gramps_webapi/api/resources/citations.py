@@ -37,6 +37,8 @@ from .util import (
     get_source_by_handle,
 )
 
+from ..blueprint import api_blueprint
+
 
 class CitationResourceHelper(GrampsObjectResourceHelper):
     """Citation resource helper."""
@@ -60,9 +62,11 @@ class CitationResourceHelper(GrampsObjectResourceHelper):
         return obj
 
 
+@api_blueprint.doc(tags=["Citations"])
 class CitationResource(GrampsObjectProtectedResource, CitationResourceHelper):
     """Citation resource."""
 
 
+@api_blueprint.doc(tags=["Citations"])
 class CitationsResource(GrampsObjectsProtectedResource, CitationResourceHelper):
     """Citations resource."""

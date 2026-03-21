@@ -34,12 +34,15 @@ from ..util import abort_with_message, get_buffer_for_file, get_tree_from_jwt
 from . import ProtectedResource
 from gramps_webapi.types import ResponseReturnValue
 
+from ..blueprint import api_blueprint
+
 
 def get_limit() -> str:
     """Get the rate limit string."""
     return current_app.config["RATE_LIMIT_MEDIA_ARCHIVE"]
 
 
+@api_blueprint.doc(tags=["Media"])
 class MediaArchiveResource(ProtectedResource):
     """Resource for downloading an archive of media files."""
 
@@ -59,6 +62,7 @@ class MediaArchiveResource(ProtectedResource):
         return jsonify(task), 201
 
 
+@api_blueprint.doc(tags=["Media"])
 class MediaArchiveFileResource(ProtectedResource):
     """Resource for downloading an archive of media files."""
 

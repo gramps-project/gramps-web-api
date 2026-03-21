@@ -35,7 +35,9 @@ class TaskStatusSchema(Schema):
     """Response schema for GET /tasks/<task_id>."""
 
     state = fields.Str(
-        metadata={"description": "The current task state (e.g. 'PENDING', 'STARTED', 'SUCCESS', 'FAILURE')."},
+        metadata={
+            "description": "The current task state (e.g. 'PENDING', 'STARTED', 'SUCCESS', 'FAILURE')."
+        },
     )
     result_object = fields.Raw(
         metadata={"description": "The task result object if available."},
@@ -48,6 +50,7 @@ class TaskStatusSchema(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Tasks"])
 class TaskResource(ProtectedResource):
     """Resource for a single task."""
 

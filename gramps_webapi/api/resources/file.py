@@ -47,11 +47,15 @@ class MediaFileGetQueryArgs(Schema):
 
     download = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, return the file as an attachment (forces download)."},
+        metadata={
+            "description": "If true, return the file as an attachment (forces download)."
+        },
     )
     jwt = fields.String(
         required=False,
-        metadata={"description": "JWT token for download authentication (used when the browser fetches the file directly)."},
+        metadata={
+            "description": "JWT token for download authentication (used when the browser fetches the file directly)."
+        },
     )
 
 
@@ -60,10 +64,13 @@ class MediaFilePutQueryArgs(Schema):
 
     uploadmissing = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, upload a missing file for an existing media object without modifying the object record."},
+        metadata={
+            "description": "If true, upload a missing file for an existing media object without modifying the object record."
+        },
     )
 
 
+@api_blueprint.doc(tags=["Media"])
 class MediaFileResource(ProtectedResource):
     """Resource for media files."""
 

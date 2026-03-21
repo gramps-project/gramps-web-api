@@ -660,6 +660,7 @@ class PersonTimelineQueryArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Timeline"])
 class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
     """Person timeline resource."""
 
@@ -791,6 +792,7 @@ class FamilyTimelineQueryArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Timeline"])
 class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
     """Family timeline resource."""
 
@@ -946,6 +948,7 @@ class TimelinePeopleQueryArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Timeline"])
 class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
     """People timeline resource."""
 
@@ -1091,6 +1094,7 @@ class TimelineFamiliesQueryArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Timeline"])
 class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
     """Families timeline resource."""
 

@@ -61,6 +61,7 @@ class LivingQueryArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Living"])
 class LivingResource(ProtectedResource, GrampsJSONEncoder):
     """Living calculator resource."""
 
@@ -116,6 +117,7 @@ class LivingDatesQueryArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Living"])
 class LivingDatesResource(ProtectedResource, GrampsJSONEncoder):
     """Living calculator dates resource."""
 

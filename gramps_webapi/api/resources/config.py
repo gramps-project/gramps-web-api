@@ -32,6 +32,7 @@ from ..blueprint import api_blueprint
 from . import ProtectedResource
 
 
+@api_blueprint.doc(tags=["Config"])
 class ConfigsResource(ProtectedResource):
     """Resource for configuration settings."""
 
@@ -50,6 +51,7 @@ class ConfigValueArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Config"])
 class ConfigResource(ProtectedResource):
     """Resource for a single config setting."""
 

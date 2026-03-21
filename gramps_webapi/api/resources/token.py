@@ -77,11 +77,14 @@ class TokenLoginSchema(Schema):
     """Request body for POST /token/."""
 
     username = fields.Str(
-        required=True, validate=validate.Length(min=1),
+        required=True,
+        validate=validate.Length(min=1),
         metadata={"description": "The username for authentication."},
     )
     password = fields.Str(
-        required=True, validate=validate.Length(min=1), load_only=True,
+        required=True,
+        validate=validate.Length(min=1),
+        load_only=True,
         metadata={"description": "The user's password."},
     )
 
@@ -99,6 +102,7 @@ class TokenPairSchema(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Token"])
 class TokenResource(Resource):
     """Resource for obtaining a JWT."""
 
@@ -142,6 +146,7 @@ class TokenSchema(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Token"])
 class TokenRefreshResource(RefreshProtectedResource):
     """Resource for refreshing a JWT."""
 
@@ -176,6 +181,7 @@ class TokenCreateOwnerPostSchema(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Token"])
 class TokenCreateOwnerResource(Resource):
     """Resource for getting a token that allows creating a site admin or tree owner account."""
 

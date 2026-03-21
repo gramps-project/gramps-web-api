@@ -261,6 +261,7 @@ class CustomFilterSchema(FilterSchema):
     )
 
 
+@api_blueprint.doc(tags=["Filters"])
 class FiltersResources(ProtectedResource, GrampsJSONEncoder):
     """Filters resources."""
 
@@ -293,6 +294,7 @@ class FiltersQueryArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Filters"])
 class FiltersResource(ProtectedResource, GrampsJSONEncoder):
     """Filters resource."""
 
@@ -362,6 +364,7 @@ class FilterDeleteQueryArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Filters"])
 class FilterResource(ProtectedResource, GrampsJSONEncoder):
     """Filter resource."""
 

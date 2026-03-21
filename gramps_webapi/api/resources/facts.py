@@ -152,6 +152,7 @@ class FactsQueryArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Facts"])
 class FactsResource(ProtectedResource, GrampsJSONEncoder):
     """Facts resource."""
 

@@ -52,6 +52,7 @@ from .schemas import ExporterSchema
 from gramps_webapi.types import ResponseReturnValue
 
 
+@api_blueprint.doc(tags=["Exporters"])
 class ExportersResource(ProtectedResource, GrampsJSONEncoder):
     """Exporters resource."""
 
@@ -63,6 +64,7 @@ class ExportersResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, get_exporters())
 
 
+@api_blueprint.doc(tags=["Exporters"])
 class ExporterResource(ProtectedResource, GrampsJSONEncoder):
     """Export resource."""
 
@@ -205,6 +207,7 @@ class ExporterFileQueryArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Exporters"])
 class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
     """Export file resource."""
 
@@ -251,6 +254,7 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
         return send_file(buffer, mimetype=mime_type)
 
 
+@api_blueprint.doc(tags=["Exporters"])
 class ExporterFileResultResource(ProtectedResource, GrampsJSONEncoder):
     """Export file result resource."""
 

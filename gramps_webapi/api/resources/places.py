@@ -33,6 +33,8 @@ from .base import (
 )
 from .util import get_extended_attributes, get_place_profile_for_object
 
+from ..blueprint import api_blueprint
+
 
 class PlaceResourceHelper(GrampsObjectResourceHelper):
     """Place resource helper."""
@@ -53,9 +55,11 @@ class PlaceResourceHelper(GrampsObjectResourceHelper):
         return obj
 
 
+@api_blueprint.doc(tags=["Places"])
 class PlaceResource(GrampsObjectProtectedResource, PlaceResourceHelper):
     """Place resource."""
 
 
+@api_blueprint.doc(tags=["Places"])
 class PlacesResource(GrampsObjectsProtectedResource, PlaceResourceHelper):
     """Places resource."""

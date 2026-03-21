@@ -76,10 +76,12 @@ class EventResourceHelper(GrampsObjectResourceHelper):
         return obj
 
 
+@api_blueprint.doc(tags=["Events"])
 class EventResource(GrampsObjectProtectedResource, EventResourceHelper):
     """Event resource."""
 
 
+@api_blueprint.doc(tags=["Events"])
 class EventsResource(GrampsObjectsProtectedResource, EventResourceHelper):
     """Events resource."""
 
@@ -109,6 +111,7 @@ class EventSpanQueryArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Events"])
 class EventSpanResource(ProtectedResource, GrampsJSONEncoder):
     """Event date span resource."""
 

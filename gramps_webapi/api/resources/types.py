@@ -175,6 +175,7 @@ class TypesLocaleArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Types"])
 class DefaultTypesResource(ProtectedResource, GrampsJSONEncoder):
     """Default types resource."""
 
@@ -188,6 +189,7 @@ class DefaultTypesResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, result)
 
 
+@api_blueprint.doc(tags=["Types"])
 class DefaultTypeResource(ProtectedResource, GrampsJSONEncoder):
     """Default type resource."""
 
@@ -200,6 +202,7 @@ class DefaultTypeResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, result)
 
 
+@api_blueprint.doc(tags=["Types"])
 class DefaultTypeMapResource(ProtectedResource, GrampsJSONEncoder):
     """Default type resource."""
 
@@ -217,6 +220,7 @@ class DefaultTypeMapResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, result)
 
 
+@api_blueprint.doc(tags=["Types"])
 class CustomTypesResource(ProtectedResource, GrampsJSONEncoder):
     """Custom types resource."""
 
@@ -230,6 +234,7 @@ class CustomTypesResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, result)
 
 
+@api_blueprint.doc(tags=["Types"])
 class CustomTypeResource(ProtectedResource, GrampsJSONEncoder):
     """Custom type resource."""
 
@@ -242,6 +247,7 @@ class CustomTypeResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, result)
 
 
+@api_blueprint.doc(tags=["Types"])
 class TypesResource(ProtectedResource, GrampsJSONEncoder):
     """Types resource."""
 

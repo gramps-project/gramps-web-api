@@ -41,6 +41,8 @@ from .util import (
 )
 from gramps_webapi.types import ResponseReturnValue
 
+from ..blueprint import api_blueprint
+
 
 class FamilyResourceHelper(GrampsObjectResourceHelper):
     """Family resource helper."""
@@ -73,10 +75,12 @@ class FamilyResourceHelper(GrampsObjectResourceHelper):
         return obj
 
 
+@api_blueprint.doc(tags=["Families"])
 class FamilyResource(GrampsObjectProtectedResource, FamilyResourceHelper):
     """Family resource."""
 
 
+@api_blueprint.doc(tags=["Families"])
 class FamiliesResource(GrampsObjectsProtectedResource, FamilyResourceHelper):
     """Families resource."""
 

@@ -30,7 +30,10 @@ from ..media import get_media_handler
 from ..util import get_db_handle, get_tree_from_jwt
 from . import ProtectedResource
 
+from ..blueprint import api_blueprint
 
+
+@api_blueprint.doc(tags=["Media"])
 class MediaFaceDetectionResource(ProtectedResource):
     """Resource for face detection in media files."""
 

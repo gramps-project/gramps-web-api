@@ -58,6 +58,7 @@ from .schemas import TaskReferenceSchema, TransactionSchema
 from .util import add_object, fix_object_dict, transaction_to_json, validate_object_dict
 
 
+@api_blueprint.doc(tags=["Transactions"])
 class CreateObjectsResource(ProtectedResource):
     """Resource for creating multiple objects."""
 
@@ -131,6 +132,7 @@ class DeleteObjectsQueryArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Transactions"])
 class DeleteObjectsResource(FreshProtectedResource):
     """Resource for deleting multiple objects."""
 

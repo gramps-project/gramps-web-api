@@ -70,6 +70,7 @@ class MetadataQueryArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Metadata"])
 class MetadataResource(ProtectedResource, GrampsJSONEncoder):
     """Metadata resource."""
 

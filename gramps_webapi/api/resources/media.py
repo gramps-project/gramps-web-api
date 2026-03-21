@@ -47,6 +47,8 @@ from .util import (
     transaction_to_json,
 )
 
+from ..blueprint import api_blueprint
+
 
 class MediaObjectResourceHelper(GrampsObjectResourceHelper):
     """Media resource helper."""
@@ -66,10 +68,12 @@ class MediaObjectResourceHelper(GrampsObjectResourceHelper):
         return obj
 
 
+@api_blueprint.doc(tags=["Media"])
 class MediaObjectResource(GrampsObjectProtectedResource, MediaObjectResourceHelper):
     """Media object resource."""
 
 
+@api_blueprint.doc(tags=["Media"])
 class MediaObjectsResource(GrampsObjectsProtectedResource, MediaObjectResourceHelper):
     """Media objects resource."""
 

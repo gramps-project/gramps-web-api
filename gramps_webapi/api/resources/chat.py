@@ -83,6 +83,7 @@ class ChatQueryArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Chat"])
 class ChatResource(ProtectedResource):
     """AI chat resource."""
 

@@ -45,7 +45,7 @@ from .auth import user_db
 from .auth.oidc import init_oidc
 from .auth.token_blocklist import is_jti_blocklisted
 from .config import DefaultConfig, DefaultConfigJWT
-from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI
+from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI, VERSION
 from .dbmanager import WebDbManager
 from .util.celery import create_celery
 
@@ -217,7 +217,34 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
             return send_from_directory(static_path, "index.html")
 
     # register the API blueprint
-    api = flask_smorest.Api(app)
+    api = flask_smorest.Api(
+        app,
+        spec_kwargs={
+            "info": {
+                "title": "Gramps Web API",
+                "version": VERSION,
+                "description": (
+                    "The Gramps Web API is a REST API that provides access to "
+                    "family tree databases generated and maintained with Gramps, "
+                    "a popular Open Source genealogical research software package."
+                ),
+                "license": {
+                    "name": "GNU Affero General Public License v3.0",
+                    "url": "http://www.gnu.org/licenses/agpl-3.0.html",
+                },
+            },
+            "components": {
+                "securitySchemes": {
+                    "BearerAuth": {
+                        "type": "http",
+                        "scheme": "bearer",
+                        "bearerFormat": "JWT",
+                    }
+                }
+            },
+            "security": [{"BearerAuth": []}],
+        },
+    )
     api.register_blueprint(api_blueprint)
     limiter.init_app(app)
 

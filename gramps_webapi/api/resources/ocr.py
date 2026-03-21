@@ -41,15 +41,21 @@ class MediaOcrQueryArgs(Schema):
     """Query arguments for POST /media/<handle>/ocr."""
 
     lang = fields.Str(
-        required=True, validate=validate.Length(min=1),
-        metadata={"description": "Tesseract language code for OCR (e.g. 'eng', 'deu')."},
+        required=True,
+        validate=validate.Length(min=1),
+        metadata={
+            "description": "Tesseract language code for OCR (e.g. 'eng', 'deu')."
+        },
     )
     format = fields.Str(
         load_default="string",
-        metadata={"description": "Output format: 'string' (default), 'data', 'boxes', or 'hocr'."},
+        metadata={
+            "description": "Output format: 'string' (default), 'data', 'boxes', or 'hocr'."
+        },
     )
 
 
+@api_blueprint.doc(tags=["Media"])
 class MediaOcrResource(ProtectedResource):
     """Resource for media files."""
 

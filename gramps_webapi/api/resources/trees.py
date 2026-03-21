@@ -135,6 +135,7 @@ class TreeCreateBodyArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Trees"])
 class TreesResource(ProtectedResource):
     """Resource for getting info about trees."""
 
@@ -199,6 +200,7 @@ class TreeUpdateBodyArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Trees"])
 class TreeResource(ProtectedResource):
     """Resource for a single tree."""
 
@@ -280,6 +282,7 @@ class DisableEnableTreeResource(ProtectedResource):
         return "", 201
 
 
+@api_blueprint.doc(tags=["Trees"])
 class DisableTreeResource(DisableEnableTreeResource):
     """Resource for disabling a tree."""
 
@@ -288,6 +291,7 @@ class DisableTreeResource(DisableEnableTreeResource):
         return self._post_disable_enable_tree(tree_id=tree_id, disabled=True)
 
 
+@api_blueprint.doc(tags=["Trees"])
 class EnableTreeResource(DisableEnableTreeResource):
     """Resource for enabling a tree."""
 
@@ -296,6 +300,7 @@ class EnableTreeResource(DisableEnableTreeResource):
         return self._post_disable_enable_tree(tree_id=tree_id, disabled=False)
 
 
+@api_blueprint.doc(tags=["Trees"])
 class CheckTreeResource(ProtectedResource):
     """Resource for checking & repairing a Gramps database."""
 
@@ -321,6 +326,7 @@ class CheckTreeResource(ProtectedResource):
         return jsonify(task), 201
 
 
+@api_blueprint.doc(tags=["Trees"])
 class UpgradeTreeSchemaResource(ProtectedResource):
     """Resource for upgrading the schema of a Gramps Gramps database."""
 

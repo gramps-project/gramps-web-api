@@ -118,6 +118,7 @@ class UserChangeBase(ProtectedResource):
         return user_name, other_tree
 
 
+@api_blueprint.doc(tags=["Users"])
 class UsersResource(ProtectedResource):
     """Resource for all users."""
 
@@ -236,6 +237,7 @@ class UserPostBodyArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Users"])
 class UserResource(UserChangeBase):
     """Resource for a single user."""
 
@@ -392,6 +394,7 @@ class UserRegisterBodyArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Users"])
 class UserRegisterResource(Resource):
     """Resource for registering a new user."""
 
@@ -483,6 +486,7 @@ class UserCreateOwnerBodyArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Users"])
 class UserCreateOwnerResource(LimitedScopeProtectedResource):
     """Resource for creating a site admin when the user database is empty."""
 
@@ -552,6 +556,7 @@ class UserChangePasswordBodyArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Users"])
 class UserChangePasswordResource(UserChangeBase):
     """Resource for changing a user password."""
 
@@ -567,6 +572,7 @@ class UserChangePasswordResource(UserChangeBase):
         return "", 201
 
 
+@api_blueprint.doc(tags=["Users"])
 class UserTriggerResetPasswordResource(Resource):
     """Resource for obtaining a one-time JWT for password reset."""
 
@@ -615,6 +621,7 @@ class UserResetPasswordBodyArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Users"])
 class UserResetPasswordResource(LimitedScopeProtectedResource):
     """Resource for resetting a user password."""
 
@@ -659,6 +666,7 @@ class UserResetPasswordResource(LimitedScopeProtectedResource):
         return render_template("reset_password.html", username=username)
 
 
+@api_blueprint.doc(tags=["Users"])
 class UserConfirmEmailResource(LimitedScopeProtectedResource):
     """Resource for confirming an email address."""
 

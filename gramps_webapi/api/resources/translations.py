@@ -81,6 +81,7 @@ class TranslationPostArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Translations"])
 class TranslationResource(ProtectedResource, GrampsJSONEncoder):
     """Translation resource."""
 
@@ -137,6 +138,7 @@ class TranslationsQueryArgs(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Translations"])
 class TranslationsResource(ProtectedResource, GrampsJSONEncoder):
     """Translations resource."""
 

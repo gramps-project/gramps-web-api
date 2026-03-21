@@ -47,6 +47,7 @@ class NameFormatSchema(Schema):
     )
 
 
+@api_blueprint.doc(tags=["Name Formats"])
 class NameFormatsResource(ProtectedResource, GrampsJSONEncoder):
     """Name Formats resource."""
 
