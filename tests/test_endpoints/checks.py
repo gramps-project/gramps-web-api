@@ -28,7 +28,12 @@ from .util import check_keys_stripped, fetch_header
 
 def _get_openapi_spec(client):
     """Return (spec, resolver) for the generated OpenAPI 3.0 spec."""
-    spec = client.get("/api/openapi.json").get_json()
+    response = client.get("/api/openapi.json")
+    assert (
+        response.status_code == 200
+    ), f"Failed to fetch OpenAPI spec: {response.status_code}"
+    spec = response.get_json()
+    assert spec is not None, "OpenAPI spec returned non-JSON response"
     resolver = RefResolver(base_uri="", referrer=spec, store={"": spec})
     return spec, resolver
 

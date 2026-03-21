@@ -19,7 +19,6 @@
 
 """Test consistent version numbers."""
 
-import json
 import unittest
 
 from gramps_webapi import __version__
@@ -33,11 +32,16 @@ class TestVersion(unittest.TestCase):
     def setUpClass(cls):
         """Set up a minimal app and fetch the live OpenAPI spec."""
         app = create_app(
-            {"TREE": "test", "SECRET_KEY": "test", "USER_DB_URI": "sqlite://"}
+            {"TREE": "test", "SECRET_KEY": "test", "USER_DB_URI": "sqlite://"},
+            config_from_env=False,
         )
         with app.test_client() as client:
             response = client.get("/api/openapi.json")
-            cls.spec = json.loads(response.data)
+            assert (
+                response.status_code == 200
+            ), f"Failed to fetch OpenAPI spec: {response.status_code}"
+            cls.spec = response.get_json()
+            assert cls.spec is not None, "OpenAPI spec returned non-JSON response"
 
     def test_version(self):
         """Test version in package and live OpenAPI spec are equal."""

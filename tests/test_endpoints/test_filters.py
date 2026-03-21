@@ -56,7 +56,6 @@ class TestAllFilters(unittest.TestCase):
         """Test conforms to schema."""
         rv = check_success(self, TEST_URL)
         schema, resolver = get_openapi_schema_validator(self.client, "NamespaceFilters")
-        from jsonschema import validate
 
         for namespace in GRAMPS_NAMESPACES:
             self.assertIn(namespace, rv)
@@ -109,7 +108,6 @@ class TestFilters(unittest.TestCase):
         schema, resolver = get_openapi_schema_validator(
             self.client, "FilterRuleDescription"
         )
-        from jsonschema import validate
 
         for namespace in GRAMPS_NAMESPACES:
             rv = check_success(self, TEST_URL + namespace)
