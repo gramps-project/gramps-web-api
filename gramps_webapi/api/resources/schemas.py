@@ -1,10 +1,9 @@
 """Response schemas for the Gramps Web API.
 
-Every class here corresponds to a definition in the legacy ``apispec.yaml``
-(Swagger 2.0).  The schemas are used exclusively for OpenAPI documentation via
-flask-smorest ``@api_blueprint.response()``; they do **not** perform
-serialisation because most endpoints return a pre-built Flask ``Response``
-object that flask-smorest passes through unchanged.
+Each class defines the shape of a response object and is used exclusively for
+OpenAPI documentation via flask-smorest ``@api_blueprint.response()``; they do
+**not** perform serialisation because most endpoints return a pre-built Flask
+``Response`` object that flask-smorest passes through unchanged.
 
 All schemas set ``Meta.unknown = INCLUDE`` so that no data is silently dropped
 if one of these schemas is accidentally used for de-serialisation, and to avoid
