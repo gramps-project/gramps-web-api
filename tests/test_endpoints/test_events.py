@@ -24,7 +24,7 @@ import unittest
 from . import BASE_URL, get_object_count, get_test_client
 from .checks import (
     check_boolean_parameter,
-    check_conforms_to_schema,
+    check_conforms_to_openapi_schema,
     check_invalid_semantics,
     check_invalid_syntax,
     check_keys_parameter,
@@ -57,7 +57,7 @@ class TestEvents(unittest.TestCase):
 
     def test_get_events_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(
+        check_conforms_to_openapi_schema(
             self, TEST_URL + "?extend=all&profile=all&backlinks=1", "Event"
         )
 
@@ -492,7 +492,7 @@ class TestEventsHandle(unittest.TestCase):
 
     def test_get_events_handle_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(
+        check_conforms_to_openapi_schema(
             self,
             TEST_URL + "a5af0eb6dd140de132c?extend=all&profile=all&backlinks=1",
             "Event",

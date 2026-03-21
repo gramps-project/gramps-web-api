@@ -37,7 +37,7 @@ from gramps_webapi.const import (
 
 from . import BASE_URL, TEST_USERS, get_test_client
 from .checks import (
-    check_conforms_to_schema,
+    check_conforms_to_openapi_schema,
     check_invalid_semantics,
     check_invalid_syntax,
     check_requires_token,
@@ -63,7 +63,7 @@ class TestReports(unittest.TestCase):
 
     def test_get_reports_conforms_to_schema(self):
         """Test conformity to schema."""
-        check_conforms_to_schema(self, TEST_URL, "Report")
+        check_conforms_to_openapi_schema(self, TEST_URL, "Report")
 
     def test_get_reports_validate_semantics(self):
         """Test invalid parameters and values."""
@@ -92,7 +92,7 @@ class TestReportsReportId(unittest.TestCase):
 
     def test_get_reports_report_id_conforms_to_schema(self):
         """Test conformity to schema."""
-        check_conforms_to_schema(self, TEST_URL + "ancestor_report", "Report")
+        check_conforms_to_openapi_schema(self, TEST_URL + "ancestor_report", "Report")
 
     def test_get_reports_report_id_missing_content(self):
         """Test response for missing content."""

@@ -22,7 +22,7 @@
 import unittest
 
 from . import BASE_URL, get_test_client
-from .checks import check_conforms_to_schema, check_requires_token
+from .checks import check_conforms_to_openapi_schema, check_requires_token
 
 TEST_URL = BASE_URL + "/metadata/"
 
@@ -41,7 +41,7 @@ class TestMetadata(unittest.TestCase):
 
     def test_get_metadata_conforms_to_schema(self):
         """Test conforms to schema."""
-        res = check_conforms_to_schema(self, TEST_URL, "Metadata")
+        res = check_conforms_to_openapi_schema(self, TEST_URL, "Metadata")
         assert res["database"]["type"] == "sqlite"
         assert "search" in res
         assert "sifts" in res["search"]

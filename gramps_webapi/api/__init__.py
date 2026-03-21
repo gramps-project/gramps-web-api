@@ -19,7 +19,7 @@
 
 """REST API blueprint."""
 
-from typing import Type
+from typing import List, Optional, Type
 
 from flask import current_app
 from webargs import fields, validate
@@ -137,7 +137,9 @@ from .blueprint import api_blueprint
 from .util import get_db_handle, get_tree_from_jwt, parser, use_args
 
 
-def register_endpt(resource: Type[Resource], url: str, name: str, tags: list = None):
+def register_endpt(
+    resource: Type[Resource], url: str, name: str, tags: Optional[List[str]] = None
+):
     """Register an endpoint."""
     # Register all HTTP methods explicitly so Werkzeug always finds the route
     # and returns 405 (not 404) for methods the view doesn't implement.

@@ -35,6 +35,17 @@ from gramps.gen.config import set as setconfig
 from PIL import Image
 
 from .api import api_blueprint
+from .api.resources.schemas import (
+    CitationSchema,
+    EventSchema,
+    FamilySchema,
+    MediaSchema,
+    NoteSchema,
+    PlaceSchema,
+    RepositorySchema,
+    SourceSchema,
+    TagSchema,
+)
 from .api.cache import persistent_cache, request_cache, thumbnail_cache
 from .api.ratelimiter import limiter
 from .api.search.embeddings import load_model
@@ -246,6 +257,23 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         },
     )
     api.register_blueprint(api_blueprint)
+
+    # Explicitly register core Gramps object schemas so they appear in the
+    # generated OpenAPI spec even though the base-class GET methods use the
+    # generic Schema() response decorator.
+    for _schema_name, _schema_cls in [
+        ("Citation", CitationSchema),
+        ("Event", EventSchema),
+        ("Family", FamilySchema),
+        ("Media", MediaSchema),
+        ("Note", NoteSchema),
+        ("Place", PlaceSchema),
+        ("Repository", RepositorySchema),
+        ("Source", SourceSchema),
+        ("Tag", TagSchema),
+    ]:
+        api.spec.components.schema(_schema_name, schema=_schema_cls())
+
     limiter.init_app(app)
 
     # Flask 3.x removed the exc.response early-return from handle_http_exception,

@@ -36,7 +36,7 @@ from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EMPTY_GRAMPS_AUTH_CONFIG
 from .. import ExampleDbInMemory
 from . import BASE_URL, TEST_USERS, get_test_client
 from .checks import (
-    check_conforms_to_schema,
+    check_conforms_to_openapi_schema,
     check_invalid_semantics,
     check_requires_token,
     check_resource_missing,
@@ -61,7 +61,7 @@ class TestImporters(unittest.TestCase):
 
     def test_get_exporters_conforms_to_schema(self):
         """Test conformity to schema."""
-        check_conforms_to_schema(self, TEST_URL, "Importer")
+        check_conforms_to_openapi_schema(self, TEST_URL, "Importer")
 
     def test_get_exporters_validate_semantics(self):
         """Test invalid parameters and values."""
@@ -82,7 +82,7 @@ class TestExportersExtension(unittest.TestCase):
 
     def test_get_exporters_extension_conforms_to_schema(self):
         """Test conformity to schema."""
-        check_conforms_to_schema(self, TEST_URL + "gramps", "Importer")
+        check_conforms_to_openapi_schema(self, TEST_URL + "gramps", "Importer")
 
     def test_get_exporters_extension_missing_content(self):
         """Test response for missing content."""

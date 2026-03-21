@@ -24,7 +24,7 @@ import unittest
 from gramps_webapi.auth.const import ROLE_MEMBER
 
 from . import BASE_URL, get_test_client
-from .checks import check_conforms_to_schema, check_requires_token, check_success
+from .checks import check_conforms_to_openapi_schema, check_requires_token, check_success
 from .util import fetch_header
 
 TEST_URL = BASE_URL + "/name-groups/"
@@ -44,7 +44,7 @@ class TestNameGroups(unittest.TestCase):
 
     def test_get_name_groups_conforms_to_schema(self):
         """Test conformity to schema."""
-        check_conforms_to_schema(self, TEST_URL, "NameGroupMapping")
+        check_conforms_to_openapi_schema(self, TEST_URL, "NameGroup")
 
 
 class TestNameGroupsSurname(unittest.TestCase):

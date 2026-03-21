@@ -26,7 +26,7 @@ from urllib.parse import quote
 from . import BASE_URL, get_object_count, get_test_client
 from .checks import (
     check_boolean_parameter,
-    check_conforms_to_schema,
+    check_conforms_to_openapi_schema,
     check_invalid_semantics,
     check_invalid_syntax,
     check_keys_parameter,
@@ -59,7 +59,7 @@ class TestPeople(unittest.TestCase):
 
     def test_get_people_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(
+        check_conforms_to_openapi_schema(
             self, TEST_URL + "?extend=all&profile=all&backlinks=1", "Person"
         )
 
@@ -957,7 +957,7 @@ class TestPeopleHandle(unittest.TestCase):
 
     def test_get_people_handle_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(
+        check_conforms_to_openapi_schema(
             self,
             TEST_URL + "0PWJQCZYFXOS0HGREE?extend=all&profile=all&backlinks=1",
             "Person",
@@ -1311,7 +1311,7 @@ class TestPeopleHandleTimeline(unittest.TestCase):
 
     def test_get_people_handle_timeline_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(
+        check_conforms_to_openapi_schema(
             self,
             TEST_URL + "GNUJQCL9MD64AM56OH/timeline?ratings=1",
             "TimelineEventProfile",
