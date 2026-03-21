@@ -441,7 +441,7 @@ class GrampsObjectsQueryArgs(Schema):
     )
     page = fields.Integer(
         load_default=0,
-        validate=validate.Range(min=1),
+        validate=validate.Range(min=0),
         metadata={
             "description": "Page number of the result subset to return. If omitted (default 0), all results are returned."
         },
