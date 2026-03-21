@@ -2386,6 +2386,32 @@ class CladeInfoSchema(_Base):
     )
 
 
+class YDnaResponseSchema(_Base):
+    """Y-DNA analysis result for a person.
+
+    All fields are optional; an empty object ``{}`` is returned when no Y-DNA
+    attribute is found on the person.
+    """
+
+    clade_lineage = fields.List(
+        fields.Nested(CladeInfoSchema),
+        metadata={
+            "description": "Ordered list of Y-DNA haplogroup clade assignments, "
+            "from broadest to most specific."
+        },
+    )
+    tree_version = fields.Str(
+        metadata={
+            "description": "Version of the YFull tree used for clade assignment."
+        },
+    )
+    raw_data = fields.Str(
+        metadata={
+            "description": "Raw Y-DNA SNP data string. Only present if raw=true was requested."
+        },
+    )
+
+
 class RecordFactObjectSchema(_Base):
     """A single object referenced by a genealogical fact."""
 

@@ -32,7 +32,7 @@ from ..blueprint import api_blueprint
 from ..cache import request_cache_decorator
 from ..util import get_db_handle, abort_with_message
 from . import ProtectedResource
-from .schemas import CladeInfoSchema
+from .schemas import YDnaResponseSchema
 
 
 class PersonYDnaQueryArgs(Schema):
@@ -57,7 +57,7 @@ class PersonYDnaQueryArgs(Schema):
 class PersonYDnaResource(ProtectedResource):
     """Resource for getting Y-DNA data for a person."""
 
-    @api_blueprint.response(200, CladeInfoSchema(many=True))
+    @api_blueprint.response(200, YDnaResponseSchema())
     @api_blueprint.arguments(PersonYDnaQueryArgs, location="query")
     @request_cache_decorator
     def get(self, args: dict, handle: str):
