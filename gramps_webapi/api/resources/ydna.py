@@ -39,12 +39,17 @@ class PersonYDnaQueryArgs(Schema):
     """Query arguments for GET /people/<handle>/ydna."""
 
     locale = fields.Str(
-        load_default=None, validate=validate.Length(min=2, max=5),
-        metadata={"description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."},
+        load_default=None,
+        validate=validate.Length(min=2, max=5),
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
     )
     raw = fields.Bool(
         load_default=False,
-        metadata={"description": "If true, include the raw Y-chromosome SNP data in the response."},
+        metadata={
+            "description": "If true, include the raw Y-chromosome SNP data in the response."
+        },
     )
 
 

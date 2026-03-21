@@ -44,12 +44,18 @@ class RelationQueryArgs(Schema):
     """Query arguments for relation endpoints."""
 
     depth = fields.Integer(
-        load_default=15, validate=validate.Range(min=2),
-        metadata={"description": "Maximum number of generations to search for a common ancestor (default 15)."},
+        load_default=15,
+        validate=validate.Range(min=2),
+        metadata={
+            "description": "Maximum number of generations to search for a common ancestor (default 15)."
+        },
     )
     locale = fields.Str(
-        load_default=None, validate=validate.Length(min=1, max=5),
-        metadata={"description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."},
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
     )
 
 

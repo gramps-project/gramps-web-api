@@ -40,7 +40,9 @@ from ..auth import has_permissions, require_permissions
 class ChatMessageSchema(Schema):
     role = fields.Str(
         required=True,
-        metadata={"description": "Role of the message sender: one of 'human', 'ai', 'system', 'assistant', or 'error'."},
+        metadata={
+            "description": "Role of the message sender: one of 'human', 'ai', 'system', 'assistant', or 'error'."
+        },
     )
     message = fields.Str(
         required=True,
@@ -56,8 +58,11 @@ class ChatBodyArgs(Schema):
         metadata={"description": "The chat prompt to answer."},
     )
     history = fields.List(
-        fields.Nested(ChatMessageSchema), required=False,
-        metadata={"description": "Optional list of prior conversation messages ({role, message})."},
+        fields.Nested(ChatMessageSchema),
+        required=False,
+        metadata={
+            "description": "Optional list of prior conversation messages ({role, message})."
+        },
     )
 
 
@@ -66,11 +71,15 @@ class ChatQueryArgs(Schema):
 
     background = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, process the chat in the background and return HTTP 202."},
+        metadata={
+            "description": "If true, process the chat in the background and return HTTP 202."
+        },
     )
     verbose = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, include detailed agent metadata (tool calls, token usage) in the response."},
+        metadata={
+            "description": "If true, include detailed agent metadata (tool calls, token usage) in the response."
+        },
     )
 
 

@@ -75,7 +75,8 @@ class TranslationPostArgs(Schema):
     """Body arguments for POST /translations/<language>/."""
 
     strings = fields.List(
-        fields.Str(), required=True,
+        fields.Str(),
+        required=True,
         metadata={"description": "The string(s) to translate."},
     )
 
@@ -122,12 +123,17 @@ class TranslationsQueryArgs(Schema):
     """Query arguments for GET /translations/."""
 
     locale = fields.Str(
-        load_default=None, validate=validate.Length(min=1, max=5),
-        metadata={"description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."},
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
     )
     sort = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited sort keys for the language list. Available: current, default, language, native. Prefix with '-' for descending."},
+        metadata={
+            "description": "Comma-delimited sort keys for the language list. Available: current, default, language, native. Prefix with '-' for descending."
+        },
     )
 
 

@@ -129,7 +129,9 @@ class TreeCreateBodyArgs(Schema):
     )
     min_role_ai = fields.Integer(
         required=False,
-        metadata={"description": "Minimum user role level required to use the AI chat endpoint."},
+        metadata={
+            "description": "Minimum user role level required to use the AI chat endpoint."
+        },
     )
 
 
@@ -177,7 +179,8 @@ class TreeUpdateBodyArgs(Schema):
     """Body arguments for PUT /trees/<tree_id>/."""
 
     name = fields.Str(
-        required=False, load_default=None,
+        required=False,
+        load_default=None,
         metadata={"description": "The name of the tree."},
     )
     quota_media = fields.Integer(
@@ -190,7 +193,9 @@ class TreeUpdateBodyArgs(Schema):
     )
     min_role_ai = fields.Integer(
         required=False,
-        metadata={"description": "Minimum user role level required to use the AI chat endpoint."},
+        metadata={
+            "description": "Minimum user role level required to use the AI chat endpoint."
+        },
     )
 
 

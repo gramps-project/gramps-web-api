@@ -52,7 +52,9 @@ class ReportsQueryArgs(Schema):
 
     include_help = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, include the options help dictionary in the response."},
+        metadata={
+            "description": "If true, include the options help dictionary in the response."
+        },
     )
 
 
@@ -74,7 +76,9 @@ class ReportQueryArgs(Schema):
 
     include_help = fields.Boolean(
         load_default=True,
-        metadata={"description": "If true, include the options help dictionary in the response."},
+        metadata={
+            "description": "If true, include the options help dictionary in the response."
+        },
     )
 
 
@@ -100,15 +104,22 @@ class ReportFileQueryArgs(Schema):
 
     options = fields.Str(
         validate=validate.Length(min=1),
-        metadata={"description": "Report options as a JSON string. See the report's options_help for available keys."},
+        metadata={
+            "description": "Report options as a JSON string. See the report's options_help for available keys."
+        },
     )
     locale = fields.Str(
-        load_default=None, validate=validate.Length(min=1, max=5),
-        metadata={"description": "Language code of the locale to use for the report output."},
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={
+            "description": "Language code of the locale to use for the report output."
+        },
     )
     jwt = fields.String(
         required=False,
-        metadata={"description": "JWT token for download authentication (used when the browser fetches the file directly)."},
+        metadata={
+            "description": "JWT token for download authentication (used when the browser fetches the file directly)."
+        },
     )
 
 

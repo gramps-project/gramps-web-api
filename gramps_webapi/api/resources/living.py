@@ -39,16 +39,25 @@ class LivingQueryArgs(Schema):
     """Query arguments for GET /people/<handle>/alive."""
 
     average_generation_gap = fields.Integer(
-        load_default=None, validate=validate.Range(min=1),
-        metadata={"description": "Average number of years between generations (default 20)."},
+        load_default=None,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Average number of years between generations (default 20)."
+        },
     )
     max_age_probably_alive = fields.Integer(
-        load_default=None, validate=validate.Range(min=1),
-        metadata={"description": "Maximum age in years at which a person could still be considered alive (default 110)."},
+        load_default=None,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Maximum age in years at which a person could still be considered alive (default 110)."
+        },
     )
     max_sibling_age_difference = fields.Integer(
-        load_default=None, validate=validate.Range(min=1),
-        metadata={"description": "Maximum age difference in years between the youngest and oldest sibling (default 20)."},
+        load_default=None,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Maximum age difference in years between the youngest and oldest sibling (default 20)."
+        },
     )
 
 
@@ -78,20 +87,32 @@ class LivingDatesQueryArgs(Schema):
     """Query arguments for GET /people/<handle>/alive/dates."""
 
     average_generation_gap = fields.Integer(
-        load_default=None, validate=validate.Range(min=1),
-        metadata={"description": "Average number of years between generations (default 20)."},
+        load_default=None,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Average number of years between generations (default 20)."
+        },
     )
     locale = fields.Str(
-        load_default=None, validate=validate.Length(min=1, max=5),
-        metadata={"description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."},
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
     )
     max_age_probably_alive = fields.Integer(
-        load_default=None, validate=validate.Range(min=1),
-        metadata={"description": "Maximum age in years at which a person could still be considered alive (default 110)."},
+        load_default=None,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Maximum age in years at which a person could still be considered alive (default 110)."
+        },
     )
     max_sibling_age_difference = fields.Integer(
-        load_default=None, validate=validate.Range(min=1),
-        metadata={"description": "Maximum age difference in years between the youngest and oldest sibling (default 20)."},
+        load_default=None,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Maximum age difference in years between the youngest and oldest sibling (default 20)."
+        },
     )
 
 

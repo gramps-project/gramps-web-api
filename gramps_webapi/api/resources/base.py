@@ -178,7 +178,9 @@ class GrampsObjectQueryArgs(Schema):
 
     backlinks = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, include handles of objects referring to this object, grouped by object type."},
+        metadata={
+            "description": "If true, include handles of objects referring to this object, grouped by object type."
+        },
     )
     extend = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
@@ -203,11 +205,15 @@ class GrampsObjectQueryArgs(Schema):
                 "child_ref_list",
             ]
         ),
-        metadata={"description": "Comma-delimited list of keys for which to include full records in an 'extended' section. Use 'all' to include everything."},
+        metadata={
+            "description": "Comma-delimited list of keys for which to include full records in an 'extended' section. Use 'all' to include everything."
+        },
     )
     formats = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of media format keys to include."},
+        metadata={
+            "description": "Comma-delimited list of media format keys to include."
+        },
     )
     format_options = fields.Str(
         validate=validate.Length(min=1),
@@ -215,15 +221,22 @@ class GrampsObjectQueryArgs(Schema):
     )
     keys = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of top-level keys to return; all others are omitted."},
+        metadata={
+            "description": "Comma-delimited list of top-level keys to return; all others are omitted."
+        },
     )
     locale = fields.Str(
-        load_default=None, validate=validate.Length(min=1, max=5),
-        metadata={"description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."},
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
     )
     name_format = fields.Str(
         validate=validate.Regexp(NAME_FORMAT_REGEXP),
-        metadata={"description": "Format string for name display (see gramps.gen.display.name for syntax)."},
+        metadata={
+            "description": "Format string for name display (see gramps.gen.display.name for syntax)."
+        },
     )
     profile = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
@@ -239,11 +252,15 @@ class GrampsObjectQueryArgs(Schema):
                 "references",
             ]
         ),
-        metadata={"description": "Comma-delimited list of profile sections to include. 'self': name/sex/birth/death; 'families': family summaries; 'events': event list; 'age': age at events; 'span': elapsed time; 'ratings': citation count and confidence; 'references': referring objects. Use 'all' for everything."},
+        metadata={
+            "description": "Comma-delimited list of profile sections to include. 'self': name/sex/birth/death; 'families': family summaries; 'events': event list; 'age': age at events; 'span': elapsed time; 'ratings': citation count and confidence; 'references': referring objects. Use 'all' for everything."
+        },
     )
     skipkeys = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of top-level keys to omit from the response; all others are kept."},
+        metadata={
+            "description": "Comma-delimited list of top-level keys to omit from the response; all others are kept."
+        },
     )
     soundex = fields.Boolean(
         load_default=False,
@@ -251,7 +268,9 @@ class GrampsObjectQueryArgs(Schema):
     )
     strip = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, strip keys with empty values from the response."},
+        metadata={
+            "description": "If true, strip keys with empty values from the response."
+        },
     )
 
 
@@ -331,7 +350,9 @@ class GrampsObjectsQueryArgs(Schema):
 
     backlinks = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, include handles of objects referring to this object, grouped by object type."},
+        metadata={
+            "description": "If true, include handles of objects referring to this object, grouped by object type."
+        },
     )
     dates = fields.Str(
         load_default=None,
@@ -342,7 +363,9 @@ class GrampsObjectsQueryArgs(Schema):
             r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
             r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
         ),
-        metadata={"description": "Date range filter. Formats: '-y/m/d' (before), 'y/m/d-' (after), 'y/m/d-y/m/d' (range). Components may use '*' as wildcard."},
+        metadata={
+            "description": "Date range filter. Formats: '-y/m/d' (before), 'y/m/d-' (after), 'y/m/d-y/m/d' (range). Components may use '*' as wildcard."
+        },
     )
     extend = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
@@ -367,7 +390,9 @@ class GrampsObjectsQueryArgs(Schema):
                 "child_ref_list",
             ]
         ),
-        metadata={"description": "Comma-delimited list of keys for which to include full records in an 'extended' section. Use 'all' to include everything."},
+        metadata={
+            "description": "Comma-delimited list of keys for which to include full records in an 'extended' section. Use 'all' to include everything."
+        },
     )
     filter = fields.Str(
         validate=validate.Length(min=1),
@@ -375,7 +400,9 @@ class GrampsObjectsQueryArgs(Schema):
     )
     formats = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of media format keys to include."},
+        metadata={
+            "description": "Comma-delimited list of media format keys to include."
+        },
     )
     format_options = fields.Str(
         validate=validate.Length(min=1),
@@ -383,30 +410,45 @@ class GrampsObjectsQueryArgs(Schema):
     )
     gql = fields.Str(
         validate=validate.Length(min=1),
-        metadata={"description": "A Gramps QL query string used to filter the objects (e.g. 'media_list.length >= 10')."},
+        metadata={
+            "description": "A Gramps QL query string used to filter the objects (e.g. 'media_list.length >= 10')."
+        },
     )
     oql = fields.Str(
         validate=validate.Length(min=1),
-        metadata={"description": "An Object QL query string used to filter the objects."},
+        metadata={
+            "description": "An Object QL query string used to filter the objects."
+        },
     )
     gramps_id = fields.Str(
         validate=validate.Length(min=1),
-        metadata={"description": "An alternate user-managed Gramps identifier. If provided, returns only the matching object."},
+        metadata={
+            "description": "An alternate user-managed Gramps identifier. If provided, returns only the matching object."
+        },
     )
     keys = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of top-level keys to return; all others are omitted."},
+        metadata={
+            "description": "Comma-delimited list of top-level keys to return; all others are omitted."
+        },
     )
     locale = fields.Str(
-        load_default=None, validate=validate.Length(min=1, max=5),
-        metadata={"description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."},
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
     )
     page = fields.Integer(
-        load_default=0, validate=validate.Range(min=1),
-        metadata={"description": "Page number of the result subset to return. If omitted (default 0), all results are returned."},
+        load_default=0,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Page number of the result subset to return. If omitted (default 0), all results are returned."
+        },
     )
     pagesize = fields.Integer(
-        load_default=20, validate=validate.Range(min=1),
+        load_default=20,
+        validate=validate.Range(min=1),
         metadata={"description": "Number of items per page when pagination is active."},
     )
     profile = fields.DelimitedList(
@@ -423,19 +465,27 @@ class GrampsObjectsQueryArgs(Schema):
                 "references",
             ]
         ),
-        metadata={"description": "Comma-delimited list of profile sections to include. 'self': name/sex/birth/death; 'families': family summaries; 'events': event list; 'age': age at events; 'span': elapsed time; 'ratings': citation count and confidence; 'references': referring objects. Use 'all' for everything."},
+        metadata={
+            "description": "Comma-delimited list of profile sections to include. 'self': name/sex/birth/death; 'families': family summaries; 'events': event list; 'age': age at events; 'span': elapsed time; 'ratings': citation count and confidence; 'references': referring objects. Use 'all' for everything."
+        },
     )
     rules = fields.Str(
         validate=validate.Length(min=1),
-        metadata={"description": "Inline filter expression as JSON: {\"function\": \"and\"|\"or\"|\"one\", \"invert\": bool, \"rules\": [{\"name\": str, \"values\": [...], \"regex\": bool}]}."},
+        metadata={
+            "description": 'Inline filter expression as JSON: {"function": "and"|"or"|"one", "invert": bool, "rules": [{"name": str, "values": [...], "regex": bool}]}.'
+        },
     )
     skipkeys = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of top-level keys to omit from the response; all others are kept."},
+        metadata={
+            "description": "Comma-delimited list of top-level keys to omit from the response; all others are kept."
+        },
     )
     sort = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited sort keys, prefix with '-' for descending. Available keys: birth, change, death, gender, gramps_id, name, private, soundex, surname."},
+        metadata={
+            "description": "Comma-delimited sort keys, prefix with '-' for descending. Available keys: birth, change, death, gender, gramps_id, name, private, soundex, surname."
+        },
     )
     soundex = fields.Boolean(
         load_default=False,
@@ -443,15 +493,21 @@ class GrampsObjectsQueryArgs(Schema):
     )
     strip = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, strip keys with empty values from the response."},
+        metadata={
+            "description": "If true, strip keys with empty values from the response."
+        },
     )
     filemissing = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, return only media objects whose file is missing from storage (media endpoint only)."},
+        metadata={
+            "description": "If true, return only media objects whose file is missing from storage (media endpoint only)."
+        },
     )
     name_format = fields.Str(
         validate=validate.Regexp(NAME_FORMAT_REGEXP),
-        metadata={"description": "Format string for name display (see gramps.gen.display.name for syntax)."},
+        metadata={
+            "description": "Format string for name display (see gramps.gen.display.name for syntax)."
+        },
     )
 
 

@@ -64,7 +64,9 @@ class MetadataQueryArgs(Schema):
 
     surnames = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, include the full list of surnames found in the database."},
+        metadata={
+            "description": "If true, include the full list of surnames found in the database."
+        },
     )
 
 

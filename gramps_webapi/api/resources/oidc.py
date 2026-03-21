@@ -66,7 +66,9 @@ class OIDCLoginQueryArgs(Schema):
 
     provider = fields.Str(
         required=True,
-        metadata={"description": "The OIDC provider ID (e.g. 'google', 'microsoft', 'github')."},
+        metadata={
+            "description": "The OIDC provider ID (e.g. 'google', 'microsoft', 'github')."
+        },
     )
 
 
@@ -117,7 +119,9 @@ class OIDCCallbackQueryArgs(Schema):
 
     provider = fields.Str(
         required=False,
-        metadata={"description": "The OIDC provider ID (e.g. 'google', 'microsoft', 'github')."},
+        metadata={
+            "description": "The OIDC provider ID (e.g. 'google', 'microsoft', 'github')."
+        },
     )  # Optional for backwards compatibility
     tree = fields.Str(
         required=False,
@@ -133,7 +137,9 @@ class OIDCCallbackQueryArgs(Schema):
     )
     session_state = fields.Str(
         required=False,
-        metadata={"description": "Session state parameter returned by the OIDC provider."},
+        metadata={
+            "description": "Session state parameter returned by the OIDC provider."
+        },
     )
     error = fields.Str(
         required=False,
@@ -419,7 +425,9 @@ class OIDCLogoutQueryArgs(Schema):
 
     provider = fields.Str(
         required=True,
-        metadata={"description": "The OIDC provider ID (e.g. 'google', 'microsoft', 'github')."},
+        metadata={
+            "description": "The OIDC provider ID (e.g. 'google', 'microsoft', 'github')."
+        },
     )
     id_token = fields.Str(
         required=False,

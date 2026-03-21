@@ -73,50 +73,68 @@ class SearchQueryArgs(Schema):
     """Query arguments for GET /search/."""
 
     locale = fields.Str(
-        load_default=None, validate=validate.Length(min=1, max=5),
-        metadata={"description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."},
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
     )
     query = fields.Str(
-        required=True, validate=validate.Length(min=1),
+        required=True,
+        validate=validate.Length(min=1),
         metadata={"description": "The search string."},
     )
     semantic = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, use semantic (vector) search rather than full-text search."},
+        metadata={
+            "description": "If true, use semantic (vector) search rather than full-text search."
+        },
     )
     page = fields.Int(
-        load_default=1, validate=validate.Range(min=1),
+        load_default=1,
+        validate=validate.Range(min=1),
         metadata={"description": "Page number of the result subset to return."},
     )
     pagesize = fields.Int(
-        load_default=20, validate=validate.Range(min=1),
+        load_default=20,
+        validate=validate.Range(min=1),
         metadata={"description": "Number of search results per page."},
     )
     sort = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited sort keys for search results. Available: change, type. Prefix with '-' for descending."},
+        metadata={
+            "description": "Comma-delimited sort keys for search results. Available: change, type. Prefix with '-' for descending."
+        },
     )
     profile = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
         validate=validate.ContainsOnly(
             choices=["all", "self", "families", "events", "age", "span"]
         ),
-        metadata={"description": "Comma-delimited profile sections to include for matching objects. Possible values: all, age, self, span, events, families, references."},
+        metadata={
+            "description": "Comma-delimited profile sections to include for matching objects. Possible values: all, age, self, span, events, families, references."
+        },
     )
     strip = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, strip keys with empty values from the response."},
+        metadata={
+            "description": "If true, strip keys with empty values from the response."
+        },
     )
     type = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
         validate=validate.ContainsOnly(
             choices=[t.lower() for t in PRIMARY_GRAMPS_OBJECTS]
         ),
-        metadata={"description": "Comma-delimited list of object types to include (e.g. 'person,family,source')."},
+        metadata={
+            "description": "Comma-delimited list of object types to include (e.g. 'person,family,source')."
+        },
     )
     change = fields.Str(
         validate=validate.Length(min=2),
-        metadata={"description": "ISO-8601 timestamp filter (prefix with '>' or '<') to filter by last-change date."},
+        metadata={
+            "description": "ISO-8601 timestamp filter (prefix with '>' or '<') to filter by last-change date."
+        },
     )
 
 
@@ -239,11 +257,15 @@ class SearchIndexQueryArgs(Schema):
 
     full = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, perform a full reindex; otherwise incremental."},
+        metadata={
+            "description": "If true, perform a full reindex; otherwise incremental."
+        },
     )
     semantic = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, use semantic (vector) search rather than full-text search."},
+        metadata={
+            "description": "If true, use semantic (vector) search rather than full-text search."
+        },
     )
 
 

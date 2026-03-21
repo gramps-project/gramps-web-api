@@ -521,8 +521,11 @@ class PersonTimelineQueryArgs(Schema):
     """Query arguments for GET /people/<handle>/timeline."""
 
     ancestors = fields.Integer(
-        load_default=1, validate=validate.Range(min=1, max=5),
-        metadata={"description": "Number of ancestor generations to include (default 1, max 5)."},
+        load_default=1,
+        validate=validate.Range(min=1, max=5),
+        metadata={
+            "description": "Number of ancestor generations to include (default 1, max 5)."
+        },
     )
     dates = fields.Str(
         load_default=None,
@@ -532,86 +535,128 @@ class PersonTimelineQueryArgs(Schema):
             r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
             r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
         ),
-        metadata={"description": "Date range filter. Formats: '-y/m/d' (before), 'y/m/d-' (after), 'y/m/d-y/m/d' (range). Components may use '*' as wildcard."},
+        metadata={
+            "description": "Date range filter. Formats: '-y/m/d' (before), 'y/m/d-' (after), 'y/m/d-y/m/d' (range). Components may use '*' as wildcard."
+        },
     )
     discard_empty = fields.Boolean(
         load_default=True,
-        metadata={"description": "If true (default), discard undated events from the timeline."},
+        metadata={
+            "description": "If true (default), discard undated events from the timeline."
+        },
     )
     event_classes = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
         validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
-        metadata={"description": "Comma-delimited list of event class keywords to include: vital, family, religious, vocational, academic, travel, legal, residence, other, custom."},
+        metadata={
+            "description": "Comma-delimited list of event class keywords to include: vital, family, religious, vocational, academic, travel, legal, residence, other, custom."
+        },
     )
     events = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of specific event type names to include. Birth and death are always included."},
+        metadata={
+            "description": "Comma-delimited list of specific event type names to include. Birth and death are always included."
+        },
     )
     first = fields.Boolean(
         load_default=True,
-        metadata={"description": "If true, discard events before the person's first recorded event."},
+        metadata={
+            "description": "If true, discard events before the person's first recorded event."
+        },
     )
     keys = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of top-level keys to return; all others are omitted."},
+        metadata={
+            "description": "Comma-delimited list of top-level keys to return; all others are omitted."
+        },
     )
     last = fields.Boolean(
         load_default=True,
-        metadata={"description": "If true, discard events after the person's last recorded event."},
+        metadata={
+            "description": "If true, discard events after the person's last recorded event."
+        },
     )
     locale = fields.Str(
         load_default=None,
-        metadata={"description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."},
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
     )
     name_format = fields.Str(
         validate=validate.Regexp(NAME_FORMAT_REGEXP),
-        metadata={"description": "Format string for name display (see gramps.gen.display.name for syntax)."},
+        metadata={
+            "description": "Format string for name display (see gramps.gen.display.name for syntax)."
+        },
     )
     offspring = fields.Integer(
-        load_default=1, validate=validate.Range(min=1, max=5),
-        metadata={"description": "Number of offspring generations to include (default 1, max 5)."},
+        load_default=1,
+        validate=validate.Range(min=1, max=5),
+        metadata={
+            "description": "Number of offspring generations to include (default 1, max 5)."
+        },
     )
     omit_anchor = fields.Boolean(
         load_default=True,
-        metadata={"description": "If true (default), omit the anchor person's own data from relative-event entries."},
+        metadata={
+            "description": "If true (default), omit the anchor person's own data from relative-event entries."
+        },
     )
     page = fields.Integer(
-        load_default=0, validate=validate.Range(min=1),
-        metadata={"description": "Page number of the result subset to return. If omitted (default 0), all results are returned."},
+        load_default=0,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Page number of the result subset to return. If omitted (default 0), all results are returned."
+        },
     )
     pagesize = fields.Integer(
-        load_default=20, validate=validate.Range(min=1),
+        load_default=20,
+        validate=validate.Range(min=1),
         metadata={"description": "Number of items per page when pagination is active."},
     )
     precision = fields.Integer(
-        load_default=1, validate=validate.Range(min=1, max=3),
-        metadata={"description": "Number of significant time components in date strings: 1=year only, 2=year+month, 3=year+month+day."},
+        load_default=1,
+        validate=validate.Range(min=1, max=3),
+        metadata={
+            "description": "Number of significant time components in date strings: 1=year only, 2=year+month, 3=year+month+day."
+        },
     )
     ratings = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, include total citation count and highest confidence score."},
+        metadata={
+            "description": "If true, include total citation count and highest confidence score."
+        },
     )
     relative_event_classes = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
         validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
-        metadata={"description": "Comma-delimited list of event class keywords to include for relatives."},
+        metadata={
+            "description": "Comma-delimited list of event class keywords to include for relatives."
+        },
     )
     relative_events = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of event type names to include for relatives."},
+        metadata={
+            "description": "Comma-delimited list of event type names to include for relatives."
+        },
     )
     relatives = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
         validate=validate.ContainsOnly(choices=RELATIVES),
-        metadata={"description": "Comma-delimited list of relationship types: father, mother, brother, sister, wife, husband, son, daughter."},
+        metadata={
+            "description": "Comma-delimited list of relationship types: father, mother, brother, sister, wife, husband, son, daughter."
+        },
     )
     skipkeys = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of top-level keys to omit from the response; all others are kept."},
+        metadata={
+            "description": "Comma-delimited list of top-level keys to omit from the response; all others are kept."
+        },
     )
     strip = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, strip keys with empty values from the response."},
+        metadata={
+            "description": "If true, strip keys with empty values from the response."
+        },
     )
 
 
@@ -673,52 +718,76 @@ class FamilyTimelineQueryArgs(Schema):
             r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
             r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
         ),
-        metadata={"description": "Date range filter. Formats: '-y/m/d' (before), 'y/m/d-' (after), 'y/m/d-y/m/d' (range). Components may use '*' as wildcard."},
+        metadata={
+            "description": "Date range filter. Formats: '-y/m/d' (before), 'y/m/d-' (after), 'y/m/d-y/m/d' (range). Components may use '*' as wildcard."
+        },
     )
     discard_empty = fields.Boolean(
         load_default=True,
-        metadata={"description": "If true (default), discard undated events from the timeline."},
+        metadata={
+            "description": "If true (default), discard undated events from the timeline."
+        },
     )
     event_classes = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
         validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
-        metadata={"description": "Comma-delimited list of event class keywords to include: vital, family, religious, vocational, academic, travel, legal, residence, other, custom."},
+        metadata={
+            "description": "Comma-delimited list of event class keywords to include: vital, family, religious, vocational, academic, travel, legal, residence, other, custom."
+        },
     )
     events = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of specific event type names to include. Birth and death are always included."},
+        metadata={
+            "description": "Comma-delimited list of specific event type names to include. Birth and death are always included."
+        },
     )
     keys = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of top-level keys to return; all others are omitted."},
+        metadata={
+            "description": "Comma-delimited list of top-level keys to return; all others are omitted."
+        },
     )
     locale = fields.Str(
         load_default=None,
-        metadata={"description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."},
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
     )
     name_format = fields.Str(
         validate=validate.Regexp(NAME_FORMAT_REGEXP),
-        metadata={"description": "Format string for name display (see gramps.gen.display.name for syntax)."},
+        metadata={
+            "description": "Format string for name display (see gramps.gen.display.name for syntax)."
+        },
     )
     page = fields.Integer(
-        load_default=0, validate=validate.Range(min=1),
-        metadata={"description": "Page number of the result subset to return. If omitted (default 0), all results are returned."},
+        load_default=0,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Page number of the result subset to return. If omitted (default 0), all results are returned."
+        },
     )
     pagesize = fields.Integer(
-        load_default=20, validate=validate.Range(min=1),
+        load_default=20,
+        validate=validate.Range(min=1),
         metadata={"description": "Number of items per page when pagination is active."},
     )
     ratings = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, include total citation count and highest confidence score."},
+        metadata={
+            "description": "If true, include total citation count and highest confidence score."
+        },
     )
     skipkeys = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of top-level keys to omit from the response; all others are kept."},
+        metadata={
+            "description": "Comma-delimited list of top-level keys to omit from the response; all others are kept."
+        },
     )
     strip = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, strip keys with empty values from the response."},
+        metadata={
+            "description": "If true, strip keys with empty values from the response."
+        },
     )
 
 
@@ -756,7 +825,9 @@ class TimelinePeopleQueryArgs(Schema):
 
     anchor = fields.Str(
         validate=validate.Length(min=1),
-        metadata={"description": "Handle of the central person; all other timeline persons are treated as their relatives."},
+        metadata={
+            "description": "Handle of the central person; all other timeline persons are treated as their relatives."
+        },
     )
     dates = fields.Str(
         load_default=None,
@@ -766,20 +837,28 @@ class TimelinePeopleQueryArgs(Schema):
             r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
             r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
         ),
-        metadata={"description": "Date range filter. Formats: '-y/m/d' (before), 'y/m/d-' (after), 'y/m/d-y/m/d' (range). Components may use '*' as wildcard."},
+        metadata={
+            "description": "Date range filter. Formats: '-y/m/d' (before), 'y/m/d-' (after), 'y/m/d-y/m/d' (range). Components may use '*' as wildcard."
+        },
     )
     discard_empty = fields.Boolean(
         load_default=True,
-        metadata={"description": "If true (default), discard undated events from the timeline."},
+        metadata={
+            "description": "If true (default), discard undated events from the timeline."
+        },
     )
     event_classes = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
         validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
-        metadata={"description": "Comma-delimited list of event class keywords to include: vital, family, religious, vocational, academic, travel, legal, residence, other, custom."},
+        metadata={
+            "description": "Comma-delimited list of event class keywords to include: vital, family, religious, vocational, academic, travel, legal, residence, other, custom."
+        },
     )
     events = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of specific event type names to include. Birth and death are always included."},
+        metadata={
+            "description": "Comma-delimited list of specific event type names to include. Birth and death are always included."
+        },
     )
     filter = fields.Str(
         validate=validate.Length(min=1),
@@ -787,55 +866,83 @@ class TimelinePeopleQueryArgs(Schema):
     )
     first = fields.Boolean(
         load_default=True,
-        metadata={"description": "If true, discard events before the person's first recorded event."},
+        metadata={
+            "description": "If true, discard events before the person's first recorded event."
+        },
     )
     handles = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of specific person or family handles to include in the timeline."},
+        metadata={
+            "description": "Comma-delimited list of specific person or family handles to include in the timeline."
+        },
     )
     keys = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of top-level keys to return; all others are omitted."},
+        metadata={
+            "description": "Comma-delimited list of top-level keys to return; all others are omitted."
+        },
     )
     last = fields.Boolean(
         load_default=True,
-        metadata={"description": "If true, discard events after the person's last recorded event."},
+        metadata={
+            "description": "If true, discard events after the person's last recorded event."
+        },
     )
     locale = fields.Str(
-        load_default=None, validate=validate.Length(min=1, max=5),
-        metadata={"description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."},
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
     )
     omit_anchor = fields.Boolean(
         load_default=True,
-        metadata={"description": "If true (default), omit the anchor person's own data from relative-event entries."},
+        metadata={
+            "description": "If true (default), omit the anchor person's own data from relative-event entries."
+        },
     )
     page = fields.Integer(
-        load_default=0, validate=validate.Range(min=1),
-        metadata={"description": "Page number of the result subset to return. If omitted (default 0), all results are returned."},
+        load_default=0,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Page number of the result subset to return. If omitted (default 0), all results are returned."
+        },
     )
     pagesize = fields.Integer(
-        load_default=20, validate=validate.Range(min=1),
+        load_default=20,
+        validate=validate.Range(min=1),
         metadata={"description": "Number of items per page when pagination is active."},
     )
     precision = fields.Integer(
-        load_default=1, validate=validate.Range(min=1, max=3),
-        metadata={"description": "Number of significant time components in date strings: 1=year only, 2=year+month, 3=year+month+day."},
+        load_default=1,
+        validate=validate.Range(min=1, max=3),
+        metadata={
+            "description": "Number of significant time components in date strings: 1=year only, 2=year+month, 3=year+month+day."
+        },
     )
     ratings = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, include total citation count and highest confidence score."},
+        metadata={
+            "description": "If true, include total citation count and highest confidence score."
+        },
     )
     rules = fields.Str(
         validate=validate.Length(min=1),
-        metadata={"description": "Inline filter expression as JSON: {\"function\": \"and\"|\"or\"|\"one\", \"invert\": bool, \"rules\": [{\"name\": str, \"values\": [...], \"regex\": bool}]}."},
+        metadata={
+            "description": 'Inline filter expression as JSON: {"function": "and"|"or"|"one", "invert": bool, "rules": [{"name": str, "values": [...], "regex": bool}]}.'
+        },
     )
     skipkeys = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of top-level keys to omit from the response; all others are kept."},
+        metadata={
+            "description": "Comma-delimited list of top-level keys to omit from the response; all others are kept."
+        },
     )
     strip = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, strip keys with empty values from the response."},
+        metadata={
+            "description": "If true, strip keys with empty values from the response."
+        },
     )
 
 
@@ -900,20 +1007,28 @@ class TimelineFamiliesQueryArgs(Schema):
             r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
             r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
         ),
-        metadata={"description": "Date range filter. Formats: '-y/m/d' (before), 'y/m/d-' (after), 'y/m/d-y/m/d' (range). Components may use '*' as wildcard."},
+        metadata={
+            "description": "Date range filter. Formats: '-y/m/d' (before), 'y/m/d-' (after), 'y/m/d-y/m/d' (range). Components may use '*' as wildcard."
+        },
     )
     discard_empty = fields.Boolean(
         load_default=True,
-        metadata={"description": "If true (default), discard undated events from the timeline."},
+        metadata={
+            "description": "If true (default), discard undated events from the timeline."
+        },
     )
     event_classes = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
         validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
-        metadata={"description": "Comma-delimited list of event class keywords to include: vital, family, religious, vocational, academic, travel, legal, residence, other, custom."},
+        metadata={
+            "description": "Comma-delimited list of event class keywords to include: vital, family, religious, vocational, academic, travel, legal, residence, other, custom."
+        },
     )
     events = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of specific event type names to include. Birth and death are always included."},
+        metadata={
+            "description": "Comma-delimited list of specific event type names to include. Birth and death are always included."
+        },
     )
     filter = fields.Str(
         validate=validate.Length(min=1),
@@ -921,39 +1036,58 @@ class TimelineFamiliesQueryArgs(Schema):
     )
     keys = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of top-level keys to return; all others are omitted."},
+        metadata={
+            "description": "Comma-delimited list of top-level keys to return; all others are omitted."
+        },
     )
     handles = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of specific person or family handles to include in the timeline."},
+        metadata={
+            "description": "Comma-delimited list of specific person or family handles to include in the timeline."
+        },
     )
     locale = fields.Str(
-        load_default=None, validate=validate.Length(min=1, max=5),
-        metadata={"description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."},
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
     )
     page = fields.Integer(
-        load_default=0, validate=validate.Range(min=1),
-        metadata={"description": "Page number of the result subset to return. If omitted (default 0), all results are returned."},
+        load_default=0,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Page number of the result subset to return. If omitted (default 0), all results are returned."
+        },
     )
     pagesize = fields.Integer(
-        load_default=20, validate=validate.Range(min=1),
+        load_default=20,
+        validate=validate.Range(min=1),
         metadata={"description": "Number of items per page when pagination is active."},
     )
     ratings = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, include total citation count and highest confidence score."},
+        metadata={
+            "description": "If true, include total citation count and highest confidence score."
+        },
     )
     rules = fields.Str(
         validate=validate.Length(min=1),
-        metadata={"description": "Inline filter expression as JSON: {\"function\": \"and\"|\"or\"|\"one\", \"invert\": bool, \"rules\": [{\"name\": str, \"values\": [...], \"regex\": bool}]}."},
+        metadata={
+            "description": 'Inline filter expression as JSON: {"function": "and"|"or"|"one", "invert": bool, "rules": [{"name": str, "values": [...], "regex": bool}]}.'
+        },
     )
     skipkeys = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        metadata={"description": "Comma-delimited list of top-level keys to omit from the response; all others are kept."},
+        metadata={
+            "description": "Comma-delimited list of top-level keys to omit from the response; all others are kept."
+        },
     )
     strip = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, strip keys with empty values from the response."},
+        metadata={
+            "description": "If true, strip keys with empty values from the response."
+        },
     )
 
 

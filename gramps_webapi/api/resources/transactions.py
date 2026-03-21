@@ -49,11 +49,15 @@ class TransactionsQueryArgs(Schema):
     )
     force = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, force applying the transaction even if objects have been modified."},
+        metadata={
+            "description": "If true, force applying the transaction even if objects have been modified."
+        },
     )
     background = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, apply the transactions in the background and return HTTP 202."},
+        metadata={
+            "description": "If true, apply the transactions in the background and return HTTP 202."
+        },
     )
 
 

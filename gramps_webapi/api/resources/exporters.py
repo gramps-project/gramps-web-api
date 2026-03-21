@@ -82,15 +82,21 @@ class ExporterFileQueryArgs(Schema):
 
     compress = fields.Boolean(
         load_default=True,
-        metadata={"description": "If true (default), use compression if supported by the exporter."},
+        metadata={
+            "description": "If true (default), use compression if supported by the exporter."
+        },
     )
     current_year = fields.Integer(
         load_default=None,
-        metadata={"description": "Year to treat as 'current' when evaluating whether someone may still be alive. Defaults to the actual current year."},
+        metadata={
+            "description": "Year to treat as 'current' when evaluating whether someone may still be alive. Defaults to the actual current year."
+        },
     )
     event = fields.Str(
         load_default=None,
-        metadata={"description": "Name of a custom event filter to apply during export."},
+        metadata={
+            "description": "Name of a custom event filter to apply during export."
+        },
     )
     gramps_id = fields.Str(
         load_default=None,
@@ -98,7 +104,9 @@ class ExporterFileQueryArgs(Schema):
     )
     handle = fields.Str(
         load_default=None,
-        metadata={"description": "Handle of the person for built-in person filter. Ignored if gramps_id is provided."},
+        metadata={
+            "description": "Handle of the person for built-in person filter. Ignored if gramps_id is provided."
+        },
     )
     include_children = fields.Boolean(
         load_default=True,
@@ -106,7 +114,9 @@ class ExporterFileQueryArgs(Schema):
     )
     include_individuals = fields.Boolean(
         load_default=True,
-        metadata={"description": "If true (default), include individuals in CSV export."},
+        metadata={
+            "description": "If true (default), include individuals in CSV export."
+        },
     )
     include_marriages = fields.Boolean(
         load_default=True,
@@ -122,7 +132,9 @@ class ExporterFileQueryArgs(Schema):
     )
     include_witnesses = fields.Boolean(
         load_default=True,
-        metadata={"description": "If true (default), include witnesses in GED2 export."},
+        metadata={
+            "description": "If true (default), include witnesses in GED2 export."
+        },
     )
     living = fields.Str(
         load_default="IncludeAll",
@@ -135,39 +147,57 @@ class ExporterFileQueryArgs(Schema):
                 "ExcludeAll",
             ]
         ),
-        metadata={"description": "Built-in proxy controlling how living people are handled. Values: IncludeAll, FullNameOnly, LastNameOnly, ReplaceCompleteName, ExcludeAll."},
+        metadata={
+            "description": "Built-in proxy controlling how living people are handled. Values: IncludeAll, FullNameOnly, LastNameOnly, ReplaceCompleteName, ExcludeAll."
+        },
     )
     locale = fields.Str(
         load_default=None,
-        metadata={"description": "Language code for translation of living-person name filters."},
+        metadata={
+            "description": "Language code for translation of living-person name filters."
+        },
     )
     note = fields.Str(
         load_default=None,
-        metadata={"description": "Name of a custom note filter to apply during export."},
+        metadata={
+            "description": "Name of a custom note filter to apply during export."
+        },
     )
     person = fields.Str(
         load_default=None,
-        metadata={"description": "Name of a built-in or custom person filter. Built-in values: Descendants, DescendantFamilies, Ancestors, CommonAncestor."},
+        metadata={
+            "description": "Name of a built-in or custom person filter. Built-in values: Descendants, DescendantFamilies, Ancestors, CommonAncestor."
+        },
     )
     private = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, exclude records marked as private from the export."},
+        metadata={
+            "description": "If true, exclude records marked as private from the export."
+        },
     )
     reference = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, include records not directly linked to the selected person."},
+        metadata={
+            "description": "If true, include records not directly linked to the selected person."
+        },
     )
     sequence = fields.Str(
         load_default="privacy,living,person,event,note,reference",
-        metadata={"description": "Comma-delimited order in which filters are applied (default: privacy,living,person,event,note,reference)."},
+        metadata={
+            "description": "Comma-delimited order in which filters are applied (default: privacy,living,person,event,note,reference)."
+        },
     )
     translate_headers = fields.Boolean(
         load_default=True,
-        metadata={"description": "If true (default), translate CSV headers to the current locale."},
+        metadata={
+            "description": "If true (default), translate CSV headers to the current locale."
+        },
     )
     years_after_death = fields.Integer(
         load_default=0,
-        metadata={"description": "Number of years after death during which a person is still treated as living (default 0)."},
+        metadata={
+            "description": "Number of years after death during which a person is still treated as living (default 0)."
+        },
     )
     jwt = fields.String(
         required=False,

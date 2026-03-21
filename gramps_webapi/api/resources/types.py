@@ -169,7 +169,9 @@ class TypesLocaleArgs(Schema):
 
     locale = fields.Boolean(
         load_default=False,
-        metadata={"description": "If true, return type names translated to the current locale."},
+        metadata={
+            "description": "If true, return type names translated to the current locale."
+        },
     )
 
 
