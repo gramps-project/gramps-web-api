@@ -48,6 +48,7 @@ from ..blueprint import api_blueprint
 from ..ratelimiter import limiter
 from ..util import abort_with_message, get_config, get_tree_id
 from . import Resource
+from .schemas import OIDCConfigSchema
 from .token import get_tokens
 
 logger = logging.getLogger(__name__)
@@ -379,6 +380,7 @@ class OIDCTokenExchangeResource(Resource):
 class OIDCConfigResource(Resource):
     """Resource for getting OIDC configuration."""
 
+    @api_blueprint.response(200, OIDCConfigSchema())
     def get(self):
         """Get OIDC configuration for frontend."""
         if not is_oidc_enabled():

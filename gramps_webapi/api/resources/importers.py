@@ -37,12 +37,14 @@ from ..tasks import AsyncResult, import_file, make_task_response, run_task
 from ..util import abort_with_message, get_db_handle, get_tree_from_jwt
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .schemas import ImporterSchema
 from .util import get_importers
 
 
 class ImportersResource(ProtectedResource, GrampsJSONEncoder):
     """Importers resource."""
 
+    @api_blueprint.response(200, ImporterSchema(many=True))
     @api_blueprint.arguments(Schema(), location="query")
     def get(self, args, extension: str | None = None) -> Response:
         """Get all available importer attributes."""
@@ -53,6 +55,7 @@ class ImportersResource(ProtectedResource, GrampsJSONEncoder):
 class ImporterResource(ProtectedResource, GrampsJSONEncoder):
     """Import resource."""
 
+    @api_blueprint.response(200, ImporterSchema())
     @api_blueprint.arguments(Schema(), location="query")
     def get(self, args, extension: str) -> Response:
         """Get specific report attributes."""

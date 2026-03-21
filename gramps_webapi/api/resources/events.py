@@ -41,6 +41,7 @@ from .base import (
     GrampsObjectsProtectedResource,
 )
 from .emit import GrampsJSONEncoder
+from .schemas import SpanSchema
 from .util import (
     get_event_profile_for_object,
     get_extended_attributes,
@@ -108,6 +109,7 @@ class EventSpanResource(ProtectedResource, GrampsJSONEncoder):
         """Get the database instance."""
         return get_db_handle()
 
+    @api_blueprint.response(200, SpanSchema())
     @api_blueprint.arguments(EventSpanQueryArgs, location="query")
     def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:
         """Get the time span between two event dates."""

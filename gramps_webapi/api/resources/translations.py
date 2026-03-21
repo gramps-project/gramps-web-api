@@ -33,6 +33,7 @@ from ..blueprint import api_blueprint
 from ..util import abort_with_message, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .schemas import LanguageSchema, TranslationSchema
 
 
 class Sort:
@@ -82,6 +83,7 @@ class TranslationPostArgs(Schema):
 class TranslationResource(ProtectedResource, GrampsJSONEncoder):
     """Translation resource."""
 
+    @api_blueprint.response(200, TranslationSchema(many=True))
     @api_blueprint.arguments(TranslationGetArgs, location="query")
     def get(self, args: Dict, language: str) -> Response:
         """Get translation."""
@@ -91,6 +93,7 @@ class TranslationResource(ProtectedResource, GrampsJSONEncoder):
             abort_with_message(400, "Error parsing strings")
         return self._get_or_post(strings=strings, language=language)
 
+    @api_blueprint.response(200, TranslationSchema(many=True))
     @api_blueprint.arguments(TranslationPostArgs, location="json")
     def post(self, args: Dict, language: str) -> Response:
         """Get translation for posted strings."""
@@ -131,6 +134,7 @@ class TranslationsQueryArgs(Schema):
 class TranslationsResource(ProtectedResource, GrampsJSONEncoder):
     """Translations resource."""
 
+    @api_blueprint.response(200, LanguageSchema(many=True))
     @api_blueprint.arguments(TranslationsQueryArgs, location="query")
     def get(self, args: dict) -> Response:
         """Get available translations."""

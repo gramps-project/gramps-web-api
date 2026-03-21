@@ -31,6 +31,7 @@ from ..blueprint import api_blueprint
 from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .schemas import LivingDatesSchema, LivingSchema
 from .util import get_person_by_handle
 
 
@@ -54,6 +55,7 @@ class LivingQueryArgs(Schema):
 class LivingResource(ProtectedResource, GrampsJSONEncoder):
     """Living calculator resource."""
 
+    @api_blueprint.response(200, LivingSchema())
     @api_blueprint.arguments(LivingQueryArgs, location="query")
     def get(self, args: Dict, handle: Handle) -> Response:
         """Determine if person alive."""
@@ -96,6 +98,7 @@ class LivingDatesQueryArgs(Schema):
 class LivingDatesResource(ProtectedResource, GrampsJSONEncoder):
     """Living calculator dates resource."""
 
+    @api_blueprint.response(200, LivingDatesSchema())
     @api_blueprint.arguments(LivingDatesQueryArgs, location="query")
     def get(self, args: Dict, handle: Handle) -> Response:
         """Determine estimated birth and death dates."""

@@ -258,6 +258,7 @@ class GrampsObjectQueryArgs(Schema):
 class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
     """Resource for a single object."""
 
+    @api_blueprint.response(200, Schema())
     @api_blueprint.arguments(GrampsObjectQueryArgs, location="query")
     @request_cache_decorator
     def get(self, args: dict, handle: str) -> ResponseReturnValue:
@@ -457,6 +458,7 @@ class GrampsObjectsQueryArgs(Schema):
 class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
     """Resource for multiple objects."""
 
+    @api_blueprint.response(200, Schema(many=True))
     @api_blueprint.arguments(GrampsObjectsQueryArgs, location="query")
     @request_cache_decorator
     def get(self, args: dict) -> ResponseReturnValue:
@@ -543,6 +545,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             total_items=total_items,
         )
 
+    @api_blueprint.response(201, Schema(many=True))
     def post(self) -> ResponseReturnValue:
         """Post a new object."""
         require_permissions([PERM_ADD_OBJ])

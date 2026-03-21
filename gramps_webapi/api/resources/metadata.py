@@ -45,6 +45,7 @@ from ..search import get_search_indexer, get_semantic_search_indexer
 from ..util import get_db_handle, get_tree_from_jwt_or_fail
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .schemas import MetadataSchema
 
 
 def get_dbid_from_tree_id(tree_id: str) -> str:
@@ -75,6 +76,7 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
         """Get the database instance."""
         return get_db_handle()
 
+    @api_blueprint.response(200, MetadataSchema())
     @api_blueprint.arguments(MetadataQueryArgs, location="query")
     def get(self, args) -> Response:
         """Get active database and application related metadata information."""

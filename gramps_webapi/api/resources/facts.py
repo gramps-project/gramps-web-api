@@ -37,6 +37,7 @@ from ..blueprint import api_blueprint
 from ..util import abort_with_message, get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .schemas import RecordFactSchema
 
 _ = glocale.translation.gettext
 
@@ -139,6 +140,7 @@ class FactsQueryArgs(Schema):
 class FactsResource(ProtectedResource, GrampsJSONEncoder):
     """Facts resource."""
 
+    @api_blueprint.response(200, RecordFactSchema(many=True))
     @api_blueprint.arguments(FactsQueryArgs, location="query")
     def get(self, args: Dict) -> Response:
         """Get statistics from records."""

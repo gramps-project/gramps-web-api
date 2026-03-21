@@ -54,6 +54,7 @@ from ..util import (
     update_usage_people,
 )
 from . import FreshProtectedResource, ProtectedResource
+from .schemas import TaskReferenceSchema, TransactionSchema
 from .util import add_object, fix_object_dict, transaction_to_json, validate_object_dict
 
 
@@ -75,6 +76,7 @@ class CreateObjectsResource(ProtectedResource):
             objects.append(obj)
         return objects
 
+    @api_blueprint.response(201, TransactionSchema(many=True))
     def post(self) -> ResponseReturnValue:
         """Post the objects."""
         require_permissions([PERM_ADD_OBJ])
@@ -130,6 +132,7 @@ class DeleteObjectsQueryArgs(Schema):
 class DeleteObjectsResource(FreshProtectedResource):
     """Resource for deleting multiple objects."""
 
+    @api_blueprint.response(200, TaskReferenceSchema())
     @api_blueprint.arguments(DeleteObjectsQueryArgs, location="query")
     def post(self, args) -> ResponseReturnValue:
         """Delete the objects."""

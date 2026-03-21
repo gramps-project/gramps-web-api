@@ -44,6 +44,7 @@ from ..tasks import AsyncResult, generate_report, make_task_response, run_task
 from ..util import get_buffer_for_file, get_db_handle, get_tree_from_jwt
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .schemas import ReportSchema
 
 
 class ReportsQueryArgs(Schema):
@@ -58,6 +59,7 @@ class ReportsQueryArgs(Schema):
 class ReportsResource(ProtectedResource, GrampsJSONEncoder):
     """Reports resource."""
 
+    @api_blueprint.response(200, ReportSchema(many=True))
     @api_blueprint.arguments(ReportsQueryArgs, location="query")
     def get(self, args: Dict) -> ResponseReturnValue:
         """Get all available report attributes."""
@@ -79,6 +81,7 @@ class ReportQueryArgs(Schema):
 class ReportResource(ProtectedResource, GrampsJSONEncoder):
     """Report resource."""
 
+    @api_blueprint.response(200, ReportSchema())
     @api_blueprint.arguments(ReportQueryArgs, location="query")
     def get(self, args: Dict, report_id: str) -> ResponseReturnValue:
         """Get specific report attributes."""

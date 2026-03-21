@@ -44,6 +44,12 @@ from ..blueprint import api_blueprint
 from ..util import get_db_handle
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .schemas import (
+    CustomTypesSchema,
+    DefaultTypeMapSchema,
+    DefaultTypesSchema,
+    TypesSchema,
+)
 
 _DEFAULT_TYPE_CLASSES = {
     "attribute_types": AttributeType(),
@@ -170,6 +176,7 @@ class TypesLocaleArgs(Schema):
 class DefaultTypesResource(ProtectedResource, GrampsJSONEncoder):
     """Default types resource."""
 
+    @api_blueprint.response(200, DefaultTypesSchema())
     @api_blueprint.arguments(TypesLocaleArgs, location="query")
     def get(self, args: Dict) -> Response:
         """Return a list of available default types."""
@@ -194,6 +201,7 @@ class DefaultTypeResource(ProtectedResource, GrampsJSONEncoder):
 class DefaultTypeMapResource(ProtectedResource, GrampsJSONEncoder):
     """Default type resource."""
 
+    @api_blueprint.response(200, DefaultTypeMapSchema())
     @api_blueprint.arguments(Schema(), location="query")
     def get(self, args, datatype: str) -> Response:
         """Return the map for a default type."""
@@ -210,6 +218,7 @@ class DefaultTypeMapResource(ProtectedResource, GrampsJSONEncoder):
 class CustomTypesResource(ProtectedResource, GrampsJSONEncoder):
     """Custom types resource."""
 
+    @api_blueprint.response(200, CustomTypesSchema())
     @api_blueprint.arguments(Schema(), location="query")
     def get(self, args) -> Response:
         """Return a list of available custom types."""
@@ -234,6 +243,7 @@ class CustomTypeResource(ProtectedResource, GrampsJSONEncoder):
 class TypesResource(ProtectedResource, GrampsJSONEncoder):
     """Types resource."""
 
+    @api_blueprint.response(200, TypesSchema())
     @api_blueprint.arguments(TypesLocaleArgs, location="query")
     def get(self, args: Dict) -> Response:
         """Return list of values for the custom type."""

@@ -38,6 +38,10 @@ from ..blueprint import api_blueprint
 from ..util import abort_with_message
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .schemas import (
+    CustomFilterSchema as CustomFilterResponseSchema,
+    NamespaceFiltersSchema,
+)
 
 
 class HasAssociationType(Rule):
@@ -239,6 +243,7 @@ class CustomFilterSchema(FilterSchema):
 class FiltersResources(ProtectedResource, GrampsJSONEncoder):
     """Filters resources."""
 
+    @api_blueprint.response(200, NamespaceFiltersSchema())
     @api_blueprint.arguments(Schema(), location="query")
     def get(self, args: Dict[str, str]) -> Response:
         """Get available custom filters and rules."""
@@ -266,6 +271,7 @@ class FiltersQueryArgs(Schema):
 class FiltersResource(ProtectedResource, GrampsJSONEncoder):
     """Filters resource."""
 
+    @api_blueprint.response(200, NamespaceFiltersSchema())
     @api_blueprint.arguments(FiltersQueryArgs, location="query")
     def get(self, args: Dict[str, str], namespace: str) -> Response:
         """Get available custom filters and rules."""
@@ -332,6 +338,7 @@ class FilterDeleteQueryArgs(Schema):
 class FilterResource(ProtectedResource, GrampsJSONEncoder):
     """Filter resource."""
 
+    @api_blueprint.response(200, CustomFilterResponseSchema())
     def get(self, namespace: str, name: str) -> Response:
         """Get a custom filter."""
         try:

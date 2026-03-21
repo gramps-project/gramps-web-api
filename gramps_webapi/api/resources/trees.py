@@ -66,6 +66,7 @@ from webargs import fields
 from ..blueprint import api_blueprint
 from ..util import abort_with_message, get_tree_from_jwt_or_fail, list_trees
 from . import ProtectedResource
+from .schemas import TreeSchema
 
 # legal tree dirnames
 TREE_ID_REGEX = re.compile(r"^[a-zA-Z0-9_-]+$")
@@ -135,6 +136,7 @@ class TreeCreateBodyArgs(Schema):
 class TreesResource(ProtectedResource):
     """Resource for getting info about trees."""
 
+    @api_blueprint.response(200, TreeSchema(many=True))
     def get(self):
         """Get info about all trees."""
         if has_permissions([PERM_VIEW_OTHER_TREE]):
@@ -145,6 +147,7 @@ class TreesResource(ProtectedResource):
             tree_ids = [user_tree_id]
         return [get_tree_details(tree_id) for tree_id in tree_ids]
 
+    @api_blueprint.response(201, TreeSchema())
     @api_blueprint.arguments(TreeCreateBodyArgs, location="json")
     def post(self, args):
         """Create a new tree."""
@@ -194,6 +197,7 @@ class TreeUpdateBodyArgs(Schema):
 class TreeResource(ProtectedResource):
     """Resource for a single tree."""
 
+    @api_blueprint.response(200, TreeSchema())
     def get(self, tree_id: str):
         """Get info about a tree."""
         if tree_id == "-":

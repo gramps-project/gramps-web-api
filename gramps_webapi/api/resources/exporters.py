@@ -48,12 +48,14 @@ from ..util import (
 )
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .schemas import ExporterSchema
 from gramps_webapi.types import ResponseReturnValue
 
 
 class ExportersResource(ProtectedResource, GrampsJSONEncoder):
     """Exporters resource."""
 
+    @api_blueprint.response(200, ExporterSchema(many=True))
     @api_blueprint.arguments(Schema(), location="query")
     def get(self, args) -> ResponseReturnValue:
         """Get all available exporter attributes."""
@@ -64,6 +66,7 @@ class ExportersResource(ProtectedResource, GrampsJSONEncoder):
 class ExporterResource(ProtectedResource, GrampsJSONEncoder):
     """Export resource."""
 
+    @api_blueprint.response(200, ExporterSchema())
     @api_blueprint.arguments(Schema(), location="query")
     def get(self, args, extension: str) -> ResponseReturnValue:
         """Get specific report attributes."""

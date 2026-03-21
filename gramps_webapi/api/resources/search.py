@@ -57,6 +57,7 @@ from ..util import (
 )
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .schemas import SearchResultSchema
 from .util import (
     abort_with_message,
     get_citation_profile_for_object,
@@ -176,6 +177,7 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
 
         return obj
 
+    @api_blueprint.response(200, SearchResultSchema(many=True))
     @api_blueprint.arguments(SearchQueryArgs, location="query")
     def get(self, args: Dict):
         """Get search result."""

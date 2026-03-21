@@ -49,6 +49,7 @@ from ..util import (
 )
 from ..blueprint import api_blueprint
 from . import ProtectedResource
+from .schemas import UndoTransactionSchema
 from .util import reverse_transaction
 
 trans_code = {"delete": TXNDEL, "add": TXNADD, "update": TXNUPD}
@@ -90,6 +91,7 @@ class TransactionsHistoryQueryArgs(Schema):
 class TransactionsHistoryResource(ProtectedResource):
     """Resource for database transaction history."""
 
+    @api_blueprint.response(200, UndoTransactionSchema(many=True))
     @api_blueprint.arguments(TransactionsHistoryQueryArgs, location="query")
     def get(self, args: Dict) -> Response:
         """Return a list of transactions."""
@@ -138,6 +140,7 @@ class TransactionHistoryQueryArgs(Schema):
 class TransactionHistoryResource(ProtectedResource):
     """Resource for viewing individual transaction history."""
 
+    @api_blueprint.response(200, UndoTransactionSchema())
     @api_blueprint.arguments(TransactionHistoryQueryArgs, location="query")
     def get(self, args: Dict, transaction_id: int) -> Response:
         """Return a single transaction."""

@@ -33,6 +33,7 @@ from .emit import GrampsJSONEncoder
 class HolidaysResource(ProtectedResource, GrampsJSONEncoder):
     """Holidays resource."""
 
+    @api_blueprint.response(200, Schema(many=True))
     @api_blueprint.arguments(Schema(), location="query")
     def get(self, args) -> Response:
         """Get list of countries that have holiday calendars."""
@@ -43,6 +44,7 @@ class HolidaysResource(ProtectedResource, GrampsJSONEncoder):
 class HolidayResource(ProtectedResource, GrampsJSONEncoder):
     """Holiday resource."""
 
+    @api_blueprint.response(200, Schema(many=True))
     @api_blueprint.arguments(Schema(), location="query")
     def get(
         self,

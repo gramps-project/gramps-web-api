@@ -34,6 +34,7 @@ from ..blueprint import api_blueprint
 from ..tasks import AsyncResult, make_task_response, process_transactions, run_task
 from ..util import abort_with_message, get_tree_from_jwt_or_fail
 from . import ProtectedResource
+from .schemas import TransactionSchema
 from .util import reverse_transaction
 
 trans_code = {"delete": TXNDEL, "add": TXNADD, "update": TXNUPD}
@@ -59,6 +60,7 @@ class TransactionsQueryArgs(Schema):
 class TransactionsResource(ProtectedResource):
     """Resource for raw database transactions."""
 
+    @api_blueprint.response(200, TransactionSchema(many=True))
     @api_blueprint.arguments(TransactionsQueryArgs, location="query")
     def post(self, args) -> ResponseReturnValue:
         """Post the transaction."""

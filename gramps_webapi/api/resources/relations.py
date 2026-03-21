@@ -36,6 +36,7 @@ from ..blueprint import api_blueprint
 from ..util import abort_with_message, get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .schemas import RelationshipItemSchema, RelationshipSchema
 from .util import get_one_relationship
 
 
@@ -55,6 +56,7 @@ class RelationQueryArgs(Schema):
 class RelationResource(ProtectedResource, GrampsJSONEncoder):
     """Relation resource."""
 
+    @api_blueprint.response(200, RelationshipSchema())
     @api_blueprint.arguments(RelationQueryArgs, location="query")
     @request_cache_decorator
     def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:
@@ -93,6 +95,7 @@ class RelationResource(ProtectedResource, GrampsJSONEncoder):
 class RelationsResource(ProtectedResource, GrampsJSONEncoder):
     """Relations resource."""
 
+    @api_blueprint.response(200, RelationshipItemSchema(many=True))
     @api_blueprint.arguments(RelationQueryArgs, location="query")
     @request_cache_decorator
     def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:

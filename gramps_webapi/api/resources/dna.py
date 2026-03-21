@@ -44,6 +44,7 @@ from ..blueprint import api_blueprint
 from ..cache import request_cache_decorator
 from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
+from .schemas import DnaMatchSchema, DnaSegmentSchema
 from .util import get_person_profile_for_handle
 
 SIDE_UNKNOWN = "U"
@@ -67,6 +68,7 @@ class DnaMatchesQueryArgs(Schema):
 class PersonDnaMatchesResource(ProtectedResource):
     """Resource for getting DNA match data for a person."""
 
+    @api_blueprint.response(200, DnaMatchSchema(many=True))
     @api_blueprint.arguments(DnaMatchesQueryArgs, location="query")
     @request_cache_decorator
     def get(self, args: dict, handle: str):
@@ -112,6 +114,7 @@ class DnaMatchParserBodyArgs(Schema):
 class DnaMatchParserResource(ProtectedResource):
     """DNA match parser resource."""
 
+    @api_blueprint.response(200, DnaSegmentSchema(many=True))
     @api_blueprint.arguments(DnaMatchParserBodyArgs, location="json")
     def post(self, args: dict) -> ResponseReturnValue:
         """Parse DNA match string."""

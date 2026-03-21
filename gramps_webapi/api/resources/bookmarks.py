@@ -33,6 +33,7 @@ from ..blueprint import api_blueprint
 from ..util import get_db_handle, abort_with_message
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .schemas import BookmarksSchema
 
 _BOOKMARK_TYPES = [
     "citations",
@@ -114,6 +115,7 @@ class BookmarkResource(ProtectedResource, GrampsJSONEncoder):
         """Get the database instance."""
         return get_db_handle()
 
+    @api_blueprint.response(200, Schema(many=True))
     @api_blueprint.arguments(Schema(), location="query")
     def get(self, args, namespace: str) -> Response:
         """Get list of bookmarks by namespace."""
@@ -128,6 +130,7 @@ class BookmarksResource(ProtectedResource, GrampsJSONEncoder):
         """Get the database instance."""
         return get_db_handle()
 
+    @api_blueprint.response(200, BookmarksSchema())
     @api_blueprint.arguments(Schema(), location="query")
     def get(self, args) -> Response:
         """Get the list of bookmark types."""

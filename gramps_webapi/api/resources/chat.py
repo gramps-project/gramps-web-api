@@ -32,6 +32,7 @@ from ..util import (
 from ..blueprint import api_blueprint
 from ..tasks import AsyncResult, make_task_response, process_chat, run_task
 from . import ProtectedResource
+from .schemas import ChatResponseSchema
 from ...auth.const import PERM_USE_CHAT, PERM_VIEW_PRIVATE
 from ..auth import has_permissions, require_permissions
 
@@ -76,6 +77,7 @@ class ChatQueryArgs(Schema):
 class ChatResource(ProtectedResource):
     """AI chat resource."""
 
+    @api_blueprint.response(200, ChatResponseSchema())
     @api_blueprint.arguments(ChatBodyArgs, location="json")
     @api_blueprint.arguments(ChatQueryArgs, location="query")
     def post(self, args_json, args_query):

@@ -45,6 +45,7 @@ from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .filters import apply_filter
+from .schemas import TimelineEventProfileSchema
 from ...const import NAME_FORMAT_REGEXP
 from .util import (
     get_person_profile_for_object,
@@ -617,6 +618,7 @@ class PersonTimelineQueryArgs(Schema):
 class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
     """Person timeline resource."""
 
+    @api_blueprint.response(200, TimelineEventProfileSchema(many=True))
     @api_blueprint.arguments(PersonTimelineQueryArgs, location="query")
     def get(self, args: Dict, handle: str):
         """Get list of events in timeline for a person."""
@@ -723,6 +725,7 @@ class FamilyTimelineQueryArgs(Schema):
 class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
     """Family timeline resource."""
 
+    @api_blueprint.response(200, TimelineEventProfileSchema(many=True))
     @api_blueprint.arguments(FamilyTimelineQueryArgs, location="query")
     def get(self, args: Dict, handle: str):
         """Get list of events in timeline for a family."""
@@ -839,6 +842,7 @@ class TimelinePeopleQueryArgs(Schema):
 class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
     """People timeline resource."""
 
+    @api_blueprint.response(200, TimelineEventProfileSchema(many=True))
     @api_blueprint.arguments(TimelinePeopleQueryArgs, location="query")
     def get(self, args: Dict):
         """Get consolidated list of events in timeline for a list of people."""
@@ -956,6 +960,7 @@ class TimelineFamiliesQueryArgs(Schema):
 class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
     """Families timeline resource."""
 
+    @api_blueprint.response(200, TimelineEventProfileSchema(many=True))
     @api_blueprint.arguments(TimelineFamiliesQueryArgs, location="query")
     def get(self, args: Dict):
         """Get consolidated list of events in timeline for a list of families."""

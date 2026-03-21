@@ -121,6 +121,7 @@ class UserChangeBase(ProtectedResource):
 class UsersResource(ProtectedResource):
     """Resource for all users."""
 
+    @api_blueprint.response(200, Schema(many=True))
     def get(self):
         """Get users' details."""
         # Always include OIDC account information if OIDC is enabled
@@ -238,6 +239,7 @@ class UserPostBodyArgs(Schema):
 class UserResource(UserChangeBase):
     """Resource for a single user."""
 
+    @api_blueprint.response(200, Schema())
     def get(self, user_name: str):
         """Get a user's details."""
         if user_name == "-":
