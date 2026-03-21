@@ -21,6 +21,7 @@ from marshmallow import INCLUDE, Schema, fields
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 class _Base(Schema):
     """Base class that tolerates unknown keys (doc-only schemas)."""
 
@@ -86,7 +87,9 @@ class StyledTextSchema(_Base):
     )
     tags = fields.List(
         fields.Nested(StyledTextTagSchema),
-        metadata={"description": "List of formatting tags applied to spans of the text."},
+        metadata={
+            "description": "List of formatting tags applied to spans of the text."
+        },
     )
 
 
@@ -233,14 +236,18 @@ class LDSOrdinationSchema(_Base):
         metadata={"description": "Date of the ordinance."},
     )
     famc = fields.Str(
-        metadata={"description": "Handle of the family associated with this ordinance."},
+        metadata={
+            "description": "Handle of the family associated with this ordinance."
+        },
     )
     note_list = fields.List(
         fields.Str(),
         metadata={"description": "Handles of research notes about this ordinance."},
     )
     place = fields.Str(
-        metadata={"description": "Handle of the place where the ordinance was performed."},
+        metadata={
+            "description": "Handle of the place where the ordinance was performed."
+        },
     )
     private = fields.Bool(metadata={"description": "Private object indicator."})
     status = fields.Int(
@@ -318,7 +325,9 @@ class EventProfileSchema(_Base):
         metadata={"description": "Total number of citations supporting this event."},
     )
     confidence = fields.Int(
-        metadata={"description": "Highest confidence rating among the supporting citations."},
+        metadata={
+            "description": "Highest confidence rating among the supporting citations."
+        },
     )
     date = fields.Str(
         metadata={"description": "Date of the event as a formatted string."},
@@ -409,7 +418,9 @@ class FamilyProfileSchema(_Base):
         metadata={"description": "All event profiles for this family."},
     )
     family_surname = fields.Str(
-        metadata={"description": "Surname of the family (from father, or mother if no father)."},
+        metadata={
+            "description": "Surname of the family (from father, or mother if no father)."
+        },
     )
     father = fields.Nested(
         PersonProfileSchema,
@@ -423,7 +434,9 @@ class FamilyProfileSchema(_Base):
     )
     marriage = fields.Nested(
         EventProfileSchema,
-        metadata={"description": "Marriage event profile (or best available fallback)."},
+        metadata={
+            "description": "Marriage event profile (or best available fallback)."
+        },
     )
     mother = fields.Nested(
         PersonProfileSchema,
@@ -521,7 +534,9 @@ class MediaProfileSchema(_Base):
         metadata={"description": "Date of the media item as a formatted string."},
     )
     gramps_id = fields.Str(
-        metadata={"description": "Alternate user-managed identifier for the media object."},
+        metadata={
+            "description": "Alternate user-managed identifier for the media object."
+        },
     )
     references = fields.Dict(
         metadata={"description": "References to this media item from other objects."},
@@ -538,7 +553,9 @@ class EventReferenceSchema(_Base):
 
     attribute_list = fields.List(
         fields.Nested(AttributeSchema),
-        metadata={"description": "Attributes related to the person's role in the event."},
+        metadata={
+            "description": "Attributes related to the person's role in the event."
+        },
     )
     note_list = fields.List(
         fields.Str(),
@@ -562,16 +579,22 @@ class MediaReferenceSchema(_Base):
     )
     citation_list = fields.List(
         fields.Str(),
-        metadata={"description": "Handles of citations supporting this media reference."},
+        metadata={
+            "description": "Handles of citations supporting this media reference."
+        },
     )
     note_list = fields.List(
         fields.Str(),
-        metadata={"description": "Handles of research notes about this media reference."},
+        metadata={
+            "description": "Handles of research notes about this media reference."
+        },
     )
     private = fields.Bool(metadata={"description": "Private object indicator."})
     rect = fields.List(
         fields.Float(),
-        metadata={"description": "Crop rectangle [left, top, right, bottom] as percentages."},
+        metadata={
+            "description": "Crop rectangle [left, top, right, bottom] as percentages."
+        },
     )
     ref = fields.Str(
         metadata={"description": "Handle of the referenced media object."},
@@ -609,7 +632,9 @@ class RepositoryReferenceSchema(_Base):
     )
     note_list = fields.List(
         fields.Str(),
-        metadata={"description": "Handles of research notes about this repository reference."},
+        metadata={
+            "description": "Handles of research notes about this repository reference."
+        },
     )
     private = fields.Bool(metadata={"description": "Private object indicator."})
     ref = fields.Str(
@@ -622,7 +647,9 @@ class ChildReferenceSchema(_Base):
 
     citation_list = fields.List(
         fields.Str(),
-        metadata={"description": "Handles of citations supporting this child reference."},
+        metadata={
+            "description": "Handles of citations supporting this child reference."
+        },
     )
     frel = fields.Str(
         metadata={"description": "Relationship between the child and the father."},
@@ -632,7 +659,9 @@ class ChildReferenceSchema(_Base):
     )
     note_list = fields.List(
         fields.Str(),
-        metadata={"description": "Handles of research notes about this child reference."},
+        metadata={
+            "description": "Handles of research notes about this child reference."
+        },
     )
     private = fields.Bool(metadata={"description": "Private object indicator."})
     ref = fields.Str(
@@ -722,7 +751,9 @@ class NoteSchema(_Base):
         metadata={"description": "Unix timestamp of the last modification."},
     )
     extended = fields.Raw(
-        metadata={"description": "Optional extended section with full referenced records."},
+        metadata={
+            "description": "Optional extended section with full referenced records."
+        },
     )
     format = fields.Int(
         metadata={"description": "Format identifier (0=plain text, 1=pre-formatted)."},
@@ -760,7 +791,9 @@ class MediaSchema(_Base):
     )
     backlinks = fields.Nested(
         BacklinksSchema,
-        metadata={"description": "Objects referring to this media item, grouped by type."},
+        metadata={
+            "description": "Objects referring to this media item, grouped by type."
+        },
     )
     change = fields.Float(
         metadata={"description": "Unix timestamp of the last modification."},
@@ -780,7 +813,9 @@ class MediaSchema(_Base):
         metadata={"description": "Description of the media object content."},
     )
     extended = fields.Raw(
-        metadata={"description": "Optional extended section with full referenced records."},
+        metadata={
+            "description": "Optional extended section with full referenced records."
+        },
     )
     gramps_id = fields.Str(
         metadata={"description": "Alternate user-managed identifier."},
@@ -793,7 +828,9 @@ class MediaSchema(_Base):
     )
     note_list = fields.List(
         fields.Str(),
-        metadata={"description": "Handles of research notes related to this media object."},
+        metadata={
+            "description": "Handles of research notes related to this media object."
+        },
     )
     path = fields.Str(
         metadata={"description": "Storage path to locate the media file."},
@@ -822,13 +859,17 @@ class RepositorySchema(_Base):
     )
     backlinks = fields.Nested(
         BacklinksSchema,
-        metadata={"description": "Objects referring to this repository, grouped by type."},
+        metadata={
+            "description": "Objects referring to this repository, grouped by type."
+        },
     )
     change = fields.Float(
         metadata={"description": "Unix timestamp of the last modification."},
     )
     extended = fields.Raw(
-        metadata={"description": "Optional extended section with full referenced records."},
+        metadata={
+            "description": "Optional extended section with full referenced records."
+        },
     )
     gramps_id = fields.Str(
         metadata={"description": "Alternate user-managed identifier."},
@@ -841,7 +882,9 @@ class RepositorySchema(_Base):
     )
     note_list = fields.List(
         fields.Str(),
-        metadata={"description": "Handles of research notes related to this repository."},
+        metadata={
+            "description": "Handles of research notes related to this repository."
+        },
     )
     private = fields.Bool(metadata={"description": "Private object indicator."})
     tag_list = fields.List(
@@ -882,7 +925,9 @@ class SourceSchema(_Base):
         metadata={"description": "Unix timestamp of the last modification."},
     )
     extended = fields.Raw(
-        metadata={"description": "Optional extended section with full referenced records."},
+        metadata={
+            "description": "Optional extended section with full referenced records."
+        },
     )
     gramps_id = fields.Str(
         metadata={"description": "Alternate user-managed identifier."},
@@ -932,7 +977,9 @@ class CitationSchema(_Base):
     )
     backlinks = fields.Nested(
         BacklinksSchema,
-        metadata={"description": "Objects referring to this citation, grouped by type."},
+        metadata={
+            "description": "Objects referring to this citation, grouped by type."
+        },
     )
     change = fields.Float(
         metadata={"description": "Unix timestamp of the last modification."},
@@ -945,7 +992,9 @@ class CitationSchema(_Base):
         metadata={"description": "Date of the citation."},
     )
     extended = fields.Raw(
-        metadata={"description": "Optional extended section with full referenced records."},
+        metadata={
+            "description": "Optional extended section with full referenced records."
+        },
     )
     gramps_id = fields.Str(
         metadata={"description": "Alternate user-managed identifier."},
@@ -1008,7 +1057,9 @@ class PlaceSchema(_Base):
         metadata={"description": "Place code (e.g. postal code)."},
     )
     extended = fields.Raw(
-        metadata={"description": "Optional extended section with full referenced records."},
+        metadata={
+            "description": "Optional extended section with full referenced records."
+        },
     )
     gramps_id = fields.Str(
         metadata={"description": "Alternate user-managed identifier."},
@@ -1089,7 +1140,9 @@ class EventSchema(_Base):
         metadata={"description": "Description of the event."},
     )
     extended = fields.Raw(
-        metadata={"description": "Optional extended section with full referenced records."},
+        metadata={
+            "description": "Optional extended section with full referenced records."
+        },
     )
     gramps_id = fields.Str(
         metadata={"description": "Alternate user-managed identifier."},
@@ -1153,7 +1206,9 @@ class FamilySchema(_Base):
         metadata={"description": "References to events the family participated in."},
     )
     extended = fields.Raw(
-        metadata={"description": "Optional extended section with full referenced records."},
+        metadata={
+            "description": "Optional extended section with full referenced records."
+        },
     )
     father_handle = fields.Str(
         metadata={"description": "Handle of the father."},
@@ -1189,7 +1244,9 @@ class FamilySchema(_Base):
         metadata={"description": "Handles of tags attached to this family."},
     )
     type = fields.Str(
-        metadata={"description": "Relationship type between the parents (e.g. 'Married')."},
+        metadata={
+            "description": "Relationship type between the parents (e.g. 'Married')."
+        },
     )
 
 
@@ -1217,7 +1274,9 @@ class PersonSchema(_Base):
         metadata={"description": "Objects referring to this person, grouped by type."},
     )
     birth_ref_index = fields.Int(
-        metadata={"description": "Index into event_ref_list for the birth event, or -1."},
+        metadata={
+            "description": "Index into event_ref_list for the birth event, or -1."
+        },
     )
     change = fields.Float(
         metadata={"description": "Unix timestamp of the last modification."},
@@ -1227,14 +1286,18 @@ class PersonSchema(_Base):
         metadata={"description": "Handles of citations supporting this person."},
     )
     death_ref_index = fields.Int(
-        metadata={"description": "Index into event_ref_list for the death event, or -1."},
+        metadata={
+            "description": "Index into event_ref_list for the death event, or -1."
+        },
     )
     event_ref_list = fields.List(
         fields.Nested(EventReferenceSchema),
         metadata={"description": "References to events this person participated in."},
     )
     extended = fields.Raw(
-        metadata={"description": "Optional extended section with full referenced records."},
+        metadata={
+            "description": "Optional extended section with full referenced records."
+        },
     )
     family_list = fields.List(
         fields.Str(),
@@ -1267,7 +1330,9 @@ class PersonSchema(_Base):
     )
     person_ref_list = fields.List(
         fields.Nested(PersonReferenceSchema),
-        metadata={"description": "References to other people this person has a relationship with."},
+        metadata={
+            "description": "References to other people this person has a relationship with."
+        },
     )
     primary_name = fields.Nested(
         NameSchema,
@@ -1344,7 +1409,9 @@ class MediaExtendedSchema(_Base):
 
     backlinks = fields.Nested(
         BacklinksExtendedSchema,
-        metadata={"description": "Full records for objects referring to this media item."},
+        metadata={
+            "description": "Full records for objects referring to this media item."
+        },
     )
     citations = fields.List(
         fields.Nested(CitationSchema),
@@ -1365,7 +1432,9 @@ class RepositoryExtendedSchema(_Base):
 
     backlinks = fields.Nested(
         BacklinksExtendedSchema,
-        metadata={"description": "Full records for objects referring to this repository."},
+        metadata={
+            "description": "Full records for objects referring to this repository."
+        },
     )
     notes = fields.List(
         fields.Nested(NoteSchema),
@@ -1394,7 +1463,9 @@ class SourceExtendedSchema(_Base):
     )
     repositories = fields.List(
         fields.Nested(RepositorySchema),
-        metadata={"description": "Full repository records for referenced repositories."},
+        metadata={
+            "description": "Full repository records for referenced repositories."
+        },
     )
     tags = fields.List(
         fields.Nested(TagSchema),
@@ -1407,7 +1478,9 @@ class CitationExtendedSchema(_Base):
 
     backlinks = fields.Nested(
         BacklinksExtendedSchema,
-        metadata={"description": "Full records for objects referring to this citation."},
+        metadata={
+            "description": "Full records for objects referring to this citation."
+        },
     )
     media = fields.List(
         fields.Nested(MediaSchema),
@@ -1539,7 +1612,9 @@ class PersonExtendedSchema(_Base):
     )
     families = fields.List(
         fields.Nested(FamilySchema),
-        metadata={"description": "Full family records for families this person is a parent of."},
+        metadata={
+            "description": "Full family records for families this person is a parent of."
+        },
     )
     media = fields.List(
         fields.Nested(MediaSchema),
@@ -1624,10 +1699,14 @@ class OIDCConfigSchema(_Base):
         metadata={"description": "List of configured OIDC providers."},
     )
     disable_local_auth = fields.Bool(
-        metadata={"description": "Whether local username/password authentication is disabled."},
+        metadata={
+            "description": "Whether local username/password authentication is disabled."
+        },
     )
     auto_redirect = fields.Bool(
-        metadata={"description": "Whether to auto-redirect when only one provider is configured."},
+        metadata={
+            "description": "Whether to auto-redirect when only one provider is configured."
+        },
     )
 
 
@@ -1718,7 +1797,9 @@ class FilterRuleSchema(_Base):
         metadata={"description": "Name of the filter rule class."},
     )
     regex = fields.Bool(
-        metadata={"description": "Whether text values are treated as regular expressions."},
+        metadata={
+            "description": "Whether text values are treated as regular expressions."
+        },
     )
     values = fields.List(
         fields.Raw(),
@@ -1756,7 +1837,9 @@ class NamespaceFiltersSchema(_Base):
     )
     rules = fields.List(
         fields.Nested(FilterRuleDescriptionSchema),
-        metadata={"description": "All available built-in filter rules for this namespace."},
+        metadata={
+            "description": "All available built-in filter rules for this namespace."
+        },
     )
 
 
@@ -1795,10 +1878,14 @@ class RelationshipSchema(_Base):
         metadata={"description": "Human-readable relationship description."},
     )
     distance_common_origin = fields.Int(
-        metadata={"description": "Generations from person 1 to the common ancestor (-1 if none)."},
+        metadata={
+            "description": "Generations from person 1 to the common ancestor (-1 if none)."
+        },
     )
     distance_common_other = fields.Int(
-        metadata={"description": "Generations from person 2 to the common ancestor (-1 if none)."},
+        metadata={
+            "description": "Generations from person 2 to the common ancestor (-1 if none)."
+        },
     )
 
 
@@ -1885,7 +1972,9 @@ class MetadataSchema(_Base):
     )
     surnames = fields.List(
         fields.Str(),
-        metadata={"description": "All surnames found in the database (when requested)."},
+        metadata={
+            "description": "All surnames found in the database (when requested)."
+        },
     )
 
 
@@ -1956,7 +2045,9 @@ class NameGroupMappingSchema(_Base):
         metadata={"description": "The surname to be grouped."},
     )
     group = fields.Str(
-        metadata={"description": "The canonical surname this spelling is grouped with."},
+        metadata={
+            "description": "The canonical surname this spelling is grouped with."
+        },
     )
 
 
@@ -2162,7 +2253,9 @@ class TimelineEventProfileSchema(_Base):
         metadata={"description": "Unique handle for the event."},
     )
     label = fields.Str(
-        metadata={"description": "Generated label accounting for the relationship (e.g. 'Birth of Stepsister')."},
+        metadata={
+            "description": "Generated label accounting for the relationship (e.g. 'Birth of Stepsister')."
+        },
     )
     media = fields.List(
         fields.Str(),
@@ -2194,7 +2287,9 @@ class DnaSegmentSchema(_Base):
         metadata={"description": "End position of the segment."},
     )
     side = fields.Str(
-        metadata={"description": "Side: 'M' (maternal), 'P' (paternal), or 'U' (unknown)."},
+        metadata={
+            "description": "Side: 'M' (maternal), 'P' (paternal), or 'U' (unknown)."
+        },
     )
     cM = fields.Float(
         metadata={"description": "Genetic distance in centiMorgans."},
@@ -2229,11 +2324,15 @@ class DnaMatchSchema(_Base):
         metadata={"description": "Details of each matching chromosome segment."},
     )
     person_ref_idx = fields.Int(
-        metadata={"description": "Index into the person's person_ref_list for this match."},
+        metadata={
+            "description": "Index into the person's person_ref_list for this match."
+        },
     )
     note_handles = fields.List(
         fields.Str(),
-        metadata={"description": "Handles of notes associated with the match's segments."},
+        metadata={
+            "description": "Handles of notes associated with the match's segments."
+        },
     )
     raw_data = fields.List(
         fields.Str(),
@@ -2251,16 +2350,22 @@ class CladeAgeInfoSchema(_Base):
     formed_confidence_interval = fields.List(
         fields.Float(),
         allow_none=True,
-        metadata={"description": "95% confidence interval [lower, upper] for the formed age."},
+        metadata={
+            "description": "95% confidence interval [lower, upper] for the formed age."
+        },
     )
     most_recent_common_ancestor = fields.Float(
         allow_none=True,
-        metadata={"description": "Estimated years ago the most recent common ancestor was born."},
+        metadata={
+            "description": "Estimated years ago the most recent common ancestor was born."
+        },
     )
     most_recent_common_ancestor_confidence_interval = fields.List(
         fields.Float(),
         allow_none=True,
-        metadata={"description": "95% confidence interval for the most recent common ancestor age."},
+        metadata={
+            "description": "95% confidence interval for the most recent common ancestor age."
+        },
     )
 
 
@@ -2355,5 +2460,7 @@ class TreeSchema(_Base):
     )
     min_role_ai = fields.Int(
         allow_none=True,
-        metadata={"description": "Minimum user role required to use the AI chat endpoint."},
+        metadata={
+            "description": "Minimum user role required to use the AI chat endpoint."
+        },
     )
