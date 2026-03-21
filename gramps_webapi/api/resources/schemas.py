@@ -73,8 +73,8 @@ class StyledTextTagSchema(_Base):
         metadata={"description": "Value of the tag; may be null, string, or integer."},
     )
     ranges = fields.List(
-        fields.Int(),
-        metadata={"description": "Pairs of start/end character offsets."},
+        fields.List(fields.Int()),
+        metadata={"description": "List of [start, end] character-offset pairs."},
     )
 
 
