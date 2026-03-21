@@ -57,13 +57,34 @@ trans_code = {"delete": TXNDEL, "add": TXNADD, "update": TXNUPD}
 class TransactionsHistoryQueryArgs(Schema):
     """Query arguments for GET /history/transactions/."""
 
-    old = fields.Boolean(load_default=False)
-    new = fields.Boolean(load_default=False)
-    page = fields.Integer(load_default=0, validate=validate.Range(min=1))
-    pagesize = fields.Integer(load_default=20, validate=validate.Range(min=1))
-    sort = fields.Str(validate=validate.Length(min=1))
-    before = fields.Float(load_default=None)
-    after = fields.Float(load_default=None)
+    old = fields.Boolean(
+        load_default=False,
+        metadata={"description": "If true, include the raw object data before the change."},
+    )
+    new = fields.Boolean(
+        load_default=False,
+        metadata={"description": "If true, include the raw object data after the change."},
+    )
+    page = fields.Integer(
+        load_default=0, validate=validate.Range(min=1),
+        metadata={"description": "Page number of the result subset to return. If omitted (default 0), all results are returned."},
+    )
+    pagesize = fields.Integer(
+        load_default=20, validate=validate.Range(min=1),
+        metadata={"description": "Number of items per page when pagination is active."},
+    )
+    sort = fields.Str(
+        validate=validate.Length(min=1),
+        metadata={"description": "Sort order for transactions. Use 'id' for ascending or '-id' for descending."},
+    )
+    before = fields.Float(
+        load_default=None,
+        metadata={"description": "Unix timestamp; if provided, return only transactions committed before this time."},
+    )
+    after = fields.Float(
+        load_default=None,
+        metadata={"description": "Unix timestamp; if provided, return only transactions committed after this time."},
+    )
 
 
 class TransactionsHistoryResource(ProtectedResource):
@@ -104,8 +125,14 @@ class TransactionsHistoryResource(ProtectedResource):
 class TransactionHistoryQueryArgs(Schema):
     """Query arguments for GET /history/transactions/<id>/."""
 
-    old = fields.Boolean(load_default=False)
-    new = fields.Boolean(load_default=False)
+    old = fields.Boolean(
+        load_default=False,
+        metadata={"description": "If true, include the raw object data before the change."},
+    )
+    new = fields.Boolean(
+        load_default=False,
+        metadata={"description": "If true, include the raw object data after the change."},
+    )
 
 
 class TransactionHistoryResource(ProtectedResource):
@@ -133,7 +160,10 @@ class TransactionHistoryResource(ProtectedResource):
 class UndoQueryArgs(Schema):
     """Query arguments for POST /history/transactions/<id>/undo/."""
 
-    force = fields.Boolean(load_default=False)
+    force = fields.Boolean(
+        load_default=False,
+        metadata={"description": "If true, force the undo even if there are conflicts."},
+    )
 
 
 class TransactionUndoResource(ProtectedResource):

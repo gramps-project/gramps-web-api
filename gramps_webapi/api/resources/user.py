@@ -188,21 +188,51 @@ class UsersResource(ProtectedResource):
 class UserPutBodyArgs(Schema):
     """Body arguments for PUT /users/<user_name>/."""
 
-    email = fields.Str(required=False)
-    full_name = fields.Str(required=False)
-    name_new = fields.Str(required=False)
-    role = fields.Int(required=False)
-    tree = fields.Str(required=False)
+    email = fields.Str(
+        required=False,
+        metadata={"description": "The user's e-mail address."},
+    )
+    full_name = fields.Str(
+        required=False,
+        metadata={"description": "The user's full name."},
+    )
+    name_new = fields.Str(
+        required=False,
+        metadata={"description": "New username when renaming the user."},
+    )
+    role = fields.Int(
+        required=False,
+        metadata={"description": "Integer user role ID."},
+    )
+    tree = fields.Str(
+        required=False,
+        metadata={"description": "Tree ID the user belongs to."},
+    )
 
 
 class UserPostBodyArgs(Schema):
     """Body arguments for POST /users/<user_name>/."""
 
-    email = fields.Str(required=True)
-    full_name = fields.Str(required=True)
-    password = fields.Str(required=True)
-    role = fields.Int(required=True)
-    tree = fields.Str(required=False)
+    email = fields.Str(
+        required=True,
+        metadata={"description": "The user's e-mail address."},
+    )
+    full_name = fields.Str(
+        required=True,
+        metadata={"description": "The user's full name."},
+    )
+    password = fields.Str(
+        required=True,
+        metadata={"description": "The user's password."},
+    )
+    role = fields.Int(
+        required=True,
+        metadata={"description": "Integer user role ID."},
+    )
+    tree = fields.Str(
+        required=False,
+        metadata={"description": "Tree ID the user belongs to."},
+    )
 
 
 class UserResource(UserChangeBase):
@@ -342,10 +372,22 @@ class UserResource(UserChangeBase):
 class UserRegisterBodyArgs(Schema):
     """Body arguments for POST /users/<user_name>/register/."""
 
-    email = fields.Str(required=True)
-    full_name = fields.Str(required=True)
-    password = fields.Str(required=True)
-    tree = fields.Str(required=False)
+    email = fields.Str(
+        required=True,
+        metadata={"description": "The user's e-mail address."},
+    )
+    full_name = fields.Str(
+        required=True,
+        metadata={"description": "The user's full name."},
+    )
+    password = fields.Str(
+        required=True,
+        metadata={"description": "The user's password."},
+    )
+    tree = fields.Str(
+        required=False,
+        metadata={"description": "Tree ID the user belongs to."},
+    )
 
 
 class UserRegisterResource(Resource):
@@ -421,10 +463,22 @@ class UserRegisterResource(Resource):
 class UserCreateOwnerBodyArgs(Schema):
     """Body arguments for POST /users/<user_name>/create_owner/."""
 
-    email = fields.Str(required=True)
-    full_name = fields.Str(required=True)
-    password = fields.Str(required=True)
-    tree = fields.Str(required=False)
+    email = fields.Str(
+        required=True,
+        metadata={"description": "The user's e-mail address."},
+    )
+    full_name = fields.Str(
+        required=True,
+        metadata={"description": "The user's full name."},
+    )
+    password = fields.Str(
+        required=True,
+        metadata={"description": "The user's password."},
+    )
+    tree = fields.Str(
+        required=False,
+        metadata={"description": "Tree ID the user belongs to."},
+    )
 
 
 class UserCreateOwnerResource(LimitedScopeProtectedResource):
@@ -486,8 +540,14 @@ class UserCreateOwnerResource(LimitedScopeProtectedResource):
 class UserChangePasswordBodyArgs(Schema):
     """Body arguments for POST /users/<user_name>/password/."""
 
-    old_password = fields.Str(required=True)
-    new_password = fields.Str(required=True)
+    old_password = fields.Str(
+        required=True,
+        metadata={"description": "The current (old) password."},
+    )
+    new_password = fields.Str(
+        required=True,
+        metadata={"description": "The new password."},
+    )
 
 
 class UserChangePasswordResource(UserChangeBase):
@@ -547,7 +607,10 @@ class UserTriggerResetPasswordResource(Resource):
 class UserResetPasswordBodyArgs(Schema):
     """Body arguments for POST /users/<user_name>/reset_password/."""
 
-    new_password = fields.Str(required=True)
+    new_password = fields.Str(
+        required=True,
+        metadata={"description": "The new password."},
+    )
 
 
 class UserResetPasswordResource(LimitedScopeProtectedResource):

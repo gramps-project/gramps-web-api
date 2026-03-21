@@ -63,7 +63,10 @@ def _is_development_environment(frontend_url: Optional[str]) -> bool:
 class OIDCLoginQueryArgs(Schema):
     """Query arguments for GET /oidc/login."""
 
-    provider = fields.Str(required=True)
+    provider = fields.Str(
+        required=True,
+        metadata={"description": "The OIDC provider ID (e.g. 'google', 'microsoft', 'github')."},
+    )
 
 
 class OIDCLoginResource(Resource):
@@ -111,13 +114,34 @@ class OIDCCallbackQueryArgs(Schema):
     class Meta:
         unknown = EXCLUDE
 
-    provider = fields.Str(required=False)  # Optional for backwards compatibility
-    tree = fields.Str(required=False)
-    code = fields.Str(required=False)
-    state = fields.Str(required=False)
-    session_state = fields.Str(required=False)
-    error = fields.Str(required=False)
-    error_description = fields.Str(required=False)
+    provider = fields.Str(
+        required=False,
+        metadata={"description": "The OIDC provider ID (e.g. 'google', 'microsoft', 'github')."},
+    )  # Optional for backwards compatibility
+    tree = fields.Str(
+        required=False,
+        metadata={"description": "Tree ID to associate with the OIDC login."},
+    )
+    code = fields.Str(
+        required=False,
+        metadata={"description": "Authorization code returned by the OIDC provider."},
+    )
+    state = fields.Str(
+        required=False,
+        metadata={"description": "State parameter returned by the OIDC provider."},
+    )
+    session_state = fields.Str(
+        required=False,
+        metadata={"description": "Session state parameter returned by the OIDC provider."},
+    )
+    error = fields.Str(
+        required=False,
+        metadata={"description": "Error code returned by the OIDC provider."},
+    )
+    error_description = fields.Str(
+        required=False,
+        metadata={"description": "Error description returned by the OIDC provider."},
+    )
 
 
 class OIDCCallbackResource(Resource):
@@ -391,9 +415,18 @@ class OIDCConfigResource(Resource):
 class OIDCLogoutQueryArgs(Schema):
     """Query arguments for GET /oidc/logout."""
 
-    provider = fields.Str(required=True)
-    id_token = fields.Str(required=False)
-    post_logout_redirect_uri = fields.Str(required=False)
+    provider = fields.Str(
+        required=True,
+        metadata={"description": "The OIDC provider ID (e.g. 'google', 'microsoft', 'github')."},
+    )
+    id_token = fields.Str(
+        required=False,
+        metadata={"description": "ID token to use as id_token_hint for logout."},
+    )
+    post_logout_redirect_uri = fields.Str(
+        required=False,
+        metadata={"description": "URI to redirect to after logout."},
+    )
 
 
 class OIDCLogoutResource(Resource):

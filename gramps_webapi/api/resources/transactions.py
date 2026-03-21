@@ -42,9 +42,18 @@ trans_code = {"delete": TXNDEL, "add": TXNADD, "update": TXNUPD}
 class TransactionsQueryArgs(Schema):
     """Query arguments for POST /transactions/."""
 
-    undo = fields.Boolean(load_default=False)
-    force = fields.Boolean(load_default=False)
-    background = fields.Boolean(load_default=False)
+    undo = fields.Boolean(
+        load_default=False,
+        metadata={"description": "If true, apply the inverse of the transaction."},
+    )
+    force = fields.Boolean(
+        load_default=False,
+        metadata={"description": "If true, force applying the transaction even if objects have been modified."},
+    )
+    background = fields.Boolean(
+        load_default=False,
+        metadata={"description": "If true, apply the transactions in the background and return HTTP 202."},
+    )
 
 
 class TransactionsResource(ProtectedResource):

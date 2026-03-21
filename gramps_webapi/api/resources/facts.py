@@ -97,8 +97,14 @@ def get_person_filter(db_handle: DbReadBase, args: Dict) -> Union[GenericFilter,
 class FactsQueryArgs(Schema):
     """Query arguments for GET /facts/."""
 
-    gramps_id = fields.Str(load_default=None, validate=validate.Length(min=1))
-    handle = fields.Str(load_default=None, validate=validate.Length(min=1))
+    gramps_id = fields.Str(
+        load_default=None, validate=validate.Length(min=1),
+        metadata={"description": "Gramps ID of the person to use as the anchor for built-in person filters."},
+    )
+    handle = fields.Str(
+        load_default=None, validate=validate.Length(min=1),
+        metadata={"description": "Handle of the person to use as the anchor for built-in person filters. Ignored if gramps_id is provided."},
+    )
     living = fields.Str(
         load_default="IncludeAll",
         validate=validate.OneOf(
@@ -110,11 +116,24 @@ class FactsQueryArgs(Schema):
                 "ExcludeAll",
             ]
         ),
+        metadata={"description": "Built-in proxy controlling how living people are handled. Values: IncludeAll, FullNameOnly, LastNameOnly, ReplaceCompleteName, ExcludeAll."},
     )
-    locale = fields.Str(load_default=None, validate=validate.Length(min=2, max=5))
-    person = fields.Str(load_default=None, validate=validate.Length(min=1))
-    private = fields.Boolean(load_default=False)
-    rank = fields.Integer(load_default=1, validate=validate.Range(min=1))
+    locale = fields.Str(
+        load_default=None, validate=validate.Length(min=2, max=5),
+        metadata={"description": "Language code of the locale for translated output."},
+    )
+    person = fields.Str(
+        load_default=None, validate=validate.Length(min=1),
+        metadata={"description": "Name of a built-in or custom person filter. Built-in values: Descendants, DescendantFamilies, Ancestors, CommonAncestor."},
+    )
+    private = fields.Boolean(
+        load_default=False,
+        metadata={"description": "If true, exclude records marked as private."},
+    )
+    rank = fields.Integer(
+        load_default=1, validate=validate.Range(min=1),
+        metadata={"description": "Number of objects to return for ranked statistics items (default 1)."},
+    )
 
 
 class FactsResource(ProtectedResource, GrampsJSONEncoder):

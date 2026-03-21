@@ -33,10 +33,18 @@ from .emit import GrampsJSONEncoder
 class NameFormatSchema(Schema):
     """Schema for a single name format entry."""
 
-    number = fields.Int()
-    name = fields.Str()
-    format = fields.Str()
-    active = fields.Bool()
+    number = fields.Int(
+        metadata={"description": "Numeric identifier for the name format."},
+    )
+    name = fields.Str(
+        metadata={"description": "Display name of the format."},
+    )
+    format = fields.Str(
+        metadata={"description": "The format string."},
+    )
+    active = fields.Bool(
+        metadata={"description": "If true, the format is currently in use."},
+    )
 
 
 class NameFormatsResource(ProtectedResource, GrampsJSONEncoder):

@@ -37,22 +37,40 @@ from ..auth import has_permissions, require_permissions
 
 
 class ChatMessageSchema(Schema):
-    role = fields.Str(required=True)
-    message = fields.Str(required=True)
+    role = fields.Str(
+        required=True,
+        metadata={"description": "Role of the message sender: one of 'human', 'ai', 'system', 'assistant', or 'error'."},
+    )
+    message = fields.Str(
+        required=True,
+        metadata={"description": "The message content."},
+    )
 
 
 class ChatBodyArgs(Schema):
     """Body arguments for POST /chat/."""
 
-    query = fields.Str(required=True)
-    history = fields.List(fields.Nested(ChatMessageSchema), required=False)
+    query = fields.Str(
+        required=True,
+        metadata={"description": "The chat prompt to answer."},
+    )
+    history = fields.List(
+        fields.Nested(ChatMessageSchema), required=False,
+        metadata={"description": "Optional list of prior conversation messages ({role, message})."},
+    )
 
 
 class ChatQueryArgs(Schema):
     """Query arguments for POST /chat/."""
 
-    background = fields.Boolean(load_default=False)
-    verbose = fields.Boolean(load_default=False)
+    background = fields.Boolean(
+        load_default=False,
+        metadata={"description": "If true, process the chat in the background and return HTTP 202."},
+    )
+    verbose = fields.Boolean(
+        load_default=False,
+        metadata={"description": "If true, include detailed agent metadata (tool calls, token usage) in the response."},
+    )
 
 
 class ChatResource(ProtectedResource):

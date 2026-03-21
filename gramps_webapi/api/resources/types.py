@@ -161,7 +161,10 @@ def get_custom_types(db_handle: DbReadBase, datatype: str) -> Optional[List]:
 class TypesLocaleArgs(Schema):
     """Query arguments for type endpoints with locale."""
 
-    locale = fields.Boolean(load_default=False)
+    locale = fields.Boolean(
+        load_default=False,
+        metadata={"description": "If true, return type names translated to the current locale."},
+    )
 
 
 class DefaultTypesResource(ProtectedResource, GrampsJSONEncoder):

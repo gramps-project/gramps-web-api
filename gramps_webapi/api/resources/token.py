@@ -76,17 +76,27 @@ def get_tokens(
 class TokenLoginSchema(Schema):
     """Request body for POST /token/."""
 
-    username = fields.Str(required=True, validate=validate.Length(min=1))
+    username = fields.Str(
+        required=True, validate=validate.Length(min=1),
+        metadata={"description": "The username for authentication."},
+    )
     password = fields.Str(
-        required=True, validate=validate.Length(min=1), load_only=True
+        required=True, validate=validate.Length(min=1), load_only=True,
+        metadata={"description": "The user's password."},
     )
 
 
 class TokenPairSchema(Schema):
     """Response schema for POST /token/."""
 
-    access_token = fields.Str(required=True)
-    refresh_token = fields.Str(required=True)
+    access_token = fields.Str(
+        required=True,
+        metadata={"description": "A valid JWT access token."},
+    )
+    refresh_token = fields.Str(
+        required=True,
+        metadata={"description": "A valid JWT refresh token."},
+    )
 
 
 class TokenResource(Resource):
@@ -126,7 +136,10 @@ class TokenResource(Resource):
 class TokenSchema(Schema):
     """Response schema for a single access token."""
 
-    access_token = fields.Str(required=True)
+    access_token = fields.Str(
+        required=True,
+        metadata={"description": "A valid JWT access token."},
+    )
 
 
 class TokenRefreshResource(RefreshProtectedResource):
@@ -157,7 +170,10 @@ class TokenRefreshResource(RefreshProtectedResource):
 class TokenCreateOwnerPostSchema(Schema):
     """Request body for POST /token/create_owner/."""
 
-    tree = fields.Str(load_default=None)
+    tree = fields.Str(
+        load_default=None,
+        metadata={"description": "Tree ID to authenticate against (multi-tree mode)."},
+    )
 
 
 class TokenCreateOwnerResource(Resource):

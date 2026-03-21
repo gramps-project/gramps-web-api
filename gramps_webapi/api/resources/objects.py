@@ -123,6 +123,7 @@ class DeleteObjectsQueryArgs(Schema):
     namespaces = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
         validate=validate.ContainsOnly(choices=list(GRAMPS_OBJECT_PLURAL.values())),
+        metadata={"description": "Comma-delimited list of object types to delete (e.g. 'people,families,events')."},
     )
 
 

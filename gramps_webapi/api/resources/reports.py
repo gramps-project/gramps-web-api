@@ -49,7 +49,10 @@ from .emit import GrampsJSONEncoder
 class ReportsQueryArgs(Schema):
     """Query arguments for GET /reports/."""
 
-    include_help = fields.Boolean(load_default=False)
+    include_help = fields.Boolean(
+        load_default=False,
+        metadata={"description": "If true, include the options help dictionary in the response."},
+    )
 
 
 class ReportsResource(ProtectedResource, GrampsJSONEncoder):
@@ -67,7 +70,10 @@ class ReportsResource(ProtectedResource, GrampsJSONEncoder):
 class ReportQueryArgs(Schema):
     """Query arguments for GET /reports/<report_id>/."""
 
-    include_help = fields.Boolean(load_default=True)
+    include_help = fields.Boolean(
+        load_default=True,
+        metadata={"description": "If true, include the options help dictionary in the response."},
+    )
 
 
 class ReportResource(ProtectedResource, GrampsJSONEncoder):
@@ -89,9 +95,18 @@ class ReportResource(ProtectedResource, GrampsJSONEncoder):
 class ReportFileQueryArgs(Schema):
     """Query arguments for GET/POST /reports/<report_id>/file."""
 
-    options = fields.Str(validate=validate.Length(min=1))
-    locale = fields.Str(load_default=None, validate=validate.Length(min=1, max=5))
-    jwt = fields.String(required=False)
+    options = fields.Str(
+        validate=validate.Length(min=1),
+        metadata={"description": "Report options as a JSON string. See the report's options_help for available keys."},
+    )
+    locale = fields.Str(
+        load_default=None, validate=validate.Length(min=1, max=5),
+        metadata={"description": "Language code of the locale to use for the report output."},
+    )
+    jwt = fields.String(
+        required=False,
+        metadata={"description": "JWT token for download authentication (used when the browser fetches the file directly)."},
+    )
 
 
 class ReportFileResource(ProtectedResource, GrampsJSONEncoder):

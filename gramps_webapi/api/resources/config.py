@@ -44,7 +44,10 @@ class ConfigsResource(ProtectedResource):
 class ConfigValueArgs(Schema):
     """Request body for PUT /config/<key>/."""
 
-    value = fields.Str(required=True)
+    value = fields.Str(
+        required=True,
+        metadata={"description": "The new value for the configuration setting."},
+    )
 
 
 class ConfigResource(ProtectedResource):

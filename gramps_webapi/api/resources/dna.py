@@ -54,8 +54,14 @@ SIDE_PATERNAL = "P"
 class DnaMatchesQueryArgs(Schema):
     """Query arguments for GET /people/<handle>/dna/matches."""
 
-    locale = fields.Str(load_default=None, validate=validate.Length(min=2, max=5))
-    raw = fields.Bool(load_default=False)
+    locale = fields.Str(
+        load_default=None, validate=validate.Length(min=2, max=5),
+        metadata={"description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."},
+    )
+    raw = fields.Bool(
+        load_default=False,
+        metadata={"description": "If true, include the raw segment data strings in the response."},
+    )
 
 
 class PersonDnaMatchesResource(ProtectedResource):
@@ -97,7 +103,10 @@ class PersonDnaMatchesResource(ProtectedResource):
 class DnaMatchParserBodyArgs(Schema):
     """Body arguments for POST /dna/match-parser/."""
 
-    string = fields.Str(required=True)
+    string = fields.Str(
+        required=True,
+        metadata={"description": "The raw DNA match data string to parse."},
+    )
 
 
 class DnaMatchParserResource(ProtectedResource):

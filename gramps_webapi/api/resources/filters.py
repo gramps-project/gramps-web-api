@@ -186,9 +186,18 @@ def apply_filter(
 class RuleSchema(Schema):
     """Structure for a filter rule."""
 
-    name = fields.Str(required=True, validate=validate.Length(min=1))
-    values = fields.List(fields.Raw, required=False)
-    regex = fields.Boolean(required=False, load_default=False)
+    name = fields.Str(
+        required=True, validate=validate.Length(min=1),
+        metadata={"description": "The name of the filter rule (for RuleSchema) or the custom filter (for CustomFilterSchema)."},
+    )
+    values = fields.List(
+        fields.Raw, required=False,
+        metadata={"description": "Optional list of parameter values for the rule."},
+    )
+    regex = fields.Boolean(
+        required=False, load_default=False,
+        metadata={"description": "If true, treat text values as regular expressions."},
+    )
 
 
 class FilterSchema(Schema):
@@ -198,20 +207,32 @@ class FilterSchema(Schema):
         required=False,
         load_default="and",
         validate=validate.OneOf(["and", "or", "one"]),
+        metadata={"description": "Logical operation applied across rules: 'and', 'or', or 'one'."},
     )
-    invert = fields.Boolean(required=False, load_default=False)
+    invert = fields.Boolean(
+        required=False, load_default=False,
+        metadata={"description": "If true, invert the filter result set."},
+    )
     rules = fields.List(
-        fields.Nested(RuleSchema), required=True, validate=validate.Length(min=1)
+        fields.Nested(RuleSchema), required=True, validate=validate.Length(min=1),
+        metadata={"description": "List of filter rules or comma-delimited list of rule names to return."},
     )
 
 
 class CustomFilterSchema(FilterSchema):
     """Structure for a custom filter."""
 
-    name = fields.Str(required=True, validate=validate.Length(min=1))
-    comment = fields.Str(required=False)
+    name = fields.Str(
+        required=True, validate=validate.Length(min=1),
+        metadata={"description": "The name of the filter rule (for RuleSchema) or the custom filter (for CustomFilterSchema)."},
+    )
+    comment = fields.Str(
+        required=False,
+        metadata={"description": "Optional comment describing the purpose of the custom filter."},
+    )
     rules = fields.List(
-        fields.Nested(RuleSchema), required=True, validate=validate.Length(min=1)
+        fields.Nested(RuleSchema), required=True, validate=validate.Length(min=1),
+        metadata={"description": "List of filter rules or comma-delimited list of rule names to return."},
     )
 
 
@@ -232,8 +253,14 @@ class FiltersResources(ProtectedResource, GrampsJSONEncoder):
 class FiltersQueryArgs(Schema):
     """Query arguments for GET /filters/<namespace>/."""
 
-    filters = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
-    rules = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    filters = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={"description": "Comma-delimited list of specific custom filter names to return."},
+    )
+    rules = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={"description": "List of filter rules or comma-delimited list of rule names to return."},
+    )
 
 
 class FiltersResource(ProtectedResource, GrampsJSONEncoder):
@@ -296,7 +323,10 @@ class FiltersResource(ProtectedResource, GrampsJSONEncoder):
 class FilterDeleteQueryArgs(Schema):
     """Query arguments for DELETE /filters/<namespace>/<name>/."""
 
-    force = fields.Str(validate=validate.Length(equal=0))
+    force = fields.Str(
+        validate=validate.Length(equal=0),
+        metadata={"description": "If present (empty string), force-delete the filter and any dependent filters."},
+    )
 
 
 class FilterResource(ProtectedResource, GrampsJSONEncoder):

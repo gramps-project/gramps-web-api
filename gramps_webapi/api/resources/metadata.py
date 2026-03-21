@@ -61,7 +61,10 @@ def get_dbid_from_tree_id(tree_id: str) -> str:
 class MetadataQueryArgs(Schema):
     """Query arguments for GET /metadata/."""
 
-    surnames = fields.Boolean(load_default=False)
+    surnames = fields.Boolean(
+        load_default=False,
+        metadata={"description": "If true, include the full list of surnames found in the database."},
+    )
 
 
 class MetadataResource(ProtectedResource, GrampsJSONEncoder):

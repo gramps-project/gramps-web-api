@@ -64,13 +64,19 @@ class Sort:
 class TranslationGetArgs(Schema):
     """Query arguments for GET /translations/<language>/."""
 
-    strings = fields.Str(required=True)
+    strings = fields.Str(
+        required=True,
+        metadata={"description": "The string(s) to translate."},
+    )
 
 
 class TranslationPostArgs(Schema):
     """Body arguments for POST /translations/<language>/."""
 
-    strings = fields.List(fields.Str(), required=True)
+    strings = fields.List(
+        fields.Str(), required=True,
+        metadata={"description": "The string(s) to translate."},
+    )
 
 
 class TranslationResource(ProtectedResource, GrampsJSONEncoder):
@@ -112,8 +118,14 @@ class TranslationResource(ProtectedResource, GrampsJSONEncoder):
 class TranslationsQueryArgs(Schema):
     """Query arguments for GET /translations/."""
 
-    locale = fields.Str(load_default=None, validate=validate.Length(min=1, max=5))
-    sort = fields.DelimitedList(fields.Str(validate=validate.Length(min=1)))
+    locale = fields.Str(
+        load_default=None, validate=validate.Length(min=1, max=5),
+        metadata={"description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."},
+    )
+    sort = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={"description": "Comma-delimited sort keys for the language list. Available: current, default, language, native. Prefix with '-' for descending."},
+    )
 
 
 class TranslationsResource(ProtectedResource, GrampsJSONEncoder):

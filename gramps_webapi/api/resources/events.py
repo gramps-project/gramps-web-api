@@ -86,9 +86,18 @@ class EventsResource(GrampsObjectsProtectedResource, EventResourceHelper):
 class EventSpanQueryArgs(Schema):
     """Query arguments for GET /events/<handle1>/span/<handle2>."""
 
-    as_age = fields.Boolean(load_default=True)
-    locale = fields.Str(load_default=None, validate=validate.Length(min=1, max=5))
-    precision = fields.Integer(load_default=2, validate=validate.Range(min=1, max=3))
+    as_age = fields.Boolean(
+        load_default=True,
+        metadata={"description": "If true (default), express the elapsed time as an age rather than a raw span."},
+    )
+    locale = fields.Str(
+        load_default=None, validate=validate.Length(min=1, max=5),
+        metadata={"description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."},
+    )
+    precision = fields.Integer(
+        load_default=2, validate=validate.Range(min=1, max=3),
+        metadata={"description": "Number of significant time components to include in date strings: 1=year only, 2=year+month, 3=year+month+day."},
+    )
 
 
 class EventSpanResource(ProtectedResource, GrampsJSONEncoder):

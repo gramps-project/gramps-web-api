@@ -45,14 +45,23 @@ from .util import transaction_to_json, update_object
 class MediaFileGetQueryArgs(Schema):
     """Query arguments for GET /media/<handle>/file."""
 
-    download = fields.Boolean(load_default=False)
-    jwt = fields.String(required=False)
+    download = fields.Boolean(
+        load_default=False,
+        metadata={"description": "If true, return the file as an attachment (forces download)."},
+    )
+    jwt = fields.String(
+        required=False,
+        metadata={"description": "JWT token for download authentication (used when the browser fetches the file directly)."},
+    )
 
 
 class MediaFilePutQueryArgs(Schema):
     """Query arguments for PUT /media/<handle>/file."""
 
-    uploadmissing = fields.Boolean(load_default=False)
+    uploadmissing = fields.Boolean(
+        load_default=False,
+        metadata={"description": "If true, upload a missing file for an existing media object without modifying the object record."},
+    )
 
 
 class MediaFileResource(ProtectedResource):

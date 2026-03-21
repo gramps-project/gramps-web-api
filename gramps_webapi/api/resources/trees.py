@@ -114,10 +114,22 @@ def get_tree_ids() -> List[str]:
 class TreeCreateBodyArgs(Schema):
     """Body arguments for POST /trees/."""
 
-    name = fields.Str(required=True)
-    quota_media = fields.Integer(required=False)
-    quota_people = fields.Integer(required=False)
-    min_role_ai = fields.Integer(required=False)
+    name = fields.Str(
+        required=True,
+        metadata={"description": "The name of the tree."},
+    )
+    quota_media = fields.Integer(
+        required=False,
+        metadata={"description": "Maximum total size in bytes for media objects."},
+    )
+    quota_people = fields.Integer(
+        required=False,
+        metadata={"description": "Maximum number of people allowed in the tree."},
+    )
+    min_role_ai = fields.Integer(
+        required=False,
+        metadata={"description": "Minimum user role level required to use the AI chat endpoint."},
+    )
 
 
 class TreesResource(ProtectedResource):
@@ -161,10 +173,22 @@ class TreesResource(ProtectedResource):
 class TreeUpdateBodyArgs(Schema):
     """Body arguments for PUT /trees/<tree_id>/."""
 
-    name = fields.Str(required=False, load_default=None)
-    quota_media = fields.Integer(required=False)
-    quota_people = fields.Integer(required=False)
-    min_role_ai = fields.Integer(required=False)
+    name = fields.Str(
+        required=False, load_default=None,
+        metadata={"description": "The name of the tree."},
+    )
+    quota_media = fields.Integer(
+        required=False,
+        metadata={"description": "Maximum total size in bytes for media objects."},
+    )
+    quota_people = fields.Integer(
+        required=False,
+        metadata={"description": "Maximum number of people allowed in the tree."},
+    )
+    min_role_ai = fields.Integer(
+        required=False,
+        metadata={"description": "Minimum user role level required to use the AI chat endpoint."},
+    )
 
 
 class TreeResource(ProtectedResource):

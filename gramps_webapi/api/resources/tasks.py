@@ -34,10 +34,18 @@ from . import ProtectedResource
 class TaskStatusSchema(Schema):
     """Response schema for GET /tasks/<task_id>."""
 
-    state = fields.Str()
-    result_object = fields.Raw()
-    info = fields.Str()
-    result = fields.Str()
+    state = fields.Str(
+        metadata={"description": "The current task state (e.g. 'PENDING', 'STARTED', 'SUCCESS', 'FAILURE')."},
+    )
+    result_object = fields.Raw(
+        metadata={"description": "The task result object if available."},
+    )
+    info = fields.Str(
+        metadata={"description": "Human-readable status information."},
+    )
+    result = fields.Str(
+        metadata={"description": "The task result as a string."},
+    )
 
 
 class TaskResource(ProtectedResource):

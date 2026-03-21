@@ -37,8 +37,12 @@ from .emit import GrampsJSONEncoder
 class NameGroupSchema(Schema):
     """Schema for a name group mapping."""
 
-    surname = fields.Str()
-    group = fields.Str()
+    surname = fields.Str(
+        metadata={"description": "The surname to be grouped."},
+    )
+    group = fields.Str(
+        metadata={"description": "The canonical surname this surname should be grouped with."},
+    )
 
 
 class NameGroupsResource(ProtectedResource, GrampsJSONEncoder):

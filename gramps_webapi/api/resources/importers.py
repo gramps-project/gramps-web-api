@@ -66,7 +66,10 @@ class ImporterResource(ProtectedResource, GrampsJSONEncoder):
 class ImporterFileQueryArgs(Schema):
     """Query arguments for POST /importers/<extension>/file."""
 
-    jwt = fields.String(required=False)
+    jwt = fields.String(
+        required=False,
+        metadata={"description": "JWT token for upload authentication."},
+    )
 
 
 class ImporterFileResource(ProtectedResource):
