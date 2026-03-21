@@ -72,7 +72,6 @@ class OIDCLoginQueryArgs(Schema):
     )
 
 
-@api_blueprint.doc(tags=["OIDC"])
 class OIDCLoginResource(Resource):
     """Resource for initiating OIDC login flow.
 
@@ -152,7 +151,6 @@ class OIDCCallbackQueryArgs(Schema):
     )
 
 
-@api_blueprint.doc(tags=["OIDC"])
 class OIDCCallbackResource(Resource):
     """Resource for handling OIDC callback.
 
@@ -314,7 +312,6 @@ class OIDCCallbackResource(Resource):
             abort_with_message(400, f"Error processing user: {str(e)}")
 
 
-@api_blueprint.doc(tags=["OIDC"])
 class OIDCTokenExchangeResource(Resource):
     """Resource for securely exchanging OIDC tokens from cookies."""
 
@@ -386,7 +383,6 @@ class OIDCTokenExchangeResource(Resource):
         return response
 
 
-@api_blueprint.doc(tags=["OIDC"])
 class OIDCConfigResource(Resource):
     """Resource for getting OIDC configuration."""
 
@@ -443,7 +439,6 @@ class OIDCLogoutQueryArgs(Schema):
     )
 
 
-@api_blueprint.doc(tags=["OIDC"])
 class OIDCLogoutResource(Resource):
     """Resource for getting OIDC logout URL."""
 
@@ -506,7 +501,6 @@ class OIDCLogoutResource(Resource):
             return {"logout_url": None}
 
 
-@api_blueprint.doc(tags=["OIDC"])
 class OIDCBackchannelLogoutResource(Resource):
     """Resource for handling OIDC backchannel logout requests.
 

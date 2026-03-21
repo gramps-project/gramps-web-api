@@ -107,7 +107,6 @@ def delete_bookmark(db_handle: DbReadBase, namespace: str, handle: str) -> None:
     bookmarks.remove(handle)
 
 
-@api_blueprint.doc(tags=["Bookmarks"])
 class BookmarkResource(ProtectedResource, GrampsJSONEncoder):
     """Bookmark resource."""
 
@@ -123,7 +122,6 @@ class BookmarkResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, get_bookmarks(self.db_handle, namespace))
 
 
-@api_blueprint.doc(tags=["Bookmarks"])
 class BookmarksResource(ProtectedResource, GrampsJSONEncoder):
     """Bookmarks resource."""
 
@@ -142,7 +140,6 @@ class BookmarksResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, result)
 
 
-@api_blueprint.doc(tags=["Bookmarks"])
 class BookmarkEditResource(ProtectedResource):
     """Resource for editing and creating bookmarks."""
 

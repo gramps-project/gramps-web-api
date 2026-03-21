@@ -37,7 +37,6 @@ from .base import (
 )
 from .util import get_extended_attributes
 
-from ..blueprint import api_blueprint
 
 
 class NoteResourceHelper(GrampsObjectResourceHelper):
@@ -87,11 +86,9 @@ class NoteResourceHelper(GrampsObjectResourceHelper):
         raise ValueError("Format {} not known or supported.".format(fmt))
 
 
-@api_blueprint.doc(tags=["Notes"])
 class NoteResource(GrampsObjectProtectedResource, NoteResourceHelper):
     """Note resource."""
 
 
-@api_blueprint.doc(tags=["Notes"])
 class NotesResource(GrampsObjectsProtectedResource, NoteResourceHelper):
     """Notes resource."""

@@ -70,7 +70,6 @@ class MediaFilePutQueryArgs(Schema):
     )
 
 
-@api_blueprint.doc(tags=["Media"])
 class MediaFileResource(ProtectedResource):
     """Resource for media files."""
 

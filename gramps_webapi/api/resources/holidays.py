@@ -30,7 +30,6 @@ from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
 
-@api_blueprint.doc(tags=["Holidays"])
 class HolidaysResource(ProtectedResource, GrampsJSONEncoder):
     """Holidays resource."""
 
@@ -42,7 +41,6 @@ class HolidaysResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, holidays.get_countries())
 
 
-@api_blueprint.doc(tags=["Holidays"])
 class HolidayResource(ProtectedResource, GrampsJSONEncoder):
     """Holiday resource."""
 

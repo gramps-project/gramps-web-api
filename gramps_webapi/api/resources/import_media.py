@@ -33,10 +33,8 @@ from ..util import abort_with_message, get_tree_from_jwt
 from . import ProtectedResource
 from gramps_webapi.types import ResponseReturnValue
 
-from ..blueprint import api_blueprint
 
 
-@api_blueprint.doc(tags=["Media"])
 class MediaUploadZipResource(ProtectedResource):
     """Resource for uploading an archive of media files."""
 

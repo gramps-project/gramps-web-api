@@ -37,7 +37,6 @@ from .util import (
     get_person_profile_for_object,
 )
 
-from ..blueprint import api_blueprint
 
 
 class PersonResourceHelper(GrampsObjectResourceHelper):
@@ -77,11 +76,9 @@ class PersonResourceHelper(GrampsObjectResourceHelper):
         return obj
 
 
-@api_blueprint.doc(tags=["People"])
 class PersonResource(GrampsObjectProtectedResource, PersonResourceHelper):
     """Person resource."""
 
 
-@api_blueprint.doc(tags=["People"])
 class PeopleResource(GrampsObjectsProtectedResource, PersonResourceHelper):
     """People resource."""

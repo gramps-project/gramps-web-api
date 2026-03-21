@@ -58,7 +58,6 @@ class ReportsQueryArgs(Schema):
     )
 
 
-@api_blueprint.doc(tags=["Reports"])
 class ReportsResource(ProtectedResource, GrampsJSONEncoder):
     """Reports resource."""
 
@@ -83,7 +82,6 @@ class ReportQueryArgs(Schema):
     )
 
 
-@api_blueprint.doc(tags=["Reports"])
 class ReportResource(ProtectedResource, GrampsJSONEncoder):
     """Report resource."""
 
@@ -125,7 +123,6 @@ class ReportFileQueryArgs(Schema):
     )
 
 
-@api_blueprint.doc(tags=["Reports"])
 class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
     """Report file resource."""
 
@@ -180,7 +177,6 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
         return jsonify(task), 201
 
 
-@api_blueprint.doc(tags=["Reports"])
 class ReportFileResultResource(ProtectedResource, GrampsJSONEncoder):
     """Report file result resource."""
 

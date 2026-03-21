@@ -53,7 +53,6 @@ class PersonYDnaQueryArgs(Schema):
     )
 
 
-@api_blueprint.doc(tags=["DNA"])
 class PersonYDnaResource(ProtectedResource):
     """Resource for getting Y-DNA data for a person."""
 

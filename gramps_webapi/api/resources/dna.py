@@ -70,7 +70,6 @@ class DnaMatchesQueryArgs(Schema):
     )
 
 
-@api_blueprint.doc(tags=["DNA"])
 class PersonDnaMatchesResource(ProtectedResource):
     """Resource for getting DNA match data for a person."""
 
@@ -117,7 +116,6 @@ class DnaMatchParserBodyArgs(Schema):
     )
 
 
-@api_blueprint.doc(tags=["DNA"])
 class DnaMatchParserResource(ProtectedResource):
     """DNA match parser resource."""
 

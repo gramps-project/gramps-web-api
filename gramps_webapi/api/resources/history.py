@@ -102,7 +102,6 @@ class TransactionsHistoryQueryArgs(Schema):
     )
 
 
-@api_blueprint.doc(tags=["Transactions"])
 class TransactionsHistoryResource(ProtectedResource):
     """Resource for database transaction history."""
 
@@ -156,7 +155,6 @@ class TransactionHistoryQueryArgs(Schema):
     )
 
 
-@api_blueprint.doc(tags=["Transactions"])
 class TransactionHistoryResource(ProtectedResource):
     """Resource for viewing individual transaction history."""
 
@@ -191,7 +189,6 @@ class UndoQueryArgs(Schema):
     )
 
 
-@api_blueprint.doc(tags=["Transactions"])
 class TransactionUndoResource(ProtectedResource):
     """Resource for undoing transactions."""
 

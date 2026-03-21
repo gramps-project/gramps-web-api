@@ -55,7 +55,6 @@ class MediaOcrQueryArgs(Schema):
     )
 
 
-@api_blueprint.doc(tags=["Media"])
 class MediaOcrResource(ProtectedResource):
     """Resource for media files."""
 

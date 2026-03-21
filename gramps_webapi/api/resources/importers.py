@@ -41,7 +41,6 @@ from .schemas import ImporterSchema
 from .util import get_importers
 
 
-@api_blueprint.doc(tags=["Importers"])
 class ImportersResource(ProtectedResource, GrampsJSONEncoder):
     """Importers resource."""
 
@@ -53,7 +52,6 @@ class ImportersResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, get_importers())
 
 
-@api_blueprint.doc(tags=["Importers"])
 class ImporterResource(ProtectedResource, GrampsJSONEncoder):
     """Import resource."""
 
@@ -77,7 +75,6 @@ class ImporterFileQueryArgs(Schema):
     )
 
 
-@api_blueprint.doc(tags=["Importers"])
 class ImporterFileResource(ProtectedResource):
     """Import file resource."""
 

@@ -26,7 +26,6 @@ from .base import (
     GrampsObjectsProtectedResource,
 )
 
-from ..blueprint import api_blueprint
 
 
 class RepositoryResourceHelper(GrampsObjectResourceHelper):
@@ -35,11 +34,9 @@ class RepositoryResourceHelper(GrampsObjectResourceHelper):
     gramps_class_name = "Repository"
 
 
-@api_blueprint.doc(tags=["Repositories"])
 class RepositoryResource(GrampsObjectProtectedResource, RepositoryResourceHelper):
     """Repository resource."""
 
 
-@api_blueprint.doc(tags=["Repositories"])
 class RepositoriesResource(GrampsObjectsProtectedResource, RepositoryResourceHelper):
     """Repositories resource."""

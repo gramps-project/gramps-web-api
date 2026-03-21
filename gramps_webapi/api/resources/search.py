@@ -138,7 +138,6 @@ class SearchQueryArgs(Schema):
     )
 
 
-@api_blueprint.doc(tags=["Search"])
 class SearchResource(GrampsJSONEncoder, ProtectedResource):
     """Fulltext search resource."""
 
@@ -270,7 +269,6 @@ class SearchIndexQueryArgs(Schema):
     )
 
 
-@api_blueprint.doc(tags=["Search"])
 class SearchIndexResource(ProtectedResource):
     """Resource to trigger a search reindex."""
 

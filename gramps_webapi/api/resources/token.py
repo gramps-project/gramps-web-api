@@ -102,7 +102,6 @@ class TokenPairSchema(Schema):
     )
 
 
-@api_blueprint.doc(tags=["Token"])
 class TokenResource(Resource):
     """Resource for obtaining a JWT."""
 
@@ -146,7 +145,6 @@ class TokenSchema(Schema):
     )
 
 
-@api_blueprint.doc(tags=["Token"])
 class TokenRefreshResource(RefreshProtectedResource):
     """Resource for refreshing a JWT."""
 
@@ -181,7 +179,6 @@ class TokenCreateOwnerPostSchema(Schema):
     )
 
 
-@api_blueprint.doc(tags=["Token"])
 class TokenCreateOwnerResource(Resource):
     """Resource for getting a token that allows creating a site admin or tree owner account."""
 

@@ -50,7 +50,6 @@ class TaskStatusSchema(Schema):
     )
 
 
-@api_blueprint.doc(tags=["Tasks"])
 class TaskResource(ProtectedResource):
     """Resource for a single task."""
 

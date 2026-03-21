@@ -47,7 +47,6 @@ class NameGroupSchema(Schema):
     )
 
 
-@api_blueprint.doc(tags=["Name Groups"])
 class NameGroupsResource(ProtectedResource, GrampsJSONEncoder):
     """Name group mappings resource."""
 

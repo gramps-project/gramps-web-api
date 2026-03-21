@@ -61,7 +61,6 @@ class TransactionsQueryArgs(Schema):
     )
 
 
-@api_blueprint.doc(tags=["Transactions"])
 class TransactionsResource(ProtectedResource):
     """Resource for raw database transactions."""
 
