@@ -150,7 +150,7 @@ def register_endpt(
     api_blueprint.add_url_rule(
         url,
         endpoint=name,
-        view_func=resource.as_view(name),
+        view_func=resource,
         methods=["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH"],
         **kwargs,
     )
