@@ -239,8 +239,18 @@ class TreeResource(ProtectedResource):
             )
         except ValueError:
             abort(404)
+            raise  # unreachable; satisfies type checker
         rv = {}
         if args["name"]:
+            if current_app.config["TREE"] != TREE_MULTI and not current_app.config.get(
+                "TREE_ID"
+            ):
+                abort_with_message(
+                    405,
+                    "Renaming a tree requires the TREE_ID config option to be set "
+                    "in single-tree setup. Set TREE_ID to the tree's directory name "
+                    "(visible in GET /api/trees/-) and restart the server.",
+                )
             old_name, new_name = dbmgr.rename_database(new_name=args["name"])
             rv.update({"old_name": old_name, "new_name": new_name})
         if args.get("quota_media") is not None or args.get("quota_people") is not None:

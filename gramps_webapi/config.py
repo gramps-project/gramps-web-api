@@ -75,6 +75,7 @@ class DefaultConfig(object):
     POSTGRES_HOST = "localhost"
     POSTGRES_PORT = "5432"
     IGNORE_DB_LOCK = False
+    TREE_ID = ""
     CELERY_CONFIG: Dict[str, str] = {}
     MEDIA_BASE_DIR = ""
     MEDIA_PREFIX_TREE = False

@@ -133,12 +133,20 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         app.logger.setLevel(app.config["LOG_LEVEL"])
 
     if app.config["TREE"] != TREE_MULTI:
-        # create database if missing (only in single-tree mode)
-        WebDbManager(
-            name=app.config["TREE"],
-            create_if_missing=True,
-            ignore_lock=app.config["IGNORE_DB_LOCK"],
-        )
+        if app.config.get("TREE_ID"):
+            # TREE_ID takes precedence: identify tree by dirname, never by name
+            WebDbManager(
+                dirname=app.config["TREE_ID"],
+                create_if_missing=False,
+                ignore_lock=app.config["IGNORE_DB_LOCK"],
+            )
+        else:
+            # legacy: identify tree by display name
+            WebDbManager(
+                name=app.config["TREE"],
+                create_if_missing=True,
+                ignore_lock=app.config["IGNORE_DB_LOCK"],
+            )
 
     if app.config["TREE"] == TREE_MULTI and not app.config["MEDIA_PREFIX_TREE"]:
         warnings.warn(
