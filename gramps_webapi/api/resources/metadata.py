@@ -31,21 +31,22 @@ from gramps.gen.const import ENV, GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.db.generic import DbGeneric
 from gramps.gen.db.utils import get_dbid_from_path
+from gramps.gen.lib import Researcher
 from gramps.gen.utils.grampslocale import INCOMPLETE_TRANSLATIONS
 from marshmallow import Schema
 from webargs import fields
 
 from gramps_webapi.const import TREE_MULTI, VERSION
 
-from ...auth.const import PERM_VIEW_PRIVATE
+from ...auth.const import PERM_EDIT_TREE, PERM_VIEW_PRIVATE
 from ...dbmanager import WebDbManager
-from ..auth import has_permissions
+from ..auth import has_permissions, require_permissions
 from ..blueprint import api_blueprint
 from ..search import get_search_indexer, get_semantic_search_indexer
 from ..util import get_db_handle, get_tree_from_jwt_or_fail
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
-from .schemas import MetadataSchema
+from .schemas import MetadataSchema, ResearcherSchema
 
 
 def get_dbid_from_tree_id(tree_id: str) -> str:
@@ -187,3 +188,38 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
         if isinstance(db_handle, DbGeneric):
             result["database"]["actual_schema"] = db_handle.get_schema_version()
         return self.response(200, result)
+
+
+class MetadataResearcherResource(ProtectedResource, GrampsJSONEncoder):
+    """Researcher metadata resource."""
+
+    @property
+    def db_handle(self) -> DbReadBase:
+        """Get the database instance."""
+        return get_db_handle()
+
+    @api_blueprint.response(200, ResearcherSchema())
+    def get(self) -> Response:
+        """Get the researcher information."""
+        return self.response(200, self.db_handle.get_researcher())
+
+    @api_blueprint.response(200, ResearcherSchema())
+    @api_blueprint.arguments(ResearcherSchema, location="json")
+    def put(self, args) -> Response:
+        """Update the researcher information."""
+        require_permissions([PERM_EDIT_TREE])
+        db_handle = get_db_handle(readonly=False)
+        researcher = Researcher()
+        researcher.set_name(args.get("name", ""))
+        researcher.set_address(args.get("addr", ""))
+        researcher.set_locality(args.get("locality", ""))
+        researcher.set_city(args.get("city", ""))
+        researcher.set_county(args.get("county", ""))
+        researcher.set_state(args.get("state", ""))
+        researcher.set_country(args.get("country", ""))
+        researcher.set_postal_code(args.get("postal", ""))
+        researcher.set_phone(args.get("phone", ""))
+        researcher.set_email(args.get("email", ""))
+        researcher.set_street(args.get("street", ""))
+        db_handle.set_researcher(researcher)
+        return self.response(200, db_handle.get_researcher())

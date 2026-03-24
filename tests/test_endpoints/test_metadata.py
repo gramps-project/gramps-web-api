@@ -21,10 +21,14 @@
 
 import unittest
 
+from gramps_webapi.auth.const import ROLE_EDITOR
+
 from . import BASE_URL, get_test_client
 from .checks import check_conforms_to_openapi_schema, check_requires_token
+from .util import fetch_header
 
 TEST_URL = BASE_URL + "/metadata/"
+TEST_RESEARCHER_URL = BASE_URL + "/metadata/researcher/"
 
 
 class TestMetadata(unittest.TestCase):
@@ -48,3 +52,61 @@ class TestMetadata(unittest.TestCase):
         assert "version" in res["search"]["sifts"]
         assert "count" in res["search"]["sifts"]
         assert res["search"]["sifts"]["count"] > 1
+
+
+class TestMetadataResearcher(unittest.TestCase):
+    """Test cases for the /api/metadata/researcher/ endpoint."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_get_researcher_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_RESEARCHER_URL)
+
+    def test_get_researcher_conforms_to_schema(self):
+        """Test GET conforms to schema."""
+        check_conforms_to_openapi_schema(self, TEST_RESEARCHER_URL, "Researcher")
+
+    def test_put_researcher_requires_token(self):
+        """Test PUT requires authorization."""
+        rv = self.client.put(TEST_RESEARCHER_URL, json={"name": "Test"})
+        self.assertEqual(rv.status_code, 401)
+
+    def test_put_researcher_editor_forbidden(self):
+        """Test that editor role cannot update researcher info."""
+        header = fetch_header(self.client, role=ROLE_EDITOR)
+        rv = self.client.put(
+            TEST_RESEARCHER_URL,
+            json={"name": "Test User"},
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 403)
+
+    def test_put_researcher_updates_and_returns(self):
+        """Test that owner can update researcher info and it is returned."""
+        header = fetch_header(self.client)
+        payload = {
+            "name": "Jane Doe",
+            "email": "jane@example.com",
+            "city": "Springfield",
+            "state": "IL",
+            "country": "US",
+            "phone": "555-1234",
+            "addr": "123 Main St",
+            "postal": "62701",
+        }
+        rv = self.client.put(TEST_RESEARCHER_URL, json=payload, headers=header)
+        self.assertEqual(rv.status_code, 200)
+        data = rv.json
+        self.assertEqual(data["name"], "Jane Doe")
+        self.assertEqual(data["email"], "jane@example.com")
+        self.assertEqual(data["city"], "Springfield")
+
+        # Verify GET returns the updated values
+        rv2 = self.client.get(TEST_RESEARCHER_URL, headers=header)
+        self.assertEqual(rv2.status_code, 200)
+        self.assertEqual(rv2.json["name"], "Jane Doe")
+        self.assertEqual(rv2.json["email"], "jane@example.com")

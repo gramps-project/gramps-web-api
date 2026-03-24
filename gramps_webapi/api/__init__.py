@@ -65,7 +65,7 @@ from .resources.importers import (
 )
 from .resources.living import LivingDatesResource, LivingResource
 from .resources.media import MediaObjectResource, MediaObjectsResource
-from .resources.metadata import MetadataResource
+from .resources.metadata import MetadataResource, MetadataResearcherResource
 from .resources.name_formats import NameFormatsResource
 from .resources.name_groups import NameGroupsResource
 from .resources.notes import NoteResource, NotesResource
@@ -470,6 +470,12 @@ register_endpt(
 register_endpt(HolidaysResource, "/holidays/", "holidays", tags=["Holidays"])
 # Metadata
 register_endpt(MetadataResource, "/metadata/", "metadata", tags=["Metadata"])
+register_endpt(
+    MetadataResearcherResource,
+    "/metadata/researcher/",
+    "metadata_researcher",
+    tags=["Metadata"],
+)
 # User
 register_endpt(UsersResource, "/users/", "users", tags=["Users"])
 register_endpt(UserResource, "/users/<string:user_name>/", "user", tags=["Users"])
