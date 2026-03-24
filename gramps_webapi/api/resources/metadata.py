@@ -31,9 +31,8 @@ from gramps.gen.const import ENV, GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.db.generic import DbGeneric
 from gramps.gen.db.utils import get_dbid_from_path
-from gramps.gen.lib import Researcher
 from gramps.gen.utils.grampslocale import INCOMPLETE_TRANSLATIONS
-from marshmallow import Schema
+from marshmallow import Schema, RAISE
 from webargs import fields
 
 from gramps_webapi.const import TREE_MULTI, VERSION
@@ -47,6 +46,25 @@ from ..util import get_db_handle, get_tree_from_jwt_or_fail
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .schemas import MetadataSchema, ResearcherSchema
+
+
+class ResearcherUpdateSchema(Schema):
+    """Request body schema for PUT /metadata/researcher/."""
+
+    class Meta:
+        unknown = RAISE
+
+    addr = fields.Str(metadata={"description": "Address."})
+    city = fields.Str(metadata={"description": "City."})
+    country = fields.Str(metadata={"description": "Country."})
+    county = fields.Str(metadata={"description": "County."})
+    email = fields.Str(metadata={"description": "Email address."})
+    locality = fields.Str(metadata={"description": "Locality."})
+    name = fields.Str(metadata={"description": "Name of the researcher."})
+    phone = fields.Str(metadata={"description": "Phone number."})
+    postal = fields.Str(metadata={"description": "Postal code."})
+    state = fields.Str(metadata={"description": "State."})
+    street = fields.Str(metadata={"description": "Street address."})
 
 
 def get_dbid_from_tree_id(tree_id: str) -> str:
@@ -204,22 +222,33 @@ class MetadataResearcherResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, self.db_handle.get_researcher())
 
     @api_blueprint.response(200, ResearcherSchema())
-    @api_blueprint.arguments(ResearcherSchema, location="json")
+    @api_blueprint.arguments(ResearcherUpdateSchema, location="json")
     def put(self, args) -> Response:
         """Update the researcher information."""
         require_permissions([PERM_EDIT_TREE])
         db_handle = get_db_handle(readonly=False)
-        researcher = Researcher()
-        researcher.set_name(args.get("name", ""))
-        researcher.set_address(args.get("addr", ""))
-        researcher.set_locality(args.get("locality", ""))
-        researcher.set_city(args.get("city", ""))
-        researcher.set_county(args.get("county", ""))
-        researcher.set_state(args.get("state", ""))
-        researcher.set_country(args.get("country", ""))
-        researcher.set_postal_code(args.get("postal", ""))
-        researcher.set_phone(args.get("phone", ""))
-        researcher.set_email(args.get("email", ""))
-        researcher.set_street(args.get("street", ""))
+        researcher = db_handle.get_researcher()
+        if "name" in args:
+            researcher.set_name(args["name"])
+        if "addr" in args:
+            researcher.set_address(args["addr"])
+        if "locality" in args:
+            researcher.set_locality(args["locality"])
+        if "city" in args:
+            researcher.set_city(args["city"])
+        if "county" in args:
+            researcher.set_county(args["county"])
+        if "state" in args:
+            researcher.set_state(args["state"])
+        if "country" in args:
+            researcher.set_country(args["country"])
+        if "postal" in args:
+            researcher.set_postal_code(args["postal"])
+        if "phone" in args:
+            researcher.set_phone(args["phone"])
+        if "email" in args:
+            researcher.set_email(args["email"])
+        if "street" in args:
+            researcher.set_street(args["street"])
         db_handle.set_researcher(researcher)
         return self.response(200, db_handle.get_researcher())
