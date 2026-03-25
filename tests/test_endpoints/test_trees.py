@@ -25,7 +25,6 @@ import unittest
 from unittest.mock import patch
 
 from gramps.cli.clidbman import CLIDbManager
-from gramps.gen.config import config as gramps_config
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
