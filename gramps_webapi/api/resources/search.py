@@ -106,6 +106,13 @@ class SearchQueryArgs(Schema):
             "description": "Comma-delimited sort keys for search results. Available: change, type. Prefix with '-' for descending."
         },
     )
+    precision = fields.Integer(
+        load_default=3,
+        validate=validate.Range(min=1, max=3),
+        metadata={
+            "description": "Number of significant time components to include in age/span strings: 1=year only, 2=year+month, 3=year+month+day."
+        },
+    )
     profile = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
         validate=validate.ContainsOnly(
@@ -163,6 +170,7 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
                     args["profile"],
                     locale=locale,
                     name_format=args.get("name_format"),
+                    precision=args.get("precision", 3),
                 )
             elif class_name == "family":
                 obj.profile = get_family_profile_for_object(
@@ -171,6 +179,7 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
                     args["profile"],
                     locale=locale,
                     name_format=args.get("name_format"),
+                    precision=args.get("precision", 3),
                 )
             elif class_name == "event":
                 obj.profile = get_event_profile_for_object(
@@ -179,6 +188,7 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
                     args["profile"],
                     locale=locale,
                     name_format=args.get("name_format"),
+                    precision=args.get("precision", 3),
                 )
             elif class_name == "citation":
                 obj.profile = get_citation_profile_for_object(

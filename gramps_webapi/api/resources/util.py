@@ -262,6 +262,7 @@ def get_event_profile_for_object(
     locale: GrampsLocale = glocale,
     role: Optional[str] = None,
     name_format: Optional[str] = None,
+    precision: int = 3,
 ) -> dict:
     """Get event profile given an Event."""
     result = {
@@ -287,7 +288,7 @@ def get_event_profile_for_object(
     if base_event is not None:
         result[label] = (
             Span(base_event.date, event.date)
-            .format(precision=3, dlocale=locale)
+            .format(precision=precision, dlocale=locale)
             .strip("()")
         )
     return result
@@ -319,6 +320,7 @@ def get_event_profile_for_handle(
     locale: GrampsLocale = glocale,
     role: Optional[str] = None,
     name_format: Optional[str] = None,
+    precision: int = 3,
 ) -> dict:
     """Get event profile given a handle."""
     try:
@@ -336,6 +338,7 @@ def get_event_profile_for_handle(
         locale=locale,
         role=role,
         name_format=name_format,
+        precision=precision,
     )
 
 
@@ -530,6 +533,7 @@ def get_person_profile_for_object(
     args: list,
     locale: GrampsLocale = glocale,
     name_format: str | None = None,
+    precision: int = 3,
 ) -> Person:
     """Get person profile given a Person."""
     options = []
@@ -550,7 +554,7 @@ def get_person_profile_for_object(
             if death_event is not None:
                 death["age"] = (
                     Span(birth_event.date, death_event.date)
-                    .format(precision=3, dlocale=locale)
+                    .format(precision=precision, dlocale=locale)
                     .strip("()")
                 )
     name_displayer = NameDisplay(xlocale=locale)
@@ -588,6 +592,7 @@ def get_person_profile_for_object(
                 locale=locale,
                 role=locale.translation.sgettext(event_ref.get_role().xml_str()),
                 name_format=name_format,
+                precision=precision,
             )
             for event_ref in person.event_ref_list
         ]
@@ -599,6 +604,7 @@ def get_person_profile_for_object(
             options,
             locale=locale,
             name_format=name_format,
+            precision=precision,
         )
         profile["other_parent_families"] = []
         for handle in person.parent_family_list:
@@ -610,11 +616,13 @@ def get_person_profile_for_object(
                         options,
                         locale=locale,
                         name_format=name_format,
+                        precision=precision,
                     )
                 )
         profile["families"] = [
             get_family_profile_for_handle(
-                db_handle, handle, options, locale=locale, name_format=name_format
+                db_handle, handle, options, locale=locale, name_format=name_format,
+                precision=precision,
             )
             for handle in person.family_list
         ]
@@ -627,6 +635,7 @@ def get_person_profile_for_handle(
     args: list,
     locale: GrampsLocale = glocale,
     name_format: str | None = None,
+    precision: int = 3,
 ) -> Union[Person, dict]:
     """Get person profile given a handle."""
     try:
@@ -636,7 +645,8 @@ def get_person_profile_for_handle(
     except HandleError:
         return {}
     return get_person_profile_for_object(
-        db_handle, obj, args, locale=locale, name_format=name_format
+        db_handle, obj, args, locale=locale, name_format=name_format,
+        precision=precision,
     )
 
 
@@ -646,6 +656,7 @@ def get_family_profile_for_object(
     args: list[str],
     locale: GrampsLocale = glocale,
     name_format: Optional[str] = None,
+    precision: int = 3,
 ) -> Family:
     """Get family profile given a Family."""
     options = []
@@ -665,7 +676,7 @@ def get_family_profile_for_object(
             if divorce_event is not None:
                 divorce["span"] = (
                     Span(marriage_event.date, divorce_event.date)
-                    .format(precision=3, dlocale=locale)
+                    .format(precision=precision, dlocale=locale)
                     .strip("()")
                 )
     if "all" in args or "age" in args:
@@ -679,6 +690,7 @@ def get_family_profile_for_object(
             options,
             locale=locale,
             name_format=name_format,
+            precision=precision,
         ),
         "mother": get_person_profile_for_handle(
             db_handle,
@@ -686,6 +698,7 @@ def get_family_profile_for_object(
             options,
             locale=locale,
             name_format=name_format,
+            precision=precision,
         ),
         "relationship": locale.translation.sgettext(family.type.xml_str()),
         "marriage": marriage,
@@ -697,6 +710,7 @@ def get_family_profile_for_object(
                 options,
                 locale=locale,
                 name_format=name_format,
+                precision=precision,
             )
             for child_ref in family.child_ref_list
         ],
@@ -722,6 +736,7 @@ def get_family_profile_for_object(
                 label="span",
                 locale=locale,
                 name_format=name_format,
+                precision=precision,
             )
             for event_ref in family.event_ref_list
         ]
@@ -734,6 +749,7 @@ def get_family_profile_for_handle(
     args: list,
     locale: GrampsLocale = glocale,
     name_format: Optional[str] = None,
+    precision: int = 3,
 ) -> Union[Family, dict]:
     """Get family profile given a handle."""
     try:
@@ -743,7 +759,8 @@ def get_family_profile_for_handle(
     except HandleError:
         return {}
     return get_family_profile_for_object(
-        db_handle, obj, args, locale=locale, name_format=name_format
+        db_handle, obj, args, locale=locale, name_format=name_format,
+        precision=precision,
     )
 
 

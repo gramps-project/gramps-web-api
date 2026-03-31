@@ -60,6 +60,7 @@ class FamilyResourceHelper(GrampsObjectResourceHelper):
                 args["profile"],
                 locale=locale,
                 name_format=args.get("name_format"),
+                precision=args.get("precision", 3),
             )
         if "extend" in args:
             obj.extended = get_extended_attributes(db_handle, obj, args)
