@@ -148,10 +148,13 @@ def get_match_data(
     if data[0][0] <= 0:  # Unrelated
         side = SIDE_UNKNOWN
     elif data[0][0] == 1:  # parent / child
-        if db_handle.get_person_from_handle(data[0][1]).gender == 0:
+        parent_gender = db_handle.get_person_from_handle(data[0][1]).gender
+        if parent_gender == Person.FEMALE:
             side = SIDE_MATERNAL
-        else:
+        elif parent_gender == Person.MALE:
             side = SIDE_PATERNAL
+        else:
+            side = SIDE_UNKNOWN
     elif (
         len(data) > 1 and data[0][0] == data[1][0] and data[0][2][0] != data[1][2][0]
     ):  # shares both parents

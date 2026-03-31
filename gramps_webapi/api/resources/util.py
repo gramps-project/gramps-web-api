@@ -76,7 +76,7 @@ from gramps.gen.utils.place import conv_lat_lon
 
 import gramps_gedcom7
 
-from ...const import DISABLED_IMPORTERS, SEX_FEMALE, SEX_MALE, SEX_UNKNOWN
+from ...const import DISABLED_IMPORTERS, SEX_FEMALE, SEX_MALE, SEX_OTHER, SEX_UNKNOWN
 from ...types import FilenameOrPath, Handle, TransactionJson
 from ..media import get_media_handler
 from ..util import (
@@ -149,6 +149,8 @@ def get_sex_profile(person: Person) -> str:
         return SEX_MALE
     if person.gender == person.FEMALE:
         return SEX_FEMALE
+    if person.gender == person.OTHER:
+        return SEX_OTHER
     return SEX_UNKNOWN
 
 
@@ -621,7 +623,11 @@ def get_person_profile_for_object(
                 )
         profile["families"] = [
             get_family_profile_for_handle(
-                db_handle, handle, options, locale=locale, name_format=name_format,
+                db_handle,
+                handle,
+                options,
+                locale=locale,
+                name_format=name_format,
                 precision=precision,
             )
             for handle in person.family_list
@@ -645,7 +651,11 @@ def get_person_profile_for_handle(
     except HandleError:
         return {}
     return get_person_profile_for_object(
-        db_handle, obj, args, locale=locale, name_format=name_format,
+        db_handle,
+        obj,
+        args,
+        locale=locale,
+        name_format=name_format,
         precision=precision,
     )
 
@@ -759,7 +769,11 @@ def get_family_profile_for_handle(
     except HandleError:
         return {}
     return get_family_profile_for_object(
-        db_handle, obj, args, locale=locale, name_format=name_format,
+        db_handle,
+        obj,
+        args,
+        locale=locale,
+        name_format=name_format,
         precision=precision,
     )
 
@@ -1094,6 +1108,19 @@ def validate_object_dict(obj_dict: dict[str, Any]) -> bool:
     except (KeyError, AttributeError, TypeError):
         return False
     schema = obj_cls.get_schema()
+
+    # Gramps 5.2 added Person.OTHER = 3, but the JSON schema still caps gender
+    # at 2. Patch the schema to allow the actual maximum value.
+    # This patch can be removed once https://github.com/gramps-project/gramps/pull/2213
+    # is merged and a new Gramps version is released.
+    other = getattr(obj_cls, "OTHER", None)
+    if (
+        other is not None
+        and schema.get("properties", {}).get("gender", {}).get("maximum") is not None
+        and other > schema["properties"]["gender"]["maximum"]
+    ):
+        schema["properties"]["gender"]["maximum"] = other
+
     obj_dict_fixed = {k: v for k, v in obj_dict.items() if k != "complete"}
     try:
         jsonschema.validate(obj_dict_fixed, schema)

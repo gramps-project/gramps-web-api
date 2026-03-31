@@ -397,7 +397,7 @@ class PersonProfileSchema(_Base):
         metadata={"description": "References to this person from other objects."},
     )
     sex = fields.Str(
-        metadata={"description": "Sex of the person ('M', 'F', or 'U')."},
+        metadata={"description": "Sex of the person ('M', 'F', 'O', or 'U')."},
     )
 
 
@@ -1303,7 +1303,7 @@ class PersonSchema(_Base):
         metadata={"description": "Handles of families this person is a parent of."},
     )
     gender = fields.Int(
-        metadata={"description": "Gender code (0=unknown, 1=male, 2=female)."},
+        metadata={"description": "Gender code (0=female, 1=male, 2=unknown, 3=other)."},
     )
     gramps_id = fields.Str(
         metadata={"description": "Alternate user-managed identifier."},
@@ -2223,7 +2223,7 @@ class TimelinePersonProfileSchema(_Base):
         metadata={"description": "Relationship to the anchor person."},
     )
     sex = fields.Str(
-        metadata={"description": "Sex identifier ('M', 'F', or 'U')."},
+        metadata={"description": "Sex identifier ('M', 'F', 'O', or 'U')."},
     )
 
 
