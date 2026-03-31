@@ -534,7 +534,7 @@ def get_person_profile_for_object(
     locale: GrampsLocale = glocale,
     name_format: str | None = None,
     precision: int = 3,
-) -> Person:
+) -> dict[str, Any]:
     """Get person profile given a Person."""
     options = []
     if "all" in args or "ratings" in args:
@@ -636,7 +636,7 @@ def get_person_profile_for_handle(
     locale: GrampsLocale = glocale,
     name_format: str | None = None,
     precision: int = 3,
-) -> Union[Person, dict]:
+) -> dict[str, Any]:
     """Get person profile given a handle."""
     try:
         obj = db_handle.get_person_from_handle(handle)
@@ -657,7 +657,7 @@ def get_family_profile_for_object(
     locale: GrampsLocale = glocale,
     name_format: Optional[str] = None,
     precision: int = 3,
-) -> Family:
+) -> dict[str, Any]:
     """Get family profile given a Family."""
     options = []
     if "all" in args or "ratings" in args:
@@ -750,7 +750,7 @@ def get_family_profile_for_handle(
     locale: GrampsLocale = glocale,
     name_format: Optional[str] = None,
     precision: int = 3,
-) -> Union[Family, dict]:
+) -> dict[str, Any]:
     """Get family profile given a handle."""
     try:
         obj = db_handle.get_family_from_handle(handle)

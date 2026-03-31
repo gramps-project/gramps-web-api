@@ -110,7 +110,9 @@ class SearchQueryArgs(Schema):
         load_default=3,
         validate=validate.Range(min=1, max=3),
         metadata={
-            "description": "Number of significant time components to include in age/span strings: 1=year only, 2=year+month, 3=year+month+day."
+            "description": "Number of significant time components in age/span"
+            " strings when profile is used: 1=year only, 2=year+month,"
+            " 3=year+month+day."
         },
     )
     profile = fields.DelimitedList(
