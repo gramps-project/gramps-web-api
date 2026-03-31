@@ -34,7 +34,13 @@ from sqlalchemy.sql.functions import coalesce
 
 
 from ..const import DB_CONFIG_ALLOWED_KEYS
-from .const import PERMISSIONS, PERM_USE_CHAT, ROLE_ADMIN, ROLE_OWNER
+from .const import (
+    ACCESS_TOKEN_SCOPES,
+    PERMISSIONS,
+    PERM_USE_CHAT,
+    ROLE_ADMIN,
+    ROLE_OWNER,
+)
 from .passwords import hash_password, verify_password
 from .sql_guid import GUID
 
@@ -252,6 +258,88 @@ def get_user_details(username: str) -> Optional[Dict[str, Any]]:
     if user is None:
         return None
     return _get_user_detail(user)
+
+
+def normalize_access_token_scope(scope: str) -> str:
+    """Validate and normalize a persistent access token scope."""
+    normalized_scope = (scope or "").strip().casefold()
+    if normalized_scope not in ACCESS_TOKEN_SCOPES:
+        raise ValueError("Unsupported access token scope")
+    return normalized_scope
+
+
+def get_user_access_token(username: str, scope: str) -> Optional[str]:
+    """Return persistent access token value for user+scope."""
+    scope = normalize_access_token_scope(scope)
+    query = user_db.session.query(User)  # pylint: disable=no-member
+    user = query.filter_by(name=username).scalar()
+    if user is None:
+        raise ValueError("User does not exist")
+    query = user_db.session.query(AccessToken)  # pylint: disable=no-member
+    access_token = query.filter_by(user_id=user.id, scope=scope).scalar()
+    if access_token is None:
+        return None
+    return access_token.token
+
+
+def rotate_user_access_token(username: str, scope: str) -> str:
+    """Generate and persist a new token value for user+scope."""
+    scope = normalize_access_token_scope(scope)
+    query = user_db.session.query(User)  # pylint: disable=no-member
+    user = query.filter_by(name=username).scalar()
+    if user is None:
+        raise ValueError("User does not exist")
+    query = user_db.session.query(AccessToken)  # pylint: disable=no-member
+    access_token = query.filter_by(user_id=user.id, scope=scope).scalar()
+    for _ in range(5):
+        token = secrets.token_urlsafe(32)
+        if access_token is None:
+            access_token = AccessToken(user_id=user.id, scope=scope)
+            user_db.session.add(access_token)  # pylint: disable=no-member
+        access_token.token = token
+        access_token.revoked_at = None
+        access_token.updated_at = datetime.utcnow()
+        try:
+            user_db.session.commit()  # pylint: disable=no-member
+            return token
+        except IntegrityError:
+            user_db.session.rollback()  # pylint: disable=no-member
+            # Retry if token collided, or if concurrent insert happened.
+            access_token = query.filter_by(user_id=user.id, scope=scope).scalar()
+    raise ValueError("Could not generate a unique access token")
+
+
+def revoke_user_access_token(username: str, scope: str) -> None:
+    """Revoke token value for user+scope."""
+    scope = normalize_access_token_scope(scope)
+    query = user_db.session.query(User)  # pylint: disable=no-member
+    user = query.filter_by(name=username).scalar()
+    if user is None:
+        raise ValueError("User does not exist")
+    query = user_db.session.query(AccessToken)  # pylint: disable=no-member
+    access_token = query.filter_by(user_id=user.id, scope=scope).scalar()
+    if access_token is None:
+        return
+    access_token.token = None
+    access_token.revoked_at = datetime.utcnow()
+    access_token.updated_at = datetime.utcnow()
+    user_db.session.commit()  # pylint: disable=no-member
+
+
+def get_user_from_access_token(token: str, scope: str) -> Optional["User"]:
+    """Return user matching persistent access token value and scope."""
+    if not token:
+        return None
+    scope = normalize_access_token_scope(scope)
+    query = user_db.session.query(User)  # pylint: disable=no-member
+    return (
+        query.join(AccessToken, AccessToken.user_id == User.id)
+        .filter(
+            AccessToken.scope == scope,
+            AccessToken.token == token,
+        )
+        .scalar()
+    )
 
 
 def get_all_user_details(
@@ -523,6 +611,37 @@ class User(user_db.Model):  # type: ignore
     def __repr__(self):
         """Return string representation of instance."""
         return f"<User(name='{self.name}', fullname='{self.fullname}')>"
+
+
+class AccessToken(user_db.Model):  # type: ignore
+    """Persistent user access token table class for sqlalchemy."""
+
+    __tablename__ = "access_tokens"
+
+    id = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+    user_id = mapped_column(
+        GUID, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    scope = mapped_column(sa.String(64), nullable=False, index=True)
+    token = mapped_column(sa.String(255), nullable=True, unique=True, index=True)
+    created_at = mapped_column(
+        sa.DateTime, nullable=False, server_default=sa.func.now()
+    )
+    updated_at = mapped_column(
+        sa.DateTime, nullable=False, server_default=sa.func.now()
+    )
+    revoked_at = mapped_column(sa.DateTime, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint("user_id", "scope", name="uq_access_tokens_user_scope"),
+    )
+
+    def __repr__(self):
+        """Return string representation of instance."""
+        return (
+            f"<AccessToken(user_id='{self.user_id}', scope='{self.scope}', "
+            f"revoked_at='{self.revoked_at}')>"
+        )
 
 
 class Config(user_db.Model):  # type: ignore
