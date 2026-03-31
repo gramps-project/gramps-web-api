@@ -34,6 +34,7 @@ from .resources.bookmarks import (
     BookmarkResource,
     BookmarksResource,
 )
+from .resources.access_tokens import UserAccessTokenResource
 from .resources.chat import ChatResource
 from .resources.citations import CitationResource, CitationsResource
 from .resources.config import ConfigResource, ConfigsResource
@@ -551,6 +552,12 @@ register_endpt(
 # User
 register_endpt(UsersResource, "/users/", "users", tags=["Users"])
 register_endpt(UserResource, "/users/<string:user_name>/", "user", tags=["Users"])
+register_endpt(
+    UserAccessTokenResource,
+    "/users/-/access-tokens/<string:scope>/",
+    "user_access_token",
+    tags=["Users"],
+)
 register_endpt(
     UserRegisterResource,
     "/users/<string:user_name>/register/",
