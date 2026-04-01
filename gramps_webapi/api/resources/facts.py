@@ -30,11 +30,14 @@ from gramps.gen.filters import GenericFilter
 from gramps.gen.proxy import LivingProxyDb, PrivateProxyDb
 from gramps.gen.user import User
 from gramps.plugins.lib.librecords import find_records
+from marshmallow import Schema
 from webargs import fields, validate
 
-from ..util import abort_with_message, get_db_handle, get_locale_for_language, use_args
+from ..blueprint import api_blueprint
+from ..util import abort_with_message, get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .schemas import RecordFactSchema
 
 _ = glocale.translation.gettext
 
@@ -92,34 +95,68 @@ def get_person_filter(db_handle: DbReadBase, args: Dict) -> Union[GenericFilter,
     return person_filter
 
 
+class FactsQueryArgs(Schema):
+    """Query arguments for GET /facts/."""
+
+    gramps_id = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=1),
+        metadata={
+            "description": "Gramps ID of the person to use as the anchor for built-in person filters."
+        },
+    )
+    handle = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=1),
+        metadata={
+            "description": "Handle of the person to use as the anchor for built-in person filters. Ignored if gramps_id is provided."
+        },
+    )
+    living = fields.Str(
+        load_default="IncludeAll",
+        validate=validate.OneOf(
+            [
+                "IncludeAll",
+                "FullNameOnly",
+                "LastNameOnly",
+                "ReplaceCompleteName",
+                "ExcludeAll",
+            ]
+        ),
+        metadata={
+            "description": "Built-in proxy controlling how living people are handled. Values: IncludeAll, FullNameOnly, LastNameOnly, ReplaceCompleteName, ExcludeAll."
+        },
+    )
+    locale = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=2, max=5),
+        metadata={"description": "Language code of the locale for translated output."},
+    )
+    person = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=1),
+        metadata={
+            "description": "Name of a built-in or custom person filter. Built-in values: Descendants, DescendantFamilies, Ancestors, CommonAncestor."
+        },
+    )
+    private = fields.Boolean(
+        load_default=False,
+        metadata={"description": "If true, exclude records marked as private."},
+    )
+    rank = fields.Integer(
+        load_default=1,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Number of objects to return for ranked statistics items (default 1)."
+        },
+    )
+
+
 class FactsResource(ProtectedResource, GrampsJSONEncoder):
     """Facts resource."""
 
-    @use_args(
-        {
-            "gramps_id": fields.Str(load_default=None, validate=validate.Length(min=1)),
-            "handle": fields.Str(load_default=None, validate=validate.Length(min=1)),
-            "living": fields.Str(
-                load_default="IncludeAll",
-                validate=validate.OneOf(
-                    [
-                        "IncludeAll",
-                        "FullNameOnly",
-                        "LastNameOnly",
-                        "ReplaceCompleteName",
-                        "ExcludeAll",
-                    ]
-                ),
-            ),
-            "locale": fields.Str(
-                load_default=None, validate=validate.Length(min=2, max=5)
-            ),
-            "person": fields.Str(load_default=None, validate=validate.Length(min=1)),
-            "private": fields.Boolean(load_default=False),
-            "rank": fields.Integer(load_default=1, validate=validate.Range(min=1)),
-        },
-        location="query",
-    )
+    @api_blueprint.response(200, RecordFactSchema(many=True))
+    @api_blueprint.arguments(FactsQueryArgs, location="query")
     def get(self, args: Dict) -> Response:
         """Get statistics from records."""
         db_handle = get_db_handle()

@@ -24,7 +24,7 @@ import unittest
 from . import BASE_URL, get_object_count, get_test_client
 from .checks import (
     check_boolean_parameter,
-    check_conforms_to_schema,
+    check_conforms_to_openapi_schema,
     check_invalid_semantics,
     check_keys_parameter,
     check_paging_parameters,
@@ -54,7 +54,7 @@ class TestTags(unittest.TestCase):
 
     def test_get_tags_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(self, TEST_URL, "Tag")
+        check_conforms_to_openapi_schema(self, TEST_URL, "Tag")
 
     def test_get_tags_expected_results_total(self):
         """Test expected number of results returned."""
@@ -184,7 +184,7 @@ class TestTagsHandle(unittest.TestCase):
 
     def test_get_tags_handle_conforms_to_schema(self):
         """Test confors to schema."""
-        check_conforms_to_schema(self, TEST_URL + "bb80c2b235b0a1b3f49", "Tag")
+        check_conforms_to_openapi_schema(self, TEST_URL + "bb80c2b235b0a1b3f49", "Tag")
 
     def test_get_tags_handle_missing_content(self):
         """Test response for missing handle."""

@@ -38,6 +38,7 @@ from .util import (
 )
 
 
+
 class PersonResourceHelper(GrampsObjectResourceHelper):
     """Person resource helper."""
 
@@ -55,6 +56,7 @@ class PersonResourceHelper(GrampsObjectResourceHelper):
                 args["profile"],
                 locale=locale,
                 name_format=args.get("name_format"),
+                precision=args.get("precision", 3),
             )
         if "extend" in args:
             obj.extended = get_extended_attributes(db_handle, obj, args)

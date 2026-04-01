@@ -27,6 +27,7 @@ from .base import (
 )
 
 
+
 class TagResourceHelper(GrampsObjectResourceHelper):
     """Tag resource helper."""
 

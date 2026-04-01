@@ -26,6 +26,7 @@ from flask import Response, current_app
 from flask_jwt_extended import get_jwt_identity
 from gramps.gen.db import REFERENCE_KEY
 from gramps.gen.db.dbconst import TXNADD, TXNDEL, TXNUPD
+from marshmallow import Schema
 from webargs import fields, validate
 
 from ...auth import get_all_user_details
@@ -45,29 +46,67 @@ from ..util import (
     get_db_handle,
     get_tree_from_jwt,
     get_tree_from_jwt_or_fail,
-    use_args,
 )
+from ..blueprint import api_blueprint
 from . import ProtectedResource
+from .schemas import UndoTransactionSchema
 from .util import reverse_transaction
 
 trans_code = {"delete": TXNDEL, "add": TXNADD, "update": TXNUPD}
 
 
+class TransactionsHistoryQueryArgs(Schema):
+    """Query arguments for GET /history/transactions/."""
+
+    old = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, include the raw object data before the change."
+        },
+    )
+    new = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, include the raw object data after the change."
+        },
+    )
+    page = fields.Integer(
+        load_default=0,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Page number of the result subset to return. If omitted, all results are returned."
+        },
+    )
+    pagesize = fields.Integer(
+        load_default=20,
+        validate=validate.Range(min=1),
+        metadata={"description": "Number of items per page when pagination is active."},
+    )
+    sort = fields.Str(
+        validate=validate.Length(min=1),
+        metadata={
+            "description": "Sort order for transactions. Use 'id' for ascending or '-id' for descending."
+        },
+    )
+    before = fields.Float(
+        load_default=None,
+        metadata={
+            "description": "Unix timestamp; if provided, return only transactions committed before this time."
+        },
+    )
+    after = fields.Float(
+        load_default=None,
+        metadata={
+            "description": "Unix timestamp; if provided, return only transactions committed after this time."
+        },
+    )
+
+
 class TransactionsHistoryResource(ProtectedResource):
     """Resource for database transaction history."""
 
-    @use_args(
-        {
-            "old": fields.Boolean(load_default=False),
-            "new": fields.Boolean(load_default=False),
-            "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
-            "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
-            "sort": fields.Str(validate=validate.Length(min=1)),
-            "before": fields.Float(load_default=None),
-            "after": fields.Float(load_default=None),
-        },
-        location="query",
-    )
+    @api_blueprint.response(200, UndoTransactionSchema(many=True))
+    @api_blueprint.arguments(TransactionsHistoryQueryArgs, location="query")
     def get(self, args: Dict) -> Response:
         """Return a list of transactions."""
         require_permissions([PERM_VIEW_PRIVATE])
@@ -99,16 +138,28 @@ class TransactionsHistoryResource(ProtectedResource):
         return res
 
 
+class TransactionHistoryQueryArgs(Schema):
+    """Query arguments for GET /history/transactions/<id>/."""
+
+    old = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, include the raw object data before the change."
+        },
+    )
+    new = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, include the raw object data after the change."
+        },
+    )
+
+
 class TransactionHistoryResource(ProtectedResource):
     """Resource for viewing individual transaction history."""
 
-    @use_args(
-        {
-            "old": fields.Boolean(load_default=False),
-            "new": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.response(200, UndoTransactionSchema())
+    @api_blueprint.arguments(TransactionHistoryQueryArgs, location="query")
     def get(self, args: Dict, transaction_id: int) -> Response:
         """Return a single transaction."""
         require_permissions([PERM_VIEW_PRIVATE])
@@ -125,6 +176,17 @@ class TransactionHistoryResource(ProtectedResource):
         transaction = fix_transaction_user(transaction, user_dict)
 
         return transaction
+
+
+class UndoQueryArgs(Schema):
+    """Query arguments for POST /history/transactions/<id>/undo/."""
+
+    force = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, force the undo even if there are conflicts."
+        },
+    )
 
 
 class TransactionUndoResource(ProtectedResource):
@@ -232,12 +294,7 @@ class TransactionUndoResource(ProtectedResource):
 
         return result, 200
 
-    @use_args(
-        {
-            "force": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(UndoQueryArgs, location="query")
     def post(self, args: Dict, transaction_id: int) -> ResponseReturnValue:
         """Undo a transaction using background processing."""
         require_permissions([PERM_ADD_OBJ, PERM_EDIT_OBJ, PERM_DEL_OBJ])

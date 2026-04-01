@@ -32,10 +32,12 @@ from typing import Dict
 
 from flask import Response, abort, current_app, jsonify, send_file
 from flask_jwt_extended import get_jwt_identity
+from marshmallow import Schema
 from webargs import fields, validate
 
 from ...auth.const import PERM_EDIT_OBJ, PERM_VIEW_PRIVATE
 from ..auth import has_permissions
+from ..blueprint import api_blueprint
 from ..export import get_exporters, prepare_options, run_export
 from ..tasks import AsyncResult, export_db, make_task_response, run_task
 from ..util import (
@@ -43,18 +45,19 @@ from ..util import (
     get_buffer_for_file,
     get_db_handle,
     get_tree_from_jwt,
-    use_args,
 )
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .schemas import ExporterSchema
 from gramps_webapi.types import ResponseReturnValue
 
 
 class ExportersResource(ProtectedResource, GrampsJSONEncoder):
     """Exporters resource."""
 
-    @use_args({}, location="query")
-    def get(self, args: Dict) -> ResponseReturnValue:
+    @api_blueprint.response(200, ExporterSchema(many=True))
+    @api_blueprint.arguments(Schema(), location="query")
+    def get(self, args) -> ResponseReturnValue:
         """Get all available exporter attributes."""
         get_db_handle()  # needed to load plugins
         return self.response(200, get_exporters())
@@ -63,8 +66,9 @@ class ExportersResource(ProtectedResource, GrampsJSONEncoder):
 class ExporterResource(ProtectedResource, GrampsJSONEncoder):
     """Export resource."""
 
-    @use_args({}, location="query")
-    def get(self, args: Dict, extension: str) -> ResponseReturnValue:
+    @api_blueprint.response(200, ExporterSchema())
+    @api_blueprint.arguments(Schema(), location="query")
+    def get(self, args, extension: str) -> ResponseReturnValue:
         """Get specific report attributes."""
         get_db_handle()  # needed to load plugins
         exporters = get_exporters(extension)
@@ -73,47 +77,138 @@ class ExporterResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, exporters[0])
 
 
+class ExporterFileQueryArgs(Schema):
+    """Query arguments for GET/POST /exporters/<extension>/file."""
+
+    compress = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "If true (default), use compression if supported by the exporter."
+        },
+    )
+    current_year = fields.Integer(
+        load_default=None,
+        metadata={
+            "description": "Year to treat as 'current' when evaluating whether someone may still be alive. Defaults to the actual current year."
+        },
+    )
+    event = fields.Str(
+        load_default=None,
+        metadata={
+            "description": "Name of a custom event filter to apply during export."
+        },
+    )
+    gramps_id = fields.Str(
+        load_default=None,
+        metadata={"description": "Gramps ID of the person for built-in person filter."},
+    )
+    handle = fields.Str(
+        load_default=None,
+        metadata={
+            "description": "Handle of the person for built-in person filter. Ignored if gramps_id is provided."
+        },
+    )
+    include_children = fields.Boolean(
+        load_default=True,
+        metadata={"description": "If true (default), include children in CSV export."},
+    )
+    include_individuals = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "If true (default), include individuals in CSV export."
+        },
+    )
+    include_marriages = fields.Boolean(
+        load_default=True,
+        metadata={"description": "If true (default), include marriages in CSV export."},
+    )
+    include_media = fields.Boolean(
+        load_default=True,
+        metadata={"description": "If true (default), include media in GED2 export."},
+    )
+    include_places = fields.Boolean(
+        load_default=True,
+        metadata={"description": "If true (default), include places in CSV export."},
+    )
+    include_witnesses = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "If true (default), include witnesses in GED2 export."
+        },
+    )
+    living = fields.Str(
+        load_default="IncludeAll",
+        validate=validate.OneOf(
+            [
+                "IncludeAll",
+                "FullNameOnly",
+                "LastNameOnly",
+                "ReplaceCompleteName",
+                "ExcludeAll",
+            ]
+        ),
+        metadata={
+            "description": "Built-in proxy controlling how living people are handled. Values: IncludeAll, FullNameOnly, LastNameOnly, ReplaceCompleteName, ExcludeAll."
+        },
+    )
+    locale = fields.Str(
+        load_default=None,
+        metadata={
+            "description": "Language code for translation of living-person name filters."
+        },
+    )
+    note = fields.Str(
+        load_default=None,
+        metadata={
+            "description": "Name of a custom note filter to apply during export."
+        },
+    )
+    person = fields.Str(
+        load_default=None,
+        metadata={
+            "description": "Name of a built-in or custom person filter. Built-in values: Descendants, DescendantFamilies, Ancestors, CommonAncestor."
+        },
+    )
+    private = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, exclude records marked as private from the export."
+        },
+    )
+    reference = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, include records not directly linked to the selected person."
+        },
+    )
+    sequence = fields.Str(
+        load_default="privacy,living,person,event,note,reference",
+        metadata={
+            "description": "Comma-delimited order in which filters are applied (default: privacy,living,person,event,note,reference)."
+        },
+    )
+    translate_headers = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "If true (default), translate CSV headers to the current locale."
+        },
+    )
+    years_after_death = fields.Integer(
+        load_default=0,
+        metadata={
+            "description": "Number of years after death during which a person is still treated as living (default 0)."
+        },
+    )
+    jwt = fields.String(
+        required=False,
+        metadata={"description": "JWT token for download authentication."},
+    )
+
+
 class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
     """Export file resource."""
 
-    @use_args(
-        {
-            "compress": fields.Boolean(load_default=True),
-            "current_year": fields.Integer(load_default=None),
-            "event": fields.Str(load_default=None),
-            "gramps_id": fields.Str(load_default=None),
-            "handle": fields.Str(load_default=None),
-            "include_children": fields.Boolean(load_default=True),
-            "include_individuals": fields.Boolean(load_default=True),
-            "include_marriages": fields.Boolean(load_default=True),
-            "include_media": fields.Boolean(load_default=True),
-            "include_places": fields.Boolean(load_default=True),
-            "include_witnesses": fields.Boolean(load_default=True),
-            "living": fields.Str(
-                load_default="IncludeAll",
-                validate=validate.OneOf(
-                    [
-                        "IncludeAll",
-                        "FullNameOnly",
-                        "LastNameOnly",
-                        "ReplaceCompleteName",
-                        "ExcludeAll",
-                    ]
-                ),
-            ),
-            "locale": fields.Str(load_default=None),
-            "note": fields.Str(load_default=None),
-            "person": fields.Str(load_default=None),
-            "private": fields.Boolean(load_default=False),
-            "reference": fields.Boolean(load_default=False),
-            "sequence": fields.Str(
-                load_default="privacy,living,person,event,note,reference"
-            ),
-            "translate_headers": fields.Boolean(load_default=True),
-            "years_after_death": fields.Integer(load_default=0),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(ExporterFileQueryArgs, location="query")
     def post(self, args: Dict, extension: str) -> ResponseReturnValue:
         """Create the export."""
         get_db_handle()  # to load plugins
@@ -136,45 +231,7 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
             return make_task_response(task)
         return jsonify(task), 201
 
-    @use_args(
-        {
-            "compress": fields.Boolean(load_default=True),
-            "current_year": fields.Integer(load_default=None),
-            "event": fields.Str(load_default=None),
-            "gramps_id": fields.Str(load_default=None),
-            "handle": fields.Str(load_default=None),
-            "include_children": fields.Boolean(load_default=True),
-            "include_individuals": fields.Boolean(load_default=True),
-            "include_marriages": fields.Boolean(load_default=True),
-            "include_media": fields.Boolean(load_default=True),
-            "include_places": fields.Boolean(load_default=True),
-            "include_witnesses": fields.Boolean(load_default=True),
-            "living": fields.Str(
-                load_default="IncludeAll",
-                validate=validate.OneOf(
-                    [
-                        "IncludeAll",
-                        "FullNameOnly",
-                        "LastNameOnly",
-                        "ReplaceCompleteName",
-                        "ExcludeAll",
-                    ]
-                ),
-            ),
-            "locale": fields.Str(load_default=None),
-            "note": fields.Str(load_default=None),
-            "person": fields.Str(load_default=None),
-            "private": fields.Boolean(load_default=False),
-            "reference": fields.Boolean(load_default=False),
-            "sequence": fields.Str(
-                load_default="privacy,living,person,event,note,reference"
-            ),
-            "translate_headers": fields.Boolean(load_default=True),
-            "years_after_death": fields.Integer(load_default=0),
-            "jwt": fields.String(required=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(ExporterFileQueryArgs, location="query")
     def get(self, args: Dict, extension: str) -> ResponseReturnValue:
         """Get export file."""
         db_handle = get_db_handle()

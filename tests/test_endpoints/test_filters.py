@@ -24,16 +24,16 @@ import uuid
 import unittest
 
 from jsonschema import validate
-
 from gramps_webapi.const import GRAMPS_NAMESPACES
 
-from . import API_RESOLVER, API_SCHEMA, BASE_URL, get_test_client
+from . import BASE_URL, get_test_client
 from .checks import (
     check_filter_create_update_delete,
     check_invalid_semantics,
     check_requires_token,
     check_resource_missing,
     check_success,
+    get_openapi_schema_validator,
 )
 from .util import fetch_header
 
@@ -55,12 +55,14 @@ class TestAllFilters(unittest.TestCase):
     def test_get_filters_conforms_to_schema(self):
         """Test conforms to schema."""
         rv = check_success(self, TEST_URL)
+        schema, resolver = get_openapi_schema_validator(self.client, "NamespaceFilters")
+
         for namespace in GRAMPS_NAMESPACES:
             self.assertIn(namespace, rv)
             validate(
                 instance=rv[namespace],
-                schema=API_SCHEMA["definitions"]["NamespaceFilters"],
-                resolver=API_RESOLVER,
+                schema=schema,
+                resolver=resolver,
             )
 
     def test_get_filters_validate_sematics(self):
@@ -103,13 +105,17 @@ class TestFilters(unittest.TestCase):
 
     def test_get_filters_namespace_rules_conform_to_schema(self):
         """Test all namespace rule sets conform to schema."""
+        schema, resolver = get_openapi_schema_validator(
+            self.client, "FilterRuleDescription"
+        )
+
         for namespace in GRAMPS_NAMESPACES:
             rv = check_success(self, TEST_URL + namespace)
             for rule in rv["rules"]:
                 validate(
                     instance=rule,
-                    schema=API_SCHEMA["definitions"]["FilterRuleDescription"],
-                    resolver=API_RESOLVER,
+                    schema=schema,
+                    resolver=resolver,
                 )
 
     def test_get_filters_namespace_rules_validate_semantics(self):

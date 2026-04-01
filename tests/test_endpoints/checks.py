@@ -19,12 +19,30 @@
 
 """Check functions for performing specific unit tests."""
 
-from jsonschema import validate
+from jsonschema import RefResolver, validate
 
 from gramps_webapi.auth.const import ROLE_OWNER
 
-from . import API_RESOLVER, API_SCHEMA
 from .util import check_keys_stripped, fetch_header
+
+
+def _get_openapi_spec(client):
+    """Return (spec, resolver) for the generated OpenAPI 3.0 spec."""
+    response = client.get("/api/openapi.json")
+    assert (
+        response.status_code == 200
+    ), f"Failed to fetch OpenAPI spec: {response.status_code}"
+    spec = response.get_json()
+    assert spec is not None, "OpenAPI spec returned non-JSON response"
+    resolver = RefResolver(base_uri="", referrer=spec, store={"": spec})
+    return spec, resolver
+
+
+def get_openapi_schema_validator(client, name):
+    """Return (schema, resolver) for a named component schema from the OpenAPI spec."""
+    spec, resolver = _get_openapi_spec(client)
+    schema = spec["components"]["schemas"][name]
+    return schema, resolver
 
 
 def check_success(test, url, full=False, role=ROLE_OWNER):
@@ -77,24 +95,17 @@ def check_requires_token(test, url, role=ROLE_OWNER):
     return rv.json
 
 
-def check_conforms_to_schema(test, url, name, role=ROLE_OWNER):
-    """Test that result set conforms to expected schema."""
+def check_conforms_to_openapi_schema(test, url, name, role=ROLE_OWNER):
+    """Test that result conforms to the auto-generated OpenAPI 3.0 schema."""
     header = fetch_header(test.client, role=role)
     rv = test.client.get(url, headers=header)
     test.assertEqual(rv.status_code, 200)
-    if isinstance(rv.json, type([])):
+    schema, resolver = get_openapi_schema_validator(test.client, name)
+    if isinstance(rv.json, list):
         for item in rv.json:
-            validate(
-                instance=item,
-                schema=API_SCHEMA["definitions"][name],
-                resolver=API_RESOLVER,
-            )
+            validate(instance=item, schema=schema, resolver=resolver)
     else:
-        validate(
-            instance=rv.json,
-            schema=API_SCHEMA["definitions"][name],
-            resolver=API_RESOLVER,
-        )
+        validate(instance=rv.json, schema=schema, resolver=resolver)
     return rv.json
 
 

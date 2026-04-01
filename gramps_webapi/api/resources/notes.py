@@ -38,6 +38,7 @@ from .base import (
 from .util import get_extended_attributes
 
 
+
 class NoteResourceHelper(GrampsObjectResourceHelper):
     """Note resource helper."""
 

@@ -35,6 +35,7 @@ from . import ProtectedResource
 from gramps_webapi.types import ResponseReturnValue
 
 
+
 def get_limit() -> str:
     """Get the rate limit string."""
     return current_app.config["RATE_LIMIT_MEDIA_ARCHIVE"]

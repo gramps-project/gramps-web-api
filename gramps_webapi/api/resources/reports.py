@@ -32,20 +32,37 @@ from webargs import fields, validate
 
 from gramps_webapi.types import ResponseReturnValue
 
+from marshmallow import Schema
+from webargs import fields, validate
+
 from ...auth.const import PERM_VIEW_PRIVATE
 from ...const import MIME_TYPES
 from ..auth import has_permissions
+from ..blueprint import api_blueprint
 from ..report import check_report_id_exists, get_reports, run_report
 from ..tasks import AsyncResult, generate_report, make_task_response, run_task
-from ..util import get_buffer_for_file, get_db_handle, get_tree_from_jwt, use_args
+from ..util import get_buffer_for_file, get_db_handle, get_tree_from_jwt
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .schemas import ReportSchema
+
+
+class ReportsQueryArgs(Schema):
+    """Query arguments for GET /reports/."""
+
+    include_help = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, include the options help dictionary in the response."
+        },
+    )
 
 
 class ReportsResource(ProtectedResource, GrampsJSONEncoder):
     """Reports resource."""
 
-    @use_args({"include_help": fields.Boolean(load_default=False)}, location="query")
+    @api_blueprint.response(200, ReportSchema(many=True))
+    @api_blueprint.arguments(ReportsQueryArgs, location="query")
     def get(self, args: Dict) -> ResponseReturnValue:
         """Get all available report attributes."""
         reports = get_reports(
@@ -54,10 +71,22 @@ class ReportsResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, reports)
 
 
+class ReportQueryArgs(Schema):
+    """Query arguments for GET /reports/<report_id>/."""
+
+    include_help = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "If true, include the options help dictionary in the response."
+        },
+    )
+
+
 class ReportResource(ProtectedResource, GrampsJSONEncoder):
     """Report resource."""
 
-    @use_args({"include_help": fields.Boolean(load_default=True)}, location="query")
+    @api_blueprint.response(200, ReportSchema())
+    @api_blueprint.arguments(ReportQueryArgs, location="query")
     def get(self, args: Dict, report_id: str) -> ResponseReturnValue:
         """Get specific report attributes."""
         reports = get_reports(
@@ -70,19 +99,34 @@ class ReportResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, reports[0])
 
 
+class ReportFileQueryArgs(Schema):
+    """Query arguments for GET/POST /reports/<report_id>/file."""
+
+    options = fields.Str(
+        validate=validate.Length(min=1),
+        metadata={
+            "description": "Report options as a JSON string. See the report's options_help for available keys."
+        },
+    )
+    locale = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={
+            "description": "Language code of the locale to use for the report output."
+        },
+    )
+    jwt = fields.String(
+        required=False,
+        metadata={
+            "description": "JWT token for download authentication (used when the browser fetches the file directly)."
+        },
+    )
+
+
 class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
     """Report file resource."""
 
-    @use_args(
-        {
-            "options": fields.Str(validate=validate.Length(min=1)),
-            "locale": fields.Str(
-                load_default=None, validate=validate.Length(min=1, max=5)
-            ),
-            "jwt": fields.String(required=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(ReportFileQueryArgs, location="query")
     def get(self, args: Dict, report_id: str) -> ResponseReturnValue:
         """Get specific report attributes."""
         report_options = {}
@@ -106,16 +150,7 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
         buffer = get_buffer_for_file(file_path, not_found=True)
         return send_file(buffer, mimetype=MIME_TYPES[file_type])
 
-    @use_args(
-        {
-            "options": fields.Str(validate=validate.Length(min=1)),
-            "locale": fields.Str(
-                load_default=None, validate=validate.Length(min=1, max=5)
-            ),
-            "jwt": fields.String(required=False),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(ReportFileQueryArgs, location="query")
     def post(self, args: Dict, report_id: str) -> ResponseReturnValue:
         """Create the report."""
         report_options = {}

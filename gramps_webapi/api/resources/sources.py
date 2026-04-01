@@ -27,6 +27,7 @@ from .base import (
 )
 
 
+
 class SourceResourceHelper(GrampsObjectResourceHelper):
     """Source resource helper."""
 

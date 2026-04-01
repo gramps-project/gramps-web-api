@@ -25,39 +25,70 @@ from webargs import fields
 
 from ..util import (
     get_tree_from_jwt_or_fail,
-    use_args,
     abort_with_message,
     check_quota_ai,
     update_usage_ai,
 )
+from ..blueprint import api_blueprint
 from ..tasks import AsyncResult, make_task_response, process_chat, run_task
 from . import ProtectedResource
+from .schemas import ChatResponseSchema
 from ...auth.const import PERM_USE_CHAT, PERM_VIEW_PRIVATE
 from ..auth import has_permissions, require_permissions
 
 
 class ChatMessageSchema(Schema):
-    role = fields.Str(required=True)
-    message = fields.Str(required=True)
+    role = fields.Str(
+        required=True,
+        metadata={
+            "description": "Role of the message sender: one of 'human', 'ai', 'system', 'assistant', or 'error'."
+        },
+    )
+    message = fields.Str(
+        required=True,
+        metadata={"description": "The message content."},
+    )
+
+
+class ChatBodyArgs(Schema):
+    """Body arguments for POST /chat/."""
+
+    query = fields.Str(
+        required=True,
+        metadata={"description": "The chat prompt to answer."},
+    )
+    history = fields.List(
+        fields.Nested(ChatMessageSchema),
+        required=False,
+        metadata={
+            "description": "Optional list of prior conversation messages ({role, message})."
+        },
+    )
+
+
+class ChatQueryArgs(Schema):
+    """Query arguments for POST /chat/."""
+
+    background = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, process the chat in the background and return HTTP 202."
+        },
+    )
+    verbose = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, include detailed agent metadata (tool calls, token usage) in the response."
+        },
+    )
 
 
 class ChatResource(ProtectedResource):
     """AI chat resource."""
 
-    @use_args(
-        {
-            "query": fields.Str(required=True),
-            "history": fields.List(fields.Nested(ChatMessageSchema), required=False),
-        },
-        location="json",
-    )
-    @use_args(
-        {
-            "background": fields.Boolean(load_default=False),
-            "verbose": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.response(200, ChatResponseSchema())
+    @api_blueprint.arguments(ChatBodyArgs, location="json")
+    @api_blueprint.arguments(ChatQueryArgs, location="query")
     def post(self, args_json, args_query):
         """Create a chat response."""
         require_permissions({PERM_USE_CHAT})

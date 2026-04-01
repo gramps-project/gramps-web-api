@@ -23,7 +23,7 @@ import unittest
 
 from . import BASE_URL, get_test_client, ROLE_MEMBER
 from .checks import (
-    check_conforms_to_schema,
+    check_conforms_to_openapi_schema,
     check_invalid_semantics,
     check_requires_token,
     check_resource_missing,
@@ -48,7 +48,7 @@ class TestBookmarks(unittest.TestCase):
 
     def test_get_bookmarks_conforms_to_schema(self):
         """Test conformity to schema."""
-        check_conforms_to_schema(self, TEST_URL, "Bookmarks")
+        check_conforms_to_openapi_schema(self, TEST_URL, "Bookmarks")
 
     def test_get_bookmarks_validate_semantics(self):
         """Test invalid parameters and values."""

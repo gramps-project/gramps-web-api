@@ -21,13 +21,14 @@
 
 
 from flask import abort, current_app, jsonify
+from marshmallow import Schema
 from webargs import fields
 
 from ...auth import config_delete, config_get, config_get_all, config_set
 from ...auth.const import PERM_EDIT_SETTINGS, PERM_VIEW_SETTINGS
 from ...const import DB_CONFIG_ALLOWED_KEYS
 from ..auth import require_permissions
-from ..util import use_args
+from ..blueprint import api_blueprint
 from . import ProtectedResource
 
 
@@ -38,6 +39,15 @@ class ConfigsResource(ProtectedResource):
         """Get all config settings."""
         require_permissions([PERM_VIEW_SETTINGS])
         return jsonify(config_get_all()), 200
+
+
+class ConfigValueArgs(Schema):
+    """Request body for PUT /config/<key>/."""
+
+    value = fields.Str(
+        required=True,
+        metadata={"description": "The new value for the configuration setting."},
+    )
 
 
 class ConfigResource(ProtectedResource):
@@ -53,12 +63,7 @@ class ConfigResource(ProtectedResource):
             abort(404)
         return jsonify(val), 200
 
-    @use_args(
-        {
-            "value": fields.Str(required=True),
-        },
-        location="json",
-    )
+    @api_blueprint.arguments(ConfigValueArgs, location="json")
     def put(self, args, key: str):
         """Update a config setting."""
         require_permissions([PERM_EDIT_SETTINGS])

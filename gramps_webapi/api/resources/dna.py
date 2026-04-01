@@ -32,6 +32,7 @@ from gramps.gen.errors import HandleError
 from gramps.gen.lib import Citation, Note, Person
 from gramps.gen.relationship import get_relationship_calculator
 from gramps.gen.utils.grampslocale import GrampsLocale
+from marshmallow import Schema
 from webargs import fields, validate
 
 from gramps_webapi.api.dna import parse_raw_dna_match_string
@@ -39,9 +40,11 @@ from gramps_webapi.api.people_families_cache import CachePeopleFamiliesProxy
 from gramps_webapi.types import Handle, MatchSegment, ResponseReturnValue
 
 from ...types import Handle
+from ..blueprint import api_blueprint
 from ..cache import request_cache_decorator
-from ..util import get_db_handle, get_locale_for_language, use_args
+from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
+from .schemas import DnaMatchSchema, DnaSegmentSchema
 from .util import get_person_profile_for_handle
 
 SIDE_UNKNOWN = "U"
@@ -49,18 +52,29 @@ SIDE_MATERNAL = "M"
 SIDE_PATERNAL = "P"
 
 
+class DnaMatchesQueryArgs(Schema):
+    """Query arguments for GET /people/<handle>/dna/matches."""
+
+    locale = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=2, max=5),
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
+    )
+    raw = fields.Bool(
+        load_default=False,
+        metadata={
+            "description": "If true, include the raw segment data strings in the response."
+        },
+    )
+
+
 class PersonDnaMatchesResource(ProtectedResource):
     """Resource for getting DNA match data for a person."""
 
-    @use_args(
-        {
-            "locale": fields.Str(
-                load_default=None, validate=validate.Length(min=2, max=5)
-            ),
-            "raw": fields.Bool(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.response(200, DnaMatchSchema(many=True))
+    @api_blueprint.arguments(DnaMatchesQueryArgs, location="query")
     @request_cache_decorator
     def get(self, args: dict, handle: str):
         """Get the DNA match data."""
@@ -93,13 +107,20 @@ class PersonDnaMatchesResource(ProtectedResource):
         return matches
 
 
+class DnaMatchParserBodyArgs(Schema):
+    """Body arguments for POST /dna/match-parser/."""
+
+    string = fields.Str(
+        required=True,
+        metadata={"description": "The raw DNA match data string to parse."},
+    )
+
+
 class DnaMatchParserResource(ProtectedResource):
     """DNA match parser resource."""
 
-    @use_args(
-        {"string": fields.Str(required=True)},
-        location="json",
-    )
+    @api_blueprint.response(200, DnaSegmentSchema(many=True))
+    @api_blueprint.arguments(DnaMatchParserBodyArgs, location="json")
     def post(self, args: dict) -> ResponseReturnValue:
         """Parse DNA match string."""
         return parse_raw_dna_match_string(args["string"])
@@ -127,10 +148,13 @@ def get_match_data(
     if data[0][0] <= 0:  # Unrelated
         side = SIDE_UNKNOWN
     elif data[0][0] == 1:  # parent / child
-        if db_handle.get_person_from_handle(data[0][1]).gender == 0:
+        parent_gender = db_handle.get_person_from_handle(data[0][1]).gender
+        if parent_gender == Person.FEMALE:
             side = SIDE_MATERNAL
-        else:
+        elif parent_gender == Person.MALE:
             side = SIDE_PATERNAL
+        else:
+            side = SIDE_UNKNOWN
     elif (
         len(data) > 1 and data[0][0] == data[1][0] and data[0][2][0] != data[1][2][0]
     ):  # shares both parents

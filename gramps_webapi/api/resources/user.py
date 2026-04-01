@@ -26,6 +26,7 @@ from typing import Optional, Tuple
 
 from flask import abort, current_app, jsonify, render_template, request
 from flask_jwt_extended import create_access_token, get_jwt, get_jwt_identity
+from marshmallow import Schema
 from webargs import fields
 
 from ...auth import (
@@ -69,6 +70,7 @@ from ...auth.const import (
 )
 from ...const import TREE_MULTI
 from ..auth import has_permissions, require_permissions
+from ..blueprint import api_blueprint
 from ..ratelimiter import limiter
 from ..tasks import (
     AsyncResult,
@@ -83,7 +85,6 @@ from ..util import (
     get_tree_from_jwt,
     get_tree_id,
     tree_exists,
-    use_args,
 )
 from . import LimitedScopeProtectedResource, ProtectedResource, Resource
 
@@ -120,6 +121,7 @@ class UserChangeBase(ProtectedResource):
 class UsersResource(ProtectedResource):
     """Resource for all users."""
 
+    @api_blueprint.response(200, Schema(many=True))
     def get(self):
         """Get users' details."""
         # Always include OIDC account information if OIDC is enabled
@@ -184,9 +186,60 @@ class UsersResource(ProtectedResource):
         return "", 201
 
 
+class UserPutBodyArgs(Schema):
+    """Body arguments for PUT /users/<user_name>/."""
+
+    email = fields.Str(
+        required=False,
+        metadata={"description": "The user's e-mail address."},
+    )
+    full_name = fields.Str(
+        required=False,
+        metadata={"description": "The user's full name."},
+    )
+    name_new = fields.Str(
+        required=False,
+        metadata={"description": "New username when renaming the user."},
+    )
+    role = fields.Int(
+        required=False,
+        metadata={"description": "Integer user role ID."},
+    )
+    tree = fields.Str(
+        required=False,
+        metadata={"description": "Tree ID the user belongs to."},
+    )
+
+
+class UserPostBodyArgs(Schema):
+    """Body arguments for POST /users/<user_name>/."""
+
+    email = fields.Str(
+        required=True,
+        metadata={"description": "The user's e-mail address."},
+    )
+    full_name = fields.Str(
+        required=True,
+        metadata={"description": "The user's full name."},
+    )
+    password = fields.Str(
+        required=True,
+        metadata={"description": "The user's password."},
+    )
+    role = fields.Int(
+        required=True,
+        metadata={"description": "Integer user role ID."},
+    )
+    tree = fields.Str(
+        required=False,
+        metadata={"description": "Tree ID the user belongs to."},
+    )
+
+
 class UserResource(UserChangeBase):
     """Resource for a single user."""
 
+    @api_blueprint.response(200, Schema())
     def get(self, user_name: str):
         """Get a user's details."""
         if user_name == "-":
@@ -224,16 +277,7 @@ class UserResource(UserChangeBase):
 
         return jsonify(details), 200
 
-    @use_args(
-        {
-            "email": fields.Str(required=False),
-            "full_name": fields.Str(required=False),
-            "name_new": fields.Str(required=False),
-            "role": fields.Int(required=False),
-            "tree": fields.Str(required=False),
-        },
-        location="json",
-    )
+    @api_blueprint.arguments(UserPutBodyArgs, location="json")
     def put(self, args, user_name: str):
         """Update a user's details."""
         user_name, other_tree = self.prepare_edit(user_name)
@@ -279,18 +323,8 @@ class UserResource(UserChangeBase):
             abort_with_message(409, str(exc))
         return "", 200
 
-    @use_args(
-        {
-            "email": fields.Str(required=True),
-            "full_name": fields.Str(required=True),
-            "password": fields.Str(required=True),
-            "role": fields.Int(required=True),
-            "tree": fields.Str(required=False),
-        },
-        location="json",
-    )
+    @api_blueprint.arguments(UserPostBodyArgs, location="json")
     def post(self, args, user_name: str):
-        """Add a new user."""
         if user_name == "-":
             # Adding a new user does not make sense for "own" user
             abort(404)
@@ -337,6 +371,27 @@ class UserResource(UserChangeBase):
         return "", 200
 
 
+class UserRegisterBodyArgs(Schema):
+    """Body arguments for POST /users/<user_name>/register/."""
+
+    email = fields.Str(
+        required=True,
+        metadata={"description": "The user's e-mail address."},
+    )
+    full_name = fields.Str(
+        required=True,
+        metadata={"description": "The user's full name."},
+    )
+    password = fields.Str(
+        required=True,
+        metadata={"description": "The user's password."},
+    )
+    tree = fields.Str(
+        required=False,
+        metadata={"description": "Tree ID the user belongs to."},
+    )
+
+
 class UserRegisterResource(Resource):
     """Resource for registering a new user."""
 
@@ -357,15 +412,7 @@ class UserRegisterResource(Resource):
         return False
 
     @limiter.limit("1/second")
-    @use_args(
-        {
-            "email": fields.Str(required=True),
-            "full_name": fields.Str(required=True),
-            "password": fields.Str(required=True),
-            "tree": fields.Str(required=False),
-        },
-        location="json",
-    )
+    @api_blueprint.arguments(UserRegisterBodyArgs, location="json")
     def post(self, args, user_name: str):
         """Register a new user."""
         if user_name == "-":
@@ -415,19 +462,32 @@ class UserRegisterResource(Resource):
         return "", 201
 
 
+class UserCreateOwnerBodyArgs(Schema):
+    """Body arguments for POST /users/<user_name>/create_owner/."""
+
+    email = fields.Str(
+        required=True,
+        metadata={"description": "The user's e-mail address."},
+    )
+    full_name = fields.Str(
+        required=True,
+        metadata={"description": "The user's full name."},
+    )
+    password = fields.Str(
+        required=True,
+        metadata={"description": "The user's password."},
+    )
+    tree = fields.Str(
+        required=False,
+        metadata={"description": "Tree ID the user belongs to."},
+    )
+
+
 class UserCreateOwnerResource(LimitedScopeProtectedResource):
     """Resource for creating a site admin when the user database is empty."""
 
     @limiter.limit("1/second")
-    @use_args(
-        {
-            "email": fields.Str(required=True),
-            "full_name": fields.Str(required=True),
-            "password": fields.Str(required=True),
-            "tree": fields.Str(required=False),
-        },
-        location="json",
-    )
+    @api_blueprint.arguments(UserCreateOwnerBodyArgs, location="json")
     def post(self, args, user_name: str):
         """Create a user with admin permissions."""
         if user_name == "-":
@@ -479,20 +539,27 @@ class UserCreateOwnerResource(LimitedScopeProtectedResource):
         return "", 201
 
 
+class UserChangePasswordBodyArgs(Schema):
+    """Body arguments for POST /users/<user_name>/password/."""
+
+    old_password = fields.Str(
+        required=True,
+        metadata={"description": "The current (old) password."},
+    )
+    new_password = fields.Str(
+        required=True,
+        metadata={"description": "The new password."},
+    )
+
+
 class UserChangePasswordResource(UserChangeBase):
     """Resource for changing a user password."""
 
-    @use_args(
-        {
-            "old_password": fields.Str(required=True),
-            "new_password": fields.Str(required=True),
-        },
-        location="json",
-    )
+    @api_blueprint.arguments(UserChangePasswordBodyArgs, location="json")
     def post(self, args, user_name: str):
         """Post new password."""
         user_name, _ = self.prepare_edit(user_name)
-        if len(args["new_password"]) == "":
+        if not args["new_password"]:
             abort_with_message(400, "Empty password provided")
         if not authorized(user_name, args["old_password"]):
             abort_with_message(403, "Old password incorrect")
@@ -539,16 +606,22 @@ class UserTriggerResetPasswordResource(Resource):
         return "", 201
 
 
+class UserResetPasswordBodyArgs(Schema):
+    """Body arguments for POST /users/<user_name>/reset_password/."""
+
+    new_password = fields.Str(
+        required=True,
+        metadata={"description": "The new password."},
+    )
+
+
 class UserResetPasswordResource(LimitedScopeProtectedResource):
     """Resource for resetting a user password."""
 
-    @use_args(
-        {"new_password": fields.Str(required=True)},
-        location="json",
-    )
+    @api_blueprint.arguments(UserResetPasswordBodyArgs, location="json")
     def post(self, args):
         """Post new password."""
-        if args["new_password"] == "":
+        if not args["new_password"]:
             abort_with_message(400, "Empty password provided")
         claims = get_jwt()
         if claims[CLAIM_LIMITED_SCOPE] != SCOPE_RESET_PW:

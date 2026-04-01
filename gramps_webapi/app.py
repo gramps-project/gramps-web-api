@@ -24,6 +24,7 @@ import os
 import warnings
 from typing import Any, Dict, Optional
 
+import flask_smorest
 from flask import Flask, abort, g, send_from_directory
 from flask_compress import Compress
 from flask_cors import CORS
@@ -34,6 +35,17 @@ from gramps.gen.config import set as setconfig
 from PIL import Image
 
 from .api import api_blueprint
+from .api.resources.schemas import (
+    CitationSchema,
+    EventSchema,
+    FamilySchema,
+    MediaSchema,
+    NoteSchema,
+    PlaceSchema,
+    RepositorySchema,
+    SourceSchema,
+    TagSchema,
+)
 from .api.cache import persistent_cache, request_cache, thumbnail_cache
 from .api.ratelimiter import limiter
 from .api.search.embeddings import create_remote_embedding_function, load_model
@@ -44,7 +56,7 @@ from .auth import user_db
 from .auth.oidc import init_oidc
 from .auth.token_blocklist import is_jti_blocklisted
 from .config import DefaultConfig, DefaultConfigJWT
-from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI
+from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI, VERSION
 from .dbmanager import WebDbManager
 from .util.celery import create_celery
 
@@ -121,12 +133,20 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         app.logger.setLevel(app.config["LOG_LEVEL"])
 
     if app.config["TREE"] != TREE_MULTI:
-        # create database if missing (only in single-tree mode)
-        WebDbManager(
-            name=app.config["TREE"],
-            create_if_missing=True,
-            ignore_lock=app.config["IGNORE_DB_LOCK"],
-        )
+        if app.config.get("TREE_ID"):
+            # TREE_ID takes precedence: identify tree by dirname, never by name
+            WebDbManager(
+                dirname=app.config["TREE_ID"],
+                create_if_missing=False,
+                ignore_lock=app.config["IGNORE_DB_LOCK"],
+            )
+        else:
+            # legacy: identify tree by display name
+            WebDbManager(
+                name=app.config["TREE"],
+                create_if_missing=True,
+                ignore_lock=app.config["IGNORE_DB_LOCK"],
+            )
 
     if app.config["TREE"] == TREE_MULTI and not app.config["MEDIA_PREFIX_TREE"]:
         warnings.warn(
@@ -216,8 +236,66 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
             return send_from_directory(static_path, "index.html")
 
     # register the API blueprint
-    app.register_blueprint(api_blueprint)
+    api = flask_smorest.Api(
+        app,
+        spec_kwargs={
+            "info": {
+                "title": "Gramps Web API",
+                "version": VERSION,
+                "description": (
+                    "The Gramps Web API is a REST API that provides access to "
+                    "family tree databases generated and maintained with Gramps, "
+                    "a popular Open Source genealogical research software package."
+                ),
+                "license": {
+                    "name": "GNU Affero General Public License v3.0",
+                    "url": "http://www.gnu.org/licenses/agpl-3.0.html",
+                },
+            },
+            "components": {
+                "securitySchemes": {
+                    "BearerAuth": {
+                        "type": "http",
+                        "scheme": "bearer",
+                        "bearerFormat": "JWT",
+                    }
+                }
+            },
+            "security": [{"BearerAuth": []}],
+        },
+    )
+    api.register_blueprint(api_blueprint)
+
+    # Explicitly register core Gramps object schemas so they appear in the
+    # generated OpenAPI spec even though the base-class GET methods use the
+    # generic Schema() response decorator.
+    for _schema_name, _schema_cls in [
+        ("Citation", CitationSchema),
+        ("Event", EventSchema),
+        ("Family", FamilySchema),
+        ("Media", MediaSchema),
+        ("Note", NoteSchema),
+        ("Place", PlaceSchema),
+        ("Repository", RepositorySchema),
+        ("Source", SourceSchema),
+        ("Tag", TagSchema),
+    ]:
+        api.spec.components.schema(_schema_name, schema=_schema_cls())
+
     limiter.init_app(app)
+
+    # Flask 3.x removed the exc.response early-return from handle_http_exception,
+    # so flask-smorest's handler now intercepts every HTTPException and reformats
+    # it, breaking the {"error": {...}} format produced by abort_with_message.
+    # Re-introduce the exc.response check here, delegating to smorest only when
+    # there is no pre-built custom response.
+    from werkzeug.exceptions import HTTPException
+
+    @app.errorhandler(HTTPException)
+    def handle_http_exception(e):
+        if e.response is not None:
+            return e.response
+        return api.handle_http_exception(e)
 
     # instantiate celery
     create_celery(app)

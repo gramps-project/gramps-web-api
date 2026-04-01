@@ -23,7 +23,7 @@ import unittest
 
 from . import BASE_URL, get_test_client
 from .checks import (
-    check_conforms_to_schema,
+    check_conforms_to_openapi_schema,
     check_invalid_semantics,
     check_requires_token,
     check_resource_missing,
@@ -97,7 +97,7 @@ class TestLivingDates(unittest.TestCase):
 
     def test_get_living_dates_conforms_to_schema(self):
         """Test conformity to schema."""
-        check_conforms_to_schema(
+        check_conforms_to_openapi_schema(
             self, TEST_URL + "9BXKQC1PVLPYFMD6IX/dates", "LivingDates"
         )
 

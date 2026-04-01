@@ -48,6 +48,7 @@ from .util import (
 )
 
 
+
 class MediaObjectResourceHelper(GrampsObjectResourceHelper):
     """Media resource helper."""
 

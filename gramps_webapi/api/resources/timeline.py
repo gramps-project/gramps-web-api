@@ -36,13 +36,16 @@ from gramps.gen.utils.db import (
     get_marriage_or_fallback,
 )
 from gramps.gen.utils.grampslocale import GrampsLocale
+from marshmallow import Schema
 from webargs import fields, validate
 
 from ...types import Handle
-from ..util import get_db_handle, get_locale_for_language, use_args
+from ..blueprint import api_blueprint
+from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .filters import apply_filter
+from .schemas import TimelineEventProfileSchema
 from ...const import NAME_FORMAT_REGEXP
 from .util import (
     get_person_profile_for_object,
@@ -514,62 +517,155 @@ def prepare_events(args: Dict):
     return events
 
 
+class PersonTimelineQueryArgs(Schema):
+    """Query arguments for GET /people/<handle>/timeline."""
+
+    ancestors = fields.Integer(
+        load_default=1,
+        validate=validate.Range(min=1, max=5),
+        metadata={
+            "description": "Number of ancestor generations to include (default 1, max 5)."
+        },
+    )
+    dates = fields.Str(
+        load_default=None,
+        validate=validate.Regexp(
+            r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
+            r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
+            r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
+            r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
+        ),
+        metadata={
+            "description": "Date range filter. Formats: '-y/m/d' (before), 'y/m/d-' (after), 'y/m/d-y/m/d' (range). Components may use '*' as wildcard."
+        },
+    )
+    discard_empty = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "If true (default), discard undated events from the timeline."
+        },
+    )
+    event_classes = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
+        metadata={
+            "description": "Comma-delimited list of event class keywords to include: vital, family, religious, vocational, academic, travel, legal, residence, other, custom."
+        },
+    )
+    events = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={
+            "description": "Comma-delimited list of specific event type names to include. Birth and death are always included."
+        },
+    )
+    first = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "If true, discard events before the person's first recorded event."
+        },
+    )
+    keys = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={
+            "description": "Comma-delimited list of top-level keys to return; all others are omitted."
+        },
+    )
+    last = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "If true, discard events after the person's last recorded event."
+        },
+    )
+    locale = fields.Str(
+        load_default=None,
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
+    )
+    name_format = fields.Str(
+        validate=validate.Regexp(NAME_FORMAT_REGEXP),
+        metadata={
+            "description": "Format string for name display (see gramps.gen.display.name for syntax)."
+        },
+    )
+    offspring = fields.Integer(
+        load_default=1,
+        validate=validate.Range(min=1, max=5),
+        metadata={
+            "description": "Number of offspring generations to include (default 1, max 5)."
+        },
+    )
+    omit_anchor = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "If true (default), omit the anchor person's own data from relative-event entries."
+        },
+    )
+    page = fields.Integer(
+        load_default=0,
+        dump_default=None,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Page number of the result subset to return. If omitted, all results are returned."
+        },
+    )
+    pagesize = fields.Integer(
+        load_default=20,
+        validate=validate.Range(min=1),
+        metadata={"description": "Number of items per page when pagination is active."},
+    )
+    precision = fields.Integer(
+        load_default=1,
+        validate=validate.Range(min=1, max=3),
+        metadata={
+            "description": "Number of significant time components in date strings: 1=year only, 2=year+month, 3=year+month+day."
+        },
+    )
+    ratings = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, include total citation count and highest confidence score."
+        },
+    )
+    relative_event_classes = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
+        metadata={
+            "description": "Comma-delimited list of event class keywords to include for relatives."
+        },
+    )
+    relative_events = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={
+            "description": "Comma-delimited list of event type names to include for relatives."
+        },
+    )
+    relatives = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        validate=validate.ContainsOnly(choices=RELATIVES),
+        metadata={
+            "description": "Comma-delimited list of relationship types: father, mother, brother, sister, wife, husband, son, daughter."
+        },
+    )
+    skipkeys = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={
+            "description": "Comma-delimited list of top-level keys to omit from the response; all others are kept."
+        },
+    )
+    strip = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, strip keys with empty values from the response."
+        },
+    )
+
+
 class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
     """Person timeline resource."""
 
-    @use_args(
-        {
-            "ancestors": fields.Integer(
-                load_default=1, validate=validate.Range(min=1, max=5)
-            ),
-            "dates": fields.Str(
-                load_default=None,
-                validate=validate.Regexp(
-                    r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
-                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
-                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
-                    r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
-                ),
-            ),
-            "discard_empty": fields.Boolean(load_default=True),
-            "event_classes": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
-            ),
-            "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "first": fields.Boolean(load_default=True),
-            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "last": fields.Boolean(load_default=True),
-            "locale": fields.Str(load_default=None),
-            "name_format": fields.Str(validate=validate.Regexp(NAME_FORMAT_REGEXP)),
-            "offspring": fields.Integer(
-                load_default=1, validate=validate.Range(min=1, max=5)
-            ),
-            "omit_anchor": fields.Boolean(load_default=True),
-            "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
-            "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
-            "precision": fields.Integer(
-                load_default=1, validate=validate.Range(min=1, max=3)
-            ),
-            "ratings": fields.Boolean(load_default=False),
-            "relative_event_classes": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
-            ),
-            "relative_events": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-            ),
-            "relatives": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(choices=RELATIVES),
-            ),
-            "skipkeys": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "strip": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.response(200, TimelineEventProfileSchema(many=True))
+    @api_blueprint.arguments(PersonTimelineQueryArgs, location="query")
     def get(self, args: Dict, handle: str):
         """Get list of events in timeline for a person."""
         locale = get_locale_for_language(args["locale"], default=True)
@@ -612,40 +708,96 @@ class PersonTimelineResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, payload, args, total_items=len(timeline.timeline))
 
 
+class FamilyTimelineQueryArgs(Schema):
+    """Query arguments for GET /families/<handle>/timeline."""
+
+    dates = fields.Str(
+        load_default=None,
+        validate=validate.Regexp(
+            r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
+            r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
+            r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
+            r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
+        ),
+        metadata={
+            "description": "Date range filter. Formats: '-y/m/d' (before), 'y/m/d-' (after), 'y/m/d-y/m/d' (range). Components may use '*' as wildcard."
+        },
+    )
+    discard_empty = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "If true (default), discard undated events from the timeline."
+        },
+    )
+    event_classes = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
+        metadata={
+            "description": "Comma-delimited list of event class keywords to include: vital, family, religious, vocational, academic, travel, legal, residence, other, custom."
+        },
+    )
+    events = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={
+            "description": "Comma-delimited list of specific event type names to include. Birth and death are always included."
+        },
+    )
+    keys = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={
+            "description": "Comma-delimited list of top-level keys to return; all others are omitted."
+        },
+    )
+    locale = fields.Str(
+        load_default=None,
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
+    )
+    name_format = fields.Str(
+        validate=validate.Regexp(NAME_FORMAT_REGEXP),
+        metadata={
+            "description": "Format string for name display (see gramps.gen.display.name for syntax)."
+        },
+    )
+    page = fields.Integer(
+        load_default=0,
+        dump_default=None,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Page number of the result subset to return. If omitted, all results are returned."
+        },
+    )
+    pagesize = fields.Integer(
+        load_default=20,
+        validate=validate.Range(min=1),
+        metadata={"description": "Number of items per page when pagination is active."},
+    )
+    ratings = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, include total citation count and highest confidence score."
+        },
+    )
+    skipkeys = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={
+            "description": "Comma-delimited list of top-level keys to omit from the response; all others are kept."
+        },
+    )
+    strip = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, strip keys with empty values from the response."
+        },
+    )
+
+
 class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
     """Family timeline resource."""
 
-    @use_args(
-        {
-            "dates": fields.Str(
-                load_default=None,
-                validate=validate.Regexp(
-                    r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
-                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
-                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
-                    r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
-                ),
-            ),
-            "discard_empty": fields.Boolean(load_default=True),
-            "event_classes": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
-            ),
-            "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "locale": fields.Str(load_default=None),
-            "name_format": fields.Str(validate=validate.Regexp(NAME_FORMAT_REGEXP)),
-            "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
-            "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
-            "ratings": fields.Boolean(load_default=False),
-            "skipkeys": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "strip": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.response(200, TimelineEventProfileSchema(many=True))
+    @api_blueprint.arguments(FamilyTimelineQueryArgs, location="query")
     def get(self, args: Dict, handle: str):
         """Get list of events in timeline for a family."""
         locale = get_locale_for_language(args["locale"], default=True)
@@ -670,52 +822,138 @@ class FamilyTimelineResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, payload, args, total_items=len(timeline.timeline))
 
 
+class TimelinePeopleQueryArgs(Schema):
+    """Query arguments for GET /people/timeline."""
+
+    anchor = fields.Str(
+        validate=validate.Length(min=1),
+        metadata={
+            "description": "Handle of the central person; all other timeline persons are treated as their relatives."
+        },
+    )
+    dates = fields.Str(
+        load_default=None,
+        validate=validate.Regexp(
+            r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
+            r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
+            r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
+            r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
+        ),
+        metadata={
+            "description": "Date range filter. Formats: '-y/m/d' (before), 'y/m/d-' (after), 'y/m/d-y/m/d' (range). Components may use '*' as wildcard."
+        },
+    )
+    discard_empty = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "If true (default), discard undated events from the timeline."
+        },
+    )
+    event_classes = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
+        metadata={
+            "description": "Comma-delimited list of event class keywords to include: vital, family, religious, vocational, academic, travel, legal, residence, other, custom."
+        },
+    )
+    events = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={
+            "description": "Comma-delimited list of specific event type names to include. Birth and death are always included."
+        },
+    )
+    filter = fields.Str(
+        validate=validate.Length(min=1),
+        metadata={"description": "Name of an existing custom filter to apply."},
+    )
+    first = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "If true, discard events before the person's first recorded event."
+        },
+    )
+    handles = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={
+            "description": "Comma-delimited list of specific person or family handles to include in the timeline."
+        },
+    )
+    keys = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={
+            "description": "Comma-delimited list of top-level keys to return; all others are omitted."
+        },
+    )
+    last = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "If true, discard events after the person's last recorded event."
+        },
+    )
+    locale = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
+    )
+    omit_anchor = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "If true (default), omit the anchor person's own data from relative-event entries."
+        },
+    )
+    page = fields.Integer(
+        load_default=0,
+        dump_default=None,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Page number of the result subset to return. If omitted, all results are returned."
+        },
+    )
+    pagesize = fields.Integer(
+        load_default=20,
+        validate=validate.Range(min=1),
+        metadata={"description": "Number of items per page when pagination is active."},
+    )
+    precision = fields.Integer(
+        load_default=1,
+        validate=validate.Range(min=1, max=3),
+        metadata={
+            "description": "Number of significant time components in date strings: 1=year only, 2=year+month, 3=year+month+day."
+        },
+    )
+    ratings = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, include total citation count and highest confidence score."
+        },
+    )
+    rules = fields.Str(
+        validate=validate.Length(min=1),
+        metadata={
+            "description": 'Inline filter expression as JSON: {"function": "and"|"or"|"one", "invert": bool, "rules": [{"name": str, "values": [...], "regex": bool}]}.'
+        },
+    )
+    skipkeys = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={
+            "description": "Comma-delimited list of top-level keys to omit from the response; all others are kept."
+        },
+    )
+    strip = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, strip keys with empty values from the response."
+        },
+    )
+
+
 class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
     """People timeline resource."""
 
-    @use_args(
-        {
-            "anchor": fields.Str(validate=validate.Length(min=1)),
-            "dates": fields.Str(
-                load_default=None,
-                validate=validate.Regexp(
-                    r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
-                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
-                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
-                    r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
-                ),
-            ),
-            "discard_empty": fields.Boolean(load_default=True),
-            "event_classes": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
-            ),
-            "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "filter": fields.Str(validate=validate.Length(min=1)),
-            "first": fields.Boolean(load_default=True),
-            "handles": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "last": fields.Boolean(load_default=True),
-            "locale": fields.Str(
-                load_default=None, validate=validate.Length(min=1, max=5)
-            ),
-            "omit_anchor": fields.Boolean(load_default=True),
-            "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
-            "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
-            "precision": fields.Integer(
-                load_default=1, validate=validate.Range(min=1, max=3)
-            ),
-            "ratings": fields.Boolean(load_default=False),
-            "rules": fields.Str(validate=validate.Length(min=1)),
-            "skipkeys": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "strip": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.response(200, TimelineEventProfileSchema(many=True))
+    @api_blueprint.arguments(TimelinePeopleQueryArgs, location="query")
     def get(self, args: Dict):
         """Get consolidated list of events in timeline for a list of people."""
         db_handle = get_db_handle()
@@ -761,45 +999,107 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, payload, args, total_items=len(timeline.timeline))
 
 
+class TimelineFamiliesQueryArgs(Schema):
+    """Query arguments for GET /families/timeline."""
+
+    dates = fields.Str(
+        load_default=None,
+        validate=validate.Regexp(
+            r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
+            r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
+            r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
+            r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
+        ),
+        metadata={
+            "description": "Date range filter. Formats: '-y/m/d' (before), 'y/m/d-' (after), 'y/m/d-y/m/d' (range). Components may use '*' as wildcard."
+        },
+    )
+    discard_empty = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "If true (default), discard undated events from the timeline."
+        },
+    )
+    event_classes = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
+        metadata={
+            "description": "Comma-delimited list of event class keywords to include: vital, family, religious, vocational, academic, travel, legal, residence, other, custom."
+        },
+    )
+    events = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={
+            "description": "Comma-delimited list of specific event type names to include. Birth and death are always included."
+        },
+    )
+    filter = fields.Str(
+        validate=validate.Length(min=1),
+        metadata={"description": "Name of an existing custom filter to apply."},
+    )
+    keys = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={
+            "description": "Comma-delimited list of top-level keys to return; all others are omitted."
+        },
+    )
+    handles = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={
+            "description": "Comma-delimited list of specific person or family handles to include in the timeline."
+        },
+    )
+    locale = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
+    )
+    page = fields.Integer(
+        load_default=0,
+        dump_default=None,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Page number of the result subset to return. If omitted, all results are returned."
+        },
+    )
+    pagesize = fields.Integer(
+        load_default=20,
+        validate=validate.Range(min=1),
+        metadata={"description": "Number of items per page when pagination is active."},
+    )
+    ratings = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, include total citation count and highest confidence score."
+        },
+    )
+    rules = fields.Str(
+        validate=validate.Length(min=1),
+        metadata={
+            "description": 'Inline filter expression as JSON: {"function": "and"|"or"|"one", "invert": bool, "rules": [{"name": str, "values": [...], "regex": bool}]}.'
+        },
+    )
+    skipkeys = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={
+            "description": "Comma-delimited list of top-level keys to omit from the response; all others are kept."
+        },
+    )
+    strip = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, strip keys with empty values from the response."
+        },
+    )
+
+
 class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
     """Families timeline resource."""
 
-    @use_args(
-        {
-            "dates": fields.Str(
-                load_default=None,
-                validate=validate.Regexp(
-                    r"^-[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$|"
-                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-$|"
-                    r"^[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])-"
-                    r"[0-9]+/([1-9]|1[0-2])/([1-9]|1[0-9]|2[0-9]|3[0-1])$"
-                ),
-            ),
-            "discard_empty": fields.Boolean(load_default=True),
-            "event_classes": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1)),
-                validate=validate.ContainsOnly(choices=EVENT_CATEGORIES),
-            ),
-            "events": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "filter": fields.Str(validate=validate.Length(min=1)),
-            "keys": fields.DelimitedList(fields.Str(validate=validate.Length(min=1))),
-            "handles": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "locale": fields.Str(
-                load_default=None, validate=validate.Length(min=1, max=5)
-            ),
-            "page": fields.Integer(load_default=0, validate=validate.Range(min=1)),
-            "pagesize": fields.Integer(load_default=20, validate=validate.Range(min=1)),
-            "ratings": fields.Boolean(load_default=False),
-            "rules": fields.Str(validate=validate.Length(min=1)),
-            "skipkeys": fields.DelimitedList(
-                fields.Str(validate=validate.Length(min=1))
-            ),
-            "strip": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.response(200, TimelineEventProfileSchema(many=True))
+    @api_blueprint.arguments(TimelineFamiliesQueryArgs, location="query")
     def get(self, args: Dict):
         """Get consolidated list of events in timeline for a list of families."""
         db_handle = get_db_handle()

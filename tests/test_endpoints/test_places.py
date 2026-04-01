@@ -24,7 +24,7 @@ import unittest
 from . import BASE_URL, get_object_count, get_test_client
 from .checks import (
     check_boolean_parameter,
-    check_conforms_to_schema,
+    check_conforms_to_openapi_schema,
     check_invalid_semantics,
     check_invalid_syntax,
     check_keys_parameter,
@@ -56,7 +56,7 @@ class TestPlaces(unittest.TestCase):
 
     def test_get_places_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(
+        check_conforms_to_openapi_schema(
             self, TEST_URL + "?extend=all&profile=all&backlinks=1", "Place"
         )
 
@@ -380,7 +380,7 @@ class TestPlacesHandle(unittest.TestCase):
 
     def test_get_places_handle_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(
+        check_conforms_to_openapi_schema(
             self,
             TEST_URL + "09UJQCF3TNGH9GU0P1?extend=all&profile=all&backlinks=1",
             "Place",

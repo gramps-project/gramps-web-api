@@ -27,6 +27,7 @@ from .base import (
 )
 
 
+
 class RepositoryResourceHelper(GrampsObjectResourceHelper):
     """Repository resource helper."""
 

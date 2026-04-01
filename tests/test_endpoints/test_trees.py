@@ -20,6 +20,7 @@
 """Tests for the `gramps_webapi.api.resources.user` module."""
 
 import os
+import shutil
 import unittest
 from unittest.mock import patch
 
@@ -292,3 +293,113 @@ class TestTrees(unittest.TestCase):
             headers={"Authorization": f"Bearer {token_admin}"},
         )
         assert rv.status_code == 404
+
+
+class TestTreesSingleTreeRename(unittest.TestCase):
+    """Test tree rename in single-tree mode using TREE_ID config."""
+
+    def setUp(self):
+        self.name = "Test Single Tree Rename"
+        self.dbman = CLIDbManager(DbState())
+        dbpath, _name = self.dbman.create_new_db_cli(self.name, dbid="sqlite")
+        self.tree = os.path.basename(dbpath)
+        self.dbpath = dbpath
+        # Single-tree mode: TREE=name, TREE_ID=dirname
+        with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
+            self.app = create_app(
+                config={
+                    "TESTING": True,
+                    "RATELIMIT_ENABLED": False,
+                    "TREE": self.name,
+                    "TREE_ID": self.tree,
+                },
+                config_from_env=False,
+            )
+        self.client = self.app.test_client()
+        with self.app.app_context():
+            user_db.create_all()
+            add_user(
+                name="owner",
+                password="123",
+                email="owner@example.com",
+                role=ROLE_OWNER,
+                tree=self.tree,
+            )
+        self.ctx = self.app.test_request_context()
+        self.ctx.push()
+
+    def tearDown(self):
+        self.ctx.pop()
+        # Remove by path directly: name may have changed after a rename test
+        if os.path.isdir(self.dbpath):
+            shutil.rmtree(self.dbpath)
+
+    def test_rename_single_tree(self):
+        """Owner can rename own tree in single-tree mode when TREE_ID is set."""
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token = rv.json["access_token"]
+        # Verify the current name via GET /trees/-
+        rv = self.client.get(
+            BASE_URL + "/trees/-", headers={"Authorization": f"Bearer {token}"}
+        )
+        assert rv.status_code == 200
+        assert rv.json["name"] == self.name
+        assert rv.json["id"] == self.tree
+        # Rename the tree
+        rv = self.client.put(
+            BASE_URL + "/trees/-",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"name": "New Name"},
+        )
+        assert rv.status_code == 200
+        assert rv.json == {"old_name": self.name, "new_name": "New Name"}
+        # New login still works (TREE_ID means no name-based lookup at login)
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token2 = rv.json["access_token"]
+        # GET /trees/- reflects the new name
+        rv = self.client.get(
+            BASE_URL + "/trees/-", headers={"Authorization": f"Bearer {token2}"}
+        )
+        assert rv.status_code == 200
+        assert rv.json["name"] == "New Name"
+
+    def test_rename_single_tree_without_tree_id_blocked(self):
+        """Rename is blocked in single-tree mode when TREE_ID is not set."""
+        # Create a second app instance without TREE_ID
+        with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
+            app_no_tree_id = create_app(
+                config={
+                    "TESTING": True,
+                    "RATELIMIT_ENABLED": False,
+                    "TREE": self.name,
+                    # no TREE_ID
+                },
+                config_from_env=False,
+            )
+        client = app_no_tree_id.test_client()
+        with app_no_tree_id.app_context():
+            user_db.create_all()
+            add_user(
+                name="owner2",
+                password="123",
+                email="owner2@example.com",
+                role=ROLE_OWNER,
+                tree=self.tree,
+            )
+        rv = client.post(
+            BASE_URL + "/token/", json={"username": "owner2", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token = rv.json["access_token"]
+        rv = client.put(
+            BASE_URL + "/trees/-",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"name": "Attempted New Name"},
+        )
+        assert rv.status_code == 405

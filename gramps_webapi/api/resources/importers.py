@@ -27,22 +27,26 @@ from typing import Any, Dict
 
 from flask import Response, current_app, request
 from flask_jwt_extended import get_jwt_identity
+from marshmallow import Schema
 from webargs import fields
 
 from ...auth.const import PERM_IMPORT_FILE
 from ..auth import require_permissions
+from ..blueprint import api_blueprint
 from ..tasks import AsyncResult, import_file, make_task_response, run_task
-from ..util import abort_with_message, get_db_handle, get_tree_from_jwt, use_args
+from ..util import abort_with_message, get_db_handle, get_tree_from_jwt
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .schemas import ImporterSchema
 from .util import get_importers
 
 
 class ImportersResource(ProtectedResource, GrampsJSONEncoder):
     """Importers resource."""
 
-    @use_args({}, location="query")
-    def get(self, args: Dict[str, Any]) -> Response:
+    @api_blueprint.response(200, ImporterSchema(many=True))
+    @api_blueprint.arguments(Schema(), location="query")
+    def get(self, args, extension: str | None = None) -> Response:
         """Get all available importer attributes."""
         get_db_handle()  # needed to load plugins
         return self.response(200, get_importers())
@@ -51,8 +55,9 @@ class ImportersResource(ProtectedResource, GrampsJSONEncoder):
 class ImporterResource(ProtectedResource, GrampsJSONEncoder):
     """Import resource."""
 
-    @use_args({}, location="query")
-    def get(self, args: Dict[str, Any], extension: str) -> Response:
+    @api_blueprint.response(200, ImporterSchema())
+    @api_blueprint.arguments(Schema(), location="query")
+    def get(self, args, extension: str) -> Response:
         """Get specific report attributes."""
         get_db_handle()  # needed to load plugins
         importers = get_importers(extension)
@@ -61,16 +66,20 @@ class ImporterResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, importers[0])
 
 
+class ImporterFileQueryArgs(Schema):
+    """Query arguments for POST /importers/<extension>/file."""
+
+    jwt = fields.String(
+        required=False,
+        metadata={"description": "JWT token for upload authentication."},
+    )
+
+
 class ImporterFileResource(ProtectedResource):
     """Import file resource."""
 
-    @use_args(
-        {
-            "jwt": fields.String(required=False),
-        },
-        location="query",
-    )
-    def post(self, args: Dict, extension: str) -> Response:
+    @api_blueprint.arguments(ImporterFileQueryArgs, location="query")
+    def post(self, args: dict, extension: str) -> Response:
         """Import file."""
         require_permissions([PERM_IMPORT_FILE])
         get_db_handle()  # needed to load plugins

@@ -57,6 +57,7 @@ jobs:
           PLATFORM_TAG=$(echo "${{ matrix.platform }}" | sed 's/linux\///')
           echo "tag=${PLATFORM_TAG}" >> $GITHUB_OUTPUT
       - name: Build and push base image
+        if: ${{ github.repository_owner == 'gramps-project' && github.repository == 'gramps-project/gramps-web-api' }}
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -71,6 +72,7 @@ jobs:
           provenance: false
 
   create-manifest:
+    if: ${{ github.repository_owner == 'gramps-project' && github.repository == 'gramps-project/gramps-web-api' }}
     runs-on: ubuntu-24.04
     needs: [generate-date, build-base]
     steps:

@@ -515,10 +515,7 @@ def get_buffer_for_file(filename: str, delete=True, not_found=False) -> BinaryIO
 
 
 def _resolve_smtp_config(
-    use_ssl: bool | None,
-    use_starttls: bool | None,
-    use_tls: bool | None,
-    port: int
+    use_ssl: bool | None, use_starttls: bool | None, use_tls: bool | None, port: int
 ) -> tuple[bool, bool]:
     """Helper to resolve SMTP encryption settings.
 
@@ -630,12 +627,16 @@ def get_tree_id(guid: str) -> str:
             # multi-tree support enabled but user has no tree ID: forbidden!
             abort_with_message(403, "Forbidden")
         # needed for backwards compatibility: single-tree mode but user without tree ID
-        dbmgr = WebDbManager(
-            name=current_app.config["TREE"],
-            create_if_missing=False,
-            ignore_lock=current_app.config["IGNORE_DB_LOCK"],
-        )
-        tree_id = dbmgr.dirname
+        if current_app.config.get("TREE_ID"):
+            # TREE_ID is set: use dirname directly, never look up by name
+            tree_id = current_app.config["TREE_ID"]
+        else:
+            dbmgr = WebDbManager(
+                name=current_app.config["TREE"],
+                create_if_missing=False,
+                ignore_lock=current_app.config["IGNORE_DB_LOCK"],
+            )
+            tree_id = dbmgr.dirname
     return tree_id
 
 

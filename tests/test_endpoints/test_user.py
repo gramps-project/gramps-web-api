@@ -150,6 +150,25 @@ class TestUser(unittest.TestCase):
         )
         assert rv.status_code == 403
 
+    def test_change_password_empty(self):
+        """Test that empty passwords are rejected."""
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "user", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token = rv.json["access_token"]
+        rv = self.client.post(
+            BASE_URL + "/users/-/password/change",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"old_password": "123", "new_password": ""},
+        )
+        assert rv.status_code == 400
+        # Verify the old password still works
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "user", "password": "123"}
+        )
+        assert rv.status_code == 200
+
     def test_change_password(self):
         rv = self.client.post(
             BASE_URL + "/token/", json={"username": "user", "password": "123"}

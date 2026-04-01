@@ -24,7 +24,7 @@ import unittest
 
 from . import BASE_URL, get_test_client
 from .checks import (
-    check_conforms_to_schema,
+    check_conforms_to_openapi_schema,
     check_invalid_semantics,
     check_invalid_syntax,
     check_keys_parameter,
@@ -53,7 +53,7 @@ class TestTimelinesPeople(unittest.TestCase):
 
     def test_get_timelines_people_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(
+        check_conforms_to_openapi_schema(
             self, TEST_URL + "people/?ratings=1", "TimelineEventProfile"
         )
 
@@ -314,7 +314,7 @@ class TestTimelinesFamilies(unittest.TestCase):
 
     def test_get_timelines_families_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(
+        check_conforms_to_openapi_schema(
             self, TEST_URL + "families/?ratings=1", "TimelineEventProfile"
         )
 

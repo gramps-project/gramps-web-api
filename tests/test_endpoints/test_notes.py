@@ -28,7 +28,7 @@ from urllib.parse import quote
 from . import BASE_URL, get_object_count, get_test_client
 from .checks import (
     check_boolean_parameter,
-    check_conforms_to_schema,
+    check_conforms_to_openapi_schema,
     check_invalid_semantics,
     check_invalid_syntax,
     check_keys_parameter,
@@ -60,7 +60,7 @@ class TestNotes(unittest.TestCase):
 
     def test_get_notes_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(
+        check_conforms_to_openapi_schema(
             self, TEST_URL + "?extend=all&profile=all&backlinks=1", "Note"
         )
 
@@ -331,7 +331,7 @@ class TestNotesHandle(unittest.TestCase):
 
     def test_get_notes_handle_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(
+        check_conforms_to_openapi_schema(
             self,
             TEST_URL + "ac3804aac6b762b75a5?extend=all&profile=all&backlinks=1",
             "Note",

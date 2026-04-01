@@ -20,20 +20,33 @@
 """Test consistent version numbers."""
 
 import unittest
-from importlib.resources import as_file, files
-
-import yaml
 
 from gramps_webapi import __version__
+from gramps_webapi.app import create_app
 
 
 class TestVersion(unittest.TestCase):
     """Test the version specifiers are consistent."""
 
+    @classmethod
+    def setUpClass(cls):
+        """Set up a minimal app and fetch the live OpenAPI spec."""
+        app = create_app(
+            {"TREE": "test", "SECRET_KEY": "test", "USER_DB_URI": "sqlite://"},
+            config_from_env=False,
+        )
+        with app.test_client() as client:
+            response = client.get("/api/openapi.json")
+            assert (
+                response.status_code == 200
+            ), f"Failed to fetch OpenAPI spec: {response.status_code}"
+            cls.spec = response.get_json()
+            assert cls.spec is not None, "OpenAPI spec returned non-JSON response"
+
     def test_version(self):
-        """Test version in setup and apispec are equal."""
-        ref = files("gramps_webapi") / "data/apispec.yaml"
-        with as_file(ref) as file_path:
-            with open(file_path, encoding="utf-8") as file_handle:
-                schema = yaml.safe_load(file_handle)
-        self.assertEqual(__version__, schema["info"]["version"])
+        """Test version in package and live OpenAPI spec are equal."""
+        self.assertEqual(__version__, self.spec["info"]["version"])
+
+    def test_openapi_version(self):
+        """Test the spec is valid OpenAPI 3.0.x."""
+        self.assertTrue(self.spec.get("openapi", "").startswith("3.0"))

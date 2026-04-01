@@ -24,7 +24,9 @@ import unittest
 import uuid
 from copy import deepcopy
 from typing import Dict
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+from celery.result import AsyncResult
 
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
@@ -398,6 +400,35 @@ class TestTransactionResource(unittest.TestCase):
             "/api/transactions/?background=1", json=trans, headers=headers
         )
         self.assertEqual(rv.status_code, 500)
+
+    def test_background_returns_task_object(self):
+        """When Celery is active, POST /transactions/?background=1 must return
+        {"task": {"id": ..., "href": ...}} with HTTP 202, not a serialized list."""
+        handle = make_handle()
+        obj = {
+            "_class": "Note",
+            "handle": handle,
+            "text": {"_class": "StyledText", "string": "Background task test."},
+            "gramps_id": "NBG1",
+        }
+        trans = [
+            {"type": "add", "_class": "Note", "handle": handle, "old": None, "new": obj}
+        ]
+        headers = get_headers(self.client, "editor", "123")
+        mock_task = MagicMock(spec=AsyncResult)
+        mock_task.id = "fake-task-id-123"
+        with patch(
+            "gramps_webapi.api.resources.transactions.run_task",
+            return_value=mock_task,
+        ):
+            rv = self.client.post(
+                "/api/transactions/?background=1", json=trans, headers=headers
+            )
+        self.assertEqual(rv.status_code, 202)
+        self.assertIsInstance(rv.json, dict)
+        self.assertIn("task", rv.json)
+        self.assertEqual(rv.json["task"]["id"], "fake-task-id-123")
+        self.assertIn("/api/tasks/", rv.json["task"]["href"])
 
     def test_gramps60_issue(self):
         """Test for an issue that occurred after upgrading to Gramps 6.0"""

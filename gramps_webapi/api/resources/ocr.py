@@ -25,26 +25,40 @@ from typing import Dict
 from flask import Response, abort, jsonify
 from flask_jwt_extended import get_jwt_identity
 from gramps.gen.errors import HandleError
+from marshmallow import Schema
 from webargs import fields, validate
 
 from ...auth.const import PERM_VIEW_PRIVATE
 from ..auth import has_permissions
+from ..blueprint import api_blueprint
 from ..tasks import AsyncResult, make_task_response, media_ocr, run_task
-from ..util import get_db_handle, get_tree_from_jwt, use_args
+from ..util import get_db_handle, get_tree_from_jwt
 from . import ProtectedResource
 from gramps_webapi.types import ResponseReturnValue
+
+
+class MediaOcrQueryArgs(Schema):
+    """Query arguments for POST /media/<handle>/ocr."""
+
+    lang = fields.Str(
+        required=True,
+        validate=validate.Length(min=1),
+        metadata={
+            "description": "Tesseract language code for OCR (e.g. 'eng', 'deu')."
+        },
+    )
+    format = fields.Str(
+        load_default="string",
+        metadata={
+            "description": "Output format: 'string' (default), 'data', 'boxes', or 'hocr'."
+        },
+    )
 
 
 class MediaOcrResource(ProtectedResource):
     """Resource for media files."""
 
-    @use_args(
-        {
-            "lang": fields.Str(required=True, validate=validate.Length(min=1)),
-            "format": fields.Str(load_default="string"),
-        },
-        location="query",
-    )
+    @api_blueprint.arguments(MediaOcrQueryArgs, location="query")
     def post(self, args: Dict, handle) -> ResponseReturnValue:
         """Execute OCR on a file."""
         db_handle = get_db_handle()

@@ -34,6 +34,7 @@ from . import ProtectedResource
 from gramps_webapi.types import ResponseReturnValue
 
 
+
 class MediaUploadZipResource(ProtectedResource):
     """Resource for uploading an archive of media files."""
 

@@ -60,8 +60,13 @@ from ..tasks import (
     run_task,
     upgrade_database_schema,
 )
-from ..util import abort_with_message, get_tree_from_jwt_or_fail, list_trees, use_args
+from marshmallow import Schema
+from webargs import fields
+
+from ..blueprint import api_blueprint
+from ..util import abort_with_message, get_tree_from_jwt_or_fail, list_trees
 from . import ProtectedResource
+from .schemas import TreeSchema
 
 # legal tree dirnames
 TREE_ID_REGEX = re.compile(r"^[a-zA-Z0-9_-]+$")
@@ -107,9 +112,33 @@ def get_tree_ids() -> List[str]:
     return [os.path.basename(details[1]) for details in tree_details]
 
 
+class TreeCreateBodyArgs(Schema):
+    """Body arguments for POST /trees/."""
+
+    name = fields.Str(
+        required=True,
+        metadata={"description": "The name of the tree."},
+    )
+    quota_media = fields.Integer(
+        required=False,
+        metadata={"description": "Maximum total size in bytes for media objects."},
+    )
+    quota_people = fields.Integer(
+        required=False,
+        metadata={"description": "Maximum number of people allowed in the tree."},
+    )
+    min_role_ai = fields.Integer(
+        required=False,
+        metadata={
+            "description": "Minimum user role level required to use the AI chat endpoint."
+        },
+    )
+
+
 class TreesResource(ProtectedResource):
     """Resource for getting info about trees."""
 
+    @api_blueprint.response(200, TreeSchema(many=True))
     def get(self):
         """Get info about all trees."""
         if has_permissions([PERM_VIEW_OTHER_TREE]):
@@ -120,15 +149,8 @@ class TreesResource(ProtectedResource):
             tree_ids = [user_tree_id]
         return [get_tree_details(tree_id) for tree_id in tree_ids]
 
-    @use_args(
-        {
-            "name": fields.Str(required=True),
-            "quota_media": fields.Integer(required=False),
-            "quota_people": fields.Integer(required=False),
-            "min_role_ai": fields.Integer(required=False),
-        },
-        location="json",
-    )
+    @api_blueprint.response(201, TreeSchema())
+    @api_blueprint.arguments(TreeCreateBodyArgs, location="json")
     def post(self, args):
         """Create a new tree."""
         if current_app.config["TREE"] != TREE_MULTI:
@@ -153,9 +175,34 @@ class TreesResource(ProtectedResource):
         return get_tree_details(tree_id), 201
 
 
+class TreeUpdateBodyArgs(Schema):
+    """Body arguments for PUT /trees/<tree_id>/."""
+
+    name = fields.Str(
+        required=False,
+        load_default=None,
+        metadata={"description": "The name of the tree."},
+    )
+    quota_media = fields.Integer(
+        required=False,
+        metadata={"description": "Maximum total size in bytes for media objects."},
+    )
+    quota_people = fields.Integer(
+        required=False,
+        metadata={"description": "Maximum number of people allowed in the tree."},
+    )
+    min_role_ai = fields.Integer(
+        required=False,
+        metadata={
+            "description": "Minimum user role level required to use the AI chat endpoint."
+        },
+    )
+
+
 class TreeResource(ProtectedResource):
     """Resource for a single tree."""
 
+    @api_blueprint.response(200, TreeSchema())
     def get(self, tree_id: str):
         """Get info about a tree."""
         if tree_id == "-":
@@ -170,15 +217,7 @@ class TreeResource(ProtectedResource):
                     abort_with_message(403, "Not authorized to view other trees")
         return get_tree_details(tree_id)
 
-    @use_args(
-        {
-            "name": fields.Str(required=False, load_default=None),
-            "quota_media": fields.Integer(required=False),
-            "quota_people": fields.Integer(required=False),
-            "min_role_ai": fields.Integer(required=False),
-        },
-        location="json",
-    )
+    @api_blueprint.arguments(TreeUpdateBodyArgs, location="json")
     def put(self, args, tree_id: str):
         """Modify a tree."""
         if tree_id == "-":
@@ -200,8 +239,18 @@ class TreeResource(ProtectedResource):
             )
         except ValueError:
             abort(404)
+            raise  # unreachable; satisfies type checker
         rv = {}
         if args["name"]:
+            if current_app.config["TREE"] != TREE_MULTI and not current_app.config.get(
+                "TREE_ID"
+            ):
+                abort_with_message(
+                    405,
+                    "Renaming a tree requires the TREE_ID config option to be set "
+                    "in single-tree setup. Set TREE_ID to the tree's directory name "
+                    "(visible in GET /api/trees/-) and restart the server.",
+                )
             old_name, new_name = dbmgr.rename_database(new_name=args["name"])
             rv.update({"old_name": old_name, "new_name": new_name})
         if args.get("quota_media") is not None or args.get("quota_people") is not None:

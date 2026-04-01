@@ -23,32 +23,49 @@ from typing import Dict
 
 from flask import Response, abort
 from gramps.gen.utils.alive import probably_alive, probably_alive_range
+from marshmallow import Schema
 from webargs import fields, validate
 
 from ...types import Handle
-from ..util import get_db_handle, get_locale_for_language, use_args
+from ..blueprint import api_blueprint
+from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .schemas import LivingDatesSchema, LivingSchema
 from .util import get_person_by_handle
+
+
+class LivingQueryArgs(Schema):
+    """Query arguments for GET /people/<handle>/alive."""
+
+    average_generation_gap = fields.Integer(
+        load_default=None,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Average number of years between generations (default 20)."
+        },
+    )
+    max_age_probably_alive = fields.Integer(
+        load_default=None,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Maximum age in years at which a person could still be considered alive (default 110)."
+        },
+    )
+    max_sibling_age_difference = fields.Integer(
+        load_default=None,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Maximum age difference in years between the youngest and oldest sibling (default 20)."
+        },
+    )
 
 
 class LivingResource(ProtectedResource, GrampsJSONEncoder):
     """Living calculator resource."""
 
-    @use_args(
-        {
-            "average_generation_gap": fields.Integer(
-                load_default=None, validate=validate.Range(min=1)
-            ),
-            "max_age_probably_alive": fields.Integer(
-                load_default=None, validate=validate.Range(min=1)
-            ),
-            "max_sibling_age_difference": fields.Integer(
-                load_default=None, validate=validate.Range(min=1)
-            ),
-        },
-        location="query",
-    )
+    @api_blueprint.response(200, LivingSchema())
+    @api_blueprint.arguments(LivingQueryArgs, location="query")
     def get(self, args: Dict, handle: Handle) -> Response:
         """Determine if person alive."""
         db_handle = get_db_handle()
@@ -66,26 +83,44 @@ class LivingResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, {"living": data})
 
 
+class LivingDatesQueryArgs(Schema):
+    """Query arguments for GET /people/<handle>/alive/dates."""
+
+    average_generation_gap = fields.Integer(
+        load_default=None,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Average number of years between generations (default 20)."
+        },
+    )
+    locale = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
+    )
+    max_age_probably_alive = fields.Integer(
+        load_default=None,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Maximum age in years at which a person could still be considered alive (default 110)."
+        },
+    )
+    max_sibling_age_difference = fields.Integer(
+        load_default=None,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Maximum age difference in years between the youngest and oldest sibling (default 20)."
+        },
+    )
+
+
 class LivingDatesResource(ProtectedResource, GrampsJSONEncoder):
     """Living calculator dates resource."""
 
-    @use_args(
-        {
-            "average_generation_gap": fields.Integer(
-                load_default=None, validate=validate.Range(min=1)
-            ),
-            "locale": fields.Str(
-                load_default=None, validate=validate.Length(min=1, max=5)
-            ),
-            "max_age_probably_alive": fields.Integer(
-                load_default=None, validate=validate.Range(min=1)
-            ),
-            "max_sibling_age_difference": fields.Integer(
-                load_default=None, validate=validate.Range(min=1)
-            ),
-        },
-        location="query",
-    )
+    @api_blueprint.response(200, LivingDatesSchema())
+    @api_blueprint.arguments(LivingDatesQueryArgs, location="query")
     def get(self, args: Dict, handle: Handle) -> Response:
         """Determine estimated birth and death dates."""
         db_handle = get_db_handle()

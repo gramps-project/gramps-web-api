@@ -25,30 +25,45 @@ from typing import Dict
 from flask import Response
 from gramps.gen.errors import HandleError
 from gramps.gen.relationship import get_relationship_calculator
+from marshmallow import Schema
 from webargs import fields, validate
 
 from gramps_webapi.api.people_families_cache import CachePeopleFamiliesProxy
 
 from ...types import Handle
 from ..cache import request_cache_decorator
-from ..util import abort_with_message, get_db_handle, get_locale_for_language, use_args
+from ..blueprint import api_blueprint
+from ..util import abort_with_message, get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .schemas import RelationshipItemSchema, RelationshipSchema
 from .util import get_one_relationship
+
+
+class RelationQueryArgs(Schema):
+    """Query arguments for relation endpoints."""
+
+    depth = fields.Integer(
+        load_default=15,
+        validate=validate.Range(min=2),
+        metadata={
+            "description": "Maximum number of generations to search for a common ancestor (default 15)."
+        },
+    )
+    locale = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
+    )
 
 
 class RelationResource(ProtectedResource, GrampsJSONEncoder):
     """Relation resource."""
 
-    @use_args(
-        {
-            "depth": fields.Integer(load_default=15, validate=validate.Range(min=2)),
-            "locale": fields.Str(
-                load_default=None, validate=validate.Length(min=1, max=5)
-            ),
-        },
-        location="query",
-    )
+    @api_blueprint.response(200, RelationshipSchema())
+    @api_blueprint.arguments(RelationQueryArgs, location="query")
     @request_cache_decorator
     def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:
         """Get the most direct relationship between two people."""
@@ -86,15 +101,8 @@ class RelationResource(ProtectedResource, GrampsJSONEncoder):
 class RelationsResource(ProtectedResource, GrampsJSONEncoder):
     """Relations resource."""
 
-    @use_args(
-        {
-            "depth": fields.Integer(load_default=15, validate=validate.Range(min=2)),
-            "locale": fields.Str(
-                load_default=None, validate=validate.Length(min=1, max=5)
-            ),
-        },
-        location="query",
-    )
+    @api_blueprint.response(200, RelationshipItemSchema(many=True))
+    @api_blueprint.arguments(RelationQueryArgs, location="query")
     @request_cache_decorator
     def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:
         """Get all possible relationships between two people."""

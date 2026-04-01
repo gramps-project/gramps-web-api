@@ -21,12 +21,11 @@
 
 from __future__ import annotations
 
-from typing import Dict
-
 from flask import Response, abort
 from gramps.plugins.lib.libholiday import HolidayTable
+from marshmallow import Schema
 
-from ..util import use_args
+from ..blueprint import api_blueprint
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
@@ -34,8 +33,9 @@ from .emit import GrampsJSONEncoder
 class HolidaysResource(ProtectedResource, GrampsJSONEncoder):
     """Holidays resource."""
 
-    @use_args({}, location="query")
-    def get(self, args: Dict) -> Response:
+    @api_blueprint.response(200, Schema(many=True))
+    @api_blueprint.arguments(Schema(), location="query")
+    def get(self, args) -> Response:
         """Get list of countries that have holiday calendars."""
         holidays = HolidayTable()
         return self.response(200, holidays.get_countries())
@@ -44,10 +44,11 @@ class HolidaysResource(ProtectedResource, GrampsJSONEncoder):
 class HolidayResource(ProtectedResource, GrampsJSONEncoder):
     """Holiday resource."""
 
-    @use_args({}, location="query")
+    @api_blueprint.response(200, Schema(many=True))
+    @api_blueprint.arguments(Schema(), location="query")
     def get(
         self,
-        args: Dict,
+        args,
         country: str | None = None,
         year: int | None = None,
         month: int | None = None,

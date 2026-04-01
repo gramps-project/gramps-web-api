@@ -38,6 +38,7 @@ from .util import (
 )
 
 
+
 class CitationResourceHelper(GrampsObjectResourceHelper):
     """Citation resource helper."""
 

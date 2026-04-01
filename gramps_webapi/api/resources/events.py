@@ -28,10 +28,12 @@ from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Event, Span
 from gramps.gen.utils.grampslocale import GrampsLocale
+from marshmallow import Schema
 from webargs import fields, validate
 
 from ...types import Handle
-from ..util import abort_with_message, get_db_handle, get_locale_for_language, use_args
+from ..blueprint import api_blueprint
+from ..util import abort_with_message, get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .base import (
     GrampsObjectProtectedResource,
@@ -39,6 +41,7 @@ from .base import (
     GrampsObjectsProtectedResource,
 )
 from .emit import GrampsJSONEncoder
+from .schemas import SpanSchema
 from .util import (
     get_event_profile_for_object,
     get_extended_attributes,
@@ -81,6 +84,31 @@ class EventsResource(GrampsObjectsProtectedResource, EventResourceHelper):
     """Events resource."""
 
 
+class EventSpanQueryArgs(Schema):
+    """Query arguments for GET /events/<handle1>/span/<handle2>."""
+
+    as_age = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "If true (default), express the elapsed time as an age rather than a raw span."
+        },
+    )
+    locale = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
+    )
+    precision = fields.Integer(
+        load_default=2,
+        validate=validate.Range(min=1, max=3),
+        metadata={
+            "description": "Number of significant time components to include in date strings: 1=year only, 2=year+month, 3=year+month+day."
+        },
+    )
+
+
 class EventSpanResource(ProtectedResource, GrampsJSONEncoder):
     """Event date span resource."""
 
@@ -89,18 +117,8 @@ class EventSpanResource(ProtectedResource, GrampsJSONEncoder):
         """Get the database instance."""
         return get_db_handle()
 
-    @use_args(
-        {
-            "as_age": fields.Boolean(load_default=True),
-            "locale": fields.Str(
-                load_default=None, validate=validate.Length(min=1, max=5)
-            ),
-            "precision": fields.Integer(
-                load_default=2, validate=validate.Range(min=1, max=3)
-            ),
-        },
-        location="query",
-    )
+    @api_blueprint.response(200, SpanSchema())
+    @api_blueprint.arguments(EventSpanQueryArgs, location="query")
     def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:
         """Get the time span between two event dates."""
         try:

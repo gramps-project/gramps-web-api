@@ -34,6 +34,7 @@ from .base import (
 from .util import get_extended_attributes, get_place_profile_for_object
 
 
+
 class PlaceResourceHelper(GrampsObjectResourceHelper):
     """Place resource helper."""
 

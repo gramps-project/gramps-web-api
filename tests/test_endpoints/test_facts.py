@@ -23,7 +23,7 @@ import unittest
 
 from . import BASE_URL, get_test_client
 from .checks import (
-    check_conforms_to_schema,
+    check_conforms_to_openapi_schema,
     check_invalid_semantics,
     check_requires_token,
     check_success,
@@ -47,7 +47,7 @@ class TestFacts(unittest.TestCase):
 
     def test_get_records_conforms_to_schema(self):
         """Test conformity to schema."""
-        check_conforms_to_schema(self, TEST_URL, "RecordFact")
+        check_conforms_to_openapi_schema(self, TEST_URL, "RecordFact")
 
     def test_get_records_validate_semantics(self):
         """Test invalid parameters and values."""

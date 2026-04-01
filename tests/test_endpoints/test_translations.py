@@ -26,7 +26,7 @@ from gramps_webapi.auth.const import ROLE_OWNER
 
 from . import BASE_URL, get_test_client
 from .checks import (
-    check_conforms_to_schema,
+    check_conforms_to_openapi_schema,
     check_invalid_semantics,
     check_invalid_syntax,
     check_requires_token,
@@ -56,7 +56,7 @@ class TestTranslations(unittest.TestCase):
 
     def test_get_translations_conforms_to_schema(self):
         """Test conformity to schema."""
-        check_conforms_to_schema(self, TEST_URL, "Language")
+        check_conforms_to_openapi_schema(self, TEST_URL, "Language")
 
 
 class TestTranslationsLanguage(unittest.TestCase):

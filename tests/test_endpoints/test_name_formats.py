@@ -22,7 +22,7 @@
 import unittest
 
 from . import BASE_URL, get_test_client
-from .checks import check_conforms_to_schema, check_requires_token
+from .checks import check_conforms_to_openapi_schema, check_requires_token
 
 TEST_URL = BASE_URL + "/name-formats/"
 
@@ -41,4 +41,4 @@ class TestNameFormats(unittest.TestCase):
 
     def test_get_name_formats_conforms_to_schema(self):
         """Test conformity to schema."""
-        check_conforms_to_schema(self, TEST_URL, "NameFormat")
+        check_conforms_to_openapi_schema(self, TEST_URL, "NameFormat")

@@ -17,8 +17,6 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 
-# make sure to match this version with the one in apispec.yaml
-
 """Version information."""
 
-__version__ = "3.7.1"
+__version__ = "3.9.1"

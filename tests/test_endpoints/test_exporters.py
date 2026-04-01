@@ -24,7 +24,7 @@ from mimetypes import types_map
 
 from . import BASE_URL, get_test_client
 from .checks import (
-    check_conforms_to_schema,
+    check_conforms_to_openapi_schema,
     check_invalid_semantics,
     check_requires_token,
     check_resource_missing,
@@ -49,7 +49,7 @@ class TestExporters(unittest.TestCase):
 
     def test_get_exporters_conforms_to_schema(self):
         """Test conformity to schema."""
-        check_conforms_to_schema(self, TEST_URL, "Exporter")
+        check_conforms_to_openapi_schema(self, TEST_URL, "Exporter")
 
     def test_get_exporters_validate_semantics(self):
         """Test invalid parameters and values."""
@@ -70,7 +70,7 @@ class TestExportersExtension(unittest.TestCase):
 
     def test_get_exporters_extension_conforms_to_schema(self):
         """Test conformity to schema."""
-        check_conforms_to_schema(self, TEST_URL + "gramps", "Exporter")
+        check_conforms_to_openapi_schema(self, TEST_URL + "gramps", "Exporter")
 
     def test_get_exporters_extension_missing_content(self):
         """Test response for missing content."""

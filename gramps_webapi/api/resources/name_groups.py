@@ -21,20 +21,36 @@
 
 from __future__ import annotations
 
-from os import read
 from flask import Response, abort
 from gramps.gen.db.base import DbReadBase
+from marshmallow import Schema
+from webargs import fields
 
 from ...auth.const import PERM_EDIT_NAME_GROUP
 from ..auth import require_permissions
+from ..blueprint import api_blueprint
 from ..util import get_db_handle
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 
 
+class NameGroupSchema(Schema):
+    """Schema for a name group mapping."""
+
+    surname = fields.Str(
+        metadata={"description": "The surname to be grouped."},
+    )
+    group = fields.Str(
+        metadata={
+            "description": "The canonical surname this surname should be grouped with."
+        },
+    )
+
+
 class NameGroupsResource(ProtectedResource, GrampsJSONEncoder):
     """Name group mappings resource."""
 
+    @api_blueprint.response(200, NameGroupSchema(many=True))
     def get(self, surname: str | None = None) -> Response:
         """Get list of name group mappings."""
         db_handle = get_db_handle()
@@ -55,6 +71,7 @@ class NameGroupsResource(ProtectedResource, GrampsJSONEncoder):
                 )
         return self.response(200, mappings)
 
+    @api_blueprint.response(201, NameGroupSchema)
     def post(self, surname: str | None = None, group: str | None = None) -> Response:
         """Set a name group mapping."""
         require_permissions([PERM_EDIT_NAME_GROUP])

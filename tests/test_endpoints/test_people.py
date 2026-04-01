@@ -26,7 +26,7 @@ from urllib.parse import quote
 from . import BASE_URL, get_object_count, get_test_client
 from .checks import (
     check_boolean_parameter,
-    check_conforms_to_schema,
+    check_conforms_to_openapi_schema,
     check_invalid_semantics,
     check_invalid_syntax,
     check_keys_parameter,
@@ -59,7 +59,7 @@ class TestPeople(unittest.TestCase):
 
     def test_get_people_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(
+        check_conforms_to_openapi_schema(
             self, TEST_URL + "?extend=all&profile=all&backlinks=1", "Person"
         )
 
@@ -957,7 +957,7 @@ class TestPeopleHandle(unittest.TestCase):
 
     def test_get_people_handle_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(
+        check_conforms_to_openapi_schema(
             self,
             TEST_URL + "0PWJQCZYFXOS0HGREE?extend=all&profile=all&backlinks=1",
             "Person",
@@ -1260,6 +1260,37 @@ class TestPeopleHandle(unittest.TestCase):
         )
         self.assertEqual(rv["profile"]["events"][2]["type"], "Beerdigung")
 
+    def test_get_people_handle_parameter_precision_validate_semantics(self):
+        """Test invalid precision parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "FR6KQCRONQWR69LFUI?profile=age&precision", check="number"
+        )
+
+    def test_get_people_handle_parameter_precision_expected_result(self):
+        """Test precision parameter controls granularity of age strings."""
+        # FR6KQCRONQWR69LFUI = William Adams (I0701), has birth and death events
+        rv3 = check_success(
+            self, TEST_URL + "FR6KQCRONQWR69LFUI?profile=age&precision=3"
+        )
+        rv2 = check_success(
+            self, TEST_URL + "FR6KQCRONQWR69LFUI?profile=age&precision=2"
+        )
+        rv1 = check_success(
+            self, TEST_URL + "FR6KQCRONQWR69LFUI?profile=age&precision=1"
+        )
+        age3 = rv3["profile"]["death"]["age"]
+        age2 = rv2["profile"]["death"]["age"]
+        age1 = rv1["profile"]["death"]["age"]
+        # precision=3 includes years, months, and days
+        self.assertRegex(age3, r"years.*months.*days")
+        # precision=2 includes years and months but not days
+        self.assertRegex(age2, r"years.*months")
+        self.assertNotRegex(age2, r"days")
+        # precision=1 includes years only
+        self.assertRegex(age1, r"years")
+        self.assertNotRegex(age1, r"months")
+        self.assertNotRegex(age1, r"days")
+
     def test_get_people_handle_parameter_backlinks_validate_semantics(self):
         """Test invalid backlinks parameter and values."""
         check_invalid_semantics(
@@ -1311,7 +1342,7 @@ class TestPeopleHandleTimeline(unittest.TestCase):
 
     def test_get_people_handle_timeline_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(
+        check_conforms_to_openapi_schema(
             self,
             TEST_URL + "GNUJQCL9MD64AM56OH/timeline?ratings=1",
             "TimelineEventProfile",

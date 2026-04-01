@@ -27,6 +27,7 @@ from flask_jwt_extended import (
     create_refresh_token,
     get_jwt_identity,
 )
+from marshmallow import Schema
 from webargs import fields, validate
 
 from ...auth import (
@@ -40,8 +41,9 @@ from ...auth import (
 from ...auth.oidc_helpers import is_oidc_enabled
 from ...auth.const import CLAIM_LIMITED_SCOPE, SCOPE_CREATE_ADMIN, SCOPE_CREATE_OWNER
 from ...const import TREE_MULTI
+from ..blueprint import api_blueprint
 from ..ratelimiter import limiter
-from ..util import abort_with_message, get_tree_id, tree_exists, use_args
+from ..util import abort_with_message, get_tree_id, tree_exists
 from . import RefreshProtectedResource, Resource
 
 
@@ -71,23 +73,50 @@ def get_tokens(
     }
 
 
+class TokenLoginSchema(Schema):
+    """Request body for POST /token/."""
+
+    username = fields.Str(
+        required=True,
+        validate=validate.Length(min=1),
+        metadata={"description": "The username for authentication."},
+    )
+    password = fields.Str(
+        required=True,
+        validate=validate.Length(min=1),
+        load_only=True,
+        metadata={"description": "The user's password."},
+    )
+
+
+class TokenPairSchema(Schema):
+    """Response schema for POST /token/."""
+
+    access_token = fields.Str(
+        required=True,
+        metadata={"description": "A valid JWT access token."},
+    )
+    refresh_token = fields.Str(
+        required=True,
+        metadata={"description": "A valid JWT refresh token."},
+    )
+
+
 class TokenResource(Resource):
     """Resource for obtaining a JWT."""
 
     @limiter.limit("1/second")
-    @use_args(
-        {
-            "username": fields.Str(required=True, validate=validate.Length(min=1)),
-            "password": fields.Str(required=True, validate=validate.Length(min=1)),
-        },
-        location="json",
-    )
+    @api_blueprint.response(200, TokenPairSchema)
+    @api_blueprint.arguments(TokenLoginSchema, location="json")
     def post(self, args):
         """Post username and password to fetch a token."""
         # Check if local authentication is disabled when OIDC is enabled
-        if (is_oidc_enabled() and
-            current_app.config.get("OIDC_DISABLE_LOCAL_AUTH", False)):
-            abort_with_message(403, "Local authentication is disabled. Please use OIDC authentication.")
+        if is_oidc_enabled() and current_app.config.get(
+            "OIDC_DISABLE_LOCAL_AUTH", False
+        ):
+            abort_with_message(
+                403, "Local authentication is disabled. Please use OIDC authentication."
+            )
 
         if "username" not in args or "password" not in args:
             abort_with_message(401, "Missing username or password")
@@ -107,10 +136,20 @@ class TokenResource(Resource):
         )
 
 
+class TokenSchema(Schema):
+    """Response schema for a single access token."""
+
+    access_token = fields.Str(
+        required=True,
+        metadata={"description": "A valid JWT access token."},
+    )
+
+
 class TokenRefreshResource(RefreshProtectedResource):
     """Resource for refreshing a JWT."""
 
     @limiter.limit("1/second")
+    @api_blueprint.response(200, TokenSchema)
     def post(self):
         """Fetch a new token."""
         user_id = get_jwt_identity()
@@ -131,10 +170,20 @@ class TokenRefreshResource(RefreshProtectedResource):
         )
 
 
+class TokenCreateOwnerPostSchema(Schema):
+    """Request body for POST /token/create_owner/."""
+
+    tree = fields.Str(
+        load_default=None,
+        metadata={"description": "Tree ID to authenticate against (multi-tree mode)."},
+    )
+
+
 class TokenCreateOwnerResource(Resource):
     """Resource for getting a token that allows creating a site admin or tree owner account."""
 
     @limiter.limit("1/second")
+    @api_blueprint.response(200, TokenSchema)
     def get(self):
         """Get a token."""
         # This GET method is deprecated and only kept for backward compatibility!
@@ -150,12 +199,8 @@ class TokenCreateOwnerResource(Resource):
         return {"access_token": token}
 
     @limiter.limit("1/second")
-    @use_args(
-        {
-            "tree": fields.Str(required=False),
-        },
-        location="json",
-    )
+    @api_blueprint.response(201, TokenSchema)
+    @api_blueprint.arguments(TokenCreateOwnerPostSchema, location="json")
     def post(self, args):
         """Get a token."""
         tree = args.get("tree")
@@ -182,4 +227,4 @@ class TokenCreateOwnerResource(Resource):
         else:
             claims = {CLAIM_LIMITED_SCOPE: SCOPE_CREATE_ADMIN}
         token = create_access_token(identity="owner", additional_claims=claims)
-        return {"access_token": token}, 201
+        return {"access_token": token}

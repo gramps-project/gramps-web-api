@@ -49,6 +49,8 @@ ALLOWED_TAGS = [
     "p",
     "br",
     "div",
+    "s",
+    "del",
 ]
 
 ALLOWED_ATTRIBUTES = {

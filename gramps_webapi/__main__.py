@@ -244,13 +244,17 @@ def search(ctx, tree, semantic):
     if not tree:
         if app.config["TREE"] == TREE_MULTI:
             raise ValueError("`tree` is required when multi-tree support is enabled.")
-        # needed for backwards compatibility!
-        dbmgr = WebDbManager(
-            name=app.config["TREE"],
-            create_if_missing=False,
-            ignore_lock=app.config["IGNORE_DB_LOCK"],
-        )
-        tree = dbmgr.dirname
+        if app.config.get("TREE_ID"):
+            # TREE_ID takes precedence: use dirname directly
+            tree = app.config["TREE_ID"]
+        else:
+            # needed for backwards compatibility!
+            dbmgr = WebDbManager(
+                name=app.config["TREE"],
+                create_if_missing=False,
+                ignore_lock=app.config["IGNORE_DB_LOCK"],
+            )
+            tree = dbmgr.dirname
     with app.app_context():
         ctx.obj["db_manager"] = get_db_manager(tree=tree)
         if semantic:
@@ -346,9 +350,13 @@ def grampsdb(ctx, tree):
     if not tree:
         if app.config["TREE"] == TREE_MULTI:
             raise ValueError("`tree` is required when multi-tree support is enabled.")
-        # needed for backwards compatibility!
-        dbmgr = WebDbManager(name=app.config["TREE"], create_if_missing=False)
-        tree = dbmgr.dirname
+        if app.config.get("TREE_ID"):
+            # TREE_ID takes precedence: use dirname directly
+            tree = app.config["TREE_ID"]
+        else:
+            # needed for backwards compatibility!
+            dbmgr = WebDbManager(name=app.config["TREE"], create_if_missing=False)
+            tree = dbmgr.dirname
     with app.app_context():
         ctx.obj["db_manager"] = get_db_manager(tree=tree)
 

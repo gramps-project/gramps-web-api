@@ -23,7 +23,7 @@ import unittest
 
 from . import BASE_URL, get_test_client
 from .checks import (
-    check_conforms_to_schema,
+    check_conforms_to_openapi_schema,
     check_invalid_semantics,
     check_requires_token,
     check_resource_missing,
@@ -47,7 +47,7 @@ class TestTypes(unittest.TestCase):
 
     def test_get_types_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(self, TEST_URL, "Types")
+        check_conforms_to_openapi_schema(self, TEST_URL, "Types")
 
     def test_get_types_invalid_semantics(self):
         """Test invalid parameters and values."""
@@ -68,7 +68,7 @@ class TestDefaultTypes(unittest.TestCase):
 
     def test_get_types_default_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(self, TEST_URL + "default/", "DefaultTypes")
+        check_conforms_to_openapi_schema(self, TEST_URL + "default/", "DefaultTypes")
 
     def test_get_types_default_invalid_semantics(self):
         """Test invalid parameters and values."""
@@ -134,7 +134,7 @@ class TestCustomTypes(unittest.TestCase):
 
     def test_get_types_custom_conforms_to_schema(self):
         """Test conforms to schema."""
-        check_conforms_to_schema(self, TEST_URL + "custom/", "CustomTypes")
+        check_conforms_to_openapi_schema(self, TEST_URL + "custom/", "CustomTypes")
 
     def test_get_types_custom_invalid_semantics(self):
         """Test invalid parameters and values."""

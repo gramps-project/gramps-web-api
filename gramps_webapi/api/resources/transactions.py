@@ -21,6 +21,7 @@
 
 import json
 
+from marshmallow import Schema
 from flask import Response, request
 from flask_jwt_extended import get_jwt_identity
 from gramps.gen.db.dbconst import TXNADD, TXNDEL, TXNUPD
@@ -29,25 +30,42 @@ from webargs import fields
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ...types import ResponseReturnValue
 from ..auth import require_permissions
+from ..blueprint import api_blueprint
 from ..tasks import AsyncResult, make_task_response, process_transactions, run_task
-from ..util import abort_with_message, use_args, get_tree_from_jwt_or_fail
+from ..util import abort_with_message, get_tree_from_jwt_or_fail
 from . import ProtectedResource
+from .schemas import TransactionSchema
 from .util import reverse_transaction
 
 trans_code = {"delete": TXNDEL, "add": TXNADD, "update": TXNUPD}
 
 
+class TransactionsQueryArgs(Schema):
+    """Query arguments for POST /transactions/."""
+
+    undo = fields.Boolean(
+        load_default=False,
+        metadata={"description": "If true, apply the inverse of the transaction."},
+    )
+    force = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, force applying the transaction even if objects have been modified."
+        },
+    )
+    background = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, apply the transactions in the background and return HTTP 202."
+        },
+    )
+
+
 class TransactionsResource(ProtectedResource):
     """Resource for raw database transactions."""
 
-    @use_args(
-        {
-            "undo": fields.Boolean(load_default=False),
-            "force": fields.Boolean(load_default=False),
-            "background": fields.Boolean(load_default=False),
-        },
-        location="query",
-    )
+    @api_blueprint.response(200, TransactionSchema(many=True))
+    @api_blueprint.arguments(TransactionsQueryArgs, location="query")
     def post(self, args) -> ResponseReturnValue:
         """Post the transaction."""
         require_permissions([PERM_ADD_OBJ, PERM_EDIT_OBJ, PERM_DEL_OBJ])
