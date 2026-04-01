@@ -33,7 +33,7 @@ GRAMPSWEB_EMBEDDING_BASE_URL=http://localhost:11434
 
 ```bash
 GRAMPSWEB_VECTOR_EMBEDDING_MODEL=text-embedding-3-small
-GRAMPSWEB_EMBEDDING_BASE_URL=https://api.openai.com/v1
+GRAMPSWEB_EMBEDDING_BASE_URL=https://api.openai.com
 GRAMPSWEB_EMBEDDING_API_KEY=sk-...
 ```
 

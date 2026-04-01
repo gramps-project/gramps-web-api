@@ -116,6 +116,20 @@ class TestCreateRemoteEmbeddingFunction:
         assert "Authorization" not in headers
 
     @patch("gramps_webapi.api.search.embeddings.requests.post")
+    def test_base_url_with_v1_segment(self, mock_post, mock_response_data):
+        mock_post.return_value.json.return_value = mock_response_data
+        mock_post.return_value.raise_for_status.return_value = None
+
+        embed = create_remote_embedding_function(
+            base_url="http://localhost:11434/v1",
+            model_name="test-model",
+        )
+        embed(["hello"])
+
+        call_args = mock_post.call_args
+        assert call_args[0][0] == "http://localhost:11434/v1/embeddings"
+
+    @patch("gramps_webapi.api.search.embeddings.requests.post")
     def test_raises_on_http_error(self, mock_post):
         from requests.exceptions import HTTPError
 
