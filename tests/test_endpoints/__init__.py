@@ -57,9 +57,14 @@ def get_test_client():
     return TEST_CLIENT
 
 
+def get_single_tree_test_client():
+    """Return single-tree test client."""
+    return SINGLE_TREE_TEST_CLIENT
+
+
 def setUpModule():
     """Test module setup."""
-    global TEST_CLIENT, TEST_OBJECT_COUNTS
+    global TEST_CLIENT, TEST_OBJECT_COUNTS, SINGLE_TREE_TEST_CLIENT
 
     # create a database with the Gramps example tree
     test_db = ExampleDbSQLite(name="example_gramps")
@@ -112,3 +117,25 @@ def setUpModule():
         "tags": db_state.db.get_number_of_tags(),
     }
     db_state.db.close()
+
+    # create a single-tree test client using the same example db
+    with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EXAMPLE_GRAMPS_AUTH_CONFIG}):
+        single_tree_app = create_app(
+            config={
+                "TESTING": True,
+                "RATELIMIT_ENABLED": False,
+                "MEDIA_BASE_DIR": f"{os.environ['GRAMPS_RESOURCES']}/doc/gramps/example/gramps",
+                "TREE": test_db.name,
+            },
+            config_from_env=False,
+        )
+    SINGLE_TREE_TEST_CLIENT = single_tree_app.test_client()
+    with single_tree_app.app_context():
+        user_db.create_all()
+        for role, user in TEST_USERS.items():
+            add_user(
+                name=user["name"],
+                password=user["password"],
+                role=role,
+                tree=test_db.dirname,
+            )

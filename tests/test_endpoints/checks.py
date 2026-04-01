@@ -324,6 +324,26 @@ def check_boolean_parameter(test, url, variable, join="?", role=ROLE_OWNER):
     return rv.json
 
 
+def check_filter_multi_tree_blocked(test, test_url, namespace):
+    """Test that custom filter mutations are blocked in a multi-tree setup."""
+    url = test_url + namespace
+    payload = {
+        "name": namespace.title() + "TestFilter",
+        "rules": [{"name": "HasTag", "values": ["ToDo"]}],
+    }
+    header = fetch_header(test.client)
+
+    # write operations must return 405 in multi-tree
+    rv = test.client.post(url, json=payload, headers=header)
+    test.assertEqual(rv.status_code, 405)
+
+    rv = test.client.put(url, json=payload, headers=header)
+    test.assertEqual(rv.status_code, 405)
+
+    rv = test.client.delete(url + "/" + payload["name"], headers=header)
+    test.assertEqual(rv.status_code, 405)
+
+
 def check_filter_create_update_delete(test, base_url, test_url, namespace):
     """Test creation, application, update, and delete of a custom filter."""
     url = test_url + namespace
