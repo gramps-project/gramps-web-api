@@ -21,7 +21,7 @@
 
 import unittest
 
-from . import BASE_URL, get_test_client
+from . import BASE_URL, get_single_tree_test_client, get_test_client
 from .checks import (
     check_conforms_to_openapi_schema,
     check_invalid_semantics,
@@ -40,6 +40,7 @@ class TestFacts(unittest.TestCase):
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
+        cls.single_tree_client = get_single_tree_test_client()
 
     def test_get_records_requires_token(self):
         """Test authorization required."""
@@ -157,13 +158,13 @@ class TestFacts(unittest.TestCase):
 
     def test_get_records_parameter_person_custom_filter(self):
         """Test person parameter custom filter."""
-        header = fetch_header(self.client)
+        header = fetch_header(self.single_tree_client)
         payload = {
             "comment": "Test records person custom filter",
             "name": "RecordsPersonCustomFilter",
             "rules": [{"name": "IsMale"}],
         }
-        rv = self.client.post(
+        rv = self.single_tree_client.post(
             BASE_URL + "/filters/people", json=payload, headers=header
         )
         self.assertEqual(rv.status_code, 201)
@@ -174,8 +175,8 @@ class TestFacts(unittest.TestCase):
             full=True,
         )
         self.assertNotIn(b"02NKQC5GOZFLSUSMW3", rv.data)
-        header = fetch_header(self.client)
-        rv = self.client.delete(
+        header = fetch_header(self.single_tree_client)
+        rv = self.single_tree_client.delete(
             BASE_URL + "/filters/people/RecordsPersonCustomFilter", headers=header
         )
         self.assertEqual(rv.status_code, 200)
