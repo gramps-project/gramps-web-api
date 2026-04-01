@@ -335,13 +335,15 @@ class TestExportersExtensionFile(unittest.TestCase):
 
     def test_get_exporters_extension_file_parameter_note_custom_filter(self):
         """Test note parameter custom filter."""
-        header = fetch_header(self.client)
+        header = fetch_header(self.single_tree_client)
         payload = {
             "comment": "Test note export custom filter",
             "name": "NoteExportCustomFilter",
             "rules": [{"name": "HasType", "values": ["Person Note"]}],
         }
-        rv = self.client.post(BASE_URL + "/filters/notes", json=payload, headers=header)
+        rv = self.single_tree_client.post(
+            BASE_URL + "/filters/notes", json=payload, headers=header
+        )
         self.assertEqual(rv.status_code, 201)
         rv = check_success(self, BASE_URL + "/filters/notes/NoteExportCustomFilter")
         rv = check_success(
@@ -350,8 +352,8 @@ class TestExportersExtensionFile(unittest.TestCase):
             full=True,
         )
         self.assertNotIn(b"ac380498bac48eedee8", rv.data)
-        header = fetch_header(self.client)
-        rv = self.client.delete(
+        header = fetch_header(self.single_tree_client)
+        rv = self.single_tree_client.delete(
             BASE_URL + "/filters/notes/NoteExportCustomFilter", headers=header
         )
         self.assertEqual(rv.status_code, 200)
