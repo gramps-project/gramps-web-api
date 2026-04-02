@@ -1308,6 +1308,18 @@ def update_object(
             )
         elif obj_class == "person":
             db_handle.set_birth_death_index(obj)
+        elif obj_class == "event":
+            # When an event type changes (e.g. Death → Birth), the birth_ref_index
+            # and death_ref_index on all referring persons must be recomputed.
+            # Commit the event first so that set_birth_death_index reads the new type.
+            result = commit_method(obj, trans)
+            for _, person_handle in db_handle.find_backlink_handles(
+                obj.handle, include_classes=["Person"]
+            ):
+                person = db_handle.get_person_from_handle(person_handle)
+                db_handle.set_birth_death_index(person)
+                db_handle.commit_person(person, trans)
+            return result
         return commit_method(obj, trans)
     except AttributeError as exc:
         raise ValueError("Database does not support writing.") from exc
