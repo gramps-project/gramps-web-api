@@ -283,12 +283,15 @@ class TestTagsHandle(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         tag = rv.json
         original_name = tag["name"]
-        tag["name"] = "ToDo-edited"
-        rv = self.client.put(TEST_URL + handle, json=tag, headers=header)
-        self.assertEqual(rv.status_code, 200)
-        rv = self.client.get(TEST_URL + handle, headers=header)
-        self.assertEqual(rv.status_code, 200)
-        self.assertEqual(rv.json["name"], "ToDo-edited")
-        # restore original name
-        tag["name"] = original_name
-        self.client.put(TEST_URL + handle, json=tag, headers=header)
+        try:
+            tag["name"] = "ToDo-edited"
+            rv = self.client.put(TEST_URL + handle, json=tag, headers=header)
+            self.assertEqual(rv.status_code, 200)
+            rv = self.client.get(TEST_URL + handle, headers=header)
+            self.assertEqual(rv.status_code, 200)
+            self.assertEqual(rv.json["name"], "ToDo-edited")
+        finally:
+            # restore original name
+            tag["name"] = original_name
+            rv_restore = self.client.put(TEST_URL + handle, json=tag, headers=header)
+            self.assertEqual(rv_restore.status_code, 200)
