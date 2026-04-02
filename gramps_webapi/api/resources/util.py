@@ -1317,8 +1317,14 @@ def update_object(
                 obj.handle, include_classes=["Person"]
             ):
                 person = db_handle.get_person_from_handle(person_handle)
+                old_birth = person.birth_ref_index
+                old_death = person.death_ref_index
                 db_handle.set_birth_death_index(person)
-                db_handle.commit_person(person, trans)
+                if (
+                    person.birth_ref_index != old_birth
+                    or person.death_ref_index != old_death
+                ):
+                    db_handle.commit_person(person, trans)
             return result
         return commit_method(obj, trans)
     except AttributeError as exc:
