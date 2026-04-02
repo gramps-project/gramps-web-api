@@ -283,15 +283,32 @@ class TestFiltersPeopleSingleTree(unittest.TestCase):
         """Test creation, application, update, and deletion of filter."""
         check_filter_create_update_delete(self, BASE_URL, TEST_URL, "people")
 
-    def test_filter_create_requires_editor(self):
-        """Test that creating a filter requires at least editor role."""
+    def test_filter_write_requires_editor(self):
+        """Test that POST, PUT, DELETE all require at least editor role."""
         from gramps_webapi.auth.const import ROLE_MEMBER
+
         header = fetch_header(self.client, role=ROLE_MEMBER)
+
+        # POST blocked for non-editor on people
         payload = {
             "name": "PeoplePermissionTestFilter",
             "rules": [{"name": "HasTag", "values": ["ToDo"]}],
         }
         rv = self.client.post(TEST_URL + "people", json=payload, headers=header)
+        self.assertEqual(rv.status_code, 403)
+
+        # PUT blocked for non-editor on events (different namespace)
+        payload = {
+            "name": "EventsPermissionTestFilter",
+            "rules": [{"name": "HasTag", "values": ["ToDo"]}],
+        }
+        rv = self.client.put(TEST_URL + "events", json=payload, headers=header)
+        self.assertEqual(rv.status_code, 403)
+
+        # DELETE blocked for non-editor on events
+        rv = self.client.delete(
+            TEST_URL + "events/EventsPermissionTestFilter", headers=header
+        )
         self.assertEqual(rv.status_code, 403)
 
 

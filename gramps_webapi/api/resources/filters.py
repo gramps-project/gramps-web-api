@@ -411,7 +411,7 @@ class FilterResource(ProtectedResource, GrampsJSONEncoder):
                 filter_set: set[GenericFilter] = set()
                 self._find_dependent_filters(namespace, custom_filter, filter_set)
                 if len(filter_set) > 1:
-                    if "force" not in args or not args["force"]:
+                    if "force" not in args:
                         abort(405)
                 list(map(custom_filters.remove, filter_set))
                 filters.CustomFilters.save()
