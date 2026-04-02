@@ -211,7 +211,7 @@ class TestObjectUpdate(unittest.TestCase):
         event = {
             "_class": "Event",
             "handle": handle_event,
-            "type": {"_class": "EventType", "string": "Death"},
+            "type": "Death",
         }
         rv = self.client.post("/api/events/", json=event, headers=headers)
         self.assertEqual(rv.status_code, 201)
@@ -249,7 +249,7 @@ class TestObjectUpdate(unittest.TestCase):
         rv = self.client.get(f"/api/events/{handle_event}", headers=headers)
         self.assertEqual(rv.status_code, 200)
         event_dict = rv.json
-        event_dict["type"] = {"_class": "EventType", "string": "Birth"}
+        event_dict["type"] = "Birth"
         rv = self.client.put(
             f"/api/events/{handle_event}", json=event_dict, headers=headers
         )
@@ -261,6 +261,23 @@ class TestObjectUpdate(unittest.TestCase):
         person_dict = rv.json
         self.assertEqual(person_dict["birth_ref_index"], 0)
         self.assertEqual(person_dict["death_ref_index"], -1)
+
+        # Change the event type back from Birth to Death (reverse direction)
+        rv = self.client.get(f"/api/events/{handle_event}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        event_dict = rv.json
+        event_dict["type"] = "Death"
+        rv = self.client.put(
+            f"/api/events/{handle_event}", json=event_dict, headers=headers
+        )
+        self.assertEqual(rv.status_code, 200)
+
+        # Verify indices have reverted
+        rv = self.client.get(f"/api/people/{handle_person}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        person_dict = rv.json
+        self.assertEqual(person_dict["birth_ref_index"], -1)
+        self.assertEqual(person_dict["death_ref_index"], 0)
 
     def test_search_update_note(self):
         """Test whether updating a note updates the search index correctly."""

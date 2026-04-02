@@ -1311,20 +1311,38 @@ def update_object(
         elif obj_class == "event":
             # When an event type changes (e.g. Death → Birth), the birth_ref_index
             # and death_ref_index on all referring persons must be recomputed.
+            # Fetch the old event to decide whether a birth/death-relevant type
+            # change has occurred before paying the cost of scanning backlinks.
+            old_event = db_handle.get_event_from_handle(obj.handle)
+            old_type = old_event.get_type()
+            new_type = obj.get_type()
+            type_affects_indices = (
+                old_type.is_birth()
+                or old_type.is_death()
+                or new_type.is_birth()
+                or new_type.is_death()
+            )
             # Commit the event first so that set_birth_death_index reads the new type.
             result = commit_method(obj, trans)
-            for _, person_handle in db_handle.find_backlink_handles(
-                obj.handle, include_classes=["Person"]
-            ):
-                person = db_handle.get_person_from_handle(person_handle)
-                old_birth = person.birth_ref_index
-                old_death = person.death_ref_index
-                db_handle.set_birth_death_index(person)
-                if (
-                    person.birth_ref_index != old_birth
-                    or person.death_ref_index != old_death
+            if type_affects_indices:
+                for _, person_handle in db_handle.find_backlink_handles(
+                    obj.handle, include_classes=["Person"]
                 ):
-                    db_handle.commit_person(person, trans)
+                    try:
+                        person = db_handle.get_person_from_handle(person_handle)
+                    except HandleError:
+                        # Stale backlink or concurrently deleted person; skip.
+                        continue
+                    if person is None:
+                        continue
+                    old_birth = person.birth_ref_index
+                    old_death = person.death_ref_index
+                    db_handle.set_birth_death_index(person)
+                    if (
+                        person.birth_ref_index != old_birth
+                        or person.death_ref_index != old_death
+                    ):
+                        db_handle.commit_person(person, trans)
             return result
         return commit_method(obj, trans)
     except AttributeError as exc:
