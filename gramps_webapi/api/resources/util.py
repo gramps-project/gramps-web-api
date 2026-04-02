@@ -1317,10 +1317,13 @@ def update_object(
             old_type = old_event.get_type()
             new_type = obj.get_type()
             type_affects_indices = (
-                old_type.is_birth()
-                or old_type.is_death()
-                or new_type.is_birth()
-                or new_type.is_death()
+                old_type != new_type
+                and (
+                    old_type.is_birth()
+                    or old_type.is_death()
+                    or new_type.is_birth()
+                    or new_type.is_death()
+                )
             )
             # Commit the event first so that set_birth_death_index reads the new type.
             result = commit_method(obj, trans)
