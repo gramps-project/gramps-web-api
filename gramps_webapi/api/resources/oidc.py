@@ -159,7 +159,7 @@ class OIDCCallbackResource(Resource):
     """
 
     @limiter.limit("5/minute")
-    @api_blueprint.arguments(OIDCCallbackQueryArgs, location="query")
+    @api_blueprint.arguments(OIDCCallbackQueryArgs, location="query", unknown=EXCLUDE)
     def get(self, args, provider_id=None):
         """Handle OIDC callback and create JWT tokens.
 
