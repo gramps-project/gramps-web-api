@@ -61,27 +61,27 @@ class UserAccessTokenResource(ProtectedResource):
             raise  # unreachable
 
     @api_blueprint.response(200, AccessTokenStateSchema())
-    @require_permissions([PERM_EDIT_OWN_USER])
     def get(self, scope: str):
         """Get persistent token status for current user and scope."""
+        require_permissions([PERM_EDIT_OWN_USER])
         scope = self._validate_scope(scope)
         user_name = self._get_user_name()
         token = get_user_access_token(user_name, scope)
         return {"active": token is not None, "token": token}, 200
 
     @api_blueprint.response(200, AccessTokenStateSchema())
-    @require_permissions([PERM_EDIT_OWN_USER])
     def post(self, scope: str):
         """Create or rotate persistent token for current user and scope."""
+        require_permissions([PERM_EDIT_OWN_USER])
         scope = self._validate_scope(scope)
         user_name = self._get_user_name()
         token = rotate_user_access_token(user_name, scope)
         return {"active": True, "token": token}, 200
 
     @api_blueprint.response(200, AccessTokenStateSchema())
-    @require_permissions([PERM_EDIT_OWN_USER])
     def delete(self, scope: str):
         """Revoke persistent token for current user and scope."""
+        require_permissions([PERM_EDIT_OWN_USER])
         scope = self._validate_scope(scope)
         user_name = self._get_user_name()
         revoke_user_access_token(user_name, scope)
