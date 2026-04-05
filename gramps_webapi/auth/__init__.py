@@ -337,6 +337,8 @@ def get_user_from_access_token(token: str, scope: str) -> Optional["User"]:
         .filter(
             AccessToken.scope == scope,
             AccessToken.token == token,
+            AccessToken.token.isnot(None),
+            AccessToken.revoked_at.is_(None),
         )
         .scalar()
     )
