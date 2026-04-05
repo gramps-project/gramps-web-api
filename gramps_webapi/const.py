@@ -139,6 +139,7 @@ MIME_TYPES = {
     ".ps": "application/postscript",
     ".svg": "image/svg+xml",
     ".svgz": "image/svg+xml",
+    ".avif": "image/avif",
     ".jpg": "image/jpeg",
     ".gif": "image/gif",
     ".png": "image/png",

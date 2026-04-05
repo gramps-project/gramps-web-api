@@ -76,6 +76,7 @@ class TestThumbnail(unittest.TestCase):
             )
             assert rv.mimetype == MIME_AVIF
             img = Image.open(BytesIO(rv.data))
+            assert img.format == "AVIF"
             # long side should be 20 px
             assert max(img.width, img.height) == 20
 
@@ -152,6 +153,7 @@ class TestCropped(unittest.TestCase):
             )
             assert rv.mimetype == MIME_AVIF
             img = Image.open(BytesIO(rv.data))
+            assert img.format == "AVIF"
             # allow 1 px difference due to rounding
             self.assertAlmostEqual(img.width, 0.1 * full_img.width, delta=1)
             self.assertAlmostEqual(img.height, 0.2 * full_img.height, delta=1)
@@ -182,6 +184,7 @@ class TestCroppedThumbnail(unittest.TestCase):
             )
             assert rv.mimetype == MIME_AVIF
             img = Image.open(BytesIO(rv.data))
+            assert img.format == "AVIF"
             # long side should be 20 px
             assert max(img.width, img.height) == 20
 

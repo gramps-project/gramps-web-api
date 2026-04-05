@@ -67,7 +67,7 @@ def make_cache_key_thumbnails(*args, **kwargs):
 
     dbmgr = get_db_manager(tree)
 
-    cache_key = checksum + request.path + arg_hash + dbmgr.dirname + "AVIF"
+    cache_key = checksum + request.path + arg_hash + dbmgr.dirname + ":avif"
 
     return cache_key
 

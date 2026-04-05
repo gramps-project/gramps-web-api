@@ -89,7 +89,10 @@ def crop_image(image: ImageType, x1: int, y1: int, x2: int, y2: int) -> ImageTyp
 def save_image_buffer(image: ImageType, fmt="AVIF") -> BinaryIO:
     """Save an image to a binary buffer."""
     buffer = io.BytesIO()
-    if image.mode not in ("RGB", "RGBA"):
+    supports_alpha = fmt.upper() in ("AVIF", "PNG", "WEBP")
+    if image.mode == "RGBA" and not supports_alpha:
+        image = image.convert("RGB")
+    elif image.mode not in ("RGB", "RGBA"):
         image = image.convert("RGB")
     image.save(buffer, format=fmt)
     buffer.seek(0)
