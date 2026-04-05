@@ -179,7 +179,7 @@ class ThumbnailHandler:
         return Image.open(io.BytesIO(out))
 
     def get_thumbnail(
-        self, size: int, square: bool = False, fmt: str = "JPEG"
+        self, size: int, square: bool = False, fmt: str = "AVIF"
     ) -> BinaryIO:
         """Return a thumbnail of `size` (longest side) for the image.
 
