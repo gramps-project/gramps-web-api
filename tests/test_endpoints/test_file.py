@@ -24,7 +24,7 @@ from io import BytesIO
 
 from PIL import Image
 
-from gramps_webapi.const import MIME_JPEG
+from gramps_webapi.const import MIME_AVIF
 
 from . import BASE_URL, get_test_client
 from .checks import check_requires_token, check_success
@@ -74,7 +74,7 @@ class TestThumbnail(unittest.TestCase):
             rv = check_success(
                 self, "{}{}/thumbnail/20".format(TEST_URL, obj["handle"]), full=True
             )
-            assert rv.mimetype == MIME_JPEG
+            assert rv.mimetype == MIME_AVIF
             img = Image.open(BytesIO(rv.data))
             # long side should be 20 px
             assert max(img.width, img.height) == 20
@@ -150,7 +150,7 @@ class TestCropped(unittest.TestCase):
                 "{}{}/cropped/10/80/20/100".format(TEST_URL, obj["handle"]),
                 full=True,
             )
-            assert rv.mimetype == MIME_JPEG
+            assert rv.mimetype == MIME_AVIF
             img = Image.open(BytesIO(rv.data))
             # allow 1 px difference due to rounding
             self.assertAlmostEqual(img.width, 0.1 * full_img.width, delta=1)
@@ -180,7 +180,7 @@ class TestCroppedThumbnail(unittest.TestCase):
                 "{}{}/cropped/10/10/90/90/thumbnail/20".format(TEST_URL, obj["handle"]),
                 full=True,
             )
-            assert rv.mimetype == MIME_JPEG
+            assert rv.mimetype == MIME_AVIF
             img = Image.open(BytesIO(rv.data))
             # long side should be 20 px
             assert max(img.width, img.height) == 20
