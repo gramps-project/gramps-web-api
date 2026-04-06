@@ -42,7 +42,10 @@ def get_db_last_change_timestamp(tree_id: str) -> int | float | None:
 
 def _hash_request_args() -> str:
     """Hash the request arguments for use in cache keys."""
-    query_args = list((k, v) for (k, v) in request.args.items(multi=True) if k != "jwt")
+    # Exclude jwt (auth token) and checksum (frontend cache-busting hint;
+    # the authoritative checksum is read from the DB in make_cache_key_thumbnails).
+    excluded = {"jwt", "checksum"}
+    query_args = list((k, v) for (k, v) in request.args.items(multi=True) if k not in excluded)
     args_as_sorted_tuple = tuple(sorted(query_args))
     args_as_bytes = str(args_as_sorted_tuple).encode()
     arg_hash = hashlib.md5(args_as_bytes)
@@ -51,10 +54,11 @@ def _hash_request_args() -> str:
 
 def make_cache_key_thumbnails(*args, **kwargs):
     """Make a cache key for thumbnails."""
-    # hash query args except jwt
+    # Hash query args, excluding jwt and checksum (see _hash_request_args).
     arg_hash = _hash_request_args()
 
-    # get media checksum
+    # Checksum comes from the DB, not the query parameter (which is only a
+    # frontend service worker cache-busting hint and is excluded from arg_hash).
     handle = kwargs["handle"]
     tree = get_tree_from_jwt()
     db_handle = get_db_handle()
@@ -62,7 +66,6 @@ def make_cache_key_thumbnails(*args, **kwargs):
         obj = db_handle.get_media_from_handle(handle)
     except HandleError:
         abort_with_message(404, f"Handle {handle} not found")
-    # checksum in the DB
     checksum = obj.checksum
 
     dbmgr = get_db_manager(tree)
