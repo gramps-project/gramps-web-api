@@ -564,12 +564,15 @@ register_endpt(
 
 
 # Thumbnails
+# Shared query params: jwt (auth via URL), checksum (frontend service worker
+# cache busting by URL versioning; ignored by the backend).
 @api_blueprint.route("/media/<string:handle>/thumbnail/<int:size>")
 @jwt_required
 @use_args(
     {
         "square": fields.Boolean(load_default=False),
         "jwt": fields.String(required=False),
+        "checksum": fields.String(required=False),
     },
     location="query",
 )
@@ -592,6 +595,7 @@ def get_thumbnail(args, handle, size):
     {
         "square": fields.Boolean(load_default=False),
         "jwt": fields.String(required=False),
+        "checksum": fields.String(required=False),
     },
     location="query",
 )
@@ -614,6 +618,7 @@ def get_cropped(args, handle: str, x1: int, y1: int, x2: int, y2: int):
     {
         "square": fields.Boolean(load_default=False),
         "jwt": fields.String(required=False),
+        "checksum": fields.String(required=False),
     },
     location="query",
 )
