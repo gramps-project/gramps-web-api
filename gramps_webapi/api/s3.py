@@ -27,7 +27,7 @@ from botocore.exceptions import ClientError
 from flask import current_app, redirect, send_file
 from gramps.gen.db.base import DbReadBase
 
-from ..const import MIME_JPEG
+from ..const import MIME_AVIF
 from .file import FileHandler
 from .image import ThumbnailHandler
 from .util import abort_with_message
@@ -145,14 +145,14 @@ class ObjectStorageFileHandler(FileHandler):
         fileobj = self._download_fileobj()
         thumb = ThumbnailHandler(fileobj, self.mime)
         buffer = thumb.get_cropped(x1=x1, y1=y1, x2=x2, y2=y2, square=square)
-        return send_file(buffer, mimetype=MIME_JPEG)
+        return send_file(buffer, mimetype=MIME_AVIF)
 
     def send_thumbnail(self, size: int, square: bool = False):
         """Send thumbnail of image."""
         fileobj = self._download_fileobj()
         thumb = ThumbnailHandler(fileobj, self.mime)
         buffer = thumb.get_thumbnail(size=size, square=square)
-        return send_file(buffer, mimetype=MIME_JPEG)
+        return send_file(buffer, mimetype=MIME_AVIF)
 
     def send_thumbnail_cropped(
         self, size: int, x1: int, y1: int, x2: int, y2: int, square: bool = False
@@ -163,7 +163,7 @@ class ObjectStorageFileHandler(FileHandler):
         buffer = thumb.get_thumbnail_cropped(
             size=size, x1=x1, y1=y1, x2=x2, y2=y2, square=square
         )
-        return send_file(buffer, mimetype=MIME_JPEG)
+        return send_file(buffer, mimetype=MIME_AVIF)
 
 
 def upload_file_s3(

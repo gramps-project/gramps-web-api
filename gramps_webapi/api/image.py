@@ -86,10 +86,13 @@ def crop_image(image: ImageType, x1: int, y1: int, x2: int, y2: int) -> ImageTyp
     return image.crop((x1_abs, y1_abs, x2_abs, y2_abs))
 
 
-def save_image_buffer(image: ImageType, fmt="JPEG") -> BinaryIO:
+def save_image_buffer(image: ImageType, fmt="AVIF") -> BinaryIO:
     """Save an image to a binary buffer."""
     buffer = io.BytesIO()
-    if image.mode != "RGB":
+    supports_alpha = fmt.upper() in ("AVIF", "PNG", "WEBP")
+    if image.mode == "RGBA" and not supports_alpha:
+        image = image.convert("RGB")
+    elif image.mode not in ("RGB", "RGBA"):
         image = image.convert("RGB")
     image.save(buffer, format=fmt)
     buffer.seek(0)
@@ -129,7 +132,7 @@ class ThumbnailHandler:
         return Image.open(self.stream)
 
     def get_cropped(
-        self, x1: int, y1: int, x2: int, y2: int, square: bool = False
+        self, x1: int, y1: int, x2: int, y2: int, square: bool = False, fmt: str = "AVIF"
     ) -> BinaryIO:
         """Return a cropped version of the image at `path`.
 
@@ -142,7 +145,7 @@ class ThumbnailHandler:
         img = crop_image(img, x1, y1, x2, y2)
         if square:
             img = image_square(img)
-        return save_image_buffer(img)
+        return save_image_buffer(img, fmt=fmt)
 
     def _get_image_pdf(self) -> ImageType:
         """Get a Pillow Image instance of the PDF's first page."""
@@ -179,7 +182,7 @@ class ThumbnailHandler:
         return Image.open(io.BytesIO(out))
 
     def get_thumbnail(
-        self, size: int, square: bool = False, fmt: str = "JPEG"
+        self, size: int, square: bool = False, fmt: str = "AVIF"
     ) -> BinaryIO:
         """Return a thumbnail of `size` (longest side) for the image.
 
@@ -190,7 +193,7 @@ class ThumbnailHandler:
         return save_image_buffer(img, fmt=fmt)
 
     def get_thumbnail_cropped(
-        self, size: int, x1: int, y1: int, x2: int, y2: int, square: bool = False
+        self, size: int, x1: int, y1: int, x2: int, y2: int, square: bool = False, fmt: str = "AVIF"
     ) -> BinaryIO:
         """Return a cropped thumbnail of `size` (longest side) of the image at `path`.
 
@@ -202,7 +205,7 @@ class ThumbnailHandler:
         img = self.get_image()
         img = crop_image(img, x1, y1, x2, y2)
         img = image_thumbnail(image=img, size=size, square=square)
-        return save_image_buffer(img)
+        return save_image_buffer(img, fmt=fmt)
 
 
 class LocalFileThumbnailHandler(ThumbnailHandler):
