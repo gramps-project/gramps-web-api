@@ -148,6 +148,22 @@ class TestOIDCEndpoints(unittest.TestCase):
         data = rv.get_json()
         self.assertIn("not enabled", data["error"]["message"])
 
+    def test_oidc_callback_iss_param_not_rejected(self):
+        """Test that the iss parameter (sent by Keycloak per RFC 9207) is not rejected.
+
+        Regression test: the flask-smorest migration dropped unknown=EXCLUDE from the
+        callback endpoint, causing providers that include iss in the redirect URL to
+        receive a 422 instead of being processed normally.
+        """
+        rv = self.client.get(
+            BASE_URL
+            + "/oidc/callback/?code=test123&provider=custom&iss=https%3A%2F%2Fkeycloak.example.com%2Frealms%2Fmyrealm"
+        )
+        # OIDC is disabled in the test environment, so we expect 405.
+        # Before the fix, the unknown `iss` query param was rejected first, giving 422.
+        self.assertNotEqual(rv.status_code, 422)
+        self.assertEqual(rv.status_code, 405)
+
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch(
         "gramps_webapi.api.resources.oidc.get_available_oidc_providers",

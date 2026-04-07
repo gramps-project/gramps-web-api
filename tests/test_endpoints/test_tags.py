@@ -22,6 +22,7 @@
 import unittest
 
 from . import BASE_URL, get_object_count, get_test_client
+from .util import fetch_header
 from .checks import (
     check_boolean_parameter,
     check_conforms_to_openapi_schema,
@@ -273,3 +274,24 @@ class TestTagsHandle(unittest.TestCase):
         self.assertIn("backlinks", rv["extended"])
         for obj in rv["extended"]["backlinks"]["person"]:
             self.assertIn(obj["handle"], ["GNUJQCL9MD64AM56OH"])
+
+    def test_put_tag_edit_name(self):
+        """Test that a tag's name can be updated via PUT."""
+        handle = "bb80c2b235b0a1b3f49"
+        header = fetch_header(self.client)
+        rv = self.client.get(TEST_URL + handle, headers=header)
+        self.assertEqual(rv.status_code, 200)
+        tag = rv.json
+        original_name = tag["name"]
+        try:
+            tag["name"] = "ToDo-edited"
+            rv = self.client.put(TEST_URL + handle, json=tag, headers=header)
+            self.assertEqual(rv.status_code, 200)
+            rv = self.client.get(TEST_URL + handle, headers=header)
+            self.assertEqual(rv.status_code, 200)
+            self.assertEqual(rv.json["name"], "ToDo-edited")
+        finally:
+            # restore original name
+            tag["name"] = original_name
+            rv_restore = self.client.put(TEST_URL + handle, json=tag, headers=header)
+            self.assertEqual(rv_restore.status_code, 200)

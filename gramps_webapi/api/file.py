@@ -33,7 +33,7 @@ from gramps.gen.lib import Media
 from PIL import Image
 from werkzeug.datastructures import FileStorage
 
-from gramps_webapi.const import MIME_JPEG
+from gramps_webapi.const import MIME_AVIF
 
 from ..types import FilenameOrPath
 from .image import LocalFileThumbnailHandler, detect_faces
@@ -214,7 +214,7 @@ class LocalFileHandler(FileHandler):
             abort_with_message(403, "File access not allowed")
         thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
         buffer = thumb.get_cropped(x1=x1, y1=y1, x2=x2, y2=y2, square=square)
-        return send_file(buffer, mimetype=MIME_JPEG)
+        return send_file(buffer, mimetype=MIME_AVIF)
 
     def send_thumbnail(self, size: int, square: bool = False):
         """Send thumbnail of image."""
@@ -224,7 +224,7 @@ class LocalFileHandler(FileHandler):
             abort_with_message(403, "File access not allowed")
         thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
         buffer = thumb.get_thumbnail(size=size, square=square)
-        return send_file(buffer, mimetype=MIME_JPEG)
+        return send_file(buffer, mimetype=MIME_AVIF)
 
     def send_thumbnail_cropped(
         self, size: int, x1: int, y1: int, x2: int, y2: int, square: bool = False
@@ -238,7 +238,7 @@ class LocalFileHandler(FileHandler):
         buffer = thumb.get_thumbnail_cropped(
             size=size, x1=x1, y1=y1, x2=x2, y2=y2, square=square
         )
-        return send_file(buffer, mimetype=MIME_JPEG)
+        return send_file(buffer, mimetype=MIME_AVIF)
 
 
 def upload_file_local(

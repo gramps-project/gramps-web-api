@@ -197,6 +197,88 @@ class TestObjectUpdate(unittest.TestCase):
         self.assertEqual(out[0]["new"]["text"]["string"], "Updated note.")
         self.assertEqual(out[0]["type"], "update")
 
+    def test_update_event_type_updates_birth_death_index(self):
+        """Test that changing an event type updates birth/death ref indices on persons.
+
+        When a death event type is changed to birth (or vice versa), the
+        birth_ref_index and death_ref_index on referencing persons must be updated.
+        """
+        headers = get_headers(self.client, "admin", "123")
+        handle_person = make_handle()
+        handle_event = make_handle()
+
+        # Create a death event
+        event = {
+            "_class": "Event",
+            "handle": handle_event,
+            "type": "Death",
+        }
+        rv = self.client.post("/api/events/", json=event, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+
+        # Create a person referencing that death event, with death_ref_index set explicitly
+        person = {
+            "_class": "Person",
+            "handle": handle_person,
+            "primary_name": {
+                "_class": "Name",
+                "surname_list": [{"_class": "Surname", "surname": "Smith"}],
+                "first_name": "Jane",
+            },
+            "event_ref_list": [
+                {
+                    "_class": "EventRef",
+                    "ref": handle_event,
+                    "role": {"_class": "EventRoleType", "string": "Primary"},
+                }
+            ],
+            "death_ref_index": 0,
+            "gender": 0,
+        }
+        rv = self.client.post("/api/people/", json=person, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+
+        # Verify death_ref_index is 0 and birth_ref_index is -1
+        rv = self.client.get(f"/api/people/{handle_person}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        person_dict = rv.json
+        self.assertEqual(person_dict["death_ref_index"], 0)
+        self.assertEqual(person_dict["birth_ref_index"], -1)
+
+        # Now change the event type from Death to Birth
+        rv = self.client.get(f"/api/events/{handle_event}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        event_dict = rv.json
+        event_dict["type"] = "Birth"
+        rv = self.client.put(
+            f"/api/events/{handle_event}", json=event_dict, headers=headers
+        )
+        self.assertEqual(rv.status_code, 200)
+
+        # Verify the person's birth_ref_index is now 0 and death_ref_index is -1
+        rv = self.client.get(f"/api/people/{handle_person}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        person_dict = rv.json
+        self.assertEqual(person_dict["birth_ref_index"], 0)
+        self.assertEqual(person_dict["death_ref_index"], -1)
+
+        # Change the event type back from Birth to Death (reverse direction)
+        rv = self.client.get(f"/api/events/{handle_event}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        event_dict = rv.json
+        event_dict["type"] = "Death"
+        rv = self.client.put(
+            f"/api/events/{handle_event}", json=event_dict, headers=headers
+        )
+        self.assertEqual(rv.status_code, 200)
+
+        # Verify indices have reverted
+        rv = self.client.get(f"/api/people/{handle_person}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        person_dict = rv.json
+        self.assertEqual(person_dict["birth_ref_index"], -1)
+        self.assertEqual(person_dict["death_ref_index"], 0)
+
     def test_search_update_note(self):
         """Test whether updating a note updates the search index correctly."""
         handle = make_handle()

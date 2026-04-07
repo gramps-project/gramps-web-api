@@ -1138,6 +1138,24 @@ def xml_to_locale(gramps_type_name: str, string: str) -> str:
     return str(typ)
 
 
+def _set_type_from_string(type_obj, string_value: str) -> None:
+    """Set a GrampsType from either an XML (English) or localized string.
+
+    The frontend may send either English XML strings (e.g. "Birth") or
+    localized strings (e.g. "Geburt" in German), depending on the
+    ``valueNonLocal`` property of ``GrampsjsFormSelectType``.
+
+    This function first tries ``set_from_xml_str()`` which handles English
+    XML strings via ``_E2IMAP``. If the string is not recognized (i.e. falls
+    back to Custom), it tries ``set()`` which handles localized strings via
+    ``_S2IMAP``.
+    """
+    type_obj.set_from_xml_str(string_value)
+    if type_obj.is_custom() and string_value not in type_obj._E2IMAP:
+        # set_from_xml_str didn't recognize it — try localized string
+        type_obj.set(string_value)
+
+
 def fix_object_dict(object_dict: dict, class_name: Optional[str] = None):
     """Restore a Gramps object in simplified representation to its full form.
 
@@ -1160,17 +1178,17 @@ def fix_object_dict(object_dict: dict, class_name: Optional[str] = None):
                 if class_name == "Family":
                     _class = "FamilyRelType"
                     obj = gramps.gen.lib.__dict__[_class]()
-                    obj.set_from_xml_str(v)
+                    _set_type_from_string(obj, v)
                     d_out[k] = object_to_dict(obj)
                 elif class_name == "RepoRef":
                     _class = "SourceMediaType"
                     obj = gramps.gen.lib.__dict__[_class]()
-                    obj.set_from_xml_str(v)
+                    _set_type_from_string(obj, v)
                     d_out[k] = object_to_dict(obj)
                 else:
                     _class = f"{class_name}Type"
                     obj = gramps.gen.lib.__dict__[_class]()
-                    obj.set_from_xml_str(v)
+                    _set_type_from_string(obj, v)
                     d_out[k] = object_to_dict(obj)
             else:
                 d_out[k] = v
@@ -1178,7 +1196,7 @@ def fix_object_dict(object_dict: dict, class_name: Optional[str] = None):
             if isinstance(v, str):
                 _class = "EventRoleType"
                 obj = gramps.gen.lib.__dict__[_class]()
-                obj.set_from_xml_str(v)
+                _set_type_from_string(obj, v)
                 d_out[k] = object_to_dict(obj)
             else:
                 d_out[k] = v
@@ -1186,7 +1204,7 @@ def fix_object_dict(object_dict: dict, class_name: Optional[str] = None):
             if isinstance(v, str):
                 _class = "NameOriginType"
                 obj = gramps.gen.lib.__dict__[_class]()
-                obj.set_from_xml_str(v)
+                _set_type_from_string(obj, v)
                 d_out[k] = object_to_dict(obj)
             else:
                 d_out[k] = v
@@ -1275,7 +1293,7 @@ def update_object(
     obj_class = obj.__class__.__name__.lower()
     if not has_handle(db_handle, obj):
         raise ValueError("Cannot be used for new objects.")
-    if not obj.gramps_id:
+    if hasattr(obj, "gramps_id") and not obj.gramps_id:
         # if the Gramps ID is empty, set it to the old one!
         handle_func = db_handle.method("get_%s_from_handle", obj_class)
         obj_old = handle_func(obj.handle)
@@ -1290,6 +1308,45 @@ def update_object(
             )
         elif obj_class == "person":
             db_handle.set_birth_death_index(obj)
+        elif obj_class == "event":
+            # When an event type changes (e.g. Death → Birth), the birth_ref_index
+            # and death_ref_index on all referring persons must be recomputed.
+            # Fetch the old event to decide whether a birth/death-relevant type
+            # change has occurred before paying the cost of scanning backlinks.
+            old_event = db_handle.get_event_from_handle(obj.handle)
+            old_type = old_event.get_type()
+            new_type = obj.get_type()
+            type_affects_indices = (
+                old_type != new_type
+                and (
+                    old_type.is_birth()
+                    or old_type.is_death()
+                    or new_type.is_birth()
+                    or new_type.is_death()
+                )
+            )
+            # Commit the event first so that set_birth_death_index reads the new type.
+            result = commit_method(obj, trans)
+            if type_affects_indices:
+                for _, person_handle in db_handle.find_backlink_handles(
+                    obj.handle, include_classes=["Person"]
+                ):
+                    try:
+                        person = db_handle.get_person_from_handle(person_handle)
+                    except HandleError:
+                        # Stale backlink or concurrently deleted person; skip.
+                        continue
+                    if person is None:
+                        continue
+                    old_birth = person.birth_ref_index
+                    old_death = person.death_ref_index
+                    db_handle.set_birth_death_index(person)
+                    if (
+                        person.birth_ref_index != old_birth
+                        or person.death_ref_index != old_death
+                    ):
+                        db_handle.commit_person(person, trans)
+            return result
         return commit_method(obj, trans)
     except AttributeError as exc:
         raise ValueError("Database does not support writing.") from exc

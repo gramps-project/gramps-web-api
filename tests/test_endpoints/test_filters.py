@@ -26,9 +26,10 @@ import unittest
 from jsonschema import validate
 from gramps_webapi.const import GRAMPS_NAMESPACES
 
-from . import BASE_URL, get_test_client
+from . import BASE_URL, get_single_tree_test_client, get_test_client
 from .checks import (
     check_filter_create_update_delete,
+    check_filter_multi_tree_blocked,
     check_invalid_semantics,
     check_requires_token,
     check_resource_missing,
@@ -154,120 +155,161 @@ class TestFilters(unittest.TestCase):
 
 
 class TestFiltersPeople(unittest.TestCase):
-    """Specific test cases for the /api/filters/people endpoint."""
+    """Test /api/filters/people in multi-tree setup (write ops must be blocked)."""
 
     @classmethod
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
+
+    def test_filter_write_blocked_multi_tree(self):
+        """Test that filter mutations return 405 in multi-tree setup."""
+        check_filter_multi_tree_blocked(self, TEST_URL, "people")
+
+
+class TestFiltersFamilies(unittest.TestCase):
+    """Test /api/filters/families in multi-tree setup (write ops must be blocked)."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_filter_write_blocked_multi_tree(self):
+        """Test that filter mutations return 405 in multi-tree setup."""
+        check_filter_multi_tree_blocked(self, TEST_URL, "families")
+
+
+class TestFiltersEvents(unittest.TestCase):
+    """Test /api/filters/events in multi-tree setup (write ops must be blocked)."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_filter_write_blocked_multi_tree(self):
+        """Test that filter mutations return 405 in multi-tree setup."""
+        check_filter_multi_tree_blocked(self, TEST_URL, "events")
+
+
+class TestFiltersPlaces(unittest.TestCase):
+    """Test /api/filters/places in multi-tree setup (write ops must be blocked)."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_filter_write_blocked_multi_tree(self):
+        """Test that filter mutations return 405 in multi-tree setup."""
+        check_filter_multi_tree_blocked(self, TEST_URL, "places")
+
+
+class TestFiltersCitations(unittest.TestCase):
+    """Test /api/filters/citations in multi-tree setup (write ops must be blocked)."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_filter_write_blocked_multi_tree(self):
+        """Test that filter mutations return 405 in multi-tree setup."""
+        check_filter_multi_tree_blocked(self, TEST_URL, "citations")
+
+
+class TestFiltersSources(unittest.TestCase):
+    """Test /api/filters/sources in multi-tree setup (write ops must be blocked)."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_filter_write_blocked_multi_tree(self):
+        """Test that filter mutations return 405 in multi-tree setup."""
+        check_filter_multi_tree_blocked(self, TEST_URL, "sources")
+
+
+class TestFiltersRepositories(unittest.TestCase):
+    """Test /api/filters/repositories in multi-tree setup (write ops must be blocked)."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_filter_write_blocked_multi_tree(self):
+        """Test that filter mutations return 405 in multi-tree setup."""
+        check_filter_multi_tree_blocked(self, TEST_URL, "repositories")
+
+
+class TestFiltersMedia(unittest.TestCase):
+    """Test /api/filters/media in multi-tree setup (write ops must be blocked)."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_filter_write_blocked_multi_tree(self):
+        """Test that filter mutations return 405 in multi-tree setup."""
+        check_filter_multi_tree_blocked(self, TEST_URL, "media")
+
+
+class TestFiltersNotes(unittest.TestCase):
+    """Test /api/filters/notes in multi-tree setup (write ops must be blocked)."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_filter_write_blocked_multi_tree(self):
+        """Test that filter mutations return 405 in multi-tree setup."""
+        check_filter_multi_tree_blocked(self, TEST_URL, "notes")
+
+
+class TestFiltersPeopleSingleTree(unittest.TestCase):
+    """Test /api/filters/people CRUD in single-tree setup."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_single_tree_test_client()
 
     def test_filter_create_update_delete(self):
         """Test creation, application, update, and deletion of filter."""
         check_filter_create_update_delete(self, BASE_URL, TEST_URL, "people")
 
+    def test_filter_write_requires_editor(self):
+        """Test that POST, PUT, DELETE all require at least editor role."""
+        from gramps_webapi.auth.const import ROLE_MEMBER
 
-class TestFiltersFamilies(unittest.TestCase):
-    """Specific test cases for the /api/filters/families endpoint."""
+        header = fetch_header(self.client, role=ROLE_MEMBER)
 
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
+        # POST blocked for non-editor on people
+        payload = {
+            "name": "PeoplePermissionTestFilter",
+            "rules": [{"name": "HasTag", "values": ["ToDo"]}],
+        }
+        rv = self.client.post(TEST_URL + "people", json=payload, headers=header)
+        self.assertEqual(rv.status_code, 403)
 
-    def test_filters_endpoint_families_filter(self):
-        """Test creation and application of a families filter."""
-        check_filter_create_update_delete(self, BASE_URL, TEST_URL, "families")
+        # PUT blocked for non-editor on events (different namespace)
+        payload = {
+            "name": "EventsPermissionTestFilter",
+            "rules": [{"name": "HasTag", "values": ["ToDo"]}],
+        }
+        rv = self.client.put(TEST_URL + "events", json=payload, headers=header)
+        self.assertEqual(rv.status_code, 403)
 
-
-class TestFiltersEvents(unittest.TestCase):
-    """Specific test cases for the /api/filters/events endpoint."""
-
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
-
-    def test_filters_endpoint_events_filter(self):
-        """Test creation and application of an events filter."""
-        check_filter_create_update_delete(self, BASE_URL, TEST_URL, "events")
-
-
-class TestFiltersPlaces(unittest.TestCase):
-    """Specific test cases for the /api/filters/places endpoint."""
-
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
-
-    def test_filters_endpoint_places_filter(self):
-        """Test creation and application of a places filter."""
-        check_filter_create_update_delete(self, BASE_URL, TEST_URL, "places")
-
-
-class TestFiltersCitations(unittest.TestCase):
-    """Specific test cases for the /api/filters/citations endpoint."""
-
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
-
-    def test_filters_endpoint_citations_filter(self):
-        """Test creation and application of a citations filter."""
-        check_filter_create_update_delete(self, BASE_URL, TEST_URL, "citations")
-
-
-class TestFiltersSources(unittest.TestCase):
-    """Specific test cases for the /api/filters/sources endpoint."""
-
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
-
-    def test_filters_endpoint_sources_filter(self):
-        """Test creation and application of a sources filter."""
-        check_filter_create_update_delete(self, BASE_URL, TEST_URL, "sources")
-
-
-class TestFiltersRepositories(unittest.TestCase):
-    """Specific test cases for the /api/filters/repositories endpoint."""
-
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
-
-    def test_filters_endpoint_repositories_filter(self):
-        """Test creation and application of a repositories filter."""
-        check_filter_create_update_delete(self, BASE_URL, TEST_URL, "repositories")
-
-
-class TestFiltersMedia(unittest.TestCase):
-    """Specific test cases for the /api/filters/media endpoint."""
-
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
-
-    def test_filters_endpoint_media_filter(self):
-        """Test creation and application of a media filter."""
-        check_filter_create_update_delete(self, BASE_URL, TEST_URL, "media")
-
-
-class TestFiltersNotes(unittest.TestCase):
-    """Specific test cases for the /api/filters/notes endpoint."""
-
-    @classmethod
-    def setUpClass(cls):
-        """Test class setup."""
-        cls.client = get_test_client()
-
-    def test_filters_endpoint_notes_filter(self):
-        """Test creation and application of a notes filter."""
-        check_filter_create_update_delete(self, BASE_URL, TEST_URL, "notes")
+        # DELETE blocked for non-editor on events
+        rv = self.client.delete(
+            TEST_URL + "events/EventsPermissionTestFilter", headers=header
+        )
+        self.assertEqual(rv.status_code, 403)
 
 
 def make_handle() -> str:

@@ -24,7 +24,7 @@ import json
 from typing import Any, Dict, List, Optional, Set
 
 import gramps.gen.filters as filters
-from flask import Response, abort
+from flask import Response, abort, current_app
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.filters import GenericFilter
 from gramps.gen.filters.rules import Rule
@@ -32,10 +32,12 @@ from gramps.gen.lib import Person
 from marshmallow import Schema
 from webargs import ValidationError, fields, validate
 
-from ...const import GRAMPS_NAMESPACES
+from ...auth.const import PERM_EDIT_CUSTOM_FILTER
+from ...const import GRAMPS_NAMESPACES, TREE_MULTI
 from ...types import Handle
 from ..blueprint import api_blueprint
 from ..util import abort_with_message
+from ..auth import require_permissions
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .schemas import (
@@ -316,6 +318,11 @@ class FiltersResource(ProtectedResource, GrampsJSONEncoder):
     @api_blueprint.arguments(CustomFilterSchema(), location="json")
     def post(self, args: Dict, namespace: str) -> Response:
         """Create a custom filter."""
+        if current_app.config["TREE"] == TREE_MULTI:
+            abort_with_message(
+                405, "Custom filters cannot be edited in a multi-tree setup"
+            )
+        require_permissions([PERM_EDIT_CUSTOM_FILTER])
         try:
             namespace = GRAMPS_NAMESPACES[namespace]
         except KeyError:
@@ -333,6 +340,11 @@ class FiltersResource(ProtectedResource, GrampsJSONEncoder):
     @api_blueprint.arguments(CustomFilterSchema(), location="json")
     def put(self, args: Dict, namespace: str) -> Response:
         """Update a custom filter."""
+        if current_app.config["TREE"] == TREE_MULTI:
+            abort_with_message(
+                405, "Custom filters cannot be edited in a multi-tree setup"
+            )
+        require_permissions([PERM_EDIT_CUSTOM_FILTER])
         try:
             namespace = GRAMPS_NAMESPACES[namespace]
         except KeyError:
@@ -382,6 +394,11 @@ class FilterResource(ProtectedResource, GrampsJSONEncoder):
     @api_blueprint.arguments(FilterDeleteQueryArgs, location="query")
     def delete(self, args: Dict, namespace: str, name: str) -> Response:
         """Delete a custom filter."""
+        if current_app.config["TREE"] == TREE_MULTI:
+            abort_with_message(
+                405, "Custom filters cannot be edited in a multi-tree setup"
+            )
+        require_permissions([PERM_EDIT_CUSTOM_FILTER])
         try:
             namespace = GRAMPS_NAMESPACES[namespace]
         except KeyError:
@@ -394,7 +411,7 @@ class FilterResource(ProtectedResource, GrampsJSONEncoder):
                 filter_set: set[GenericFilter] = set()
                 self._find_dependent_filters(namespace, custom_filter, filter_set)
                 if len(filter_set) > 1:
-                    if "force" not in args or not args["force"]:
+                    if "force" not in args:
                         abort(405)
                 list(map(custom_filters.remove, filter_set))
                 filters.CustomFilters.save()

@@ -24,7 +24,7 @@ from io import BytesIO
 
 from PIL import Image
 
-from gramps_webapi.const import MIME_JPEG
+from gramps_webapi.const import MIME_AVIF
 
 from . import BASE_URL, get_test_client
 from .checks import check_requires_token, check_success
@@ -74,8 +74,9 @@ class TestThumbnail(unittest.TestCase):
             rv = check_success(
                 self, "{}{}/thumbnail/20".format(TEST_URL, obj["handle"]), full=True
             )
-            assert rv.mimetype == MIME_JPEG
+            assert rv.mimetype == MIME_AVIF
             img = Image.open(BytesIO(rv.data))
+            assert img.format == "AVIF"
             # long side should be 20 px
             assert max(img.width, img.height) == 20
 
@@ -92,6 +93,20 @@ class TestThumbnail(unittest.TestCase):
             img = Image.open(BytesIO(rv.data))
             assert img.width == 20
             assert img.height == 20
+
+    def test_get_thumbnail_with_checksum(self):
+        """Test that the checksum query param is accepted and does not alter the response."""
+        media_objects = check_success(self, TEST_URL)
+        for obj in media_objects:
+            rv = check_success(
+                self, "{}{}/thumbnail/20".format(TEST_URL, obj["handle"]), full=True
+            )
+            rv_checksum = check_success(
+                self,
+                "{}{}/thumbnail/20?checksum=abc123".format(TEST_URL, obj["handle"]),
+                full=True,
+            )
+            assert rv.data == rv_checksum.data
 
     def test_get_thumbnail_large_requires_token(self):
         """Test authorization required."""
@@ -150,11 +165,30 @@ class TestCropped(unittest.TestCase):
                 "{}{}/cropped/10/80/20/100".format(TEST_URL, obj["handle"]),
                 full=True,
             )
-            assert rv.mimetype == MIME_JPEG
+            assert rv.mimetype == MIME_AVIF
             img = Image.open(BytesIO(rv.data))
+            assert img.format == "AVIF"
             # allow 1 px difference due to rounding
             self.assertAlmostEqual(img.width, 0.1 * full_img.width, delta=1)
             self.assertAlmostEqual(img.height, 0.2 * full_img.height, delta=1)
+
+    def test_get_cropped_with_checksum(self):
+        """Test that the checksum query param is accepted and does not alter the response."""
+        media_objects = check_success(self, TEST_URL)
+        for obj in media_objects:
+            rv = check_success(
+                self,
+                "{}{}/cropped/10/80/20/100".format(TEST_URL, obj["handle"]),
+                full=True,
+            )
+            rv_checksum = check_success(
+                self,
+                "{}{}/cropped/10/80/20/100?checksum=abc123".format(
+                    TEST_URL, obj["handle"]
+                ),
+                full=True,
+            )
+            assert rv.data == rv_checksum.data
 
 
 class TestCroppedThumbnail(unittest.TestCase):
@@ -180,8 +214,9 @@ class TestCroppedThumbnail(unittest.TestCase):
                 "{}{}/cropped/10/10/90/90/thumbnail/20".format(TEST_URL, obj["handle"]),
                 full=True,
             )
-            assert rv.mimetype == MIME_JPEG
+            assert rv.mimetype == MIME_AVIF
             img = Image.open(BytesIO(rv.data))
+            assert img.format == "AVIF"
             # long side should be 20 px
             assert max(img.width, img.height) == 20
 
@@ -200,6 +235,24 @@ class TestCroppedThumbnail(unittest.TestCase):
             img = Image.open(BytesIO(rv.data))
             assert img.width == 20
             assert img.height == 20
+
+    def test_get_cropped_thumbnail_with_checksum(self):
+        """Test that the checksum query param is accepted and does not alter the response."""
+        media_objects = check_success(self, TEST_URL)
+        for obj in media_objects:
+            rv = check_success(
+                self,
+                "{}{}/cropped/10/10/90/90/thumbnail/20".format(TEST_URL, obj["handle"]),
+                full=True,
+            )
+            rv_checksum = check_success(
+                self,
+                "{}{}/cropped/10/10/90/90/thumbnail/20?checksum=abc123".format(
+                    TEST_URL, obj["handle"]
+                ),
+                full=True,
+            )
+            assert rv.data == rv_checksum.data
 
     def test_get_cropped_thumbnail_large_requires_token(self):
         """Test authorization required."""

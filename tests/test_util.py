@@ -1,11 +1,52 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
+from gramps.gen.lib import EventType
 from gramps.gen.lib.json_utils import data_to_object
 
 from gramps_webapi.api import util
+from gramps_webapi.api.resources.util import fix_object_dict
+from gramps_webapi.api.util import send_email
 from gramps_webapi.const import PRIMARY_GRAMPS_OBJECTS
 
-from unittest.mock import MagicMock, patch
-from gramps_webapi.api.util import send_email
+
+def test_fix_object_dict_localized_event_type():
+    """Test fix_object_dict with localized (German) event type string.
+
+    This tests the fix for localized type strings (e.g. German "Geburt").
+    Since _S2IMAP is built at module import time based on system locale,
+    we need to manually add the German string to simulate German locale.
+    """
+    event_dict = {"_class": "Event", "type": "Geburt"}
+    # Simulate German locale by adding German string to _S2IMAP
+    # _S2IMAP is built at import time; add German string for this test
+    had_geburt = "Geburt" in EventType._S2IMAP
+    old_geburt_value = EventType._S2IMAP.get("Geburt")
+    EventType._S2IMAP["Geburt"] = 12
+    try:
+        result = fix_object_dict(event_dict, "Event")
+        assert result["type"]["value"] == 12
+    finally:
+        if had_geburt:
+            EventType._S2IMAP["Geburt"] = old_geburt_value
+        else:
+            # Only remove the key if we introduced it
+            EventType._S2IMAP.pop("Geburt", None)
+
+
+def test_fix_object_dict_xml_event_type():
+    """Test fix_object_dict with English XML event type string."""
+    event_dict = {"_class": "Event", "type": "Birth"}
+    result = fix_object_dict(event_dict, "Event")
+    assert result["type"]["value"] == 12
+
+
+def test_fix_object_dict_custom_event_type():
+    """Test fix_object_dict with custom event type string."""
+    event_dict = {"_class": "Event", "type": "MyCustomEvent"}
+    result = fix_object_dict(event_dict, "Event")
+    assert result["type"]["value"] == 0
+
 
 def _test_complete_gramps_object_dict(obj_dict):
     util.complete_gramps_object_dict(obj_dict)
