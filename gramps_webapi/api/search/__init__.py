@@ -68,9 +68,9 @@ def get_search_indexer(tree: str) -> SearchIndexer:
 def get_semantic_search_indexer(tree: str) -> SemanticSearchIndexer:
     """Get the search indexer for the tree."""
     db_url = _get_search_index_db_url()
-    model = current_app.config.get("_INITIALIZED_VECTOR_EMBEDDING_MODEL")
-    if not model:
+    embedding_function = current_app.config.get("_EMBEDDING_FUNCTION")
+    if not embedding_function:
         raise ValueError("VECTOR_EMBEDDING_MODEL option not set")
     return SemanticSearchIndexer(
-        db_url=db_url, tree=tree, embedding_function=model.encode
+        db_url=db_url, tree=tree, embedding_function=embedding_function
     )
