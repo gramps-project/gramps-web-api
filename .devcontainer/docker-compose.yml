@@ -27,7 +27,7 @@ services:
       # To use Ollama for embeddings instead of local SentenceTransformer,
       # start with: docker compose --profile ollama up -d
       # Then uncomment the following lines and comment out the line above:
-      # GRAMPSWEB_EMBEDDING_BASE_URL: http://ollama:11434
+      # GRAMPSWEB_VECTOR_EMBEDDING_BASE_URL: http://ollama:11434
       # GRAMPSWEB_VECTOR_EMBEDDING_MODEL: nomic-embed-text
       GRAMPSWEB_CELERY_CONFIG__broker_url: redis://redis:6379/0
       GRAMPSWEB_CELERY_CONFIG__result_backend: redis://redis:6379/0

@@ -336,11 +336,11 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         user_db.session.remove()  # pylint: disable=no-member
 
     if app.config.get("VECTOR_EMBEDDING_MODEL"):
-        if app.config.get("EMBEDDING_BASE_URL"):
+        if app.config.get("VECTOR_EMBEDDING_BASE_URL"):
             app.config["_EMBEDDING_FUNCTION"] = create_remote_embedding_function(
-                base_url=app.config["EMBEDDING_BASE_URL"],
+                base_url=app.config["VECTOR_EMBEDDING_BASE_URL"],
                 model_name=app.config["VECTOR_EMBEDDING_MODEL"],
-                api_key=app.config.get("EMBEDDING_API_KEY"),
+                api_key=app.config.get("VECTOR_EMBEDDING_API_KEY"),
             )
         else:
             model = load_model(app.config["VECTOR_EMBEDDING_MODEL"])

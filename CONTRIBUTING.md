@@ -32,7 +32,7 @@ The devcontainer includes an optional [Ollama](https://ollama.com/) service for 
 3. In `.devcontainer/docker-compose.yml`, comment out the local `GRAMPSWEB_VECTOR_EMBEDDING_MODEL` line and uncomment the Ollama lines:
    ```yaml
    # GRAMPSWEB_VECTOR_EMBEDDING_MODEL: sentence-transformers/distiluse-base-multilingual-cased-v2
-   GRAMPSWEB_EMBEDDING_BASE_URL: http://ollama:11434
+   GRAMPSWEB_VECTOR_EMBEDDING_BASE_URL: http://ollama:11434
    GRAMPSWEB_VECTOR_EMBEDDING_MODEL: nomic-embed-text
    ```
 
