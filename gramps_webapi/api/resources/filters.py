@@ -237,8 +237,8 @@ class FilterSchema(Schema):
     )
 
 
-class CustomFilterSchema(FilterSchema):
-    """Structure for a custom filter."""
+class CustomFilterCreateSchema(FilterSchema):
+    """Structure for a custom filter (request body for create/update)."""
 
     name = fields.Str(
         required=True,
@@ -315,7 +315,7 @@ class FiltersResource(ProtectedResource, GrampsJSONEncoder):
             return self.response(200, {"filters": filter_list})
         return self.response(200, {"filters": filter_list, "rules": rule_list})
 
-    @api_blueprint.arguments(CustomFilterSchema(), location="json")
+    @api_blueprint.arguments(CustomFilterCreateSchema(), location="json")
     def post(self, args: Dict, namespace: str) -> Response:
         """Create a custom filter."""
         if current_app.config["TREE"] == TREE_MULTI:
@@ -337,7 +337,7 @@ class FiltersResource(ProtectedResource, GrampsJSONEncoder):
         filters.CustomFilters.save()
         return self.response(201, {"message": "Added filter: " + new_filter.get_name()})
 
-    @api_blueprint.arguments(CustomFilterSchema(), location="json")
+    @api_blueprint.arguments(CustomFilterCreateSchema(), location="json")
     def put(self, args: Dict, namespace: str) -> Response:
         """Update a custom filter."""
         if current_app.config["TREE"] == TREE_MULTI:
