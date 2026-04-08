@@ -30,14 +30,12 @@ from gramps.gen.lib import (
     EventRef,
     Family,
     Media,
-    MediaRef,
     Name,
     Note,
     Person,
     Place,
     Repository,
     Source,
-    Url,
 )
 
 from gramps_webapi.api.util import ModifiedPrivateProxyDb
