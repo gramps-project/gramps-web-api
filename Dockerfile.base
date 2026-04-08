@@ -77,23 +77,23 @@ ENV LC_ALL=en_US.utf8
 ENV OMP_NUM_THREADS=1
 
 # install wheel first to enable binary packages for all pip installs
-RUN python3 -m pip install --break-system-packages --no-cache-dir wheel
+RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-installed wheel
 
 # install gunicorn and Pillow (PyPI wheel includes AVIF support, unlike the apt package)
-RUN python3 -m pip install --break-system-packages --no-cache-dir \
+RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-installed \
     gunicorn Pillow
 
 # Install PyICU (slow to compile on ARM, so pre-install in base image)
-RUN python3 -m pip install --break-system-packages --no-cache-dir \
+RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-installed \
     PyICU
 
 # Install PyTorch and opencv
-RUN python3 -m pip install --break-system-packages --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch
-RUN python3 -m pip install --break-system-packages --no-cache-dir \
+RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-installed --index-url https://download.pytorch.org/whl/cpu torch
+RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-installed \
     opencv-python opencv-contrib-python
 
 # Install AI dependencies
-RUN python3 -m pip install --break-system-packages --no-cache-dir \
+RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-installed \
     'sentence-transformers>=4.1.0' \
     'accelerate' \
     'pydantic-ai[openai]>=1.0.0,<2.0.0'
