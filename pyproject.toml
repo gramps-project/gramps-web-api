@@ -48,6 +48,7 @@ dependencies = [
     "Authlib>=1.6.4",
     "gramps-gedcom7",
     "flask-smorest",
+    "typing-extensions>=4.13.0",
 ]
 
 [project.optional-dependencies]

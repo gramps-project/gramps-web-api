@@ -5,7 +5,7 @@ ENV GRAMPS_VERSION=60
 
 WORKDIR /app
 
-ENV PYTHONPATH="/usr/lib/python3/dist-packages"
+ENV PYTHONPATH="/usr/local/lib/python3.13/dist-packages:/usr/lib/python3/dist-packages"
 
 # install poppler (needed for PDF thumbnails)
 # ffmpeg (needed for video thumbnails)
