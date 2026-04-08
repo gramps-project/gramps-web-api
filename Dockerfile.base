@@ -14,11 +14,11 @@ RUN apt-get update && apt-get install -y \
   appstream pkg-config libcairo2-dev \
   gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev \
   graphviz gir1.2-gexiv2-0.10 gir1.2-osmgpsmap-1.0 \
-  locales gettext wget python3-pip python3-pil \
+  locales gettext wget python3-pip \
   poppler-utils ffmpeg libavcodec-extra \
   unzip \
   libpq-dev postgresql-client postgresql-client-common python3-psycopg2 \
-  libgl1-mesa-dev libgtk2.0-dev libatlas-base-dev \
+  libgl1-mesa-dev libgtk2.0-dev \
   tesseract-ocr \
   tesseract-ocr-ara \
   tesseract-ocr-bul \
@@ -63,6 +63,7 @@ RUN apt-get update && apt-get install -y \
   tesseract-ocr-chi-sim \
   tesseract-ocr-chi-tra \
   libopenblas-dev cmake \
+
   && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8 \
   && rm -rf /var/lib/apt/lists/*
 
@@ -78,9 +79,9 @@ ENV OMP_NUM_THREADS=1
 # install wheel first to enable binary packages for all pip installs
 RUN python3 -m pip install --break-system-packages --no-cache-dir wheel
 
-# install gunicorn
+# install gunicorn and Pillow (PyPI wheel includes AVIF support, unlike the apt package)
 RUN python3 -m pip install --break-system-packages --no-cache-dir \
-    gunicorn
+    gunicorn Pillow
 
 # Install PyICU (slow to compile on ARM, so pre-install in base image)
 RUN python3 -m pip install --break-system-packages --no-cache-dir \
