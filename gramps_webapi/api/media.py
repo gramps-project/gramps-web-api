@@ -344,6 +344,7 @@ def get_media_handler(
         if prefix:
             # construct subdirectory using OS dependent path join
             base_dir = os.path.join(base_dir, prefix)
+        os.makedirs(base_dir, exist_ok=True)
     return MediaHandler(base_dir)
 
 
