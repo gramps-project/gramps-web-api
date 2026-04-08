@@ -365,6 +365,17 @@ class TestPlaces(unittest.TestCase):
         for key in ["a5af0ec23c136ad6742", "a5af0ec27662bcd851c"]:
             self.assertIn(key, rv[0]["backlinks"]["event"])
 
+    def test_get_places_parameter_place_hierarchy_false(self):
+        """Test place_hierarchy=0 omits parent_places from profile."""
+        rv = check_success(
+            self, TEST_URL + "?gramps_id=P0860&profile=self&place_hierarchy=0"
+        )
+        self.assertNotIn("parent_places", rv[0]["profile"])
+        self.assertNotIn("direct_parent_places", rv[0]["profile"])
+        # Basic profile fields are still present
+        self.assertIn("name", rv[0]["profile"])
+        self.assertIn("gramps_id", rv[0]["profile"])
+
 
 class TestPlacesHandle(unittest.TestCase):
     """Test cases for the /api/places/{handle} endpoint for a specific place."""
@@ -606,6 +617,15 @@ class TestPlacesHandle(unittest.TestCase):
                 "type": "City",
             },
         )
+
+    def test_get_places_handle_parameter_place_hierarchy_false(self):
+        """Test place_hierarchy=0 omits parent_places from profile."""
+        rv = check_success(
+            self, TEST_URL + "08TJQCCFIX31BXPNXN?profile=self&place_hierarchy=0"
+        )
+        self.assertNotIn("parent_places", rv["profile"])
+        self.assertNotIn("direct_parent_places", rv["profile"])
+        self.assertEqual(rv["profile"]["gramps_id"], "P0860")
 
     def test_get_places_handle_parameter_backlinks_validate_semantics(self):
         """Test invalid backlinks parameter and values."""
