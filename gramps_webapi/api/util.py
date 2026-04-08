@@ -68,7 +68,16 @@ from gramps.gen.dbstate import DbState
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.json_utils import data_to_object, object_to_dict
 from gramps.gen.proxy import PrivateProxyDb
-from gramps.gen.proxy.private import sanitize_media
+from gramps.gen.proxy.private import (
+    sanitize_citation,
+    sanitize_event,
+    sanitize_family,
+    sanitize_media,
+    sanitize_person,
+    sanitize_place,
+    sanitize_repository,
+    sanitize_source,
+)
 from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps.gen.user import UserBase
 from gramps.gen.utils.grampslocale import GrampsLocale
@@ -260,6 +269,60 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
         if self.is_dbapi:
             return self._iter_handles(NOTE_KEY)
         return filter(self.include_note, self.db.iter_note_handles())
+
+    def iter_people(self):
+        """Return an iterator over Person objects, filtered and sanitized."""
+        for obj in self.db.iter_people():
+            if not obj.get_privacy():
+                yield sanitize_person(self.db, obj)
+
+    def iter_families(self):
+        """Return an iterator over Family objects, filtered and sanitized."""
+        for obj in self.db.iter_families():
+            if not obj.get_privacy():
+                yield sanitize_family(self.db, obj)
+
+    def iter_events(self):
+        """Return an iterator over Event objects, filtered and sanitized."""
+        for obj in self.db.iter_events():
+            if not obj.get_privacy():
+                yield sanitize_event(self.db, obj)
+
+    def iter_places(self):
+        """Return an iterator over Place objects, filtered and sanitized."""
+        for obj in self.db.iter_places():
+            if not obj.get_privacy():
+                yield sanitize_place(self.db, obj)
+
+    def iter_sources(self):
+        """Return an iterator over Source objects, filtered and sanitized."""
+        for obj in self.db.iter_sources():
+            if not obj.get_privacy():
+                yield sanitize_source(self.db, obj)
+
+    def iter_citations(self):
+        """Return an iterator over Citation objects, filtered and sanitized."""
+        for obj in self.db.iter_citations():
+            if not obj.get_privacy():
+                yield sanitize_citation(self.db, obj)
+
+    def iter_media(self):
+        """Return an iterator over Media objects, filtered and sanitized."""
+        for obj in self.db.iter_media():
+            if not obj.get_privacy():
+                yield _sanitize_media_patched(self.db, obj)
+
+    def iter_repositories(self):
+        """Return an iterator over Repository objects, filtered and sanitized."""
+        for obj in self.db.iter_repositories():
+            if not obj.get_privacy():
+                yield sanitize_repository(self.db, obj)
+
+    def iter_notes(self):
+        """Return an iterator over Note objects, filtered (nothing to sanitize)."""
+        for obj in self.db.iter_notes():
+            if not obj.get_privacy():
+                yield obj
 
 
 class UserTaskProgress(UserBase):
