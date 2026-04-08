@@ -28,7 +28,7 @@ from flask import Response, abort, current_app
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.filters import GenericFilter
 from gramps.gen.filters.rules import Rule
-from gramps.gen.lib import Person
+from gramps.gen.lib import Media, Person
 from marshmallow import Schema
 from webargs import ValidationError, fields, validate
 
@@ -62,6 +62,36 @@ class HasAssociationType(Rule):
         return False
 
 
+MEDIA_REFERENCE_TYPES = [
+    "Person",
+    "Family",
+    "Event",
+    "Place",
+    "Citation",
+    "Source",
+    "Repository",
+    "Note",
+]
+
+
+class IsReferencedByObjectType(Rule):
+    """Rule that checks if a media object is referenced by a given object type."""
+
+    labels = ["Type:"]
+    name = "Media referenced by <type>"
+    description = "Matches media objects referenced by a specific object type"
+    category = "General filters"
+
+    def apply_to_one(self, db: DbReadBase, media: Media) -> bool:  # type: ignore
+        """Apply the rule to the media object."""
+        object_type = self.list[0]
+        for class_name, _ in db.find_backlink_handles(media.handle):
+            if class_name == object_type:
+                return True
+        return False
+
+
+additional_media_rules = [IsReferencedByObjectType]
 additional_person_rules = [HasAssociationType]
 
 
@@ -75,7 +105,7 @@ def get_rule_list(namespace: str) -> List[Rule]:
         "Citation": filters.rules.citation.editor_rule_list,
         "Source": filters.rules.source.editor_rule_list,
         "Repository": filters.rules.repository.editor_rule_list,
-        "Media": filters.rules.media.editor_rule_list,
+        "Media": filters.rules.media.editor_rule_list + additional_media_rules,
         "Note": filters.rules.note.editor_rule_list,
     }[namespace]
 

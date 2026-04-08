@@ -361,3 +361,63 @@ class TestHasAssociationType(unittest.TestCase):
         # no result
         rv = self.client.get(url, headers=headers)
         assert rv.json == []
+
+
+class TestIsReferencedByObjectType(unittest.TestCase):
+    """Test cases for the IsReferencedByObjectType filter."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_is_referenced_by_object_type(self):
+        """Test filtering media by the type of object referencing it."""
+        media_handle = make_handle()
+        person_handle = make_handle()
+        headers = fetch_header(self.client)
+        url = '/api/media/?rules={"rules":[{"name":"IsReferencedByObjectType","values":["Person"]}]}'
+        url_event = '/api/media/?rules={"rules":[{"name":"IsReferencedByObjectType","values":["Event"]}]}'
+
+        def handles(rv):
+            return {obj["handle"] for obj in rv.json}
+
+        # add media object (unreferenced) via /api/objects/
+        media_payload = {"_class": "Media", "handle": media_handle}
+        rv = self.client.post("/api/objects/", json=[media_payload], headers=headers)
+        assert rv.status_code == 201
+
+        # not yet referenced by any person → handle absent from Person filter
+        rv = self.client.get(url, headers=headers)
+        assert media_handle not in handles(rv)
+
+        # not referenced by any event either
+        rv = self.client.get(url_event, headers=headers)
+        assert media_handle not in handles(rv)
+
+        # add person with a media reference
+        person_payload = {
+            "_class": "Person",
+            "handle": person_handle,
+            "media_list": [{"_class": "MediaRef", "ref": media_handle}],
+        }
+        rv = self.client.post("/api/people/", json=person_payload, headers=headers)
+        assert rv.status_code == 201
+
+        # now the media handle appears in Person filter results
+        rv = self.client.get(url, headers=headers)
+        assert media_handle in handles(rv)
+
+        # still absent from Event filter
+        rv = self.client.get(url_event, headers=headers)
+        assert media_handle not in handles(rv)
+
+        # clean up
+        rv = self.client.delete(f"/api/people/{person_handle}", headers=headers)
+        assert rv.status_code == 200
+        rv = self.client.delete(f"/api/media/{media_handle}", headers=headers)
+        assert rv.status_code == 200
+
+        # handle gone from Person filter after cleanup
+        rv = self.client.get(url, headers=headers)
+        assert media_handle not in handles(rv)
