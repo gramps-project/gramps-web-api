@@ -47,7 +47,10 @@ class PlaceResourceHelper(GrampsObjectResourceHelper):
         db_handle = self.db_handle
         if "profile" in args:
             obj.profile = get_place_profile_for_object(
-                db_handle=db_handle, place=obj, locale=locale
+                db_handle=db_handle,
+                place=obj,
+                locale=locale,
+                parent_places=args.get("place_hierarchy", True),
             )
         if "extend" in args:
             obj.extended = get_extended_attributes(db_handle, obj, args)

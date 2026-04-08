@@ -271,6 +271,12 @@ class GrampsObjectQueryArgs(Schema):
             "description": "Comma-delimited list of top-level keys to omit from the response; all others are kept."
         },
     )
+    place_hierarchy = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "If false, omit parent place hierarchy from the place profile. Only relevant when profile is requested for places."
+        },
+    )
     soundex = fields.Boolean(
         load_default=False,
         metadata={"description": "If true, include the soundex code for the surname."},
@@ -503,6 +509,12 @@ class GrampsObjectsQueryArgs(Schema):
         fields.Str(validate=validate.Length(min=1)),
         metadata={
             "description": "Comma-delimited sort keys, prefix with '-' for descending. Available keys: birth, change, death, gender, gramps_id, name, private, soundex, surname."
+        },
+    )
+    place_hierarchy = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": "If false, omit parent place hierarchy from the place profile. Only relevant when profile is requested for places."
         },
     )
     soundex = fields.Boolean(

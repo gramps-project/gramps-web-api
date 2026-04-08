@@ -238,7 +238,7 @@ def get_default_endpoints(
             {
                 "name": "Places List",
                 "method": "GET",
-                "path": "/api/places/?locale=de&profile=self&backlinks=1",
+                "path": "/api/places/?locale=de&profile=self&backlinks=1&place_hierarchy=0",
             },
             {
                 "name": "Search",
