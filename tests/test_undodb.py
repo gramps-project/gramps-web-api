@@ -25,6 +25,7 @@ import shutil
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 from gramps.gen.lib.json_utils import (
     object_to_dict,
@@ -223,3 +224,86 @@ class TestUndoHistory(unittest.TestCase):
         assert string_to_dict(commit["new_json"]) == object_to_dict(person)
         assert string_to_dict(commit["new_json"]) == object_to_dict(new_person)
         assert string_to_dict(commit["old_json"]) == object_to_dict(old_person)
+
+
+class TestEnginePool(unittest.TestCase):
+    """Tests for DbUndoSQL class-level engine pool and schema check cache."""
+
+    def setUp(self):
+        # Isolate each test from previously cached state.
+        DbUndoSQL._engine_pool.clear()
+        DbUndoSQL._schema_checked_urls.clear()
+        self.dbdir = tempfile.mkdtemp()
+        self.db: DbWriteBase = make_database("sqlite")
+        self._setup_db(self.db, self.dbdir)
+
+    def tearDown(self):
+        self.db.close(update=False)
+        DbUndoSQL._engine_pool.clear()
+        DbUndoSQL._schema_checked_urls.clear()
+        shutil.rmtree(self.dbdir)
+
+    def _setup_db(self, db, dbdir):
+        def create_undo_manager():
+            return DbUndoSQL(grampsdb=db, dburl=f"sqlite:///{db.undolog}")
+        db._create_undo_manager = create_undo_manager
+        db.load(dbdir)
+
+    def _undo_url(self, db):
+        return f"sqlite:///{db.undolog}"
+
+    def test_engine_pool_same_url_returns_same_engine(self):
+        """Two DbUndoSQL instances with the same URL share one engine."""
+        url = self._undo_url(self.db)
+        engine1 = DbUndoSQL._get_or_create_engine(url)
+        engine2 = DbUndoSQL._get_or_create_engine(url)
+        self.assertIs(engine1, engine2)
+
+    def test_engine_pool_different_urls_return_different_engines(self):
+        """Two different URLs produce two distinct engines."""
+        dbdir2 = tempfile.mkdtemp()
+        db2: DbWriteBase = make_database("sqlite")
+        try:
+            self._setup_db(db2, dbdir2)
+            url1 = self._undo_url(self.db)
+            url2 = self._undo_url(db2)
+            self.assertNotEqual(url1, url2)
+            engine1 = DbUndoSQL._get_or_create_engine(url1)
+            engine2 = DbUndoSQL._get_or_create_engine(url2)
+            self.assertIsNot(engine1, engine2)
+        finally:
+            db2.close(update=False)
+            shutil.rmtree(dbdir2)
+
+    def test_engine_pool_populated_after_open(self):
+        """Opening a DbUndoSQL registers its engine in the pool."""
+        url = self._undo_url(self.db)
+        self.assertIn(url, DbUndoSQL._engine_pool)
+
+    def test_schema_checked_urls_populated_after_open(self):
+        """Opening a DbUndoSQL registers its URL in the schema-checked set."""
+        url = self._undo_url(self.db)
+        self.assertIn(url, DbUndoSQL._schema_checked_urls)
+
+    def test_schema_check_skipped_on_second_open(self):
+        """_add_json_columns_if_needed skips the inspector on a cached URL."""
+        url = self._undo_url(self.db)
+        # URL is already cached from setUp; a second open must not call inspect.
+        undodb = self.db.get_undodb()
+        with patch("gramps_webapi.undodb.inspect") as mock_inspect:
+            undodb._add_json_columns_if_needed()
+            mock_inspect.assert_not_called()
+
+    def test_schema_check_runs_on_first_open(self):
+        """_add_json_columns_if_needed calls inspect for an uncached URL."""
+        url = self._undo_url(self.db)
+        DbUndoSQL._schema_checked_urls.discard(url)
+        undodb = self.db.get_undodb()
+        with patch("gramps_webapi.undodb.inspect") as mock_inspect:
+            mock_inspect.return_value.get_columns.return_value = [
+                {"name": "old_json"},
+                {"name": "new_json"},
+            ]
+            undodb._add_json_columns_if_needed()
+            mock_inspect.assert_called_once()
+        self.assertIn(url, DbUndoSQL._schema_checked_urls)

@@ -42,6 +42,7 @@ from gramps.gen.lib.json_utils import (
 )
 from sqlalchemy import (
     BigInteger,
+    Engine,
     ForeignKey,
     Integer,
     LargeBinary,
@@ -179,6 +180,32 @@ class Transaction(Base):
 class DbUndoSQL(DbUndo):
     """SQL-based undo database."""
 
+    # Per-process cache of DB URLs whose schema has already been verified.
+    _schema_checked_urls: set[str] = set()
+
+    # Per-process engine pool keyed by DB URL.
+    _engine_pool: dict[str, Engine] = {}
+
+    @classmethod
+    def _get_or_create_engine(cls, dburl: str) -> Engine:
+        """Return a pooled engine for *dburl*, creating it on first use.
+
+        Uses pool_size=1/max_overflow=2 (max 3 connections per worker per tree),
+        pool_pre_ping to recycle stale connections, and pool_recycle=3600.
+        """
+        if dburl not in cls._engine_pool:
+            is_sqlite = dburl.startswith("sqlite")
+            kwargs: dict[str, Any] = {
+                "pool_size": 1,
+                "max_overflow": 2,
+                "pool_pre_ping": True,
+                "pool_recycle": 3600,
+            }
+            if is_sqlite:
+                kwargs["connect_args"] = {"check_same_thread": False}
+            cls._engine_pool[dburl] = create_engine(dburl, **kwargs)
+        return cls._engine_pool[dburl]
+
     def __init__(
         self,
         grampsdb: DbWriteBase,
@@ -191,7 +218,7 @@ class DbUndoSQL(DbUndo):
         self.tree_id = tree_id
         self.user_id = user_id
         self.undodb: list[bytes] = []
-        self.engine = create_engine(dburl)
+        self.engine = self._get_or_create_engine(dburl)
 
     @contextmanager
     def session_scope(self):
@@ -225,6 +252,9 @@ class DbUndoSQL(DbUndo):
 
     def _add_json_columns_if_needed(self) -> None:
         """Add JSON columns to the change table if not already present."""
+        dburl = str(self.engine.url)
+        if dburl in self._schema_checked_urls:
+            return
         inspector = inspect(self.engine)
         columns = {col["name"] for col in inspector.get_columns("changes")}
         if "old_json" not in columns or "new_json" not in columns:
@@ -241,6 +271,7 @@ class DbUndoSQL(DbUndo):
                             "ALTER TABLE changes ADD COLUMN new_json TEXT DEFAULT NULL"
                         )
                     )
+        self._schema_checked_urls.add(dburl)
 
     def _make_connection_id(self) -> int:
         """Insert a row into the connection table."""
@@ -253,8 +284,11 @@ class DbUndoSQL(DbUndo):
             return new_connection.id
 
     def close(self) -> None:
-        """Close the backing storage."""
-        self.engine.dispose()
+        """Close the backing storage.
+
+        No-op: the engine is shared via _engine_pool; connections are
+        returned to the pool by session_scope's finally block.
+        """
 
     def append(self, value) -> None:
         """Add a new entry on the end."""
