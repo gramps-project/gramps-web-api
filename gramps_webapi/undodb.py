@@ -24,6 +24,7 @@
 from __future__ import annotations
 
 import pickle
+import threading
 from contextlib import contextmanager
 from time import time_ns
 from typing import Any
@@ -186,25 +187,49 @@ class DbUndoSQL(DbUndo):
     # Per-process engine pool keyed by DB URL.
     _engine_pool: dict[str, Engine] = {}
 
+    # Lock serialising engine creation and schema checks.
+    _pool_lock: threading.Lock = threading.Lock()
+
     @classmethod
     def _get_or_create_engine(cls, dburl: str) -> Engine:
         """Return a pooled engine for *dburl*, creating it on first use.
 
-        Uses pool_size=1/max_overflow=2 (max 3 connections per worker per tree),
-        pool_pre_ping to recycle stale connections, and pool_recycle=3600.
+        SQLite uses a small pool (pool_size=1, max_overflow=2). PostgreSQL uses
+        a larger pool (pool_size=5, max_overflow=10) because multiple trees may
+        share the same DB URL (sharedpostgresql). All engines use pool_pre_ping
+        and pool_recycle=3600.
         """
-        if dburl not in cls._engine_pool:
-            is_sqlite = dburl.startswith("sqlite")
-            kwargs: dict[str, Any] = {
-                "pool_size": 1,
-                "max_overflow": 2,
-                "pool_pre_ping": True,
-                "pool_recycle": 3600,
-            }
-            if is_sqlite:
-                kwargs["connect_args"] = {"check_same_thread": False}
-            cls._engine_pool[dburl] = create_engine(dburl, **kwargs)
+        if dburl in cls._engine_pool:
+            return cls._engine_pool[dburl]
+        with cls._pool_lock:
+            if dburl not in cls._engine_pool:
+                is_sqlite = dburl.startswith("sqlite")
+                if is_sqlite:
+                    kwargs: dict[str, Any] = {
+                        "pool_size": 1,
+                        "max_overflow": 2,
+                        "pool_pre_ping": True,
+                        "pool_recycle": 3600,
+                        "connect_args": {"check_same_thread": False},
+                    }
+                else:
+                    kwargs = {
+                        "pool_size": 5,
+                        "max_overflow": 10,
+                        "pool_pre_ping": True,
+                        "pool_recycle": 3600,
+                    }
+                cls._engine_pool[dburl] = create_engine(dburl, **kwargs)
         return cls._engine_pool[dburl]
+
+    @classmethod
+    def _dispose_engine(cls, dburl: str) -> None:
+        """Dispose and remove the pooled engine for *dburl*, if present."""
+        with cls._pool_lock:
+            engine = cls._engine_pool.pop(dburl, None)
+            cls._schema_checked_urls.discard(dburl)
+        if engine is not None:
+            engine.dispose()
 
     def __init__(
         self,
@@ -255,23 +280,32 @@ class DbUndoSQL(DbUndo):
         dburl = str(self.engine.url)
         if dburl in self._schema_checked_urls:
             return
-        inspector = inspect(self.engine)
-        columns = {col["name"] for col in inspector.get_columns("changes")}
-        if "old_json" not in columns or "new_json" not in columns:
-            with self.engine.begin() as conn:
-                if "old_json" not in columns:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE changes ADD COLUMN old_json TEXT DEFAULT NULL"
-                        )
-                    )
-                if "new_json" not in columns:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE changes ADD COLUMN new_json TEXT DEFAULT NULL"
-                        )
-                    )
-        self._schema_checked_urls.add(dburl)
+        with self._pool_lock:
+            if dburl in self._schema_checked_urls:
+                return
+            inspector = inspect(self.engine)
+            columns = {col["name"] for col in inspector.get_columns("changes")}
+            if "old_json" not in columns or "new_json" not in columns:
+                with self.engine.begin() as conn:
+                    if "old_json" not in columns:
+                        try:
+                            conn.execute(
+                                text(
+                                    "ALTER TABLE changes ADD COLUMN old_json TEXT DEFAULT NULL"
+                                )
+                            )
+                        except OperationalError:
+                            pass
+                    if "new_json" not in columns:
+                        try:
+                            conn.execute(
+                                text(
+                                    "ALTER TABLE changes ADD COLUMN new_json TEXT DEFAULT NULL"
+                                )
+                            )
+                        except OperationalError:
+                            pass
+            self._schema_checked_urls.add(dburl)
 
     def _make_connection_id(self) -> int:
         """Insert a row into the connection table."""

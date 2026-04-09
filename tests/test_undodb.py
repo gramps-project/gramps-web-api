@@ -239,6 +239,8 @@ class TestEnginePool(unittest.TestCase):
 
     def tearDown(self):
         self.db.close(update=False)
+        for engine in DbUndoSQL._engine_pool.values():
+            engine.dispose()
         DbUndoSQL._engine_pool.clear()
         DbUndoSQL._schema_checked_urls.clear()
         shutil.rmtree(self.dbdir)
@@ -287,7 +289,6 @@ class TestEnginePool(unittest.TestCase):
 
     def test_schema_check_skipped_on_second_open(self):
         """_add_json_columns_if_needed skips the inspector on a cached URL."""
-        url = self._undo_url(self.db)
         # URL is already cached from setUp; a second open must not call inspect.
         undodb = self.db.get_undodb()
         with patch("gramps_webapi.undodb.inspect") as mock_inspect:
