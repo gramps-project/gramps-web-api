@@ -1518,6 +1518,10 @@ class PlaceExtendedSchema(_Base):
         fields.Nested(NoteSchema),
         metadata={"description": "Full note records for referenced notes."},
     )
+    places = fields.List(
+        fields.Nested(PlaceSchema),
+        metadata={"description": "Full place records for referenced parent places."},
+    )
     tags = fields.List(
         fields.Nested(TagSchema),
         metadata={"description": "Full tag records for referenced tags."},

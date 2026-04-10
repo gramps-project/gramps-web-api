@@ -335,11 +335,22 @@ class TestPlaces(unittest.TestCase):
             self, TEST_URL + "?gramps_id=P1108", "tag_list", "tags", join="&"
         )
 
+    def test_get_places_parameter_extend_expected_result_placeref_list(self):
+        """Test extend placeref_list result."""
+        check_single_extend_parameter(
+            self,
+            TEST_URL + "?gramps_id=P1108",
+            "placeref_list",
+            "places",
+            join="&",
+            reference=True,
+        )
+
     def test_get_places_parameter_extend_expected_result_all(self):
         """Test extend all result."""
         rv = check_success(self, TEST_URL + "?gramps_id=P1108&extend=all&keys=extended")
-        self.assertEqual(len(rv[0]["extended"]), 4)
-        for key in ["citations", "media", "notes", "tags"]:
+        self.assertEqual(len(rv[0]["extended"]), 5)
+        for key in ["citations", "media", "notes", "places", "tags"]:
             self.assertIn(key, rv[0]["extended"])
 
     def test_get_places_parameter_extend_expected_result_multiple_keys(self):
@@ -488,13 +499,23 @@ class TestPlacesHandle(unittest.TestCase):
             self, TEST_URL + "YNUJQC8YM5EGRG868J", "tag_list", "tags"
         )
 
+    def test_get_places_handle_parameter_extend_expected_result_placeref_list(self):
+        """Test extend placeref_list result."""
+        check_single_extend_parameter(
+            self,
+            TEST_URL + "YNUJQC8YM5EGRG868J",
+            "placeref_list",
+            "places",
+            reference=True,
+        )
+
     def test_get_places_handle_parameter_extend_expected_result_all(self):
         """Test extend all result."""
         rv = check_success(
             self, TEST_URL + "YNUJQC8YM5EGRG868J?extend=all&keys=extended"
         )
-        self.assertEqual(len(rv["extended"]), 4)
-        for key in ["citations", "media", "notes", "tags"]:
+        self.assertEqual(len(rv["extended"]), 5)
+        for key in ["citations", "media", "notes", "places", "tags"]:
             self.assertIn(key, rv["extended"])
 
     def test_get_places_handle_parameter_extend_expected_result_multiple_keys(self):

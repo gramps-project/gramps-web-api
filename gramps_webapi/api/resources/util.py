@@ -888,6 +888,13 @@ def get_extended_attributes(
             catch_handle_error(db_handle.get_person_from_handle, person_ref.ref)
             for person_ref in obj.person_ref_list
         ]
+    if (do_all or "placeref_list" in args["extend"]) and hasattr(
+        obj, "placeref_list"
+    ):
+        result["places"] = [
+            catch_handle_error(db_handle.get_place_from_handle, place_ref.ref)
+            for place_ref in obj.placeref_list
+        ]
     if (do_all or "reporef_list" in args["extend"]) and hasattr(obj, "reporef_list"):
         result["repositories"] = [
             catch_handle_error(db_handle.get_repository_from_handle, repo_ref.ref)
