@@ -888,9 +888,7 @@ def get_extended_attributes(
             catch_handle_error(db_handle.get_person_from_handle, person_ref.ref)
             for person_ref in obj.person_ref_list
         ]
-    if (do_all or "placeref_list" in args["extend"]) and hasattr(
-        obj, "placeref_list"
-    ):
+    if (do_all or "placeref_list" in args["extend"]) and hasattr(obj, "placeref_list"):
         result["places"] = [
             catch_handle_error(db_handle.get_place_from_handle, place_ref.ref)
             for place_ref in obj.placeref_list
@@ -1323,14 +1321,11 @@ def update_object(
             old_event = db_handle.get_event_from_handle(obj.handle)
             old_type = old_event.get_type()
             new_type = obj.get_type()
-            type_affects_indices = (
-                old_type != new_type
-                and (
-                    old_type.is_birth()
-                    or old_type.is_death()
-                    or new_type.is_birth()
-                    or new_type.is_death()
-                )
+            type_affects_indices = old_type != new_type and (
+                old_type.is_birth()
+                or old_type.is_death()
+                or new_type.is_birth()
+                or new_type.is_death()
             )
             # Commit the event first so that set_birth_death_index reads the new type.
             result = commit_method(obj, trans)
