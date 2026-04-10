@@ -102,6 +102,11 @@ class MediaImporter:
                 raise ValueError("Not enough free space on disk")
 
             temp_dir = tempfile.mkdtemp()
+            temp_dir_real = os.path.realpath(temp_dir)
+            for member in zip_file.namelist():
+                member_path = os.path.realpath(os.path.join(temp_dir_real, member))
+                if not member_path.startswith(temp_dir_real + os.sep):
+                    raise ValueError(f"Zip Slip path traversal detected: {member}")
             zip_file.extractall(temp_dir)
 
         return temp_dir
