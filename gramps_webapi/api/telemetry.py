@@ -64,14 +64,21 @@ def should_send_telemetry() -> bool:
 
 def telemetry_last_sent() -> float:
     """Timestamp when telemetry was last sent successfully."""
-    return persistent_cache.get(TELEMETRY_TIMESTAMP_KEY) or 0.0
+    try:
+        return persistent_cache.get(TELEMETRY_TIMESTAMP_KEY) or 0.0
+    except Exception as exc:
+        _LOG.warning("Could not read telemetry timestamp from cache: %s", exc)
+        return 0.0
 
 
 def update_telemetry_timestamp() -> None:
     """Update the telemetry timestamp."""
     global _last_sent
     _last_sent = time.time()
-    persistent_cache.set(TELEMETRY_TIMESTAMP_KEY, _last_sent)
+    try:
+        persistent_cache.set(TELEMETRY_TIMESTAMP_KEY, _last_sent)
+    except Exception as exc:
+        _LOG.warning("Could not write telemetry timestamp to cache: %s", exc)
 
 
 def generate_server_uuid() -> str:
@@ -86,14 +93,18 @@ def get_server_uuid() -> str:
     first startup all converge to the same stored value rather than each
     using a locally-generated UUID that differs from what ended up in cache.
     """
-    server_uuid = persistent_cache.get(TELEMETRY_SERVER_ID_KEY)
-    if not server_uuid:
-        persistent_cache.set(TELEMETRY_SERVER_ID_KEY, generate_server_uuid())
-        # Re-read: if two workers raced, both will now see the winner's value.
+    try:
         server_uuid = persistent_cache.get(TELEMETRY_SERVER_ID_KEY)
         if not server_uuid:
-            # Cache is unavailable (e.g. NullCache); generate an ephemeral UUID.
-            server_uuid = generate_server_uuid()
+            persistent_cache.set(TELEMETRY_SERVER_ID_KEY, generate_server_uuid())
+            # Re-read: if two workers raced, both will now see the winner's value.
+            server_uuid = persistent_cache.get(TELEMETRY_SERVER_ID_KEY)
+    except Exception as exc:
+        _LOG.warning("Could not read/write telemetry server UUID from cache: %s", exc)
+        server_uuid = None
+    if not server_uuid:
+        # Cache unavailable (e.g. NullCache or backend outage); use an ephemeral UUID.
+        server_uuid = generate_server_uuid()
     return server_uuid
 
 

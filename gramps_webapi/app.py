@@ -50,6 +50,7 @@ from .api.cache import persistent_cache, request_cache, thumbnail_cache
 from .api.ratelimiter import limiter
 from .api.search.embeddings import create_remote_embedding_function, load_model
 from .api.tasks import run_task, send_telemetry_task
+from .api.telemetry import _LOG as _telemetry_log
 from .api.telemetry import get_server_uuid, should_send_telemetry
 from .api.util import close_db, get_tree_from_jwt
 from .auth import user_db
@@ -185,7 +186,10 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         # Eagerly assign a server UUID before gunicorn forks workers, so all
         # workers share the same stored value rather than racing to generate one.
         with app.app_context():
-            get_server_uuid()
+            try:
+                get_server_uuid()
+            except Exception as exc:
+                _telemetry_log.warning("Could not initialize telemetry server UUID: %s", exc)
     else:
         app.logger.info(
             "Caches are disabled (DISABLE_CACHES is set). Caches should be enabled in production environment.",
@@ -318,11 +322,11 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         if not tree_id:
             # for endpoints that don't require a JWT, we do nothing
             return None
-        if should_send_telemetry():
-            try:
+        try:
+            if should_send_telemetry():
                 run_task(send_telemetry_task, tree=tree_id)
-            except Exception:
-                pass  # telemetry failures must never affect API availability
+        except Exception as exc:
+            _telemetry_log.warning("Telemetry error: %s", exc)
 
     @app.teardown_appcontext
     def close_db_connection(exception) -> None:
