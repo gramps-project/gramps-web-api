@@ -50,7 +50,7 @@ from .api.cache import persistent_cache, request_cache, thumbnail_cache
 from .api.ratelimiter import limiter
 from .api.search.embeddings import create_remote_embedding_function, load_model
 from .api.tasks import run_task, send_telemetry_task
-from .api.telemetry import should_send_telemetry
+from .api.telemetry import get_server_uuid, should_send_telemetry
 from .api.util import close_db, get_tree_from_jwt
 from .auth import user_db
 from .auth.oidc import init_oidc
@@ -182,6 +182,10 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         request_cache.init_app(app, config=app.config["REQUEST_CACHE_CONFIG"])
         thumbnail_cache.init_app(app, config=app.config["THUMBNAIL_CACHE_CONFIG"])
         persistent_cache.init_app(app, config=app.config["PERSISTENT_CACHE_CONFIG"])
+        # Eagerly assign a server UUID before gunicorn forks workers, so all
+        # workers share the same stored value rather than racing to generate one.
+        with app.app_context():
+            get_server_uuid()
     else:
         app.logger.info(
             "Caches are disabled (DISABLE_CACHES is set). Caches should be enabled in production environment.",
@@ -302,7 +306,7 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
 
     @app.before_request
     def maybe_send_telemetry() -> None:
-        """Send telementry if needed."""
+        """Send telemetry if needed."""
         try:
             if verify_jwt_in_request(optional=True) is None:
                 # for requests without JWT, do nothing
@@ -315,7 +319,10 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
             # for endpoints that don't require a JWT, we do nothing
             return None
         if should_send_telemetry():
-            run_task(send_telemetry_task, tree=tree_id)
+            try:
+                run_task(send_telemetry_task, tree=tree_id)
+            except Exception:
+                pass  # telemetry failures must never affect API availability
 
     @app.teardown_appcontext
     def close_db_connection(exception) -> None:

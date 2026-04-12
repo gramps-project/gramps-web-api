@@ -637,9 +637,10 @@ def send_telemetry_task(tree: str):
         # send telemetry every time a request hits the API.
         return None
     data = get_telemetry_payload(tree_id=tree)
-    # if the request fails, an exception will be raised
-    send_telemetry(data=data)
+    # Update timestamp before the HTTP call so that concurrent workers and
+    # retry-on-failure scenarios don't send duplicate pings within 24 h.
     update_telemetry_timestamp()
+    send_telemetry(data=data)
 
 
 @shared_task()
