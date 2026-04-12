@@ -22,6 +22,8 @@
 import logging
 import os
 import warnings
+
+_LOG = logging.getLogger(__name__)
 from typing import Any, Dict, Optional
 
 import flask_smorest
@@ -50,7 +52,6 @@ from .api.cache import persistent_cache, request_cache, thumbnail_cache
 from .api.ratelimiter import limiter
 from .api.search.embeddings import create_remote_embedding_function, load_model
 from .api.tasks import run_task, send_telemetry_task
-from .api.telemetry import _LOG as _telemetry_log
 from .api.telemetry import get_server_uuid, should_send_telemetry
 from .api.util import close_db, get_tree_from_jwt
 from .auth import user_db
@@ -189,7 +190,7 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
             try:
                 get_server_uuid()
             except Exception as exc:
-                _telemetry_log.warning("Could not initialize telemetry server UUID: %s", exc)
+                _LOG.warning("Could not initialize telemetry server UUID: %s", exc)
     else:
         app.logger.info(
             "Caches are disabled (DISABLE_CACHES is set). Caches should be enabled in production environment.",
@@ -326,7 +327,7 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
             if should_send_telemetry():
                 run_task(send_telemetry_task, tree=tree_id)
         except Exception as exc:
-            _telemetry_log.warning("Telemetry error: %s", exc)
+            _LOG.warning("Telemetry error: %s", exc)
 
     @app.teardown_appcontext
     def close_db_connection(exception) -> None:

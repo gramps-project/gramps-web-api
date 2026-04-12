@@ -63,7 +63,7 @@ def should_send_telemetry() -> bool:
 
 
 def telemetry_last_sent() -> float:
-    """Timestamp when telemetry was last sent successfully."""
+    """Timestamp of the last telemetry send attempt (set before the HTTP call)."""
     try:
         return persistent_cache.get(TELEMETRY_TIMESTAMP_KEY) or 0.0
     except Exception as exc:
@@ -72,7 +72,7 @@ def telemetry_last_sent() -> float:
 
 
 def update_telemetry_timestamp() -> None:
-    """Update the telemetry timestamp."""
+    """Record the current time as the last telemetry send attempt."""
     global _last_sent
     _last_sent = time.time()
     try:

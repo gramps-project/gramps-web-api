@@ -32,7 +32,12 @@ from gramps_webapi.api.cache import persistent_cache
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import ROLE_GUEST
-from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
+from gramps_webapi.const import (
+    ENV_CONFIG_FILE,
+    TELEMETRY_SERVER_ID_KEY,
+    TELEMETRY_TIMESTAMP_KEY,
+    TEST_AUTH_CONFIG,
+)
 from gramps_webapi.dbmanager import WebDbManager
 
 
@@ -87,11 +92,11 @@ class TestTelemetry(unittest.TestCase):
                 assert "timestamp" in kwargs["json"]
                 assert "server_uuid" in kwargs["json"]
                 assert "tree_uuid" in kwargs["json"]
-                last_sent = persistent_cache.get("telemetry_last_sent")
+                last_sent = persistent_cache.get(TELEMETRY_TIMESTAMP_KEY)
                 assert last_sent is not None
                 assert abs(now - last_sent) < 5.0
                 assert kwargs["json"]["timestamp"] - last_sent < 5.0
-                server_uuid = persistent_cache.get("telemetry_server_uuid")
+                server_uuid = persistent_cache.get(TELEMETRY_SERVER_ID_KEY)
                 assert server_uuid == kwargs["json"]["server_uuid"]
                 # call again
                 rv = self.client.get("/api/people/", headers=header)
@@ -127,6 +132,6 @@ class TestTelemetry(unittest.TestCase):
                 access_token = rv.json["access_token"]
                 header = {"Authorization": "Bearer {}".format(access_token)}
                 self.client.get("/api/people/", headers=header)
-                last_sent = persistent_cache.get("telemetry_last_sent")
+                last_sent = persistent_cache.get(TELEMETRY_TIMESTAMP_KEY)
                 assert last_sent is not None
                 assert abs(time.time() - last_sent) < 5.0
