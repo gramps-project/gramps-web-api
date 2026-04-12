@@ -22,8 +22,6 @@
 import logging
 import os
 import warnings
-
-_LOG = logging.getLogger(__name__)
 from typing import Any, Dict, Optional
 
 import flask_smorest
@@ -61,6 +59,8 @@ from .config import DefaultConfig, DefaultConfigJWT
 from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI, VERSION
 from .dbmanager import WebDbManager
 from .util.celery import create_celery
+
+_LOG = logging.getLogger(__name__)
 
 
 def deprecated_config_from_env(app):
