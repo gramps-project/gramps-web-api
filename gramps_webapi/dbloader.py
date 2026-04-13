@@ -204,8 +204,6 @@ class WebDbSessionManager:
         if not filename:
             return
 
-        if filename[-1] == os.path.sep:
-            filename = filename[:-1]
         self.dbstate.db.db_name = title
 
         # apply preferred researcher if loaded file has none
