@@ -56,10 +56,12 @@ class WebDbManager:
         """Initialize given a family tree name or subdirectory name (path)."""
         if dirname:
             self.dirname = dirname
-            self.name = self._get_name(dirname=dirname) or name or "unnamed tree"
+            self._name_from_file = self._get_name(dirname=dirname)
+            self.name = self._name_from_file or name or "unnamed tree"
         else:
             if name:
                 self.name = name
+                self._name_from_file = ""  # name came from caller, not disk
                 self.dirname = self._get_dirname(name=name)
             else:
                 raise ValueError("One of (name, dirname) must be specified.")
@@ -182,7 +184,7 @@ class WebDbManager:
             username=self.username,
             password=self.password,
             ignore_lock=self.ignore_lock,
-            title=self.name,
+            title=self._name_from_file or None,
         )
         return dbstate
 
