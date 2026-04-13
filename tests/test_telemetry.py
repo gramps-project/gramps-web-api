@@ -23,14 +23,21 @@ import time
 import unittest
 from unittest.mock import patch
 
+import requests
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
+import gramps_webapi.api.telemetry as telemetry_module
 from gramps_webapi.api.cache import persistent_cache
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import ROLE_GUEST
-from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
+from gramps_webapi.const import (
+    ENV_CONFIG_FILE,
+    TELEMETRY_SERVER_ID_KEY,
+    TELEMETRY_TIMESTAMP_KEY,
+    TEST_AUTH_CONFIG,
+)
 from gramps_webapi.dbmanager import WebDbManager
 
 
@@ -59,6 +66,11 @@ class TestTelemetry(unittest.TestCase):
         cls.dbman.remove_database(cls.name)
         persistent_cache.clear()
 
+    def setUp(self):
+        # Reset the in-process timestamp so each test starts with a clean slate.
+        telemetry_module._last_sent = 0.0
+        persistent_cache.clear()
+
     def test_telemetry(self):
         with patch.dict("os.environ", {"MOCK_TELEMETRY": "1"}):
             with patch("requests.post") as mock_post:
@@ -80,13 +92,46 @@ class TestTelemetry(unittest.TestCase):
                 assert "timestamp" in kwargs["json"]
                 assert "server_uuid" in kwargs["json"]
                 assert "tree_uuid" in kwargs["json"]
-                last_sent = persistent_cache.get("telemetry_last_sent")
+                last_sent = persistent_cache.get(TELEMETRY_TIMESTAMP_KEY)
                 assert last_sent is not None
                 assert abs(now - last_sent) < 5.0
                 assert kwargs["json"]["timestamp"] - last_sent < 5.0
-                server_uuid = persistent_cache.get("telemetry_server_uuid")
+                server_uuid = persistent_cache.get(TELEMETRY_SERVER_ID_KEY)
                 assert server_uuid == kwargs["json"]["server_uuid"]
                 # call again
                 rv = self.client.get("/api/people/", headers=header)
                 # sent still just once
                 mock_post.assert_called_once()
+
+    def test_telemetry_send_failure_does_not_affect_response(self):
+        """A network error sending telemetry must not return HTTP 500 to the caller."""
+        with patch.dict("os.environ", {"MOCK_TELEMETRY": "1"}):
+            with patch(
+                "requests.post",
+                side_effect=requests.exceptions.ConnectionError("unreachable"),
+            ):
+                rv = self.client.post(
+                    "/api/token/", json={"username": "user", "password": "123"}
+                )
+                access_token = rv.json["access_token"]
+                header = {"Authorization": "Bearer {}".format(access_token)}
+                rv = self.client.get("/api/people/", headers=header)
+                assert rv.status_code == 200
+
+    def test_telemetry_timestamp_set_even_on_send_failure(self):
+        """Timestamp is written before the HTTP call, so a failed send still
+        updates the 24 h window and prevents immediate retry."""
+        with patch.dict("os.environ", {"MOCK_TELEMETRY": "1"}):
+            with patch(
+                "requests.post",
+                side_effect=requests.exceptions.ConnectionError("unreachable"),
+            ):
+                rv = self.client.post(
+                    "/api/token/", json={"username": "user", "password": "123"}
+                )
+                access_token = rv.json["access_token"]
+                header = {"Authorization": "Bearer {}".format(access_token)}
+                self.client.get("/api/people/", headers=header)
+                last_sent = persistent_cache.get(TELEMETRY_TIMESTAMP_KEY)
+                assert last_sent is not None
+                assert abs(time.time() - last_sent) < 5.0
