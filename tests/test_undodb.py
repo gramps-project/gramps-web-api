@@ -93,6 +93,11 @@ class TestUndoHistory(unittest.TestCase):
         pass
 
     def tearDown(self):
+        self.db.close(update=False)
+        for engine in DbUndoSQL._engine_pool.values():
+            engine.dispose()
+        DbUndoSQL._engine_pool.clear()
+        DbUndoSQL._schema_checked_urls.clear()
         shutil.rmtree(self.dbdir)
 
     def __add_object(self, obj_class, add_func, trans):
