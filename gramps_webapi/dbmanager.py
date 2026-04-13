@@ -198,6 +198,8 @@ class WebDbManager:
         with open(filepath, "r", encoding="utf8") as name_file:
             old_name = name_file.read().strip()
         new_name = new_name.strip()
+        if not new_name:
+            raise ValueError("Tree name must not be empty.")
         with open(filepath, "w", encoding="utf8") as name_file:
             name_file.write(new_name)
         self._name_from_file = new_name

@@ -251,7 +251,10 @@ class TreeResource(ProtectedResource):
                     "in single-tree setup. Set TREE_ID to the tree's directory name "
                     "(visible in GET /api/trees/-) and restart the server.",
                 )
-            old_name, new_name = dbmgr.rename_database(new_name=args["name"])
+            try:
+                old_name, new_name = dbmgr.rename_database(new_name=args["name"])
+            except ValueError as e:
+                abort_with_message(422, str(e))
             rv.update({"old_name": old_name, "new_name": new_name})
         if args.get("quota_media") is not None or args.get("quota_people") is not None:
             require_permissions([PERM_EDIT_TREE_QUOTA])
