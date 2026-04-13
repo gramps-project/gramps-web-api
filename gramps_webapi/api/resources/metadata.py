@@ -105,9 +105,9 @@ def get_dbid_from_tree_id(tree_id: str) -> str:
     return get_dbid_from_path(db_path)
 
 
-@functools.cache
+@functools.lru_cache(maxsize=256)
 def _get_dbid_from_tree_id(tree_id: str) -> str:
-    """Return the DB backend ID for a tree (worker-lifetime constant per tree)."""
+    """Return the DB backend ID for a tree (cached per tree, bounded to 256 entries)."""
     return get_dbid_from_tree_id(tree_id)
 
 
