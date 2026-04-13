@@ -139,6 +139,9 @@ class WebDbManager:
         with open(backend_path, "w", encoding="utf8") as backend_file:
             backend_file.write(self.create_backend)
 
+        # cache the name written to disk so get_db() doesn't re-read name.txt
+        self._name_from_file = self.name
+
     def _check_backend(self) -> None:
         """Check that the backend is among the allowed backends."""
         backend = get_dbid_from_path(self.path)
@@ -193,7 +196,8 @@ class WebDbManager:
         """
         filepath = os.path.join(self.dbdir, self.dirname, NAME_FILE)
         with open(filepath, "r", encoding="utf8") as name_file:
-            old_name = name_file.read()
+            old_name = name_file.read().strip()
+        new_name = new_name.strip()
         with open(filepath, "w", encoding="utf8") as name_file:
             name_file.write(new_name)
         self._name_from_file = new_name
