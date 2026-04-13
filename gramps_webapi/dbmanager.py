@@ -197,6 +197,7 @@ class WebDbManager:
         with open(filepath, "w", encoding="utf8") as name_file:
             name_file.write(new_name)
         self._name_from_file = new_name
+        self.name = new_name
         return old_name, new_name
 
     def upgrade_if_needed(
