@@ -65,7 +65,6 @@ class WebDbManager:
                 self.dirname = self._get_dirname(name=name)
             else:
                 raise ValueError("One of (name, dirname) must be specified.")
-        self.dirname = dirname or self._get_dirname(name=name or "")
         self.username = username
         self.password = password
         self.create_if_missing = create_if_missing
