@@ -185,7 +185,7 @@ class WebDbManager:
             username=self.username,
             password=self.password,
             ignore_lock=self.ignore_lock,
-            title=self._name_from_file,
+            title=self._name_from_file or self.name,
         )
         return dbstate
 

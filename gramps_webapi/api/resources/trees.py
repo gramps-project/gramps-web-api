@@ -241,7 +241,7 @@ class TreeResource(ProtectedResource):
             abort(404)
             raise  # unreachable; satisfies type checker
         rv = {}
-        if args["name"]:
+        if args.get("name") is not None:
             if current_app.config["TREE"] != TREE_MULTI and not current_app.config.get(
                 "TREE_ID"
             ):
