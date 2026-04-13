@@ -61,7 +61,7 @@ class WebDbManager:
         else:
             if name:
                 self.name = name
-                self._name_from_file = ""  # name came from caller, not disk
+                self._name_from_file = None  # name came from caller, not disk
                 self.dirname = self._get_dirname(name=name)
             else:
                 raise ValueError("One of (name, dirname) must be specified.")
@@ -83,16 +83,15 @@ class WebDbManager:
         """Make a new database directory name."""
         return str(uuid.uuid4())
 
-    def _get_name(self, dirname: str) -> str:
-        """Get the database name."""
+    def _get_name(self, dirname: str) -> Optional[str]:
+        """Get the database name, or None if not found/empty."""
         dirpath = os.path.join(self.dbdir, dirname)
         path_name = os.path.join(dirpath, NAME_FILE)
         if os.path.isfile(path_name):
             with open(path_name, "r", encoding="utf8") as name_file:
                 name = name_file.readline().strip()
-        else:
-            return ""
-        return name
+            return name or None
+        return None
 
     def _get_dirname(self, name: str) -> str:
         """Get the path of the family tree database."""
@@ -183,7 +182,7 @@ class WebDbManager:
             username=self.username,
             password=self.password,
             ignore_lock=self.ignore_lock,
-            title=self._name_from_file or None,
+            title=self._name_from_file,
         )
         return dbstate
 
@@ -197,6 +196,7 @@ class WebDbManager:
             old_name = name_file.read()
         with open(filepath, "w", encoding="utf8") as name_file:
             name_file.write(new_name)
+        self._name_from_file = new_name
         return old_name, new_name
 
     def upgrade_if_needed(
