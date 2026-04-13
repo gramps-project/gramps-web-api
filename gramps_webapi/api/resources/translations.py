@@ -115,6 +115,7 @@ class TranslationResource(ProtectedResource, GrampsJSONEncoder):
                         }
                         for s in strings
                     ],
+                    cache_control="max-age=31536000, immutable",
                 )
         abort(404)
 
@@ -179,4 +180,4 @@ class TranslationsResource(ProtectedResource, GrampsJSONEncoder):
                 abort(422)
             translations.sort(key=lambda x: lookup[sort_key](x), reverse=reverse)
 
-        return self.response(200, translations)
+        return self.response(200, translations, cache_control="max-age=31536000, immutable")
