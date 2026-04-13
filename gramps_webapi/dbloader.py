@@ -184,7 +184,13 @@ class WebDbSessionManager:
         ignore_lock: bool = False,
         title: str | None = None,
     ):
-        """Open and make a family tree active."""
+        """Open and make a family tree active.
+
+        If ``title`` is provided, it is used directly as the database title,
+        avoiding a disk read of ``name.txt``. Pass ``None`` (default) to let
+        the method fall back to reading the title from disk via
+        ``get_title()``.
+        """
         if not ignore_lock:
             check_lock(dir_name=filename, mode=mode)
         self.read_file(filename, mode, username, password)
