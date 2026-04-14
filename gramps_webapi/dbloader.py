@@ -49,9 +49,10 @@ LOG = logging.getLogger(__name__)
 
 # Module-level cache for PostgreSQL settings.ini credentials (base fields only,
 # without username/password which are supplied per-request).  Keyed by the
-# absolute database directory path.  The file is written once and never
-# changes, so the cache never needs explicit invalidation.
-_postgres_creds_cache: dict[str, dict] = {}  # dirpath -> base dbkwargs
+# absolute database directory path.  Each entry is a (mtime, dbkwargs) tuple;
+# the mtime is compared on every call so that external edits to settings.ini
+# are picked up without requiring a process restart.
+_postgres_creds_cache: dict[str, tuple[float, dict]] = {}  # dirpath -> (mtime, base dbkwargs)
 
 
 class DbLockedError(Exception):
@@ -77,8 +78,18 @@ def get_title(filename: str) -> str:
 
 def get_postgres_credentials(directory, username, password):
     """Get the credentials for PostgreSQL."""
-    if directory not in _postgres_creds_cache:
-        config_file = os.path.join(directory, "settings.ini")
+    config_file = os.path.join(directory, "settings.ini")
+
+    # Determine whether the cache is still valid by comparing mtime.
+    # If settings.ini has been edited externally the new values will be picked
+    # up on the next call without requiring a process restart.
+    try:
+        current_mtime = os.path.getmtime(config_file)
+    except OSError:
+        current_mtime = 0.0
+
+    cached = _postgres_creds_cache.get(directory)
+    if cached is None or cached[0] != current_mtime:
         config_mgr = ConfigManager(config_file)
         config_mgr.register("database.dbname", "")
         config_mgr.register("database.host", "")
@@ -91,6 +102,10 @@ def get_postgres_credentials(directory, username, password):
             config_mgr.set("database.port", config.get("database.port"))
             config_mgr.set("tree.uuid", uuid4().hex)
             config_mgr.save()
+            try:
+                current_mtime = os.path.getmtime(config_file)
+            except OSError:
+                current_mtime = 0.0
 
         config_mgr.load()
 
@@ -99,9 +114,9 @@ def get_postgres_credentials(directory, username, password):
             value = config_mgr.get("database." + key)
             if value:
                 dbkwargs[key] = value
-        _postgres_creds_cache[directory] = dbkwargs
+        _postgres_creds_cache[directory] = (current_mtime, dbkwargs)
 
-    dbkwargs = dict(_postgres_creds_cache[directory])
+    dbkwargs = dict(_postgres_creds_cache[directory][1])
     if username:
         dbkwargs["user"] = username
     if password:

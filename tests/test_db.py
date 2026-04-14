@@ -21,12 +21,14 @@
 
 import unittest
 import uuid
+from unittest.mock import patch
 
 from gramps.cli.clidbman import CLIDbManager
+from gramps.gen.db.dbconst import DBBACKEND
 from gramps.gen.db.utils import make_database
 from gramps.gen.dbstate import DbState
 
-from gramps_webapi.dbmanager import WebDbManager
+from gramps_webapi.dbmanager import WebDbManager, _backend_cache, _name_cache
 
 
 class TestWebDbManager(unittest.TestCase):
@@ -87,3 +89,78 @@ class TestWebDbManagerCreate(unittest.TestCase):
         name = "Test Web Db Manager 5"
         with self.assertRaises(ValueError):
             dbmgr = WebDbManager(dirname="my_dirname_2", create_if_missing=False)
+
+
+class TestWebDbManagerCache(unittest.TestCase):
+    """Tests for module-level metadata caches."""
+
+    def setUp(self):
+        self.name = "Test Cache Db"
+        self.dbmgr = WebDbManager(self.name, create_if_missing=True)
+        self.dbman = CLIDbManager(DbState())
+
+    def tearDown(self):
+        self.dbman.remove_database(self.name)
+
+    def test_name_cache_populated_after_init(self):
+        """name.txt is cached after the first WebDbManager instantiation."""
+        self.assertIn(self.dbmgr.path, _name_cache)
+        self.assertEqual(_name_cache[self.dbmgr.path], self.name)
+
+    def test_backend_cache_populated_after_init(self):
+        """DBBACKEND is cached after the first WebDbManager instantiation."""
+        self.assertIn(self.dbmgr.path, _backend_cache)
+        self.assertEqual(_backend_cache[self.dbmgr.path], "sqlite")
+
+    def test_name_cache_hit_skips_disk_read(self):
+        """_get_name() returns the cached value without touching the filesystem."""
+        # After the first init the cache is warm; subsequent opens must not
+        # call open() on name.txt.
+        with patch("builtins.open", side_effect=AssertionError("disk read")):
+            # Re-construct using dirname so _get_name() is called
+            dbmgr2 = WebDbManager(
+                dirname=self.dbmgr.dirname, create_if_missing=False
+            )
+        self.assertEqual(dbmgr2.name, self.name)
+
+    def test_backend_cache_hit_skips_disk_read(self):
+        """_check_backend() uses the cached dbid without calling get_dbid_from_path."""
+        target = "gramps_webapi.dbmanager.get_dbid_from_path"
+        with patch(target, side_effect=AssertionError("disk read")):
+            WebDbManager(dirname=self.dbmgr.dirname, create_if_missing=False)
+
+    def test_rename_updates_name_cache(self):
+        """rename_database() keeps _name_cache consistent."""
+        new_name = "Test Cache Db Renamed"
+        try:
+            self.dbmgr.rename_database(new_name)
+            self.assertEqual(_name_cache[self.dbmgr.path], new_name)
+            # A fresh WebDbManager for the same dirname must not hit disk
+            with patch("builtins.open", side_effect=AssertionError("disk read")):
+                dbmgr2 = WebDbManager(
+                    dirname=self.dbmgr.dirname, create_if_missing=False
+                )
+            self.assertEqual(dbmgr2.name, new_name)
+        finally:
+            # rename back so tearDown can clean up by original name list
+            self.dbmgr.rename_database(self.name)
+
+    def test_dbid_forwarded_to_read_file(self):
+        """get_db() passes the cached dbid so DBBACKEND is not re-read."""
+        open_calls = []
+        real_open = open
+
+        def tracking_open(path, *args, **kwargs):
+            open_calls.append(path)
+            return real_open(path, *args, **kwargs)
+
+        with patch("builtins.open", side_effect=tracking_open):
+            dbstate = self.dbmgr.get_db()
+            dbstate.db.close()
+
+        dbbackend_reads = [p for p in open_calls if p.endswith(DBBACKEND)]
+        self.assertEqual(
+            len(dbbackend_reads),
+            0,
+            "DBBACKEND should not be read from disk when dbid is already cached",
+        )

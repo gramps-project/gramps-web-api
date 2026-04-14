@@ -40,7 +40,7 @@ from .dbloader import WebDbSessionManager
 # Module-level process-wide caches for tiny metadata files that are stable
 # across requests.  Keyed by absolute directory path.
 # Invalidated explicitly when the file is rewritten by this process.
-_name_cache: dict[str, "Optional[str]"] = {}  # dirpath -> tree name
+_name_cache: dict[str, Optional[str]] = {}  # dirpath -> tree name
 _backend_cache: dict[str, str] = {}  # dirpath -> db backend id
 
 
