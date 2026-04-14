@@ -320,9 +320,11 @@ class DbUndoSQL(DbUndo):
     def close(self) -> None:
         """Close the backing storage.
 
-        No-op: the engine is shared via _engine_pool; connections are
-        returned to the pool by session_scope's finally block.
+        Disposes pooled connections so the next open() starts fresh.
+        The engine object itself stays in _engine_pool for reuse across
+        requests to the same URL.
         """
+        self.engine.dispose()
 
     def append(self, value) -> None:
         """Add a new entry on the end."""
