@@ -163,11 +163,11 @@ class WebDbManager:
             backend = _backend_cache[self.path]
         else:
             backend = get_dbid_from_path(self.path)
-            _backend_cache[self.path] = backend
         if backend not in self.ALLOWED_DB_BACKENDS:
             raise ValueError(
                 f"Database backend '{backend}' of tree '{self.name}' not supported."
             )
+        _backend_cache[self.path] = backend
         self._dbid = backend
 
     def is_locked(self) -> bool:
