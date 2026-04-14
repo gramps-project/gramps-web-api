@@ -37,7 +37,6 @@ from gramps.gen.db.utils import make_database
 from gramps.gen.dbstate import DbState
 from gramps.gen.display.name import displayer as name_displayer
 from gramps.gen.plug import BasePluginManager
-from gramps.gen.recentfiles import recent_files
 from gramps.gen.user import UserBase
 from gramps.gen.utils.config import get_researcher
 from gramps.gen.utils.configmanager import ConfigManager
@@ -183,13 +182,21 @@ class WebDbSessionManager:
         username=None,
         password=None,
         ignore_lock: bool = False,
+        title: str | None = None,
     ):
-        """Open and make a family tree active."""
+        """Open and make a family tree active.
+
+        If ``title`` is provided, it is used directly as the database title,
+        avoiding a disk read of ``name.txt``. Pass ``None`` (default) to let
+        the method fall back to reading the title from disk via
+        ``get_title()``.
+        """
         if not ignore_lock:
             check_lock(dir_name=filename, mode=mode)
         self.read_file(filename, mode, username, password)
-        # Attempt to figure out the database title
-        title = get_title(filename)
+        # Use provided title to avoid re-reading name.txt; fall back for safety
+        if title is None:
+            title = get_title(filename)
         self._post_load_newdb(filename, title)
 
     def _post_load_newdb(self, filename, title=None):
@@ -197,12 +204,7 @@ class WebDbSessionManager:
         if not filename:
             return
 
-        if filename[-1] == os.path.sep:
-            filename = filename[:-1]
-        name = os.path.basename(filename)
         self.dbstate.db.db_name = title
-        if title:
-            name = title
 
         # apply preferred researcher if loaded file has none
         res = self.dbstate.db.get_researcher()
@@ -220,10 +222,8 @@ class WebDbSessionManager:
 
         self.dbstate.db.enable_signals()
         self.dbstate.signal_change()
-
-        config.set("paths.recent-file", filename)
-
-        recent_files(filename, name)
+        # skip config.set("paths.recent-file") and recent_files():
+        # these are Gramps desktop-only bookkeeping and cause unnecessary disk I/O
 
     def do_reg_plugins(self, dbstate, uistate, rescan=False):
         """Register the plugins at initialization time."""

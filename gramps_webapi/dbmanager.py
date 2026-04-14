@@ -56,14 +56,15 @@ class WebDbManager:
         """Initialize given a family tree name or subdirectory name (path)."""
         if dirname:
             self.dirname = dirname
-            self.name = self._get_name(dirname=dirname) or name or "unnamed tree"
+            self._name_from_file = self._get_name(dirname=dirname)
+            self.name = self._name_from_file or name or "unnamed tree"
         else:
             if name:
                 self.name = name
+                self._name_from_file = None  # name came from caller, not disk
                 self.dirname = self._get_dirname(name=name)
             else:
                 raise ValueError("One of (name, dirname) must be specified.")
-        self.dirname = dirname or self._get_dirname(name=name or "")
         self.username = username
         self.password = password
         self.create_if_missing = create_if_missing
@@ -82,16 +83,15 @@ class WebDbManager:
         """Make a new database directory name."""
         return str(uuid.uuid4())
 
-    def _get_name(self, dirname: str) -> str:
-        """Get the database name."""
+    def _get_name(self, dirname: str) -> Optional[str]:
+        """Get the database name, or None if not found/empty."""
         dirpath = os.path.join(self.dbdir, dirname)
         path_name = os.path.join(dirpath, NAME_FILE)
         if os.path.isfile(path_name):
             with open(path_name, "r", encoding="utf8") as name_file:
                 name = name_file.readline().strip()
-        else:
-            return ""
-        return name
+            return name or None
+        return None
 
     def _get_dirname(self, name: str) -> str:
         """Get the path of the family tree database."""
@@ -139,6 +139,9 @@ class WebDbManager:
         with open(backend_path, "w", encoding="utf8") as backend_file:
             backend_file.write(self.create_backend)
 
+        # cache the name written to disk so get_db() doesn't re-read name.txt
+        self._name_from_file = self.name
+
     def _check_backend(self) -> None:
         """Check that the backend is among the allowed backends."""
         backend = get_dbid_from_path(self.path)
@@ -182,6 +185,7 @@ class WebDbManager:
             username=self.username,
             password=self.password,
             ignore_lock=self.ignore_lock,
+            title=self._name_from_file or self.name,
         )
         return dbstate
 
@@ -192,9 +196,14 @@ class WebDbManager:
         """
         filepath = os.path.join(self.dbdir, self.dirname, NAME_FILE)
         with open(filepath, "r", encoding="utf8") as name_file:
-            old_name = name_file.read()
+            old_name = name_file.read().strip()
+        new_name = new_name.strip()
+        if not new_name:
+            raise ValueError("Tree name must not be empty.")
         with open(filepath, "w", encoding="utf8") as name_file:
             name_file.write(new_name)
+        self._name_from_file = new_name
+        self.name = new_name
         return old_name, new_name
 
     def upgrade_if_needed(

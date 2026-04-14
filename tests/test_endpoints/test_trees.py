@@ -200,6 +200,32 @@ class TestTrees(unittest.TestCase):
         assert rv.status_code == 200
         assert rv.json == {"old_name": "my old name", "new_name": "my new name"}
 
+    def test_rename_tree_blank_name(self):
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "admin", "password": "123"}
+        )
+        token = rv.json["access_token"]
+        rv = self.client.post(
+            BASE_URL + "/trees/",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"name": "blank name test"},
+        )
+        assert rv.status_code == 201
+        tree_id = rv.json["id"]
+        rv = self.client.put(
+            BASE_URL + f"/trees/{tree_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"name": "   "},
+        )
+        assert rv.status_code == 422
+        # Ensure name was not changed
+        rv = self.client.get(
+            BASE_URL + f"/trees/{tree_id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert rv.status_code == 200
+        assert rv.json["name"] == "blank name test"
+
     def test_disable_tree(self):
         # fetch tokens
         rv = self.client.post(
