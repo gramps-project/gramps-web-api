@@ -47,6 +47,15 @@ _ = glocale.translation.gettext
 
 LOG = logging.getLogger(__name__)
 
+# Module-level cache for PostgreSQL settings.ini credentials (base fields only,
+# without username/password which are supplied per-request).  Keyed by the
+# absolute database directory path.  Each entry is a (mtime_ns, dbkwargs) tuple;
+# the mtime_ns is compared on every call so that external edits to settings.ini
+# are picked up without requiring a process restart.
+_postgres_creds_cache: dict[str, tuple[int, dict]] = (
+    {}
+)  # dirpath -> (mtime_ns, base dbkwargs dict)
+
 
 class DbLockedError(Exception):
     """Exception raised when a db is locked and write access is requested."""
@@ -72,26 +81,44 @@ def get_title(filename: str) -> str:
 def get_postgres_credentials(directory, username, password):
     """Get the credentials for PostgreSQL."""
     config_file = os.path.join(directory, "settings.ini")
-    config_mgr = ConfigManager(config_file)
-    config_mgr.register("database.dbname", "")
-    config_mgr.register("database.host", "")
-    config_mgr.register("database.port", "")
-    config_mgr.register("tree.uuid", "")
 
-    if not os.path.exists(config_file):
-        config_mgr.set("database.dbname", "gramps")
-        config_mgr.set("database.host", config.get("database.host"))
-        config_mgr.set("database.port", config.get("database.port"))
-        config_mgr.set("tree.uuid", uuid4().hex)
-        config_mgr.save()
+    # Determine whether the cache is still valid by comparing mtime_ns.
+    # If settings.ini has been edited externally the new values will be picked
+    # up on the next call without requiring a process restart.
+    try:
+        current_mtime = os.stat(config_file).st_mtime_ns
+    except OSError:
+        current_mtime = 0
 
-    config_mgr.load()
+    cached = _postgres_creds_cache.get(directory)
+    if cached is None or cached[0] != current_mtime:
+        config_mgr = ConfigManager(config_file)
+        config_mgr.register("database.dbname", "")
+        config_mgr.register("database.host", "")
+        config_mgr.register("database.port", "")
+        config_mgr.register("tree.uuid", "")
 
-    dbkwargs = {}
-    for key in config_mgr.get_section_settings("database"):
-        value = config_mgr.get("database." + key)
-        if value:
-            dbkwargs[key] = value
+        if not os.path.exists(config_file):
+            config_mgr.set("database.dbname", "gramps")
+            config_mgr.set("database.host", config.get("database.host"))
+            config_mgr.set("database.port", config.get("database.port"))
+            config_mgr.set("tree.uuid", uuid4().hex)
+            config_mgr.save()
+            try:
+                current_mtime = os.stat(config_file).st_mtime_ns
+            except OSError:
+                current_mtime = 0
+
+        config_mgr.load()
+
+        dbkwargs: dict = {}
+        for key in config_mgr.get_section_settings("database"):
+            value = config_mgr.get("database." + key)
+            if value:
+                dbkwargs[key] = value
+        _postgres_creds_cache[directory] = (current_mtime, dbkwargs)
+
+    dbkwargs = dict(_postgres_creds_cache[directory][1])
     if username:
         dbkwargs["user"] = username
     if password:
@@ -117,8 +144,13 @@ class WebDbSessionManager:
         username: str | None,
         password: str | None,
         force_schema_upgrade: bool = False,
+        dbid: str | None = None,
     ):
-        """Open a database from a file."""
+        """Open a database from a file.
+
+        If ``dbid`` is supplied (the backend identifier already read from
+        ``DBBACKEND`` by the caller), the file is not read again.
+        """
         if (
             mode == DBMODE_W
             and os.path.exists(filename)
@@ -131,9 +163,10 @@ class WebDbSessionManager:
                 _("You do not have write access " "to the selected file."),
             )
 
-        dbid_path = os.path.join(filename, DBBACKEND)
-        with open(dbid_path) as file_handle:
-            dbid = file_handle.read().strip()
+        if dbid is None:
+            dbid_path = os.path.join(filename, DBBACKEND)
+            with open(dbid_path) as file_handle:
+                dbid = file_handle.read().strip()
 
         db = make_database(dbid)
 
@@ -183,6 +216,7 @@ class WebDbSessionManager:
         password=None,
         ignore_lock: bool = False,
         title: str | None = None,
+        dbid: str | None = None,
     ):
         """Open and make a family tree active.
 
@@ -190,10 +224,13 @@ class WebDbSessionManager:
         avoiding a disk read of ``name.txt``. Pass ``None`` (default) to let
         the method fall back to reading the title from disk via
         ``get_title()``.
+
+        If ``dbid`` is provided, it is forwarded to :meth:`read_file` so the
+        ``DBBACKEND`` file is not read a second time.
         """
         if not ignore_lock:
             check_lock(dir_name=filename, mode=mode)
-        self.read_file(filename, mode, username, password)
+        self.read_file(filename, mode, username, password, dbid=dbid)
         # Use provided title to avoid re-reading name.txt; fall back for safety
         if title is None:
             title = get_title(filename)
