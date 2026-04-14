@@ -49,12 +49,12 @@ LOG = logging.getLogger(__name__)
 
 # Module-level cache for PostgreSQL settings.ini credentials (base fields only,
 # without username/password which are supplied per-request).  Keyed by the
-# absolute database directory path.  Each entry is a (mtime, dbkwargs) tuple;
-# the mtime is compared on every call so that external edits to settings.ini
+# absolute database directory path.  Each entry is a (mtime_ns, dbkwargs) tuple;
+# the mtime_ns is compared on every call so that external edits to settings.ini
 # are picked up without requiring a process restart.
 _postgres_creds_cache: dict[str, tuple[int, dict]] = (
     {}
-)  # dirpath -> (mtime_ns, base dbkwargs)
+)  # dirpath -> (mtime_ns, base dbkwargs dict)
 
 
 class DbLockedError(Exception):
@@ -82,7 +82,7 @@ def get_postgres_credentials(directory, username, password):
     """Get the credentials for PostgreSQL."""
     config_file = os.path.join(directory, "settings.ini")
 
-    # Determine whether the cache is still valid by comparing mtime.
+    # Determine whether the cache is still valid by comparing mtime_ns.
     # If settings.ini has been edited externally the new values will be picked
     # up on the next call without requiring a process restart.
     try:
