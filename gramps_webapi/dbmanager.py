@@ -99,10 +99,11 @@ class WebDbManager:
             with open(path_name, "r", encoding="utf8") as name_file:
                 name = name_file.readline().strip()
             result: Optional[str] = name or None
-        else:
-            result = None
-        _name_cache[dirpath] = result
-        return result
+            # Only cache positive reads to avoid stale None entries if the
+            # directory is created later.
+            _name_cache[dirpath] = result
+            return result
+        return None
 
     def _get_dirname(self, name: str) -> str:
         """Get the path of the family tree database."""

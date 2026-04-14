@@ -19,6 +19,7 @@
 
 """Tests for the `gramps_webapi.dbmanager` module."""
 
+import os
 import unittest
 import uuid
 from unittest.mock import patch
@@ -161,4 +162,30 @@ class TestWebDbManagerCache(unittest.TestCase):
             len(dbbackend_reads),
             0,
             "DBBACKEND should not be read from disk when dbid is already cached",
+        )
+
+    def test_name_cache_no_negative_entry_for_missing_dir(self):
+        """_get_name() must not cache None for a non-existent directory.
+
+        If it did, a subsequent creation of the same directory would return a
+        stale None instead of the real name.
+        """
+        import gramps_webapi.dbmanager as dbmanager_module
+
+        fake_dirname = "nonexistent_" + uuid.uuid4().hex
+        fake_dirpath = os.path.join(self.dbmgr.dbdir, fake_dirname)
+
+        # Confirm the directory really doesn't exist
+        self.assertFalse(os.path.isdir(fake_dirpath))
+
+        # Instantiating with create_if_missing=False raises ValueError – the
+        # important side-effect we are testing is that no None entry is written
+        # into _name_cache for that path.
+        with self.assertRaises(ValueError):
+            WebDbManager(dirname=fake_dirname, create_if_missing=False)
+
+        self.assertNotIn(
+            fake_dirpath,
+            dbmanager_module._name_cache,
+            "A missing directory must not leave a None entry in _name_cache",
         )
