@@ -20,6 +20,7 @@
 
 """Metadata API resource."""
 
+import functools
 from importlib import metadata
 
 import gramps_ql as gql
@@ -46,6 +47,32 @@ from ..util import get_db_handle, get_tree_from_jwt_or_fail
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .schemas import MetadataSchema, ResearcherSchema
+
+
+@functools.cache
+def _get_ocr_info() -> tuple[bool, list[str]]:
+    """Detect OCR availability once and cache the result."""
+    try:
+        pytesseract.get_tesseract_version()
+        return True, [lang for lang in pytesseract.get_languages() if lang != "osd"]
+    except pytesseract.TesseractNotFoundError:
+        return False, []
+
+
+@functools.cache
+def _get_locale_language_name() -> str:
+    """Return the display name for the active locale language (worker-lifetime constant)."""
+    catalog = GRAMPS_LOCALE.get_language_dict()
+    for entry in catalog:
+        if catalog[entry] == GRAMPS_LOCALE.language[0]:
+            return entry
+    return GRAMPS_LOCALE.language[0]
+
+
+@functools.cache
+def _get_yclade_version() -> str:
+    """Return the installed yclade version (worker-lifetime constant)."""
+    return metadata.version("yclade")
 
 
 class ResearcherUpdateSchema(Schema):
@@ -78,6 +105,12 @@ def get_dbid_from_tree_id(tree_id: str) -> str:
     return get_dbid_from_path(db_path)
 
 
+@functools.lru_cache(maxsize=256)
+def _get_dbid_from_tree_id(tree_id: str) -> str:
+    """Return the DB backend ID for a tree (cached per tree, bounded to 256 entries)."""
+    return get_dbid_from_tree_id(tree_id)
+
+
 class MetadataQueryArgs(Schema):
     """Query arguments for GET /metadata/."""
 
@@ -101,30 +134,16 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
     @api_blueprint.arguments(MetadataQueryArgs, location="query")
     def get(self, args) -> Response:
         """Get active database and application related metadata information."""
-        catalog = GRAMPS_LOCALE.get_language_dict()
-        for entry in catalog:
-            if catalog[entry] == GRAMPS_LOCALE.language[0]:
-                language_name = entry
-                break
-
         db_handle = self.db_handle
         db_name = db_handle.get_dbname()
         tree_id = get_tree_from_jwt_or_fail()
-        db_type = get_dbid_from_tree_id(tree_id)
+        db_type = _get_dbid_from_tree_id(tree_id)
         is_multi_tree = current_app.config["TREE"] == TREE_MULTI
         has_task_queue = bool(current_app.config["CELERY_CONFIG"])
         has_semantic_search = bool(current_app.config["VECTOR_EMBEDDING_MODEL"])
         has_chat = has_semantic_search and bool(current_app.config["LLM_MODEL"])
 
-        try:
-            pytesseract.get_tesseract_version()
-            has_ocr = True
-            ocr_languages = [
-                lang for lang in pytesseract.get_languages() if lang != "osd"
-            ]
-        except pytesseract.TesseractNotFoundError:
-            has_ocr = False
-            ocr_languages = []
+        has_ocr, ocr_languages = _get_ocr_info()
         searcher = get_search_indexer(tree_id)
         search_count = searcher.count(
             include_private=has_permissions({PERM_VIEW_PRIVATE})
@@ -156,11 +175,11 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
             },
             "gramps_ql": {"version": gql.__version__},
             "object_ql": {"version": oql.__version__},
-            "yclade": {"version": metadata.version("yclade")},
+            "yclade": {"version": _get_yclade_version()},
             "locale": {
                 "lang": GRAMPS_LOCALE.lang,
                 "language": GRAMPS_LOCALE.language[0],
-                "description": language_name,
+                "description": _get_locale_language_name(),
                 "incomplete_translation": bool(
                     GRAMPS_LOCALE.language[0] in INCOMPLETE_TRANSLATIONS
                 ),
