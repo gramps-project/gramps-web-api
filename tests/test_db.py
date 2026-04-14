@@ -101,6 +101,8 @@ class TestWebDbManagerCache(unittest.TestCase):
         self.dbman = CLIDbManager(DbState())
 
     def tearDown(self):
+        _name_cache.pop(self.dbmgr.path, None)
+        _backend_cache.pop(self.dbmgr.path, None)
         self.dbman.remove_database(self.name)
 
     def test_name_cache_populated_after_init(self):

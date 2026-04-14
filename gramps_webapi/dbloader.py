@@ -52,9 +52,9 @@ LOG = logging.getLogger(__name__)
 # absolute database directory path.  Each entry is a (mtime, dbkwargs) tuple;
 # the mtime is compared on every call so that external edits to settings.ini
 # are picked up without requiring a process restart.
-_postgres_creds_cache: dict[str, tuple[float, dict]] = (
+_postgres_creds_cache: dict[str, tuple[int, dict]] = (
     {}
-)  # dirpath -> (mtime, base dbkwargs)
+)  # dirpath -> (mtime_ns, base dbkwargs)
 
 
 class DbLockedError(Exception):
@@ -86,9 +86,9 @@ def get_postgres_credentials(directory, username, password):
     # If settings.ini has been edited externally the new values will be picked
     # up on the next call without requiring a process restart.
     try:
-        current_mtime = os.path.getmtime(config_file)
+        current_mtime = os.stat(config_file).st_mtime_ns
     except OSError:
-        current_mtime = 0.0
+        current_mtime = 0
 
     cached = _postgres_creds_cache.get(directory)
     if cached is None or cached[0] != current_mtime:
@@ -105,9 +105,9 @@ def get_postgres_credentials(directory, username, password):
             config_mgr.set("tree.uuid", uuid4().hex)
             config_mgr.save()
             try:
-                current_mtime = os.path.getmtime(config_file)
+                current_mtime = os.stat(config_file).st_mtime_ns
             except OSError:
-                current_mtime = 0.0
+                current_mtime = 0
 
         config_mgr.load()
 
