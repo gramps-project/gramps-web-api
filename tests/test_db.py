@@ -118,9 +118,7 @@ class TestWebDbManagerCache(unittest.TestCase):
         # call open() on name.txt.
         with patch("builtins.open", side_effect=AssertionError("disk read")):
             # Re-construct using dirname so _get_name() is called
-            dbmgr2 = WebDbManager(
-                dirname=self.dbmgr.dirname, create_if_missing=False
-            )
+            dbmgr2 = WebDbManager(dirname=self.dbmgr.dirname, create_if_missing=False)
         self.assertEqual(dbmgr2.name, self.name)
 
     def test_backend_cache_hit_skips_disk_read(self):

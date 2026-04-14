@@ -52,7 +52,9 @@ LOG = logging.getLogger(__name__)
 # absolute database directory path.  Each entry is a (mtime, dbkwargs) tuple;
 # the mtime is compared on every call so that external edits to settings.ini
 # are picked up without requiring a process restart.
-_postgres_creds_cache: dict[str, tuple[float, dict]] = {}  # dirpath -> (mtime, base dbkwargs)
+_postgres_creds_cache: dict[str, tuple[float, dict]] = (
+    {}
+)  # dirpath -> (mtime, base dbkwargs)
 
 
 class DbLockedError(Exception):
