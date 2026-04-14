@@ -98,11 +98,11 @@ class WebDbManager:
         if os.path.isfile(path_name):
             with open(path_name, "r", encoding="utf8") as name_file:
                 name = name_file.readline().strip()
-            result: Optional[str] = name or None
-            # Only cache positive reads to avoid stale None entries if the
-            # directory is created later.
-            _name_cache[dirpath] = result
-            return result
+            if name:
+                # Only cache non-empty names; missing/empty files are not
+                # cached so a later write is picked up on the next call.
+                _name_cache[dirpath] = name
+                return name
         return None
 
     def _get_dirname(self, name: str) -> str:

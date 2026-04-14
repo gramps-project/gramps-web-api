@@ -164,28 +164,27 @@ class TestWebDbManagerCache(unittest.TestCase):
             "DBBACKEND should not be read from disk when dbid is already cached",
         )
 
-    def test_name_cache_no_negative_entry_for_missing_dir(self):
-        """_get_name() must not cache None for a non-existent directory.
-
-        If it did, a subsequent creation of the same directory would return a
-        stale None instead of the real name.
-        """
+    def test_name_cache_no_entry_for_missing_or_empty(self):
+        """_get_name() must not cache anything when name.txt is missing or empty."""
         import gramps_webapi.dbmanager as dbmanager_module
 
         fake_dirname = "nonexistent_" + uuid.uuid4().hex
         fake_dirpath = os.path.join(self.dbmgr.dbdir, fake_dirname)
 
-        # Confirm the directory really doesn't exist
+        # Non-existent directory: should raise and leave no cache entry.
         self.assertFalse(os.path.isdir(fake_dirpath))
-
-        # Instantiating with create_if_missing=False raises ValueError – the
-        # important side-effect we are testing is that no None entry is written
-        # into _name_cache for that path.
         with self.assertRaises(ValueError):
             WebDbManager(dirname=fake_dirname, create_if_missing=False)
+        self.assertNotIn(fake_dirpath, dbmanager_module._name_cache)
 
-        self.assertNotIn(
-            fake_dirpath,
-            dbmanager_module._name_cache,
-            "A missing directory must not leave a None entry in _name_cache",
-        )
+        # Empty name.txt: should also leave no cache entry so a later write
+        # is picked up on the next call.
+        os.makedirs(fake_dirpath)
+        try:
+            open(os.path.join(fake_dirpath, "name.txt"), "w").close()
+            result = self.dbmgr._get_name(fake_dirname)
+            self.assertIsNone(result)
+            self.assertNotIn(fake_dirpath, dbmanager_module._name_cache)
+        finally:
+            import shutil
+            shutil.rmtree(fake_dirpath, ignore_errors=True)
