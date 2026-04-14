@@ -93,6 +93,7 @@ def setup():
         dbmgr = WebDbManager(name)
         db_handle = dbmgr.get_db(readonly=False).db
         yield tree, db_handle, temp_dir
+    db_handle.close(update=False)
     dbman.remove_database(name)
     shutil.rmtree(temp_dir)
 
