@@ -37,6 +37,12 @@ from gramps.gen.user import UserBase
 
 from .dbloader import WebDbSessionManager
 
+# Module-level process-wide caches for tiny metadata files that are stable
+# across requests.  Keyed by absolute directory path.
+# Invalidated explicitly when the file is rewritten by this process.
+_name_cache: dict[str, "Optional[str]"] = {}  # dirpath -> tree name
+_backend_cache: dict[str, str] = {}  # dirpath -> db backend id
+
 
 class WebDbManager:
     """Database manager class based on Gramps CLI."""
@@ -86,12 +92,17 @@ class WebDbManager:
     def _get_name(self, dirname: str) -> Optional[str]:
         """Get the database name, or None if not found/empty."""
         dirpath = os.path.join(self.dbdir, dirname)
+        if dirpath in _name_cache:
+            return _name_cache[dirpath]
         path_name = os.path.join(dirpath, NAME_FILE)
         if os.path.isfile(path_name):
             with open(path_name, "r", encoding="utf8") as name_file:
                 name = name_file.readline().strip()
-            return name or None
-        return None
+            result: Optional[str] = name or None
+        else:
+            result = None
+        _name_cache[dirpath] = result
+        return result
 
     def _get_dirname(self, name: str) -> str:
         """Get the path of the family tree database."""
@@ -141,14 +152,22 @@ class WebDbManager:
 
         # cache the name written to disk so get_db() doesn't re-read name.txt
         self._name_from_file = self.name
+        # populate module-level caches so subsequent requests skip disk reads
+        _name_cache[path] = self.name
+        _backend_cache[path] = self.create_backend
 
     def _check_backend(self) -> None:
         """Check that the backend is among the allowed backends."""
-        backend = get_dbid_from_path(self.path)
+        if self.path in _backend_cache:
+            backend = _backend_cache[self.path]
+        else:
+            backend = get_dbid_from_path(self.path)
+            _backend_cache[self.path] = backend
         if backend not in self.ALLOWED_DB_BACKENDS:
             raise ValueError(
                 f"Database backend '{backend}' of tree '{self.name}' not supported."
             )
+        self._dbid = backend
 
     def is_locked(self) -> bool:
         """Return a boolean whether the database is locked."""
@@ -186,6 +205,7 @@ class WebDbManager:
             password=self.password,
             ignore_lock=self.ignore_lock,
             title=self._name_from_file or self.name,
+            dbid=self._dbid,
         )
         return dbstate
 
@@ -204,6 +224,8 @@ class WebDbManager:
             name_file.write(new_name)
         self._name_from_file = new_name
         self.name = new_name
+        # keep cache consistent so the next request doesn't re-read name.txt
+        _name_cache[self.path] = new_name
         return old_name, new_name
 
     def upgrade_if_needed(
@@ -221,4 +243,5 @@ class WebDbManager:
             username=self.username,
             password=self.password,
             force_schema_upgrade=True,
+            dbid=self._dbid,
         )
