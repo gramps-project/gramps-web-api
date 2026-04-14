@@ -113,7 +113,7 @@ class TestWebDbManagerCache(unittest.TestCase):
     def test_backend_cache_populated_after_init(self):
         """DBBACKEND is cached after the first WebDbManager instantiation."""
         self.assertIn(self.dbmgr.path, _backend_cache)
-        self.assertEqual(_backend_cache[self.dbmgr.path], "sqlite")
+        self.assertEqual(_backend_cache[self.dbmgr.path][1], "sqlite")
 
     def test_name_cache_hit_skips_disk_read(self):
         """_get_name() returns the cached value without touching the filesystem."""
@@ -159,7 +159,7 @@ class TestWebDbManagerCache(unittest.TestCase):
             dbstate = self.dbmgr.get_db()
             dbstate.db.close()
 
-        dbbackend_reads = [p for p in open_calls if p.endswith(DBBACKEND)]
+        dbbackend_reads = [p for p in open_calls if str(p).endswith(DBBACKEND)]
         self.assertEqual(
             len(dbbackend_reads),
             0,

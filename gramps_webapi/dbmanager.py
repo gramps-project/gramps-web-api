@@ -41,7 +41,7 @@ from .dbloader import WebDbSessionManager
 # across requests.  Keyed by absolute directory path.
 # Invalidated explicitly when the file is rewritten by this process.
 _name_cache: dict[str, Optional[str]] = {}  # dirpath -> tree name
-_backend_cache: dict[str, str] = {}  # dirpath -> db backend id
+_backend_cache: dict[str, tuple[int, str]] = {}  # dirpath -> (mtime_ns, db backend id)
 
 
 class WebDbManager:
@@ -155,19 +155,29 @@ class WebDbManager:
         self._name_from_file = self.name
         # populate module-level caches so subsequent requests skip disk reads
         _name_cache[path] = self.name
-        _backend_cache[path] = self.create_backend
+        try:
+            backend_mtime = os.stat(backend_path).st_mtime_ns
+        except OSError:
+            backend_mtime = 0
+        _backend_cache[path] = (backend_mtime, self.create_backend)
 
     def _check_backend(self) -> None:
         """Check that the backend is among the allowed backends."""
-        if self.path in _backend_cache:
-            backend = _backend_cache[self.path]
+        dbbackend_path = os.path.join(self.path, DBBACKEND)
+        try:
+            current_mtime = os.stat(dbbackend_path).st_mtime_ns
+        except OSError:
+            current_mtime = 0
+        cached = _backend_cache.get(self.path)
+        if cached is not None and cached[0] == current_mtime:
+            backend = cached[1]
         else:
             backend = get_dbid_from_path(self.path)
         if backend not in self.ALLOWED_DB_BACKENDS:
             raise ValueError(
                 f"Database backend '{backend}' of tree '{self.name}' not supported."
             )
-        _backend_cache[self.path] = backend
+        _backend_cache[self.path] = (current_mtime, backend)
         self._dbid = backend
 
     def is_locked(self) -> bool:
