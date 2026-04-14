@@ -187,4 +187,5 @@ class TestWebDbManagerCache(unittest.TestCase):
             self.assertNotIn(fake_dirpath, dbmanager_module._name_cache)
         finally:
             import shutil
+
             shutil.rmtree(fake_dirpath, ignore_errors=True)
