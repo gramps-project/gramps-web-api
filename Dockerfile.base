@@ -62,13 +62,10 @@ RUN apt-get update && apt-get install -y \
   tesseract-ocr-vie \
   tesseract-ocr-chi-sim \
   tesseract-ocr-chi-tra \
-  libopenblas-dev cmake \
+  libopenblas-dev \
 
   && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8 \
   && rm -rf /var/lib/apt/lists/*
-
-# set locale
-RUN localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
 ENV LANGUAGE=en_US.utf8
 ENV LANG=en_US.utf8
 ENV LC_ALL=en_US.utf8
@@ -77,23 +74,28 @@ ENV LC_ALL=en_US.utf8
 ENV OMP_NUM_THREADS=1
 
 # install wheel first to enable binary packages for all pip installs
-RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-installed wheel
+RUN python3 -m pip install --break-system-packages --no-cache-dir wheel
 
-# install gunicorn and Pillow (PyPI wheel includes AVIF support, unlike the apt package)
+# install gunicorn
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
+    gunicorn
+
+# install Pillow from PyPI (PyPI wheel includes AVIF support, unlike the apt package;
+# --ignore-installed overrides any apt-installed python3-pil)
 RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-installed \
-    gunicorn Pillow
+    Pillow
 
 # Install PyICU (slow to compile on ARM, so pre-install in base image)
-RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-installed \
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
     PyICU
 
 # Install PyTorch and opencv
-RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-installed --index-url https://download.pytorch.org/whl/cpu torch
-RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-installed \
-    opencv-python opencv-contrib-python
+RUN python3 -m pip install --break-system-packages --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
+    opencv-contrib-python
 
 # Install AI dependencies
-RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-installed \
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
     'sentence-transformers>=4.1.0' \
     'accelerate' \
     'pydantic-ai[openai]>=1.0.0,<2.0.0'
