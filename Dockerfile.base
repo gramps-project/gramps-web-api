@@ -17,8 +17,8 @@ RUN apt-get update && apt-get install -y \
   locales gettext wget python3-pip \
   poppler-utils ffmpeg libavcodec-extra \
   unzip \
-  libpq-dev postgresql-client postgresql-client-common python3-psycopg2 \
-  libgl1-mesa-dev libgtk2.0-dev \
+  libpq5 postgresql-client postgresql-client-common python3-psycopg2 \
+  libgl1 libgtk2.0-0 \
   tesseract-ocr \
   tesseract-ocr-ara \
   tesseract-ocr-bul \
@@ -62,13 +62,9 @@ RUN apt-get update && apt-get install -y \
   tesseract-ocr-vie \
   tesseract-ocr-chi-sim \
   tesseract-ocr-chi-tra \
-  libopenblas-dev cmake \
-
+  libopenblas0 \
   && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8 \
   && rm -rf /var/lib/apt/lists/*
-
-# set locale
-RUN localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
 ENV LANGUAGE=en_US.utf8
 ENV LANG=en_US.utf8
 ENV LC_ALL=en_US.utf8
@@ -90,7 +86,7 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-insta
 # Install PyTorch and opencv
 RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-installed --index-url https://download.pytorch.org/whl/cpu torch
 RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-installed \
-    opencv-python opencv-contrib-python
+    opencv-contrib-python
 
 # Install AI dependencies
 RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-installed \
