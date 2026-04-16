@@ -177,6 +177,16 @@ class Transaction(Base):
         }
 
 
+def _is_duplicate_column_error(exc: Exception) -> bool:
+    """Return True if *exc* signals that a column already exists.
+
+    SQLite raises OperationalError("duplicate column name: …");
+    PostgreSQL raises ProgrammingError("column … of relation … already exists").
+    """
+    msg = str(exc).lower()
+    return "duplicate column name" in msg or "already exists" in msg
+
+
 class DbUndoSQL(DbUndo):
     """SQL-based undo database."""
 
@@ -250,7 +260,7 @@ class DbUndoSQL(DbUndo):
                                 )
                             )
                         except (OperationalError, ProgrammingError) as e:
-                            if "already exists" not in str(e).lower():
+                            if not _is_duplicate_column_error(e):
                                 raise
                     if "new_json" not in columns:
                         try:
@@ -260,7 +270,7 @@ class DbUndoSQL(DbUndo):
                                 )
                             )
                         except (OperationalError, ProgrammingError) as e:
-                            if "already exists" not in str(e).lower():
+                            if not _is_duplicate_column_error(e):
                                 raise
             self._schema_checked_urls.add(dburl)
 
