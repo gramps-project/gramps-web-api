@@ -1,7 +1,7 @@
 #
 # Gramps - a GTK+/GNOME based genealogy program
 #
-# Copyright (C) 2024       David Straub
+# Copyright (C) 2024-2026  David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -240,11 +240,15 @@ class DbUndoSQL(DbUndo):
             if "already exists" not in str(e):
                 raise
 
-    def _add_json_columns_if_needed(self) -> None:
-        """Add JSON columns to the change table if not already present."""
+    def _add_json_columns_if_needed(self, force: bool = False) -> None:
+        """Add JSON columns to the change table if not already present.
+
+        Pass ``force=True`` to bypass the per-URL cache (used by ``migrate()``
+        to guarantee a fresh inspection regardless of prior cached state).
+        """
         dburl = str(self.engine.url)
         with self._schema_lock:
-            if dburl in self._schema_checked_urls:
+            if not force and dburl in self._schema_checked_urls:
                 return
             inspector = inspect(self.engine)
             columns = {col["name"] for col in inspector.get_columns("changes")}
@@ -635,12 +639,7 @@ class DbUndoSQLWeb(DbUndoSQL):
 def migrate(undodb: DbUndoSQL) -> None:
     """Migrate the undo db to a new schema if needed."""
     # Force a fresh schema check — the cache may reflect a pre-migration state.
-    # Invalidate under the lock so no concurrent thread re-caches the URL
-    # between the discard and the re-check below.
-    dburl = str(undodb.engine.url)
-    with DbUndoSQL._schema_lock:
-        DbUndoSQL._schema_checked_urls.discard(dburl)
-    undodb._add_json_columns_if_needed()
+    undodb._add_json_columns_if_needed(force=True)
     with undodb.session_scope() as session:
         # return all rows where old_json AND new_json are NULL
         rows = (
