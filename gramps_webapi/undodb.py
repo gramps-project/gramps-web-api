@@ -52,7 +52,7 @@ from sqlalchemy import (
     inspect,
     text,
 )
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import DeclarativeBase, mapped_column, relationship, sessionmaker
 from sqlalchemy.sql import func
 
@@ -249,8 +249,9 @@ class DbUndoSQL(DbUndo):
                                     "ALTER TABLE changes ADD COLUMN old_json TEXT DEFAULT NULL"
                                 )
                             )
-                        except OperationalError:
-                            pass
+                        except (OperationalError, ProgrammingError) as e:
+                            if "already exists" not in str(e).lower():
+                                raise
                     if "new_json" not in columns:
                         try:
                             conn.execute(
@@ -258,8 +259,9 @@ class DbUndoSQL(DbUndo):
                                     "ALTER TABLE changes ADD COLUMN new_json TEXT DEFAULT NULL"
                                 )
                             )
-                        except OperationalError:
-                            pass
+                        except (OperationalError, ProgrammingError) as e:
+                            if "already exists" not in str(e).lower():
+                                raise
             self._schema_checked_urls.add(dburl)
 
     def _make_connection_id(self) -> int:
