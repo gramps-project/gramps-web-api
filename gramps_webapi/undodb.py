@@ -194,7 +194,7 @@ class DbUndoSQL(DbUndo):
     _schema_checked_urls: set[str] = set()
 
     # Lock serialising schema checks across threads.
-    _schema_lock: threading.Lock = threading.Lock()
+    _schema_lock = threading.Lock()
 
     def __init__(
         self,
@@ -243,8 +243,6 @@ class DbUndoSQL(DbUndo):
     def _add_json_columns_if_needed(self) -> None:
         """Add JSON columns to the change table if not already present."""
         dburl = str(self.engine.url)
-        if dburl in self._schema_checked_urls:
-            return
         with self._schema_lock:
             if dburl in self._schema_checked_urls:
                 return
@@ -637,8 +635,11 @@ class DbUndoSQLWeb(DbUndoSQL):
 def migrate(undodb: DbUndoSQL) -> None:
     """Migrate the undo db to a new schema if needed."""
     # Force a fresh schema check — the cache may reflect a pre-migration state.
+    # Invalidate under the lock so no concurrent thread re-caches the URL
+    # between the discard and the re-check below.
     dburl = str(undodb.engine.url)
-    DbUndoSQL._schema_checked_urls.discard(dburl)
+    with DbUndoSQL._schema_lock:
+        DbUndoSQL._schema_checked_urls.discard(dburl)
     undodb._add_json_columns_if_needed()
     with undodb.session_scope() as session:
         # return all rows where old_json AND new_json are NULL
