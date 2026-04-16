@@ -73,9 +73,7 @@ ENV LC_ALL=en_US.utf8
 ENV OMP_NUM_THREADS=1
 
 # install wheel first to enable binary packages for all pip installs
-# typing-extensions is pre-installed by Debian without a RECORD file; install via pip
-# so pip can manage it (required by pydantic-ai and other AI dependencies)
-RUN python3 -m pip install --break-system-packages --no-cache-dir wheel typing-extensions
+RUN python3 -m pip install --break-system-packages --no-cache-dir wheel
 
 # install gunicorn
 RUN python3 -m pip install --break-system-packages --no-cache-dir \
@@ -96,7 +94,9 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir \
     opencv-contrib-python
 
 # Install AI dependencies
-RUN python3 -m pip install --break-system-packages --no-cache-dir \
+# --ignore-installed is needed because pydantic-ai's transitive deps (e.g. typing-extensions)
+# may conflict with Debian-managed packages that lack a RECORD file
+RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-installed \
     'sentence-transformers>=4.1.0' \
     'accelerate' \
     'pydantic-ai[openai]>=1.0.0,<2.0.0'
