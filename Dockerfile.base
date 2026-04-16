@@ -63,7 +63,6 @@ RUN apt-get update && apt-get install -y \
   tesseract-ocr-chi-sim \
   tesseract-ocr-chi-tra \
   libopenblas-dev \
-
   && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8 \
   && rm -rf /var/lib/apt/lists/*
 ENV LANGUAGE=en_US.utf8
@@ -74,7 +73,9 @@ ENV LC_ALL=en_US.utf8
 ENV OMP_NUM_THREADS=1
 
 # install wheel first to enable binary packages for all pip installs
-RUN python3 -m pip install --break-system-packages --no-cache-dir wheel
+# typing-extensions is pre-installed by Debian without a RECORD file; install via pip
+# so pip can manage it (required by pydantic-ai and other AI dependencies)
+RUN python3 -m pip install --break-system-packages --no-cache-dir wheel typing-extensions
 
 # install gunicorn
 RUN python3 -m pip install --break-system-packages --no-cache-dir \
