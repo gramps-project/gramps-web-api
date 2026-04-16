@@ -25,6 +25,7 @@ import shutil
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 from gramps.gen.lib.json_utils import (
     object_to_dict,
@@ -92,6 +93,8 @@ class TestUndoHistory(unittest.TestCase):
         pass
 
     def tearDown(self):
+        self.db.close(update=False)
+        DbUndoSQL._schema_checked_urls.clear()
         shutil.rmtree(self.dbdir)
 
     def __add_object(self, obj_class, add_func, trans):
@@ -223,3 +226,51 @@ class TestUndoHistory(unittest.TestCase):
         assert string_to_dict(commit["new_json"]) == object_to_dict(person)
         assert string_to_dict(commit["new_json"]) == object_to_dict(new_person)
         assert string_to_dict(commit["old_json"]) == object_to_dict(old_person)
+
+
+class TestSchemaCaching(unittest.TestCase):
+    """Tests for DbUndoSQL class-level schema check cache."""
+
+    def setUp(self):
+        DbUndoSQL._schema_checked_urls.clear()
+        self.dbdir = tempfile.mkdtemp()
+        self.db: DbWriteBase = make_database("sqlite")
+
+        def create_undo_manager():
+            return DbUndoSQL(grampsdb=self.db, dburl=f"sqlite:///{self.db.undolog}")
+
+        self.db._create_undo_manager = create_undo_manager
+        self.db.load(self.dbdir)
+
+    def tearDown(self):
+        self.db.close(update=False)
+        DbUndoSQL._schema_checked_urls.clear()
+        shutil.rmtree(self.dbdir)
+
+    def _undo_url(self):
+        return f"sqlite:///{self.db.undolog}"
+
+    def test_schema_checked_urls_populated_after_open(self):
+        """Opening a DbUndoSQL registers its URL in the schema-checked set."""
+        self.assertIn(self._undo_url(), DbUndoSQL._schema_checked_urls)
+
+    def test_schema_check_skipped_on_second_open(self):
+        """_add_json_columns_if_needed skips the inspector on a cached URL."""
+        undodb = self.db.get_undodb()
+        with patch("gramps_webapi.undodb.inspect") as mock_inspect:
+            undodb._add_json_columns_if_needed()
+            mock_inspect.assert_not_called()
+
+    def test_schema_check_runs_on_first_open(self):
+        """_add_json_columns_if_needed calls inspect for an uncached URL."""
+        url = self._undo_url()
+        DbUndoSQL._schema_checked_urls.discard(url)
+        undodb = self.db.get_undodb()
+        with patch("gramps_webapi.undodb.inspect") as mock_inspect:
+            mock_inspect.return_value.get_columns.return_value = [
+                {"name": "old_json"},
+                {"name": "new_json"},
+            ]
+            undodb._add_json_columns_if_needed()
+            mock_inspect.assert_called_once()
+        self.assertIn(url, DbUndoSQL._schema_checked_urls)

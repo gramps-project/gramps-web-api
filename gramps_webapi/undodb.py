@@ -24,6 +24,7 @@
 from __future__ import annotations
 
 import pickle
+import threading
 from contextlib import contextmanager
 from time import time_ns
 from typing import Any
@@ -179,6 +180,12 @@ class Transaction(Base):
 class DbUndoSQL(DbUndo):
     """SQL-based undo database."""
 
+    # Per-process cache of DB URLs whose schema has already been verified.
+    _schema_checked_urls: set[str] = set()
+
+    # Lock serialising schema checks across threads.
+    _schema_lock: threading.Lock = threading.Lock()
+
     def __init__(
         self,
         grampsdb: DbWriteBase,
@@ -225,22 +232,35 @@ class DbUndoSQL(DbUndo):
 
     def _add_json_columns_if_needed(self) -> None:
         """Add JSON columns to the change table if not already present."""
-        inspector = inspect(self.engine)
-        columns = {col["name"] for col in inspector.get_columns("changes")}
-        if "old_json" not in columns or "new_json" not in columns:
-            with self.engine.begin() as conn:
-                if "old_json" not in columns:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE changes ADD COLUMN old_json TEXT DEFAULT NULL"
-                        )
-                    )
-                if "new_json" not in columns:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE changes ADD COLUMN new_json TEXT DEFAULT NULL"
-                        )
-                    )
+        dburl = str(self.engine.url)
+        if dburl in self._schema_checked_urls:
+            return
+        with self._schema_lock:
+            if dburl in self._schema_checked_urls:
+                return
+            inspector = inspect(self.engine)
+            columns = {col["name"] for col in inspector.get_columns("changes")}
+            if "old_json" not in columns or "new_json" not in columns:
+                with self.engine.begin() as conn:
+                    if "old_json" not in columns:
+                        try:
+                            conn.execute(
+                                text(
+                                    "ALTER TABLE changes ADD COLUMN old_json TEXT DEFAULT NULL"
+                                )
+                            )
+                        except OperationalError:
+                            pass
+                    if "new_json" not in columns:
+                        try:
+                            conn.execute(
+                                text(
+                                    "ALTER TABLE changes ADD COLUMN new_json TEXT DEFAULT NULL"
+                                )
+                            )
+                        except OperationalError:
+                            pass
+            self._schema_checked_urls.add(dburl)
 
     def _make_connection_id(self) -> int:
         """Insert a row into the connection table."""
