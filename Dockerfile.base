@@ -5,8 +5,6 @@ ENV GRAMPS_VERSION=60
 
 WORKDIR /app
 
-ENV PYTHONPATH="/usr/local/lib/python3.13/dist-packages:/usr/lib/python3/dist-packages"
-
 # install poppler (needed for PDF thumbnails)
 # ffmpeg (needed for video thumbnails)
 # postgresql client (needed for PostgreSQL backend)
@@ -14,7 +12,7 @@ RUN apt-get update && apt-get install -y \
   appstream pkg-config libcairo2-dev \
   gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev \
   graphviz gir1.2-gexiv2-0.10 gir1.2-osmgpsmap-1.0 \
-  locales gettext wget python3-pip \
+  locales gettext wget python3-pip python3-venv \
   poppler-utils ffmpeg libavcodec-extra \
   unzip \
   libpq-dev postgresql-client postgresql-client-common python3-psycopg2 \
@@ -72,31 +70,28 @@ ENV LC_ALL=en_US.utf8
 # limit pytorch to 1 thread
 ENV OMP_NUM_THREADS=1
 
+# Use a venv so pip can manage packages without conflicting with Debian-installed ones
+RUN python3 -m venv /venv --system-site-packages
+ENV PATH="/venv/bin:$PATH"
+
 # install wheel first to enable binary packages for all pip installs
-RUN python3 -m pip install --break-system-packages --no-cache-dir wheel
+RUN pip install --no-cache-dir wheel
 
 # install gunicorn
-RUN python3 -m pip install --break-system-packages --no-cache-dir \
-    gunicorn
+RUN pip install --no-cache-dir gunicorn
 
-# install Pillow from PyPI (PyPI wheel includes AVIF support, unlike the apt package;
-# --ignore-installed overrides any apt-installed python3-pil)
-RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-installed \
-    Pillow
+# install Pillow from PyPI (PyPI wheel includes AVIF support, unlike the apt package)
+RUN pip install --no-cache-dir Pillow
 
 # Install PyICU (slow to compile on ARM, so pre-install in base image)
-RUN python3 -m pip install --break-system-packages --no-cache-dir \
-    PyICU
+RUN pip install --no-cache-dir PyICU
 
 # Install PyTorch and opencv
-RUN python3 -m pip install --break-system-packages --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch
-RUN python3 -m pip install --break-system-packages --no-cache-dir \
-    opencv-contrib-python
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch
+RUN pip install --no-cache-dir opencv-contrib-python
 
 # Install AI dependencies
-# --ignore-installed is needed because pydantic-ai's transitive deps (e.g. typing-extensions)
-# may conflict with Debian-managed packages that lack a RECORD file
-RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-installed \
+RUN pip install --no-cache-dir \
     'sentence-transformers>=4.1.0' \
     'accelerate' \
     'pydantic-ai[openai]>=1.0.0,<2.0.0'
