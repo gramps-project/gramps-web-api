@@ -626,6 +626,10 @@ class DbUndoSQLWeb(DbUndoSQL):
 
 def migrate(undodb: DbUndoSQL) -> None:
     """Migrate the undo db to a new schema if needed."""
+    # Force a fresh schema check — the cache may reflect a pre-migration state.
+    dburl = str(undodb.engine.url)
+    DbUndoSQL._schema_checked_urls.discard(dburl)
+    undodb._add_json_columns_if_needed()
     with undodb.session_scope() as session:
         # return all rows where old_json AND new_json are NULL
         rows = (
