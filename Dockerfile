@@ -25,8 +25,7 @@ ENV GRAMPS_DATABASE_PATH=/root/.gramps/grampsdb
 
 # copy package source and install
 COPY . /app/src
-RUN python3 -m pip install --break-system-packages --no-cache-dir \
-    /app/src[ai]
+RUN pip install --no-cache-dir /app/src[ai]
 
 # download and cache YFull tree for yclade
 RUN python3 -c "import yclade; yclade.tree.download_yfull_tree()"

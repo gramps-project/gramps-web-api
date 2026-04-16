@@ -71,7 +71,7 @@ jobs:
           restore-keys: |
             hf-models-base-
       - name: Install package
-        run: pip install --break-system-packages --no-cache-dir -r requirements-dev.txt && pip install --break-system-packages --no-cache-dir .[ai]
+        run: pip install --no-cache-dir -r requirements-dev.txt && pip install --no-cache-dir .[ai]
       - name: Pre-download Hugging Face model
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
