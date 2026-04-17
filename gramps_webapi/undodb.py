@@ -199,7 +199,6 @@ class DbUndoSQL(DbUndo):
         """Provide a transactional scope around a series of operations."""
         if not self._schema_initialized:
             self._ensure_schema()
-            self._schema_initialized = True
         SQLSession = sessionmaker(self.engine)
         session = SQLSession()
         try:
@@ -228,6 +227,7 @@ class DbUndoSQL(DbUndo):
         except OperationalError as e:
             if "already exists" not in str(e):
                 raise
+        self._schema_initialized = True
 
     def _make_connection_id(self) -> int:
         """Insert a row into the connection table."""
