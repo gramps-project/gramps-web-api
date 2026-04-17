@@ -51,7 +51,7 @@ from sqlalchemy import (
     inspect,
     text,
 )
-from sqlalchemy.exc import OperationalError
+
 from sqlalchemy.orm import DeclarativeBase, mapped_column, relationship, sessionmaker
 from sqlalchemy.sql import func
 
@@ -188,6 +188,7 @@ class DbUndoSQL(DbUndo):
     ) -> None:
         DbUndo.__init__(self, grampsdb)
         self._connection_id: int | None = None
+        self._schema_initialized = False
         self.tree_id = tree_id
         self.user_id = user_id
         self.undodb: list[bytes] = []
@@ -196,6 +197,8 @@ class DbUndoSQL(DbUndo):
     @contextmanager
     def session_scope(self):
         """Provide a transactional scope around a series of operations."""
+        if not self._schema_initialized:
+            self._ensure_schema()
         SQLSession = sessionmaker(self.engine)
         session = SQLSession()
         try:
@@ -209,38 +212,21 @@ class DbUndoSQL(DbUndo):
 
     @property
     def connection_id(self) -> int:
-        """Return the cached connection ID or create if not exists."""
+        """Return the cached connection ID, creating it on first use."""
         if self._connection_id is None:
             self._connection_id = self._make_connection_id()
         return self._connection_id
 
     def open(self, value=None) -> None:
-        """Open the backing storage."""
-        try:
-            Base.metadata.create_all(self.engine)
-            self._add_json_columns_if_needed()
-        except OperationalError as e:
-            if "already exists" not in str(e):
-                raise
+        """Open the backing storage.
 
-    def _add_json_columns_if_needed(self) -> None:
-        """Add JSON columns to the change table if not already present."""
-        inspector = inspect(self.engine)
-        columns = {col["name"] for col in inspector.get_columns("changes")}
-        if "old_json" not in columns or "new_json" not in columns:
-            with self.engine.begin() as conn:
-                if "old_json" not in columns:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE changes ADD COLUMN old_json TEXT DEFAULT NULL"
-                        )
-                    )
-                if "new_json" not in columns:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE changes ADD COLUMN new_json TEXT DEFAULT NULL"
-                        )
-                    )
+        No-op: schema is created lazily on first DB access.
+        """
+
+    def _ensure_schema(self) -> None:
+        """Create the undo DB tables if not already present."""
+        Base.metadata.create_all(self.engine)
+        self._schema_initialized = True
 
     def _make_connection_id(self) -> int:
         """Insert a row into the connection table."""
@@ -313,8 +299,7 @@ class DbUndoSQL(DbUndo):
                 last=last,
                 undo=int(undo),
             )
-        session.add(new_transaction)
-        session.commit()
+            session.add(new_transaction)
 
     def __getitem__(self, index: int) -> bytes:
         """
@@ -602,8 +587,29 @@ class DbUndoSQLWeb(DbUndoSQL):
             return transaction._to_dict(old_data=old_data, new_data=new_data)
 
 
+def _add_json_columns(undodb: DbUndoSQL) -> None:
+    """Add old_json/new_json columns to the changes table if not already present.
+
+    Only needed when migrating a database created before v3.0.
+    """
+    inspector = inspect(undodb.engine)
+    columns = {col["name"] for col in inspector.get_columns("changes")}
+    if "old_json" not in columns or "new_json" not in columns:
+        with undodb.engine.begin() as conn:
+            if "old_json" not in columns:
+                conn.execute(
+                    text("ALTER TABLE changes ADD COLUMN old_json TEXT DEFAULT NULL")
+                )
+            if "new_json" not in columns:
+                conn.execute(
+                    text("ALTER TABLE changes ADD COLUMN new_json TEXT DEFAULT NULL")
+                )
+
+
 def migrate(undodb: DbUndoSQL) -> None:
     """Migrate the undo db to a new schema if needed."""
+    undodb._ensure_schema()
+    _add_json_columns(undodb)
     with undodb.session_scope() as session:
         # return all rows where old_json AND new_json are NULL
         rows = (
@@ -636,5 +642,3 @@ def migrate(undodb: DbUndoSQL) -> None:
                     new_data = pickle.loads(row.new_data)
                     obj = obj_cls().unserialize(new_data)
                     row.new_json = object_to_string(obj)
-        session.commit()
-        # add JSON columns if needed
