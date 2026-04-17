@@ -218,7 +218,10 @@ class DbUndoSQL(DbUndo):
         return self._connection_id
 
     def open(self, value=None) -> None:
-        """Open the backing storage (no-op: schema is created lazily on first DB access)."""
+        """Open the backing storage.
+
+        No-op: schema is created lazily on first DB access.
+        """
 
     def _ensure_schema(self) -> None:
         """Create the undo DB tables if not already present."""
