@@ -589,15 +589,16 @@ def _add_json_columns(undodb: DbUndoSQL) -> None:
     """
     inspector = inspect(undodb.engine)
     columns = {col["name"] for col in inspector.get_columns("changes")}
-    with undodb.engine.begin() as conn:
-        if "old_json" not in columns:
-            conn.execute(
-                text("ALTER TABLE changes ADD COLUMN old_json TEXT DEFAULT NULL")
-            )
-        if "new_json" not in columns:
-            conn.execute(
-                text("ALTER TABLE changes ADD COLUMN new_json TEXT DEFAULT NULL")
-            )
+    if "old_json" not in columns or "new_json" not in columns:
+        with undodb.engine.begin() as conn:
+            if "old_json" not in columns:
+                conn.execute(
+                    text("ALTER TABLE changes ADD COLUMN old_json TEXT DEFAULT NULL")
+                )
+            if "new_json" not in columns:
+                conn.execute(
+                    text("ALTER TABLE changes ADD COLUMN new_json TEXT DEFAULT NULL")
+                )
 
 
 def migrate(undodb: DbUndoSQL) -> None:
@@ -635,4 +636,3 @@ def migrate(undodb: DbUndoSQL) -> None:
                     new_data = pickle.loads(row.new_data)
                     obj = obj_cls().unserialize(new_data)
                     row.new_json = object_to_string(obj)
-        session.commit()
