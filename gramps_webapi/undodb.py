@@ -188,6 +188,7 @@ class DbUndoSQL(DbUndo):
     ) -> None:
         DbUndo.__init__(self, grampsdb)
         self._connection_id: int | None = None
+        self._schema_initialized = False
         self.tree_id = tree_id
         self.user_id = user_id
         self.undodb: list[bytes] = []
@@ -196,6 +197,9 @@ class DbUndoSQL(DbUndo):
     @contextmanager
     def session_scope(self):
         """Provide a transactional scope around a series of operations."""
+        if not self._schema_initialized:
+            self._ensure_schema()
+            self._schema_initialized = True
         SQLSession = sessionmaker(self.engine)
         session = SQLSession()
         try:
@@ -209,9 +213,8 @@ class DbUndoSQL(DbUndo):
 
     @property
     def connection_id(self) -> int:
-        """Return the cached connection ID, creating the schema and row on first use."""
+        """Return the cached connection ID, creating it on first use."""
         if self._connection_id is None:
-            self._ensure_schema()
             self._connection_id = self._make_connection_id()
         return self._connection_id
 
