@@ -51,7 +51,7 @@ from sqlalchemy import (
     inspect,
     text,
 )
-from sqlalchemy.exc import OperationalError
+
 from sqlalchemy.orm import DeclarativeBase, mapped_column, relationship, sessionmaker
 from sqlalchemy.sql import func
 
@@ -222,11 +222,7 @@ class DbUndoSQL(DbUndo):
 
     def _ensure_schema(self) -> None:
         """Create the undo DB tables if not already present."""
-        try:
-            Base.metadata.create_all(self.engine)
-        except OperationalError as e:
-            if "already exists" not in str(e):
-                raise
+        Base.metadata.create_all(self.engine)
         self._schema_initialized = True
 
     def _make_connection_id(self) -> int:
