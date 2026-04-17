@@ -339,14 +339,14 @@ class TestMigrate(unittest.TestCase):
 
         with undodb.session_scope() as session:
             rows_before = session.execute(
-                text("SELECT id, new_json FROM changes")
+                text("SELECT id, new_json FROM changes ORDER BY id")
             ).fetchall()
 
         migrate(undodb)
 
         with undodb.session_scope() as session:
             rows_after = session.execute(
-                text("SELECT id, new_json FROM changes")
+                text("SELECT id, new_json FROM changes ORDER BY id")
             ).fetchall()
 
         self.assertEqual(rows_before, rows_after)

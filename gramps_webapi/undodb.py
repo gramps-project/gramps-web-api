@@ -209,13 +209,17 @@ class DbUndoSQL(DbUndo):
 
     @property
     def connection_id(self) -> int:
-        """Return the cached connection ID or create if not exists."""
+        """Return the cached connection ID, creating the schema and row on first use."""
         if self._connection_id is None:
+            self._ensure_schema()
             self._connection_id = self._make_connection_id()
         return self._connection_id
 
     def open(self, value=None) -> None:
-        """Open the backing storage."""
+        """Open the backing storage (no-op: schema is created lazily on first write)."""
+
+    def _ensure_schema(self) -> None:
+        """Create the undo DB tables if not already present."""
         try:
             Base.metadata.create_all(self.engine)
         except OperationalError as e:
