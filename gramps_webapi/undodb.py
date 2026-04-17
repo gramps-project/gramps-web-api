@@ -607,6 +607,7 @@ def _add_json_columns(undodb: DbUndoSQL) -> None:
 
 def migrate(undodb: DbUndoSQL) -> None:
     """Migrate the undo db to a new schema if needed."""
+    undodb._ensure_schema()
     _add_json_columns(undodb)
     with undodb.session_scope() as session:
         # return all rows where old_json AND new_json are NULL
