@@ -431,6 +431,17 @@ def upgrade_database_schema(self, tree: str, user_id: str):
         close_db(db_handle)
 
 
+@shared_task(bind=True)
+def upgrade_undodb_schema(self, tree: str, user_id: str):
+    """Upgrade the schema of the undo database."""
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=True, readonly=False, user_id=user_id
+    )
+    try:
+        migrate_undodb(db_handle.undodb)
+    finally:
+        close_db(db_handle)
+
 
 @shared_task(bind=True)
 def delete_objects(
