@@ -96,11 +96,12 @@ class TestTask(unittest.TestCase):
 
         task = FailingTask()
         task.update_state = MagicMock()
-        task.request = MagicMock()
-        task.request.called_directly = False
-
-        with self.assertRaises(Ignore):
-            task()
+        task.push_request(called_directly=False)
+        try:
+            with self.assertRaises(Ignore):
+                task()
+        finally:
+            task.pop_request()
 
         task.update_state.assert_called_once_with(
             state="FAILURE",
