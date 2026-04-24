@@ -26,13 +26,14 @@ def create_celery(app):
                 except HTTPException as exc:
                     # Utility functions like check_quota_people and run_import
                     # use abort_with_message (a Flask/HTTP construct) for both
-                    # request handlers and Celery tasks. Here we unwrap the HTTP
-                    # exception back to a plain message so the frontend can show
-                    # it. Ideally these utilities would raise a dedicated
+                    # request handlers and Celery tasks. Preserve the standard
+                    # API error shape here so task consumers do not need
+                    # special-case parsing for background-task failures.
+                    # Ideally these utilities would raise a dedicated
                     # TaskError instead of an HTTPException.
                     self.update_state(
                         state="FAILURE",
-                        meta={"message": exc.description, "status_code": exc.code},
+                        meta={"error": {"code": exc.code, "message": exc.description}},
                     )
                     raise Ignore()
 

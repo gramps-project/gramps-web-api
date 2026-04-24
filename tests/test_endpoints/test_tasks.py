@@ -77,3 +77,32 @@ class TestTask(unittest.TestCase):
         )
         assert rv.status_code == 200
         assert rv.json["state"] == "PENDING"
+
+    def test_abort_with_message_yields_structured_failure(self):
+        """HTTPException raised in a task is stored as a structured error dict."""
+        from unittest.mock import MagicMock
+
+        from celery import current_app as celery_app
+        from celery.exceptions import Ignore
+        from werkzeug.exceptions import HTTPException
+
+        ContextTask = celery_app.Task
+
+        class FailingTask(ContextTask):
+            def run(self):
+                exc = HTTPException(description="Not allowed by people quota")
+                exc.code = 405
+                raise exc
+
+        task = FailingTask()
+        task.update_state = MagicMock()
+        task.request = MagicMock()
+        task.request.called_directly = False
+
+        with self.assertRaises(Ignore):
+            task()
+
+        task.update_state.assert_called_once_with(
+            state="FAILURE",
+            meta={"error": {"code": 405, "message": "Not allowed by people quota"}},
+        )
