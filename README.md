@@ -9,7 +9,7 @@ Gramps Web API is the backend of [Gramps Web](https://www.grampsweb.org/), a gen
 ## More information
 
 - API documentation for Gramps Web API: https://gramps-project.github.io/gramps-web-api/
-- Developer documentation for Gramps Web API: https://www.grampsweb.org/dev-backend/
+- Developer documentation for Gramps Web API: https://www.grampsweb.org/development/backend/
 - Documentation for Gramps Web: https://www.grampsweb.org
 
 ## Related projects
