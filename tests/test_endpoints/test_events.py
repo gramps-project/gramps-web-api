@@ -451,7 +451,7 @@ class TestEvents(unittest.TestCase):
         rv = check_success(
             self,
             TEST_URL
-            + '?rules={"rules":[{"name":"HasType","values":["Marriage"]}]}&keys=profile&profile=all&locale=de',
+            + '?page=1&pagesize=1000&rules={"rules":[{"name":"HasType","values":["Marriage"]}]}&keys=profile&profile=all&locale=de',
         )
         # Check multiple marriage events until we find one with family participants
         found_family_connector = False
