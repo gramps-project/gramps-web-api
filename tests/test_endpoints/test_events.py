@@ -445,6 +445,22 @@ class TestEvents(unittest.TestCase):
         )
         self.assertEqual(rv[0]["profile"]["summary"], "Geburt - Warner, Sarah Suzanne")
 
+    def test_get_events_parameter_profile_summary_family_participant_with_locale(self):
+        """Test that family event participants are properly localized (marriage events)."""
+        # Query marriage events with German locale and check for family participant translation
+        rv = check_success(
+            self,
+            TEST_URL
+            + '?rules={"rules":[{"name":"HasType","values":["Marriage"]}]}&keys=profile&profile=all&locale=de&pagesize=1',
+        )
+        # First marriage event should have "Heirat" (German for Marriage) in summary
+        summary = rv[0]["profile"]["summary"]
+        self.assertIn("Heirat", summary)
+        # If it has family participants (contains names), it should use "und" not "and"
+        if " und " in summary or " and " in summary:
+            self.assertIn(" und ", summary)
+            self.assertNotIn(" and ", summary)
+
     def test_get_events_parameter_backlinks_validate_semantics(self):
         """Test invalid backlinks parameter and values."""
         check_invalid_semantics(self, TEST_URL + "?backlinks", check="boolean")

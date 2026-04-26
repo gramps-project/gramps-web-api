@@ -68,11 +68,11 @@ from gramps.gen.utils.db import (
     get_death_or_fallback,
     get_divorce_or_fallback,
     get_marriage_or_fallback,
-    get_participant_from_event,
 )
 from gramps.gen.utils.grampslocale import GrampsLocale
 from gramps.gen.utils.id import create_id
 from gramps.gen.utils.place import conv_lat_lon
+from gramps.gen.display.name import displayer as name_displayer
 
 import gramps_gedcom7
 
@@ -152,6 +152,123 @@ def get_sex_profile(person: Person) -> str:
     if person.gender == person.OTHER:
         return SEX_OTHER
     return SEX_UNKNOWN
+
+
+def get_family_name_localized(
+    family: Family, db_handle: DbReadBase, locale: GrampsLocale = glocale
+) -> str:
+    """
+    Get a localized family name for display.
+
+    This is a locale-aware version of gramps.gen.utils.db.family_name()
+    that properly translates the "and" connector based on the requested locale.
+
+    Args:
+        family: The Family object
+        db_handle: Database handle
+        locale: The locale to use for translation (default: server locale)
+
+    Returns:
+        A formatted family name string with proper locale translation
+    """
+    father = None
+    father_handle = family.get_father_handle()
+    if father_handle:
+        father = db_handle.get_person_from_handle(father_handle)
+
+    mother = None
+    mother_handle = family.get_mother_handle()
+    if mother_handle:
+        mother = db_handle.get_person_from_handle(mother_handle)
+
+    if father and mother:
+        fname = name_displayer.display(father)
+        mname = name_displayer.display(mother)
+        # Use the provided locale for translation instead of server default
+        return locale.translation.gettext("%(father)s and %(mother)s") % {
+            "father": fname,
+            "mother": mname,
+        }
+    if father:
+        return name_displayer.display(father)
+    if mother:
+        return name_displayer.display(mother)
+    return locale.translation.gettext("unknown")
+
+
+def get_participant_from_event_localized(
+    db_handle: DbReadBase,
+    event_handle: Handle,
+    locale: GrampsLocale = glocale,
+    all_: bool = False,
+) -> str:
+    """
+    Get the participant name(s) from an event with proper locale translation.
+
+    This is a locale-aware version of gramps.gen.utils.db.get_participant_from_event()
+    that properly translates family names based on the requested locale.
+
+    Args:
+        db_handle: Database handle
+        event_handle: Handle of the event
+        locale: The locale to use for translation (default: server locale)
+        all_: If True, return all participants; if False, add ellipsis for multiple
+
+    Returns:
+        A formatted string of participant name(s)
+    """
+    participant = ""
+    ellipses = False
+    result_list = list(
+        db_handle.find_backlink_handles(
+            event_handle, include_classes=["Person", "Family"]
+        )
+    )
+
+    # obtain handles without duplicates
+    people = set([x[1] for x in result_list if x[0] == "Person"])
+    families = set([x[1] for x in result_list if x[0] == "Family"])
+
+    for person_handle in people:
+        person = db_handle.get_person_from_handle(person_handle)
+        if not person:
+            continue
+        for event_ref in person.get_event_ref_list():
+            if event_handle == event_ref.ref and event_ref.get_role().is_primary():
+                if participant:
+                    if all_:
+                        participant += f", {name_displayer.display(person)}"
+                    else:
+                        ellipses = True
+                else:
+                    participant = name_displayer.display(person)
+                break
+        if ellipses:
+            break
+
+    if ellipses:
+        return locale.translation.gettext("%s, ...") % participant
+
+    for family_handle in families:
+        family = db_handle.get_family_from_handle(family_handle)
+        for event_ref in family.get_event_ref_list():
+            if event_handle == event_ref.ref and event_ref.get_role().is_family():
+                if participant:
+                    if all_:
+                        participant += (
+                            f", {get_family_name_localized(family, db_handle, locale)}"
+                        )
+                    else:
+                        ellipses = True
+                else:
+                    participant = get_family_name_localized(family, db_handle, locale)
+                break
+        if ellipses:
+            break
+
+    if ellipses:
+        return locale.translation.gettext("%s, ...") % participant
+    return participant
 
 
 def get_event_participants_for_handle(
@@ -248,7 +365,7 @@ def get_event_summary_from_object(
 ):
     """Get a summary of an Event."""
     handle = event.get_handle()
-    participant = get_participant_from_event(db_handle, handle)
+    participant = get_participant_from_event_localized(db_handle, handle, locale)
     event_type = locale.translation.sgettext(event.type.xml_str())
     if not participant:
         return event_type
