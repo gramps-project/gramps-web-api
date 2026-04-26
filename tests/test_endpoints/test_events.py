@@ -451,15 +451,25 @@ class TestEvents(unittest.TestCase):
         rv = check_success(
             self,
             TEST_URL
-            + '?rules={"rules":[{"name":"HasType","values":["Marriage"]}]}&keys=profile&profile=all&locale=de&pagesize=1',
+            + '?rules={"rules":[{"name":"HasType","values":["Marriage"]}]}&keys=profile&profile=all&locale=de',
         )
-        # First marriage event should have "Heirat" (German for Marriage) in summary
-        summary = rv[0]["profile"]["summary"]
-        self.assertIn("Heirat", summary)
-        # If it has family participants (contains names), it should use "und" not "and"
-        if " und " in summary or " and " in summary:
-            self.assertIn(" und ", summary)
-            self.assertNotIn(" and ", summary)
+        # Check multiple marriage events until we find one with family participants
+        found_family_connector = False
+        for event in rv:
+            summary = event["profile"]["summary"]
+            # Should contain German event type
+            self.assertIn("Heirat", summary)
+            # Check if this event has family participants (German connector "und")
+            if " und " in summary:
+                found_family_connector = True
+                # Ensure it doesn't have English connector
+                self.assertNotIn(" and ", summary)
+                break
+        # Ensure at least one marriage event had family participants
+        self.assertTrue(
+            found_family_connector,
+            "No marriage event with family participant found (German 'und' connector missing)",
+        )
 
     def test_get_events_parameter_backlinks_validate_semantics(self):
         """Test invalid backlinks parameter and values."""

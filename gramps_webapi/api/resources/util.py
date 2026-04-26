@@ -72,7 +72,7 @@ from gramps.gen.utils.db import (
 from gramps.gen.utils.grampslocale import GrampsLocale
 from gramps.gen.utils.id import create_id
 from gramps.gen.utils.place import conv_lat_lon
-from gramps.gen.display.name import displayer as name_displayer
+from gramps.gen.display.name import displayer as default_name_displayer
 
 import gramps_gedcom7
 
@@ -182,17 +182,17 @@ def get_family_name_localized(
         mother = db_handle.get_person_from_handle(mother_handle)
 
     if father and mother:
-        fname = name_displayer.display(father)
-        mname = name_displayer.display(mother)
+        fname = default_name_displayer.display(father)
+        mname = default_name_displayer.display(mother)
         # Use the provided locale for translation instead of server default
         return locale.translation.gettext("%(father)s and %(mother)s") % {
             "father": fname,
             "mother": mname,
         }
     if father:
-        return name_displayer.display(father)
+        return default_name_displayer.display(father)
     if mother:
-        return name_displayer.display(mother)
+        return default_name_displayer.display(mother)
     return locale.translation.gettext("unknown")
 
 
@@ -237,11 +237,11 @@ def get_participant_from_event_localized(
             if event_handle == event_ref.ref and event_ref.get_role().is_primary():
                 if participant:
                     if all_:
-                        participant += f", {name_displayer.display(person)}"
+                        participant += f", {default_name_displayer.display(person)}"
                     else:
                         ellipses = True
                 else:
-                    participant = name_displayer.display(person)
+                    participant = default_name_displayer.display(person)
                 break
         if ellipses:
             break
@@ -365,7 +365,11 @@ def get_event_summary_from_object(
 ):
     """Get a summary of an Event."""
     handle = event.get_handle()
-    participant = get_participant_from_event_localized(db_handle, handle, locale)
+    try:
+        participant = get_participant_from_event_localized(db_handle, handle, locale)
+    except HandleError:
+        # Bad handle in database - return event type only
+        participant = ""
     event_type = locale.translation.sgettext(event.type.xml_str())
     if not participant:
         return event_type
