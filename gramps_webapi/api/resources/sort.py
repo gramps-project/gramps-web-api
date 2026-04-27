@@ -110,10 +110,13 @@ class Sort:
 
     def by_family_surname_key(self, obj: GrampsObject):
         """Compare by family surname, if equal uses given and suffix."""
+        person = None
         if obj.father_handle is not None:
             person = self.database.get_person_from_handle(obj.father_handle)
         elif obj.mother_handle is not None:
             person = self.database.get_person_from_handle(obj.mother_handle)
+        if person is None:
+            return self.locale.sort_key("")
         name = person.get_primary_name()
         fsn = name.get_surname()
         ffn = name.get_first_name()
@@ -122,10 +125,13 @@ class Sort:
 
     def by_family_soundex_key(self, obj: GrampsObject):
         """Compare by family soundex."""
+        person = None
         if obj.father_handle is not None:
             person = self.database.get_person_from_handle(obj.father_handle)
         elif obj.mother_handle is not None:
             person = self.database.get_person_from_handle(obj.mother_handle)
+        if person is None:
+            return ""
         return soundex(person.get_primary_name().get_surname())
 
     def by_family_type_key(self, obj: GrampsObject):
