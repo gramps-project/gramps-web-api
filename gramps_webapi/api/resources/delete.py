@@ -556,9 +556,8 @@ _FAST_DELETE_ORDER = [
     "Person",
 ]
 
-assert set(_FAST_DELETE_ORDER) == set(
-    GRAMPS_OBJECT_PLURAL
-), "_FAST_DELETE_ORDER is out of sync with GRAMPS_OBJECT_PLURAL"
+if set(_FAST_DELETE_ORDER) != set(GRAMPS_OBJECT_PLURAL):
+    raise RuntimeError("_FAST_DELETE_ORDER is out of sync with GRAMPS_OBJECT_PLURAL")
 
 
 def delete_object(
