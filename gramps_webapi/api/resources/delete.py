@@ -556,18 +556,9 @@ _FAST_DELETE_ORDER = [
     "Person",
 ]
 
-_REMOVE_METHOD = {
-    "Tag": "remove_tag",
-    "Note": "remove_note",
-    "Media": "remove_media",
-    "Citation": "remove_citation",
-    "Repository": "remove_repository",
-    "Source": "remove_source",
-    "Event": "remove_event",
-    "Place": "remove_place",
-    "Family": "remove_family",
-    "Person": "remove_person",
-}
+assert set(_FAST_DELETE_ORDER) == set(
+    GRAMPS_OBJECT_PLURAL
+), "_FAST_DELETE_ORDER is out of sync with GRAMPS_OBJECT_PLURAL"
 
 
 def delete_object(
@@ -598,8 +589,8 @@ def delete_all_objects(
     total = 0
     if progress_cb:
         total = sum(
-            db_handle.method("get_number_of_%s", class_name)()
-            for class_name, namespace in GRAMPS_OBJECT_PLURAL.items()
+            getattr(db_handle, f"get_number_of_{namespace}")()
+            for _, namespace in GRAMPS_OBJECT_PLURAL.items()
             if namespaces is None or namespace in namespaces
         )
     i = 0
@@ -607,7 +598,7 @@ def delete_all_objects(
     order = _FAST_DELETE_ORDER if delete_all else list(GRAMPS_OBJECT_PLURAL.keys())
     for class_name in order:
         namespace = GRAMPS_OBJECT_PLURAL[class_name]
-        if not delete_all and namespace not in namespaces:
+        if namespaces is not None and namespace not in namespaces:
             continue
         iter_handles = db_handle.method("iter_%s_handles", class_name)
         if delete_all:
@@ -615,7 +606,7 @@ def delete_all_objects(
             # Materialize handles before opening the transaction to avoid cursor
             # conflicts with the deletions that follow.
             handles = list(iter_handles())
-            remove = getattr(db_handle, _REMOVE_METHOD[class_name])
+            remove = getattr(db_handle, f"remove_{class_name.lower()}")
             with DbTxn(f"Delete {class_name}", db_handle, batch=True) as trans:
                 for handle in handles:
                     if progress_cb:
