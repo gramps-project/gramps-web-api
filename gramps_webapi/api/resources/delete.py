@@ -39,7 +39,6 @@ from gramps.gen.utils.db import (
 )
 
 from ...const import GRAMPS_OBJECT_PLURAL
-from ..util import get_total_number_of_objects
 from .util import transaction_to_json
 
 
@@ -592,12 +591,17 @@ def delete_all_objects(
     progress_cb: Optional[Callable] = None,
 ) -> None:
     """Delete all objects, optionally restricting to one or more types (namespaces)."""
-    if progress_cb:
-        total = get_total_number_of_objects(db_handle)
     if namespaces is not None:
         unknown_namespaces = set(namespaces) - set(GRAMPS_OBJECT_PLURAL.values())
         if unknown_namespaces:
             raise ValueError(f"Unknown namespace {unknown_namespaces}")
+    total = 0
+    if progress_cb:
+        total = sum(
+            db_handle.method("get_number_of_%s", class_name)()
+            for class_name, namespace in GRAMPS_OBJECT_PLURAL.items()
+            if namespaces is None or namespace in namespaces
+        )
     i = 0
     delete_all = namespaces is None
     order = _FAST_DELETE_ORDER if delete_all else list(GRAMPS_OBJECT_PLURAL.keys())
