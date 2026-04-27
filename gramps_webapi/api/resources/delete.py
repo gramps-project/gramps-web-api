@@ -39,7 +39,6 @@ from gramps.gen.utils.db import (
 )
 
 from ...const import GRAMPS_OBJECT_PLURAL
-from ..util import get_total_number_of_objects
 from .util import transaction_to_json
 
 
@@ -542,6 +541,24 @@ delete_methods = {
     "tag": delete_tag,
 }
 
+# Deletion order for the fast (batch) path: leaf objects first so the reference
+# table is cleaned up in a dependency-friendly order.
+_FAST_DELETE_ORDER = [
+    "Tag",
+    "Note",
+    "Media",
+    "Citation",
+    "Repository",
+    "Source",
+    "Event",
+    "Place",
+    "Family",
+    "Person",
+]
+
+if set(_FAST_DELETE_ORDER) != set(GRAMPS_OBJECT_PLURAL):
+    raise RuntimeError("_FAST_DELETE_ORDER is out of sync with GRAMPS_OBJECT_PLURAL")
+
 
 def delete_object(
     db_handle: DbWriteBase, handle: str, gramps_class_name: str
@@ -564,18 +581,40 @@ def delete_all_objects(
     progress_cb: Optional[Callable] = None,
 ) -> None:
     """Delete all objects, optionally restricting to one or more types (namespaces)."""
-    if progress_cb:
-        total = get_total_number_of_objects(db_handle)
     if namespaces is not None:
         unknown_namespaces = set(namespaces) - set(GRAMPS_OBJECT_PLURAL.values())
         if unknown_namespaces:
             raise ValueError(f"Unknown namespace {unknown_namespaces}")
+    total = 0
+    if progress_cb:
+        total = sum(
+            getattr(db_handle, f"get_number_of_{namespace}")()
+            for _, namespace in GRAMPS_OBJECT_PLURAL.items()
+            if namespaces is None or namespace in namespaces
+        )
     i = 0
-    for class_name, namespace in GRAMPS_OBJECT_PLURAL.items():
-        if namespaces is None or namespace in namespaces:
-            with DbTxn(f"Delete {namespaces or 'all objects'}", db_handle) as trans:
-                iter_handles = db_handle.method("iter_%s_handles", class_name)
-                del_method = delete_methods[class_name.lower()]
+    delete_all = namespaces is None
+    order = _FAST_DELETE_ORDER if delete_all else list(GRAMPS_OBJECT_PLURAL.keys())
+    for class_name in order:
+        namespace = GRAMPS_OBJECT_PLURAL[class_name]
+        if namespaces is not None and namespace not in namespaces:
+            continue
+        iter_handles = db_handle.method("iter_%s_handles", class_name)
+        if delete_all:
+            # Fast path: batch=True skips undo-data recording and signal emission.
+            # Materialize handles before opening the transaction to avoid cursor
+            # conflicts with the deletions that follow.
+            handles = list(iter_handles())
+            remove = getattr(db_handle, f"remove_{class_name.lower()}")
+            with DbTxn(f"Delete {class_name}", db_handle, batch=True) as trans:
+                for handle in handles:
+                    if progress_cb:
+                        progress_cb(current=i, total=total)
+                    i += 1
+                    remove(handle, trans)
+        else:
+            del_method = delete_methods[class_name.lower()]
+            with DbTxn(f"Delete {namespaces}", db_handle) as trans:
                 for handle in iter_handles():
                     if progress_cb:
                         progress_cb(current=i, total=total)
