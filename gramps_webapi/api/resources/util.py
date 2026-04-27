@@ -1056,10 +1056,13 @@ def get_soundex(
 ) -> str:
     """Return soundex code."""
     if gramps_class_name == "Family":
+        person = None
         if obj.father_handle is not None:
             person = db_handle.get_person_from_handle(obj.father_handle)
-        elif obj.mother_handle is not None:
+        if person is None and obj.mother_handle is not None:
             person = db_handle.get_person_from_handle(obj.mother_handle)
+        if person is None:
+            return ""
     else:
         person = obj
     return soundex(person.get_primary_name().get_surname())

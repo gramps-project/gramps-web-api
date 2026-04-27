@@ -113,7 +113,7 @@ class Sort:
         person = None
         if obj.father_handle is not None:
             person = self.database.get_person_from_handle(obj.father_handle)
-        elif obj.mother_handle is not None:
+        if person is None and obj.mother_handle is not None:
             person = self.database.get_person_from_handle(obj.mother_handle)
         if person is None:
             return self.locale.sort_key("")
@@ -128,7 +128,7 @@ class Sort:
         person = None
         if obj.father_handle is not None:
             person = self.database.get_person_from_handle(obj.father_handle)
-        elif obj.mother_handle is not None:
+        if person is None and obj.mother_handle is not None:
             person = self.database.get_person_from_handle(obj.mother_handle)
         if person is None:
             return ""
