@@ -612,3 +612,78 @@ class TestTransactionHistoryResource(unittest.TestCase):
         assert conflict["object_class"] == "Person"
         assert conflict["handle"] == person_handle
         assert conflict["conflict_type"] == "object_changed"
+
+    def test_undo_check_update_no_false_conflict(self):
+        """Dry-run on the most recent update must not report a conflict.
+
+        Regression test: the check was comparing the current object against
+        old_data (pre-update state) instead of new_data (post-update state),
+        which always produced a spurious conflict immediately after an edit.
+        """
+        headers = get_headers(self.client, "editor", "123")
+
+        # Add a person, then update it
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        person = rv.json[0]["new"]
+        person["gramps_id"] = "UPDATED_ID"
+        rv = self.client.put(
+            f"/api/people/{person['handle']}", json=person, headers=headers
+        )
+        assert rv.status_code == 200
+
+        # The update transaction is the second one
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        update_transaction_id = rv.json[1]["id"]
+
+        # Dry-run: nothing has changed since the update, so no conflict expected
+        rv = self.client.get(
+            f"/api/transactions/history/{update_transaction_id}/undo", headers=headers
+        )
+        assert rv.status_code == 200
+        result = rv.json
+        assert result["can_undo_without_force"] is True
+        assert result["conflicts_count"] == 0
+
+    def test_undo_check_update_conflict_after_second_edit(self):
+        """Dry-run on the first of two edits must report a conflict.
+
+        After editing object A twice (T1, T2), undoing T1 should conflict
+        because the object no longer matches the state T1 left it in.
+        """
+        headers = get_headers(self.client, "editor", "123")
+
+        # Add a person
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        person = rv.json[0]["new"]
+        handle = person["handle"]
+
+        # First edit
+        person["gramps_id"] = "EDIT_ONE"
+        rv = self.client.put(f"/api/people/{handle}", json=person, headers=headers)
+        assert rv.status_code == 200
+
+        # Get the first-edit transaction id before the second edit creates another
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        first_edit_transaction_id = rv.json[1]["id"]
+
+        # Second edit
+        person["gramps_id"] = "EDIT_TWO"
+        rv = self.client.put(f"/api/people/{handle}", json=person, headers=headers)
+        assert rv.status_code == 200
+
+        # Dry-run on T1: object was modified again by T2, so expect a conflict
+        rv = self.client.get(
+            f"/api/transactions/history/{first_edit_transaction_id}/undo",
+            headers=headers,
+        )
+        assert rv.status_code == 200
+        result = rv.json
+        assert result["can_undo_without_force"] is False
+        assert result["conflicts_count"] > 0
+        conflict = result["conflicts"][0]
+        assert conflict["handle"] == handle
+        assert conflict["conflict_type"] == "object_changed"
