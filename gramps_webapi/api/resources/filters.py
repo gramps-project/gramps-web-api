@@ -279,7 +279,9 @@ def apply_filter(
         abort_with_message(422, "Filter does not adhere to schema")
 
     if handles is None:
-        handles = list(db_handle.method("get_%s_handles", namespace)())
+        query_method = db_handle.method("get_%s_handles", namespace)
+        assert query_method is not None, f"No handle query for namespace '{namespace}'"
+        handles = list(query_method())
     return _apply_filter_parms(filter_parms, db_handle, namespace, handles)
 
 
