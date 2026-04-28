@@ -97,29 +97,39 @@ _ADDITIONAL_RULES: dict[str, list[type[Rule]]] = {
     "Media": [IsReferencedByObjectType],
 }
 
+_RULE_CLASS_CACHE: dict[str, dict[str, type[Rule]]] = {}
+
+
+def get_rule_map(namespace: str) -> dict[str, type[Rule]]:
+    """Return a class-name → class mapping for all available rules in a namespace."""
+    if namespace not in _RULE_CLASS_CACHE:
+        mod = _NAMESPACE_MODULES.get(namespace)
+        if mod is None:
+            _RULE_CLASS_CACHE[namespace] = {}
+        else:
+            seen: set[str] = set()
+            result: dict[str, type[Rule]] = {}
+            for _, cls in inspect.getmembers(mod, inspect.isclass):
+                if (
+                    cls is not Rule
+                    and issubclass(cls, Rule)
+                    and hasattr(cls, "name")
+                    and cls.name  # type: ignore[union-attr]
+                    and cls.__name__ not in seen
+                ):
+                    result[cls.__name__] = cls
+                    seen.add(cls.__name__)
+            for additional_cls in _ADDITIONAL_RULES.get(namespace, []):
+                if additional_cls.__name__ not in seen:
+                    result[additional_cls.__name__] = additional_cls
+                    seen.add(additional_cls.__name__)
+            _RULE_CLASS_CACHE[namespace] = result
+    return _RULE_CLASS_CACHE[namespace]
+
 
 def get_rule_list(namespace: str) -> list[type[Rule]]:
     """Return all available rule classes for a namespace."""
-    mod = _NAMESPACE_MODULES.get(namespace)
-    if mod is None:
-        return []
-    seen: set[str] = set()
-    result: list[type[Rule]] = []
-    for _, cls in inspect.getmembers(mod, inspect.isclass):
-        if (
-            cls is not Rule
-            and issubclass(cls, Rule)
-            and hasattr(cls, "name")
-            and cls.name  # type: ignore[union-attr]
-            and cls.__name__ not in seen
-        ):
-            result.append(cls)
-            seen.add(cls.__name__)
-    for additional_cls in _ADDITIONAL_RULES.get(namespace, []):
-        if additional_cls.__name__ not in seen:
-            result.append(additional_cls)
-            seen.add(additional_cls.__name__)
-    return result
+    return list(get_rule_map(namespace).values())
 
 
 def get_filter_rules(args: dict[str, Any], namespace: str) -> list[dict[str, Any]]:
@@ -180,13 +190,14 @@ def get_custom_filters(args: dict[str, Any], namespace: str) -> list[dict[str, A
 
 def _build_rule_instance(rule_parms: dict[str, Any], namespace: str) -> Rule:
     """Instantiate a single rule from its parameter dict."""
-    for rule_class in get_rule_list(namespace):
-        if rule_parms["name"] == rule_class.__name__:
-            return rule_class(
-                rule_parms.get("values", []),
-                use_regex=rule_parms.get("regex", False),
-            )
-    abort(404)
+    rule_class = get_rule_map(namespace).get(rule_parms["name"])
+    if rule_class is None:
+        abort(404)
+    assert rule_class is not None
+    return rule_class(
+        rule_parms.get("values", []),
+        use_regex=rule_parms.get("regex", False),
+    )
 
 
 def _apply_filter_parms(
@@ -197,7 +208,7 @@ def _apply_filter_parms(
     depth: int = 0,
 ) -> list[Handle]:
     """Recursively evaluate a filter spec and return matching handles."""
-    if depth > MAX_FILTER_DEPTH:
+    if depth >= MAX_FILTER_DEPTH:
         abort_with_message(400, "Filter nesting depth exceeded")
 
     function = filter_parms.get("function", "and")
@@ -267,7 +278,9 @@ def apply_filter(
     except ValidationError:
         abort_with_message(422, "Filter does not adhere to schema")
 
-    return _apply_filter_parms(filter_parms, db_handle, namespace, handles or [])
+    if handles is None:
+        handles = list(db_handle.method("get_%s_handles", namespace)())
+    return _apply_filter_parms(filter_parms, db_handle, namespace, handles)
 
 
 class RuleSchema(Schema):

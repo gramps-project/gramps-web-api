@@ -480,37 +480,8 @@ class TestNestedFilters(unittest.TestCase):
         cls.client = get_test_client()
         headers = fetch_header(cls.client)
 
-        # Create three people with distinct tags to use as test fixtures.
-        # tag_a only, tag_b only, both tags.
-        cls.handle_a = make_handle()
-        cls.handle_b = make_handle()
-        cls.handle_ab = make_handle()
-        cls.tag_a = "NestedFilterTestTagA_" + cls.handle_a[:6]
-        cls.tag_b = "NestedFilterTestTagB_" + cls.handle_b[:6]
-
-        for handle, tags in [
-            (cls.handle_a, [cls.tag_a]),
-            (cls.handle_b, [cls.tag_b]),
-            (cls.handle_ab, [cls.tag_a, cls.tag_b]),
-        ]:
-            rv = cls.client.post(
-                "/api/people/",
-                json={
-                    "_class": "Person",
-                    "handle": handle,
-                    "tag_list": [
-                        {"_class": "TagBase", "tag": tag_name} for tag_name in tags
-                    ],
-                },
-                headers=headers,
-            )
-            # tag_list on Person uses Tag handles, not names; use a note workaround:
-            # just store the gramps_id instead so we can find them by ID later.
-            # Re-create with gramps_id encoding the tag scenario.
-            cls.client.delete(f"/api/people/{handle}", headers=headers)
-
-        # Simpler: encode the scenario in gramps_id and use HasAssociationType
-        # as a proxy for "has tag X". Two people with DNA, one without.
+        # Three fixtures: one with DNA association only, one with neither,
+        # one with both DNA association and a known Gramps ID.
         cls.handle_dna = make_handle()
         cls.handle_no_dna = make_handle()
         cls.handle_dna_and_id = make_handle()
