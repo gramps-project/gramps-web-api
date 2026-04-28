@@ -41,7 +41,8 @@ class TaskStatusSchema(Schema):
 
     state = fields.Str(
         metadata={
-            "description": "The current task state (e.g. 'PENDING', 'STARTED', 'SUCCESS', 'FAILURE')."
+            "description": "The current task state"
+            " (e.g. 'PENDING', 'STARTED', 'SUCCESS', 'FAILURE')."
         },
     )
     result_object = fields.Raw(
@@ -89,9 +90,28 @@ class TaskListItemSchema(Schema):
         metadata={"description": "UUID of the user who dispatched the task."},
     )
     state = fields.Str(
+        dump_default=None,
         metadata={
-            "description": "The current task state (e.g. 'PENDING', 'STARTED', 'SUCCESS', 'FAILURE')."
+            "description": "The current task state"
+            " (e.g. 'PENDING', 'STARTED', 'SUCCESS', 'FAILURE')."
+            " Only populated when include_state=true."
         },
+    )
+
+
+class TaskListArgsSchema(Schema):
+    """Query args for GET /tasks/."""
+
+    include_state = fields.Bool(
+        load_default=False,
+        metadata={
+            "description": "Fetch live state from Celery backend for each task."
+            " Adds one backend call per task."
+        },
+    )
+    limit = fields.Int(
+        load_default=100,
+        metadata={"description": "Maximum number of tasks to return (default 100)."},
     )
 
 
@@ -121,6 +141,10 @@ class TaskResource(ProtectedResource):
             abort(HTTPStatus.NOT_FOUND)
 
         row = user_db.session.get(TaskTree, task_id)
+        if row is not None:
+            tree = get_tree_from_jwt_or_fail()
+            if row.tree != tree:
+                abort(HTTPStatus.FORBIDDEN)
 
         result = {
             "state": task.state,
@@ -141,7 +165,8 @@ class TaskListResource(ProtectedResource):
     """Resource for listing tasks for the current tree."""
 
     @api_blueprint.response(200, TaskListItemSchema(many=True))
-    def get(self):
+    @api_blueprint.arguments(TaskListArgsSchema, location="query")
+    def get(self, args):
         """List tasks for the current tree.
 
         Any authenticated user can see their own tasks. Users with the
@@ -151,14 +176,18 @@ class TaskListResource(ProtectedResource):
         query = user_db.session.query(TaskTree).filter(TaskTree.tree == tree)
         if not has_permissions([PERM_VIEW_OTHER_USER]):
             query = query.filter(TaskTree.user_id == get_jwt_identity())
-        rows = query.order_by(TaskTree.created_at.desc()).all()
+        rows = (
+            query.order_by(TaskTree.created_at.desc()).limit(args["limit"]).all()
+        )
         return [
             {
                 "task_id": row.task_id,
                 "name": row.name,
                 "created_at": row.created_at,
                 "user_id": row.user_id,
-                "state": AsyncResult(row.task_id).state,
+                "state": AsyncResult(row.task_id).state
+                if args["include_state"]
+                else None,
             }
             for row in rows
         ]

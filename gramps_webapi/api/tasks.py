@@ -96,7 +96,9 @@ def _purge_expired_task_rows() -> None:
     elif not isinstance(ttl, timedelta):
         ttl = timedelta(seconds=int(ttl))
     cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - ttl
-    user_db.session.query(TaskTree).filter(TaskTree.created_at < cutoff).delete()
+    user_db.session.query(TaskTree).filter(TaskTree.created_at < cutoff).delete(
+        synchronize_session=False
+    )
     user_db.session.commit()
 
 
