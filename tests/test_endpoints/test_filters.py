@@ -537,7 +537,11 @@ class TestNestedFilters(unittest.TestCase):
     def tearDownClass(cls):
         headers = fetch_header(cls.client)
         for handle in [cls.handle_dna, cls.handle_no_dna, cls.handle_dna_and_id]:
-            cls.client.delete(f"/api/people/{handle}", headers=headers)
+            rv = cls.client.delete(f"/api/people/{handle}", headers=headers)
+            assert rv.status_code in (200, 204), (
+                f"Failed to delete fixture person {handle}: "
+                f"unexpected status {rv.status_code}"
+            )
 
     def _get_handles(self, filter_dict: dict) -> set:
         import json as _json
