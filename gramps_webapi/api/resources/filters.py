@@ -20,6 +20,7 @@
 
 """Gramps filter interface."""
 
+import inspect
 import json
 from typing import Any, Dict, List, Optional, Set
 
@@ -91,23 +92,47 @@ class IsReferencedByObjectType(Rule):
         return False
 
 
-additional_media_rules = [IsReferencedByObjectType]
-additional_person_rules = [HasAssociationType]
+MAX_FILTER_DEPTH = 5
+
+_NAMESPACE_MODULES = {
+    "Person": filters.rules.person,
+    "Family": filters.rules.family,
+    "Event": filters.rules.event,
+    "Place": filters.rules.place,
+    "Citation": filters.rules.citation,
+    "Source": filters.rules.source,
+    "Repository": filters.rules.repository,
+    "Media": filters.rules.media,
+    "Note": filters.rules.note,
+}
+
+_ADDITIONAL_RULES: Dict[str, List] = {
+    "Person": [HasAssociationType],
+    "Media": [IsReferencedByObjectType],
+}
 
 
-def get_rule_list(namespace: str) -> List[Rule]:
-    """Return a list of available rules for a namespace."""
-    return {
-        "Person": filters.rules.person.editor_rule_list + additional_person_rules,
-        "Family": filters.rules.family.editor_rule_list,
-        "Event": filters.rules.event.editor_rule_list,
-        "Place": filters.rules.place.editor_rule_list,
-        "Citation": filters.rules.citation.editor_rule_list,
-        "Source": filters.rules.source.editor_rule_list,
-        "Repository": filters.rules.repository.editor_rule_list,
-        "Media": filters.rules.media.editor_rule_list + additional_media_rules,
-        "Note": filters.rules.note.editor_rule_list,
-    }[namespace]
+def get_rule_list(namespace: str) -> List:
+    """Return all available rule classes for a namespace."""
+    mod = _NAMESPACE_MODULES.get(namespace)
+    if mod is None:
+        return []
+    seen: Set[str] = set()
+    result = []
+    for _, cls in inspect.getmembers(mod, inspect.isclass):
+        if (
+            cls is not Rule
+            and issubclass(cls, Rule)
+            and getattr(cls, "name", "")
+            and cls.__name__ not in seen
+        ):
+            result.append(cls)
+            seen.add(cls.__name__)
+    for additional_cls in _ADDITIONAL_RULES.get(namespace, []):
+        if additional_cls.__name__ not in seen:
+            result.append(additional_cls)
+            seen.add(additional_cls.__name__)
+    return result
 
 
 def get_filter_rules(args: Dict[str, Any], namespace: str) -> List[Dict]:
@@ -164,8 +189,60 @@ def get_custom_filters(args: Dict[str, Any], namespace: str) -> List[Dict]:
     return filter_list
 
 
+def _build_rule_instance(rule_parms: Dict, namespace: str) -> Rule:
+    """Instantiate a single rule from its parameter dict."""
+    for rule_class in get_rule_list(namespace):
+        if rule_parms["name"] == rule_class.__name__:
+            return rule_class(
+                rule_parms.get("values", []),
+                use_regex=rule_parms.get("regex", False),
+            )
+    abort(404)
+
+
+def _apply_filter_parms(
+    filter_parms: Dict,
+    db_handle: DbReadBase,
+    namespace: str,
+    handles: List[Handle],
+    depth: int = 0,
+) -> List[Handle]:
+    """Recursively evaluate a filter spec and return matching handles."""
+    if depth > MAX_FILTER_DEPTH:
+        abort_with_message(400, "Filter nesting depth exceeded")
+
+    function = filter_parms.get("function", "and")
+    invert = filter_parms.get("invert", False)
+    handle_set = set(handles)
+    result_sets = []
+
+    for item in filter_parms["rules"]:
+        if "name" in item:
+            single = filters.GenericFilterFactory(namespace)()
+            single.add_rule(_build_rule_instance(item, namespace))
+            result_sets.append(set(single.apply(db_handle, id_list=handles)))
+        else:
+            result_sets.append(
+                set(_apply_filter_parms(item, db_handle, namespace, handles, depth + 1))
+            )
+
+    if not result_sets:
+        combined = handle_set
+    elif function == "and":
+        combined = handle_set.intersection(*result_sets)
+    elif function == "or":
+        combined = set().union(*result_sets) & handle_set
+    else:  # "one"
+        combined = {h for h in handles if sum(1 for s in result_sets if h in s) == 1}
+
+    if invert:
+        combined = handle_set - combined
+
+    return [h for h in handles if h in combined]
+
+
 def build_filter(filter_parms: Dict, namespace: str) -> GenericFilter:
-    """Build and return a filter object."""
+    """Build a flat GenericFilter for named custom filter persistence."""
     filter_object = filters.GenericFilterFactory(namespace)()
     if "name" in filter_parms:
         filter_object.set_name(filter_parms["name"])
@@ -175,22 +252,8 @@ def build_filter(filter_parms: Dict, namespace: str) -> GenericFilter:
         filter_object.set_logical_op(filter_parms["function"])
     if "invert" in filter_parms:
         filter_object.set_invert(filter_parms["invert"])
-    for filter_rule in filter_parms["rules"]:
-        rule_instance = None
-        for rule_class in get_rule_list(namespace):
-            if filter_rule["name"] == rule_class.__name__:
-                rule_instance = rule_class
-                break
-        if rule_instance is None:
-            abort(404)
-        filter_args = []
-        if "values" in filter_rule:
-            filter_args = filter_rule["values"]
-        filter_regex = False
-        if "regex" in filter_rule:
-            filter_regex = filter_rule["regex"]
-        assert rule_instance is not None  # for mypy
-        filter_object.add_rule(rule_instance(filter_args, use_regex=filter_regex))
+    for rule_parms in filter_parms["rules"]:
+        filter_object.add_rule(_build_rule_instance(rule_parms, namespace))
     return filter_object
 
 
@@ -215,8 +278,7 @@ def apply_filter(
     except ValidationError:
         abort_with_message(422, "Filter does not adhere to schema")
 
-    filter_object = build_filter(filter_parms, namespace)
-    return filter_object.apply(db_handle, id_list=handles)
+    return _apply_filter_parms(filter_parms, db_handle, namespace, handles)
 
 
 class RuleSchema(Schema):
@@ -241,6 +303,22 @@ class RuleSchema(Schema):
     )
 
 
+class RuleOrFilterField(fields.Field):
+    """Polymorphic field: deserializes as RuleSchema (has 'name') or nested FilterSchema (has 'rules')."""
+
+    def _deserialize(self, value, attr, data, **kwargs):
+        if not isinstance(value, dict):
+            raise ValidationError("Expected a dict")
+        if "name" in value:
+            return RuleSchema().load(value)
+        if "rules" in value:
+            return FilterSchema().load(value)
+        raise ValidationError("Must have 'name' (rule) or 'rules' (sub-filter)")
+
+    def _serialize(self, value, attr, obj, **kwargs):
+        return value
+
+
 class FilterSchema(Schema):
     """Structure for a filter."""
 
@@ -258,11 +336,11 @@ class FilterSchema(Schema):
         metadata={"description": "If true, invert the filter result set."},
     )
     rules = fields.List(
-        fields.Nested(RuleSchema),
+        RuleOrFilterField(),
         required=True,
         validate=validate.Length(min=1),
         metadata={
-            "description": "List of filter rules or comma-delimited list of rule names to return."
+            "description": "List of rule specs or nested filter specs to compose."
         },
     )
 

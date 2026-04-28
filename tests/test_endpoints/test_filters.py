@@ -421,3 +421,261 @@ class TestIsReferencedByObjectType(unittest.TestCase):
         # handle gone from Person filter after cleanup
         rv = self.client.get(url, headers=headers)
         assert media_handle not in handles(rv)
+
+
+class TestExpandedRuleList(unittest.TestCase):
+    """Previously excluded rules (not in editor_rule_list) are now available."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = get_test_client()
+
+    def test_match_id_of_rule_available_in_rule_list(self):
+        """MatchIdOf appears in the people rule list."""
+        headers = fetch_header(self.client)
+        rv = self.client.get(
+            BASE_URL + "/filters/people?rules=MatchIdOf", headers=headers
+        )
+        assert rv.status_code == 200
+        assert rv.json["rules"][0]["rule"] == "MatchIdOf"
+
+    def test_match_id_of_filters_by_gramps_id(self):
+        """MatchIdOf returns the person with the given Gramps ID."""
+        handle = make_handle()
+        gramps_id = "I_TEST_MATCHID_" + handle[:8]
+        headers = fetch_header(self.client)
+        rv = self.client.post(
+            "/api/people/",
+            json={"_class": "Person", "handle": handle, "gramps_id": gramps_id},
+            headers=headers,
+        )
+        assert rv.status_code == 201
+
+        import json as _json
+
+        url = f'/api/people/?rules={_json.dumps({"rules": [{"name": "MatchIdOf", "values": [gramps_id]}]})}'
+        rv = self.client.get(url, headers=headers)
+        assert rv.status_code == 200
+        assert len(rv.json) == 1
+        assert rv.json[0]["handle"] == handle
+
+        rv = self.client.delete(f"/api/people/{handle}", headers=headers)
+        assert rv.status_code == 200
+
+    def test_search_name_rule_available(self):
+        """SearchName appears in the people rule list."""
+        headers = fetch_header(self.client)
+        rv = self.client.get(
+            BASE_URL + "/filters/people?rules=SearchName", headers=headers
+        )
+        assert rv.status_code == 200
+        assert rv.json["rules"][0]["rule"] == "SearchName"
+
+
+class TestNestedFilters(unittest.TestCase):
+    """Inline nested filter composition using sub-filter specs inside rules."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = get_test_client()
+        headers = fetch_header(cls.client)
+
+        # Create three people with distinct tags to use as test fixtures.
+        # tag_a only, tag_b only, both tags.
+        cls.handle_a = make_handle()
+        cls.handle_b = make_handle()
+        cls.handle_ab = make_handle()
+        cls.tag_a = "NestedFilterTestTagA_" + cls.handle_a[:6]
+        cls.tag_b = "NestedFilterTestTagB_" + cls.handle_b[:6]
+
+        for handle, tags in [
+            (cls.handle_a, [cls.tag_a]),
+            (cls.handle_b, [cls.tag_b]),
+            (cls.handle_ab, [cls.tag_a, cls.tag_b]),
+        ]:
+            rv = cls.client.post(
+                "/api/people/",
+                json={
+                    "_class": "Person",
+                    "handle": handle,
+                    "tag_list": [
+                        {"_class": "TagBase", "tag": tag_name} for tag_name in tags
+                    ],
+                },
+                headers=headers,
+            )
+            # tag_list on Person uses Tag handles, not names; use a note workaround:
+            # just store the gramps_id instead so we can find them by ID later.
+            # Re-create with gramps_id encoding the tag scenario.
+            cls.client.delete(f"/api/people/{handle}", headers=headers)
+
+        # Simpler: encode the scenario in gramps_id and use HasAssociationType
+        # as a proxy for "has tag X". Two people with DNA, one without.
+        cls.handle_dna = make_handle()
+        cls.handle_no_dna = make_handle()
+        cls.handle_dna_and_id = make_handle()
+        cls.special_id = "I_NESTED_" + cls.handle_dna_and_id[:8]
+
+        rv = cls.client.post(
+            "/api/people/",
+            json={
+                "_class": "Person",
+                "handle": cls.handle_dna,
+                "person_ref_list": [
+                    {"_class": "PersonRef", "rel": "DNA", "ref": cls.handle_dna}
+                ],
+            },
+            headers=headers,
+        )
+        assert rv.status_code == 201
+
+        rv = cls.client.post(
+            "/api/people/",
+            json={"_class": "Person", "handle": cls.handle_no_dna},
+            headers=headers,
+        )
+        assert rv.status_code == 201
+
+        rv = cls.client.post(
+            "/api/people/",
+            json={
+                "_class": "Person",
+                "handle": cls.handle_dna_and_id,
+                "gramps_id": cls.special_id,
+                "person_ref_list": [
+                    {
+                        "_class": "PersonRef",
+                        "rel": "DNA",
+                        "ref": cls.handle_dna_and_id,
+                    }
+                ],
+            },
+            headers=headers,
+        )
+        assert rv.status_code == 201
+
+    @classmethod
+    def tearDownClass(cls):
+        headers = fetch_header(cls.client)
+        for handle in [cls.handle_dna, cls.handle_no_dna, cls.handle_dna_and_id]:
+            cls.client.delete(f"/api/people/{handle}", headers=headers)
+
+    def _get_handles(self, url):
+        headers = fetch_header(self.client)
+        rv = self.client.get(url, headers=headers)
+        assert rv.status_code == 200
+        return {obj["handle"] for obj in rv.json}
+
+    def test_or_nested_filter(self):
+        """OR sub-filter: handle_dna OR handle_dna_and_id via MatchIdOf OR HasAssociationType."""
+        import json as _json
+
+        # Top-level filter: OR of two leaf rules.
+        # Rule 1: HasAssociationType=DNA  → matches handle_dna and handle_dna_and_id
+        # Rule 2: MatchIdOf=special_id    → matches handle_dna_and_id only
+        # OR result should include both DNA handles.
+        f = {
+            "function": "or",
+            "rules": [
+                {"name": "HasAssociationType", "values": ["DNA"]},
+                {"name": "MatchIdOf", "values": [self.special_id]},
+            ],
+        }
+        url = f"/api/people/?rules={_json.dumps(f)}"
+        result = self._get_handles(url)
+        assert self.handle_dna in result
+        assert self.handle_dna_and_id in result
+        assert self.handle_no_dna not in result
+
+    def test_and_nested_filter(self):
+        """AND composition: HasAssociationType=DNA AND MatchIdOf=special_id."""
+        import json as _json
+
+        f = {
+            "function": "and",
+            "rules": [
+                {"name": "HasAssociationType", "values": ["DNA"]},
+                {"name": "MatchIdOf", "values": [self.special_id]},
+            ],
+        }
+        url = f"/api/people/?rules={_json.dumps(f)}"
+        result = self._get_handles(url)
+        # Only handle_dna_and_id satisfies both
+        assert self.handle_dna_and_id in result
+        assert self.handle_dna not in result
+        assert self.handle_no_dna not in result
+
+    def test_inline_sub_filter(self):
+        """Nested sub-filter: outer AND contains an inner OR sub-filter."""
+        import json as _json
+
+        # Outer AND:
+        #   - leaf: MatchIdOf=special_id         → only handle_dna_and_id
+        #   - sub-filter OR: HasAssociationType=DNA → handle_dna and handle_dna_and_id
+        # AND of the two → only handle_dna_and_id
+        f = {
+            "function": "and",
+            "rules": [
+                {"name": "MatchIdOf", "values": [self.special_id]},
+                {
+                    "function": "or",
+                    "rules": [
+                        {"name": "HasAssociationType", "values": ["DNA"]},
+                    ],
+                },
+            ],
+        }
+        url = f"/api/people/?rules={_json.dumps(f)}"
+        result = self._get_handles(url)
+        assert self.handle_dna_and_id in result
+        assert self.handle_dna not in result
+        assert self.handle_no_dna not in result
+
+    def test_invert_on_sub_filter(self):
+        """invert on a sub-filter inverts that sub-filter's result."""
+        import json as _json
+
+        # Outer AND:
+        #   - leaf: HasAssociationType=DNA          → handle_dna, handle_dna_and_id
+        #   - sub-filter OR + invert: NOT MatchIdOf=special_id
+        #       → everyone except handle_dna_and_id
+        # AND → handle_dna only
+        f = {
+            "function": "and",
+            "rules": [
+                {"name": "HasAssociationType", "values": ["DNA"]},
+                {
+                    "function": "or",
+                    "invert": True,
+                    "rules": [
+                        {"name": "MatchIdOf", "values": [self.special_id]},
+                    ],
+                },
+            ],
+        }
+        url = f"/api/people/?rules={_json.dumps(f)}"
+        result = self._get_handles(url)
+        assert self.handle_dna in result
+        assert self.handle_dna_and_id not in result
+
+    def test_invalid_rule_name_returns_404(self):
+        """Unknown rule name in a nested filter returns 404."""
+        import json as _json
+
+        headers = fetch_header(self.client)
+        f = {"rules": [{"name": "NonExistentRuleXYZ", "values": []}]}
+        rv = self.client.get(
+            f"/api/people/?rules={_json.dumps(f)}", headers=headers
+        )
+        assert rv.status_code == 404
+
+    def test_missing_name_and_rules_returns_422(self):
+        """A rules item with neither 'name' nor 'rules' fails schema validation."""
+        import json as _json
+
+        headers = fetch_header(self.client)
+        f = {"rules": [{"values": ["something"]}]}
+        rv = self.client.get(
+            f"/api/people/?rules={_json.dumps(f)}", headers=headers
+        )
+        assert rv.status_code == 422
