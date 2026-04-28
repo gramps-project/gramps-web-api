@@ -222,7 +222,6 @@ class TransactionUndoResource(ProtectedResource):
 
             class_name = change["obj_class"]
             handle = change["obj_handle"]
-            old_data = change.get("old_data")
 
             if change["trans_type"] == TXNDEL:
                 # Check if an object with this handle already exists (would be a conflict)
@@ -247,9 +246,12 @@ class TransactionUndoResource(ProtectedResource):
                             db_handle, class_name, handle, new_data
                         )
                     else:
-                        # For update transactions, check if current object differs from pre-update state (old_data)
+                        # For update transactions, check if current object still matches the
+                        # post-update state (new_data). If so, nothing has changed since this
+                        # transaction and it's safe to undo.
+                        new_data = change.get("new_data")
                         unchanged = old_unchanged(
-                            db_handle, class_name, handle, old_data
+                            db_handle, class_name, handle, new_data
                         )
 
                     if not unchanged:
