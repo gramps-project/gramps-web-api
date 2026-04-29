@@ -27,6 +27,8 @@ from gettext import gettext as _
 from http import HTTPStatus
 from typing import Any, Callable, Dict, List, Optional, Union
 
+import logging
+import sqlalchemy as sa
 from celery import Task, shared_task
 from celery.result import AsyncResult
 from flask import current_app, jsonify
@@ -111,8 +113,15 @@ def run_task(task: Task, **kwargs) -> Union[AsyncResult, Any]:
             except Exception as exc:
                 abort_with_message(500, str(exc))
     task_id = str(uuid.uuid4())
-    _purge_expired_task_rows()
-    _record_task(task_id, task, kwargs)
+    try:
+        _purge_expired_task_rows()
+        _record_task(task_id, task, kwargs)
+    except sa.exc.SQLAlchemyError:
+        logging.getLogger(__name__).warning(
+            "task_tree DB operation failed for task %s; dispatching anyway",
+            task_id,
+            exc_info=True,
+        )
     return task.apply_async(kwargs=kwargs, task_id=task_id)
 
 
