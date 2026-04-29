@@ -584,3 +584,21 @@ class OIDCAccount(user_db.Model):  # type: ignore
     def __repr__(self):
         """Return string representation of instance."""
         return f"<OIDCAccount(provider_id='{self.provider_id}', subject_id='{self.subject_id}', user_id='{self.user_id}')>"
+
+
+class TaskTree(user_db.Model):  # type: ignore
+    """Audit table linking Celery task IDs to the tree and user that triggered them."""
+
+    __tablename__ = "task_tree"
+
+    task_id = mapped_column(sa.String(155), primary_key=True)
+    tree = mapped_column(sa.String, index=True)
+    user_id = mapped_column(sa.String, index=True)
+    name = mapped_column(sa.String, nullable=False)
+    created_at = mapped_column(
+        sa.DateTime, nullable=False, server_default=sa.func.now()
+    )
+
+    def __repr__(self):
+        """Return string representation of instance."""
+        return f"<TaskTree(task_id='{self.task_id}', tree='{self.tree}', name='{self.name}')>"

@@ -84,7 +84,7 @@ from .resources.repositories import RepositoriesResource, RepositoryResource
 from .resources.search import SearchIndexResource, SearchResource
 from .resources.sources import SourceResource, SourcesResource
 from .resources.tags import TagResource, TagsResource
-from .resources.tasks import TaskResource
+from .resources.tasks import TaskListResource, TaskResource
 from .resources.timeline import (
     FamilyTimelineResource,
     PersonTimelineResource,
@@ -524,6 +524,7 @@ register_endpt(ConfigsResource, "/config/", "configs", tags=["Config"])
 register_endpt(ConfigResource, "/config/<string:key>/", "config", tags=["Config"])
 
 # Tasks
+register_endpt(TaskListResource, "/tasks/", "tasks", tags=["Tasks"])
 register_endpt(TaskResource, "/tasks/<string:task_id>", "task", tags=["Tasks"])
 
 # Media files

@@ -22,10 +22,13 @@ from __future__ import annotations
 import json
 import os
 import uuid
+from datetime import datetime, timedelta, timezone
 from gettext import gettext as _
 from http import HTTPStatus
 from typing import Any, Callable, Dict, List, Optional, Union
 
+import logging
+import sqlalchemy as sa
 from celery import Task, shared_task
 from celery.result import AsyncResult
 from flask import current_app, jsonify
@@ -37,7 +40,8 @@ from gramps.gen.merge.diff import diff_items
 
 from gramps_webapi.api.search.indexer import SearchIndexer, SemanticSearchIndexer
 
-from ..auth import get_owner_emails
+from ..auth import TaskTree, get_owner_emails
+from ..auth import user_db
 from ..undodb import migrate as migrate_undodb
 from .check import check_database
 from .emails import email_confirm_email, email_new_user, email_reset_pw
@@ -72,6 +76,35 @@ from .util import (
 )
 
 
+def _record_task(task_id: str, task: Task, kwargs: dict) -> None:
+    """Write one audit row to task_tree before the task is dispatched."""
+    row = TaskTree(
+        task_id=task_id,
+        tree=kwargs.get("tree"),
+        user_id=kwargs.get("user_id"),
+        name=task.name,
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+    user_db.session.add(row)
+    user_db.session.commit()
+
+
+def _purge_expired_task_rows() -> None:
+    """Delete task_tree rows older than the Celery result TTL."""
+    from celery import current_app as celery_app
+
+    ttl = getattr(celery_app.conf, "result_expires", None)
+    if ttl is None:
+        ttl = timedelta(seconds=86400)
+    elif not isinstance(ttl, timedelta):
+        ttl = timedelta(seconds=int(ttl))
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - ttl
+    user_db.session.query(TaskTree).filter(TaskTree.created_at < cutoff).delete(
+        synchronize_session=False
+    )
+    user_db.session.commit()
+
+
 def run_task(task: Task, **kwargs) -> Union[AsyncResult, Any]:
     """Send a task to the task queue or run immediately if no queue set up."""
     if not current_app.config["CELERY_CONFIG"]:
@@ -80,7 +113,18 @@ def run_task(task: Task, **kwargs) -> Union[AsyncResult, Any]:
                 return task(**kwargs)
             except Exception as exc:
                 abort_with_message(500, str(exc))
-    return task.delay(**kwargs)
+    task_id = str(uuid.uuid4())
+    try:
+        _purge_expired_task_rows()
+        _record_task(task_id, task, kwargs)
+    except sa.exc.SQLAlchemyError:
+        user_db.session.rollback()
+        logging.getLogger(__name__).warning(
+            "task_tree DB operation failed for task %s; dispatching anyway",
+            task_id,
+            exc_info=True,
+        )
+    return task.apply_async(kwargs=kwargs, task_id=task_id)
 
 
 def make_task_response(task: AsyncResult):
