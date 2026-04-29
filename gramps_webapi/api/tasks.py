@@ -83,6 +83,7 @@ def _record_task(task_id: str, task: Task, kwargs: dict) -> None:
         tree=kwargs.get("tree"),
         user_id=kwargs.get("user_id"),
         name=task.name,
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     user_db.session.add(row)
     user_db.session.commit()
@@ -117,6 +118,7 @@ def run_task(task: Task, **kwargs) -> Union[AsyncResult, Any]:
         _purge_expired_task_rows()
         _record_task(task_id, task, kwargs)
     except sa.exc.SQLAlchemyError:
+        user_db.session.rollback()
         logging.getLogger(__name__).warning(
             "task_tree DB operation failed for task %s; dispatching anyway",
             task_id,
