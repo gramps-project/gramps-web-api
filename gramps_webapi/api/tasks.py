@@ -75,11 +75,7 @@ from .util import (
 
 
 def _record_task(task_id: str, task: Task, kwargs: dict) -> None:
-    """Write one audit row to task_tree, flushing without committing the transaction.
-
-    Using flush() rather than commit() avoids ending any ambient transaction in
-    the caller and prevents committing unrelated pending user_db changes.
-    """
+    """Write one audit row to task_tree before the task is dispatched."""
     row = TaskTree(
         task_id=task_id,
         tree=kwargs.get("tree"),
@@ -87,15 +83,11 @@ def _record_task(task_id: str, task: Task, kwargs: dict) -> None:
         name=task.name,
     )
     user_db.session.add(row)
-    user_db.session.flush()
+    user_db.session.commit()
 
 
 def _purge_expired_task_rows() -> None:
-    """Delete task_tree rows older than the Celery result TTL.
-
-    Intended to be called from a scheduled Celery beat task, not on every
-    dispatch.
-    """
+    """Delete task_tree rows older than the Celery result TTL."""
     from celery import current_app as celery_app
 
     ttl = getattr(celery_app.conf, "result_expires", None)
@@ -119,14 +111,9 @@ def run_task(task: Task, **kwargs) -> Union[AsyncResult, Any]:
             except Exception as exc:
                 abort_with_message(500, str(exc))
     task_id = str(uuid.uuid4())
-    result = task.apply_async(kwargs=kwargs, task_id=task_id)
-    try:
-        _record_task(task_id, task, kwargs)
-    except Exception:
-        # Task tracking is best-effort: DB errors (e.g. missing migration)
-        # must not prevent the already-dispatched task from being returned.
-        pass
-    return result
+    _purge_expired_task_rows()
+    _record_task(task_id, task, kwargs)
+    return task.apply_async(kwargs=kwargs, task_id=task_id)
 
 
 def make_task_response(task: AsyncResult):
