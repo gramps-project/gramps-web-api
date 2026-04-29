@@ -54,22 +54,36 @@ class TaskStatusSchema(Schema):
     result = fields.Str(
         metadata={"description": "The task result as a string."},
     )
-    # Extended fields from task_tree — absent for tasks dispatched before migration
+    # Extended fields from task_tree — null when no DB row exists (e.g. tasks
+    # dispatched before the migration or queried by a pre-migration client).
     task_id = fields.Str(
+        allow_none=True,
         dump_default=None,
-        metadata={"description": "The Celery task UUID."},
+        metadata={"description": "The Celery task UUID. Null if not tracked in DB."},
     )
     name = fields.Str(
+        allow_none=True,
         dump_default=None,
-        metadata={"description": "Celery task function name, e.g. 'import_file'."},
+        metadata={
+            "description": "Celery task function name, e.g. 'import_file'."
+            " Null if not tracked in DB."
+        },
     )
     created_at = fields.DateTime(
+        allow_none=True,
         dump_default=None,
-        metadata={"description": "UTC timestamp when the task was dispatched."},
+        metadata={
+            "description": "UTC timestamp when the task was dispatched."
+            " Null if not tracked in DB."
+        },
     )
     user_id = fields.Str(
+        allow_none=True,
         dump_default=None,
-        metadata={"description": "UUID of the user who dispatched the task."},
+        metadata={
+            "description": "UUID of the user who dispatched the task."
+            " Null if not tracked in DB."
+        },
     )
 
 

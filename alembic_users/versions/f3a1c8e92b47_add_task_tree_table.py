@@ -39,9 +39,15 @@ def upgrade():
     )
     op.create_index("ix_task_tree_tree", "task_tree", ["tree"])
     op.create_index("ix_task_tree_user_id", "task_tree", ["user_id"])
+    # Composite index for the primary list query (filter by tree, order by created_at)
+    # and for the periodic purge (filter by created_at).
+    op.create_index(
+        "ix_task_tree_tree_created_at", "task_tree", ["tree", "created_at"]
+    )
 
 
 def downgrade():
+    op.drop_index("ix_task_tree_tree_created_at", table_name="task_tree")
     op.drop_index("ix_task_tree_user_id", table_name="task_tree")
     op.drop_index("ix_task_tree_tree", table_name="task_tree")
     op.drop_table("task_tree")
