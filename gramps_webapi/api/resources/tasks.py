@@ -185,7 +185,7 @@ class TaskListResource(ProtectedResource):
                 "name": row.name,
                 "created_at": row.created_at,
                 "user_id": row.user_id,
-                "state": AsyncResult(row.task_id).state
+                "state": (AsyncResult(row.task_id).state or "PENDING")
                 if args["include_state"]
                 else None,
             }

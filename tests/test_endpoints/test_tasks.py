@@ -181,18 +181,24 @@ class TestTaskEndpoints(unittest.TestCase):
         cls.client = cls.app.test_client()
         with cls.app.app_context():
             user_db.create_all()
-            add_user(name="ep_guest", password="pw", role=ROLE_GUEST, tree=cls.tree)
-            add_user(name="ep_member", password="pw", role=ROLE_MEMBER, tree=cls.tree)
-            add_user(name="ep_owner", password="pw", role=ROLE_OWNER, tree=cls.tree)
+            for name, role in [
+                ("ep_guest", ROLE_GUEST),
+                ("ep_member", ROLE_MEMBER),
+                ("ep_owner", ROLE_OWNER),
+            ]:
+                if not user_db.session.query(User).filter_by(name=name).scalar():
+                    add_user(name=name, password="pw", role=role, tree=cls.tree)
+            # Read back from DB so cls.tree is always consistent with the
+            # stored user records, even if setUpClass is called more than once.
+            owner_row = user_db.session.query(User).filter_by(name="ep_owner").scalar()
+            cls.tree = owner_row.tree
             cls.guest_id = str(
                 user_db.session.query(User).filter_by(name="ep_guest").scalar().id
             )
             cls.member_id = str(
                 user_db.session.query(User).filter_by(name="ep_member").scalar().id
             )
-            cls.owner_id = str(
-                user_db.session.query(User).filter_by(name="ep_owner").scalar().id
-            )
+            cls.owner_id = str(owner_row.id)
 
     @classmethod
     def tearDownClass(cls):
@@ -260,23 +266,36 @@ class TestTaskEndpoints(unittest.TestCase):
     def test_list_returns_expected_fields(self):
         task_id = str(uuid.uuid4())
         self._insert_row(task_id, name="import_file", user_id=self.owner_id)
-        rv = self.client.get("/api/tasks/", headers=self._auth("owner"))
+        rv = self.client.get(
+            "/api/tasks/?include_state=true", headers=self._auth("owner")
+        )
         assert rv.status_code == 200
         task = next((t for t in rv.json if t["task_id"] == task_id), None)
         assert task is not None
         assert task["name"] == "import_file"
         assert task["user_id"] == self.owner_id
         assert task["created_at"] is not None
-        assert "state" in task
+        assert task["state"] == "PENDING"
 
     def test_list_task_state_pending_without_redis(self):
-        """Tasks with a DB row but no Redis result show state PENDING."""
+        """Tasks with a DB row but no Redis result show state PENDING when include_state=true."""
+        task_id = str(uuid.uuid4())
+        self._insert_row(task_id, user_id=self.owner_id)
+        rv = self.client.get(
+            "/api/tasks/?include_state=true", headers=self._auth("owner")
+        )
+        task = next((t for t in rv.json if t["task_id"] == task_id), None)
+        assert task is not None
+        assert task["state"] == "PENDING"
+
+    def test_list_task_state_none_by_default(self):
+        """State is not fetched unless include_state=true."""
         task_id = str(uuid.uuid4())
         self._insert_row(task_id, user_id=self.owner_id)
         rv = self.client.get("/api/tasks/", headers=self._auth("owner"))
         task = next((t for t in rv.json if t["task_id"] == task_id), None)
         assert task is not None
-        assert task["state"] == "PENDING"
+        assert task["state"] is None
 
     def test_list_sorted_newest_first(self):
         ids = [str(uuid.uuid4()) for _ in range(3)]
