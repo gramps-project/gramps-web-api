@@ -1715,11 +1715,18 @@ def run_import(
     if extension.lower() == "ged" and detect_gedcom_major_version(str(file_name)) == 7:
         try:
             gramps_gedcom7.import_gedcom(input_file=file_name, db=db_handle)
-        except Exception as e:
-            abort_with_message(500, f"Import failed: {e}")
-        finally:
+        except ValueError as e:
+            # ValueError indicates invalid file format or encoding (e.g., not UTF-8)
             if delete:
                 os.remove(file_name)
+            abort_with_message(422, f"Invalid GEDCOM file: {e}")
+        except Exception as e:
+            # Unexpected errors
+            if delete:
+                os.remove(file_name)
+            abort_with_message(500, f"Import failed: {e}")
+        if delete:
+            os.remove(file_name)
         return
     if extension.lower() == "gramps":
         # Remove mediapath tag from Gramps XML files before import
