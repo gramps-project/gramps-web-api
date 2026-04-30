@@ -23,6 +23,8 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from . import BASE_URL, get_test_client
+from gramps_webapi.auth.const import ROLE_DISABLED
+from gramps_webapi.auth.oidc import ROLE_FROM_CLAIMS_UNSET
 
 
 class TestOIDCEndpoints(unittest.TestCase):
@@ -250,7 +252,19 @@ class TestOIDCEndpoints(unittest.TestCase):
                 # Verify the flow
                 mock_oidc_client.authorize_access_token.assert_called_once()
                 mock_oidc_client.userinfo.assert_called_once_with(token=mock_token)
-                mock_create_user.assert_called_once_with(mock_userinfo, None, "custom")
+                mock_create_user.assert_called_once()
+                self.assertEqual(
+                    mock_create_user.call_args.args,
+                    (mock_userinfo, None, "custom"),
+                )
+                self.assertIs(
+                    mock_create_user.call_args.kwargs["role_from_claims"],
+                    ROLE_FROM_CLAIMS_UNSET,
+                )
+                self.assertEqual(
+                    mock_create_user.call_args.kwargs["default_role"], ROLE_DISABLED
+                )
+                self.assertIsNone(mock_create_user.call_args.kwargs["provider_config"])
                 mock_get_tokens.assert_called_once()
 
                 # Verify redirect location
@@ -415,9 +429,19 @@ class TestOIDCEndpoints(unittest.TestCase):
                 self.assertEqual(rv.status_code, 302)  # Redirect response
 
                 # Verify the flow worked with provider from path
-                mock_create_user.assert_called_once_with(
-                    mock_userinfo, None, "microsoft"
+                mock_create_user.assert_called_once()
+                self.assertEqual(
+                    mock_create_user.call_args.args,
+                    (mock_userinfo, None, "microsoft"),
                 )
+                self.assertIs(
+                    mock_create_user.call_args.kwargs["role_from_claims"],
+                    ROLE_FROM_CLAIMS_UNSET,
+                )
+                self.assertEqual(
+                    mock_create_user.call_args.kwargs["default_role"], ROLE_DISABLED
+                )
+                self.assertIsNone(mock_create_user.call_args.kwargs["provider_config"])
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch(
@@ -546,7 +570,19 @@ class TestOIDCEndpoints(unittest.TestCase):
                 self.assertEqual(rv.status_code, 302)  # Redirect response
 
                 # Verify the flow worked with provider from query param
-                mock_create_user.assert_called_once_with(mock_userinfo, None, "google")
+                mock_create_user.assert_called_once()
+                self.assertEqual(
+                    mock_create_user.call_args.args,
+                    (mock_userinfo, None, "google"),
+                )
+                self.assertIs(
+                    mock_create_user.call_args.kwargs["role_from_claims"],
+                    ROLE_FROM_CLAIMS_UNSET,
+                )
+                self.assertEqual(
+                    mock_create_user.call_args.kwargs["default_role"], ROLE_DISABLED
+                )
+                self.assertIsNone(mock_create_user.call_args.kwargs["provider_config"])
 
                 # Verify authorize_access_token was called without claims_options
                 # (standard OIDC flow for non-Microsoft providers)

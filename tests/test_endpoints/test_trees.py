@@ -326,6 +326,7 @@ class TestTreesSingleTreeRename(unittest.TestCase):
 
     def setUp(self):
         self.name = "Test Single Tree Rename"
+        self.username = "single-tree-rename-owner"
         self.dbman = CLIDbManager(DbState())
         dbpath, _name = self.dbman.create_new_db_cli(self.name, dbid="sqlite")
         self.tree = os.path.basename(dbpath)
@@ -345,9 +346,9 @@ class TestTreesSingleTreeRename(unittest.TestCase):
         with self.app.app_context():
             user_db.create_all()
             add_user(
-                name="owner",
+                name=self.username,
                 password="123",
-                email="owner@example.com",
+                email="single-tree-rename-owner@example.com",
                 role=ROLE_OWNER,
                 tree=self.tree,
             )
@@ -363,7 +364,8 @@ class TestTreesSingleTreeRename(unittest.TestCase):
     def test_rename_single_tree(self):
         """Owner can rename own tree in single-tree mode when TREE_ID is set."""
         rv = self.client.post(
-            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+            BASE_URL + "/token/",
+            json={"username": self.username, "password": "123"},
         )
         assert rv.status_code == 200
         token = rv.json["access_token"]
@@ -384,7 +386,8 @@ class TestTreesSingleTreeRename(unittest.TestCase):
         assert rv.json == {"old_name": self.name, "new_name": "New Name"}
         # New login still works (TREE_ID means no name-based lookup at login)
         rv = self.client.post(
-            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+            BASE_URL + "/token/",
+            json={"username": self.username, "password": "123"},
         )
         assert rv.status_code == 200
         token2 = rv.json["access_token"]
