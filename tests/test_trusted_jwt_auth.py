@@ -288,6 +288,63 @@ def test_verify_trusted_jwt_rejects_alg_none_token():
             verify_trusted_jwt(token, app)
 
 
+def test_verify_trusted_jwt_rejects_symmetric_alg_header():
+    app = _mock_app({})
+    claims = {
+        "sub": "user-123",
+        "email": "person@example.com",
+        "iss": "https://auth.example.com",
+        "aud": "https://app.example.com",
+        "exp": int(time.time()) + 3600,
+    }
+    hmac_key = "x" * 32
+    token = jwt.encode(claims, key=hmac_key, algorithm="HS256")
+    mock_key = MagicMock()
+    mock_key.key = hmac_key
+
+    with patch("gramps_webapi.auth.trusted_jwt._get_jwk_client") as mock_client:
+        mock_client.return_value.get_signing_key_from_jwt.return_value = mock_key
+        with pytest.raises(TrustedJWTError, match="Invalid trusted JWT"):
+            verify_trusted_jwt(token, app)
+
+
+def test_verify_trusted_jwt_rejects_non_scalar_subject_claim():
+    app = _mock_app({"TRUSTED_JWT_SUBJECT_CLAIM": "identity"})
+    claims = {
+        "identity": {"sub": "user-123"},
+        "email": "person@example.com",
+        "iss": "https://auth.example.com",
+        "aud": "https://app.example.com",
+        "exp": 1893456000,
+    }
+    mock_key = MagicMock()
+    mock_key.key = "public-key"
+
+    with patch("gramps_webapi.auth.trusted_jwt._get_jwk_client") as mock_client:
+        with patch("gramps_webapi.auth.trusted_jwt.jwt.decode", return_value=claims):
+            mock_client.return_value.get_signing_key_from_jwt.return_value = mock_key
+            with pytest.raises(TrustedJWTError, match="must be a string or integer"):
+                verify_trusted_jwt("assertion", app)
+
+
+def test_verify_trusted_jwt_accepts_integer_subject_claim():
+    app = _mock_app({})
+    claims = {
+        "sub": 12345,
+        "email": "person@example.com",
+        "iss": "https://auth.example.com",
+        "aud": "https://app.example.com",
+        "exp": 1893456000,
+    }
+    mock_key = MagicMock()
+    mock_key.key = "public-key"
+
+    with patch("gramps_webapi.auth.trusted_jwt._get_jwk_client") as mock_client:
+        with patch("gramps_webapi.auth.trusted_jwt.jwt.decode", return_value=claims):
+            mock_client.return_value.get_signing_key_from_jwt.return_value = mock_key
+            assert verify_trusted_jwt("assertion", app)["sub"] == 12345
+
+
 def test_role_mapping_uses_highest_configured_role():
     app = _mock_app(
         {
@@ -400,14 +457,14 @@ def test_complete_external_login_preserves_oidc_role_mapping_sentinel():
     assert mock_create.call_args.kwargs["role_from_claims"] is ROLE_FROM_CLAIMS_UNSET
 
 
-def test_complete_external_login_reports_trusted_jwt_misconfig_as_server_error():
+def test_complete_external_login_hides_trusted_jwt_user_errors():
     app = Flask(__name__)
     app.config["TREE"] = "bdd-family"
 
     with app.test_request_context("/api/oidc/login/?provider=pomerium"):
         with patch(
             "gramps_webapi.api.resources.oidc.create_or_update_oidc_user",
-            side_effect=ValueError("Provider 'pomerium' is not configured"),
+            side_effect=ValueError("Provider 'pomerium' is not configured: secret"),
         ):
             with pytest.raises(HTTPException) as exc_info:
                 _complete_external_login(
@@ -418,6 +475,8 @@ def test_complete_external_login_reports_trusted_jwt_misconfig_as_server_error()
                 )
 
     assert exc_info.value.code == 500
+    assert "trusted JWT user" in exc_info.value.description
+    assert "secret" not in exc_info.value.description
 
 
 def test_trusted_jwt_login_rejects_missing_assertion_header():
@@ -433,6 +492,28 @@ def test_trusted_jwt_login_rejects_missing_assertion_header():
 
     assert exc_info.value.code == 401
     assert "assertion header is missing" in exc_info.value.description
+
+
+def test_trusted_jwt_login_hides_verifier_error_details():
+    app = Flask(__name__)
+    with app.test_request_context(
+        "/api/oidc/login/?provider=trusted-jwt",
+        headers={"X-Pomerium-Jwt-Assertion": "signed.assertion"},
+    ):
+        with patch(
+            "gramps_webapi.api.resources.oidc.get_trusted_jwt_provider_config",
+            return_value={"header": "X-Pomerium-Jwt-Assertion"},
+        ):
+            with patch(
+                "gramps_webapi.api.resources.oidc.get_trusted_jwt_userinfo_and_role",
+                side_effect=TrustedJWTError("issuer mismatch: internal detail"),
+            ):
+                with pytest.raises(HTTPException) as exc_info:
+                    _trusted_jwt_login({}, "trusted-jwt")
+
+    assert exc_info.value.code == 401
+    assert "Trusted JWT authentication failed" in exc_info.value.description
+    assert "issuer mismatch" not in exc_info.value.description
 
 
 def test_trusted_jwt_login_completes_existing_oidc_bridge():

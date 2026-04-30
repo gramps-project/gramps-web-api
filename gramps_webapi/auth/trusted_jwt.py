@@ -148,6 +148,32 @@ def _claim_value(claims: Dict[str, Any], claim_name: str, default: Any = None) -
     return value
 
 
+def _claim_as_string(
+    claims: Dict[str, Any],
+    claim_name: str,
+    default: str = "",
+    required: bool = False,
+) -> str:
+    """Read a claim and normalize scalar values to a string."""
+    value = _claim_value(claims, claim_name, None)
+    if value is None:
+        if required:
+            raise TrustedJWTError(
+                f"Trusted JWT is missing required subject claim '{claim_name}'"
+            )
+        return default
+    if isinstance(value, (str, int)):
+        normalized = str(value).strip()
+        if required and not normalized:
+            raise TrustedJWTError(
+                f"Trusted JWT is missing required subject claim '{claim_name}'"
+            )
+        return normalized
+    raise TrustedJWTError(
+        f"Trusted JWT claim '{claim_name}' must be a string or integer"
+    )
+
+
 def _derived_provider_id(issuer: str) -> str:
     """Derive a stable provider ID from the issuer when one is not configured."""
     if not issuer:
@@ -305,20 +331,18 @@ def verify_trusted_jwt(assertion: str, app=None) -> Dict[str, Any]:
             options={"require": ["exp", "iss", "aud"]},
         )
     except jwt.InvalidTokenError as exc:
-        logger.warning("Invalid Trusted JWT: %s", exc)
+        logger.warning("Invalid Trusted JWT: %s", exc.__class__.__name__)
+        logger.debug("Invalid Trusted JWT details", exc_info=exc)
         raise TrustedJWTError("Invalid trusted JWT") from exc
     except Exception as exc:  # pylint: disable=broad-except
         logger.exception("Could not verify Trusted JWT")
         raise TrustedJWTError("Could not verify trusted JWT") from exc
 
     subject_claim = config["subject_claim"]
-    if not _claim_value(claims, subject_claim):
-        raise TrustedJWTError(
-            f"Trusted JWT is missing required subject claim '{subject_claim}'"
-        )
+    _claim_as_string(claims, subject_claim, required=True)
 
     email_claim = config["email_claim"]
-    email = _claim_value(claims, email_claim, "")
+    email = _claim_as_string(claims, email_claim, "")
     allowed_emails = config["allowed_emails"]
     if allowed_emails and email not in allowed_emails:
         raise TrustedJWTError("Trusted JWT email is not allowed", 403)
@@ -336,15 +360,14 @@ def get_trusted_jwt_userinfo_and_role(
         raise TrustedJWTError("Trusted JWT authentication is not configured", 500)
 
     claims = verify_trusted_jwt(assertion, app)
-    subject = _claim_value(claims, config["subject_claim"])
     userinfo = {
-        "sub": str(subject),
-        "email": _claim_value(claims, config["email_claim"], "") or "",
-        "name": _claim_value(claims, config["name_claim"], "") or "",
+        "sub": _claim_as_string(claims, config["subject_claim"], required=True),
+        "email": _claim_as_string(claims, config["email_claim"], ""),
+        "name": _claim_as_string(claims, config["name_claim"], ""),
     }
 
     username_claim = config["username_claim"]
-    username = _claim_value(claims, username_claim)
+    username = _claim_as_string(claims, username_claim, "")
     if username and username_claim not in userinfo:
         userinfo[username_claim] = username
 

@@ -43,7 +43,7 @@ from ...auth import (
     get_user_oidc_accounts,
     modify_user,
 )
-from ...auth.oidc_helpers import is_oidc_enabled
+from ...auth.oidc_helpers import is_local_auth_disabled, is_oidc_enabled
 from ...auth.const import (
     CLAIM_LIMITED_SCOPE,
     PERM_ADD_OTHER_TREE_USER,
@@ -558,6 +558,11 @@ class UserChangePasswordResource(UserChangeBase):
     @api_blueprint.arguments(UserChangePasswordBodyArgs, location="json")
     def post(self, args, user_name: str):
         """Post new password."""
+        if is_local_auth_disabled():
+            abort_with_message(
+                403,
+                "Local authentication is disabled. Please use external authentication.",
+            )
         user_name, _ = self.prepare_edit(user_name)
         if not args["new_password"]:
             abort_with_message(400, "Empty password provided")
@@ -573,6 +578,11 @@ class UserTriggerResetPasswordResource(Resource):
     @limiter.limit("1/second")
     def post(self, user_name):
         """Post username to initiate the password reset."""
+        if is_local_auth_disabled():
+            abort_with_message(
+                403,
+                "Local authentication is disabled. Please use external authentication.",
+            )
         if user_name == "-":
             # password reset trigger not make sense for "own" user since not logged in
             abort(404)
@@ -621,6 +631,11 @@ class UserResetPasswordResource(LimitedScopeProtectedResource):
     @api_blueprint.arguments(UserResetPasswordBodyArgs, location="json")
     def post(self, args):
         """Post new password."""
+        if is_local_auth_disabled():
+            abort_with_message(
+                403,
+                "Local authentication is disabled. Please use external authentication.",
+            )
         if not args["new_password"]:
             abort_with_message(400, "Empty password provided")
         claims = get_jwt()
@@ -642,6 +657,11 @@ class UserResetPasswordResource(LimitedScopeProtectedResource):
 
     def get(self):
         """Reset password form."""
+        if is_local_auth_disabled():
+            abort_with_message(
+                403,
+                "Local authentication is disabled. Please use external authentication.",
+            )
         user_id = get_jwt_identity()
         try:
             username = get_name(user_id)

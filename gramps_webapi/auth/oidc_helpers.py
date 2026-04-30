@@ -29,3 +29,15 @@ from flask import current_app
 def is_oidc_enabled() -> bool:
     """Check if OIDC is enabled in the current app."""
     return current_app.config.get("OIDC_ENABLED", False)
+
+
+def is_external_auth_enabled() -> bool:
+    """Check if an external login provider is enabled."""
+    return is_oidc_enabled() or current_app.config.get("TRUSTED_JWT_ENABLED", False)
+
+
+def is_local_auth_disabled() -> bool:
+    """Check if local password authentication should be blocked."""
+    return current_app.config.get("OIDC_DISABLE_LOCAL_AUTH", False) and (
+        is_external_auth_enabled()
+    )

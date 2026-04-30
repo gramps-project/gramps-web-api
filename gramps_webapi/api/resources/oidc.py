@@ -189,10 +189,9 @@ def _complete_external_login(
         logger.exception(
             "Error creating/updating OIDC user for provider '%s'", provider_id
         )
-        status_code = (
-            500 if provider_config and provider_config.get("trusted_jwt") else 400
-        )
-        abort_with_message(status_code, f"Error processing user: {str(e)}")
+        if provider_config and provider_config.get("trusted_jwt"):
+            abort_with_message(500, "Error processing trusted JWT user")
+        abort_with_message(400, f"Error processing user: {str(e)}")
 
 
 def _trusted_jwt_login(args, provider_id):
@@ -210,7 +209,12 @@ def _trusted_jwt_login(args, provider_id):
             assertion
         )
     except TrustedJWTError as exc:
-        abort_with_message(exc.status_code, str(exc))
+        logger.warning(
+            "Trusted JWT login failed: %s (status %s)",
+            exc.__class__.__name__,
+            exc.status_code,
+        )
+        abort_with_message(exc.status_code, "Trusted JWT authentication failed")
 
     return _complete_external_login(
         userinfo,

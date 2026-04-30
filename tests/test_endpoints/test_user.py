@@ -190,6 +190,27 @@ class TestUser(unittest.TestCase):
         )
         assert rv.status_code == 200
 
+    def test_change_password_disabled_for_trusted_jwt_local_auth_disabled(self):
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "user", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token = rv.json["access_token"]
+
+        self.app.config["OIDC_DISABLE_LOCAL_AUTH"] = True
+        self.app.config["TRUSTED_JWT_ENABLED"] = True
+        try:
+            rv = self.client.post(
+                BASE_URL + "/users/-/password/change",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"old_password": "123", "new_password": "456"},
+            )
+            assert rv.status_code == 403
+            assert "Local authentication is disabled" in rv.json["error"]["message"]
+        finally:
+            self.app.config["OIDC_DISABLE_LOCAL_AUTH"] = False
+            self.app.config["TRUSTED_JWT_ENABLED"] = False
+
     def test_change_other_user_password(self):
         rv = self.client.post(
             BASE_URL + "/token/", json={"username": "user", "password": "123"}
@@ -258,6 +279,17 @@ class TestUser(unittest.TestCase):
             rv = self.client.post(BASE_URL + "/users/user/password/reset/trigger/")
             assert rv.status_code == 201
             mock_smtp_instance.send_message.assert_called_once()
+
+    def test_reset_password_trigger_disabled_for_trusted_jwt_local_auth_disabled(self):
+        self.app.config["OIDC_DISABLE_LOCAL_AUTH"] = True
+        self.app.config["TRUSTED_JWT_ENABLED"] = True
+        try:
+            rv = self.client.post(BASE_URL + "/users/user/password/reset/trigger/")
+            assert rv.status_code == 403
+            assert "Local authentication is disabled" in rv.json["error"]["message"]
+        finally:
+            self.app.config["OIDC_DISABLE_LOCAL_AUTH"] = False
+            self.app.config["TRUSTED_JWT_ENABLED"] = False
 
     def test_reset_password(self):
         with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:

@@ -208,7 +208,7 @@ class TestPerson(unittest.TestCase):
         assert "access_token" in rv.json
         assert rv.json["access_token"] != 1
 
-    @patch("gramps_webapi.api.resources.token.is_oidc_enabled", return_value=True)
+    @patch("gramps_webapi.auth.oidc_helpers.is_oidc_enabled", return_value=True)
     def test_token_endpoint_disabled_local_auth(self, mock_oidc_enabled):
         """Test token endpoint when local auth is disabled."""
         with self.app.app_context():
@@ -224,8 +224,10 @@ class TestPerson(unittest.TestCase):
             # Clean up
             self.app.config["OIDC_DISABLE_LOCAL_AUTH"] = False
 
-    @patch("gramps_webapi.api.resources.token.is_oidc_enabled", return_value=False)
-    def test_token_endpoint_local_auth_enabled_when_oidc_disabled(self, mock_oidc_enabled):
+    @patch("gramps_webapi.auth.oidc_helpers.is_oidc_enabled", return_value=False)
+    def test_token_endpoint_local_auth_enabled_when_oidc_disabled(
+        self, mock_oidc_enabled
+    ):
         """Test token endpoint works normally when OIDC is disabled."""
         with self.app.app_context():
             self.app.config["OIDC_DISABLE_LOCAL_AUTH"] = True
@@ -238,9 +240,31 @@ class TestPerson(unittest.TestCase):
             # Clean up
             self.app.config["OIDC_DISABLE_LOCAL_AUTH"] = False
 
+    @patch("gramps_webapi.auth.oidc_helpers.is_oidc_enabled", return_value=False)
+    def test_token_endpoint_disabled_local_auth_for_trusted_jwt(
+        self, mock_oidc_enabled
+    ):
+        """Test local auth is disabled for Trusted JWT-only deployments."""
+        with self.app.app_context():
+            self.app.config["OIDC_DISABLE_LOCAL_AUTH"] = True
+            self.app.config["TRUSTED_JWT_ENABLED"] = True
+            try:
+                rv = self.client.post(
+                    "/api/token/", json={"username": "user", "password": "123"}
+                )
+                assert rv.status_code == 403
+                error_data = rv.json.get("error")
+                assert error_data is not None
+                assert "Local authentication is disabled" in error_data.get("message")
+            finally:
+                self.app.config["OIDC_DISABLE_LOCAL_AUTH"] = False
+                self.app.config["TRUSTED_JWT_ENABLED"] = False
+
     @patch("gramps_webapi.auth.oidc.create_or_update_oidc_user")
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
-    def test_oidc_authentication_flow_integration(self, mock_oidc_enabled, mock_create_user):
+    def test_oidc_authentication_flow_integration(
+        self, mock_oidc_enabled, mock_create_user
+    ):
         """Test OIDC authentication flow integration with JWT tokens."""
         from gramps_webapi.api.resources.token import get_tokens
         from gramps_webapi.auth.const import ROLE_EDITOR
@@ -260,7 +284,7 @@ class TestPerson(unittest.TestCase):
             "preferred_username": "oidc_user",
             "email": "oidc@example.com",
             "name": "OIDC Test User",
-            "groups": ["gramps-editors"]
+            "groups": ["gramps-editors"],
         }
 
         # Simulate successful OIDC authentication by generating tokens directly
@@ -272,22 +296,20 @@ class TestPerson(unittest.TestCase):
                 permissions=permissions,
                 tree_id=tree,
                 include_refresh=True,
-                fresh=True
+                fresh=True,
             )
             access_token = tokens["access_token"]
             refresh_token = tokens["refresh_token"]
 
         # Test that OIDC-generated tokens work with protected endpoints
         rv = self.client.get(
-            "/api/people/",
-            headers={"Authorization": f"Bearer {access_token}"}
+            "/api/people/", headers={"Authorization": f"Bearer {access_token}"}
         )
         assert rv.status_code == 200
 
         # Test refresh token works
         rv = self.client.post(
-            "/api/token/refresh/",
-            headers={"Authorization": f"Bearer {refresh_token}"}
+            "/api/token/refresh/", headers={"Authorization": f"Bearer {refresh_token}"}
         )
         assert rv.status_code == 200
         assert "access_token" in rv.json
@@ -295,13 +317,15 @@ class TestPerson(unittest.TestCase):
         # Verify the new access token works
         new_access_token = rv.json["access_token"]
         rv = self.client.get(
-            "/api/people/",
-            headers={"Authorization": f"Bearer {new_access_token}"}
+            "/api/people/", headers={"Authorization": f"Bearer {new_access_token}"}
         )
         assert rv.status_code == 200
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
-    @patch("gramps_webapi.api.resources.oidc.get_available_oidc_providers", return_value=["google"])
+    @patch(
+        "gramps_webapi.api.resources.oidc.get_available_oidc_providers",
+        return_value=["google"],
+    )
     def test_oidc_and_local_auth_coexistence(self, mock_providers, mock_oidc_enabled):
         """Test that OIDC and local authentication can coexist."""
         # Test local authentication still works
@@ -313,8 +337,7 @@ class TestPerson(unittest.TestCase):
 
         # Test that local token works with API
         rv = self.client.get(
-            "/api/people/",
-            headers={"Authorization": f"Bearer {local_token}"}
+            "/api/people/", headers={"Authorization": f"Bearer {local_token}"}
         )
         assert rv.status_code == 200
 
