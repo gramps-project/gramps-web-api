@@ -40,6 +40,7 @@ from gramps_webapi.auth.oidc import (
     get_role_from_claims,
     init_oidc,
 )
+from gramps_webapi.auth.trusted_jwt import PROVIDER_TRUSTED_JWT
 
 
 class TestGetRoleFromClaims:
@@ -263,6 +264,22 @@ class TestGetAvailableOidcProviders:
         providers = get_available_oidc_providers(mock_app)
         assert PROVIDER_CUSTOM not in providers
 
+    def test_trusted_jwt_provider(self):
+        """Test Trusted JWT provider configuration."""
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default=None: {
+            "TRUSTED_JWT_ENABLED": True,
+            "TRUSTED_JWT_PROVIDER_ID": PROVIDER_TRUSTED_JWT,
+            "TRUSTED_JWT_NAME": "Trusted JWT",
+            "TRUSTED_JWT_HEADER": "X-Pomerium-Jwt-Assertion",
+            "TRUSTED_JWT_JWKS_URL": "https://app.example.com/.well-known/pomerium/jwks.json",
+            "TRUSTED_JWT_ISSUER": "https://auth.example.com",
+            "TRUSTED_JWT_AUDIENCE": "https://app.example.com",
+        }.get(key, default)
+
+        providers = get_available_oidc_providers(mock_app)
+        assert PROVIDER_TRUSTED_JWT in providers
+
 
 class TestGetProviderConfig:
     """Test cases for get_provider_config function."""
@@ -345,6 +362,28 @@ class TestGetProviderConfig:
         assert config["scopes"] == "openid email profile"  # Default
         assert config["username_claim"] == "preferred_username"  # Default
         assert config["name"] == "OIDC"  # Default
+
+    def test_trusted_jwt_provider_config(self):
+        """Test getting Trusted JWT provider configuration."""
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default=None: {
+            "TRUSTED_JWT_ENABLED": True,
+            "TRUSTED_JWT_PROVIDER_ID": PROVIDER_TRUSTED_JWT,
+            "TRUSTED_JWT_NAME": "Pomerium",
+            "TRUSTED_JWT_HEADER": "X-Pomerium-Jwt-Assertion",
+            "TRUSTED_JWT_JWKS_URL": "https://app.example.com/.well-known/pomerium/jwks.json",
+            "TRUSTED_JWT_ISSUER": "https://auth.example.com",
+            "TRUSTED_JWT_AUDIENCE": "https://app.example.com",
+            "TRUSTED_JWT_USERNAME_CLAIM": "email",
+            "TRUSTED_JWT_DEFAULT_ROLE": ROLE_OWNER,
+        }.get(key, default)
+
+        config = get_provider_config(PROVIDER_TRUSTED_JWT, mock_app)
+        assert config is not None
+        assert config["trusted_jwt"] is True
+        assert config["name"] == "Pomerium"
+        assert config["username_claim"] == "email"
+        assert config["default_role"] == ROLE_OWNER
 
     def test_provider_not_configured(self):
         """Test getting config for provider that isn't configured."""
@@ -631,6 +670,50 @@ class TestCreateOrUpdateOidcUser:
         with pytest.raises(ValueError, match="not configured"):
             create_or_update_oidc_user(userinfo, None, "invalid_provider")
 
+    @patch("gramps_webapi.auth.oidc.get_oidc_account", return_value=None)
+    @patch("gramps_webapi.auth.oidc.get_user_details", return_value=None)
+    @patch("gramps_webapi.auth.oidc.add_user")
+    @patch("gramps_webapi.auth.oidc.get_guid")
+    @patch("gramps_webapi.auth.oidc.create_oidc_account")
+    @patch("gramps_webapi.auth.oidc.secrets.token_urlsafe")
+    def test_new_user_with_explicit_default_role(
+        self,
+        mock_token,
+        mock_create_oidc,
+        mock_get_guid,
+        mock_add_user,
+        mock_get_user,
+        mock_get_oidc,
+    ):
+        """Test external providers can create enabled users with a default role."""
+        mock_token.return_value = "random-password"
+        mock_get_guid.return_value = "new-user-guid"
+        userinfo = {
+            "sub": "proxy-sub-123",
+            "email": "person@example.com",
+            "name": "Person Example",
+        }
+        provider_config = {"username_claim": "email"}
+
+        create_or_update_oidc_user(
+            userinfo,
+            None,
+            PROVIDER_TRUSTED_JWT,
+            provider_config=provider_config,
+            role_from_claims=None,
+            default_role=ROLE_OWNER,
+        )
+
+        call_kwargs = mock_add_user.call_args[1]
+        assert call_kwargs["name"] == "trusted-jwt_person@example.com"
+        assert call_kwargs["role"] == ROLE_OWNER
+        mock_create_oidc.assert_called_once_with(
+            "new-user-guid",
+            PROVIDER_TRUSTED_JWT,
+            "proxy-sub-123",
+            "person@example.com",
+        )
+
 
 class TestInitOidc:
     """Test cases for init_oidc function."""
@@ -716,6 +799,29 @@ class TestInitOidc:
         assert (
             call_kwargs["authorize_url"] == "https://github.com/login/oauth/authorize"
         )
+
+    @patch("gramps_webapi.auth.oidc.OAuth")
+    @patch("gramps_webapi.auth.oidc.get_available_oidc_providers")
+    @patch("gramps_webapi.auth.oidc.get_provider_config")
+    def test_init_trusted_jwt_provider_does_not_register_oauth_client(
+        self, mock_get_config, mock_get_providers, mock_oauth_class
+    ):
+        """Test initializing Trusted JWT does not create an OAuth client."""
+        mock_app = MagicMock()
+        mock_app.config.get.return_value = True
+        mock_get_providers.return_value = [PROVIDER_TRUSTED_JWT]
+        mock_get_config.return_value = {
+            "name": "Trusted JWT",
+            "trusted_jwt": True,
+        }
+
+        mock_oauth = MagicMock()
+        mock_oauth_class.return_value = mock_oauth
+
+        result = init_oidc(mock_app)
+
+        assert result == mock_oauth
+        mock_oauth.register.assert_not_called()
 
     @patch("gramps_webapi.auth.oidc.OAuth")
     @patch("gramps_webapi.auth.oidc.get_available_oidc_providers")

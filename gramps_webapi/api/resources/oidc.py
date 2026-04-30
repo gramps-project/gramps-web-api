@@ -37,12 +37,20 @@ from webargs import fields
 
 from ...auth import get_name, get_permissions, get_user_details, is_tree_disabled
 from ...auth.oidc import (
+    ROLE_FROM_CLAIMS_UNSET,
     create_or_update_oidc_user,
     get_available_oidc_providers,
     get_provider_config,
 )
+from ...auth.const import ROLE_DISABLED
 from ...auth.oidc_helpers import is_oidc_enabled
 from ...auth.token_blocklist import add_jti_to_blocklist
+from ...auth.trusted_jwt import (
+    TrustedJWTError,
+    get_trusted_jwt_provider_config,
+    get_trusted_jwt_userinfo_and_role,
+    is_trusted_jwt_provider,
+)
 from ...const import TREE_MULTI
 from ..blueprint import api_blueprint
 from ..ratelimiter import limiter
@@ -52,6 +60,11 @@ from .schemas import OIDCConfigSchema
 from .token import get_tokens
 
 logger = logging.getLogger(__name__)
+
+
+def _is_oidc_or_trusted_jwt_enabled() -> bool:
+    """Return whether any external login provider is configured."""
+    return is_oidc_enabled() or bool(get_trusted_jwt_provider_config())
 
 
 def _is_development_environment(frontend_url: Optional[str]) -> bool:
@@ -70,6 +83,143 @@ class OIDCLoginQueryArgs(Schema):
             "description": "The OIDC provider ID (e.g. 'google', 'microsoft', 'github')."
         },
     )
+    tree = fields.Str(
+        required=False,
+        metadata={"description": "Tree ID to associate with the login."},
+    )
+
+
+def _set_oidc_token_cookies(response, tokens, id_token=None):
+    """Set short-lived HTTP-only cookies for frontend token exchange."""
+    frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
+    is_development = _is_development_environment(frontend_url)
+
+    response.set_cookie(
+        "oidc_access_token",
+        tokens["access_token"],
+        max_age=300,  # 5 minutes
+        httponly=True,
+        secure=not is_development,
+        samesite="Lax",
+        path="/",
+    )
+    response.set_cookie(
+        "oidc_refresh_token",
+        tokens["refresh_token"],
+        max_age=300,  # 5 minutes
+        httponly=True,
+        secure=not is_development,
+        samesite="Lax",
+        path="/",
+    )
+    if id_token:
+        response.set_cookie(
+            "oidc_id_token",
+            id_token,
+            max_age=300,  # 5 minutes
+            httponly=True,
+            secure=not is_development,
+            samesite="Lax",
+            path="/",
+        )
+    return response
+
+
+def _complete_external_login(
+    userinfo,
+    tree,
+    provider_id,
+    token=None,
+    provider_config=None,
+    role_from_claims=ROLE_FROM_CLAIMS_UNSET,
+    default_role=ROLE_DISABLED,
+):
+    """Create/update an external user and redirect to the frontend token exchange."""
+    if (
+        tree
+        and current_app.config["TREE"] != TREE_MULTI
+        and tree != current_app.config["TREE"]
+    ):
+        abort_with_message(403, f"Invalid tree: {tree}")
+    if not tree and current_app.config["TREE"] == TREE_MULTI:
+        abort_with_message(403, "Tree is required")
+
+    try:
+        user_id = create_or_update_oidc_user(
+            userinfo,
+            tree,
+            provider_id,
+            provider_config=provider_config,
+            role_from_claims=role_from_claims,
+            default_role=default_role,
+        )
+        username = get_name(user_id)
+        tree_id = get_tree_id(user_id)
+
+        if is_tree_disabled(tree=tree_id):
+            abort_with_message(503, "This tree is temporarily disabled")
+
+        user_details = get_user_details(username)
+        if user_details and user_details["role"] < 0:
+            title = _("Account Under Review")
+            message = _(
+                "Your account has been created successfully. "
+                "An administrator will review your account request and activate it shortly."
+            )
+            return render_template("confirmation.html", title=title, message=message)
+
+        permissions = get_permissions(username=username, tree=tree_id)
+        tokens = get_tokens(
+            user_id=user_id,
+            permissions=permissions,
+            tree_id=tree_id,
+            include_refresh=True,
+            fresh=True,
+            oidc_provider=provider_id,
+        )
+
+        frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
+        response = redirect(f"{frontend_url.rstrip('/')}/oidc/complete")
+        id_token = (token or {}).get("id_token")
+        response = _set_oidc_token_cookies(response, tokens, id_token=id_token)
+        logger.info("Set OIDC cookies, redirecting to %s/oidc/complete", frontend_url)
+        return response
+
+    except ValueError as e:
+        logger.exception(
+            "Error creating/updating OIDC user for provider '%s'", provider_id
+        )
+        status_code = (
+            500 if provider_config and provider_config.get("trusted_jwt") else 400
+        )
+        abort_with_message(status_code, f"Error processing user: {str(e)}")
+
+
+def _trusted_jwt_login(args, provider_id):
+    """Authenticate using a configured Trusted JWT assertion header."""
+    provider_config = get_trusted_jwt_provider_config()
+    if not provider_config:
+        abort_with_message(500, "Trusted JWT provider is not properly configured")
+
+    assertion = request.headers.get(provider_config["header"])
+    if not assertion:
+        abort_with_message(401, "Trusted JWT assertion header is missing")
+
+    try:
+        userinfo, role_from_claims, default_role = get_trusted_jwt_userinfo_and_role(
+            assertion
+        )
+    except TrustedJWTError as exc:
+        abort_with_message(exc.status_code, str(exc))
+
+    return _complete_external_login(
+        userinfo,
+        args.get("tree"),
+        provider_id,
+        provider_config=provider_config,
+        role_from_claims=role_from_claims,
+        default_role=default_role,
+    )
 
 
 class OIDCLoginResource(Resource):
@@ -82,7 +232,7 @@ class OIDCLoginResource(Resource):
     @api_blueprint.arguments(OIDCLoginQueryArgs, location="query")
     def get(self, args):
         """Redirect to OIDC provider for authentication."""
-        if not is_oidc_enabled():
+        if not _is_oidc_or_trusted_jwt_enabled():
             abort_with_message(405, "OIDC authentication is not enabled")
 
         provider_id = args.get("provider")
@@ -91,6 +241,9 @@ class OIDCLoginResource(Resource):
         available_providers = get_available_oidc_providers()
         if provider_id not in available_providers:
             abort_with_message(400, f"Provider '{provider_id}' is not available")
+
+        if is_trusted_jwt_provider(provider_id):
+            return _trusted_jwt_login(args, provider_id)
 
         oauth = current_app.extensions.get("authlib.integrations.flask_client")
         if not oauth:
@@ -219,97 +372,12 @@ class OIDCCallbackResource(Resource):
             logger.exception("OIDC callback error for provider '%s'", provider_id)
             abort_with_message(401, f"OIDC authentication failed for {provider_id}")
 
-        tree = args.get("tree")
-        if (
-            tree
-            and current_app.config["TREE"] != TREE_MULTI
-            and tree != current_app.config["TREE"]
-        ):
-            abort_with_message(403, f"Invalid tree: {tree}")
-        if not tree and current_app.config["TREE"] == TREE_MULTI:
-            abort_with_message(403, "Tree is required")
-
-        try:
-            user_id = create_or_update_oidc_user(userinfo, tree, provider_id)
-            username = get_name(user_id)
-            tree_id = get_tree_id(user_id)
-
-            if is_tree_disabled(tree=tree_id):
-                abort_with_message(503, "This tree is temporarily disabled")
-
-            # Check if user account is disabled (same as local auth flow)
-            user_details = get_user_details(username)
-            if user_details and user_details["role"] < 0:
-                # User account is disabled - show confirmation page like local registration
-                title = _("Account Under Review")
-                message = _(
-                    "Your account has been created successfully. "
-                    "An administrator will review your account request and activate it shortly."
-                )
-                return render_template(
-                    "confirmation.html", title=title, message=message
-                )
-
-            # User is enabled - proceed with normal token flow
-            permissions = get_permissions(username=username, tree=tree_id)
-
-            tokens = get_tokens(
-                user_id=user_id,
-                permissions=permissions,
-                tree_id=tree_id,
-                include_refresh=True,
-                fresh=True,
-                oidc_provider=provider_id,
-            )
-
-            # Redirect to frontend with secure HTTP-only cookies
-            frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
-            response = redirect(f"{frontend_url.rstrip('/')}/oidc/complete")
-
-            # Set HTTP-only cookies (secure=False for localhost development)
-            is_development = _is_development_environment(frontend_url)
-
-            response.set_cookie(
-                "oidc_access_token",
-                tokens["access_token"],
-                max_age=300,  # 5 minutes
-                httponly=True,
-                secure=not is_development,  # Allow HTTP in development
-                samesite="Lax",
-                path="/",
-            )
-            response.set_cookie(
-                "oidc_refresh_token",
-                tokens["refresh_token"],
-                max_age=300,  # 5 minutes
-                httponly=True,
-                secure=not is_development,  # Allow HTTP in development
-                samesite="Lax",
-                path="/",
-            )
-
-            # Store id_token if available (needed for OIDC logout)
-            if token.get("id_token"):
-                response.set_cookie(
-                    "oidc_id_token",
-                    token["id_token"],
-                    max_age=300,  # 5 minutes
-                    httponly=True,
-                    secure=not is_development,  # Allow HTTP in development
-                    samesite="Lax",
-                    path="/",
-                )
-
-            logger.info(
-                f"Set OIDC cookies, redirecting to {frontend_url}/oidc/complete"
-            )
-            return response
-
-        except ValueError as e:
-            logger.exception(
-                f"Error creating/updating OIDC user for provider '{provider_id}'"
-            )
-            abort_with_message(400, f"Error processing user: {str(e)}")
+        return _complete_external_login(
+            userinfo,
+            args.get("tree"),
+            provider_id,
+            token=token,
+        )
 
 
 class OIDCTokenExchangeResource(Resource):
@@ -389,7 +457,7 @@ class OIDCConfigResource(Resource):
     @api_blueprint.response(200, OIDCConfigSchema())
     def get(self):
         """Get OIDC configuration for frontend."""
-        if not is_oidc_enabled():
+        if not _is_oidc_or_trusted_jwt_enabled():
             return {"enabled": False}
 
         available_providers = get_available_oidc_providers()
@@ -449,7 +517,7 @@ class OIDCLogoutResource(Resource):
         Returns the end_session_endpoint URL from the provider's OIDC discovery document.
         If the provider doesn't support logout, returns None for graceful degradation.
         """
-        if not is_oidc_enabled():
+        if not _is_oidc_or_trusted_jwt_enabled():
             abort_with_message(405, "OIDC authentication is not enabled")
 
         provider_id = args.get("provider")
@@ -458,6 +526,12 @@ class OIDCLogoutResource(Resource):
         available_providers = get_available_oidc_providers()
         if provider_id not in available_providers:
             abort_with_message(400, f"Provider '{provider_id}' is not available")
+
+        if is_trusted_jwt_provider(provider_id):
+            provider_config = get_trusted_jwt_provider_config()
+            return {
+                "logout_url": (provider_config or {}).get("logout_url") or None,
+            }
 
         oauth = current_app.extensions.get("authlib.integrations.flask_client")
         if not oauth:

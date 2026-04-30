@@ -22,7 +22,7 @@
 import logging
 import secrets
 import uuid
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 from authlib.integrations.flask_client import OAuth
 from flask import current_app, session
@@ -52,11 +52,16 @@ from .const import (
     ROLE_MEMBER,
     ROLE_OWNER,
 )
+from .trusted_jwt import (
+    get_trusted_jwt_provider_config,
+    get_trusted_jwt_provider_id,
+)
 
 logger = logging.getLogger(__name__)
 
 # Provider identifier for custom OIDC configurations
 PROVIDER_CUSTOM = "custom"
+ROLE_FROM_CLAIMS_UNSET = object()
 
 # Built-in provider configurations
 BUILTIN_PROVIDERS = {
@@ -108,6 +113,10 @@ def get_available_oidc_providers(app=None) -> List[str]:
     if app.config.get("OIDC_CLIENT_ID") and app.config.get("OIDC_ISSUER"):
         providers.append(PROVIDER_CUSTOM)
 
+    trusted_jwt_config = get_trusted_jwt_provider_config(app)
+    if trusted_jwt_config:
+        providers.append(get_trusted_jwt_provider_id(app))
+
     return providers
 
 
@@ -123,6 +132,9 @@ def get_provider_config(provider_id: str, app=None) -> Optional[Dict]:
     """
     if app is None:
         app = current_app
+
+    if provider_id == get_trusted_jwt_provider_id(app):
+        return get_trusted_jwt_provider_config(app)
 
     if provider_id == PROVIDER_CUSTOM:
         # Custom provider configuration
@@ -236,7 +248,12 @@ def get_role_from_claims(
 
 
 def create_or_update_oidc_user(
-    userinfo: Dict, tree: Optional[str], provider_id: str
+    userinfo: Dict,
+    tree: Optional[str],
+    provider_id: str,
+    provider_config: Optional[Dict] = None,
+    role_from_claims: Any = ROLE_FROM_CLAIMS_UNSET,
+    default_role: int = ROLE_DISABLED,
 ) -> str:
     """Create or update a user based on OIDC userinfo using secure sub claim mapping.
 
@@ -250,6 +267,9 @@ def create_or_update_oidc_user(
         userinfo: User information from OIDC provider
         tree: Tree identifier (optional)
         provider_id: OIDC provider identifier
+        provider_config: Optional provider configuration override
+        role_from_claims: Optional pre-computed role from provider claims
+        default_role: Role to assign to newly-created users if no role mapping applies
 
     Returns the user GUID.
     """
@@ -266,7 +286,8 @@ def create_or_update_oidc_user(
     full_name = userinfo.get("name", "")
 
     # Get provider-specific configuration for username display
-    provider_config = get_provider_config(provider_id)
+    if provider_config is None:
+        provider_config = get_provider_config(provider_id)
     if not provider_config:
         raise ValueError(f"Provider '{provider_id}' is not configured")
 
@@ -274,10 +295,13 @@ def create_or_update_oidc_user(
     display_username = userinfo.get(username_claim) or userinfo.get("sub")
 
     # Role mapping only applies to custom provider
-    role_from_claims = None
-    if provider_id == PROVIDER_CUSTOM:
-        role_claim = current_app.config.get("OIDC_ROLE_CLAIM", "groups")
-        role_from_claims = get_role_from_claims(userinfo, role_claim)
+    if role_from_claims is ROLE_FROM_CLAIMS_UNSET:
+        role_from_claims = None
+        # Role mapping only applies to custom provider by default. Other provider
+        # types can pass a pre-computed role explicitly.
+        if provider_id == PROVIDER_CUSTOM:
+            role_claim = current_app.config.get("OIDC_ROLE_CLAIM", "groups")
+            role_from_claims = get_role_from_claims(userinfo, role_claim)
 
     # Step 1: Check if OIDC account association already exists
     existing_user_id = get_oidc_account(provider_id, subject_id)
@@ -330,7 +354,7 @@ def create_or_update_oidc_user(
 
     # For new users, use role from claims if available (custom provider only),
     # otherwise default to DISABLED
-    final_role = role_from_claims if role_from_claims is not None else ROLE_DISABLED
+    final_role = role_from_claims if role_from_claims is not None else default_role
 
     add_user(
         name=final_username,
@@ -386,6 +410,14 @@ def init_oidc(app):
         if not provider_config:
             logger.warning(
                 f"Skipping provider '{provider_id}' - configuration incomplete"
+            )
+            continue
+
+        if provider_config.get("trusted_jwt"):
+            logger.info(
+                "Registered Trusted JWT provider: %s (%s)",
+                provider_config["name"],
+                provider_id,
             )
             continue
 
