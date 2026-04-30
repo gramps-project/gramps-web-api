@@ -1724,7 +1724,13 @@ def run_import(
             abort_with_message(500, f"Import failed: {e}")
         finally:
             if delete:
-                os.remove(file_name)
+                try:
+                    os.remove(file_name)
+                except OSError as e:
+                    # Log but don't let cleanup failures mask the import error
+                    current_app.logger.warning(
+                        f"Failed to delete temporary file {file_name}: {e}"
+                    )
         return
     if extension.lower() == "gramps":
         # Remove mediapath tag from Gramps XML files before import
