@@ -29,7 +29,7 @@ from typing import Dict, List, Optional
 from flask import abort, current_app, jsonify, request
 from flask_jwt_extended import get_jwt_identity
 from gramps.gen.config import config
-from marshmallow import INCLUDE, Schema
+from marshmallow import INCLUDE, Schema, ValidationError, validates_schema
 from webargs import fields
 from werkzeug.security import safe_join
 
@@ -363,7 +363,16 @@ class TreeConfigBodyArgs(Schema):
     """Body arguments for PUT /trees/<tree_id>/config."""
 
     class Meta:
+        """Accept any JSON object keys."""
+
         unknown = INCLUDE
+
+    @validates_schema
+    def validate_size(self, data, **kwargs):
+        if len(request.get_data()) > TREE_CONFIG_MAX_BYTES:
+            raise ValidationError(
+                f"Config payload exceeds {TREE_CONFIG_MAX_BYTES // 1024} KB limit"
+            )
 
 
 class TreeConfigResource(ProtectedResource):
@@ -388,8 +397,6 @@ class TreeConfigResource(ProtectedResource):
     @api_blueprint.arguments(TreeConfigBodyArgs, location="json")
     def put(self, args, tree_id: str):
         """Replace the per-tree configuration blob."""
-        if len(request.get_data()) > TREE_CONFIG_MAX_BYTES:
-            abort_with_message(413, "Config payload too large")
         if tree_id == "-":
             tree_id = get_tree_from_jwt_or_fail()
             require_permissions([PERM_EDIT_TREE])

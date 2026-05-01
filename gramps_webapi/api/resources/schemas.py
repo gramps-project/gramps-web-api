@@ -2496,4 +2496,4 @@ class TreeSchema(_Base):
 
 
 class TreeConfigSchema(_Base):
-    """Per-tree configuration blob (arbitrary JSON object of feature flags and UI preferences)."""
+    """Per-tree configuration blob (free-form JSON object)."""
