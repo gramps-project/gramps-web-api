@@ -2493,3 +2493,7 @@ class TreeSchema(_Base):
             "description": "Minimum user role required to use the AI chat endpoint."
         },
     )
+
+
+class TreeConfigSchema(_Base):
+    """Per-tree configuration blob (arbitrary JSON object of feature flags and UI preferences)."""

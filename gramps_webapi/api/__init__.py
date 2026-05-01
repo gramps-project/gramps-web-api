@@ -110,6 +110,7 @@ from .resources.trees import (
     CheckTreeResource,
     DisableTreeResource,
     EnableTreeResource,
+    TreeConfigResource,
     TreeResource,
     TreesResource,
     UpgradeTreeSchemaResource,
@@ -314,6 +315,12 @@ register_endpt(
     UpgradeTreeSchemaResource,
     "/trees/<string:tree_id>/migrate",
     "migrate_tree",
+    tags=["Trees"],
+)
+register_endpt(
+    TreeConfigResource,
+    "/trees/<string:tree_id>/config",
+    "tree_config",
     tags=["Trees"],
 )
 # Types

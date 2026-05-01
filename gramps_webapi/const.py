@@ -31,6 +31,7 @@ from ._version import __version__ as VERSION
 
 # the value of the TREE config option that enables multi-tree support
 TREE_MULTI = "*"
+TREE_CONFIG_MAX_BYTES = 64 * 1024  # 64 KB
 
 # Helper function to get resource file paths with managed cleanup
 _file_manager = ExitStack()
