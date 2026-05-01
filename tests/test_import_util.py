@@ -31,6 +31,12 @@ from gramps_webapi.api.resources.util import (
     remove_mediapath_from_gramps_xml,
     run_import,
 )
+from gramps_webapi.app import create_app
+
+APP = create_app(
+    {"TREE": "test", "SECRET_KEY": "test", "USER_DB_URI": "sqlite://"},
+    config_from_env=False,
+)
 
 
 class TestRemoveMediapathFromGrampsXml(unittest.TestCase):
@@ -307,10 +313,6 @@ class TestRemoveMediapathFromGrampsXml(unittest.TestCase):
             os.unlink(temp_file)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestGedcom7ErrorHandling(unittest.TestCase):
     """Test cases for GEDCOM7 import error handling."""
 
@@ -334,10 +336,7 @@ class TestGedcom7ErrorHandling(unittest.TestCase):
             mock_db = MagicMock()
 
             # Create Flask app context for current_app
-            from gramps_webapi.app import create_app
-
-            app = create_app()
-            with app.app_context():
+            with APP.app_context():
                 with self.assertRaises(HTTPException) as cm:
                     run_import(
                         db_handle=mock_db,
@@ -378,10 +377,7 @@ class TestGedcom7ErrorHandling(unittest.TestCase):
             mock_db = MagicMock()
 
             # Create Flask app context
-            from gramps_webapi.app import create_app
-
-            app = create_app()
-            with app.app_context():
+            with APP.app_context():
                 with self.assertRaises(HTTPException) as cm:
                     run_import(
                         db_handle=mock_db,
@@ -425,10 +421,7 @@ class TestGedcom7ErrorHandling(unittest.TestCase):
             mock_db = MagicMock()
 
             # Create Flask app context
-            from gramps_webapi.app import create_app
-
-            app = create_app()
-            with app.app_context():
+            with APP.app_context():
                 with self.assertRaises(HTTPException) as cm:
                     run_import(
                         db_handle=mock_db,
@@ -469,10 +462,7 @@ class TestGedcom7ErrorHandling(unittest.TestCase):
             mock_db = MagicMock()
 
             # Create Flask app context
-            from gramps_webapi.app import create_app
-
-            app = create_app()
-            with app.app_context():
+            with APP.app_context():
                 with self.assertRaises(HTTPException):
                     run_import(
                         db_handle=mock_db,
