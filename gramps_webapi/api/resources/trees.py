@@ -26,9 +26,10 @@ import re
 import uuid
 from typing import Dict, List, Optional
 
-from flask import abort, current_app, jsonify
+from flask import abort, current_app, jsonify, request
 from flask_jwt_extended import get_jwt_identity
 from gramps.gen.config import config
+from marshmallow import INCLUDE, Schema
 from webargs import fields
 from werkzeug.security import safe_join
 
@@ -62,11 +63,6 @@ from ..tasks import (
     run_task,
     upgrade_database_schema,
 )
-import json
-
-from marshmallow import INCLUDE, Schema, ValidationError, validates_schema
-from webargs import fields
-
 from ..blueprint import api_blueprint
 from ..util import abort_with_message, get_tree_from_jwt_or_fail, list_trees
 from . import ProtectedResource
@@ -369,13 +365,6 @@ class TreeConfigBodyArgs(Schema):
     class Meta:
         unknown = INCLUDE
 
-    @validates_schema
-    def validate_size(self, data, **kwargs):
-        if len(json.dumps(data).encode()) > TREE_CONFIG_MAX_BYTES:
-            raise ValidationError(
-                f"Config payload exceeds maximum size of {TREE_CONFIG_MAX_BYTES // 1024} KB"
-            )
-
 
 class TreeConfigResource(ProtectedResource):
     """Resource for reading and writing the per-tree configuration blob."""
@@ -391,12 +380,16 @@ class TreeConfigResource(ProtectedResource):
                 user_tree_id = get_tree_from_jwt_or_fail()
                 if tree_id != user_tree_id:
                     abort_with_message(403, "Not authorized to view other trees")
-        return get_tree_config(tree_id)
+        if not tree_exists(tree_id):
+            abort(404)
+        return jsonify(get_tree_config(tree_id))
 
     @api_blueprint.response(200, TreeConfigSchema())
     @api_blueprint.arguments(TreeConfigBodyArgs, location="json")
     def put(self, args, tree_id: str):
         """Replace the per-tree configuration blob."""
+        if len(request.get_data()) > TREE_CONFIG_MAX_BYTES:
+            abort_with_message(413, "Config payload too large")
         if tree_id == "-":
             tree_id = get_tree_from_jwt_or_fail()
             require_permissions([PERM_EDIT_TREE])
@@ -407,5 +400,7 @@ class TreeConfigResource(ProtectedResource):
             else:
                 require_permissions([PERM_EDIT_OTHER_TREE])
                 validate_tree_id(tree_id)
+        if not tree_exists(tree_id):
+            abort(404)
         set_tree_config(tree=tree_id, config=args)
-        return args
+        return jsonify(args)
