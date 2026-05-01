@@ -321,6 +321,141 @@ class TestTrees(unittest.TestCase):
         assert rv.status_code == 404
 
 
+class TestTreeConfig(unittest.TestCase):
+    """Test cases for the /api/trees/<tree_id>/config endpoint."""
+
+    def setUp(self):
+        self.name = "Test Web API Config"
+        self.dbman = CLIDbManager(DbState())
+        dbpath, _name = self.dbman.create_new_db_cli(self.name, dbid="sqlite")
+        self.tree = os.path.basename(dbpath)
+        with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
+            self.app = create_app(
+                config={"TESTING": True, "RATELIMIT_ENABLED": False},
+                config_from_env=False,
+            )
+        self.client = self.app.test_client()
+        with self.app.app_context():
+            user_db.create_all()
+            add_user(
+                name="owner",
+                password="123",
+                email="owner@example.com",
+                role=ROLE_OWNER,
+                tree=self.tree,
+            )
+            add_user(
+                name="admin",
+                password="123",
+                email="admin@example.com",
+                role=ROLE_ADMIN,
+                tree=self.tree,
+            )
+        self.ctx = self.app.test_request_context()
+        self.ctx.push()
+
+    def tearDown(self):
+        self.ctx.pop()
+        self.dbman.remove_database(self.name)
+
+    def _token(self, username):
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": username, "password": "123"}
+        )
+        return rv.json["access_token"]
+
+    def test_get_config_empty(self):
+        token = self._token("owner")
+        rv = self.client.get(
+            BASE_URL + "/trees/-/config",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert rv.status_code == 200
+        assert rv.json == {}
+
+    def test_put_and_get_flat_config(self):
+        token = self._token("owner")
+        payload = {"show_sidebar": True, "items_per_page": 25, "theme": "dark"}
+        rv = self.client.put(
+            BASE_URL + "/trees/-/config",
+            headers={"Authorization": f"Bearer {token}"},
+            json=payload,
+        )
+        assert rv.status_code == 200
+        assert rv.json == payload
+        rv = self.client.get(
+            BASE_URL + "/trees/-/config",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert rv.status_code == 200
+        assert rv.json == payload
+
+    def test_put_and_get_nested_config(self):
+        token = self._token("owner")
+        payload = {
+            "ui": {"sidebar": True, "theme": "dark"},
+            "allowed_roles": [1, 2, 3],
+            "feature_flags": {"ai_chat": False, "export": True},
+        }
+        rv = self.client.put(
+            BASE_URL + "/trees/-/config",
+            headers={"Authorization": f"Bearer {token}"},
+            json=payload,
+        )
+        assert rv.status_code == 200
+        assert rv.json == payload
+        rv = self.client.get(
+            BASE_URL + "/trees/-/config",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert rv.status_code == 200
+        assert rv.json == payload
+
+    def test_put_config_replaces_entirely(self):
+        token = self._token("owner")
+        self.client.put(
+            BASE_URL + "/trees/-/config",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"key1": "val1", "key2": "val2"},
+        )
+        rv = self.client.put(
+            BASE_URL + "/trees/-/config",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"key2": "new"},
+        )
+        assert rv.status_code == 200
+        rv = self.client.get(
+            BASE_URL + "/trees/-/config",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert rv.json == {"key2": "new"}
+
+    def test_get_config_other_tree_forbidden_for_owner(self):
+        token = self._token("owner")
+        rv = self.client.get(
+            BASE_URL + "/trees/notexist/config",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert rv.status_code == 403
+
+    def test_get_config_nonexistent_tree_404_for_admin(self):
+        token = self._token("admin")
+        rv = self.client.get(
+            BASE_URL + "/trees/notexist/config",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert rv.status_code == 404
+
+    def test_put_config_nonexistent_tree_404_for_admin(self):
+        token = self._token("admin")
+        rv = self.client.put(
+            BASE_URL + "/trees/notexist/config",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"key": "val"},
+        )
+        assert rv.status_code == 404
+
+
 class TestTreesSingleTreeRename(unittest.TestCase):
     """Test tree rename in single-tree mode using TREE_ID config."""
 
