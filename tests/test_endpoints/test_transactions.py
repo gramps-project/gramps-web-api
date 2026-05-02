@@ -430,6 +430,55 @@ class TestTransactionResource(unittest.TestCase):
         self.assertEqual(rv.json["task"]["id"], "fake-task-id-123")
         self.assertIn("/api/tasks/", rv.json["task"]["href"])
 
+    def test_transaction_message_default(self):
+        """Default message 'Raw transaction' is stored in the undo log."""
+        handle = make_handle()
+        obj = {
+            "_class": "Note",
+            "handle": handle,
+            "text": {"_class": "StyledText", "string": "Message default test."},
+            "gramps_id": "NMSG0",
+        }
+        trans = [
+            {"type": "add", "_class": "Note", "handle": handle, "old": None, "new": obj}
+        ]
+        headers = get_headers(self.client, "editor", "123")
+        rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        assert rv.status_code == 200
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        assert rv.json[-1]["description"] == "Raw transaction"
+
+    def test_transaction_message_custom(self):
+        """Custom message is stored in the undo log for both foreground and background."""
+        headers = get_headers(self.client, "editor", "123")
+        for background in ("0", "1"):
+            handle = make_handle()
+            obj = {
+                "_class": "Note",
+                "handle": handle,
+                "text": {"_class": "StyledText", "string": "Custom message test."},
+                "gramps_id": f"NMSG{background}",
+            }
+            trans = [
+                {
+                    "type": "add",
+                    "_class": "Note",
+                    "handle": handle,
+                    "old": None,
+                    "new": obj,
+                }
+            ]
+            rv = self.client.post(
+                f"/api/transactions/?message=My+custom+message&background={background}",
+                json=trans,
+                headers=headers,
+            )
+            assert rv.status_code == 200
+            rv = self.client.get("/api/transactions/history/", headers=headers)
+            assert rv.status_code == 200
+            assert rv.json[-1]["description"] == "My custom message"
+
     def test_gramps60_issue(self):
         """Test for an issue that occurred after upgrading to Gramps 6.0"""
         obj_dict = {
