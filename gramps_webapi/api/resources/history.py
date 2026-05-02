@@ -190,7 +190,7 @@ class UndoQueryArgs(Schema):
     message = fields.String(
         load_default=None,
         metadata={
-            "description": "Message to use for the transaction in the undo log. Defaults to the original transaction's description."
+            "description": "Message to use for the transaction in the undo log. Defaults to 'Undo'."
         },
     )
 

@@ -687,3 +687,40 @@ class TestTransactionHistoryResource(unittest.TestCase):
         conflict = result["conflicts"][0]
         assert conflict["handle"] == handle
         assert conflict["conflict_type"] == "object_changed"
+
+    def test_undo_message_default(self):
+        """Undo without message param stores 'Undo' in the undo log."""
+        headers = get_headers(self.client, "editor", "123")
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        transaction_id = self.client.get(
+            "/api/transactions/history/", headers=headers
+        ).json[0]["id"]
+
+        rv = self.client.post(
+            f"/api/transactions/history/{transaction_id}/undo", headers=headers
+        )
+        assert rv.status_code == 200
+
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        assert rv.json[-1]["description"] == "Undo"
+
+    def test_undo_message_custom(self):
+        """Custom message param is stored in the undo log."""
+        headers = get_headers(self.client, "editor", "123")
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        transaction_id = self.client.get(
+            "/api/transactions/history/", headers=headers
+        ).json[0]["id"]
+
+        rv = self.client.post(
+            f"/api/transactions/history/{transaction_id}/undo?message=Annuler",
+            headers=headers,
+        )
+        assert rv.status_code == 200
+
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        assert rv.json[-1]["description"] == "Annuler"
