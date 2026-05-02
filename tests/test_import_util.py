@@ -23,8 +23,20 @@ import gzip
 import os
 import tempfile
 import unittest
+from unittest.mock import MagicMock, patch
 
-from gramps_webapi.api.resources.util import remove_mediapath_from_gramps_xml
+from werkzeug.exceptions import HTTPException
+
+from gramps_webapi.api.resources.util import (
+    remove_mediapath_from_gramps_xml,
+    run_import,
+)
+from gramps_webapi.app import create_app
+
+APP = create_app(
+    {"TREE": "test", "SECRET_KEY": "test", "USER_DB_URI": "sqlite://"},
+    config_from_env=False,
+)
 
 
 class TestRemoveMediapathFromGrampsXml(unittest.TestCase):
@@ -301,5 +313,167 @@ class TestRemoveMediapathFromGrampsXml(unittest.TestCase):
             os.unlink(temp_file)
 
 
-if __name__ == "__main__":
-    unittest.main()
+class TestGedcom7ErrorHandling(unittest.TestCase):
+    """Test cases for GEDCOM7 import error handling."""
+
+    @patch("gramps_webapi.api.resources.util.detect_gedcom_major_version")
+    @patch("gramps_webapi.api.resources.util.gramps_gedcom7")
+    def test_gedcom7_valueerror_returns_422(
+        self, mock_gedcom7, mock_detect_version
+    ):
+        """Test that ValueError during GEDCOM7 import returns 422."""
+        mock_detect_version.return_value = 7
+        mock_gedcom7.import_gedcom.side_effect = ValueError("File is not UTF-8 encoded")
+
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(
+            mode="wb", suffix=".ged", delete=False
+        ) as f:
+            temp_file = f.name
+            f.write(b"dummy content")
+
+        try:
+            mock_db = MagicMock()
+
+            # Create Flask app context for current_app
+            with APP.app_context():
+                with self.assertRaises(HTTPException) as cm:
+                    run_import(
+                        db_handle=mock_db,
+                        file_name=temp_file,
+                        extension="ged",
+                        delete=True,
+                    )
+
+                # Verify 422 status code and message
+                self.assertEqual(cm.exception.code, 422)
+                self.assertIn("Invalid GEDCOM file", str(cm.exception.description))
+                self.assertIn("UTF-8", str(cm.exception.description))
+
+            # Verify file was deleted
+            self.assertFalse(os.path.exists(temp_file))
+        finally:
+            # Clean up if test failed
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
+
+    @patch("gramps_webapi.api.resources.util.detect_gedcom_major_version")
+    @patch("gramps_webapi.api.resources.util.gramps_gedcom7")
+    def test_gedcom7_unexpected_error_returns_500(
+        self, mock_gedcom7, mock_detect_version
+    ):
+        """Test that unexpected Exception during GEDCOM7 import returns 500."""
+        mock_detect_version.return_value = 7
+        mock_gedcom7.import_gedcom.side_effect = RuntimeError("Unexpected error")
+
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(
+            mode="wb", suffix=".ged", delete=False
+        ) as f:
+            temp_file = f.name
+            f.write(b"dummy content")
+
+        try:
+            mock_db = MagicMock()
+
+            # Create Flask app context
+            with APP.app_context():
+                with self.assertRaises(HTTPException) as cm:
+                    run_import(
+                        db_handle=mock_db,
+                        file_name=temp_file,
+                        extension="ged",
+                        delete=True,
+                    )
+
+                # Verify 500 status code and message
+                self.assertEqual(cm.exception.code, 500)
+                self.assertIn("Import failed", str(cm.exception.description))
+                self.assertIn("Unexpected error", str(cm.exception.description))
+
+            # Verify file was deleted
+            self.assertFalse(os.path.exists(temp_file))
+        finally:
+            # Clean up if test failed
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
+
+    @patch("gramps_webapi.api.resources.util.detect_gedcom_major_version")
+    @patch("gramps_webapi.api.resources.util.gramps_gedcom7")
+    @patch("gramps_webapi.api.resources.util.os.remove")
+    def test_gedcom7_cleanup_failure_doesnt_mask_error(
+        self, mock_remove, mock_gedcom7, mock_detect_version
+    ):
+        """Test that file cleanup failures don't mask the original import error."""
+        mock_detect_version.return_value = 7
+        mock_gedcom7.import_gedcom.side_effect = ValueError("Invalid file")
+        # Simulate file deletion failure
+        mock_remove.side_effect = OSError("Permission denied")
+
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(
+            mode="wb", suffix=".ged", delete=False
+        ) as f:
+            temp_file = f.name
+            f.write(b"dummy content")
+
+        try:
+            mock_db = MagicMock()
+
+            # Create Flask app context
+            with APP.app_context():
+                with self.assertRaises(HTTPException) as cm:
+                    run_import(
+                        db_handle=mock_db,
+                        file_name=temp_file,
+                        extension="ged",
+                        delete=True,
+                    )
+
+                # Verify original 422 error is preserved, not OSError
+                self.assertEqual(cm.exception.code, 422)
+                self.assertIn("Invalid GEDCOM file", str(cm.exception.description))
+                self.assertNotIn("Permission denied", str(cm.exception.description))
+
+            # Verify os.remove was attempted
+            mock_remove.assert_called_once_with(temp_file)
+        finally:
+            # Clean up
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
+
+    @patch("gramps_webapi.api.resources.util.detect_gedcom_major_version")
+    @patch("gramps_webapi.api.resources.util.gramps_gedcom7")
+    def test_gedcom7_no_delete_preserves_file(
+        self, mock_gedcom7, mock_detect_version
+    ):
+        """Test that file is preserved when delete=False."""
+        mock_detect_version.return_value = 7
+        mock_gedcom7.import_gedcom.side_effect = ValueError("Invalid file")
+
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(
+            mode="wb", suffix=".ged", delete=False
+        ) as f:
+            temp_file = f.name
+            f.write(b"dummy content")
+
+        try:
+            mock_db = MagicMock()
+
+            # Create Flask app context
+            with APP.app_context():
+                with self.assertRaises(HTTPException):
+                    run_import(
+                        db_handle=mock_db,
+                        file_name=temp_file,
+                        extension="ged",
+                        delete=False,  # Don't delete
+                    )
+
+            # Verify file was NOT deleted
+            self.assertTrue(os.path.exists(temp_file))
+        finally:
+            # Clean up
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)

@@ -1715,11 +1715,22 @@ def run_import(
     if extension.lower() == "ged" and detect_gedcom_major_version(str(file_name)) == 7:
         try:
             gramps_gedcom7.import_gedcom(input_file=file_name, db=db_handle)
+        except ValueError as e:
+            # ValueError indicates invalid file format or encoding (e.g., not UTF-8)
+            abort_with_message(422, f"Invalid GEDCOM file: {e}")
         except Exception as e:
+            # Unexpected errors - log for debugging
+            current_app.logger.exception("GEDCOM7 import failed with unexpected error")
             abort_with_message(500, f"Import failed: {e}")
         finally:
             if delete:
-                os.remove(file_name)
+                try:
+                    os.remove(file_name)
+                except OSError as e:
+                    # Log but don't let cleanup failures mask the import error
+                    current_app.logger.warning(
+                        f"Failed to delete temporary file {file_name}: {e}"
+                    )
         return
     if extension.lower() == "gramps":
         # Remove mediapath tag from Gramps XML files before import
