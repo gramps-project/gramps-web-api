@@ -47,6 +47,10 @@ class TransactionsQueryArgs(Schema):
         load_default=False,
         metadata={"description": "If true, apply the inverse of the transaction."},
     )
+    message = fields.String(
+        load_default="Raw transaction",
+        metadata={"description": "Message to use for the transaction in the undo log."},
+    )
     force = fields.Boolean(
         load_default=False,
         metadata={
@@ -84,13 +88,14 @@ class TransactionsResource(ProtectedResource):
                 user_id=user_id,
                 payload=payload,
                 force=args["force"],
+                message=args["message"],
             )
             if isinstance(task, AsyncResult):
                 return make_task_response(task)
             return task, 200
         try:
             trans_dict = process_transactions(
-                tree=tree, user_id=user_id, payload=payload, force=args["force"]
+                tree=tree, user_id=user_id, payload=payload, force=args["force"], message=args["message"]
             )
         except ValueError as exc:
             abort_with_message(400, str(exc))

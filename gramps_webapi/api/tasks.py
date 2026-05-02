@@ -471,7 +471,7 @@ def delete_objects(
 
 @shared_task(bind=True)
 def process_transactions(
-    self, tree: str, user_id: str, payload: list[dict], force: bool
+    self, tree: str, user_id: str, payload: list[dict], force: bool, message: str = "Raw transaction"
 ):
     """Process a set of database transactions, updating search indices as needed."""
     num_people_deleted = sum(
@@ -486,7 +486,7 @@ def process_transactions(
         tree=tree, view_private=True, readonly=False, user_id=user_id
     )
     try:
-        with DbTxn("Raw transaction", db_handle) as trans:
+        with DbTxn(message, db_handle) as trans:
             for item in payload:
                 try:
                     class_name = item["_class"]

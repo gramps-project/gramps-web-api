@@ -187,6 +187,12 @@ class UndoQueryArgs(Schema):
             "description": "If true, force the undo even if there are conflicts."
         },
     )
+    message = fields.String(
+        load_default=None,
+        metadata={
+            "description": "Message to use for the transaction in the undo log. Defaults to the original transaction's description."
+        },
+    )
 
 
 class TransactionUndoResource(ProtectedResource):
@@ -341,12 +347,14 @@ class TransactionUndoResource(ProtectedResource):
         user_id = get_jwt_identity()
 
         # Always use background processing for undo operations
+        message = args["message"] or "Undo"
         task = run_task(
             process_transactions,
             tree=tree,
             user_id=user_id,
             payload=reversed_payload,
             force=args["force"],
+            message=message,
         )
         if isinstance(task, AsyncResult):
             return make_task_response(task)
