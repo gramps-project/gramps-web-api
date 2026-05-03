@@ -26,17 +26,20 @@ import re
 import uuid
 from typing import Dict, List, Optional
 
-from flask import abort, current_app, jsonify
+from flask import abort, current_app, jsonify, request
 from flask_jwt_extended import get_jwt_identity
 from gramps.gen.config import config
+from marshmallow import INCLUDE, Schema, ValidationError, validates_schema
 from webargs import fields
 from werkzeug.security import safe_join
 
 from ...auth import (
     disable_enable_tree,
+    get_tree_config,
     get_tree_permissions,
     get_tree_usage,
     is_tree_disabled,
+    set_tree_config,
     set_tree_details,
 )
 from ...auth.const import (
@@ -50,7 +53,7 @@ from ...auth.const import (
     PERM_UPGRADE_TREE_SCHEMA,
     PERM_VIEW_OTHER_TREE,
 )
-from ...const import TREE_MULTI
+from ...const import TREE_CONFIG_MAX_BYTES, TREE_MULTI
 from ...dbmanager import WebDbManager
 from ..auth import has_permissions, require_permissions
 from ..tasks import (
@@ -60,13 +63,10 @@ from ..tasks import (
     run_task,
     upgrade_database_schema,
 )
-from marshmallow import Schema
-from webargs import fields
-
 from ..blueprint import api_blueprint
 from ..util import abort_with_message, get_tree_from_jwt_or_fail, list_trees
 from . import ProtectedResource
-from .schemas import TreeSchema
+from .schemas import TreeConfigSchema, TreeSchema
 
 # legal tree dirnames
 TREE_ID_REGEX = re.compile(r"^[a-zA-Z0-9_-]+$")
@@ -357,3 +357,57 @@ class UpgradeTreeSchemaResource(ProtectedResource):
         if isinstance(task, AsyncResult):
             return make_task_response(task)
         return jsonify(task), 201
+
+
+class TreeConfigBodyArgs(Schema):
+    """Body arguments for PUT /trees/<tree_id>/config."""
+
+    class Meta:
+        """Accept any JSON object keys."""
+
+        unknown = INCLUDE
+
+    @validates_schema
+    def validate_size(self, data, **kwargs):
+        if len(request.get_data()) > TREE_CONFIG_MAX_BYTES:
+            raise ValidationError(
+                f"Config payload exceeds {TREE_CONFIG_MAX_BYTES // 1024} KB limit"
+            )
+
+
+class TreeConfigResource(ProtectedResource):
+    """Resource for reading and writing the per-tree configuration blob."""
+
+    @api_blueprint.response(200, TreeConfigSchema())
+    def get(self, tree_id: str):
+        """Get the per-tree configuration blob."""
+        if tree_id == "-":
+            tree_id = get_tree_from_jwt_or_fail()
+        else:
+            validate_tree_id(tree_id)
+            if not has_permissions([PERM_VIEW_OTHER_TREE]):
+                user_tree_id = get_tree_from_jwt_or_fail()
+                if tree_id != user_tree_id:
+                    abort_with_message(403, "Not authorized to view other trees")
+        if not tree_exists(tree_id):
+            abort(404)
+        return jsonify(get_tree_config(tree_id))
+
+    @api_blueprint.response(200, TreeConfigSchema())
+    @api_blueprint.arguments(TreeConfigBodyArgs, location="json")
+    def put(self, args, tree_id: str):
+        """Replace the per-tree configuration blob."""
+        if tree_id == "-":
+            tree_id = get_tree_from_jwt_or_fail()
+            require_permissions([PERM_EDIT_TREE])
+        else:
+            user_tree_id = get_tree_from_jwt_or_fail()
+            if tree_id == user_tree_id:
+                require_permissions([PERM_EDIT_TREE])
+            else:
+                require_permissions([PERM_EDIT_OTHER_TREE])
+                validate_tree_id(tree_id)
+        if not tree_exists(tree_id):
+            abort(404)
+        set_tree_config(tree=tree_id, config=args)
+        return jsonify(args)

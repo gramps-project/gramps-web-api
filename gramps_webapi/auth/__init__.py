@@ -469,6 +469,26 @@ def is_tree_disabled(tree: str) -> bool:
     return tree_obj.enabled == 0
 
 
+def get_tree_config(tree: str) -> dict:
+    """Get the tree config blob (returns empty dict if not set)."""
+    query = user_db.session.query(Tree)  # pylint: disable=no-member
+    tree_obj: Tree = query.filter_by(id=tree).scalar()
+    if tree_obj is None:
+        return {}
+    return tree_obj.config or {}
+
+
+def set_tree_config(tree: str, config: dict) -> None:
+    """Replace the tree config blob."""
+    query = user_db.session.query(Tree)  # pylint: disable=no-member
+    tree_obj = query.filter_by(id=tree).scalar()
+    if not tree_obj:
+        tree_obj = Tree(id=tree)
+    tree_obj.config = config
+    user_db.session.add(tree_obj)  # pylint: disable=no-member
+    user_db.session.commit()  # pylint: disable=no-member
+
+
 def create_oidc_account(
     user_id: str, provider_id: str, subject_id: str, email: Optional[str] = None
 ) -> None:
@@ -553,6 +573,7 @@ class Tree(user_db.Model):  # type: ignore
     usage_ai = mapped_column(sa.Integer)
     min_role_ai = mapped_column(sa.Integer)
     enabled = mapped_column(sa.Integer, default=1, server_default="1")
+    config = mapped_column(sa.JSON, nullable=True)
 
     def __repr__(self):
         """Return string representation of instance."""
