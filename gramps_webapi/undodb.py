@@ -172,6 +172,8 @@ class Transaction(Base):
             "changes": [
                 change._to_dict(old_data=old_data, new_data=new_data)
                 for change in self.connection.changes
+                if self.first is None
+                or (change.id >= self.first and change.id <= self.last)
             ],
         }
 
@@ -542,12 +544,8 @@ class DbUndoSQLWeb(DbUndoSQL):
         with self.session_scope() as session:
             query = (
                 session.query(Transaction)
-                .outerjoin(Connection)
-                .outerjoin(Change)
+                .join(Connection)
                 .filter(Connection.tree_id == self.tree_id)
-                .filter((Change.id >= Transaction.first) | Transaction.first.is_(None))
-                .filter((Change.id <= Transaction.last) | Transaction.first.is_(None))
-                .group_by(Transaction.id)
             )
             if before:
                 query = query.filter(Transaction.timestamp < before * 1e9)
@@ -576,12 +574,9 @@ class DbUndoSQLWeb(DbUndoSQL):
         with self.session_scope() as session:
             query = (
                 session.query(Transaction)
-                .outerjoin(Connection)
-                .outerjoin(Change)
+                .join(Connection)
                 .filter(Connection.tree_id == self.tree_id)
                 .filter(Transaction.id == transaction_id)
-                .filter((Change.id >= Transaction.first) | Transaction.first.is_(None))
-                .filter((Change.id <= Transaction.last) | Transaction.first.is_(None))
             )
             transaction = query.scalar()
             return transaction._to_dict(old_data=old_data, new_data=new_data)
