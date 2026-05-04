@@ -70,6 +70,9 @@ ENV LC_ALL=en_US.utf8
 # limit pytorch to 1 thread
 ENV OMP_NUM_THREADS=1
 
+# use a fixed, user-agnostic path for Hugging Face model cache
+ENV HF_HOME=/app/huggingface
+
 # Use a venv so pip can manage packages without conflicting with Debian-installed ones
 RUN python3 -m venv /venv --system-site-packages
 ENV PATH="/venv/bin:$PATH"
@@ -87,7 +90,7 @@ RUN pip install --no-cache-dir Pillow
 RUN pip install --no-cache-dir PyICU
 
 # Install PyTorch and opencv
-RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu "torch==2.10.0+cpu"
 RUN pip install --no-cache-dir opencv-contrib-python
 
 # Install AI dependencies
