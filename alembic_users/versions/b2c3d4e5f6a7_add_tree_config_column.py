@@ -5,6 +5,7 @@ Revises: 2082445b0769
 Create Date: 2026-05-01 00:00:00.000000
 
 """
+
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.engine.reflection import Inspector
