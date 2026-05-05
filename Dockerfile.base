@@ -90,7 +90,7 @@ RUN pip install --no-cache-dir Pillow
 RUN pip install --no-cache-dir PyICU
 
 # Install PyTorch and opencv
-RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu "torch==2.10.0+cpu"
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch
 RUN pip install --no-cache-dir opencv-contrib-python
 
 # Install AI dependencies
