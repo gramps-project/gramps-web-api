@@ -35,5 +35,4 @@ RUN pip install sentence-transformers
 USER vscode
 RUN python3 -c "from sentence_transformers import SentenceTransformer; \
 model = SentenceTransformer('sentence-transformers/distiluse-base-multilingual-cased-v2')"
-USER root
 
