@@ -53,10 +53,10 @@ jobs:
           df -h
       - name: Check for single alembic head
         run: |
-          HEAD_COUNT=$(alembic -c alembic_users/alembic.ini heads | wc -l)
+          HEAD_COUNT=$(alembic heads | wc -l)
           if [ "$HEAD_COUNT" -ne 1 ]; then
             echo "ERROR: Multiple alembic heads detected! Run 'alembic heads' to inspect."
-            alembic -c alembic_users/alembic.ini heads
+            alembic heads
             exit 1
           fi
       - name: Run type checker
