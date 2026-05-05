@@ -1,7 +1,7 @@
 """Add trees.config JSON column
 
 Revision ID: b2c3d4e5f6a7
-Revises: f3a1c8e92b47
+Revises: 2082445b0769
 Create Date: 2026-05-01 00:00:00.000000
 
 """
@@ -12,7 +12,7 @@ from sqlalchemy.engine.reflection import Inspector
 
 # revision identifiers, used by Alembic.
 revision = "b2c3d4e5f6a7"
-down_revision = "f3a1c8e92b47"
+down_revision = "2082445b0769"
 branch_labels = None
 depends_on = None
 
