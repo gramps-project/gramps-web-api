@@ -23,11 +23,16 @@ RUN mkdir -p $GRAMPSHOME/gramps/gramps$GRAMPS_VERSION/plugins && \
     rm master.zip && \
     chown -R vscode:vscode $GRAMPSHOME/gramps
 
+# use a fixed path for Hugging Face model cache (must match runtime user)
+ENV HF_HOME=/home/vscode/.cache/huggingface
+RUN mkdir -p $HF_HOME && chown -R vscode:vscode $HF_HOME
+
 # CPU-only version of PyTorch
 RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
 RUN pip install sentence-transformers
 
-# download and cache sentence transformer model
+# download and cache sentence transformer model (run as vscode so cache is accessible at runtime)
+USER vscode
 RUN python3 -c "from sentence_transformers import SentenceTransformer; \
-model = SentenceTransformer('sentence-transformers/distiluse-base-multilingual-cased-v2')";
+model = SentenceTransformer('sentence-transformers/distiluse-base-multilingual-cased-v2')"
 
