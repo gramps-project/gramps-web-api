@@ -66,7 +66,7 @@ jobs:
       - name: Cache Hugging Face models
         uses: actions/cache@v4
         with:
-          path: /app/huggingface
+          path: ~/.cache/huggingface
           key: hf-models-base-${{ hashFiles('pyproject.toml') }}
           restore-keys: |
             hf-models-base-

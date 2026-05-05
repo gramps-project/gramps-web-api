@@ -25,6 +25,7 @@ RUN mkdir -p $GRAMPSHOME/gramps/gramps$GRAMPS_VERSION/plugins && \
 
 # use a fixed path for Hugging Face model cache (must match runtime user)
 ENV HF_HOME=/home/vscode/.cache/huggingface
+RUN mkdir -p $HF_HOME && chown -R vscode:vscode $HF_HOME
 
 # CPU-only version of PyTorch
 RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
