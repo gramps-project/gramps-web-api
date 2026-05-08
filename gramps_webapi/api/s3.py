@@ -142,6 +142,7 @@ class ObjectStorageFileHandler(FileHandler):
 
     def send_cropped(self, x1: int, y1: int, x2: int, y2: int, square: bool = False):
         """Send cropped image."""
+        self._abort_if_too_large()
         fileobj = self._download_fileobj()
         thumb = ThumbnailHandler(fileobj, self.mime)
         buffer = thumb.get_cropped(x1=x1, y1=y1, x2=x2, y2=y2, square=square)
@@ -149,6 +150,7 @@ class ObjectStorageFileHandler(FileHandler):
 
     def send_thumbnail(self, size: int, square: bool = False):
         """Send thumbnail of image."""
+        self._abort_if_too_large()
         fileobj = self._download_fileobj()
         thumb = ThumbnailHandler(fileobj, self.mime)
         buffer = thumb.get_thumbnail(size=size, square=square)
@@ -158,6 +160,7 @@ class ObjectStorageFileHandler(FileHandler):
         self, size: int, x1: int, y1: int, x2: int, y2: int, square: bool = False
     ):
         """Send thumbnail of cropped image."""
+        self._abort_if_too_large()
         fileobj = self._download_fileobj()
         thumb = ThumbnailHandler(fileobj, self.mime)
         buffer = thumb.get_thumbnail_cropped(

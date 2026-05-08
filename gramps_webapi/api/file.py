@@ -33,7 +33,7 @@ from gramps.gen.lib import Media
 from PIL import Image
 from werkzeug.datastructures import FileStorage
 
-from gramps_webapi.const import MIME_AVIF
+from gramps_webapi.const import MIME_AVIF, MAX_THUMBNAIL_FILE_BYTES
 
 from ..types import FilenameOrPath
 from .image import LocalFileThumbnailHandler, detect_faces
@@ -89,6 +89,11 @@ class FileHandler:
     ):
         """Send thumbnail of cropped image."""
         raise NotImplementedError
+
+    def _abort_if_too_large(self) -> None:
+        """Abort with 415 if the file exceeds the thumbnail size limit."""
+        if self.get_file_size() > MAX_THUMBNAIL_FILE_BYTES:
+            abort_with_message(415, "File too large for thumbnailing")
 
     def get_face_regions(self, etag: Optional[str] = None):
         """Return regions containing faces."""
@@ -208,6 +213,7 @@ class LocalFileHandler(FileHandler):
 
     def send_cropped(self, x1: int, y1: int, x2: int, y2: int, square: bool = False):
         """Send cropped image."""
+        self._abort_if_too_large()
         try:
             self._check_path()
         except ValueError:
@@ -218,6 +224,7 @@ class LocalFileHandler(FileHandler):
 
     def send_thumbnail(self, size: int, square: bool = False):
         """Send thumbnail of image."""
+        self._abort_if_too_large()
         try:
             self._check_path()
         except ValueError:
@@ -230,6 +237,7 @@ class LocalFileHandler(FileHandler):
         self, size: int, x1: int, y1: int, x2: int, y2: int, square: bool = False
     ):
         """Send thumbnail of cropped image."""
+        self._abort_if_too_large()
         try:
             self._check_path()
         except ValueError:

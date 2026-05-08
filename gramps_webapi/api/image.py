@@ -150,7 +150,8 @@ class ThumbnailHandler:
     def _get_image_pdf(self) -> ImageType:
         """Get a Pillow Image instance of the PDF's first page."""
         ims = self._apply_to_path(
-            convert_from_path, single_file=True, use_cropbox=True, dpi=100
+            convert_from_path, first_page=1, last_page=1, use_cropbox=True, dpi=100,
+            size=(2000, 2000),
         )
         return ims[0]
 
