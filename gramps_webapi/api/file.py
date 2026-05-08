@@ -91,9 +91,9 @@ class FileHandler:
         raise NotImplementedError
 
     def _abort_if_too_large(self) -> None:
-        """Abort with 415 if the file exceeds the thumbnail size limit."""
+        """Abort with 413 if the file exceeds the thumbnail size limit."""
         if self.get_file_size() > MAX_THUMBNAIL_FILE_BYTES:
-            abort_with_message(415, "File too large for thumbnailing")
+            abort_with_message(413, "File too large for thumbnailing")
 
     def get_face_regions(self, etag: Optional[str] = None):
         """Return regions containing faces."""
@@ -213,22 +213,22 @@ class LocalFileHandler(FileHandler):
 
     def send_cropped(self, x1: int, y1: int, x2: int, y2: int, square: bool = False):
         """Send cropped image."""
-        self._abort_if_too_large()
         try:
             self._check_path()
         except ValueError:
             abort_with_message(403, "File access not allowed")
+        self._abort_if_too_large()
         thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
         buffer = thumb.get_cropped(x1=x1, y1=y1, x2=x2, y2=y2, square=square)
         return send_file(buffer, mimetype=MIME_AVIF)
 
     def send_thumbnail(self, size: int, square: bool = False):
         """Send thumbnail of image."""
-        self._abort_if_too_large()
         try:
             self._check_path()
         except ValueError:
             abort_with_message(403, "File access not allowed")
+        self._abort_if_too_large()
         thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
         buffer = thumb.get_thumbnail(size=size, square=square)
         return send_file(buffer, mimetype=MIME_AVIF)
@@ -237,11 +237,11 @@ class LocalFileHandler(FileHandler):
         self, size: int, x1: int, y1: int, x2: int, y2: int, square: bool = False
     ):
         """Send thumbnail of cropped image."""
-        self._abort_if_too_large()
         try:
             self._check_path()
         except ValueError:
             abort_with_message(403, "File access not allowed")
+        self._abort_if_too_large()
         thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
         buffer = thumb.get_thumbnail_cropped(
             size=size, x1=x1, y1=y1, x2=x2, y2=y2, square=square

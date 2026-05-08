@@ -31,7 +31,9 @@ from PIL import Image
 from .test_endpoints.test_upload import get_image
 
 
-def make_two_page_pdf(color1=(255, 0, 0), color2=(0, 0, 255), size=(200, 200)) -> io.BytesIO:
+def make_two_page_pdf(
+    color1=(255, 0, 0), color2=(0, 0, 255), size=(200, 200)
+) -> io.BytesIO:
     """Create a minimal 2-page PDF with distinct solid colors."""
     page1 = Image.new("RGB", size, color=color1)
     page2 = Image.new("RGB", size, color=color2)
@@ -63,12 +65,28 @@ def test_pdf_thumbnail_returns_first_page_only():
     )
 
 
-def test_pdf_thumbnail_size_capped():
-    """Rendered PDF thumbnail must not exceed the 2000×2000 cap."""
+def test_pdf_render_size_capped():
+    """Rendered PDF image must not exceed the 2000×2000 cap."""
     buf = make_two_page_pdf(size=(3000, 3000))
     handler = ThumbnailHandler(buf, MIME_PDF)
     img = handler.get_image()
     assert img.width <= 2000 and img.height <= 2000
+
+
+def test_abort_if_too_large_returns_413():
+    """_abort_if_too_large must raise HTTPException with code 413 when over the limit."""
+    from werkzeug.exceptions import HTTPException
+    from gramps_webapi.api.file import FileHandler
+    from gramps_webapi.const import MAX_THUMBNAIL_FILE_BYTES
+
+    class _BigFileHandler(FileHandler):
+        def get_file_size(self):
+            return MAX_THUMBNAIL_FILE_BYTES + 1
+
+    handler = object.__new__(_BigFileHandler)
+    with pytest.raises(HTTPException) as exc_info:
+        handler._abort_if_too_large()
+    assert exc_info.value.code == 413
 
 
 # fixture for restoring Pillow library default config values
