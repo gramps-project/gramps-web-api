@@ -33,7 +33,7 @@ jobs:
           restore-keys: |
             hf-models-
       - name: Install Ubuntu dependencies
-        run: sudo apt update && sudo apt-get -y install gettext appstream pkg-config libcairo2-dev gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev libopencv-dev tesseract-ocr tesseract-ocr-all gir1.2-pango-1.0
+        run: sudo apt update && sudo apt-get -y install gettext appstream pkg-config libcairo2-dev gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev libopencv-dev tesseract-ocr tesseract-ocr-all gir1.2-pango-1.0 poppler-utils
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip wheel setuptools
