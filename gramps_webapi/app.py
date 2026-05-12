@@ -50,11 +50,7 @@ from .api.cache import persistent_cache, request_cache, thumbnail_cache
 from .api.ratelimiter import limiter
 from .api.search.embeddings import create_remote_embedding_function, load_model
 from .api.tasks import run_task, send_telemetry_task
-from .api.telemetry import (
-    get_server_uuid,
-    should_send_telemetry,
-    update_telemetry_timestamp,
-)
+from .api.telemetry import get_server_uuid, should_send_telemetry
 from .api.util import close_db, get_tree_from_jwt
 from .auth import user_db
 from .auth.oidc import init_oidc
@@ -329,7 +325,6 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
             return None
         try:
             if should_send_telemetry():
-                update_telemetry_timestamp()
                 run_task(send_telemetry_task, tree=tree_id)
         except Exception as exc:
             _LOG.warning("Telemetry error: %s", exc)

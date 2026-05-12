@@ -27,7 +27,6 @@ import requests
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
-import gramps_webapi.api.telemetry as telemetry_module
 from gramps_webapi.api.cache import persistent_cache
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import add_user, user_db
@@ -67,8 +66,6 @@ class TestTelemetry(unittest.TestCase):
         persistent_cache.clear()
 
     def setUp(self):
-        # Reset the in-process timestamp so each test starts with a clean slate.
-        telemetry_module._last_sent = 0.0
         persistent_cache.clear()
 
     def test_telemetry(self):
