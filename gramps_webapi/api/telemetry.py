@@ -21,8 +21,6 @@ from gramps_webapi.const import (
 
 _LOG = logging.getLogger(__name__)
 
-_last_sent: float = 0.0
-
 
 def send_telemetry(data: dict[str, str | int | float]) -> None:
     """Send telemetry, logging any network or HTTP errors."""
@@ -35,13 +33,7 @@ def send_telemetry(data: dict[str, str | int | float]) -> None:
 
 def telemetry_sent_last_24h() -> bool:
     """Check if telemetry has been sent in the last 24 hours."""
-    global _last_sent
-    now = time.time()
-    if now - _last_sent < 24 * 60 * 60:
-        return True
-    # Fall back to persistent cache (handles worker restarts and fresh deploys).
-    _last_sent = telemetry_last_sent()
-    return now - _last_sent < 24 * 60 * 60
+    return time.time() - telemetry_last_sent() < 24 * 60 * 60
 
 
 def should_send_telemetry() -> bool:
@@ -49,7 +41,10 @@ def should_send_telemetry() -> bool:
     if current_app.config.get("DISABLE_TELEMETRY"):
         return False
     if os.getenv("FLASK_RUN_FROM_CLI"):
-        # Flask development server, not a production environment (hopefully!)
+        return False
+    if os.getenv("DISABLE_CACHES") == "1":
+        # DISABLE_CACHES=1 is the project-wide dev/debug flag; caches must be
+        # enabled in production, so this is a reliable dev-environment signal.
         return False
     if (os.environ.get("PYTEST_CURRENT_TEST") or current_app.testing) and not os.getenv(
         "MOCK_TELEMETRY"
@@ -73,10 +68,8 @@ def telemetry_last_sent() -> float:
 
 def update_telemetry_timestamp() -> None:
     """Record the current time as the last telemetry send attempt."""
-    global _last_sent
-    _last_sent = time.time()
     try:
-        persistent_cache.set(TELEMETRY_TIMESTAMP_KEY, _last_sent)
+        persistent_cache.set(TELEMETRY_TIMESTAMP_KEY, time.time())
     except Exception as exc:
         _LOG.warning("Could not write telemetry timestamp to cache: %s", exc)
 
@@ -114,9 +107,7 @@ def generate_tree_uuid(tree_id: str, server_uuid: str) -> str:
     The UUID is deterministic for a given (tree_id, server_uuid) pair but
     does not allow reconstructing the tree_id.
     """
-    return hmac.new(
-        server_uuid.encode(), tree_id.encode(), hashlib.sha256
-    ).hexdigest()
+    return hmac.new(server_uuid.encode(), tree_id.encode(), hashlib.sha256).hexdigest()
 
 
 def get_telemetry_payload(tree_id: str) -> dict[str, str | int | float]:
