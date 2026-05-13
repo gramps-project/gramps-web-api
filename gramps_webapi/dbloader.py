@@ -99,11 +99,22 @@ def get_postgres_credentials(directory, username, password):
         config_mgr.register("tree.uuid", "")
 
         if not os.path.exists(config_file):
-            config_mgr.set("database.dbname", "gramps")
-            config_mgr.set("database.host", config.get("database.host"))
-            config_mgr.set("database.port", config.get("database.port"))
-            config_mgr.set("tree.uuid", uuid4().hex)
-            config_mgr.save()
+            # Use an exclusive open to avoid a race condition where two
+            # processes both see the file as absent and each write a separate
+            # UUID block, producing a corrupted settings.ini.
+            try:
+                fd = os.open(config_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.close(fd)
+            except FileExistsError:
+                # Another process created the file between our exists() check
+                # and the exclusive open; just fall through and load it.
+                pass
+            else:
+                config_mgr.set("database.dbname", "gramps")
+                config_mgr.set("database.host", config.get("database.host"))
+                config_mgr.set("database.port", config.get("database.port"))
+                config_mgr.set("tree.uuid", uuid4().hex)
+                config_mgr.save()
             try:
                 current_mtime = os.stat(config_file).st_mtime_ns
             except OSError:
