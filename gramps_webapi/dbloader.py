@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
 from uuid import uuid4
 
 from gramps.gen.config import config
@@ -99,11 +100,29 @@ def get_postgres_credentials(directory, username, password):
         config_mgr.register("tree.uuid", "")
 
         if not os.path.exists(config_file):
-            config_mgr.set("database.dbname", "gramps")
-            config_mgr.set("database.host", config.get("database.host"))
-            config_mgr.set("database.port", config.get("database.port"))
-            config_mgr.set("tree.uuid", uuid4().hex)
-            config_mgr.save()
+            # Write to a temp file then hard-link it into place atomically.
+            # os.link() fails with FileExistsError if another process already
+            # created config_file, so we never clobber a racing writer.
+            config_dir = os.path.dirname(config_file)
+            tmp_fd, tmp_file = tempfile.mkstemp(dir=config_dir)
+            try:
+                os.close(tmp_fd)
+                config_mgr.set("database.dbname", "gramps")
+                config_mgr.set("database.host", config.get("database.host"))
+                config_mgr.set("database.port", config.get("database.port"))
+                config_mgr.set("tree.uuid", uuid4().hex)
+                config_mgr.filename = tmp_file
+                config_mgr.save()
+                try:
+                    os.link(tmp_file, config_file)
+                except FileExistsError:
+                    pass  # another process won the race; load their config
+            finally:
+                config_mgr.filename = config_file
+                try:
+                    os.unlink(tmp_file)
+                except OSError:
+                    pass
             try:
                 current_mtime = os.stat(config_file).st_mtime_ns
             except OSError:
