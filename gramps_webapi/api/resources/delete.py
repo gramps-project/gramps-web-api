@@ -416,7 +416,7 @@ def delete_source(db_handle: DbWriteBase, handle: str, trans: DbTxn) -> None:
     # Citation. Then we remove the Citations. (We don't need to
     # remove the source_handle references to the Source, because we are
     # removing the whole Citation). Then we can remove the Source
-    (citation_list, citation_referents_list) = get_source_and_citation_referents(
+    citation_list, citation_referents_list = get_source_and_citation_referents(
         handle, db_handle
     )
 
@@ -569,8 +569,13 @@ def delete_object(
         method = delete_methods[key]
     except KeyError:
         raise NotImplementedError(gramps_class_name)
+    unset_default_person = (
+        gramps_class_name == "Person" and handle == db_handle.get_default_handle()
+    )
     with DbTxn(f"Delete {gramps_class_name}", db_handle) as trans:
         method(db_handle, handle, trans=trans)
+        if unset_default_person:
+            db_handle.set_default_person_handle(None)
         trans_dict = transaction_to_json(trans)
     return trans_dict
 
@@ -605,8 +610,13 @@ def delete_all_objects(
             # Materialize handles before opening the transaction to avoid cursor
             # conflicts with the deletions that follow.
             handles = list(iter_handles())
+            unset_default_person = (
+                class_name == "Person" and db_handle.get_default_handle() is not None
+            )
             remove = getattr(db_handle, f"remove_{class_name.lower()}")
             with DbTxn(f"Delete {class_name}", db_handle, batch=True) as trans:
+                if unset_default_person:
+                    db_handle.set_default_person_handle(None)
                 for handle in handles:
                     if progress_cb:
                         progress_cb(current=i, total=total)
@@ -614,7 +624,12 @@ def delete_all_objects(
                     remove(handle, trans)
         else:
             del_method = delete_methods[class_name.lower()]
+            unset_default_person = (
+                class_name == "Person" and db_handle.get_default_handle() is not None
+            )
             with DbTxn(f"Delete {namespaces}", db_handle) as trans:
+                if unset_default_person:
+                    db_handle.set_default_person_handle(None)
                 for handle in iter_handles():
                     if progress_cb:
                         progress_cb(current=i, total=total)

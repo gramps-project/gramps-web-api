@@ -227,6 +227,99 @@ class TestObjectDeletion(unittest.TestCase):
         self.assertEqual(len(rv.json), 0)
 
 
+class TestDefaultPersonDeletion(unittest.TestCase):
+    """Test that deleting the default/home person clears the default handle."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.name = "Test Default Person"
+        cls.dbman = CLIDbManager(DbState())
+        dirpath, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        cls.tree = os.path.basename(dirpath)
+        with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
+            cls.app = create_app(config_from_env=False)
+        cls.app.config["TESTING"] = True
+        cls.client = cls.app.test_client()
+        with cls.app.app_context():
+            user_db.create_all()
+            add_user(name="owner_dp", password="123", role=ROLE_OWNER, tree=cls.tree)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.dbman.remove_database(cls.name)
+
+    def _headers(self):
+        return get_headers(self.client, "owner_dp", "123")
+
+    def _set_default_person(self, handle: str) -> None:
+        """Set the default person via the db directly."""
+        from gramps_webapi.dbmanager import WebDbManager
+
+        dbmgr = WebDbManager(name=self.name, create_if_missing=False)
+        dbstate = dbmgr.get_db(force_unlock=True)
+        dbstate.db.set_default_person_handle(handle)
+        dbstate.db.close()
+
+    def test_delete_default_person_via_endpoint(self):
+        """DELETE /api/people/<handle> on the default person clears default_person."""
+        headers = self._headers()
+        handle = make_handle()
+        rv = self.client.post(
+            "/api/people/",
+            json={"_class": "Person", "handle": handle},
+            headers=headers,
+        )
+        self.assertEqual(rv.status_code, 201)
+        self._set_default_person(handle)
+        # verify metadata shows it as default
+        rv = self.client.get("/api/metadata/", headers=headers)
+        self.assertEqual(rv.json["default_person"], handle)
+        # delete the default person
+        rv = self.client.delete(f"/api/people/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        # default_person must now be null
+        rv = self.client.get("/api/metadata/", headers=headers)
+        self.assertIsNone(rv.json["default_person"])
+
+    def test_delete_all_people_clears_default_person(self):
+        """POST /api/objects/delete/?namespaces=people clears default_person."""
+        headers = self._headers()
+        handle = make_handle()
+        rv = self.client.post(
+            "/api/people/",
+            json={"_class": "Person", "handle": handle},
+            headers=headers,
+        )
+        self.assertEqual(rv.status_code, 201)
+        self._set_default_person(handle)
+        rv = self.client.get("/api/metadata/", headers=headers)
+        self.assertEqual(rv.json["default_person"], handle)
+        # delete all people
+        rv = self.client.post("/api/objects/delete/?namespaces=people", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        rv = self.client.get("/api/metadata/", headers=headers)
+        self.assertIsNone(rv.json["default_person"])
+
+    def test_delete_all_objects_clears_default_person(self):
+        """POST /api/objects/delete/ (all) clears default_person."""
+        headers = self._headers()
+        handle = make_handle()
+        rv = self.client.post(
+            "/api/people/",
+            json={"_class": "Person", "handle": handle},
+            headers=headers,
+        )
+        self.assertEqual(rv.status_code, 201)
+        self._set_default_person(handle)
+        rv = self.client.get("/api/metadata/", headers=headers)
+        self.assertEqual(rv.json["default_person"], handle)
+        # delete everything
+        rv = self.client.post("/api/objects/delete/", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        rv = self.client.get("/api/metadata/", headers=headers)
+        self.assertIsNone(rv.json["default_person"])
+
+
 class TestDeleteAllObjects(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
