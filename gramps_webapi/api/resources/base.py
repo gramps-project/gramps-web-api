@@ -321,8 +321,6 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         )
         # update usage
         if self.gramps_class_name == "Person":
-            if handle == self.db_handle_writable.get_default_handle():
-                self.db_handle_writable.set_default_person_handle(None)
             update_usage_people()
         # update search index
         tree = get_tree_from_jwt_or_fail()
