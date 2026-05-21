@@ -645,3 +645,214 @@ class TestNestedFilters(unittest.TestCase):
     def test_missing_name_and_rules_returns_422(self):
         """A rules item with neither 'name' nor 'rules' fails schema validation."""
         assert self._filter_status({"rules": [{"values": ["something"]}]}) == 422
+
+
+class TestCrossNamespaceFilters(unittest.TestCase):
+    """Cross-namespace sub-filters using the namespace field on nested groups."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = get_test_client()
+        headers = fetch_header(cls.client)
+
+        cls.place_handle = make_handle()
+        cls.other_place_handle = make_handle()
+        cls.event_handle = make_handle()
+        cls.other_event_handle = make_handle()
+        cls.person_handle = make_handle()
+        cls.person_no_match_handle = make_handle()
+        cls.family_handle = make_handle()
+        cls.family_no_match_handle = make_handle()
+
+        # Two places with distinct titles
+        rv = cls.client.post(
+            "/api/places/",
+            json={
+                "_class": "Place",
+                "handle": cls.place_handle,
+                "name": {"_class": "PlaceName", "value": "XNS_TestPlace"},
+            },
+            headers=headers,
+        )
+        assert rv.status_code == 201
+
+        rv = cls.client.post(
+            "/api/places/",
+            json={
+                "_class": "Place",
+                "handle": cls.other_place_handle,
+                "name": {"_class": "PlaceName", "value": "XNS_OtherPlace"},
+            },
+            headers=headers,
+        )
+        assert rv.status_code == 201
+
+        # Event at the test place
+        rv = cls.client.post(
+            "/api/events/",
+            json={
+                "_class": "Event",
+                "handle": cls.event_handle,
+                "place": cls.place_handle,
+            },
+            headers=headers,
+        )
+        assert rv.status_code == 201
+
+        # Event at the other place
+        rv = cls.client.post(
+            "/api/events/",
+            json={
+                "_class": "Event",
+                "handle": cls.other_event_handle,
+                "place": cls.other_place_handle,
+            },
+            headers=headers,
+        )
+        assert rv.status_code == 201
+
+        # Person with an event ref to the test event (matches filter)
+        rv = cls.client.post(
+            "/api/people/",
+            json={
+                "_class": "Person",
+                "handle": cls.person_handle,
+                "event_ref_list": [
+                    {"_class": "EventRef", "ref": cls.event_handle, "role": {"_class": "EventRoleType", "string": "Primary"}}
+                ],
+            },
+            headers=headers,
+        )
+        assert rv.status_code == 201
+
+        # Person with an event ref to the other event only (must not match filter)
+        rv = cls.client.post(
+            "/api/people/",
+            json={
+                "_class": "Person",
+                "handle": cls.person_no_match_handle,
+                "event_ref_list": [
+                    {"_class": "EventRef", "ref": cls.other_event_handle, "role": {"_class": "EventRoleType", "string": "Primary"}}
+                ],
+            },
+            headers=headers,
+        )
+        assert rv.status_code == 201
+
+        # Family with an event ref to the test event (matches filter)
+        rv = cls.client.post(
+            "/api/families/",
+            json={
+                "_class": "Family",
+                "handle": cls.family_handle,
+                "event_ref_list": [
+                    {"_class": "EventRef", "ref": cls.event_handle, "role": {"_class": "EventRoleType", "string": "Family"}}
+                ],
+            },
+            headers=headers,
+        )
+        assert rv.status_code == 201
+
+        # Family with an event ref to the other event only (must not match filter)
+        rv = cls.client.post(
+            "/api/families/",
+            json={
+                "_class": "Family",
+                "handle": cls.family_no_match_handle,
+                "event_ref_list": [
+                    {"_class": "EventRef", "ref": cls.other_event_handle, "role": {"_class": "EventRoleType", "string": "Family"}}
+                ],
+            },
+            headers=headers,
+        )
+        assert rv.status_code == 201
+
+    @classmethod
+    def tearDownClass(cls):
+        headers = fetch_header(cls.client)
+        for endpoint, handle in [
+            ("/api/families/", cls.family_no_match_handle),
+            ("/api/families/", cls.family_handle),
+            ("/api/people/", cls.person_no_match_handle),
+            ("/api/people/", cls.person_handle),
+            ("/api/events/", cls.event_handle),
+            ("/api/events/", cls.other_event_handle),
+            ("/api/places/", cls.place_handle),
+            ("/api/places/", cls.other_place_handle),
+        ]:
+            rv = cls.client.delete(f"{endpoint}{handle}", headers=headers)
+            assert rv.status_code in (200, 204)
+
+    def _query(self, endpoint: str, filter_dict: dict) -> tuple[int, set]:
+        import json as _json
+        headers = fetch_header(self.client)
+        rv = self.client.get(
+            endpoint,
+            query_string={"rules": _json.dumps(filter_dict, separators=(",", ":"))},
+            headers=headers,
+        )
+        handles = (
+            {obj["handle"] for obj in rv.json}
+            if isinstance(rv.json, list)
+            else set()
+        )
+        return rv.status_code, handles
+
+    def test_event_place_sub_filter(self):
+        """Events filtered by a Place sub-filter (Event→Place bridge)."""
+        status, handles = self._query(
+            "/api/events/",
+            {
+                "rules": [{
+                    "namespace": "Place",
+                    "rules": [{"name": "HasTitle", "values": ["XNS_TestPlace"]}],
+                }]
+            },
+        )
+        assert status == 200
+        assert self.event_handle in handles
+        assert self.other_event_handle not in handles
+
+    def test_person_event_place_sub_filter(self):
+        """People filtered by Event→Place deep sub-filter (Person→Event→Place)."""
+        status, handles = self._query(
+            "/api/people/",
+            {
+                "rules": [{
+                    "namespace": "Event",
+                    "rules": [{
+                        "namespace": "Place",
+                        "rules": [{"name": "HasTitle", "values": ["XNS_TestPlace"]}],
+                    }],
+                }]
+            },
+        )
+        assert status == 200
+        assert self.person_handle in handles
+        assert self.person_no_match_handle not in handles
+
+    def test_family_event_place_sub_filter(self):
+        """Families filtered by Event→Place deep sub-filter (Family→Event→Place)."""
+        status, handles = self._query(
+            "/api/families/",
+            {
+                "rules": [{
+                    "namespace": "Event",
+                    "rules": [{
+                        "namespace": "Place",
+                        "rules": [{"name": "HasTitle", "values": ["XNS_TestPlace"]}],
+                    }],
+                }]
+            },
+        )
+        assert status == 200
+        assert self.family_handle in handles
+        assert self.family_no_match_handle not in handles
+
+    def test_unsupported_bridge_returns_400(self):
+        """An unsupported namespace bridge returns 400."""
+        status, _ = self._query(
+            "/api/events/",
+            {"rules": [{"namespace": "Person", "rules": [{"name": "AllPersons"}]}]},
+        )
+        assert status == 400

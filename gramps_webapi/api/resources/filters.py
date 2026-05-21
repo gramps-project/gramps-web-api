@@ -22,6 +22,8 @@
 
 import inspect
 import json
+from collections import defaultdict
+from collections.abc import Callable
 from typing import Any
 
 import gramps.gen.filters as filters
@@ -98,6 +100,27 @@ _ADDITIONAL_RULES: dict[str, list[type[Rule]]] = {
 }
 
 _RULE_CLASS_CACHE: dict[str, dict[str, type[Rule]]] = {}
+
+# Maps (parent_namespace, sub_namespace) to a function (db, obj) -> [sub_handle, ...]
+_NAMESPACE_BRIDGES: dict[tuple[str, str], Callable] = {
+    ("Event", "Place"): lambda db, obj: [obj.place] if obj.place else [],
+    ("Person", "Event"): lambda db, obj: [ref.ref for ref in obj.get_event_ref_list()],
+    ("Person", "Family"): lambda db, obj: (
+        obj.get_family_handle_list() + obj.get_parent_family_handle_list()
+    ),
+    ("Family", "Event"): lambda db, obj: [ref.ref for ref in obj.get_event_ref_list()],
+    ("Family", "Person"): lambda db, obj: (
+        ([obj.get_father_handle()] if obj.get_father_handle() else [])
+        + ([obj.get_mother_handle()] if obj.get_mother_handle() else [])
+        + [ref.ref for ref in obj.get_child_ref_list()]
+    ),
+    ("Citation", "Source"): lambda db, obj: (
+        [obj.get_reference_handle()] if obj.get_reference_handle() else []
+    ),
+    ("Source", "Repository"): lambda db, obj: [
+        ref.ref for ref in obj.get_reporef_list()
+    ],
+}
 
 
 def get_rule_map(namespace: str) -> dict[str, type[Rule]]:
@@ -221,6 +244,31 @@ def _apply_filter_parms(
             single = filters.GenericFilterFactory(namespace)()
             single.add_rule(_build_rule_instance(item, namespace))
             result_sets.append(set(single.apply(db_handle, id_list=handles)))
+        elif item.get("namespace", namespace) != namespace:
+            sub_namespace = item["namespace"]
+            bridge = _NAMESPACE_BRIDGES.get((namespace, sub_namespace))
+            if bridge is None:
+                abort_with_message(
+                    400,
+                    f"Unsupported namespace bridge: {namespace} → {sub_namespace}",
+                )
+            getter = getattr(db_handle, f"get_{namespace.lower()}_from_handle")
+            sub_to_parents: dict[Handle, list[Handle]] = defaultdict(list)
+            for handle in handles:
+                obj = getter(handle)
+                if obj is None:
+                    continue
+                for sub_handle in bridge(db_handle, obj):
+                    sub_to_parents[sub_handle].append(handle)
+            matching_sub = set(
+                _apply_filter_parms(
+                    item, db_handle, sub_namespace, list(sub_to_parents), depth + 1
+                )
+            )
+            matched: set[Handle] = set()
+            for sub_handle in matching_sub:
+                matched.update(sub_to_parents[sub_handle])
+            result_sets.append(matched)
         else:
             result_sets.append(
                 set(_apply_filter_parms(item, db_handle, namespace, handles, depth + 1))
@@ -332,6 +380,17 @@ class FilterSchema(Schema):
     invert = fields.Boolean(
         load_default=False,
         metadata={"description": "If true, invert the filter result set."},
+    )
+    namespace = fields.Str(
+        validate=validate.OneOf(list(GRAMPS_NAMESPACES.values())),
+        metadata={
+            "description": (
+                "If set on a nested sub-filter, evaluate it in this namespace and "
+                "bridge results back to the parent namespace. Supported bridges: "
+                "Event→Place, Person→Event, Person→Family, Family→Event, "
+                "Family→Person, Citation→Source, Source→Repository."
+            )
+        },
     )
     rules = fields.List(
         RuleOrFilterField(),
