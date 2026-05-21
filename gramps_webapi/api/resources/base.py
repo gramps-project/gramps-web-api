@@ -443,6 +443,12 @@ class GrampsObjectsQueryArgs(Schema):
             "description": "An alternate user-managed Gramps identifier. If provided, returns only the matching object."
         },
     )
+    handles = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        metadata={
+            "description": "Comma-delimited list of handles to fetch. If provided, returns only the matching objects (non-existing handles are silently skipped)."
+        },
+    )
     keys = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
         metadata={
@@ -562,6 +568,16 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                 args,
                 total_items=1,
             )
+
+        if "handles" in args:
+            objects = []
+            for handle in args["handles"]:
+                try:
+                    obj = self.get_object_from_handle(handle)
+                    objects.append(self.full_object(obj, args, locale=locale))
+                except HandleError:
+                    pass
+            return self.response(200, objects, args, total_items=len(objects))
 
         # load all objects to memory
         objects_name = GRAMPS_OBJECT_PLURAL[self.gramps_class_name]
