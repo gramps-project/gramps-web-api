@@ -97,6 +97,31 @@ class TestPeople(unittest.TestCase):
         self.assertEqual(len(rv), 1)
         self.assertEqual(rv[0]["handle"], "GNUJQCL9MD64AM56OH")
 
+    def test_get_people_parameter_handles_expected_result(self):
+        """Test handles parameter returns only the requested objects."""
+        rv = check_success(self, TEST_URL + "?handles=GNUJQCL9MD64AM56OH,NRLKQCM1UUI9O8AMGQ")
+        self.assertEqual(len(rv), 2)
+        returned_handles = {obj["handle"] for obj in rv}
+        self.assertIn("GNUJQCL9MD64AM56OH", returned_handles)
+        self.assertIn("NRLKQCM1UUI9O8AMGQ", returned_handles)
+
+    def test_get_people_parameter_handles_single(self):
+        """Test handles parameter with a single handle."""
+        rv = check_success(self, TEST_URL + "?handles=GNUJQCL9MD64AM56OH")
+        self.assertEqual(len(rv), 1)
+        self.assertEqual(rv[0]["handle"], "GNUJQCL9MD64AM56OH")
+
+    def test_get_people_parameter_handles_missing_skipped(self):
+        """Test that non-existing handles are silently skipped."""
+        rv = check_success(self, TEST_URL + "?handles=GNUJQCL9MD64AM56OH,doesnotexist")
+        self.assertEqual(len(rv), 1)
+        self.assertEqual(rv[0]["handle"], "GNUJQCL9MD64AM56OH")
+
+    def test_get_people_parameter_handles_all_missing(self):
+        """Test that all-missing handles returns an empty list."""
+        rv = check_success(self, TEST_URL + "?handles=doesnotexist1,doesnotexist2")
+        self.assertEqual(rv, [])
+
     def test_get_people_parameter_strip_validate_semantics(self):
         """Test invalid strip parameter and values."""
         check_invalid_semantics(self, TEST_URL + "?strip", check="boolean")
