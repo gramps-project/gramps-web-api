@@ -660,7 +660,9 @@ class TestCrossNamespaceFilters(unittest.TestCase):
         cls.event_handle = make_handle()
         cls.other_event_handle = make_handle()
         cls.person_handle = make_handle()
+        cls.person_no_match_handle = make_handle()
         cls.family_handle = make_handle()
+        cls.family_no_match_handle = make_handle()
 
         # Two places with distinct titles
         rv = cls.client.post(
@@ -709,7 +711,7 @@ class TestCrossNamespaceFilters(unittest.TestCase):
         )
         assert rv.status_code == 201
 
-        # Person with an event ref to the test event
+        # Person with an event ref to the test event (matches filter)
         rv = cls.client.post(
             "/api/people/",
             json={
@@ -723,7 +725,21 @@ class TestCrossNamespaceFilters(unittest.TestCase):
         )
         assert rv.status_code == 201
 
-        # Family with an event ref to the test event
+        # Person with an event ref to the other event only (must not match filter)
+        rv = cls.client.post(
+            "/api/people/",
+            json={
+                "_class": "Person",
+                "handle": cls.person_no_match_handle,
+                "event_ref_list": [
+                    {"_class": "EventRef", "ref": cls.other_event_handle, "role": {"_class": "EventRoleType", "string": "Primary"}}
+                ],
+            },
+            headers=headers,
+        )
+        assert rv.status_code == 201
+
+        # Family with an event ref to the test event (matches filter)
         rv = cls.client.post(
             "/api/families/",
             json={
@@ -737,11 +753,27 @@ class TestCrossNamespaceFilters(unittest.TestCase):
         )
         assert rv.status_code == 201
 
+        # Family with an event ref to the other event only (must not match filter)
+        rv = cls.client.post(
+            "/api/families/",
+            json={
+                "_class": "Family",
+                "handle": cls.family_no_match_handle,
+                "event_ref_list": [
+                    {"_class": "EventRef", "ref": cls.other_event_handle, "role": {"_class": "EventRoleType", "string": "Family"}}
+                ],
+            },
+            headers=headers,
+        )
+        assert rv.status_code == 201
+
     @classmethod
     def tearDownClass(cls):
         headers = fetch_header(cls.client)
         for endpoint, handle in [
+            ("/api/families/", cls.family_no_match_handle),
             ("/api/families/", cls.family_handle),
+            ("/api/people/", cls.person_no_match_handle),
             ("/api/people/", cls.person_handle),
             ("/api/events/", cls.event_handle),
             ("/api/events/", cls.other_event_handle),
@@ -797,6 +829,7 @@ class TestCrossNamespaceFilters(unittest.TestCase):
         )
         assert status == 200
         assert self.person_handle in handles
+        assert self.person_no_match_handle not in handles
 
     def test_family_event_place_sub_filter(self):
         """Families filtered by Event→Place deep sub-filter (Family→Event→Place)."""
@@ -814,6 +847,7 @@ class TestCrossNamespaceFilters(unittest.TestCase):
         )
         assert status == 200
         assert self.family_handle in handles
+        assert self.family_no_match_handle not in handles
 
     def test_unsupported_bridge_returns_400(self):
         """An unsupported namespace bridge returns 400."""
