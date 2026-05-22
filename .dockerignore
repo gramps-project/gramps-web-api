@@ -137,7 +137,3 @@ dmypy.json
 .specify/
 CLAUDE.md
 tests/
-tasks.md
-hardening-plan.md
-security-hardening.spec.md
-
