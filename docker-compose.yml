@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  grampsweb:
+    build: .
+    image: grampsweb:latest
+    ports:
+      - "5000:5000"
+    environment:
+      GRAMPSWEB_CELERY_CONFIG__broker_url: redis://redis:6379/0
+      GRAMPSWEB_CELERY_CONFIG__result_backend: redis://redis:6379/0
+      GRAMPSWEB_RATELIMIT_STORAGE_URI: redis://redis:6379/1
+      GRAMPSWEB_TREE: "my_tree"
+    depends_on:
+      - redis
+    volumes:
+      - gramps_db:/home/gramps/.gramps/grampsdb
+      - gramps_media:/app/media
+      - gramps_users:/app/users
+      - gramps_index:/app/indexdir
+      - gramps_cache:/app/cache
+      - gramps_persist:/app/persist
+      - gramps_tmp:/app/tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  gramps_db:
+  gramps_media:
+  gramps_users:
+  gramps_index:
+  gramps_cache:
+  gramps_persist:
+  gramps_tmp:

@@ -15,3 +15,10 @@ Gramps Web API is the backend of [Gramps Web](https://www.grampsweb.org/), a gen
 ## Related projects
 
 - Gramps Web frontend repository: https://github.com/gramps-project/gramps-web
+
+## Security & Docker Migration
+Following a security hardening process, the Gramps Web API container now runs as an unprivileged non-root user (`gramps`, UID 1000).
+If you are upgrading an existing installation using Docker Compose and have mounted host directories, you must change their ownership before starting the new container to avert permission errors:
+```bash
+sudo chown -R 1000:1000 /path/to/your/mounted/volumes
+```

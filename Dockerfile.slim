@@ -1,9 +1,43 @@
-FROM ghcr.io/gramps-project/gramps-web-base:latest
+FROM python:3.11-slim as builder
 
-ENV GRAMPS_API_CONFIG=/app/config/config.cfg
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    libpq-dev \
+    python3-dev \
+    pkg-config \
+    libcairo2-dev \
+    libgirepository1.0-dev \
+    gir1.2-glib-2.0 \
+    libicu-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY . /app/src
+# Install gunicorn and CPU-only PyTorch to save significant space
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir /app/src[ai] gunicorn
+
+FROM python:3.11-slim
+
+# Install runtime system dependencies for PyGObject and Gramps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libcairo2 \
+    libgirepository-1.0-1 \
+    gir1.2-glib-2.0 \
+    gir1.2-pango-1.0 \
+    gir1.2-gtk-3.0 \
+    libicu76 \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create unprivileged user (UID/GID 1000)
 RUN groupadd -g 1000 gramps && useradd -u 1000 -g gramps -m -s /bin/bash gramps
+
+ENV GRAMPS_API_CONFIG=/app/config/config.cfg
 
 # create directories
 RUN mkdir -p /app/src /app/config /app/static /app/db /app/media /app/indexdir /app/users \
@@ -11,6 +45,10 @@ RUN mkdir -p /app/src /app/config /app/static /app/db /app/media /app/indexdir /
     /app/cache/persistent_cache /app/tmp /app/persist \
     && touch /app/config/config.cfg /app/static/index.html \
     && chown -R 1000:1000 /app
+
+# Copy virtual env from builder
+COPY --from=builder --chown=1000:1000 /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
 ENV GRAMPSWEB_USER_DB_URI=sqlite:////app/users/users.sqlite
 ENV GRAMPSWEB_MEDIA_BASE_DIR=/app/media
@@ -27,13 +65,11 @@ ENV GRAMPS_DATABASE_PATH=${GRAMPSHOME}/.gramps/grampsdb
 # Create remaining dir
 RUN mkdir -p ${GRAMPSHOME}/.gramps/grampsdb && chown -R 1000:1000 ${GRAMPSHOME}
 
-# copy package source and install
+# copy package source and entrypoint
 COPY --chown=1000:1000 . /app/src
-RUN pip install --no-cache-dir /app/src[ai]
+COPY --chown=1000:1000 docker-entrypoint.sh /
 
 EXPOSE 5000
-
-COPY --chown=1000:1000 docker-entrypoint.sh /
 
 USER gramps
 
