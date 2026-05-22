@@ -321,23 +321,30 @@ def get_current_date(_ctx: RunContext[AgentDeps]) -> str:
 
 @log_tool_call
 def search_genealogy_database(
-    ctx: RunContext[AgentDeps], query: str, max_results: int = 20
+    ctx: RunContext[AgentDeps],
+    query: str,
+    object_type: str = "",
+    max_results: int = 20,
 ) -> str:
     """Searches the user's family tree using semantic similarity.
 
     Args:
         query: Search query for genealogical information
+        object_type: Restrict search to one object type. One of: "Person", "Family",
+            "Event", "Place", "Source", "Citation", "Repository", "Note", "Media".
+            Leave empty to search all types.
         max_results: Maximum results to return (default: 20, max: 50)
 
     Returns:
-        Formatted genealogical data including people, families, events, places,
-        sources, citations, repositories, notes, and media matching the query.
+        Formatted genealogical data matching the query.
     """
 
     logger = get_logger()
 
     # Limit max_results to reasonable bounds
     max_results = min(max(1, max_results), 50)
+
+    object_types = [object_type.lower()] if object_type else None
 
     try:
         searcher = get_semantic_search_indexer(ctx.deps.tree)
@@ -347,6 +354,7 @@ def search_genealogy_database(
             pagesize=max_results,
             include_private=ctx.deps.include_private,
             include_content=True,
+            object_types=object_types,
         )
 
         if not hits:
@@ -656,4 +664,215 @@ def filter_events(
         max_results=max_results,
         empty_message="No events found matching the filter criteria.",
         handles=participant_handles,
+    )
+
+
+@log_tool_call
+def get_person(ctx: RunContext[AgentDeps], gramps_id: str) -> str:
+    """Fetch the full record for a single person by their Gramps ID.
+
+    Use this after finding a Gramps ID in search or filter results to retrieve
+    the complete details for that person (names, events, families, notes, etc.).
+    This is the most efficient way to look up a known individual.
+
+    Args:
+        gramps_id: The Gramps ID of the person (e.g., "I0044")
+
+    Returns:
+        Full person record as formatted text, or an error message.
+    """
+    logger = get_logger()
+    try:
+        db_handle = get_db_outside_request(
+            tree=ctx.deps.tree,
+            view_private=ctx.deps.include_private,
+            readonly=True,
+            user_id=ctx.deps.user_id,
+        )
+        try:
+            person = db_handle.get_person_from_gramps_id(gramps_id)
+            if person is None:
+                return f"No person found with Gramps ID '{gramps_id}'."
+            if not ctx.deps.include_private and person.private:
+                return f"Person '{gramps_id}' is private."
+            obj_dict = obj_strings_from_object(
+                db_handle=db_handle,
+                class_name="Person",
+                obj=person,
+                semantic=True,
+            )
+        finally:
+            db_handle.close()
+        content = (
+            obj_dict["string_all"]
+            if ctx.deps.include_private
+            else obj_dict["string_public"]
+        )
+        if not content:
+            return f"No content available for person '{gramps_id}'."
+        return content
+    except Exception as e:  # pylint: disable=broad-except
+        logger.error("Error fetching person %s: %s", gramps_id, e)
+        return f"Error fetching person '{gramps_id}': {e}"
+
+
+@log_tool_call
+def get_family(ctx: RunContext[AgentDeps], gramps_id: str) -> str:
+    """Fetch the full record for a single family by their Gramps ID.
+
+    Use this after finding a family Gramps ID in search or filter results to
+    retrieve the complete record: spouses, children, marriage events, notes, etc.
+
+    Args:
+        gramps_id: The Gramps ID of the family (e.g., "F0001")
+
+    Returns:
+        Full family record as formatted text, or an error message.
+    """
+    logger = get_logger()
+    try:
+        db_handle = get_db_outside_request(
+            tree=ctx.deps.tree,
+            view_private=ctx.deps.include_private,
+            readonly=True,
+            user_id=ctx.deps.user_id,
+        )
+        try:
+            family = db_handle.get_family_from_gramps_id(gramps_id)
+            if family is None:
+                return f"No family found with Gramps ID '{gramps_id}'."
+            if not ctx.deps.include_private and family.private:
+                return f"Family '{gramps_id}' is private."
+            obj_dict = obj_strings_from_object(
+                db_handle=db_handle,
+                class_name="Family",
+                obj=family,
+                semantic=True,
+            )
+        finally:
+            db_handle.close()
+        content = (
+            obj_dict["string_all"]
+            if ctx.deps.include_private
+            else obj_dict["string_public"]
+        )
+        if not content:
+            return f"No content available for family '{gramps_id}'."
+        return content
+    except Exception as e:  # pylint: disable=broad-except
+        logger.error("Error fetching family %s: %s", gramps_id, e)
+        return f"Error fetching family '{gramps_id}': {e}"
+
+
+@log_tool_call
+def filter_families(
+    ctx: RunContext[AgentDeps],
+    father_given_name: str = "",
+    father_surname: str = "",
+    mother_given_name: str = "",
+    mother_surname: str = "",
+    marriage_year_before: str = "",
+    marriage_year_after: str = "",
+    marriage_place: str = "",
+    relationship_type: str = "",
+    combine_filters: str = "and",
+    max_results: int = 50,
+) -> str:
+    """Filter families in the genealogy database.
+
+    A "family" in Gramps represents a couple (with or without children) and may
+    include marriage events, children, and notes. Use this to find families by
+    the names of spouses, marriage date/place, or relationship type.
+
+    Args:
+        father_given_name: Given name of the father/first spouse (partial match)
+        father_surname: Surname of the father/first spouse (partial match)
+        mother_given_name: Given name of the mother/second spouse (partial match)
+        mother_surname: Surname of the mother/second spouse (partial match)
+        marriage_year_before: Latest year of marriage to include (e.g., "1900")
+        marriage_year_after: Earliest year of marriage to include (e.g., "1850")
+        marriage_place: Place of marriage (partial match, e.g., "Boston")
+        relationship_type: Family relationship type (e.g., "Married", "Unmarried",
+            "Civil Union", "Unknown")
+        combine_filters: How to combine multiple filters: "and" (default) or "or"
+        max_results: Maximum results to return (default: 50, max: 100)
+
+    Returns:
+        Formatted list of families matching the filter criteria.
+
+    Examples:
+        - Find families where father is named Smith: father_surname="Smith"
+        - Find families married in Boston: marriage_place="Boston"
+        - Find marriages before 1900: marriage_year_before="1900"
+        - Find families with a Smith father and Jones mother:
+            father_surname="Smith", mother_surname="Jones"
+    """
+    max_results = min(max(1, max_results), 100)
+
+    rules: list[dict[str, Any]] = []
+
+    if father_given_name or father_surname:
+        rules.append(
+            {
+                "name": "FatherHasNameOf",
+                "values": [
+                    father_given_name,
+                    father_surname,
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                ],
+            }
+        )
+
+    if mother_given_name or mother_surname:
+        rules.append(
+            {
+                "name": "MotherHasNameOf",
+                "values": [
+                    mother_given_name,
+                    mother_surname,
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                ],
+            }
+        )
+
+    if marriage_year_before or marriage_year_after or marriage_place:
+        date_expr = _build_date_expression(marriage_year_before, marriage_year_after)
+        rules.append(
+            {
+                "name": "HasEvent",
+                "values": ["Marriage", date_expr, marriage_place, "", ""],
+            }
+        )
+
+    if relationship_type:
+        rules.append({"name": "HasRelType", "values": [relationship_type]})
+
+    if not rules:
+        return (
+            "No filter criteria provided. Please specify at least one filter parameter."
+        )
+
+    return _apply_gramps_filter(
+        ctx=ctx,
+        namespace="Family",
+        rules=rules,
+        max_results=max_results,
+        empty_message="No families found matching the filter criteria.",
+        logic=combine_filters.lower(),
     )
