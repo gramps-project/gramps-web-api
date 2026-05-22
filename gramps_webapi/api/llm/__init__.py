@@ -71,10 +71,10 @@ def extract_metadata_from_result(result) -> dict[str, Any]:
                     if tool_call_id in tool_call_map:
                         tools_used.append(tool_call_map[tool_call_id])
 
-    usage = result.usage()
+    usage = result.usage
     metadata = {
         "run_id": result.run_id,
-        "timestamp": result.timestamp().isoformat(),
+        "timestamp": result.timestamp.isoformat(),
         "usage": {
             "requests": usage.requests,
             "input_tokens": usage.input_tokens,

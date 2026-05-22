@@ -20,7 +20,7 @@
 """AI chat endpoint."""
 
 from flask_jwt_extended import get_jwt_identity
-from marshmallow import Schema
+from marshmallow import Schema, validate
 from webargs import fields
 
 from ..util import (
@@ -67,6 +67,7 @@ class ChatBodyArgs(Schema):
     message_history_raw = fields.Str(
         required=False,
         load_default=None,
+        validate=validate.Length(max=1_000_000),
         metadata={
             "description": "Serialized message history from a previous response's "
             "message_history_raw field. Preserves full tool call context across turns. "
