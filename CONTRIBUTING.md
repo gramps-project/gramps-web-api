@@ -9,7 +9,7 @@ Welcome, and thank you for your interest in contributing to Gramps Web API! Your
 - Provide as much detail as possible, including steps to reproduce the issue or a clear description of the feature idea.
 
 ### Proposing Features
-- **Before implementing a new feature**, please open an issue to discuss your proposal. This helps avoid duplicate work and ensures alignment with project goals.
+- **Before implementing a new feature or making non-trivial changes**, please open an issue to discuss your proposal. This helps avoid duplicate work and ensures alignment with project goals. PRs with non-trivial changes made without prior discussion may be rejected.
 
 ### Development Guidelines
 - Follow the [developer documentation](https://www.grampsweb.org/development/dev/) for setup, coding standards, and API details.
