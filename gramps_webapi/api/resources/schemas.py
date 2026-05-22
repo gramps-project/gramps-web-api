@@ -2163,6 +2163,12 @@ class ChatResponseSchema(_Base):
             "description": "Optional execution metadata (included when verbose=true)."
         },
     )
+    message_history_raw = fields.Str(
+        metadata={
+            "description": "Serialized full message history for multi-turn conversations. "
+            "Pass back in subsequent requests as message_history_raw to preserve tool call context."
+        },
+    )
 
 
 class LivingSchema(_Base):

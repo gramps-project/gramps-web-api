@@ -679,14 +679,16 @@ def send_telemetry_task(tree: str):
     send_telemetry(data=data)
 
 
-@shared_task()
+@shared_task(bind=True)
 def process_chat(
+    self,
     tree: str,
     user_id: str,
     query: str,
     include_private: bool,
     history: list | None = None,
     verbose: bool = False,
+    message_history_raw: str | None = None,
 ) -> dict[str, Any]:
     """Process a chat query with the AI agent."""
     # import here to avoid error if AI dependencies are not installed
@@ -696,16 +698,37 @@ def process_chat(
         sanitize_answer,
     )
 
+    step = 0
+    if self.request.id is not None:
+        self.update_state(
+            state="PROGRESS",
+            meta={"step": 0, "tool": "", "message": "Processing your query..."},
+        )
+
+    def progress_callback(tool_name: str, message: str) -> None:
+        nonlocal step
+        step += 1
+        if self.request.id is not None:
+            self.update_state(
+                state="PROGRESS",
+                meta={"step": step, "tool": tool_name, "message": message},
+            )
+
     result = answer_with_agent(
         prompt=query,
         tree=tree,
         include_private=include_private,
         user_id=user_id,
         history=history,
+        progress_callback=progress_callback,
+        message_history_raw=message_history_raw,
     )
 
     response_text = sanitize_answer(result.response.text or "")
-    response_dict: dict[str, Any] = {"response": response_text}
+    response_dict: dict[str, Any] = {
+        "response": response_text,
+        "message_history_raw": result.all_messages_json().decode(),
+    }
 
     if verbose:
         response_dict["metadata"] = extract_metadata_from_result(result)

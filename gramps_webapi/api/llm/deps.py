@@ -19,7 +19,8 @@
 
 """Dependencies for Pydantic AI agent."""
 
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -30,3 +31,4 @@ class AgentDeps:
     include_private: bool
     max_context_length: int
     user_id: str
+    progress_callback: Callable[[str, str], None] | None = field(default=None)

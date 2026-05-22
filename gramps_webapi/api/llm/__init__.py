@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import re
+from collections.abc import Callable
 from typing import Any
 
 from flask import current_app
+from pydantic_ai import ModelMessagesTypeAdapter
 from pydantic_ai.exceptions import ModelRetry, UnexpectedModelBehavior, UsageLimitExceeded
 from pydantic_ai.messages import (
     ModelRequest,
@@ -29,17 +30,6 @@ def sanitize_answer(answer: str) -> str:
     answer = answer.replace("https://www.example.com", "")
     answer = answer.replace("https://example.com", "")
     answer = answer.replace("http://example.com", "")
-
-    # Remove forbidden markdown formatting that some models add despite instructions
-    # Remove bold: **text** -> text
-    answer = re.sub(r"\*\*(.*?)\*\*", r"\1", answer)
-    # Remove headers: ### text -> text (at start of line)
-    answer = re.sub(r"^#+\s+", "", answer, flags=re.MULTILINE)
-    # Remove bullet points: - text or * text -> text (at start of line)
-    answer = re.sub(r"^[-*]\s+", "", answer, flags=re.MULTILINE)
-    # Remove horizontal rules: --- or *** or ___ (at start of line)
-    answer = re.sub(r"^[-*_]{3,}\s*$", "", answer, flags=re.MULTILINE)
-
     return answer
 
 
@@ -104,6 +94,8 @@ def answer_with_agent(
     include_private: bool,
     user_id: str,
     history: list | None = None,
+    progress_callback: Callable[[str, str], None] | None = None,
+    message_history_raw: str | None = None,
 ):
     """Answer a prompt using Pydantic AI agent.
 
@@ -112,7 +104,10 @@ def answer_with_agent(
         tree: The tree identifier
         include_private: Whether to include private information
         user_id: The user identifier
-        history: Optional chat history
+        history: Optional chat history (legacy {role, message} pairs)
+        progress_callback: Optional callback fired at the start of each tool call
+        message_history_raw: Serialized message history from a previous response.
+            When provided, takes precedence over history.
 
     Returns:
         AgentRunResult containing the response and metadata
@@ -142,10 +137,16 @@ def answer_with_agent(
         include_private=include_private,
         max_context_length=max_context_length,
         user_id=user_id,
+        progress_callback=progress_callback,
     )
 
     message_history: list[ModelRequest | ModelResponse] = []
-    if history:
+    if message_history_raw:
+        try:
+            message_history = ModelMessagesTypeAdapter.validate_json(message_history_raw)
+        except Exception as e:  # pylint: disable=broad-except
+            logger.warning("Failed to deserialize message_history_raw, ignoring: %s", e)
+    elif history:
         for message in history:
             if "role" not in message or "message" not in message:
                 raise ValueError(f"Invalid message format: {message}")

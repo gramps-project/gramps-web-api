@@ -64,6 +64,15 @@ class ChatBodyArgs(Schema):
             "description": "Optional list of prior conversation messages ({role, message})."
         },
     )
+    message_history_raw = fields.Str(
+        required=False,
+        load_default=None,
+        metadata={
+            "description": "Serialized message history from a previous response's "
+            "message_history_raw field. Preserves full tool call context across turns. "
+            "Takes precedence over history when both are provided."
+        },
+    )
 
 
 class ChatQueryArgs(Schema):
@@ -106,6 +115,7 @@ class ChatResource(ProtectedResource):
                 include_private=include_private,
                 history=args_json.get("history"),
                 verbose=args_query["verbose"],
+                message_history_raw=args_json.get("message_history_raw"),
             )
             if isinstance(task, AsyncResult):
                 return make_task_response(task)
@@ -120,6 +130,7 @@ class ChatResource(ProtectedResource):
                 include_private=include_private,
                 history=args_json.get("history"),
                 verbose=args_query["verbose"],
+                message_history_raw=args_json.get("message_history_raw"),
             )
         except ValueError:
             abort_with_message(422, "Invalid message format")
