@@ -241,8 +241,12 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
             abort(404)
         if path and os.path.exists(os.path.join(static_path, path)):
             return send_from_directory(static_path, path)
-        else:
-            return send_from_directory(static_path, "index.html")
+        # Static assets (paths with an extension) get a real 404 if missing,
+        # so Workbox doesn't silently cache HTML as JS. Extension-free paths
+        # are SPA routes and still receive the index.html shell.
+        if os.path.splitext(path)[1]:
+            abort(404)
+        return send_from_directory(static_path, "index.html")
 
     # register the API blueprint
     api = flask_smorest.Api(
