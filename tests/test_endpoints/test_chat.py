@@ -83,17 +83,13 @@ class TestChat(unittest.TestCase):
         mock_result = MagicMock()
         mock_result.response.text = "Pizza of course!"
         mock_result.run_id = "test_run_123"
-        # timestamp() is a method that returns datetime
-        mock_result.timestamp.return_value = datetime.fromisoformat(
-            "2025-12-05T10:00:00+00:00"
-        )
-        # usage() is a method that returns RunUsage
+        mock_result.timestamp = datetime.fromisoformat("2025-12-05T10:00:00+00:00")
         mock_usage = RunUsage()
         mock_usage.requests = 1
         mock_usage.input_tokens = 100
         mock_usage.output_tokens = 50
         mock_usage.tool_calls = 0
-        mock_result.usage.return_value = mock_usage
+        mock_result.usage = mock_usage
         mock_result.all_messages.return_value = []
         mock_agent.run_sync.return_value = mock_result
         header = fetch_header(self.client, empty_db=True)
@@ -132,17 +128,13 @@ class TestChat(unittest.TestCase):
         mock_result = MagicMock()
         mock_result.response.text = "Pizza of course!"
         mock_result.run_id = "test_run_bg"
-        # timestamp() is a method that returns datetime
-        mock_result.timestamp.return_value = datetime.fromisoformat(
-            "2025-12-05T10:30:00+00:00"
-        )
-        # usage() is a method that returns RunUsage
+        mock_result.timestamp = datetime.fromisoformat("2025-12-05T10:30:00+00:00")
         mock_usage = RunUsage()
         mock_usage.requests = 1
         mock_usage.input_tokens = 100
         mock_usage.output_tokens = 50
         mock_usage.tool_calls = 0
-        mock_result.usage.return_value = mock_usage
+        mock_result.usage = mock_usage
         mock_result.all_messages.return_value = []
         mock_agent.run_sync.return_value = mock_result
 
@@ -233,3 +225,47 @@ class TestChat(unittest.TestCase):
             assert metadata["tools_used"][0]["name"] == "search_genealogy_database"
             assert "step" in metadata["tools_used"][0]
             assert "args" in metadata["tools_used"][0]
+
+    @patch("gramps_webapi.api.llm.create_agent")
+    def test_chat_message_history_roundtrip(self, mock_create_agent):
+        """Test that message_history_raw is returned and accepted back in the next turn."""
+        from pydantic_ai import Agent
+        from dataclasses import dataclass
+
+        @dataclass
+        class TestDeps:
+            value: str = "test"
+
+        real_agent = Agent("test", deps_type=TestDeps)
+        mock_create_agent.return_value = real_agent
+
+        header = fetch_header(self.client, empty_db=True)
+
+        rv = self.client.get("/api/trees/", headers=header)
+        assert rv.status_code == 200
+        tree_id = rv.json[0]["id"]
+        rv = self.client.put(
+            f"/api/trees/{tree_id}", json={"min_role_ai": ROLE_OWNER}, headers=header
+        )
+        assert rv.status_code == 200
+        header = fetch_header(self.client, empty_db=True)
+
+        # First turn — verify message_history_raw is returned
+        rv = self.client.post("/api/chat/", json={"query": "Hello"}, headers=header)
+        assert rv.status_code == 200
+        assert "message_history_raw" in rv.json
+        message_history_raw = rv.json["message_history_raw"]
+        assert isinstance(message_history_raw, str)
+        assert len(message_history_raw) > 0
+
+        # Second turn — send message_history_raw back; verify it is accepted and returned again
+        rv = self.client.post(
+            "/api/chat/",
+            json={"query": "Follow-up question", "message_history_raw": message_history_raw},
+            headers=header,
+        )
+        assert rv.status_code == 200
+        assert "response" in rv.json
+        assert "message_history_raw" in rv.json
+        assert isinstance(rv.json["message_history_raw"], str)
+        assert len(rv.json["message_history_raw"]) > 0

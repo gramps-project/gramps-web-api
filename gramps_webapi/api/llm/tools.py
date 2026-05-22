@@ -338,6 +338,8 @@ def search_genealogy_database(
     Returns:
         Formatted genealogical data matching the query.
     """
+    if ctx.deps.progress_callback:
+        ctx.deps.progress_callback("search_genealogy_database", "Searching genealogy database...")
 
     logger = get_logger()
 
@@ -472,6 +474,9 @@ def filter_people(
         - Find siblings (with labels): degrees_of_separation_from="I0044", degrees_of_separation=2, show_relation_with="I0044"
         - Find extended family (uncles, aunts): degrees_of_separation_from="I0044", degrees_of_separation=3
     """
+    if ctx.deps.progress_callback:
+        ctx.deps.progress_callback("filter_people", "Filtering people in family tree...")
+
     logger = get_logger()
 
     max_results = min(max(1, max_results), 100)
@@ -601,6 +606,9 @@ def filter_events(
         - "events before 1900": filter_events(date_before="1900")
         - "events for person I0044": filter_events(participant_id="I0044")
     """
+    if ctx.deps.progress_callback:
+        ctx.deps.progress_callback("filter_events", "Filtering events...")
+
     max_results = min(max(1, max_results), 100)
 
     rules: list[dict[str, Any]] = []
@@ -681,6 +689,9 @@ def get_person(ctx: RunContext[AgentDeps], gramps_id: str) -> str:
     Returns:
         Full person record as formatted text, or an error message.
     """
+    if ctx.deps.progress_callback:
+        ctx.deps.progress_callback("get_person", "Fetching person record...")
+
     logger = get_logger()
     try:
         db_handle = get_db_outside_request(
@@ -731,6 +742,9 @@ def get_family(ctx: RunContext[AgentDeps], gramps_id: str) -> str:
     Returns:
         Full family record as formatted text, or an error message.
     """
+    if ctx.deps.progress_callback:
+        ctx.deps.progress_callback("get_family", "Fetching family record...")
+
     logger = get_logger()
     try:
         db_handle = get_db_outside_request(
@@ -811,6 +825,9 @@ def filter_families(
         - Find families with a Smith father and Jones mother:
             father_surname="Smith", mother_surname="Jones"
     """
+    if ctx.deps.progress_callback:
+        ctx.deps.progress_callback("filter_families", "Filtering families...")
+
     max_results = min(max(1, max_results), 100)
 
     rules: list[dict[str, Any]] = []

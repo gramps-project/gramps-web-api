@@ -21,7 +21,9 @@
 
 from __future__ import annotations
 
-from pydantic_ai import Agent
+from pydantic_ai import Agent, RunContext
+from pydantic_ai.capabilities import ProcessHistory
+from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
@@ -37,69 +39,73 @@ from .tools import (
 )
 
 
+def _part_chars(part) -> int:
+    """Rough character count of a message part."""
+    content = getattr(part, "content", None)
+    if content is not None:
+        return len(content) if isinstance(content, str) else len(str(content))
+    args = getattr(part, "args", None)
+    if args is not None:
+        return len(str(args))
+    return 0
+
+
+def _trim_history(
+    ctx: RunContext[AgentDeps], messages: list[ModelMessage]
+) -> list[ModelMessage]:
+    """Drop oldest complete user turns when history exceeds 3× the context budget.
+
+    A "turn" is everything from one ModelRequest[UserPromptPart] up to (but not
+    including) the next. Turns are always dropped as units to keep ToolCallPart /
+    ToolReturnPart pairs intact.
+    """
+    budget = ctx.deps.max_context_length * 3
+
+    turn_starts = [
+        i
+        for i, msg in enumerate(messages)
+        if isinstance(msg, ModelRequest)
+        and any(isinstance(p, UserPromptPart) for p in msg.parts)
+    ]
+
+    total = sum(_part_chars(p) for msg in messages for p in msg.parts)
+
+    while total > budget and len(turn_starts) > 1:
+        drop_to = turn_starts[1]
+        total -= sum(_part_chars(p) for msg in messages[:drop_to] for p in msg.parts)
+        messages = messages[drop_to:]
+        turn_starts = [i - drop_to for i in turn_starts[1:]]
+
+    return messages
+
+
 SYSTEM_PROMPT = """You are an assistant for answering questions about a user's family history.
 
-IMPORTANT GUIDELINES
-
-Use the available tools to retrieve information from the user's genealogy database.
-
-Base your answers ONLY on information returned by the tools. Do NOT make up facts, dates, names, relationships, or any other details.
-
-Think carefully about what the user is asking before choosing which tool and parameters to use.
-
-If the user refers to themselves ("I", "my", "me"), ask for their name in the family tree to look them up.
+Use the available tools to retrieve information from the genealogy database. Base your answers ONLY on what the tools return — never invent facts, dates, names, or relationships. If you cannot find the information, say so. If the user refers to themselves ("I", "my", "me"), ask for their name in the family tree.
 
 
-TOOL SELECTION
+MULTI-STEP LOOKUPS
 
-search_genealogy_database: Full-text semantic search across all object types. Use for open-ended queries or when you don't know the Gramps ID. Use the object_type parameter to restrict to "Person", "Family", "Event", "Place", etc.
-
-get_person / get_family: Direct lookup by Gramps ID. Use these immediately after finding an ID in any tool result to fetch the full record. This is faster and more complete than searching.
-
-filter_people: Structured filter for people by name, birth/death dates or place, gender, ancestry, or relationship. Use when you need to find people by known attributes.
-
-filter_events: Structured filter for events by type, date range, place, or participant ID.
-
-filter_families: Structured filter for families by spouse names, marriage date/place, or relationship type (e.g., "Married", "Unmarried").
+Whenever a search or filter result contains a Gramps ID, immediately call get_person or get_family to retrieve the full record. Search results are summaries — only the full record contains family links, children, spouses, and complete event details.
 
 
 RELATIONSHIP QUERIES
 
-For questions about relationships like parents, grandparents, siblings, or cousins, follow this workflow:
+For questions about parents, grandparents, siblings, or cousins, follow this workflow:
 
-First, search for the person to get their Gramps ID.
+1. Search for the person to get their Gramps ID.
+2. Use filter_people with the relationship filter AND show_relation_with set to that Gramps ID.
 
-Then use filter_people with the relationship filter AND show_relation_with set to that Gramps ID.
-
-Results will have labels like [father], [grandfather], [sibling] that help you identify the correct people.
+Results include labels like [father], [grandfather], [sibling] that identify the relationship. Without show_relation_with you cannot distinguish between generations.
 
 Available relationship filters: ancestor_of (parents=1, grandparents=2), descendant_of (children=1, grandchildren=2), degrees_of_separation_from (siblings=2, uncles=3, cousins=4), has_common_ancestor_with
 
-Without show_relation_with, you cannot distinguish between generations or relationship types.
-
-For "who did X marry" or "what children did X have", use get_person to fetch X's full record — it includes family links directly.
+For "who did X marry" or "what children did X have", use get_person — it includes family links directly.
 
 
-FORMATTING RULES (CRITICAL)
+FORMATTING
 
-Tool results contain links like [Name](/person/I0044). Copy these EXACTLY as they appear. Never modify the URLs. Do NOT strip links, always keep links if possible.
-
-Never change /person/I0044 to # or remove it. Keep the exact path.
-
-ABSOLUTELY FORBIDDEN: Do not use numbered lists (1. 2. 3.), bullet points (- or *), bold (**text**), italic (*text*), headers (#), code blocks (```), or blockquotes (>).
-
-If you use ANY of these forbidden formats, you are making a mistake.
-
-To list multiple items, separate them with "and" or line breaks. Never use numbers or bullets.
-
-Keep it simple: plain sentences with Markdown links only.
-
-
-OTHER GUIDELINES
-
-If you don't have enough information after using the tools, say "I don't know" or "I couldn't find that information."
-
-Keep your answers concise and accurate."""
+Use Markdown freely. When tool results contain links like [Name](/person/I0044), include them in your response exactly as they appear — never modify the path and never drop the link. Every person, family, event, place, source, citation, repository, note, and media object should be linked."""
 
 
 def create_agent(
@@ -140,6 +146,7 @@ def create_agent(
         model,
         deps_type=AgentDeps,
         system_prompt=system_prompt,
+        capabilities=[ProcessHistory(_trim_history)],
     )
     agent.tool(get_current_date)
     agent.tool(search_genealogy_database)
