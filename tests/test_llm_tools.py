@@ -24,10 +24,13 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from gramps_webapi.api.llm.tools import (
-    filter_events,
-    filter_people,
     _build_date_expression,
     _truncate_content,
+    filter_events,
+    filter_families,
+    filter_people,
+    get_family,
+    get_person,
 )
 from gramps_webapi.api.llm.deps import AgentDeps
 from gramps_webapi.api.search import get_search_indexer
@@ -76,9 +79,8 @@ def setUpModule():
         )
 
         db_state = db_manager.get_db()
-        search_index = get_search_indexer(TEST_TREE)
         db = db_state.db
-        search_index.reindex_full(db)
+        get_search_indexer(TEST_TREE).reindex_full(db)
         db_state.db.close()
 
 
@@ -912,6 +914,147 @@ class TestFilterEventsParticipantRole(unittest.TestCase):
         # participant_role parameter has been removed; calling without it must work
         result = self._filter_events(event_type="Birth", participant_id="I0552")
         self.assertNotIn("Error", result)
+
+
+class TestGetPerson(unittest.TestCase):
+    """Tests for the get_person tool (2a)."""
+
+    def setUp(self):
+        self.ctx = MagicMock()
+        self.ctx.deps = AgentDeps(
+            tree=TEST_TREE,
+            include_private=True,
+            max_context_length=50000,
+            user_id="test_user",
+        )
+
+    def _get_person(self, gramps_id):
+        with TEST_APP.app_context():
+            return get_person(self.ctx, gramps_id)
+
+    def test_known_person_returns_content(self):
+        result = self._get_person("I0044")
+        self.assertNotIn("Error", result)
+        self.assertNotIn("No person found", result)
+        self.assertGreater(len(result), 50)
+
+    def test_result_contains_person_link(self):
+        result = self._get_person("I0044")
+        self.assertNotIn("No person found", result)
+        self.assertIn("/person/", result)
+
+    def test_result_contains_gramps_id(self):
+        result = self._get_person("I0044")
+        self.assertNotIn("No person found", result)
+        self.assertIn("I0044", result)
+
+    def test_unknown_id_returns_not_found(self):
+        result = self._get_person("INVALID_XYZ_999")
+        self.assertIn("No person found", result)
+
+
+class TestGetFamily(unittest.TestCase):
+    """Tests for the get_family tool (2b)."""
+
+    valid_family_id = None
+
+    @classmethod
+    def setUpClass(cls):
+        from gramps_webapi.api.util import get_db_outside_request
+
+        with TEST_APP.app_context():
+            db = get_db_outside_request(
+                tree=TEST_TREE,
+                view_private=True,
+                readonly=True,
+                user_id="test_user",
+            )
+            try:
+                for handle in db.get_family_handles():
+                    fam = db.get_family_from_handle(handle)
+                    cls.valid_family_id = fam.get_gramps_id()
+                    break
+            finally:
+                db.close()
+
+    def setUp(self):
+        self.ctx = MagicMock()
+        self.ctx.deps = AgentDeps(
+            tree=TEST_TREE,
+            include_private=True,
+            max_context_length=50000,
+            user_id="test_user",
+        )
+
+    def _get_family(self, gramps_id):
+        with TEST_APP.app_context():
+            return get_family(self.ctx, gramps_id)
+
+    def test_known_family_returns_content(self):
+        if not self.valid_family_id:
+            self.skipTest("No family found in test database")
+        result = self._get_family(self.valid_family_id)
+        self.assertNotIn("Error", result)
+        self.assertNotIn("No family found", result)
+        self.assertGreater(len(result), 50)
+
+    def test_result_contains_family_link(self):
+        if not self.valid_family_id:
+            self.skipTest("No family found in test database")
+        result = self._get_family(self.valid_family_id)
+        self.assertNotIn("No family found", result)
+        self.assertIn("/family/", result)
+
+    def test_unknown_id_returns_not_found(self):
+        result = self._get_family("INVALID_XYZ_999")
+        self.assertIn("No family found", result)
+
+
+class TestFilterFamilies(unittest.TestCase):
+    """Tests for the filter_families tool (2c)."""
+
+    def setUp(self):
+        self.ctx = MagicMock()
+        self.ctx.deps = AgentDeps(
+            tree=TEST_TREE,
+            include_private=True,
+            max_context_length=50000,
+            user_id="test_user",
+        )
+
+    def _filter_families(self, **kwargs):
+        with TEST_APP.app_context():
+            return filter_families(self.ctx, **kwargs)
+
+    def test_no_criteria_returns_message(self):
+        result = self._filter_families()
+        self.assertIn("No filter criteria", result)
+
+    def test_father_surname_filter(self):
+        result = self._filter_families(father_surname="Garner")
+        self.assertNotIn("Error", result)
+
+    def test_mother_surname_filter(self):
+        result = self._filter_families(mother_surname="Garner")
+        self.assertNotIn("Error", result)
+
+    def test_results_contain_family_links(self):
+        result = self._filter_families(father_surname="Garner")
+        if "No families found" not in result:
+            self.assertIn("/family/", result)
+
+    def test_marriage_date_range(self):
+        result = self._filter_families(
+            marriage_year_after="1850", marriage_year_before="1920"
+        )
+        self.assertNotIn("Error", result)
+
+    def test_combine_filters_or(self):
+        result = self._filter_families(
+            father_surname="Garner", mother_surname="Smith", combine_filters="or"
+        )
+        self.assertNotIn("Error", result)
+
 
 
 if __name__ == "__main__":

@@ -28,8 +28,11 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from .deps import AgentDeps
 from .tools import (
     filter_events,
+    filter_families,
     filter_people,
     get_current_date,
+    get_family,
+    get_person,
     search_genealogy_database,
 )
 
@@ -47,6 +50,19 @@ Think carefully about what the user is asking before choosing which tool and par
 If the user refers to themselves ("I", "my", "me"), ask for their name in the family tree to look them up.
 
 
+TOOL SELECTION
+
+search_genealogy_database: Full-text semantic search across all object types. Use for open-ended queries or when you don't know the Gramps ID. Use the object_type parameter to restrict to "Person", "Family", "Event", "Place", etc.
+
+get_person / get_family: Direct lookup by Gramps ID. Use these immediately after finding an ID in any tool result to fetch the full record. This is faster and more complete than searching.
+
+filter_people: Structured filter for people by name, birth/death dates or place, gender, ancestry, or relationship. Use when you need to find people by known attributes.
+
+filter_events: Structured filter for events by type, date range, place, or participant ID.
+
+filter_families: Structured filter for families by spouse names, marriage date/place, or relationship type (e.g., "Married", "Unmarried").
+
+
 RELATIONSHIP QUERIES
 
 For questions about relationships like parents, grandparents, siblings, or cousins, follow this workflow:
@@ -60,6 +76,8 @@ Results will have labels like [father], [grandfather], [sibling] that help you i
 Available relationship filters: ancestor_of (parents=1, grandparents=2), descendant_of (children=1, grandchildren=2), degrees_of_separation_from (siblings=2, uncles=3, cousins=4), has_common_ancestor_with
 
 Without show_relation_with, you cannot distinguish between generations or relationship types.
+
+For "who did X marry" or "what children did X have", use get_person to fetch X's full record — it includes family links directly.
 
 
 FORMATTING RULES (CRITICAL)
@@ -125,6 +143,9 @@ def create_agent(
     )
     agent.tool(get_current_date)
     agent.tool(search_genealogy_database)
+    agent.tool(get_person)
+    agent.tool(get_family)
     agent.tool(filter_people)
     agent.tool(filter_events)
+    agent.tool(filter_families)
     return agent
