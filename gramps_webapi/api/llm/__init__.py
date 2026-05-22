@@ -145,7 +145,7 @@ def answer_with_agent(
         try:
             message_history = ModelMessagesTypeAdapter.validate_json(message_history_raw)
         except Exception as e:  # pylint: disable=broad-except
-            logger.warning("Failed to deserialize message_history_raw, ignoring: %s", e)
+            raise ValueError(f"Invalid message_history_raw: {e}") from e
     elif history:
         for message in history:
             if "role" not in message or "message" not in message:
