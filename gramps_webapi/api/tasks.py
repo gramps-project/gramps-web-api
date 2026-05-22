@@ -697,6 +697,7 @@ def process_chat(
         extract_metadata_from_result,
         sanitize_answer,
     )
+    from pydantic_ai import ModelMessagesTypeAdapter
 
     step = 0
     if self.request.id is not None:
@@ -727,7 +728,7 @@ def process_chat(
     response_text = sanitize_answer(result.response.text or "")
     response_dict: dict[str, Any] = {
         "response": response_text,
-        "message_history_raw": result.all_messages_json().decode(),
+        "message_history_raw": ModelMessagesTypeAdapter.dump_json(result.all_messages()).decode(),
     }
 
     if verbose:
