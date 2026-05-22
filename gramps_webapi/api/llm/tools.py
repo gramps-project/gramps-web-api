@@ -712,7 +712,7 @@ def get_person(ctx: RunContext[AgentDeps], gramps_id: str) -> str:
         )
         if not content:
             return f"No content available for person '{gramps_id}'."
-        return _truncate_content(content, ctx.deps.max_context_length)
+        return _truncate_content(content, min(ctx.deps.max_context_length // 2, 10000))
     except Exception as e:  # pylint: disable=broad-except
         logger.error("Error fetching person %s: %s", gramps_id, e)
         return f"Error fetching person '{gramps_id}': {e}"
@@ -762,7 +762,7 @@ def get_family(ctx: RunContext[AgentDeps], gramps_id: str) -> str:
         )
         if not content:
             return f"No content available for family '{gramps_id}'."
-        return _truncate_content(content, ctx.deps.max_context_length)
+        return _truncate_content(content, min(ctx.deps.max_context_length // 2, 10000))
     except Exception as e:  # pylint: disable=broad-except
         logger.error("Error fetching family %s: %s", gramps_id, e)
         return f"Error fetching family '{gramps_id}': {e}"
