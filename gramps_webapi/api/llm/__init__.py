@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 from flask import current_app
-from pydantic_ai.exceptions import ModelRetry, UnexpectedModelBehavior
+from pydantic_ai.exceptions import ModelRetry, UnexpectedModelBehavior, UsageLimitExceeded
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -15,6 +15,8 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
+
+from pydantic_ai.usage import UsageLimits
 
 from ..util import abort_with_message, get_logger
 from .agent import create_agent
@@ -123,6 +125,8 @@ def answer_with_agent(
     base_url = config.get("LLM_BASE_URL")
     max_context_length = config.get("LLM_MAX_CONTEXT_LENGTH", 50000)
     system_prompt_override = config.get("LLM_SYSTEM_PROMPT")
+    max_requests = config.get("LLM_MAX_REQUESTS", 15)
+    max_tokens = config.get("LLM_MAX_TOKENS", 200_000)
 
     if not model_name:
         raise ValueError("No LLM model specified")
@@ -157,11 +161,24 @@ def answer_with_agent(
                     ModelRequest(parts=[UserPromptPart(content=message["message"])])
                 )
 
+    usage_limits = UsageLimits(
+        request_limit=max_requests,
+        total_tokens_limit=max_tokens,
+    )
+
     try:
         logger.debug("Running Pydantic AI agent with prompt: '%s'", prompt)
-        result = agent.run_sync(prompt, deps=deps, message_history=message_history)
+        result = agent.run_sync(
+            prompt,
+            deps=deps,
+            message_history=message_history,
+            usage_limits=usage_limits,
+        )
         logger.debug("Agent response: '%s'", result.response.text or "")
         return result
+    except UsageLimitExceeded as e:
+        logger.warning("Agent usage limit exceeded: %s", e)
+        abort_with_message(429, "The AI agent exceeded its usage limits for this request.")
     except (UnexpectedModelBehavior, ModelRetry) as e:
         logger.error("Pydantic AI error: %s", e)
         abort_with_message(500, "Error communicating with the AI model")
