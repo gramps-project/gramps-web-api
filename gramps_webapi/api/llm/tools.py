@@ -286,6 +286,9 @@ def _truncate_content(content: str, max_chars: int, head: int = 4000, tail: int 
     """
     if len(content) <= max_chars:
         return content
+    if head + tail >= len(content):
+        # Truncation would not reduce the content; return as-is.
+        return content
     elided = len(content) - head - tail
     return (
         content[:head]
@@ -627,8 +630,10 @@ def filter_events(
                 readonly=True,
                 user_id=ctx.deps.user_id,
             )
-            person = db_handle.get_person_from_gramps_id(participant_id)
-            db_handle.close()
+            try:
+                person = db_handle.get_person_from_gramps_id(participant_id)
+            finally:
+                db_handle.close()
             if person is None:
                 return f"No person found with Gramps ID '{participant_id}'."
             participant_handles = [

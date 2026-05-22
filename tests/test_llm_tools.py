@@ -816,6 +816,14 @@ class TestTruncateContent(unittest.TestCase):
         result = _truncate_content(content, max_chars=5000)
         self.assertLess(len(result), len(content))
 
+    def test_no_negative_elision_when_head_tail_exceeds_content(self):
+        # content (1500) > max_chars (1000) but head+tail (5000) >= content length:
+        # truncation would make result longer, so content must be returned as-is.
+        content = "x" * 1500
+        result = _truncate_content(content, max_chars=1000, head=4000, tail=1000)
+        self.assertEqual(result, content)
+        self.assertNotIn("elided", result)
+
     def test_default_params_applied(self):
         # Default head=4000, tail=1000; content of 10000 chars
         content = "H" * 4000 + "M" * 5000 + "T" * 1000
@@ -899,12 +907,6 @@ class TestFilterEventsParticipantRole(unittest.TestCase):
         result = self._filter_events(participant_id="I1370")
         self.assertNotIn("Error", result)
         self.assertNotIn("No events found", result)
-
-    def test_participant_id_includes_family_events(self):
-        # I1370 has events; we should get them without needing a role param.
-        result_no_role = self._filter_events(participant_id="I1370")
-        self.assertNotIn("Error", result_no_role)
-        self.assertNotIn("No events found", result_no_role)
 
     def test_filter_events_no_participant_role_param(self):
         # participant_role parameter has been removed; calling without it must work
