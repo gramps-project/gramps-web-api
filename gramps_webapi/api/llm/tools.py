@@ -98,6 +98,8 @@ def _apply_gramps_filter(
     max_results: int,
     empty_message: str = "No results found matching the filter criteria.",
     show_relation_with: str = "",
+    logic: str = "and",
+    handles: list | None = None,
 ) -> str:
     """Apply a Gramps filter and return formatted results.
 
@@ -117,6 +119,8 @@ def _apply_gramps_filter(
         max_results: Maximum number of results to return (already validated)
         empty_message: Message to return when no results found
         show_relation_with: Gramps ID of anchor person for relationship calculation (Person namespace only)
+        logic: How to combine multiple rules: "and" (default) or "or"
+        handles: Optional pre-filtered list of handles to restrict the search space
 
     Returns:
         Formatted string with matching objects or error message
@@ -135,8 +139,8 @@ def _apply_gramps_filter(
         )
 
         filter_dict: dict[str, Any] = {"rules": rules}
-        if len(rules) > 1:
-            filter_dict["function"] = "and"
+        if len(rules) > 1 or logic == "or":
+            filter_dict["function"] = logic
 
         filter_rules = json.dumps(filter_dict)
         logger.debug("%s filter rules: %s", namespace, filter_rules)
@@ -146,7 +150,7 @@ def _apply_gramps_filter(
             db_handle=db_handle,
             args=args,
             namespace=namespace,
-            handles=None,
+            handles=handles,
         )
 
         if not matching_handles:
@@ -158,7 +162,7 @@ def _apply_gramps_filter(
 
         context_parts: list[str] = []
         max_length = ctx.deps.max_context_length
-        per_item_max = 10000  # Maximum chars per individual item
+        per_item_max = 10000
         current_length = 0
 
         # Get the anchor person for relationship calculation if requested
@@ -216,16 +220,13 @@ def _apply_gramps_filter(
 
                 # Truncate individual items if they're too long
                 if len(content) > per_item_max:
-                    content = (
-                        content[:per_item_max]
-                        + "\n\n[Content truncated due to length...]"
-                    )
                     logger.debug(
-                        "Truncated %s content from %d to %d chars",
+                        "Truncating %s content from %d to %d chars",
                         namespace,
-                        len(content) - per_item_max,
+                        len(content),
                         per_item_max,
                     )
+                    content = _truncate_content(content, per_item_max)
 
                 # Check if adding this item would exceed total limit
                 if current_length + len(content) > max_length:
@@ -274,6 +275,23 @@ def _apply_gramps_filter(
             except Exception:  # pylint: disable=broad-except
                 pass
         return f"Error filtering {namespace.lower()}s: {str(e)}"
+
+
+def _truncate_content(content: str, max_chars: int, head: int = 4000, tail: int = 1000) -> str:
+    """Truncate long content using head+tail strategy.
+
+    Keeps the first `head` chars and last `tail` chars, with an elision marker in
+    between showing how many characters were dropped. This is more useful to the
+    model than a front-only cut because the tail often contains summary information.
+    """
+    if len(content) <= max_chars:
+        return content
+    elided = len(content) - head - tail
+    return (
+        content[:head]
+        + f"\n\n...[{elided} chars elided]...\n\n"
+        + content[-tail:]
+    )
 
 
 def log_tool_call(func):
@@ -341,14 +359,12 @@ def search_genealogy_database(
 
             # Truncate individual items if they're too long
             if len(content) > per_item_max:
-                content = (
-                    content[:per_item_max] + "\n\n[Content truncated due to length...]"
-                )
                 logger.debug(
-                    "Truncated search result from %d to %d chars",
-                    len(content) - per_item_max,
+                    "Truncating search result from %d to %d chars",
+                    len(content),
                     per_item_max,
                 )
+                content = _truncate_content(content, per_item_max)
 
             if current_length + len(content) > max_length:
                 logger.debug(
@@ -524,156 +540,6 @@ def filter_people(
             "No filter criteria provided. Please specify at least one filter parameter."
         )
 
-    if combine_filters.lower() == "or":
-        # For OR logic, we need to update the filter_dict in _apply_gramps_filter
-        # Pass it as part of the rules structure
-        filter_dict: dict[str, Any] = {"rules": rules, "function": "or"}
-        filter_rules = json.dumps(filter_dict)
-        logger.debug("Built filter rules: %s", filter_rules)
-
-        db_handle = None
-        try:
-            db_handle = get_db_outside_request(
-                tree=ctx.deps.tree,
-                view_private=ctx.deps.include_private,
-                readonly=True,
-                user_id=ctx.deps.user_id,
-            )
-
-            args = {"rules": filter_rules}
-            try:
-                matching_handles = apply_filter(
-                    db_handle=db_handle,
-                    args=args,
-                    namespace="Person",
-                    handles=None,
-                )
-            except Exception as filter_error:
-                logger.error(
-                    "Filter validation failed: %s. Filter rules: %r",
-                    filter_error,
-                    filter_rules,
-                )
-                db_handle.close()
-                raise
-
-            if not matching_handles:
-                db_handle.close()
-                return "No people found matching the filter criteria."
-
-            matching_handles = matching_handles[:max_results]
-
-            context_parts: list[str] = []
-            max_length = ctx.deps.max_context_length
-            per_item_max = 10000  # Maximum chars per individual item
-            current_length = 0
-
-            # Get the anchor person for relationship calculation if requested
-            anchor_person = None
-            if show_relation_with:
-                try:
-                    anchor_person = db_handle.get_person_from_gramps_id(
-                        show_relation_with
-                    )
-                    if not anchor_person:
-                        logger.warning(
-                            "Anchor person %s not found for relationship calculation",
-                            show_relation_with,
-                        )
-                except Exception as e:  # pylint: disable=broad-except
-                    logger.warning(
-                        "Error fetching anchor person %s: %s", show_relation_with, e
-                    )
-
-            for handle in matching_handles:
-                try:
-                    person = db_handle.get_person_from_handle(handle)
-
-                    if not ctx.deps.include_private and person.private:
-                        continue
-
-                    obj_dict = obj_strings_from_object(
-                        db_handle=db_handle,
-                        class_name="Person",
-                        obj=person,
-                        semantic=True,
-                    )
-
-                    if obj_dict:
-                        content = (
-                            obj_dict["string_all"]
-                            if ctx.deps.include_private
-                            else obj_dict["string_public"]
-                        )
-
-                        # Add relationship prefix if anchor person is set
-                        if anchor_person:
-                            rel_prefix = _get_relationship_prefix(
-                                db_handle, anchor_person, person, logger
-                            )
-                            content = rel_prefix + content
-
-                        # Truncate individual items if they're too long
-                        if len(content) > per_item_max:
-                            content = (
-                                content[:per_item_max]
-                                + "\n\n[Content truncated due to length...]"
-                            )
-                            logger.debug(
-                                "Truncated Person content from %d to %d chars",
-                                len(content) - per_item_max,
-                                per_item_max,
-                            )
-
-                        if current_length + len(content) > max_length:
-                            logger.debug(
-                                "Reached max context length (%d chars), stopping at %d results",
-                                max_length,
-                                len(context_parts),
-                            )
-                            break
-
-                        context_parts.append(content)
-                        current_length += len(content) + 2
-
-                except Exception as e:  # pylint: disable=broad-except
-                    logger.warning("Error processing person %s: %s", handle, e)
-                    continue
-
-            if not context_parts:
-                db_handle.close()
-                return "No people found matching the filter criteria (or all results are private)."
-
-            result = "\n\n".join(context_parts)
-
-            total_matches = len(matching_handles)
-            returned_count = len(context_parts)
-
-            if returned_count < total_matches:
-                result += f"\n\n---\nShowing {returned_count} of {total_matches} matching people. Use max_results parameter to see more."
-            elif total_matches == max_results:
-                result += f"\n\n---\nShowing {returned_count} people (limit reached). There may be more matches."
-
-            logger.debug(
-                "Tool filter_people returned %d results (%d chars)",
-                len(context_parts),
-                len(result),
-            )
-
-            db_handle.close()
-
-            return result
-
-        except Exception as e:  # pylint: disable=broad-except
-            logger.error("Error filtering people: %s", e)
-            if db_handle is not None:
-                try:
-                    db_handle.close()
-                except Exception:  # pylint: disable=broad-except
-                    pass
-            return f"Error filtering people: {str(e)}"
-
-    # Use the common filter helper for AND logic
     return _apply_gramps_filter(
         ctx=ctx,
         namespace="Person",
@@ -681,6 +547,7 @@ def filter_people(
         max_results=max_results,
         empty_message="No people found matching the filter criteria.",
         show_relation_with=show_relation_with,
+        logic=combine_filters.lower(),
     )
 
 
@@ -693,7 +560,6 @@ def filter_events(
     place: str = "",
     description_contains: str = "",
     participant_id: str = "",
-    participant_role: str = "",
     max_results: int = 50,
 ) -> str:
     """Filter events in the genealogy database.
@@ -711,8 +577,6 @@ def filter_events(
         place: Location name to search for (e.g., "Boston", "Massachusetts")
         description_contains: Text that should appear in the event description
         participant_id: Gramps ID of a person who participated in the event (e.g., "I0001")
-        participant_role: Role of the participant if participant_id is provided
-            (e.g., "Primary", "Family")
         max_results: Maximum number of results to return (1-100, default 50)
 
     Returns:
@@ -744,28 +608,47 @@ def filter_events(
             }
         )
 
-    if participant_id:
-        person_filter_rules = [{"name": "HasIdOf", "values": [participant_id]}]
-        person_filter_json = json.dumps({"rules": person_filter_rules})
-
-        rules.append(
-            {
-                "name": "MatchesPersonFilter",
-                "values": [person_filter_json, "1" if participant_role else "0"],
-            }
-        )
-
-    if not rules:
+    if not rules and not participant_id:
         return (
             "No filter criteria provided. Please specify at least one filter parameter "
             "(event_type, date_before, date_after, place, description_contains, or participant_id)."
         )
 
-    # Use the common filter helper
+    # Resolve participant_id to a set of event handles before filtering.
+    # MatchesPersonFilter requires a named filter stored in Gramps and cannot
+    # accept inline JSON, so we look up the person's events directly instead.
+    participant_handles: list | None = None
+    if participant_id:
+        logger = get_logger()
+        try:
+            db_handle = get_db_outside_request(
+                tree=ctx.deps.tree,
+                view_private=ctx.deps.include_private,
+                readonly=True,
+                user_id=ctx.deps.user_id,
+            )
+            person = db_handle.get_person_from_gramps_id(participant_id)
+            db_handle.close()
+            if person is None:
+                return f"No person found with Gramps ID '{participant_id}'."
+            participant_handles = [
+                ref.ref for ref in person.get_event_ref_list()
+            ]
+            if not participant_handles:
+                return f"No events found for person '{participant_id}'."
+        except Exception as e:  # pylint: disable=broad-except
+            logger.error("Error looking up participant %s: %s", participant_id, e)
+            return f"Error looking up participant '{participant_id}': {e}"
+
+    if not rules:
+        # participant_id only — return all events for that person directly
+        rules = [{"name": "AllEvents", "values": []}]
+
     return _apply_gramps_filter(
         ctx=ctx,
         namespace="Event",
         rules=rules,
         max_results=max_results,
         empty_message="No events found matching the filter criteria.",
+        handles=participant_handles,
     )

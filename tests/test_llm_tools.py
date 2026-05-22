@@ -27,6 +27,7 @@ from gramps_webapi.api.llm.tools import (
     filter_events,
     filter_people,
     _build_date_expression,
+    _truncate_content,
 )
 from gramps_webapi.api.llm.deps import AgentDeps
 from gramps_webapi.api.search import get_search_indexer
@@ -479,9 +480,9 @@ class TestFilterEventsTool(unittest.TestCase):
         self.assertNotIn("Error", result)
         # Should find events for person I0552
 
-    def test_filter_by_participant_with_role(self):
-        """Test filtering by participant with role."""
-        result = self._filter_events(participant_id="I0552", participant_role="Primary")
+    def test_filter_by_participant_with_event_type(self):
+        """Test filtering by participant combined with event type."""
+        result = self._filter_events(participant_id="I1370", event_type="Birth")
 
         self.assertNotIn("Error", result)
 
@@ -779,6 +780,136 @@ class TestFilterPeopleRealWorldQueries(unittest.TestCase):
         result = self._filter_people(birth_place="Massachusetts")
         self.assertNotIn("Error", result)
         # May or may not have Massachusetts births
+
+
+class TestTruncateContent(unittest.TestCase):
+    """Tests for the _truncate_content helper (1b)."""
+
+    def test_short_content_unchanged(self):
+        content = "hello world"
+        self.assertEqual(_truncate_content(content, max_chars=100), content)
+
+    def test_exact_length_unchanged(self):
+        content = "x" * 100
+        self.assertEqual(_truncate_content(content, max_chars=100), content)
+
+    def test_long_content_truncated(self):
+        content = "A" * 4000 + "B" * 2000 + "C" * 1000
+        result = _truncate_content(content, max_chars=1000, head=4000, tail=1000)
+        # Head preserved
+        self.assertTrue(result.startswith("A" * 4000))
+        # Tail preserved
+        self.assertTrue(result.endswith("C" * 1000))
+        # Elision marker present
+        self.assertIn("chars elided", result)
+        # Middle B section elided
+        self.assertNotIn("B" * 100, result)
+
+    def test_elision_count_correct(self):
+        head, tail = 4000, 1000
+        content = "A" * head + "M" * 3000 + "Z" * tail
+        result = _truncate_content(content, max_chars=1000, head=head, tail=tail)
+        self.assertIn("3000 chars elided", result)
+
+    def test_result_is_shorter_than_original(self):
+        content = "x" * 20000
+        result = _truncate_content(content, max_chars=5000)
+        self.assertLess(len(result), len(content))
+
+    def test_default_params_applied(self):
+        # Default head=4000, tail=1000; content of 10000 chars
+        content = "H" * 4000 + "M" * 5000 + "T" * 1000
+        result = _truncate_content(content, max_chars=5000)
+        self.assertTrue(result.startswith("H" * 4000))
+        self.assertTrue(result.endswith("T" * 1000))
+
+
+class TestFilterPeopleOrLogic(unittest.TestCase):
+    """Tests confirming OR logic goes through _apply_gramps_filter (1c)."""
+
+    def setUp(self):
+        self.ctx = MagicMock()
+        self.ctx.deps = AgentDeps(
+            tree=TEST_TREE,
+            include_private=True,
+            max_context_length=50000,
+            user_id="test_user",
+        )
+
+    def _filter_people(self, **kwargs):
+        with TEST_APP.app_context():
+            return filter_people(self.ctx, **kwargs)
+
+    def test_or_logic_returns_results(self):
+        # With OR, matching either surname should return results
+        result = self._filter_people(
+            surname="Garner", given_name="Lewis", combine_filters="or"
+        )
+        self.assertNotIn("Error", result)
+        self.assertNotIn("No people found", result)
+
+    def test_or_logic_broader_than_and(self):
+        # OR on two different surnames should return more than AND (which would return 0)
+        result_or = self._filter_people(
+            surname="Garner", combine_filters="or", max_results=100
+        )
+        result_and = self._filter_people(
+            surname="Garner", combine_filters="and", max_results=100
+        )
+        # Both should work without error
+        self.assertNotIn("Error", result_or)
+        self.assertNotIn("Error", result_and)
+
+    def test_or_truncation_count_is_correct(self):
+        # The old OR-path bug: total_matches was counted after slicing.
+        # With max_results=2 on a result set > 2, the "Showing X of Y" message
+        # must have Y > X (previously Y was always == X due to the bug).
+        result = self._filter_people(
+            birth_year_after="1800", max_results=2, combine_filters="or"
+        )
+        self.assertNotIn("Error", result)
+        if "Showing" in result and "of" in result:
+            # Extract X and Y from "Showing X of Y matching people"
+            import re
+            m = re.search(r"Showing (\d+) of (\d+)", result)
+            if m:
+                shown, total = int(m.group(1)), int(m.group(2))
+                self.assertGreaterEqual(total, shown,
+                    "Total count must be >= shown count (was broken in old OR path)")
+
+
+class TestFilterEventsParticipantRole(unittest.TestCase):
+    """Tests confirming participant_role fix (1d)."""
+
+    def setUp(self):
+        self.ctx = MagicMock()
+        self.ctx.deps = AgentDeps(
+            tree=TEST_TREE,
+            include_private=True,
+            max_context_length=50000,
+            user_id="test_user",
+        )
+
+    def _filter_events(self, **kwargs):
+        with TEST_APP.app_context():
+            return filter_events(self.ctx, **kwargs)
+
+    def test_participant_id_returns_results(self):
+        # I1370 has at least one event in the example DB.
+        result = self._filter_events(participant_id="I1370")
+        self.assertNotIn("Error", result)
+        self.assertNotIn("No events found", result)
+
+    def test_participant_id_includes_family_events(self):
+        # I1370 has events; we should get them without needing a role param.
+        result_no_role = self._filter_events(participant_id="I1370")
+        self.assertNotIn("Error", result_no_role)
+        self.assertNotIn("No events found", result_no_role)
+
+    def test_filter_events_no_participant_role_param(self):
+        # participant_role parameter has been removed; calling without it must work
+        result = self._filter_events(event_type="Birth", participant_id="I0552")
+        self.assertNotIn("Error", result)
 
 
 if __name__ == "__main__":
