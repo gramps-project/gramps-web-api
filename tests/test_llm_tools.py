@@ -882,8 +882,8 @@ class TestFilterPeopleOrLogic(unittest.TestCase):
             m = re.search(r"Showing (\d+) of (\d+)", result)
             if m:
                 shown, total = int(m.group(1)), int(m.group(2))
-                self.assertGreaterEqual(total, shown,
-                    "Total count must be >= shown count (was broken in old OR path)")
+                self.assertGreater(total, shown,
+                    "Total count must be > shown count (was broken in old OR path)")
 
 
 class TestFilterEventsParticipantRole(unittest.TestCase):
