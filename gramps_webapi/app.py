@@ -229,10 +229,19 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
 
     static_path = app.config.get("STATIC_PATH")
 
+    # Files that must never be served from a browser/CDN cache so that
+    # app updates (including service-worker updates) are picked up immediately.
+    _NO_STORE_FILES = {"index.html", "sw.js"}
+
+    def _add_no_store(response):
+        """Set Cache-Control: no-store on the response."""
+        response.cache_control.no_store = True
+        return response
+
     # routes for static hosting (e.g. SPA frontend)
     @app.route("/", methods=["GET", "POST"])
     def send_index():
-        return send_from_directory(static_path, "index.html")
+        return _add_no_store(send_from_directory(static_path, "index.html"))
 
     @app.route("/<path:path>", methods=["GET", "POST"])
     def send_static(path):
@@ -240,13 +249,16 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
             # we don't want any erroneous API calls to end up here!
             abort(404)
         if path and os.path.exists(os.path.join(static_path, path)):
-            return send_from_directory(static_path, path)
+            response = send_from_directory(static_path, path)
+            if os.path.basename(path) in _NO_STORE_FILES:
+                _add_no_store(response)
+            return response
         # Static assets (paths with an extension) get a real 404 if missing,
         # so Workbox doesn't silently cache HTML as JS. Extension-free paths
         # are SPA routes and still receive the index.html shell.
         if os.path.splitext(path)[1]:
             abort(404)
-        return send_from_directory(static_path, "index.html")
+        return _add_no_store(send_from_directory(static_path, "index.html"))
 
     # register the API blueprint
     api = flask_smorest.Api(
