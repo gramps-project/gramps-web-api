@@ -78,6 +78,10 @@ def crop_image(image: ImageType, x1: int, y1: int, x2: int, y2: int) -> ImageTyp
     The arguments `x1`, `y1`, `x2`, `y2` are the coordinates of the cropped region
     in percent.
     """
+    # Apply EXIF orientation before cropping so that the percentage coordinates
+    # (which are defined in display/viewing space) map to the correct pixels.
+    image = ImageOps.exif_transpose(image)
+    assert image is not None  # for type checker
     width, height = image.size
     x1_abs = x1 * width / 100
     x2_abs = x2 * width / 100
@@ -132,7 +136,13 @@ class ThumbnailHandler:
         return Image.open(self.stream)
 
     def get_cropped(
-        self, x1: int, y1: int, x2: int, y2: int, square: bool = False, fmt: str = "AVIF"
+        self,
+        x1: int,
+        y1: int,
+        x2: int,
+        y2: int,
+        square: bool = False,
+        fmt: str = "AVIF",
     ) -> BinaryIO:
         """Return a cropped version of the image at `path`.
 
@@ -150,7 +160,11 @@ class ThumbnailHandler:
     def _get_image_pdf(self) -> ImageType:
         """Get a Pillow Image instance of the PDF's first page."""
         ims = self._apply_to_path(
-            convert_from_path, first_page=1, last_page=1, use_cropbox=True, dpi=100,
+            convert_from_path,
+            first_page=1,
+            last_page=1,
+            use_cropbox=True,
+            dpi=100,
             size=(2000, 2000),
         )
         return ims[0]
@@ -194,7 +208,14 @@ class ThumbnailHandler:
         return save_image_buffer(img, fmt=fmt)
 
     def get_thumbnail_cropped(
-        self, size: int, x1: int, y1: int, x2: int, y2: int, square: bool = False, fmt: str = "AVIF"
+        self,
+        size: int,
+        x1: int,
+        y1: int,
+        x2: int,
+        y2: int,
+        square: bool = False,
+        fmt: str = "AVIF",
     ) -> BinaryIO:
         """Return a cropped thumbnail of `size` (longest side) of the image at `path`.
 
