@@ -92,7 +92,8 @@ class FileHandler:
 
     def _abort_if_too_large(self) -> None:
         """Abort with 413 if the file exceeds the thumbnail size limit."""
-        if self.get_file_size() > current_app.config.get("MAX_THUMBNAIL_FILE_BYTES"):
+        max_bytes = int(current_app.config.get("MAX_THUMBNAIL_FILE_BYTES", 0))
+        if self.get_file_size() > max_bytes:
             abort_with_message(413, "File too large for thumbnailing")
 
     def get_face_regions(self, etag: Optional[str] = None):
