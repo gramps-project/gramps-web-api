@@ -26,14 +26,14 @@ from pathlib import Path
 from typing import Any, BinaryIO, Optional, Tuple, Union
 
 import pytesseract
-from flask import jsonify, make_response, send_file, send_from_directory
+from flask import jsonify, make_response, send_file, send_from_directory, current_app
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Media
 from PIL import Image
 from werkzeug.datastructures import FileStorage
 
-from gramps_webapi.const import MIME_AVIF, MAX_THUMBNAIL_FILE_BYTES
+from gramps_webapi.const import MIME_AVIF
 
 from ..types import FilenameOrPath
 from .image import LocalFileThumbnailHandler, detect_faces
@@ -92,7 +92,7 @@ class FileHandler:
 
     def _abort_if_too_large(self) -> None:
         """Abort with 413 if the file exceeds the thumbnail size limit."""
-        if self.get_file_size() > MAX_THUMBNAIL_FILE_BYTES:
+        if self.get_file_size() > current_app.config.get("MAX_THUMBNAIL_FILE_BYTES"):
             abort_with_message(413, "File too large for thumbnailing")
 
     def get_face_regions(self, etag: Optional[str] = None):

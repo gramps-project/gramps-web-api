@@ -57,12 +57,12 @@ def test_pdf_thumbnail_returns_first_page_only():
     # Center pixel should match the first page's color, not the second's.
     # Allow ±2 tolerance for PDF/rasterization rounding.
     center = img.getpixel((img.width // 2, img.height // 2))[:3]
-    assert all(abs(a - b) <= 2 for a, b in zip(center, RED)), (
-        f"Expected first-page color {RED}, got {center}"
-    )
-    assert not all(abs(a - b) <= 2 for a, b in zip(center, BLUE)), (
-        "Got second-page color — first_page/last_page limit not working"
-    )
+    assert all(
+        abs(a - b) <= 2 for a, b in zip(center, RED)
+    ), f"Expected first-page color {RED}, got {center}"
+    assert not all(
+        abs(a - b) <= 2 for a, b in zip(center, BLUE)
+    ), "Got second-page color — first_page/last_page limit not working"
 
 
 def test_pdf_render_size_capped():
@@ -77,15 +77,29 @@ def test_abort_if_too_large_returns_413():
     """_abort_if_too_large must raise HTTPException with code 413 when over the limit."""
     from werkzeug.exceptions import HTTPException
     from gramps_webapi.api.file import FileHandler
-    from gramps_webapi.const import MAX_THUMBNAIL_FILE_BYTES
+    from gramps_webapi.config import DefaultConfig
 
     class _BigFileHandler(FileHandler):
         def get_file_size(self):
-            return MAX_THUMBNAIL_FILE_BYTES + 1
+            return DefaultConfig.MAX_THUMBNAIL_FILE_BYTES + 1
+
+    opts = {
+        "TREE": "test",
+        "SECRET_KEY": "test",
+        "USER_DB_URI": "sqlite:///:memory:",
+        "MAX_THUMBNAIL_FILE_BYTES": DefaultConfig.MAX_THUMBNAIL_FILE_BYTES,
+    }
+    app = (
+        create_app(  # create app for test setup of parameter PIL.Image.MAX_IMAGE_PIXELS
+            config=opts,
+            config_from_env=False,
+        )
+    )
 
     handler = object.__new__(_BigFileHandler)
-    with pytest.raises(HTTPException) as exc_info:
-        handler._abort_if_too_large()
+    with app.app_context():
+        with pytest.raises(HTTPException) as exc_info:
+            handler._abort_if_too_large()
     assert exc_info.value.code == 413
 
 
@@ -95,6 +109,7 @@ def setup_and_teardown():
     # save PIL.Image.MAX_IMAGE_PIXELS and ENV_CONFIG_FILE before tests
     saved_max_image_pixels = Image.MAX_IMAGE_PIXELS
     from gramps_webapi.const import ENV_CONFIG_FILE
+
     # set it to None to prevent the config from loading
     old = os.environ.pop(ENV_CONFIG_FILE, None)
 
@@ -117,7 +132,7 @@ def test_file_max_pillow_image_pixels_greater_or_equal():
         "USER_DB_URI": "sqlite:///:memory:",
         "PILLOW_MAX_IMAGE_PIXELS": 500 * 500,
     }
-    create_app( # create app for test setup of parameter PIL.Image.MAX_IMAGE_PIXELS
+    create_app(  # create app for test setup of parameter PIL.Image.MAX_IMAGE_PIXELS
         config=opts,
         config_from_env=False,
     )
@@ -134,7 +149,7 @@ def test_file_max_pillow_image_pixels_lower():
         "TREE": "test",
         "SECRET_KEY": "test",
         "USER_DB_URI": "sqlite:///:memory:",
-        "PILLOW_MAX_IMAGE_PIXELS": width*height//2-1,
+        "PILLOW_MAX_IMAGE_PIXELS": width * height // 2 - 1,
         # set width*height-1=10*10-1=49 cause PIL throw warning if
         # width*height < PILLOW_MAX_IMAGE_PIXELS and
         # width*height/2 > PILLOW_MAX_IMAGE_PIXELS;
@@ -146,6 +161,7 @@ def test_file_max_pillow_image_pixels_lower():
     )
     with pytest.raises(DecompressionBombError):
         fh.get_image()
+
 
 # Tests negative and None values of PILLOW_MAX_IMAGE_PIXELS
 def test_file_max_pillow_image_pixels_incorrect():
