@@ -19,8 +19,10 @@
 
 """Background task resources."""
 
+from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 
+from celery import current_app as current_celery_app
 from celery.result import AsyncResult
 from flask import abort
 from flask_jwt_extended import get_jwt_identity
@@ -186,7 +188,16 @@ class TaskListResource(ProtectedResource):
         ViewOtherUser permission (Owner+) can see all tasks for the tree.
         """
         tree = get_tree_from_jwt_or_fail()
-        query = user_db.session.query(TaskTree).filter(TaskTree.tree == tree)
+        ttl = getattr(current_celery_app.conf, "result_expires", None)
+        if ttl is None:
+            ttl = timedelta(seconds=86400)
+        elif not isinstance(ttl, timedelta):
+            ttl = timedelta(seconds=int(ttl))
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - ttl
+        query = user_db.session.query(TaskTree).filter(
+            TaskTree.tree == tree,
+            TaskTree.created_at >= cutoff,
+        )
         if not has_permissions([PERM_VIEW_OTHER_USER]):
             query = query.filter(TaskTree.user_id == get_jwt_identity())
         rows = query.order_by(TaskTree.created_at.desc()).limit(args["limit"]).all()

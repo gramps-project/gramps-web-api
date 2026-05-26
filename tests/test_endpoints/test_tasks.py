@@ -390,6 +390,36 @@ class TestTaskEndpoints(unittest.TestCase):
         assert rv.status_code == 200
         assert rv.json["user_name"] is None
 
+    def test_list_excludes_expired_tasks(self):
+        """Tasks older than the result TTL are excluded from the list."""
+        fresh_id = str(uuid.uuid4())
+        expired_id = str(uuid.uuid4())
+        with self.app.app_context():
+            user_db.session.add(
+                TaskTree(
+                    task_id=fresh_id,
+                    tree=self.tree,
+                    user_id=self.owner_id,
+                    name="task",
+                    created_at=datetime.utcnow() - timedelta(hours=1),
+                )
+            )
+            user_db.session.add(
+                TaskTree(
+                    task_id=expired_id,
+                    tree=self.tree,
+                    user_id=self.owner_id,
+                    name="task",
+                    created_at=datetime.utcnow() - timedelta(hours=25),
+                )
+            )
+            user_db.session.commit()
+        rv = self.client.get("/api/tasks/", headers=self._auth("owner"))
+        assert rv.status_code == 200
+        returned_ids = [t["task_id"] for t in rv.json]
+        assert fresh_id in returned_ids
+        assert expired_id not in returned_ids
+
 
 class TestSearchIndexDispatch(unittest.TestCase):
     """Tests that POST /api/search/index/ dispatches the correct task (Copilot issue #7)."""
