@@ -92,7 +92,8 @@ class FileHandler:
 
     def _abort_if_too_large(self) -> None:
         """Abort with 413 if the file exceeds the thumbnail size limit."""
-        max_bytes = int(current_app.config.get("MAX_THUMBNAIL_FILE_BYTES", 0))
+        max_bytes = current_app.config.get("MAX_THUMBNAIL_FILE_BYTES")
+        assert max_bytes is not None  # for type checker
         if self.get_file_size() > max_bytes:
             abort_with_message(413, "File too large for thumbnailing")
 
