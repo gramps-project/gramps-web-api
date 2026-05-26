@@ -480,7 +480,7 @@ class TestUser(unittest.TestCase):
         )
         assert rv.status_code == 200
         # user2 belongs to tree2; owner of tree1 must not see them
-        assert all(u["name"] != "user2" for u in rv.json)
+        assert rv.json == []
 
     def test_edit_user(self):
         rv = self.client.post(

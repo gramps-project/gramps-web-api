@@ -238,7 +238,7 @@ def set_progress_title(self, title: str = "", message: str = "") -> None:
 
 @shared_task(bind=True)
 def search_reindex_full(self, tree: str, user_id: str, semantic: bool = False) -> None:
-    """Rebuild the full-text search index.
+    """Rebuild the full-text search index (or the semantic index if ``semantic=True``).
 
     The ``semantic`` parameter is accepted for backward compatibility with
     jobs that were enqueued before this task was split into separate
@@ -289,7 +289,7 @@ def _search_reindex_incremental(
 def search_reindex_incremental(
     self, tree: str, user_id: str, semantic: bool = False
 ) -> None:
-    """Run an incremental reindex of the full-text search index.
+    """Run an incremental reindex of the full-text search index (or the semantic index if ``semantic=True``).
 
     The ``semantic`` parameter is accepted for backward compatibility with
     jobs that were enqueued before this task was split into separate
