@@ -451,6 +451,18 @@ class TestUser(unittest.TestCase):
         assert rv.status_code == 200
         assert rv.json == []
 
+    def test_show_users_filter_by_invalid_user_id_returns_422(self):
+        """GET /api/users/?user_id=<invalid> is rejected by UUID validation."""
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        token_owner = rv.json["access_token"]
+        rv = self.client.get(
+            BASE_URL + "/users/?user_id=not-a-uuid",
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 422
+
     def test_show_users_filter_by_user_id_cross_tree(self):
         """owner of tree1 cannot retrieve a user from tree2 via user_id filter."""
         with self.app.app_context():

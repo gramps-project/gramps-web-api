@@ -123,7 +123,7 @@ class UserChangeBase(ProtectedResource):
 class UsersListArgsSchema(Schema):
     """Query args for GET /users/."""
 
-    user_id = fields.Str(
+    user_id = fields.UUID(
         load_default=None,
         metadata={"description": "Filter to a single user by their UUID."},
     )
