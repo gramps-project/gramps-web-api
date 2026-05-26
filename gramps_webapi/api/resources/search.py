@@ -48,7 +48,9 @@ from ..tasks import (
     make_task_response,
     run_task,
     search_reindex_full,
+    search_reindex_full_semantic,
     search_reindex_incremental,
+    search_reindex_incremental_semantic,
 )
 from ..util import (
     get_db_handle,
@@ -291,12 +293,18 @@ class SearchIndexResource(ProtectedResource):
         tree = get_tree_from_jwt_or_fail()
         user_id = get_jwt_identity()
         if args["full"]:
-            task_func = search_reindex_full
+            task_func = (
+                search_reindex_full_semantic
+                if args["semantic"]
+                else search_reindex_full
+            )
         else:
-            task_func = search_reindex_incremental
-        task = run_task(
-            task_func, tree=tree, user_id=user_id, semantic=args["semantic"]
-        )
+            task_func = (
+                search_reindex_incremental_semantic
+                if args["semantic"]
+                else search_reindex_incremental
+            )
+        task = run_task(task_func, tree=tree, user_id=user_id)
         if isinstance(task, AsyncResult):
             return make_task_response(task)
         return Response(status=201)

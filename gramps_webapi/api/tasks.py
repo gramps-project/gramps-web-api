@@ -89,8 +89,8 @@ def _record_task(task_id: str, task: Task, kwargs: dict) -> None:
     user_db.session.commit()
 
 
-def _purge_expired_task_rows() -> None:
-    """Delete task_tree rows older than the Celery result TTL."""
+def get_task_result_cutoff() -> datetime:
+    """Return the earliest ``created_at`` that is still within the Celery result TTL."""
     from celery import current_app as celery_app
 
     ttl = getattr(celery_app.conf, "result_expires", None)
@@ -98,7 +98,12 @@ def _purge_expired_task_rows() -> None:
         ttl = timedelta(seconds=86400)
     elif not isinstance(ttl, timedelta):
         ttl = timedelta(seconds=int(ttl))
-    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - ttl
+    return datetime.now(timezone.utc).replace(tzinfo=None) - ttl
+
+
+def _purge_expired_task_rows() -> None:
+    """Delete task_tree rows older than the Celery result TTL."""
+    cutoff = get_task_result_cutoff()
     user_db.session.query(TaskTree).filter(TaskTree.created_at < cutoff).delete(
         synchronize_session=False
     )
@@ -237,13 +242,32 @@ def set_progress_title(self, title: str = "", message: str = "") -> None:
 
 
 @shared_task(bind=True)
-def search_reindex_full(self, tree: str, user_id: str, semantic: bool) -> None:
-    """Rebuild the search index."""
+def search_reindex_full(self, tree: str, user_id: str, semantic: bool = False) -> None:
+    """Rebuild the full-text search index (or the semantic index if ``semantic=True``).
+
+    The ``semantic`` parameter is accepted for backward compatibility with
+    jobs that were enqueued before this task was split into separate
+    full-text / semantic variants.  New callers should use
+    ``search_reindex_full_semantic`` for semantic reindexing.
+    """
     return _search_reindex_full(
         tree=tree,
         user_id=user_id,
         semantic=semantic,
         progress_cb=progress_callback_count(self, title="Updating search index..."),
+    )
+
+
+@shared_task(bind=True)
+def search_reindex_full_semantic(self, tree: str, user_id: str) -> None:
+    """Rebuild the semantic search index."""
+    return _search_reindex_full(
+        tree=tree,
+        user_id=user_id,
+        semantic=True,
+        progress_cb=progress_callback_count(
+            self, title="Updating semantic search index..."
+        ),
     )
 
 
@@ -267,13 +291,34 @@ def _search_reindex_incremental(
 
 
 @shared_task(bind=True)
-def search_reindex_incremental(self, tree: str, user_id: str, semantic: bool) -> None:
-    """Run an incremental reindex of the search index."""
+def search_reindex_incremental(
+    self, tree: str, user_id: str, semantic: bool = False
+) -> None:
+    """Run an incremental reindex of the full-text search index (or the semantic index if ``semantic=True``).
+
+    The ``semantic`` parameter is accepted for backward compatibility with
+    jobs that were enqueued before this task was split into separate
+    full-text / semantic variants.  New callers should use
+    ``search_reindex_incremental_semantic`` for semantic reindexing.
+    """
     return _search_reindex_incremental(
         tree=tree,
         user_id=user_id,
         semantic=semantic,
         progress_cb=progress_callback_count(self, title="Updating search index..."),
+    )
+
+
+@shared_task(bind=True)
+def search_reindex_incremental_semantic(self, tree: str, user_id: str) -> None:
+    """Run an incremental reindex of the semantic search index."""
+    return _search_reindex_incremental(
+        tree=tree,
+        user_id=user_id,
+        semantic=True,
+        progress_cb=progress_callback_count(
+            self, title="Updating semantic search index..."
+        ),
     )
 
 
@@ -475,7 +520,6 @@ def upgrade_database_schema(self, tree: str, user_id: str):
         close_db(db_handle)
 
 
-
 @shared_task(bind=True)
 def delete_objects(
     self, tree: str, user_id: str, namespaces: Optional[List[str]] = None
@@ -515,7 +559,12 @@ def delete_objects(
 
 @shared_task(bind=True)
 def process_transactions(
-    self, tree: str, user_id: str, payload: list[dict], force: bool, message: str = "Raw transaction"
+    self,
+    tree: str,
+    user_id: str,
+    payload: list[dict],
+    force: bool,
+    message: str = "Raw transaction",
 ):
     """Process a set of database transactions, updating search indices as needed."""
     num_people_deleted = sum(
@@ -728,7 +777,9 @@ def process_chat(
     response_text = sanitize_answer(result.response.text or "")
     response_dict: dict[str, Any] = {
         "response": response_text,
-        "message_history_raw": ModelMessagesTypeAdapter.dump_json(result.all_messages()).decode(),
+        "message_history_raw": ModelMessagesTypeAdapter.dump_json(
+            result.all_messages()
+        ).decode(),
     }
 
     if verbose:

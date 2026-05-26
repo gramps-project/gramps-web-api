@@ -28,10 +28,11 @@ from gramps.gen.lib.json_utils import object_to_string
 from marshmallow import Schema
 from webargs import fields
 
-from ...auth import TaskTree, user_db
+from ...auth import TaskTree, User, user_db
 from ...auth.const import PERM_VIEW_OTHER_USER
 from ..auth import has_permissions
 from ..blueprint import api_blueprint
+from ..tasks import get_task_result_cutoff
 from ..util import get_tree_from_jwt_or_fail
 from . import ProtectedResource
 
@@ -71,6 +72,10 @@ class TaskStatusSchema(Schema):
         dump_default=None,
         metadata={"description": "UUID of the user who dispatched the task."},
     )
+    user_name = fields.Str(
+        dump_default=None,
+        metadata={"description": "Username of the user who dispatched the task."},
+    )
 
 
 class TaskListItemSchema(Schema):
@@ -88,6 +93,10 @@ class TaskListItemSchema(Schema):
     user_id = fields.Str(
         dump_default=None,
         metadata={"description": "UUID of the user who dispatched the task."},
+    )
+    user_name = fields.Str(
+        dump_default=None,
+        metadata={"description": "Username of the user who dispatched the task."},
     )
     state = fields.Str(
         dump_default=None,
@@ -158,6 +167,11 @@ class TaskResource(ProtectedResource):
             result["name"] = row.name
             result["created_at"] = row.created_at
             result["user_id"] = row.user_id
+            if row.user_id:
+                user_row = user_db.session.get(User, row.user_id)
+                result["user_name"] = user_row.name if user_row else None
+            else:
+                result["user_name"] = None
         return result
 
 
@@ -173,21 +187,38 @@ class TaskListResource(ProtectedResource):
         ViewOtherUser permission (Owner+) can see all tasks for the tree.
         """
         tree = get_tree_from_jwt_or_fail()
-        query = user_db.session.query(TaskTree).filter(TaskTree.tree == tree)
+        cutoff = get_task_result_cutoff()
+        query = user_db.session.query(TaskTree).filter(
+            TaskTree.tree == tree,
+            TaskTree.created_at >= cutoff,
+        )
         if not has_permissions([PERM_VIEW_OTHER_USER]):
             query = query.filter(TaskTree.user_id == get_jwt_identity())
-        rows = (
-            query.order_by(TaskTree.created_at.desc()).limit(args["limit"]).all()
-        )
+        rows = query.order_by(TaskTree.created_at.desc()).limit(args["limit"]).all()
+
+        # Batch-resolve user names: one query for all distinct user IDs.
+        distinct_ids = {row.user_id for row in rows if row.user_id}
+        user_name_map: dict = {}
+        if distinct_ids:
+            user_rows = (
+                user_db.session.query(User.id, User.name)
+                .filter(User.id.in_(distinct_ids))
+                .all()
+            )
+            user_name_map = {str(r.id): r.name for r in user_rows}
+
         return [
             {
                 "task_id": row.task_id,
                 "name": row.name,
                 "created_at": row.created_at,
                 "user_id": row.user_id,
-                "state": (AsyncResult(row.task_id).state or "PENDING")
-                if args["include_state"]
-                else None,
+                "user_name": user_name_map.get(row.user_id) if row.user_id else None,
+                "state": (
+                    (AsyncResult(row.task_id).state or "PENDING")
+                    if args["include_state"]
+                    else None
+                ),
             }
             for row in rows
         ]

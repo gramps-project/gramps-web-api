@@ -351,3 +351,141 @@ class TestTaskEndpoints(unittest.TestCase):
         assert rv.status_code == 200
         assert rv.json["state"] == "PENDING"
         assert rv.json["task_id"] == task_id
+
+    # --- user_name field (Copilot issue #4) ---
+
+    def test_list_user_name_populated(self):
+        """user_name is resolved from user_id in the task list."""
+        task_id = str(uuid.uuid4())
+        self._insert_row(task_id, name="export_db", user_id=self.owner_id)
+        rv = self.client.get("/api/tasks/", headers=self._auth("owner"))
+        assert rv.status_code == 200
+        task = next((t for t in rv.json if t["task_id"] == task_id), None)
+        assert task is not None
+        assert task["user_name"] == "ep_owner"
+
+    def test_list_user_name_none_for_system_task(self):
+        """System tasks (null user_id) have user_name=None in the task list."""
+        task_id = str(uuid.uuid4())
+        self._insert_row(task_id, name="send_telemetry_task", user_id=None)
+        rv = self.client.get("/api/tasks/", headers=self._auth("owner"))
+        assert rv.status_code == 200
+        task = next((t for t in rv.json if t["task_id"] == task_id), None)
+        assert task is not None
+        assert task["user_name"] is None
+
+    def test_get_task_user_name_populated(self):
+        """user_name is resolved from user_id in the task detail response."""
+        task_id = str(uuid.uuid4())
+        self._insert_row(task_id, name="export_db", user_id=self.member_id)
+        rv = self.client.get(f"/api/tasks/{task_id}", headers=self._auth("member"))
+        assert rv.status_code == 200
+        assert rv.json["user_name"] == "ep_member"
+
+    def test_get_task_user_name_none_for_system_task(self):
+        """System tasks (null user_id) have user_name=None in the task detail."""
+        task_id = str(uuid.uuid4())
+        self._insert_row(task_id, name="send_telemetry_task", user_id=None)
+        rv = self.client.get(f"/api/tasks/{task_id}", headers=self._auth("owner"))
+        assert rv.status_code == 200
+        assert rv.json["user_name"] is None
+
+    def test_list_excludes_expired_tasks(self):
+        """Tasks older than the result TTL are excluded from the list."""
+        fresh_id = str(uuid.uuid4())
+        expired_id = str(uuid.uuid4())
+        with self.app.app_context():
+            user_db.session.add(
+                TaskTree(
+                    task_id=fresh_id,
+                    tree=self.tree,
+                    user_id=self.owner_id,
+                    name="task",
+                    created_at=datetime.utcnow() - timedelta(hours=1),
+                )
+            )
+            user_db.session.add(
+                TaskTree(
+                    task_id=expired_id,
+                    tree=self.tree,
+                    user_id=self.owner_id,
+                    name="task",
+                    created_at=datetime.utcnow() - timedelta(hours=25),
+                )
+            )
+            user_db.session.commit()
+        rv = self.client.get("/api/tasks/", headers=self._auth("owner"))
+        assert rv.status_code == 200
+        returned_ids = [t["task_id"] for t in rv.json]
+        assert fresh_id in returned_ids
+        assert expired_id not in returned_ids
+
+
+class TestSearchIndexDispatch(unittest.TestCase):
+    """Tests that POST /api/search/index/ dispatches the correct task (Copilot issue #7)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app, cls.dbman, cls.tree = _make_app("TestSearchIndexDispatch")
+        cls.client = cls.app.test_client()
+        with cls.app.app_context():
+            user_db.create_all()
+            if not user_db.session.query(User).filter_by(name="si_owner").scalar():
+                add_user(name="si_owner", password="pw", role=ROLE_OWNER, tree=cls.tree)
+            cls.owner_id = str(
+                user_db.session.query(User).filter_by(name="si_owner").scalar().id
+            )
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.dbman.remove_database("TestSearchIndexDispatch")
+
+    def _token(self):
+        rv = self.client.post(
+            "/api/token/", json={"username": "si_owner", "password": "pw"}
+        )
+        return rv.json["access_token"]
+
+    def _auth(self):
+        return {"Authorization": f"Bearer {self._token()}"}
+
+    def _post_index(self, full: bool, semantic: bool):
+        with patch("gramps_webapi.api.resources.search.run_task") as mock_run_task:
+            mock_run_task.return_value = None  # synchronous path → 201
+            rv = self.client.post(
+                f"/api/search/index/?full={str(full).lower()}&semantic={str(semantic).lower()}",
+                headers=self._auth(),
+            )
+            return rv, mock_run_task
+
+    def test_full_nonsemantic_dispatches_search_reindex_full(self):
+        from gramps_webapi.api.tasks import search_reindex_full
+
+        rv, mock_run_task = self._post_index(full=True, semantic=False)
+        assert rv.status_code == 201
+        mock_run_task.assert_called_once()
+        assert mock_run_task.call_args[0][0] is search_reindex_full
+
+    def test_full_semantic_dispatches_search_reindex_full_semantic(self):
+        from gramps_webapi.api.tasks import search_reindex_full_semantic
+
+        rv, mock_run_task = self._post_index(full=True, semantic=True)
+        assert rv.status_code == 201
+        mock_run_task.assert_called_once()
+        assert mock_run_task.call_args[0][0] is search_reindex_full_semantic
+
+    def test_incremental_nonsemantic_dispatches_search_reindex_incremental(self):
+        from gramps_webapi.api.tasks import search_reindex_incremental
+
+        rv, mock_run_task = self._post_index(full=False, semantic=False)
+        assert rv.status_code == 201
+        mock_run_task.assert_called_once()
+        assert mock_run_task.call_args[0][0] is search_reindex_incremental
+
+    def test_incremental_semantic_dispatches_search_reindex_incremental_semantic(self):
+        from gramps_webapi.api.tasks import search_reindex_incremental_semantic
+
+        rv, mock_run_task = self._post_index(full=False, semantic=True)
+        assert rv.status_code == 201
+        mock_run_task.assert_called_once()
+        assert mock_run_task.call_args[0][0] is search_reindex_incremental_semantic
