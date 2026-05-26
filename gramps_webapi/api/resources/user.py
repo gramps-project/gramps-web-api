@@ -118,31 +118,45 @@ class UserChangeBase(ProtectedResource):
         return user_name, other_tree
 
 
+class UsersListArgsSchema(Schema):
+    """Query args for GET /users/."""
+
+    user_id = fields.Str(
+        load_default=None,
+        metadata={"description": "Filter to a single user by their UUID."},
+    )
+
+
 class UsersResource(ProtectedResource):
     """Resource for all users."""
 
     @api_blueprint.response(200, Schema(many=True))
-    def get(self):
+    @api_blueprint.arguments(UsersListArgsSchema, location="query")
+    def get(self, args):
         """Get users' details."""
         # Always include OIDC account information if OIDC is enabled
         include_oidc = is_oidc_enabled()
 
         if has_permissions([PERM_VIEW_OTHER_TREE_USER]):
             # return all users from all trees
-            return (
-                jsonify(
-                    get_all_user_details(tree=None, include_oidc_accounts=include_oidc)
-                ),
-                200,
+            details = get_all_user_details(tree=None, include_oidc_accounts=include_oidc)
+        else:
+            require_permissions([PERM_VIEW_OTHER_USER])
+            tree = get_tree_from_jwt()
+            # return only this tree's users
+            # only include treeless users in single-tree setup
+            is_single = current_app.config["TREE"] != TREE_MULTI
+            details = get_all_user_details(
+                tree=tree, include_treeless=is_single, include_oidc_accounts=include_oidc
             )
-        require_permissions([PERM_VIEW_OTHER_USER])
-        tree = get_tree_from_jwt()
-        # return only this tree's users
-        # only include treeless users in single-tree setup
-        is_single = current_app.config["TREE"] != TREE_MULTI
-        details = get_all_user_details(
-            tree=tree, include_treeless=is_single, include_oidc_accounts=include_oidc
-        )
+
+        if args["user_id"] is not None:
+            try:
+                user_name = get_name(args["user_id"])
+                details = [d for d in details if d.get("name") == user_name]
+            except ValueError:
+                details = []
+
         return (
             jsonify(details),
             200,

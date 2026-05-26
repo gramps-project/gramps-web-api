@@ -237,13 +237,26 @@ def set_progress_title(self, title: str = "", message: str = "") -> None:
 
 
 @shared_task(bind=True)
-def search_reindex_full(self, tree: str, user_id: str, semantic: bool) -> None:
-    """Rebuild the search index."""
+def search_reindex_full(self, tree: str, user_id: str) -> None:
+    """Rebuild the full-text search index."""
     return _search_reindex_full(
         tree=tree,
         user_id=user_id,
-        semantic=semantic,
+        semantic=False,
         progress_cb=progress_callback_count(self, title="Updating search index..."),
+    )
+
+
+@shared_task(bind=True)
+def search_reindex_full_semantic(self, tree: str, user_id: str) -> None:
+    """Rebuild the semantic search index."""
+    return _search_reindex_full(
+        tree=tree,
+        user_id=user_id,
+        semantic=True,
+        progress_cb=progress_callback_count(
+            self, title="Updating semantic search index..."
+        ),
     )
 
 
@@ -267,13 +280,26 @@ def _search_reindex_incremental(
 
 
 @shared_task(bind=True)
-def search_reindex_incremental(self, tree: str, user_id: str, semantic: bool) -> None:
-    """Run an incremental reindex of the search index."""
+def search_reindex_incremental(self, tree: str, user_id: str) -> None:
+    """Run an incremental reindex of the full-text search index."""
     return _search_reindex_incremental(
         tree=tree,
         user_id=user_id,
-        semantic=semantic,
+        semantic=False,
         progress_cb=progress_callback_count(self, title="Updating search index..."),
+    )
+
+
+@shared_task(bind=True)
+def search_reindex_incremental_semantic(self, tree: str, user_id: str) -> None:
+    """Run an incremental reindex of the semantic search index."""
+    return _search_reindex_incremental(
+        tree=tree,
+        user_id=user_id,
+        semantic=True,
+        progress_cb=progress_callback_count(
+            self, title="Updating semantic search index..."
+        ),
     )
 
 
@@ -475,7 +501,6 @@ def upgrade_database_schema(self, tree: str, user_id: str):
         close_db(db_handle)
 
 
-
 @shared_task(bind=True)
 def delete_objects(
     self, tree: str, user_id: str, namespaces: Optional[List[str]] = None
@@ -515,7 +540,12 @@ def delete_objects(
 
 @shared_task(bind=True)
 def process_transactions(
-    self, tree: str, user_id: str, payload: list[dict], force: bool, message: str = "Raw transaction"
+    self,
+    tree: str,
+    user_id: str,
+    payload: list[dict],
+    force: bool,
+    message: str = "Raw transaction",
 ):
     """Process a set of database transactions, updating search indices as needed."""
     num_people_deleted = sum(
@@ -728,7 +758,9 @@ def process_chat(
     response_text = sanitize_answer(result.response.text or "")
     response_dict: dict[str, Any] = {
         "response": response_text,
-        "message_history_raw": ModelMessagesTypeAdapter.dump_json(result.all_messages()).decode(),
+        "message_history_raw": ModelMessagesTypeAdapter.dump_json(
+            result.all_messages()
+        ).decode(),
     }
 
     if verbose:

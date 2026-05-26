@@ -28,7 +28,7 @@ from gramps.gen.lib.json_utils import object_to_string
 from marshmallow import Schema
 from webargs import fields
 
-from ...auth import TaskTree, user_db
+from ...auth import TaskTree, get_name, user_db
 from ...auth.const import PERM_VIEW_OTHER_USER
 from ..auth import has_permissions
 from ..blueprint import api_blueprint
@@ -71,6 +71,10 @@ class TaskStatusSchema(Schema):
         dump_default=None,
         metadata={"description": "UUID of the user who dispatched the task."},
     )
+    user_name = fields.Str(
+        dump_default=None,
+        metadata={"description": "Username of the user who dispatched the task."},
+    )
 
 
 class TaskListItemSchema(Schema):
@@ -88,6 +92,10 @@ class TaskListItemSchema(Schema):
     user_id = fields.Str(
         dump_default=None,
         metadata={"description": "UUID of the user who dispatched the task."},
+    )
+    user_name = fields.Str(
+        dump_default=None,
+        metadata={"description": "Username of the user who dispatched the task."},
     )
     state = fields.Str(
         dump_default=None,
@@ -158,6 +166,10 @@ class TaskResource(ProtectedResource):
             result["name"] = row.name
             result["created_at"] = row.created_at
             result["user_id"] = row.user_id
+            try:
+                result["user_name"] = get_name(row.user_id) if row.user_id else None
+            except ValueError:
+                result["user_name"] = None
         return result
 
 
@@ -176,18 +188,28 @@ class TaskListResource(ProtectedResource):
         query = user_db.session.query(TaskTree).filter(TaskTree.tree == tree)
         if not has_permissions([PERM_VIEW_OTHER_USER]):
             query = query.filter(TaskTree.user_id == get_jwt_identity())
-        rows = (
-            query.order_by(TaskTree.created_at.desc()).limit(args["limit"]).all()
-        )
+        rows = query.order_by(TaskTree.created_at.desc()).limit(args["limit"]).all()
+
+        def _user_name(user_id):
+            if not user_id:
+                return None
+            try:
+                return get_name(user_id)
+            except ValueError:
+                return None
+
         return [
             {
                 "task_id": row.task_id,
                 "name": row.name,
                 "created_at": row.created_at,
                 "user_id": row.user_id,
-                "state": (AsyncResult(row.task_id).state or "PENDING")
-                if args["include_state"]
-                else None,
+                "user_name": _user_name(row.user_id),
+                "state": (
+                    (AsyncResult(row.task_id).state or "PENDING")
+                    if args["include_state"]
+                    else None
+                ),
             }
             for row in rows
         ]
