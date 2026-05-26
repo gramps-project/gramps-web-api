@@ -237,12 +237,18 @@ def set_progress_title(self, title: str = "", message: str = "") -> None:
 
 
 @shared_task(bind=True)
-def search_reindex_full(self, tree: str, user_id: str) -> None:
-    """Rebuild the full-text search index."""
+def search_reindex_full(self, tree: str, user_id: str, semantic: bool = False) -> None:
+    """Rebuild the full-text search index.
+
+    The ``semantic`` parameter is accepted for backward compatibility with
+    jobs that were enqueued before this task was split into separate
+    full-text / semantic variants.  New callers should use
+    ``search_reindex_full_semantic`` for semantic reindexing.
+    """
     return _search_reindex_full(
         tree=tree,
         user_id=user_id,
-        semantic=False,
+        semantic=semantic,
         progress_cb=progress_callback_count(self, title="Updating search index..."),
     )
 
@@ -280,12 +286,20 @@ def _search_reindex_incremental(
 
 
 @shared_task(bind=True)
-def search_reindex_incremental(self, tree: str, user_id: str) -> None:
-    """Run an incremental reindex of the full-text search index."""
+def search_reindex_incremental(
+    self, tree: str, user_id: str, semantic: bool = False
+) -> None:
+    """Run an incremental reindex of the full-text search index.
+
+    The ``semantic`` parameter is accepted for backward compatibility with
+    jobs that were enqueued before this task was split into separate
+    full-text / semantic variants.  New callers should use
+    ``search_reindex_incremental_semantic`` for semantic reindexing.
+    """
     return _search_reindex_incremental(
         tree=tree,
         user_id=user_id,
-        semantic=False,
+        semantic=semantic,
         progress_cb=progress_callback_count(self, title="Updating search index..."),
     )
 

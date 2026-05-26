@@ -32,6 +32,7 @@ from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import (
+    User,
     add_user,
     create_oidc_account,
     delete_user,
@@ -419,6 +420,55 @@ class TestUser(unittest.TestCase):
             set(user["name"] for user in rv.json),
             {"admin", "user", "owner"},
         )
+
+    def test_show_users_filter_by_user_id(self):
+        """GET /api/users/?user_id=<id> returns only that user."""
+        with self.app.app_context():
+            target = user_db.session.query(User).filter_by(name="user").scalar()
+            target_id = str(target.id)
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        token_owner = rv.json["access_token"]
+        rv = self.client.get(
+            BASE_URL + f"/users/?user_id={target_id}",
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 200
+        assert len(rv.json) == 1
+        assert rv.json[0]["name"] == "user"
+
+    def test_show_users_filter_by_unknown_user_id(self):
+        """GET /api/users/?user_id=<nonexistent> returns empty list."""
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        token_owner = rv.json["access_token"]
+        rv = self.client.get(
+            BASE_URL + "/users/?user_id=00000000-0000-0000-0000-000000000000",
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 200
+        assert rv.json == []
+
+    def test_show_users_filter_by_user_id_cross_tree(self):
+        """owner of tree1 cannot retrieve a user from tree2 via user_id filter."""
+        with self.app.app_context():
+            other_tree_user = (
+                user_db.session.query(User).filter_by(name="user2").scalar()
+            )
+            other_id = str(other_tree_user.id)
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        token_owner = rv.json["access_token"]
+        rv = self.client.get(
+            BASE_URL + f"/users/?user_id={other_id}",
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 200
+        # user2 belongs to tree2; owner of tree1 must not see them
+        assert all(u["name"] != "user2" for u in rv.json)
 
     def test_edit_user(self):
         rv = self.client.post(

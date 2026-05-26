@@ -30,6 +30,7 @@ from marshmallow import Schema
 from webargs import fields
 
 from ...auth import (
+    User,
     add_user,
     add_users,
     authorized,
@@ -42,6 +43,7 @@ from ...auth import (
     get_user_details,
     get_user_oidc_accounts,
     modify_user,
+    user_db,
 )
 from ...auth.oidc_helpers import is_oidc_enabled
 from ...auth.const import (
@@ -139,7 +141,9 @@ class UsersResource(ProtectedResource):
 
         if has_permissions([PERM_VIEW_OTHER_TREE_USER]):
             # return all users from all trees
-            details = get_all_user_details(tree=None, include_oidc_accounts=include_oidc)
+            details = get_all_user_details(
+                tree=None, include_oidc_accounts=include_oidc
+            )
         else:
             require_permissions([PERM_VIEW_OTHER_USER])
             tree = get_tree_from_jwt()
@@ -147,15 +151,19 @@ class UsersResource(ProtectedResource):
             # only include treeless users in single-tree setup
             is_single = current_app.config["TREE"] != TREE_MULTI
             details = get_all_user_details(
-                tree=tree, include_treeless=is_single, include_oidc_accounts=include_oidc
+                tree=tree,
+                include_treeless=is_single,
+                include_oidc_accounts=include_oidc,
             )
 
         if args["user_id"] is not None:
-            try:
-                user_name = get_name(args["user_id"])
-                details = [d for d in details if d.get("name") == user_name]
-            except ValueError:
+            # Filter in Python against the already permission-scoped list so
+            # tree/permission boundaries are always respected.
+            target = user_db.session.get(User, args["user_id"])
+            if target is None:
                 details = []
+            else:
+                details = [d for d in details if d.get("name") == target.name]
 
         return (
             jsonify(details),

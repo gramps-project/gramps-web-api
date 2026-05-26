@@ -28,7 +28,7 @@ from gramps.gen.lib.json_utils import object_to_string
 from marshmallow import Schema
 from webargs import fields
 
-from ...auth import TaskTree, get_name, user_db
+from ...auth import TaskTree, User, user_db
 from ...auth.const import PERM_VIEW_OTHER_USER
 from ..auth import has_permissions
 from ..blueprint import api_blueprint
@@ -166,9 +166,10 @@ class TaskResource(ProtectedResource):
             result["name"] = row.name
             result["created_at"] = row.created_at
             result["user_id"] = row.user_id
-            try:
-                result["user_name"] = get_name(row.user_id) if row.user_id else None
-            except ValueError:
+            if row.user_id:
+                user_row = user_db.session.get(User, row.user_id)
+                result["user_name"] = user_row.name if user_row else None
+            else:
                 result["user_name"] = None
         return result
 
@@ -190,13 +191,16 @@ class TaskListResource(ProtectedResource):
             query = query.filter(TaskTree.user_id == get_jwt_identity())
         rows = query.order_by(TaskTree.created_at.desc()).limit(args["limit"]).all()
 
-        def _user_name(user_id):
-            if not user_id:
-                return None
-            try:
-                return get_name(user_id)
-            except ValueError:
-                return None
+        # Batch-resolve user names: one query for all distinct user IDs.
+        distinct_ids = {row.user_id for row in rows if row.user_id}
+        user_name_map: dict = {}
+        if distinct_ids:
+            user_rows = (
+                user_db.session.query(User.id, User.name)
+                .filter(User.id.in_(distinct_ids))
+                .all()
+            )
+            user_name_map = {str(r.id): r.name for r in user_rows}
 
         return [
             {
@@ -204,7 +208,7 @@ class TaskListResource(ProtectedResource):
                 "name": row.name,
                 "created_at": row.created_at,
                 "user_id": row.user_id,
-                "user_name": _user_name(row.user_id),
+                "user_name": user_name_map.get(row.user_id) if row.user_id else None,
                 "state": (
                     (AsyncResult(row.task_id).state or "PENDING")
                     if args["include_state"]
