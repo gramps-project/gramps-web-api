@@ -89,8 +89,8 @@ def _record_task(task_id: str, task: Task, kwargs: dict) -> None:
     user_db.session.commit()
 
 
-def _purge_expired_task_rows() -> None:
-    """Delete task_tree rows older than the Celery result TTL."""
+def get_task_result_cutoff() -> datetime:
+    """Return the earliest ``created_at`` that is still within the Celery result TTL."""
     from celery import current_app as celery_app
 
     ttl = getattr(celery_app.conf, "result_expires", None)
@@ -98,7 +98,12 @@ def _purge_expired_task_rows() -> None:
         ttl = timedelta(seconds=86400)
     elif not isinstance(ttl, timedelta):
         ttl = timedelta(seconds=int(ttl))
-    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - ttl
+    return datetime.now(timezone.utc).replace(tzinfo=None) - ttl
+
+
+def _purge_expired_task_rows() -> None:
+    """Delete task_tree rows older than the Celery result TTL."""
+    cutoff = get_task_result_cutoff()
     user_db.session.query(TaskTree).filter(TaskTree.created_at < cutoff).delete(
         synchronize_session=False
     )
