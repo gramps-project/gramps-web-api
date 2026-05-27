@@ -107,6 +107,7 @@ class DefaultConfig(object):
     OIDC_USERNAME_CLAIM = "preferred_username"
     OIDC_NAME = "OIDC"
     PILLOW_MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
+    MAX_THUMBNAIL_FILE_BYTES = 50 * 1024 * 1024  # 50 MB
 
 
 class DefaultConfigJWT(object):
