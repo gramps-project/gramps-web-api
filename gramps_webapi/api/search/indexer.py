@@ -361,6 +361,7 @@ class SemanticSearchIndexer(SearchIndexerBase):
         db_url: str | None = None,
         embedding_function: Callable | None = None,
         model_name: str | None = None,
+        skip_model_check: bool = False,
     ):
         """Initialize the indexer."""
         super().__init__(
@@ -372,7 +373,7 @@ class SemanticSearchIndexer(SearchIndexerBase):
         )
         self.model_name = model_name
         self._db_url = db_url
-        if db_url and model_name:
+        if db_url and model_name and not skip_model_check:
             stored = get_stored_model_name(db_url, tree)
             if stored is not None and stored != model_name:
                 raise ValueError(

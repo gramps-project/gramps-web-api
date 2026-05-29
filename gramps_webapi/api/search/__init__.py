@@ -83,5 +83,6 @@ def get_semantic_search_indexer(
         db_url=db_url,
         tree=tree,
         embedding_function=embedding_function,
-        model_name=model_name if not skip_model_check else None,
+        model_name=model_name,
+        skip_model_check=skip_model_check,
     )

@@ -71,11 +71,16 @@ def _sqlite_path(db_url: str) -> str:
 def _pg_dsn(db_url: str) -> str:
     url = urlparse(db_url)
     dbname = url.path[1:]
-    user = url.username
-    password = url.password
-    host = url.hostname
-    port = url.port
-    return f"dbname={dbname} user={user} password={password} host={host} port={port}"
+    parts = [f"dbname={dbname}"]
+    if url.username:
+        parts.append(f"user={url.username}")
+    if url.password:
+        parts.append(f"password={url.password}")
+    if url.hostname:
+        parts.append(f"host={url.hostname}")
+    if url.port:
+        parts.append(f"port={url.port}")
+    return " ".join(parts)
 
 
 def ensure_metadata_table(db_url: str) -> None:
