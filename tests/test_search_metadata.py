@@ -30,8 +30,15 @@ class TestGetStoredModelName:
         assert get_stored_model_name(db_url, "tree2") is None
 
     def test_returns_stored_model(self, db_url):
-        set_stored_model_name(db_url, "mytree", "sentence-transformers/distiluse-base-multilingual-cased-v2")
-        assert get_stored_model_name(db_url, "mytree") == "sentence-transformers/distiluse-base-multilingual-cased-v2"
+        set_stored_model_name(
+            db_url,
+            "mytree",
+            "sentence-transformers/distiluse-base-multilingual-cased-v2",
+        )
+        assert (
+            get_stored_model_name(db_url, "mytree")
+            == "sentence-transformers/distiluse-base-multilingual-cased-v2"
+        )
 
     def test_trees_are_independent(self, db_url):
         set_stored_model_name(db_url, "tree1", "model-a")

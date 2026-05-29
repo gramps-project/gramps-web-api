@@ -65,8 +65,15 @@ def get_search_indexer(tree: str) -> SearchIndexer:
     return SearchIndexer(db_url=db_url, tree=tree)
 
 
-def get_semantic_search_indexer(tree: str) -> SemanticSearchIndexer:
-    """Get the search indexer for the tree."""
+def get_semantic_search_indexer(
+    tree: str, skip_model_check: bool = False
+) -> SemanticSearchIndexer:
+    """Get the semantic search indexer for the tree.
+
+    Raises ValueError if the stored model name doesn't match the configured
+    model, unless ``skip_model_check=True`` (used when doing a full reindex
+    which will rebuild the index from scratch).
+    """
     db_url = _get_search_index_db_url()
     embedding_function = current_app.config.get("_EMBEDDING_FUNCTION")
     if not embedding_function:
@@ -76,5 +83,5 @@ def get_semantic_search_indexer(tree: str) -> SemanticSearchIndexer:
         db_url=db_url,
         tree=tree,
         embedding_function=embedding_function,
-        model_name=model_name,
+        model_name=model_name if not skip_model_check else None,
     )

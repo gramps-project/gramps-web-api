@@ -221,8 +221,8 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
                 )
             else:
                 searcher = get_search_indexer(tree)
-        except ValueError:
-            abort_with_message(500, "Failed initializing search")
+        except ValueError as exc:
+            abort_with_message(503, str(exc))
         if args["semantic"] and args.get("sort"):
             abort_with_message(
                 422, "the sort parameter is not allowed with semantic search"

@@ -198,7 +198,7 @@ def _search_reindex_full(
     """Rebuild the search index."""
     if semantic:
         indexer: SearchIndexer | SemanticSearchIndexer = get_semantic_search_indexer(
-            tree
+            tree, skip_model_check=True
         )
     else:
         indexer = get_search_indexer(tree)

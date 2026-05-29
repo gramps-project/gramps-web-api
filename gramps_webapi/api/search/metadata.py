@@ -64,7 +64,7 @@ def _get_pg_cursor(db_url: str):
 
 def _sqlite_path(db_url: str) -> str:
     if db_url.startswith("sqlite:///"):
-        return db_url[len("sqlite:///"):]
+        return db_url[len("sqlite:///") :]
     return db_url
 
 
