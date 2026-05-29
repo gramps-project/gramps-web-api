@@ -258,7 +258,11 @@ def search(ctx, tree, semantic):
     with app.app_context():
         ctx.obj["db_manager"] = get_db_manager(tree=tree)
         if semantic:
-            ctx.obj["search_indexer"] = get_semantic_search_indexer(tree=tree)
+            # skip_model_check=True so that CLI admin operations (including
+            # index-full needed to fix a mismatch) are never blocked here.
+            ctx.obj["search_indexer"] = get_semantic_search_indexer(
+                tree=tree, skip_model_check=True
+            )
         else:
             ctx.obj["search_indexer"] = get_search_indexer(tree=tree)
 

@@ -26,123 +26,62 @@ become silently incorrect.
 
 from __future__ import annotations
 
-import sqlite3
-from contextlib import contextmanager
 from typing import Optional
-from urllib.parse import urlparse
+
+from sqlalchemy import create_engine, text
 
 
 def _is_postgres(db_url: str) -> bool:
     return db_url.startswith("postgresql") or db_url.startswith("postgres")
 
 
-@contextmanager
-def _get_sqlite_conn(db_path: str):
-    """Open a SQLite connection."""
-    conn = sqlite3.connect(db_path)
-    conn.execute("begin")
-    try:
-        yield conn
-        conn.commit()
-    finally:
-        conn.close()
-
-
-@contextmanager
-def _get_pg_cursor(db_url: str):
-    """Open a PostgreSQL cursor."""
-    import psycopg2  # pylint: disable=import-outside-toplevel
-
-    conn = psycopg2.connect(dsn=_pg_dsn(db_url))
-    try:
-        cursor = conn.cursor()
-        yield cursor
-        conn.commit()
-    finally:
-        conn.close()
-
-
-def _sqlite_path(db_url: str) -> str:
-    if db_url.startswith("sqlite:///"):
-        return db_url[len("sqlite:///") :]
-    return db_url
-
-
-def _pg_dsn(db_url: str) -> str:
-    url = urlparse(db_url)
-    dbname = url.path[1:]
-    parts = [f"dbname={dbname}"]
-    if url.username:
-        parts.append(f"user={url.username}")
-    if url.password:
-        parts.append(f"password={url.password}")
-    if url.hostname:
-        parts.append(f"host={url.hostname}")
-    if url.port:
-        parts.append(f"port={url.port}")
-    return " ".join(parts)
+def _get_engine(db_url: str):
+    """Return a SQLAlchemy engine for the given URL."""
+    return create_engine(db_url)
 
 
 def ensure_metadata_table(db_url: str) -> None:
     """Create the semantic index metadata table if it doesn't exist."""
-    sql = """
+    sql = text("""
         CREATE TABLE IF NOT EXISTS semantic_index_metadata (
             tree TEXT PRIMARY KEY,
             model_name TEXT NOT NULL,
             indexed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    """
-    if _is_postgres(db_url):
-        with _get_pg_cursor(db_url) as cursor:
-            cursor.execute(sql)
-    else:
-        with _get_sqlite_conn(_sqlite_path(db_url)) as conn:
-            conn.execute(sql)
+        """)
+    engine = _get_engine(db_url)
+    with engine.begin() as conn:
+        conn.execute(sql)
 
 
 def get_stored_model_name(db_url: str, tree: str) -> Optional[str]:
     """Return the model name stored for this tree, or None if not set."""
     ensure_metadata_table(db_url)
-    if _is_postgres(db_url):
-        with _get_pg_cursor(db_url) as cursor:
-            cursor.execute(
-                "SELECT model_name FROM semantic_index_metadata WHERE tree = %s",
-                (tree,),
-            )
-            row = cursor.fetchone()
-    else:
-        with _get_sqlite_conn(_sqlite_path(db_url)) as conn:
-            row = conn.execute(
-                "SELECT model_name FROM semantic_index_metadata WHERE tree = ?",
-                (tree,),
-            ).fetchone()
+    engine = _get_engine(db_url)
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT model_name FROM semantic_index_metadata WHERE tree = :tree"),
+            {"tree": tree},
+        ).fetchone()
     return row[0] if row else None
 
 
 def set_stored_model_name(db_url: str, tree: str, model_name: str) -> None:
     """Persist the model name used to build the index for this tree."""
     ensure_metadata_table(db_url)
+    engine = _get_engine(db_url)
     if _is_postgres(db_url):
-        with _get_pg_cursor(db_url) as cursor:
-            cursor.execute(
-                """
-                INSERT INTO semantic_index_metadata (tree, model_name, indexed_at)
-                VALUES (%s, %s, CURRENT_TIMESTAMP)
-                ON CONFLICT (tree) DO UPDATE SET
-                    model_name = EXCLUDED.model_name,
-                    indexed_at = CURRENT_TIMESTAMP
-                """,
-                (tree, model_name),
-            )
+        upsert_sql = text("""
+            INSERT INTO semantic_index_metadata (tree, model_name, indexed_at)
+            VALUES (:tree, :model, CURRENT_TIMESTAMP)
+            ON CONFLICT (tree) DO UPDATE SET
+                model_name = EXCLUDED.model_name,
+                indexed_at = CURRENT_TIMESTAMP
+            """)
     else:
-        with _get_sqlite_conn(_sqlite_path(db_url)) as conn:
-            conn.execute(
-                """
-                INSERT INTO semantic_index_metadata (tree, model_name, indexed_at)
-                VALUES (?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT (tree) DO UPDATE SET
-                    model_name = excluded.model_name,
-                    indexed_at = CURRENT_TIMESTAMP
-                """,
-                (tree, model_name),
-            )
+        upsert_sql = text("""
+            INSERT OR REPLACE INTO semantic_index_metadata (tree, model_name, indexed_at)
+            VALUES (:tree, :model, CURRENT_TIMESTAMP)
+            """)
+    with engine.begin() as conn:
+        conn.execute(upsert_sql, {"tree": tree, "model": model_name})
