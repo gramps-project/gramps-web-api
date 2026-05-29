@@ -714,8 +714,6 @@ def get_person(ctx: RunContext[AgentDeps], gramps_id: str) -> str:
             person = db_handle.get_person_from_gramps_id(gramps_id)
             if person is None:
                 return f"No person found with Gramps ID '{gramps_id}'."
-            if not ctx.deps.include_private and person.private:
-                return f"Person '{gramps_id}' is private."
             obj_dict = obj_strings_from_object(
                 db_handle=db_handle,
                 class_name="Person",
@@ -767,8 +765,6 @@ def get_family(ctx: RunContext[AgentDeps], gramps_id: str) -> str:
             family = db_handle.get_family_from_gramps_id(gramps_id)
             if family is None:
                 return f"No family found with Gramps ID '{gramps_id}'."
-            if not ctx.deps.include_private and family.private:
-                return f"Family '{gramps_id}' is private."
             obj_dict = obj_strings_from_object(
                 db_handle=db_handle,
                 class_name="Family",
@@ -820,8 +816,6 @@ def get_event(ctx: RunContext[AgentDeps], gramps_id: str) -> str:
             event = db_handle.get_event_from_gramps_id(gramps_id)
             if event is None:
                 return f"No event found with Gramps ID '{gramps_id}'."
-            if not ctx.deps.include_private and event.private:
-                return f"Event '{gramps_id}' is private."
             obj_dict = obj_strings_from_object(
                 db_handle=db_handle,
                 class_name="Event",
