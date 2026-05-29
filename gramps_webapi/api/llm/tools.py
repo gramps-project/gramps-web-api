@@ -31,6 +31,7 @@ from pydantic_ai import RunContext
 from ..resources.filters import apply_filter
 from ..resources.util import get_one_relationship
 from ..search import get_search_indexer, get_semantic_search_indexer
+from ..search.indexer import SearchIndexerBase
 from ..search.text import obj_strings_from_object
 from ..util import get_db_outside_request, get_logger
 from .deps import AgentDeps
@@ -354,6 +355,7 @@ def search_genealogy_database(
     object_types = [object_type.lower()] if object_type else None
 
     try:
+        searcher: SearchIndexerBase
         if search_type == "fulltext":
             searcher = get_search_indexer(ctx.deps.tree)
         else:
