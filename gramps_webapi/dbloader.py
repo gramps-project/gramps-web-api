@@ -29,6 +29,12 @@ import os
 import tempfile
 from uuid import uuid4
 
+# Guard against registering plugins more than once per process.
+# BasePluginManager is a singleton, so repeated calls to reg_plugins()
+# accumulate duplicates in its internal list, which causes an AssertionError
+# in newer Gramps versions that assert list/dict consistency.
+_plugins_registered = False
+
 from gramps.gen.config import config
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.const import PLUGINS_DIR, USER_PLUGINS
@@ -283,7 +289,11 @@ class WebDbSessionManager:
 
     def do_reg_plugins(self, dbstate, uistate, rescan=False):
         """Register the plugins at initialization time."""
+        global _plugins_registered
+        if _plugins_registered and not rescan:
+            return
         self._pmgr.reg_plugins(PLUGINS_DIR, dbstate, uistate, rescan=rescan)
         self._pmgr.reg_plugins(USER_PLUGINS, dbstate, uistate, load_on_reg=True)
         if rescan:  # supports updated plugin installs
             self._pmgr.reload_plugins()
+        _plugins_registered = True
