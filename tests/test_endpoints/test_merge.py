@@ -68,6 +68,12 @@ class TestMerge(unittest.TestCase):
         cls.headers_editor = get_headers(cls.client, "editor", "pw")
         cls.headers_owner = get_headers(cls.client, "owner", "pw")
 
+        # Suppress search-index side-effects so tests don't pay the cost of
+        # synchronous task execution and extra db opens per merge call.
+        patcher = patch("gramps_webapi.api.resources.merge._update_search_index")
+        patcher.start()
+        cls.addClassCleanup(patcher.stop)
+
     @classmethod
     def tearDownClass(cls):
         cls.dbman.remove_database(cls.name)
