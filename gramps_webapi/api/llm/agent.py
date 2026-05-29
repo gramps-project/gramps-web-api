@@ -33,8 +33,10 @@ from .tools import (
     filter_families,
     filter_people,
     get_current_date,
+    get_event,
     get_family,
     get_person,
+    get_place,
     search_genealogy_database,
 )
 
@@ -101,7 +103,7 @@ For search_genealogy_database:
 
 MULTI-STEP LOOKUPS
 
-Call get_person or get_family when you need details not in your current results, such as family links, children, spouses, or a full event list.
+Call get_person, get_family, get_event, or get_place when you need details not in your current results. The links in tool results encode the object type in their path: `/person/ID` → get_person, `/family/ID` → get_family, `/event/ID` → get_event, `/place/ID` → get_place. Always use the matching tool for the link you are following.
 
 
 RELATIONSHIP QUERIES
@@ -167,6 +169,8 @@ def create_agent(
     agent.tool(search_genealogy_database)
     agent.tool(get_person)
     agent.tool(get_family)
+    agent.tool(get_event)
+    agent.tool(get_place)
     agent.tool(filter_people)
     agent.tool(filter_events)
     agent.tool(filter_families)
