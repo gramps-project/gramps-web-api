@@ -364,15 +364,8 @@ class SemanticSearchIndexer(SearchIndexerBase):
         skip_model_check: bool = False,
     ):
         """Initialize the indexer."""
-        super().__init__(
-            tree=tree,
-            db_url=db_url,
-            embedding_function=embedding_function,
-            use_fts=False,
-            use_semantic_text=True,
-        )
-        self.model_name = model_name
-        self._db_url = db_url
+        # Check for model mismatch BEFORE opening/creating the sifts collections
+        # via super().__init__, so no side effects occur on a stale index.
         if db_url and model_name and not skip_model_check:
             stored = get_stored_model_name(db_url, tree)
             if stored is not None and stored != model_name:
@@ -382,6 +375,15 @@ class SemanticSearchIndexer(SearchIndexerBase):
                     f"configured model is '{model_name}'. "
                     "Run a full semantic reindex to rebuild the index with the new model."
                 )
+        super().__init__(
+            tree=tree,
+            db_url=db_url,
+            embedding_function=embedding_function,
+            use_fts=False,
+            use_semantic_text=True,
+        )
+        self.model_name = model_name
+        self._db_url = db_url
 
     def reindex_full(
         self, db_handle: DbReadBase, progress_cb: ProgressCallback | None = None

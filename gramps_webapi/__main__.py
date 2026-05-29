@@ -257,12 +257,12 @@ def search(ctx, tree, semantic):
             tree = dbmgr.dirname
     with app.app_context():
         ctx.obj["db_manager"] = get_db_manager(tree=tree)
+        ctx.obj["tree"] = tree
+        ctx.obj["semantic"] = semantic
         if semantic:
-            # skip_model_check=True so that CLI admin operations (including
-            # index-full needed to fix a mismatch) are never blocked here.
-            ctx.obj["search_indexer"] = get_semantic_search_indexer(
-                tree=tree, skip_model_check=True
-            )
+            # Indexer is created per-subcommand so that index-full can pass
+            # skip_model_check=True while index-incremental keeps the check.
+            ctx.obj["search_indexer"] = None
         else:
             ctx.obj["search_indexer"] = get_search_indexer(tree=tree)
 
@@ -292,7 +292,15 @@ def index_full(ctx):
     app = ctx.obj["app"]
     app.logger.info("Rebuilding search index ...")
     db_manager = ctx.obj["db_manager"]
-    indexer = ctx.obj["search_indexer"]
+    if ctx.obj["semantic"]:
+        with app.app_context():
+            # skip_model_check=True: this is the operation that *fixes* a
+            # mismatch, so it must never be blocked by one.
+            indexer = get_semantic_search_indexer(
+                tree=ctx.obj["tree"], skip_model_check=True
+            )
+    else:
+        indexer = ctx.obj["search_indexer"]
     db = db_manager.get_db().db
 
     t0 = time.time()
@@ -312,7 +320,13 @@ def index_incremental(ctx):
     """Perform an incremental reindex."""
     app = ctx.obj["app"]
     db_manager = ctx.obj["db_manager"]
-    indexer = ctx.obj["search_indexer"]
+    if ctx.obj["semantic"]:
+        with app.app_context():
+            # No skip_model_check: mixing old and new vectors in an incremental
+            # pass would silently corrupt the index; force a full reindex.
+            indexer = get_semantic_search_indexer(tree=ctx.obj["tree"])
+    else:
+        indexer = ctx.obj["search_indexer"]
     db = db_manager.get_db().db
 
     try:
