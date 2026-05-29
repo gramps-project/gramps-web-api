@@ -29,8 +29,10 @@ from gramps_webapi.api.llm.tools import (
     filter_events,
     filter_families,
     filter_people,
+    get_event,
     get_family,
     get_person,
+    get_place,
 )
 from gramps_webapi.api.llm.deps import AgentDeps
 from gramps_webapi.api.search import get_search_indexer
@@ -1008,6 +1010,120 @@ class TestGetFamily(unittest.TestCase):
     def test_unknown_id_returns_not_found(self):
         result = self._get_family("INVALID_XYZ_999")
         self.assertIn("No family found", result)
+
+
+class TestGetEvent(unittest.TestCase):
+    """Tests for the get_event tool."""
+
+    valid_event_id = None
+
+    @classmethod
+    def setUpClass(cls):
+        from gramps_webapi.api.util import get_db_outside_request
+
+        with TEST_APP.app_context():
+            db = get_db_outside_request(
+                tree=TEST_TREE,
+                view_private=True,
+                readonly=True,
+                user_id="test_user",
+            )
+            try:
+                for handle in db.get_event_handles():
+                    event = db.get_event_from_handle(handle)
+                    cls.valid_event_id = event.get_gramps_id()
+                    break
+            finally:
+                db.close()
+
+    def setUp(self):
+        self.ctx = MagicMock()
+        self.ctx.deps = AgentDeps(
+            tree=TEST_TREE,
+            include_private=True,
+            max_context_length=50000,
+            user_id="test_user",
+        )
+
+    def _get_event(self, gramps_id):
+        with TEST_APP.app_context():
+            return get_event(self.ctx, gramps_id)
+
+    def test_known_event_returns_content(self):
+        if not self.valid_event_id:
+            self.skipTest("No event found in test database")
+        result = self._get_event(self.valid_event_id)
+        self.assertNotIn("Error", result)
+        self.assertNotIn("No event found", result)
+        self.assertGreater(len(result), 50)
+
+    def test_result_contains_event_link(self):
+        if not self.valid_event_id:
+            self.skipTest("No event found in test database")
+        result = self._get_event(self.valid_event_id)
+        self.assertNotIn("No event found", result)
+        self.assertIn("/event/", result)
+
+    def test_unknown_id_returns_not_found(self):
+        result = self._get_event("INVALID_XYZ_999")
+        self.assertIn("No event found", result)
+
+
+class TestGetPlace(unittest.TestCase):
+    """Tests for the get_place tool."""
+
+    valid_place_id = None
+
+    @classmethod
+    def setUpClass(cls):
+        from gramps_webapi.api.util import get_db_outside_request
+
+        with TEST_APP.app_context():
+            db = get_db_outside_request(
+                tree=TEST_TREE,
+                view_private=True,
+                readonly=True,
+                user_id="test_user",
+            )
+            try:
+                for handle in db.get_place_handles():
+                    place = db.get_place_from_handle(handle)
+                    cls.valid_place_id = place.get_gramps_id()
+                    break
+            finally:
+                db.close()
+
+    def setUp(self):
+        self.ctx = MagicMock()
+        self.ctx.deps = AgentDeps(
+            tree=TEST_TREE,
+            include_private=True,
+            max_context_length=50000,
+            user_id="test_user",
+        )
+
+    def _get_place(self, gramps_id):
+        with TEST_APP.app_context():
+            return get_place(self.ctx, gramps_id)
+
+    def test_known_place_returns_content(self):
+        if not self.valid_place_id:
+            self.skipTest("No place found in test database")
+        result = self._get_place(self.valid_place_id)
+        self.assertNotIn("Error", result)
+        self.assertNotIn("No place found", result)
+        self.assertGreater(len(result), 50)
+
+    def test_result_contains_place_link(self):
+        if not self.valid_place_id:
+            self.skipTest("No place found in test database")
+        result = self._get_place(self.valid_place_id)
+        self.assertNotIn("No place found", result)
+        self.assertIn("/place/", result)
+
+    def test_unknown_id_returns_not_found(self):
+        result = self._get_place("INVALID_XYZ_999")
+        self.assertIn("No place found", result)
 
 
 class TestFilterFamilies(unittest.TestCase):
