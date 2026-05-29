@@ -20,6 +20,8 @@
 """Tests for LLM tools."""
 
 import os
+import shutil
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -46,11 +48,14 @@ from tests import ExampleDbSQLite
 
 TEST_APP = None
 TEST_TREE = None
+_SEARCH_INDEX_TMPDIR = None
 
 
 def setUpModule():
     """Test module setup."""
-    global TEST_APP, TEST_TREE
+    global TEST_APP, TEST_TREE, _SEARCH_INDEX_TMPDIR
+
+    _SEARCH_INDEX_TMPDIR = tempfile.mkdtemp()
 
     # create a database with the Gramps example tree
     test_db = ExampleDbSQLite(name="example_gramps")
@@ -63,6 +68,7 @@ def setUpModule():
                 "MEDIA_BASE_DIR": f"{os.environ['GRAMPS_RESOURCES']}/doc/gramps/example/gramps",
                 "VECTOR_EMBEDDING_MODEL": "paraphrase-albert-small-v2",
                 "LLM_MODEL": "mock-model",
+                "SEARCH_INDEX_DB_URI": f"sqlite:///{_SEARCH_INDEX_TMPDIR}/search_index.db",
             },
             config_from_env=False,
         )
@@ -84,6 +90,12 @@ def setUpModule():
         db = db_state.db
         get_search_indexer(TEST_TREE).reindex_full(db)
         db_state.db.close()
+
+
+def tearDownModule():
+    """Test module teardown."""
+    if _SEARCH_INDEX_TMPDIR:
+        shutil.rmtree(_SEARCH_INDEX_TMPDIR, ignore_errors=True)
 
 
 class TestDateExpressionBuilder(unittest.TestCase):
