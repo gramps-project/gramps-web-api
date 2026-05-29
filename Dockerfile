@@ -23,6 +23,9 @@ ENV GRAMPSWEB_EXPORT_DIR=/app/cache/export
 ENV GRAMPSHOME=/root
 ENV GRAMPS_DATABASE_PATH=/root/.gramps/grampsdb
 
+# Model is baked into the base image - disable HF Hub network calls at runtime
+ENV HF_HUB_OFFLINE=1
+
 # copy package source and install
 COPY . /app/src
 RUN pip install --no-cache-dir /app/src[ai]
