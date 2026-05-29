@@ -27,13 +27,16 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
+import threading
 from uuid import uuid4
 
 # Guard against registering plugins more than once per process.
 # BasePluginManager is a singleton, so repeated calls to reg_plugins()
 # accumulate duplicates in its internal list, which causes an AssertionError
 # in newer Gramps versions that assert list/dict consistency.
+# The lock ensures the check/register/set sequence is atomic in threaded workers.
 _plugins_registered = False
+_plugins_lock = threading.Lock()
 
 from gramps.gen.config import config
 from gramps.gen.const import GRAMPS_LOCALE as glocale
@@ -290,10 +293,11 @@ class WebDbSessionManager:
     def do_reg_plugins(self, dbstate, uistate, rescan=False):
         """Register the plugins at initialization time."""
         global _plugins_registered
-        if _plugins_registered and not rescan:
-            return
-        self._pmgr.reg_plugins(PLUGINS_DIR, dbstate, uistate, rescan=rescan)
-        self._pmgr.reg_plugins(USER_PLUGINS, dbstate, uistate, load_on_reg=True)
-        if rescan:  # supports updated plugin installs
-            self._pmgr.reload_plugins()
-        _plugins_registered = True
+        with _plugins_lock:
+            if _plugins_registered and not rescan:
+                return
+            self._pmgr.reg_plugins(PLUGINS_DIR, dbstate, uistate, rescan=rescan)
+            self._pmgr.reg_plugins(USER_PLUGINS, dbstate, uistate, load_on_reg=True)
+            if rescan:  # supports updated plugin installs
+                self._pmgr.reload_plugins()
+            _plugins_registered = True
