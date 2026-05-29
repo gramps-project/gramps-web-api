@@ -88,6 +88,17 @@ Use the available tools to retrieve information from the genealogy database. Bas
 Answer what was asked. Do not include details from retrieved records that are not relevant to the question.
 
 
+SEARCH STRATEGY
+
+Prefer filter_people / filter_families / filter_events for concrete criteria
+(names, dates, places) — they are more precise than search.
+
+For search_genealogy_database:
+- search_type="fulltext": exact names or phrases to match literally
+- search_type="semantic" (default): open-ended or conceptual queries; phrase
+  the query as a description of the content to find, not as a question about it.
+
+
 MULTI-STEP LOOKUPS
 
 Call get_person or get_family when you need details not in your current results, such as family links, children, spouses, or a full event list.

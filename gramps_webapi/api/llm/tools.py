@@ -30,7 +30,8 @@ from pydantic_ai import RunContext
 
 from ..resources.filters import apply_filter
 from ..resources.util import get_one_relationship
-from ..search import get_semantic_search_indexer
+from ..search import get_search_indexer, get_semantic_search_indexer
+from ..search.indexer import SearchIndexerBase
 from ..search.text import obj_strings_from_object
 from ..util import get_db_outside_request, get_logger
 from .deps import AgentDeps
@@ -325,15 +326,20 @@ def search_genealogy_database(
     query: str,
     object_type: str = "",
     max_results: int = 20,
+    search_type: str = "semantic",
 ) -> str:
-    """Searches the user's family tree using semantic similarity.
+    """Search the family tree database.
 
     Args:
-        query: Search query for genealogical information
-        object_type: Restrict search to one object type. One of: "Person", "Family",
-            "Event", "Place", "Source", "Citation", "Repository", "Note", "Media".
+        query: Keywords or descriptive phrase to match. For semantic search, use
+            content-describing phrases ("Catholic farmer Bavaria born 1840"), not
+            verbatim questions. For fulltext, use exact names or phrases to match.
+        object_type: Restrict to one object type: "Person", "Family", "Event",
+            "Place", "Source", "Citation", "Repository", "Note", "Media".
             Leave empty to search all types.
         max_results: Maximum results to return (default: 20, max: 50)
+        search_type: "semantic" (default) for concept/biography queries;
+            "fulltext" for exact name/phrase matches.
 
     Returns:
         Formatted genealogical data matching the query.
@@ -349,7 +355,11 @@ def search_genealogy_database(
     object_types = [object_type.lower()] if object_type else None
 
     try:
-        searcher = get_semantic_search_indexer(ctx.deps.tree)
+        searcher: SearchIndexerBase
+        if search_type == "fulltext":
+            searcher = get_search_indexer(ctx.deps.tree)
+        else:
+            searcher = get_semantic_search_indexer(ctx.deps.tree)
         _, hits = searcher.search(
             query=query,
             page=1,
