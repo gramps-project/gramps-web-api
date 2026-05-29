@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020-2022      David Straub
+# Copyright (C) 2020-2026      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -68,6 +68,17 @@ from .resources.media import MediaObjectResource, MediaObjectsResource
 from .resources.metadata import MetadataResource, MetadataResearcherResource
 from .resources.name_formats import NameFormatsResource
 from .resources.name_groups import NameGroupsResource
+from .resources.merge import (
+    MergeCitationResource,
+    MergeEventResource,
+    MergeFamilyResource,
+    MergeMediaResource,
+    MergeNoteResource,
+    MergePersonResource,
+    MergePlaceResource,
+    MergeRepositoryResource,
+    MergeSourceResource,
+)
 from .resources.notes import NoteResource, NotesResource
 from .resources.objects import CreateObjectsResource, DeleteObjectsResource
 from .resources.ocr import MediaOcrResource
@@ -236,6 +247,12 @@ register_endpt(
     PersonYDnaResource, "/people/<string:handle>/ydna", "person-ydna", tags=["DNA"]
 )
 register_endpt(PeopleResource, "/people/", "people", tags=["People"])
+register_endpt(
+    MergePersonResource,
+    "/people/<string:phoenix_handle>/merge/<string:titanic_handle>",
+    "merge-person",
+    tags=["People"],
+)
 # Families
 register_endpt(
     FamilyTimelineResource,
@@ -245,6 +262,12 @@ register_endpt(
 )
 register_endpt(FamilyResource, "/families/<string:handle>", "family", tags=["Families"])
 register_endpt(FamiliesResource, "/families/", "families", tags=["Families"])
+register_endpt(
+    MergeFamilyResource,
+    "/families/<string:phoenix_handle>/merge/<string:titanic_handle>",
+    "merge-family",
+    tags=["Families"],
+)
 # Events
 register_endpt(
     EventSpanResource,
@@ -254,6 +277,12 @@ register_endpt(
 )
 register_endpt(EventResource, "/events/<string:handle>", "event", tags=["Events"])
 register_endpt(EventsResource, "/events/", "events", tags=["Events"])
+register_endpt(
+    MergeEventResource,
+    "/events/<string:phoenix_handle>/merge/<string:titanic_handle>",
+    "merge-event",
+    tags=["Events"],
+)
 # Timelines
 register_endpt(
     TimelinePeopleResource, "/timelines/people/", "timeline-people", tags=["Timeline"]
@@ -267,14 +296,32 @@ register_endpt(
 # Places
 register_endpt(PlaceResource, "/places/<string:handle>", "place", tags=["Places"])
 register_endpt(PlacesResource, "/places/", "places", tags=["Places"])
+register_endpt(
+    MergePlaceResource,
+    "/places/<string:phoenix_handle>/merge/<string:titanic_handle>",
+    "merge-place",
+    tags=["Places"],
+)
 # Citations
 register_endpt(
     CitationResource, "/citations/<string:handle>", "citation", tags=["Citations"]
 )
 register_endpt(CitationsResource, "/citations/", "citations", tags=["Citations"])
+register_endpt(
+    MergeCitationResource,
+    "/citations/<string:phoenix_handle>/merge/<string:titanic_handle>",
+    "merge-citation",
+    tags=["Citations"],
+)
 # Sources
 register_endpt(SourceResource, "/sources/<string:handle>", "source", tags=["Sources"])
 register_endpt(SourcesResource, "/sources/", "sources", tags=["Sources"])
+register_endpt(
+    MergeSourceResource,
+    "/sources/<string:phoenix_handle>/merge/<string:titanic_handle>",
+    "merge-source",
+    tags=["Sources"],
+)
 # Repositories
 register_endpt(
     RepositoryResource,
@@ -285,14 +332,32 @@ register_endpt(
 register_endpt(
     RepositoriesResource, "/repositories/", "repositories", tags=["Repositories"]
 )
+register_endpt(
+    MergeRepositoryResource,
+    "/repositories/<string:phoenix_handle>/merge/<string:titanic_handle>",
+    "merge-repository",
+    tags=["Repositories"],
+)
 # Media
 register_endpt(
     MediaObjectResource, "/media/<string:handle>", "media_object", tags=["Media"]
 )
 register_endpt(MediaObjectsResource, "/media/", "media_objects", tags=["Media"])
+register_endpt(
+    MergeMediaResource,
+    "/media/<string:phoenix_handle>/merge/<string:titanic_handle>",
+    "merge-media",
+    tags=["Media"],
+)
 # Notes
 register_endpt(NoteResource, "/notes/<string:handle>", "note", tags=["Notes"])
 register_endpt(NotesResource, "/notes/", "notes", tags=["Notes"])
+register_endpt(
+    MergeNoteResource,
+    "/notes/<string:phoenix_handle>/merge/<string:titanic_handle>",
+    "merge-note",
+    tags=["Notes"],
+)
 # Tags
 register_endpt(TagResource, "/tags/<string:handle>", "tag", tags=["Tags"])
 register_endpt(TagsResource, "/tags/", "tags", tags=["Tags"])
