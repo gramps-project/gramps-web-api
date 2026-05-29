@@ -748,9 +748,14 @@ def process_chat(
     )
     from pydantic_ai import ModelMessagesTypeAdapter
 
+    # Capture the task ID in the main worker thread before run_sync hands off
+    # tool calls to a thread-pool executor. Celery stores self.request in a
+    # thread-local, so self.request.id is None inside executor threads.
+    task_id = self.request.id
     step = 0
-    if self.request.id is not None:
+    if task_id is not None:
         self.update_state(
+            task_id=task_id,
             state="PROGRESS",
             meta={"step": 0, "tool": "", "message": "Processing your query..."},
         )
@@ -758,8 +763,9 @@ def process_chat(
     def progress_callback(tool_name: str, message: str) -> None:
         nonlocal step
         step += 1
-        if self.request.id is not None:
+        if task_id is not None:
             self.update_state(
+                task_id=task_id,
                 state="PROGRESS",
                 meta={"step": step, "tool": tool_name, "message": message},
             )
