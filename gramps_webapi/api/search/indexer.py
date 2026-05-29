@@ -28,6 +28,7 @@ from gramps.gen.db.base import DbReadBase
 
 from ...types import ProgressCallback
 from .text import iter_obj_strings, obj_strings_from_handle
+from .metadata import get_stored_model_name, set_stored_model_name
 from ..util import get_total_number_of_objects, get_object_timestamps
 
 
@@ -359,8 +360,21 @@ class SemanticSearchIndexer(SearchIndexerBase):
         tree: str,
         db_url: str | None = None,
         embedding_function: Callable | None = None,
+        model_name: str | None = None,
+        skip_model_check: bool = False,
     ):
         """Initialize the indexer."""
+        # Check for model mismatch BEFORE opening/creating the sifts collections
+        # via super().__init__, so no side effects occur on a stale index.
+        if db_url and model_name and not skip_model_check:
+            stored = get_stored_model_name(db_url, tree)
+            if stored is not None and stored != model_name:
+                raise ValueError(
+                    f"Embedding model mismatch for tree '{tree}': "
+                    f"the search index was built with '{stored}' but the "
+                    f"configured model is '{model_name}'. "
+                    "Run a full semantic reindex to rebuild the index with the new model."
+                )
         super().__init__(
             tree=tree,
             db_url=db_url,
@@ -368,3 +382,13 @@ class SemanticSearchIndexer(SearchIndexerBase):
             use_fts=False,
             use_semantic_text=True,
         )
+        self.model_name = model_name
+        self._db_url = db_url
+
+    def reindex_full(
+        self, db_handle: DbReadBase, progress_cb: ProgressCallback | None = None
+    ):
+        """Rebuild the semantic index and record the model name."""
+        super().reindex_full(db_handle, progress_cb=progress_cb)
+        if self._db_url and self.model_name:
+            set_stored_model_name(self._db_url, self.tree, self.model_name)

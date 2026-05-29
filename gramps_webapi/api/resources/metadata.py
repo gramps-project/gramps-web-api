@@ -43,6 +43,8 @@ from ...dbmanager import WebDbManager
 from ..auth import has_permissions, require_permissions
 from ..blueprint import api_blueprint
 from ..search import get_search_indexer, get_semantic_search_indexer
+from ..search import _get_search_index_db_url
+from ..search.metadata import get_stored_model_name
 from ..util import get_db_handle, get_tree_from_jwt_or_fail
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
@@ -153,11 +155,24 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
             "count": search_count,
         }
         if current_app.config.get("VECTOR_EMBEDDING_MODEL"):
-            searcher_s = get_semantic_search_indexer(tree_id)
-            search_count_s = searcher_s.count(
-                include_private=has_permissions({PERM_VIEW_PRIVATE})
-            )
-            sifts_info["count_semantic"] = search_count_s
+            configured_model = current_app.config["VECTOR_EMBEDDING_MODEL"]
+            try:
+                db_url = _get_search_index_db_url()
+                stored_model = get_stored_model_name(db_url, tree_id)
+                stale = stored_model is not None and stored_model != configured_model
+            except (ValueError, OSError):
+                stale = False
+            sifts_info["semantic_index_stale"] = stale
+            if not stale:
+                try:
+                    searcher_s = get_semantic_search_indexer(tree_id)
+                    sifts_info["count_semantic"] = searcher_s.count(
+                        include_private=has_permissions({PERM_VIEW_PRIVATE})
+                    )
+                except ValueError:
+                    sifts_info["count_semantic"] = None
+            else:
+                sifts_info["count_semantic"] = None
 
         result = {
             "database": {
