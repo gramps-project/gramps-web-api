@@ -1,7 +1,7 @@
 """add persistent access tokens table
 
 Revision ID: 6d8f3cb50b71
-Revises: 2082445b0769
+Revises: c1d2e3f4a5b6
 Create Date: 2026-03-31 00:25:00.000000
 
 """
@@ -15,7 +15,7 @@ from gramps_webapi.auth.sql_guid import GUID
 
 # revision identifiers, used by Alembic.
 revision = "6d8f3cb50b71"
-down_revision = "2082445b0769"
+down_revision = "c1d2e3f4a5b6"
 branch_labels = None
 depends_on = None
 
