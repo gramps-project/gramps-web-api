@@ -278,7 +278,9 @@ def _apply_gramps_filter(
         return f"Error filtering {namespace.lower()}s: {str(e)}"
 
 
-def _truncate_content(content: str, max_chars: int, head: int = 4000, tail: int = 1000) -> str:
+def _truncate_content(
+    content: str, max_chars: int, head: int = 4000, tail: int = 1000
+) -> str:
     """Truncate long content using head+tail strategy.
 
     Keeps the first `head` chars and last `tail` chars, with an elision marker in
@@ -291,11 +293,7 @@ def _truncate_content(content: str, max_chars: int, head: int = 4000, tail: int 
         # Truncation would not reduce the content; return as-is.
         return content
     elided = len(content) - head - tail
-    return (
-        content[:head]
-        + f"\n\n...[{elided} chars elided]...\n\n"
-        + content[-tail:]
-    )
+    return content[:head] + f"\n\n...[{elided} chars elided]...\n\n" + content[-tail:]
 
 
 def log_tool_call(func):
@@ -345,7 +343,9 @@ def search_genealogy_database(
         Formatted genealogical data matching the query.
     """
     if ctx.deps.progress_callback:
-        ctx.deps.progress_callback("search_genealogy_database", "Searching genealogy database...")
+        ctx.deps.progress_callback(
+            "search_genealogy_database", "Searching genealogy database..."
+        )
 
     logger = get_logger()
 
@@ -485,7 +485,9 @@ def filter_people(
         - Find extended family (uncles, aunts): degrees_of_separation_from="I0044", degrees_of_separation=3
     """
     if ctx.deps.progress_callback:
-        ctx.deps.progress_callback("filter_people", "Filtering people in family tree...")
+        ctx.deps.progress_callback(
+            "filter_people", "Filtering people in family tree..."
+        )
 
     logger = get_logger()
 
@@ -662,9 +664,7 @@ def filter_events(
                 db_handle.close()
             if person is None:
                 return f"No person found with Gramps ID '{participant_id}'."
-            participant_handles = [
-                ref.ref for ref in person.get_event_ref_list()
-            ]
+            participant_handles = [ref.ref for ref in person.get_event_ref_list()]
             if not participant_handles:
                 return f"No events found for person '{participant_id}'."
         except Exception as e:  # pylint: disable=broad-except
@@ -714,8 +714,6 @@ def get_person(ctx: RunContext[AgentDeps], gramps_id: str) -> str:
             person = db_handle.get_person_from_gramps_id(gramps_id)
             if person is None:
                 return f"No person found with Gramps ID '{gramps_id}'."
-            if not ctx.deps.include_private and person.private:
-                return f"Person '{gramps_id}' is private."
             obj_dict = obj_strings_from_object(
                 db_handle=db_handle,
                 class_name="Person",
@@ -767,8 +765,6 @@ def get_family(ctx: RunContext[AgentDeps], gramps_id: str) -> str:
             family = db_handle.get_family_from_gramps_id(gramps_id)
             if family is None:
                 return f"No family found with Gramps ID '{gramps_id}'."
-            if not ctx.deps.include_private and family.private:
-                return f"Family '{gramps_id}' is private."
             obj_dict = obj_strings_from_object(
                 db_handle=db_handle,
                 class_name="Family",
@@ -790,6 +786,108 @@ def get_family(ctx: RunContext[AgentDeps], gramps_id: str) -> str:
     except Exception as e:  # pylint: disable=broad-except
         logger.error("Error fetching family %s: %s", gramps_id, e)
         return f"Error fetching family '{gramps_id}': {e}"
+
+
+@log_tool_call
+def get_event(ctx: RunContext[AgentDeps], gramps_id: str) -> str:
+    """Fetch the full record for a single event by its Gramps ID.
+
+    Use this after finding an event Gramps ID in search or filter results to
+    retrieve the complete details: type, date, place, description, participants, etc.
+
+    Args:
+        gramps_id: The Gramps ID of the event (e.g., "E0123")
+
+    Returns:
+        Full event record as formatted text, or an error message.
+    """
+    if ctx.deps.progress_callback:
+        ctx.deps.progress_callback("get_event", "Fetching event record...")
+
+    logger = get_logger()
+    try:
+        db_handle = get_db_outside_request(
+            tree=ctx.deps.tree,
+            view_private=ctx.deps.include_private,
+            readonly=True,
+            user_id=ctx.deps.user_id,
+        )
+        try:
+            event = db_handle.get_event_from_gramps_id(gramps_id)
+            if event is None:
+                return f"No event found with Gramps ID '{gramps_id}'."
+            obj_dict = obj_strings_from_object(
+                db_handle=db_handle,
+                class_name="Event",
+                obj=event,
+                semantic=True,
+            )
+        finally:
+            db_handle.close()
+        if not obj_dict:
+            return f"No content available for event '{gramps_id}'."
+        content = (
+            obj_dict["string_all"]
+            if ctx.deps.include_private
+            else obj_dict["string_public"]
+        )
+        if not content:
+            return f"No content available for event '{gramps_id}'."
+        return _truncate_content(content, min(ctx.deps.max_context_length // 2, 10000))
+    except Exception as e:  # pylint: disable=broad-except
+        logger.error("Error fetching event %s: %s", gramps_id, e)
+        return f"Error fetching event '{gramps_id}': {e}"
+
+
+@log_tool_call
+def get_place(ctx: RunContext[AgentDeps], gramps_id: str) -> str:
+    """Fetch the full record for a single place by its Gramps ID.
+
+    Use this after finding a place Gramps ID in search or filter results to
+    retrieve the complete details: name, type, coordinates, place hierarchy, etc.
+
+    Args:
+        gramps_id: The Gramps ID of the place (e.g., "P0042")
+
+    Returns:
+        Full place record as formatted text, or an error message.
+    """
+    if ctx.deps.progress_callback:
+        ctx.deps.progress_callback("get_place", "Fetching place record...")
+
+    logger = get_logger()
+    try:
+        db_handle = get_db_outside_request(
+            tree=ctx.deps.tree,
+            view_private=ctx.deps.include_private,
+            readonly=True,
+            user_id=ctx.deps.user_id,
+        )
+        try:
+            place = db_handle.get_place_from_gramps_id(gramps_id)
+            if place is None:
+                return f"No place found with Gramps ID '{gramps_id}'."
+            obj_dict = obj_strings_from_object(
+                db_handle=db_handle,
+                class_name="Place",
+                obj=place,
+                semantic=True,
+            )
+        finally:
+            db_handle.close()
+        if not obj_dict:
+            return f"No content available for place '{gramps_id}'."
+        content = (
+            obj_dict["string_all"]
+            if ctx.deps.include_private
+            else obj_dict["string_public"]
+        )
+        if not content:
+            return f"No content available for place '{gramps_id}'."
+        return _truncate_content(content, min(ctx.deps.max_context_length // 2, 10000))
+    except Exception as e:  # pylint: disable=broad-except
+        logger.error("Error fetching place %s: %s", gramps_id, e)
+        return f"Error fetching place '{gramps_id}': {e}"
 
 
 @log_tool_call
