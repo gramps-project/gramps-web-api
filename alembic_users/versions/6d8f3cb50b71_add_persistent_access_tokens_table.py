@@ -33,7 +33,7 @@ def upgrade():
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column("user_id", GUID(), nullable=False),
         sa.Column("scope", sa.String(length=64), nullable=False),
-        sa.Column("token", sa.String(length=255), nullable=True),
+        sa.Column("token_hash", sa.String(length=64), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(),
@@ -52,11 +52,13 @@ def upgrade():
     )
     op.create_index("ix_access_tokens_user_id", "access_tokens", ["user_id"], unique=False)
     op.create_index("ix_access_tokens_scope", "access_tokens", ["scope"], unique=False)
-    op.create_index("ix_access_tokens_token", "access_tokens", ["token"], unique=True)
+    op.create_index(
+        "ix_access_tokens_token_hash", "access_tokens", ["token_hash"], unique=True
+    )
 
 
 def downgrade():
-    op.drop_index("ix_access_tokens_token", table_name="access_tokens")
+    op.drop_index("ix_access_tokens_token_hash", table_name="access_tokens")
     op.drop_index("ix_access_tokens_scope", table_name="access_tokens")
     op.drop_index("ix_access_tokens_user_id", table_name="access_tokens")
     op.drop_table("access_tokens")

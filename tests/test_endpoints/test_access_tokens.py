@@ -13,6 +13,7 @@
 
 import unittest
 
+from gramps_webapi.auth import AccessToken, get_guid, user_db
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 
 from . import BASE_URL, get_test_client
@@ -50,7 +51,8 @@ class TestAccessTokens(unittest.TestCase):
 
         rv = self.client.get(TOKEN_URL, headers=header)
         self.assertEqual(rv.status_code, 200)
-        self.assertEqual(rv.json, {"active": False, "token": None})
+        self.assertEqual(rv.json, {"active": False})
+        self.assertNotIn("token", rv.json)
 
         rv = self.client.post(TOKEN_URL, headers=header)
         self.assertEqual(rv.status_code, 200)
@@ -59,9 +61,21 @@ class TestAccessTokens(unittest.TestCase):
         self.assertIsInstance(token_1, str)
         self.assertNotEqual(token_1, "")
 
+        with self.client.application.app_context():
+            user_id = get_guid("owner")
+            row = (
+                user_db.session.query(AccessToken)  # pylint: disable=no-member
+                .filter_by(user_id=user_id, scope=SCOPE)
+                .one()
+            )
+            self.assertIsNotNone(row.token_hash)
+            self.assertNotEqual(row.token_hash, token_1)
+            self.assertEqual(len(row.token_hash), 64)
+
         rv = self.client.get(TOKEN_URL, headers=header)
         self.assertEqual(rv.status_code, 200)
-        self.assertEqual(rv.json, {"active": True, "token": token_1})
+        self.assertEqual(rv.json, {"active": True})
+        self.assertNotIn("token", rv.json)
 
         rv = self.client.post(TOKEN_URL, headers=header)
         self.assertEqual(rv.status_code, 200)
@@ -70,15 +84,18 @@ class TestAccessTokens(unittest.TestCase):
 
         rv = self.client.get(TOKEN_URL, headers=header)
         self.assertEqual(rv.status_code, 200)
-        self.assertEqual(rv.json, {"active": True, "token": token_2})
+        self.assertEqual(rv.json, {"active": True})
+        self.assertNotIn("token", rv.json)
 
         rv = self.client.delete(TOKEN_URL, headers=header)
         self.assertEqual(rv.status_code, 200)
-        self.assertEqual(rv.json, {"active": False, "token": None})
+        self.assertEqual(rv.json, {"active": False})
+        self.assertNotIn("token", rv.json)
 
         rv = self.client.get(TOKEN_URL, headers=header)
         self.assertEqual(rv.status_code, 200)
-        self.assertEqual(rv.json, {"active": False, "token": None})
+        self.assertEqual(rv.json, {"active": False})
+        self.assertNotIn("token", rv.json)
 
     def test_guest_can_manage_own_access_token(self):
         """Guests can manage own token because they can edit own user settings."""

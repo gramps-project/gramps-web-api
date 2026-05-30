@@ -17,7 +17,7 @@ from webargs import fields
 
 from ...auth import (
     get_name,
-    get_user_access_token,
+    has_user_access_token,
     normalize_access_token_scope,
     revoke_user_access_token,
     rotate_user_access_token,
@@ -29,16 +29,25 @@ from ..util import abort_with_message
 from . import ProtectedResource
 
 
-class AccessTokenStateSchema(Schema):
-    """Response schema for persistent access token state."""
+class AccessTokenStatusSchema(Schema):
+    """Response schema for persistent access token status."""
+
+    active = fields.Boolean(
+        required=True,
+        metadata={"description": "Whether a token is currently active."},
+    )
+
+
+class AccessTokenCreateSchema(Schema):
+    """Response schema for newly created or rotated persistent token."""
 
     active = fields.Boolean(
         required=True,
         metadata={"description": "Whether a token is currently active."},
     )
     token = fields.Str(
-        allow_none=True,
-        metadata={"description": "Persistent token value when active, else null."},
+        required=True,
+        metadata={"description": "Newly created persistent token value."},
     )
 
 
@@ -60,16 +69,16 @@ class UserAccessTokenResource(ProtectedResource):
             abort_with_message(422, str(exc))
             raise  # unreachable
 
-    @api_blueprint.response(200, AccessTokenStateSchema())
+    @api_blueprint.response(200, AccessTokenStatusSchema())
     def get(self, scope: str):
         """Get persistent token status for current user and scope."""
         require_permissions([PERM_EDIT_OWN_USER])
         scope = self._validate_scope(scope)
         user_name = self._get_user_name()
-        token = get_user_access_token(user_name, scope)
-        return {"active": token is not None, "token": token}, 200
+        active = has_user_access_token(user_name, scope)
+        return {"active": active}, 200
 
-    @api_blueprint.response(200, AccessTokenStateSchema())
+    @api_blueprint.response(200, AccessTokenCreateSchema())
     def post(self, scope: str):
         """Create or rotate persistent token for current user and scope."""
         require_permissions([PERM_EDIT_OWN_USER])
@@ -78,11 +87,11 @@ class UserAccessTokenResource(ProtectedResource):
         token = rotate_user_access_token(user_name, scope)
         return {"active": True, "token": token}, 200
 
-    @api_blueprint.response(200, AccessTokenStateSchema())
+    @api_blueprint.response(200, AccessTokenStatusSchema())
     def delete(self, scope: str):
         """Revoke persistent token for current user and scope."""
         require_permissions([PERM_EDIT_OWN_USER])
         scope = self._validate_scope(scope)
         user_name = self._get_user_name()
         revoke_user_access_token(user_name, scope)
-        return {"active": False, "token": None}, 200
+        return {"active": False}, 200

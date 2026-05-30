@@ -22,6 +22,7 @@
 
 import secrets
 import uuid
+from hashlib import sha256
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Set, Union
 
@@ -268,18 +269,26 @@ def normalize_access_token_scope(scope: str) -> str:
     return normalized_scope
 
 
-def get_user_access_token(username: str, scope: str) -> Optional[str]:
-    """Return persistent access token value for user+scope."""
+def _hash_access_token(token: str) -> str:
+    """Return deterministic SHA-256 hash for a persistent access token."""
+    return sha256(token.encode("utf-8")).hexdigest()
+
+
+def has_user_access_token(username: str, scope: str) -> bool:
+    """Return whether an active persistent access token exists for user+scope."""
     scope = normalize_access_token_scope(scope)
     query = user_db.session.query(User)  # pylint: disable=no-member
     user = query.filter_by(name=username).scalar()
     if user is None:
         raise ValueError("User does not exist")
     query = user_db.session.query(AccessToken)  # pylint: disable=no-member
-    access_token = query.filter_by(user_id=user.id, scope=scope).scalar()
-    if access_token is None:
-        return None
-    return access_token.token
+    access_token = query.filter(  # pylint: disable=no-member
+        AccessToken.user_id == user.id,
+        AccessToken.scope == scope,
+        AccessToken.token_hash.isnot(None),
+        AccessToken.revoked_at.is_(None),
+    ).scalar()
+    return access_token is not None
 
 
 def rotate_user_access_token(username: str, scope: str) -> str:
@@ -293,10 +302,11 @@ def rotate_user_access_token(username: str, scope: str) -> str:
     access_token = query.filter_by(user_id=user.id, scope=scope).scalar()
     for _ in range(5):
         token = secrets.token_urlsafe(32)
+        token_hash = _hash_access_token(token)
         if access_token is None:
             access_token = AccessToken(user_id=user.id, scope=scope)
             user_db.session.add(access_token)  # pylint: disable=no-member
-        access_token.token = token
+        access_token.token_hash = token_hash
         access_token.revoked_at = None
         access_token.updated_at = datetime.utcnow()
         try:
@@ -320,7 +330,7 @@ def revoke_user_access_token(username: str, scope: str) -> None:
     access_token = query.filter_by(user_id=user.id, scope=scope).scalar()
     if access_token is None:
         return
-    access_token.token = None
+    access_token.token_hash = None
     access_token.revoked_at = datetime.utcnow()
     access_token.updated_at = datetime.utcnow()
     user_db.session.commit()  # pylint: disable=no-member
@@ -331,13 +341,14 @@ def get_user_from_access_token(token: str, scope: str) -> Optional["User"]:
     if not token:
         return None
     scope = normalize_access_token_scope(scope)
+    token_hash = _hash_access_token(token)
     query = user_db.session.query(User)  # pylint: disable=no-member
     return (
         query.join(AccessToken, AccessToken.user_id == User.id)
         .filter(
             AccessToken.scope == scope,
-            AccessToken.token == token,
-            AccessToken.token.isnot(None),
+            AccessToken.token_hash == token_hash,
+            AccessToken.token_hash.isnot(None),
             AccessToken.revoked_at.is_(None),
         )
         .scalar()
@@ -645,7 +656,7 @@ class AccessToken(user_db.Model):  # type: ignore
         GUID, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     scope = mapped_column(sa.String(64), nullable=False, index=True)
-    token = mapped_column(sa.String(255), nullable=True, unique=True, index=True)
+    token_hash = mapped_column(sa.String(64), nullable=True, unique=True, index=True)
     created_at = mapped_column(
         sa.DateTime, nullable=False, server_default=sa.func.now()
     )
