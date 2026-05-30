@@ -20,6 +20,8 @@
 """Tests for the merge endpoints."""
 
 import os
+import shutil
+import tempfile
 import unittest
 import uuid
 from typing import Dict
@@ -54,8 +56,13 @@ class TestMerge(unittest.TestCase):
         cls.dbman = CLIDbManager(DbState())
         dirpath, _ = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
         tree = os.path.basename(dirpath)
+        cls.index_dir = tempfile.mkdtemp()
+        index_db_uri = f"sqlite:///{cls.index_dir}/search_index.db"
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
-            cls.app = create_app(config_from_env=False)
+            cls.app = create_app(
+                config={"SEARCH_INDEX_DB_URI": index_db_uri},
+                config_from_env=False,
+            )
         cls.app.config["TESTING"] = True
         cls.client = cls.app.test_client()
         with cls.app.app_context():
@@ -68,15 +75,10 @@ class TestMerge(unittest.TestCase):
         cls.headers_editor = get_headers(cls.client, "editor", "pw")
         cls.headers_owner = get_headers(cls.client, "owner", "pw")
 
-        # Suppress search-index side-effects so tests don't pay the cost of
-        # synchronous task execution and extra db opens per merge call.
-        patcher = patch("gramps_webapi.api.resources.merge._update_search_index")
-        patcher.start()
-        cls.addClassCleanup(patcher.stop)
-
     @classmethod
     def tearDownClass(cls):
         cls.dbman.remove_database(cls.name)
+        shutil.rmtree(cls.index_dir)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -311,6 +313,35 @@ class TestMerge(unittest.TestCase):
         h2 = self._create_family()
         rv = self._merge("families", h1, h2, headers=self.headers_guest)
         self.assertEqual(rv.status_code, 403)
+
+    def test_merge_family_conflict_returns_409(self):
+        """Merging a family that has no father with one that does must return 409.
+
+        MergeFamilyQuery.merge_person raises MergeError when phoenix has no
+        father but titanic does, because the non-existent person must be the
+        one deleted.
+        """
+        father_handle = self._create_person(first_name="Father")
+        h_no_father = self._create_family()
+        fam_with_father_handle = make_handle()
+        fam = {
+            "_class": "Family",
+            "handle": fam_with_father_handle,
+            "gramps_id": f"F{fam_with_father_handle[:6]}",
+            "father_handle": father_handle,
+        }
+        self.assertEqual(self._post("/api/families/", json=fam).status_code, 201)
+        rv = self._merge("families", h_no_father, fam_with_father_handle)
+        self.assertEqual(rv.status_code, 409)
+
+    def test_merge_family_invalid_parent_handle_returns_400(self):
+        """Supplying a phoenix_father_handle that belongs to neither family returns 400."""
+        h1 = self._create_family()
+        h2 = self._create_family()
+        rv = self._merge(
+            "families", h1, h2, body={"phoenix_father_handle": "DOESNOTEXIST"}
+        )
+        self.assertEqual(rv.status_code, 400)
 
     # ------------------------------------------------------------------
     # Event
