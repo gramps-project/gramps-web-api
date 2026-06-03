@@ -877,9 +877,40 @@ def complete_gramps_object_dict(data: dict[str, Any]):
     return data
 
 
+def recalc_date_sortvals(data: Any) -> Any:
+    """Recompute the ``sortval`` of every embedded ``Date`` in an object dict.
+
+    Gramps Web stores whatever a client sends, and ``Date`` deserialization does not
+    recalculate ``sortval`` from ``dateval`` — so a stale, zero, or missing ``sortval``
+    is persisted verbatim and silently breaks date sorting (gramps-project/gramps-web-api#869).
+    This walks the dict and, for every serialized ``Date``, lets Gramps recompute
+    ``sortval`` from ``dateval`` (correct across calendars, modifiers, and BCE dates).
+    Modifies ``data`` in place and returns it.
+    """
+    if isinstance(data, dict):
+        if data.get("_class") == "Date" and "dateval" in data:
+            try:
+                date = data_to_object(data)
+                date.recalc_sort_value()
+                data["sortval"] = date.sortval
+            except Exception:  # pragma: no cover - never block a write on one bad date
+                pass
+        else:
+            for value in data.values():
+                recalc_date_sortvals(value)
+    elif isinstance(data, list):
+        for value in data:
+            recalc_date_sortvals(value)
+    return data
+
+
 def gramps_object_from_dict(data: dict[str, Any]):
     """Instantiate a Gramps object from a dictionary.
 
     The dictionary can be incomplete, i.e. not contain all properties of
     the object class."""
-    return data_to_object(complete_gramps_object_dict(data))
+    completed = complete_gramps_object_dict(data)
+    # Keep Date sortval authoritative on write (gramps-web-api#869): the client's
+    # value is not to be trusted, since sorting depends on it.
+    recalc_date_sortvals(completed)
+    return data_to_object(completed)
