@@ -656,7 +656,7 @@ class AccessToken(user_db.Model):  # type: ignore
         GUID, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     scope = mapped_column(sa.String(64), nullable=False, index=True)
-    token_hash = mapped_column(sa.String(64), nullable=True, unique=True, index=True)
+    token_hash = mapped_column(sa.String(64), nullable=True)
     created_at = mapped_column(
         sa.DateTime, nullable=False, server_default=sa.func.now()
     )
@@ -667,6 +667,7 @@ class AccessToken(user_db.Model):  # type: ignore
 
     __table_args__ = (
         sa.UniqueConstraint("user_id", "scope", name="uq_access_tokens_user_scope"),
+        sa.Index("ix_access_tokens_token_hash", "token_hash", unique=True),
     )
 
     def __repr__(self):
