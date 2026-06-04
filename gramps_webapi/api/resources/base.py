@@ -260,10 +260,11 @@ class GrampsObjectQueryArgs(Schema):
                 "span",
                 "ratings",
                 "references",
+                "participants",
             ]
         ),
         metadata={
-            "description": "Comma-delimited list of profile sections to include. 'self': name/sex/birth/death; 'families': family summaries; 'events': event list; 'age': age at events; 'span': elapsed time; 'ratings': citation count and confidence; 'references': referring objects. Use 'all' for everything."
+            "description": "Comma-delimited list of profile sections to include. 'self': name/sex/birth/death; 'families': family summaries; 'events': event list; 'age': age at events; 'span': elapsed time; 'ratings': citation count and confidence; 'references': referring objects; 'participants': event participants (people and families). Use 'all' for everything."
         },
     )
     skipkeys = fields.DelimitedList(
@@ -495,10 +496,11 @@ class GrampsObjectsQueryArgs(Schema):
                 "span",
                 "ratings",
                 "references",
+                "participants",
             ]
         ),
         metadata={
-            "description": "Comma-delimited list of profile sections to include. 'self': name/sex/birth/death; 'families': family summaries; 'events': event list; 'age': age at events; 'span': elapsed time; 'ratings': citation count and confidence; 'references': referring objects. Use 'all' for everything."
+            "description": "Comma-delimited list of profile sections to include. 'self': name/sex/birth/death; 'families': family summaries; 'events': event list; 'age': age at events; 'span': elapsed time; 'ratings': citation count and confidence; 'references': referring objects; 'participants': event participants (people and families). Use 'all' for everything."
         },
     )
     rules = fields.Str(
