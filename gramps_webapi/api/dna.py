@@ -68,11 +68,19 @@ def cast_int(value: str) -> int:
 def cast_float(value: str) -> float:
     """Cast a string to a float."""
     value = value.replace(" ", "")
-    if value.count(".") > 1:
+    if value.count(".") >= 1 and value.count(",") >= 1:
+        # Both separators are present (e.g. "1.234,56" or "1,234.56"). The
+        # rightmost one is the decimal separator; the other groups thousands
+        # and is removed.
+        if value.rfind(",") > value.rfind("."):
+            value = value.replace(".", "").replace(",", ".")
+        else:
+            value = value.replace(",", "")
+    elif value.count(".") > 1:
         value = value.replace(".", "")
-    if value.count(",") > 1:
+    elif value.count(",") > 1:
         value = value.replace(",", "")
-    if value.count(",") == 1 and value.count(".") == 0:
+    elif value.count(",") == 1 and value.count(".") == 0:
         value = value.replace(",", ".")
     try:
         return float(value)
