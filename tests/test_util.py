@@ -262,7 +262,9 @@ def test_send_email_ssl_false_starttls_true(mock_smtp, mock_smtp_ssl, mock_get_c
 
 @patch("gramps_webapi.api.util.smtplib.SMTP_SSL")
 @patch("gramps_webapi.api.util.smtplib.SMTP")
-def test_send_email_legacy_use_tls_false_deprecation_warning(mock_smtp, mock_smtp_ssl, mock_get_config):
+def test_send_email_legacy_use_tls_false_deprecation_warning(
+    mock_smtp, mock_smtp_ssl, mock_get_config
+):
     """Test that legacy EMAIL_USE_TLS=false logs deprecation warning."""
     mock_get_config["EMAIL_USE_TLS"] = False
     mock_get_config["EMAIL_PORT"] = "587"
@@ -277,3 +279,47 @@ def test_send_email_legacy_use_tls_false_deprecation_warning(mock_smtp, mock_smt
     mock_smtp.assert_called_once()
     mock_smtp_instance.starttls.assert_called_once()
     mock_smtp_ssl.assert_not_called()
+
+
+def test_recalc_date_sortvals_fixes_stale_sortval():
+    """gramps-web-api#869: a client-supplied stale/zero sortval must be recomputed."""
+    from gramps.gen.lib import Date
+    from gramps.gen.lib.json_utils import object_to_dict
+
+    from gramps_webapi.api.util import gramps_object_from_dict, recalc_date_sortvals
+
+    date = Date()
+    date.set_yr_mon_day(1922, 5, 3)
+    correct = date.sortval
+    assert correct  # 2423178, computed by gramps
+
+    # an Event whose embedded Date arrives with a corrupted sortval
+    event = {
+        "_class": "Event",
+        "type": {"_class": "EventType", "value": 12, "string": "Birth"},
+        "date": object_to_dict(date),
+    }
+    event["date"]["sortval"] = 0
+    recalc_date_sortvals(event)
+    assert event["date"]["sortval"] == correct
+
+    # and end-to-end through the deserializer used by the write endpoints
+    event["date"]["sortval"] = 1
+    obj = gramps_object_from_dict(event)
+    assert obj.get_date_object().sortval == correct
+
+
+def test_recalc_date_sortvals_year_only():
+    """Year-only dates (no month/day) also get a correct sortval."""
+    from gramps.gen.lib import Date
+    from gramps.gen.lib.json_utils import object_to_dict
+
+    from gramps_webapi.api.util import recalc_date_sortvals
+
+    date = Date()
+    date.set_yr_mon_day(1827, 0, 0)
+    correct = date.sortval
+    date_dict = object_to_dict(date)
+    date_dict["sortval"] = 0
+    recalc_date_sortvals({"_class": "Event", "date": date_dict})
+    assert date_dict["sortval"] == correct
