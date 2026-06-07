@@ -580,6 +580,32 @@ def delete_object(
     return trans_dict
 
 
+_NAMESPACE_TO_CLASS_NAME = {plural: name for name, plural in GRAMPS_OBJECT_PLURAL.items()}
+
+
+def delete_objects_by_handle(
+    db_handle: DbWriteBase,
+    namespace: str,
+    handles: List[str],
+) -> List[Dict[str, Any]]:
+    """Delete specific objects of a single type, given by namespace, by handle."""
+    try:
+        class_name = _NAMESPACE_TO_CLASS_NAME[namespace]
+    except KeyError:
+        raise ValueError(f"Unknown namespace {namespace}")
+    del_method = delete_methods[class_name.lower()]
+    unset_default_person = (
+        class_name == "Person" and db_handle.get_default_handle() in handles
+    )
+    with DbTxn(f"Delete {namespace}", db_handle) as trans:
+        if unset_default_person:
+            db_handle.set_default_person_handle(None)
+        for handle in handles:
+            del_method(db_handle=db_handle, handle=handle, trans=trans)
+        trans_dict = transaction_to_json(trans)
+    return trans_dict
+
+
 def delete_all_objects(
     db_handle: DbWriteBase,
     namespaces: Optional[List[str]] = None,
