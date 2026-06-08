@@ -43,7 +43,6 @@ from ...auth.const import (
 from ...const import GRAMPS_OBJECT_PLURAL
 from ..auth import require_permissions
 from ..blueprint import api_blueprint
-from ..search import SearchIndexer, get_search_indexer, get_semantic_search_indexer
 from ..tasks import (
     AsyncResult,
     delete_objects,
@@ -60,15 +59,9 @@ from ..util import (
     update_usage_people,
 )
 from . import FreshProtectedResource, ProtectedResource
-from .delete import delete_objects_by_handle
+from .delete import delete_objects_by_handle, remove_deleted_from_search_indices
 from .schemas import TaskReferenceSchema, TransactionSchema
-from .util import (
-    add_object,
-    app_has_semantic_search,
-    fix_object_dict,
-    transaction_to_json,
-    validate_object_dict,
-)
+from .util import add_object, fix_object_dict, transaction_to_json, validate_object_dict
 
 
 class CreateObjectsResource(ProtectedResource):
@@ -185,16 +178,6 @@ class DeleteObjectsByHandleQueryArgs(Schema):
     )
 
 
-def _delete_from_search_indices(tree: str, handle: str, class_name: str) -> None:
-    """Remove an object from the full-text and semantic search indices."""
-    indexer: SearchIndexer = get_search_indexer(tree)
-    indexer.delete_object(handle=handle, class_name=class_name)
-    if app_has_semantic_search():
-        get_semantic_search_indexer(tree).delete_object(
-            handle=handle, class_name=class_name
-        )
-
-
 class DeleteObjectsByHandleResource(ProtectedResource):
     """Resource for deleting specific objects of one type by handle."""
 
@@ -212,13 +195,7 @@ class DeleteObjectsByHandleResource(ProtectedResource):
         if any(item["_class"] == "Person" for item in trans_dict):
             update_usage_people()
         tree = get_tree_from_jwt_or_fail()
-        # deletions are cheap: remove from the search indices right away
-        trans_dict_to_reindex = []
-        for item in trans_dict:
-            if item["type"] == "delete":
-                _delete_from_search_indices(tree, item["handle"], item["_class"])
-            else:
-                trans_dict_to_reindex.append(item)
+        trans_dict_to_reindex = remove_deleted_from_search_indices(tree, trans_dict)
         # additions/updates require (re)computing embeddings: do it in the background
         if trans_dict_to_reindex:
             run_task(
