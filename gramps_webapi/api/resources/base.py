@@ -42,7 +42,6 @@ from ...const import GRAMPS_OBJECT_PLURAL, NAME_FORMAT_REGEXP
 from ..auth import require_permissions
 from ..blueprint import api_blueprint
 from ..cache import request_cache_decorator
-from ..search import SearchIndexer, get_search_indexer
 from ..tasks import run_task, update_search_indices_from_transaction
 from ..util import (
     check_quota_people,
@@ -53,7 +52,7 @@ from ..util import (
     update_usage_people,
 )
 from . import ProtectedResource, Resource
-from .delete import delete_object
+from .delete import delete_object, remove_deleted_from_search_indices
 from .emit import GrampsJSONEncoder
 from .filters import apply_filter
 from .match import match_dates
@@ -323,10 +322,16 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         # update usage
         if self.gramps_class_name == "Person":
             update_usage_people()
-        # update search index
+        # update search indices
         tree = get_tree_from_jwt_or_fail()
-        indexer: SearchIndexer = get_search_indexer(tree)
-        indexer.delete_object(handle=handle, class_name=self.gramps_class_name)
+        trans_dict_to_reindex = remove_deleted_from_search_indices(tree, trans_dict)
+        if trans_dict_to_reindex:
+            run_task(
+                update_search_indices_from_transaction,
+                trans_dict=trans_dict_to_reindex,
+                tree=tree,
+                user_id=get_jwt_identity(),
+            )
         return self.response(200, trans_dict, total_items=len(trans_dict))
 
     def put(self, handle: str) -> ResponseReturnValue:

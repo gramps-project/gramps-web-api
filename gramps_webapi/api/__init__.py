@@ -80,7 +80,11 @@ from .resources.merge import (
     MergeSourceResource,
 )
 from .resources.notes import NoteResource, NotesResource
-from .resources.objects import CreateObjectsResource, DeleteObjectsResource
+from .resources.objects import (
+    CreateObjectsResource,
+    DeleteObjectsByHandleResource,
+    DeleteObjectsResource,
+)
 from .resources.ocr import MediaOcrResource
 from .resources.people import PeopleResource, PersonResource
 from .resources.places import PlaceResource, PlacesResource
@@ -172,6 +176,12 @@ def register_endpt(
 register_endpt(CreateObjectsResource, "/objects/", "objects", tags=["Transactions"])
 register_endpt(
     DeleteObjectsResource, "/objects/delete/", "delete_objects", tags=["Transactions"]
+)
+register_endpt(
+    DeleteObjectsByHandleResource,
+    "/objects/delete-by-handle/",
+    "delete_objects_by_handle",
+    tags=["Transactions"],
 )
 # Transactions
 register_endpt(

@@ -39,7 +39,8 @@ from gramps.gen.utils.db import (
 )
 
 from ...const import GRAMPS_OBJECT_PLURAL
-from .util import transaction_to_json
+from ..search import get_search_indexer, get_semantic_search_indexer
+from .util import app_has_semantic_search, transaction_to_json
 
 
 def delete_person(db_handle: DbWriteBase, handle: str, trans: DbTxn) -> None:
@@ -576,6 +577,71 @@ def delete_object(
         method(db_handle, handle, trans=trans)
         if unset_default_person:
             db_handle.set_default_person_handle(None)
+        trans_dict = transaction_to_json(trans)
+    return trans_dict
+
+
+def remove_deleted_from_search_indices(
+    tree: str, trans_dict: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Remove deleted objects from the search indices.
+
+    Deletions are cheap and applied right away. The remaining (non-delete)
+    transaction records are returned so the caller can schedule them for
+    (re-)indexing in the background, since that requires (re-)computing
+    embeddings for semantic search.
+    """
+    indexer = get_search_indexer(tree)
+    indexer_semantic = (
+        get_semantic_search_indexer(tree) if app_has_semantic_search() else None
+    )
+    # An object can appear more than once in the same transaction (e.g. a
+    # self-referencing object being both updated to remove the self-reference
+    # and then deleted). Its final state - deleted - takes precedence, so we
+    # must never schedule it for re-indexing.
+    deleted = {
+        (item["handle"], item["_class"])
+        for item in trans_dict
+        if item["type"] == "delete"
+    }
+    trans_dict_to_reindex = []
+    for item in trans_dict:
+        key = (item["handle"], item["_class"])
+        if item["type"] == "delete":
+            indexer.delete_object(handle=item["handle"], class_name=item["_class"])
+            if indexer_semantic is not None:
+                indexer_semantic.delete_object(
+                    handle=item["handle"], class_name=item["_class"]
+                )
+        elif key not in deleted:
+            trans_dict_to_reindex.append(item)
+    return trans_dict_to_reindex
+
+
+_NAMESPACE_TO_CLASS_NAME = {
+    plural: name for name, plural in GRAMPS_OBJECT_PLURAL.items()
+}
+
+
+def delete_objects_by_handle(
+    db_handle: DbWriteBase,
+    namespace: str,
+    handles: List[str],
+) -> List[Dict[str, Any]]:
+    """Delete specific objects of a single type, given by namespace, by handle."""
+    try:
+        class_name = _NAMESPACE_TO_CLASS_NAME[namespace]
+    except KeyError:
+        raise ValueError(f"Unknown namespace {namespace}")
+    del_method = delete_methods[class_name.lower()]
+    unset_default_person = (
+        class_name == "Person" and db_handle.get_default_handle() in handles
+    )
+    with DbTxn(f"Delete {namespace}", db_handle) as trans:
+        if unset_default_person:
+            db_handle.set_default_person_handle(None)
+        for handle in handles:
+            del_method(db_handle=db_handle, handle=handle, trans=trans)
         trans_dict = transaction_to_json(trans)
     return trans_dict
 
