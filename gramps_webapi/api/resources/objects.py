@@ -192,7 +192,7 @@ class DeleteObjectsByHandleResource(ProtectedResource):
             namespace=args["namespace"],
             handles=args["handles"],
         )
-        if any(item["_class"] == "Person" for item in trans_dict):
+        if args["namespace"] == GRAMPS_OBJECT_PLURAL["Person"]:
             update_usage_people()
         tree = get_tree_from_jwt_or_fail()
         trans_dict_to_reindex = remove_deleted_from_search_indices(tree, trans_dict)
