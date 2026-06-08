@@ -595,15 +595,25 @@ def remove_deleted_from_search_indices(
     indexer_semantic = (
         get_semantic_search_indexer(tree) if app_has_semantic_search() else None
     )
+    # An object can appear more than once in the same transaction (e.g. a
+    # self-referencing object being both updated to remove the self-reference
+    # and then deleted). Its final state - deleted - takes precedence, so we
+    # must never schedule it for re-indexing.
+    deleted = {
+        (item["handle"], item["_class"])
+        for item in trans_dict
+        if item["type"] == "delete"
+    }
     trans_dict_to_reindex = []
     for item in trans_dict:
+        key = (item["handle"], item["_class"])
         if item["type"] == "delete":
             indexer.delete_object(handle=item["handle"], class_name=item["_class"])
             if indexer_semantic is not None:
                 indexer_semantic.delete_object(
                     handle=item["handle"], class_name=item["_class"]
                 )
-        else:
+        elif key not in deleted:
             trans_dict_to_reindex.append(item)
     return trans_dict_to_reindex
 
