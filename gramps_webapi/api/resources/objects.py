@@ -34,11 +34,15 @@ from webargs import fields, validate
 
 from gramps_webapi.types import ResponseReturnValue
 
-from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_DEL_OBJ_BATCH, PERM_EDIT_OBJ
+from ...auth.const import (
+    PERM_ADD_OBJ,
+    PERM_DEL_OBJ,
+    PERM_DEL_OBJ_BATCH,
+    PERM_EDIT_OBJ,
+)
 from ...const import GRAMPS_OBJECT_PLURAL
 from ..auth import require_permissions
 from ..blueprint import api_blueprint
-from ..search import SearchIndexer, get_search_indexer
 from ..tasks import (
     AsyncResult,
     delete_objects,
@@ -190,10 +194,14 @@ class DeleteObjectsByHandleResource(ProtectedResource):
         )
         if any(item["_class"] == "Person" for item in trans_dict):
             update_usage_people()
+        # update search indices (full-text and semantic)
         tree = get_tree_from_jwt_or_fail()
-        indexer: SearchIndexer = get_search_indexer(tree)
-        for item in trans_dict:
-            indexer.delete_object(handle=item["handle"], class_name=item["_class"])
+        run_task(
+            update_search_indices_from_transaction,
+            trans_dict=trans_dict,
+            tree=tree,
+            user_id=get_jwt_identity(),
+        )
         res = Response(
             response=json.dumps(trans_dict),
             status=200,

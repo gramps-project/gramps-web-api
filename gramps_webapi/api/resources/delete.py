@@ -580,7 +580,9 @@ def delete_object(
     return trans_dict
 
 
-_NAMESPACE_TO_CLASS_NAME = {plural: name for name, plural in GRAMPS_OBJECT_PLURAL.items()}
+_NAMESPACE_TO_CLASS_NAME = {
+    plural: name for name, plural in GRAMPS_OBJECT_PLURAL.items()
+}
 
 
 def delete_objects_by_handle(
