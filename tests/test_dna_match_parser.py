@@ -1,6 +1,6 @@
 """Test the DNA match parser."""
 
-from gramps_webapi.api.dna import parse_raw_dna_match_string
+from gramps_webapi.api.dna import cast_float, parse_raw_dna_match_string
 
 
 def test_gramplet_form():
@@ -247,6 +247,48 @@ def test_non_castable_float():
         "stop": 64247327,
         "side": "U",
         "cM": 0,
+        "SNPs": 0,
+        "comment": "",
+    }
+
+
+def test_cast_float_mixed_separators():
+    """Test cast_float with mixed thousands and decimal separators.
+
+    A value combining a thousands separator and a decimal separator (e.g.
+    the European "1.234,56" or the US "1,234.56") was not handled by any of
+    the existing branches and silently fell back to 0.0. The rightmost
+    separator is the decimal separator; the other groups thousands.
+    """
+    # European grouping: "." thousands, "," decimal
+    assert cast_float("1.234,56") == 1234.56
+    assert cast_float("1.234.567,89") == 1234567.89
+    # US/UK grouping: "," thousands, "." decimal
+    assert cast_float("1,234.56") == 1234.56
+    assert cast_float("1,234,567.89") == 1234567.89
+    # Existing single-separator behaviour must be preserved
+    assert cast_float("15,5") == 15.5
+    assert cast_float("38.64") == 38.64
+    assert cast_float("1.234.567") == 1234567.0
+    assert cast_float("1,234,567") == 1234567.0
+
+
+def test_mixed_separator_centimorgans():
+    """Test parsing a table whose centimorgans use mixed separators.
+
+    Guards against the regression where a centimorgans value formatted with
+    both a thousands and a decimal separator was parsed as 0.0.
+    """
+    string = """Chromosome;Start Location;End Location;Centimorgans
+3;56950055;64247327;1.234,56"""
+    segments = parse_raw_dna_match_string(string)
+    assert len(segments) == 1
+    assert segments[0] == {
+        "chromosome": "3",
+        "start": 56950055,
+        "stop": 64247327,
+        "side": "U",
+        "cM": 1234.56,
         "SNPs": 0,
         "comment": "",
     }
