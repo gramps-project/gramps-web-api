@@ -697,21 +697,13 @@ def update_search_indices_from_transaction(
         for _trans_dict in trans_dict:
             handle = _trans_dict["handle"]
             class_name = _trans_dict["_class"]
-            if _trans_dict["type"] == "delete":
-                indexer.delete_object(handle, class_name)
-            else:
-                indexer.add_or_update_object(handle, db_handle, class_name)
+            indexer.add_or_update_object(handle, db_handle, class_name)
         if app_has_semantic_search():
             indexer_semantic = get_semantic_search_indexer(tree)
             for _trans_dict in trans_dict:
                 handle = _trans_dict["handle"]
                 class_name = _trans_dict["_class"]
-                if _trans_dict["type"] == "delete":
-                    indexer_semantic.delete_object(handle, class_name)
-                else:
-                    indexer_semantic.add_or_update_object(
-                        handle, db_handle, class_name
-                    )
+                indexer_semantic.add_or_update_object(handle, db_handle, class_name)
     finally:
         close_db(db_handle)
 
