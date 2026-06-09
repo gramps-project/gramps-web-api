@@ -51,9 +51,10 @@ class CloudJsonFormatter(logging.Formatter):
         )
 
 
-def configure_json_logging() -> None:
+def configure_json_logging(level: int = logging.INFO) -> None:
     """Install a JSON handler on the root logger (used when ``LOG_FORMAT=json``)."""
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(CloudJsonFormatter())
     root = logging.getLogger()
     root.handlers = [handler]
+    root.setLevel(level)

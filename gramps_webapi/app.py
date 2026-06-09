@@ -137,7 +137,7 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
     if app.config.get("LOG_FORMAT") == "json":
         from .logging_utils import configure_json_logging
 
-        configure_json_logging()
+        configure_json_logging(level=app.logger.level)
 
     if app.config["TREE"] != TREE_MULTI:
         if app.config.get("TREE_ID"):
