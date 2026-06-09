@@ -112,12 +112,16 @@ from .resources.token import (
     TokenResource,
 )
 from .resources.oidc import (
+    OIDCAccountsListResource,
     OIDCBackchannelLogoutResource,
     OIDCCallbackResource,
     OIDCConfigResource,
+    OIDCLinkCallbackResource,
+    OIDCLinkResource,
     OIDCLoginResource,
     OIDCLogoutResource,
     OIDCTokenExchangeResource,
+    OIDCUnlinkResource,
 )
 from .resources.transactions import TransactionsResource
 from .resources.translations import TranslationResource, TranslationsResource
@@ -237,6 +241,28 @@ register_endpt(
     OIDCBackchannelLogoutResource,
     "/oidc/backchannel-logout/",
     "oidcbackchannellogoutresource",
+    tags=["OIDC"],
+)
+# OIDC Account Linking
+register_endpt(
+    OIDCLinkResource, "/oidc/link/", "oidclinkresource", tags=["OIDC"]
+)
+register_endpt(
+    OIDCLinkCallbackResource,
+    "/oidc/link-callback/<string:provider_id>",
+    "oidclinkcallbackresource",
+    tags=["OIDC"],
+)
+register_endpt(
+    OIDCUnlinkResource,
+    "/oidc/accounts/<string:provider_id>/",
+    "oidcunlinkresource",
+    tags=["OIDC"],
+)
+register_endpt(
+    OIDCAccountsListResource,
+    "/oidc/accounts/",
+    "oidcaccountslistresource",
     tags=["OIDC"],
 )
 # People

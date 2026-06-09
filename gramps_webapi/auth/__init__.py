@@ -527,6 +527,74 @@ def get_user_oidc_accounts(user_id: str) -> List[Dict[str, Any]]:
     ]
 
 
+def link_oidc_account(
+    user_id: str, provider_id: str, subject_id: str, email: Optional[str] = None
+) -> None:
+    """Link an OIDC account to an existing user.
+
+    Args:
+        user_id: The user GUID to link the OIDC account to
+        provider_id: The OIDC provider identifier
+        subject_id: The subject ID from the OIDC provider
+        email: Optional email from the OIDC provider
+
+    Raises:
+        ValueError: If the provider_id/subject_id combination is already linked
+    """
+    # Check if this OIDC account is already linked to any user
+    existing_user = get_oidc_account(provider_id, subject_id)
+    if existing_user:
+        raise ValueError(
+            f"This {provider_id} account is already linked to another user"
+        )
+
+    create_oidc_account(user_id, provider_id, subject_id, email)
+
+
+def delete_oidc_account(user_id: str, provider_id: str) -> bool:
+    """Delete an OIDC account association.
+
+    Args:
+        user_id: The user GUID
+        provider_id: The OIDC provider identifier
+
+    Returns:
+        True if an account was deleted, False if no account was found
+    """
+    query = user_db.session.query(OIDCAccount)  # pylint: disable=no-member
+    oidc_account = query.filter_by(
+        user_id=user_id, provider_id=provider_id
+    ).first()
+
+    if oidc_account is None:
+        return False
+
+    user_db.session.delete(oidc_account)  # pylint: disable=no-member
+    user_db.session.commit()  # pylint: disable=no-member
+    return True
+
+
+def get_user_by_oidc(provider_id: str, subject_id: str) -> Optional[User]:
+    """Get the user associated with an OIDC account.
+
+    Args:
+        provider_id: The OIDC provider identifier
+        subject_id: The subject ID from the OIDC provider
+
+    Returns:
+        The User object if found, None otherwise
+    """
+    query = user_db.session.query(OIDCAccount)  # pylint: disable=no-member
+    oidc_account = query.filter_by(
+        provider_id=provider_id, subject_id=subject_id
+    ).first()
+
+    if oidc_account is None:
+        return None
+
+    return user_db.session.get(User, oidc_account.user_id)  # pylint: disable=no-member
+
+
 class User(user_db.Model):  # type: ignore
     """User table class for sqlalchemy."""
 

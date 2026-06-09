@@ -19,6 +19,8 @@
 
 """OIDC authentication resources."""
 
+import base64
+import json
 import logging
 from gettext import gettext as _
 from typing import Optional
@@ -32,10 +34,22 @@ from flask import (
     render_template,
     request,
 )
+from flask_jwt_extended import get_jwt_identity
 from marshmallow import EXCLUDE, Schema
 from webargs import fields
 
-from ...auth import get_name, get_permissions, get_user_details, is_tree_disabled
+from ...auth import (
+    authorized,
+    delete_oidc_account,
+    get_guid,
+    get_name,
+    get_permissions,
+    get_pwhash,
+    get_user_details,
+    get_user_oidc_accounts,
+    is_tree_disabled,
+    link_oidc_account,
+)
 from ...auth.oidc import (
     create_or_update_oidc_user,
     get_available_oidc_providers,
@@ -44,10 +58,11 @@ from ...auth.oidc import (
 from ...auth.oidc_helpers import is_oidc_enabled
 from ...auth.token_blocklist import add_jti_to_blocklist
 from ...const import TREE_MULTI
+from ..auth import require_permissions
 from ..blueprint import api_blueprint
 from ..ratelimiter import limiter
 from ..util import abort_with_message, get_config, get_tree_id
-from . import Resource
+from . import ProtectedResource
 from .schemas import OIDCConfigSchema
 from .token import get_tokens
 
@@ -573,3 +588,325 @@ class OIDCBackchannelLogoutResource(Resource):
 
         # Return success per spec (200 OK)
         return "", 200
+
+
+class OIDCLinkQueryArgs(Schema):
+    """Query arguments for POST /oidc/link/."""
+
+    provider = fields.Str(
+        required=True,
+        metadata={
+            "description": "The OIDC provider ID (e.g. 'google', 'microsoft', 'github')."
+        },
+    )
+    password = fields.Str(
+        required=True,
+        metadata={"description": "Current password for verification."},
+    )
+
+
+class OIDCLinkResource(ProtectedResource):
+    """Resource for linking an OIDC provider to an existing account.
+
+    Endpoint: /api/oidc/link/
+    """
+
+    @limiter.limit("5/minute")
+    @api_blueprint.arguments(OIDCLinkQueryArgs, location="query")
+    def post(self, args):
+        """Initiate OIDC linking flow for authenticated user.
+
+        Requires the user to be logged in and verify their password.
+        Returns a redirect to the OIDC provider's authorization page.
+        """
+        require_permissions([])  # Any authenticated user can link
+
+        if not is_oidc_enabled():
+            abort_with_message(405, "OIDC authentication is not enabled")
+
+        provider_id = args.get("provider")
+        password = args.get("password")
+
+        if not password:
+            abort_with_message(400, "Password is required for verification")
+
+        # Validate provider is available
+        available_providers = get_available_oidc_providers()
+        if provider_id not in available_providers:
+            abort_with_message(400, f"Provider '{provider_id}' is not available")
+
+        # Verify user's password
+        user_id = get_jwt_identity()
+        try:
+            username = get_name(user_id)
+        except ValueError:
+            abort_with_message(401, "User not found for token ID")
+
+        if not authorized(username, password):
+            abort_with_message(401, "Invalid password")
+
+        oauth = current_app.extensions.get("authlib.integrations.flask_client")
+        if not oauth:
+            abort_with_message(500, "OIDC client not properly initialized")
+
+        oidc_client = getattr(oauth, f"gramps_{provider_id}", None)
+        if not oidc_client:
+            abort_with_message(
+                500, f"OIDC client for provider '{provider_id}' not found"
+            )
+
+        # Build state parameter with linking information
+        # Encode password hash for verification in callback (not plaintext)
+        pwhash = get_pwhash(username)
+
+        state_data = {
+            "action": "link",
+            "user_id": str(user_id),
+            "password_hash": pwhash,
+        }
+        state_json = json.dumps(state_data)
+        state_encoded = base64.urlsafe_b64encode(state_json.encode()).decode()
+
+        # Build redirect URI - use a dedicated link callback endpoint
+        base_url = get_config("BASE_URL")
+        redirect_uri = f"{base_url.rstrip('/')}/api/oidc/link-callback/{provider_id}"
+
+        # Create authorization URL with state
+        authorization_url = oidc_client.authorize_redirect(
+            redirect_uri, state=state_encoded
+        )
+        return authorization_url
+
+
+class OIDCLinkCallbackResource(ProtectedResource):
+    """Resource for handling OIDC callback when linking an account.
+
+    This resource handles the OAuth callback specifically for account linking.
+    It is registered at the same endpoint as OIDCCallbackResource but with
+    different URL patterns to distinguish the flows.
+    """
+
+    @limiter.limit("5/minute")
+    @api_blueprint.arguments(OIDCCallbackQueryArgs, location="query", unknown=EXCLUDE)
+    def get(self, args, provider_id=None):
+        """Handle OIDC callback for account linking."""
+        if not is_oidc_enabled():
+            abort_with_message(405, "OIDC authentication is not enabled")
+
+        # Support both path parameter (new, Microsoft-compatible) and query parameter (legacy)
+        provider_id = provider_id or args.get("provider")
+
+        if not provider_id:
+            abort_with_message(400, "Provider ID is required")
+
+        # Validate provider is available
+        available_providers = get_available_oidc_providers()
+        if provider_id not in available_providers:
+            abort_with_message(400, f"Provider '{provider_id}' is not available")
+
+        # Get the state parameter to determine if this is a link operation
+        state_encoded = args.get("state")
+        if not state_encoded:
+            abort_with_message(400, "State parameter is required")
+
+        try:
+            state_json = base64.urlsafe_b64decode(state_encoded.encode()).decode()
+            state_data = json.loads(state_json)
+        except (ValueError, json.JSONDecodeError):
+            abort_with_message(400, "Invalid state parameter")
+
+        action = state_data.get("action")
+        if action != "link":
+            abort_with_message(400, "This callback is not for account linking")
+
+        # Verify the current user matches the user in the state
+        current_user_id = get_jwt_identity()
+        state_user_id = state_data.get("user_id")
+
+        if not state_user_id or str(current_user_id) != str(state_user_id):
+            abort_with_message(403, "User mismatch in linking request")
+
+        # Verify password hash matches
+        state_password_hash = state_data.get("password_hash")
+        try:
+            username = get_name(current_user_id)
+            current_password_hash = get_pwhash(username)
+        except ValueError:
+            abort_with_message(401, "User not found")
+
+        if state_password_hash != current_password_hash:
+            abort_with_message(403, "Password verification failed")
+
+        oauth = current_app.extensions.get("authlib.integrations.flask_client")
+        if not oauth:
+            abort_with_message(500, "OIDC client not properly initialized")
+
+        oidc_client = getattr(oauth, f"gramps_{provider_id}", None)
+        if not oidc_client:
+            abort_with_message(
+                500, f"OIDC client for provider '{provider_id}' not found"
+            )
+
+        try:
+            # Microsoft OIDC has a known issue where the issuer claim in the token
+            # may not match the issuer in the discovery document when using /common.
+            if provider_id == "microsoft":
+                token = oidc_client.authorize_access_token(
+                    claims_options={"iss": {"essential": False}}
+                )
+            else:
+                token = oidc_client.authorize_access_token()
+
+            # Handle different provider types for userinfo
+            if provider_id == "github":
+                resp = oidc_client.get("user", token=token)
+                userinfo = resp.json()
+            else:
+                userinfo = oidc_client.userinfo(token=token)
+
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("OIDC link callback error for provider '%s'", provider_id)
+            abort_with_message(401, f"OIDC authentication failed for {provider_id}")
+
+        # Extract subject_id from userinfo
+        subject_id = userinfo.get("sub")
+        if not subject_id:
+            abort_with_message(400, "No 'sub' claim found in OIDC userinfo")
+
+        email = userinfo.get("email")
+
+        # Check if this OIDC account is already linked
+        from ...auth import get_oidc_account
+
+        existing_user = get_oidc_account(provider_id, subject_id)
+        if existing_user and existing_user != str(current_user_id):
+            abort_with_message(
+                409, f"This {provider_id} account is already linked to another user"
+            )
+
+        # Link the OIDC account to the user
+        try:
+            link_oidc_account(
+                user_id=str(current_user_id),
+                provider_id=provider_id,
+                subject_id=subject_id,
+                email=email,
+            )
+        except ValueError as e:
+            abort_with_message(409, str(e))
+
+        logger.info(
+            f"User {username} linked {provider_id} account with subject {subject_id}"
+        )
+
+        # Return success page
+        title = _("Account Linked Successfully")
+        message = _(
+            f"Your {provider_id} account has been linked to your Gramps Web account. "
+            "You can now sign in using this provider."
+        )
+        return render_template("confirmation.html", title=title, message=message)
+
+
+class OIDCUnlinkResource(ProtectedResource):
+    """Resource for unlinking an OIDC provider from an account.
+
+    Endpoint: /api/oidc/accounts/<provider_id>/
+    """
+
+    @limiter.limit("10/minute")
+    def delete(self, provider_id):
+        """Unlink an OIDC provider from the current account.
+
+        Args:
+            provider_id: The OIDC provider ID to unlink
+        """
+        require_permissions([])  # Any authenticated user can unlink their own providers
+
+        if not is_oidc_enabled():
+            abort_with_message(405, "OIDC authentication is not enabled")
+
+        # Validate provider is available
+        available_providers = get_available_oidc_providers()
+        if provider_id not in available_providers:
+            abort_with_message(400, f"Provider '{provider_id}' is not configured")
+
+        user_id = get_jwt_identity()
+        try:
+            username = get_name(user_id)
+        except ValueError:
+            abort_with_message(401, "User not found for token ID")
+
+        # Check if user has any OIDC accounts linked
+        oidc_accounts = get_user_oidc_accounts(str(user_id))
+
+        # Check if this specific provider is linked
+        linked_providers = [acc["provider_id"] for acc in oidc_accounts]
+        if provider_id not in linked_providers:
+            abort_with_message(404, f"Provider '{provider_id}' is not linked to your account")
+
+        # Check if this is the only authentication method
+        user_details = get_user_details(username)
+        if user_details:
+            # User has a password account
+            has_password = bool(user_details.get("email"))  # Users with email have password accounts
+            # Actually, check if the user has a valid pwhash
+            from ...auth import user_db, User
+            user_obj = user_db.session.get(User, user_id)
+            has_password = user_obj and user_obj.pwhash and user_obj.pwhash != ""
+
+            if not has_password and len(oidc_accounts) == 1:
+                abort_with_message(
+                    400,
+                    "Cannot unlink the only authentication method. "
+                    "Please add a password to your account first.",
+                )
+
+        # Delete the OIDC account association
+        deleted = delete_oidc_account(str(user_id), provider_id)
+        if not deleted:
+            abort_with_message(404, f"Provider '{provider_id}' link not found")
+
+        logger.info(f"User {username} unlinked {provider_id} account")
+
+        return "", 204
+
+
+class OIDCAccountsListResource(ProtectedResource):
+    """Resource for listing OIDC accounts linked to the current user.
+
+    Endpoint: /api/oidc/accounts/
+    """
+
+    @api_blueprint.response(200, Schema(many=True))
+    def get(self):
+        """List all OIDC accounts linked to the current user."""
+        require_permissions([])  # Any authenticated user can view their own links
+
+        if not is_oidc_enabled():
+            return {"oidc_accounts": [], "account_source": None}
+
+        user_id = get_jwt_identity()
+        try:
+            username = get_name(user_id)
+        except ValueError:
+            abort_with_message(401, "User not found for token ID")
+
+        oidc_accounts = get_user_oidc_accounts(str(user_id))
+
+        # Get provider display names
+        available_providers = get_available_oidc_providers()
+        for account in oidc_accounts:
+            provider_config = get_provider_config(account["provider_id"])
+            account["provider_name"] = (
+                provider_config["name"] if provider_config else account["provider_id"]
+            )
+
+        # Determine account source
+        if oidc_accounts:
+            oidc_name = current_app.config.get("OIDC_NAME") or "Custom OIDC"
+            account_source = oidc_name
+        else:
+            account_source = "Local"
+
+        return {"oidc_accounts": oidc_accounts, "account_source": account_source}
