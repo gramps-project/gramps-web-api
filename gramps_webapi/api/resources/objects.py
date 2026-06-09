@@ -158,8 +158,8 @@ class DeleteObjectsResource(FreshProtectedResource):
         return jsonify(task), 200
 
 
-class DeleteObjectsByHandleQueryArgs(Schema):
-    """Query arguments for POST /objects/delete-by-handle."""
+class DeleteObjectsByHandleArgs(Schema):
+    """Request body for POST /objects/delete-by-handle."""
 
     namespace = fields.Str(
         required=True,
@@ -168,13 +168,11 @@ class DeleteObjectsByHandleQueryArgs(Schema):
             "description": "Object type of the objects to delete (e.g. 'people')."
         },
     )
-    handles = fields.DelimitedList(
+    handles = fields.List(
         fields.Str(validate=validate.Length(min=1)),
         required=True,
         validate=validate.Length(min=1),
-        metadata={
-            "description": "Comma-delimited list of handles of the objects to delete."
-        },
+        metadata={"description": "List of handles of the objects to delete."},
     )
 
 
@@ -182,7 +180,7 @@ class DeleteObjectsByHandleResource(ProtectedResource):
     """Resource for deleting specific objects of one type by handle."""
 
     @api_blueprint.response(200, TransactionSchema(many=True))
-    @api_blueprint.arguments(DeleteObjectsByHandleQueryArgs, location="query")
+    @api_blueprint.arguments(DeleteObjectsByHandleArgs, location="json")
     def post(self, args) -> ResponseReturnValue:
         """Delete the objects."""
         require_permissions([PERM_DEL_OBJ])

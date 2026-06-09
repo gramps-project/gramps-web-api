@@ -502,13 +502,15 @@ class TestDeleteObjectsByHandle(unittest.TestCase):
         handle = rv.json[0]["handle"]
         # contributor lacks PERM_DEL_OBJ
         rv = self.client.post(
-            f"/api/objects/delete-by-handle/?namespace=notes&handles={handle}",
+            "/api/objects/delete-by-handle/",
+            json={"namespace": "notes", "handles": [handle]},
             headers=headers_contributor,
         )
         assert rv.status_code == 403
         # editor is allowed, and no fresh token is required
         rv = self.client.post(
-            f"/api/objects/delete-by-handle/?namespace=notes&handles={handle}",
+            "/api/objects/delete-by-handle/",
+            json={"namespace": "notes", "handles": [handle]},
             headers=headers_editor,
         )
         # synchronous response: the transaction is returned directly, not a task reference
@@ -535,7 +537,8 @@ class TestDeleteObjectsByHandle(unittest.TestCase):
         rv = self.client.get(f"/api/search/?query={gramps_id}", headers=headers)
         assert len(rv.json) == 1
         rv = self.client.post(
-            f"/api/objects/delete-by-handle/?namespace=notes&handles={handle}",
+            "/api/objects/delete-by-handle/",
+            json={"namespace": "notes", "handles": [handle]},
             headers=headers,
         )
         assert rv.status_code == 200
@@ -547,17 +550,22 @@ class TestDeleteObjectsByHandle(unittest.TestCase):
         handle = make_handle()
         # missing namespace -> 422
         rv = self.client.post(
-            f"/api/objects/delete-by-handle/?handles={handle}", headers=headers
+            "/api/objects/delete-by-handle/",
+            json={"handles": [handle]},
+            headers=headers,
         )
         assert rv.status_code == 422
         # missing handles -> 422
         rv = self.client.post(
-            "/api/objects/delete-by-handle/?namespace=notes", headers=headers
+            "/api/objects/delete-by-handle/",
+            json={"namespace": "notes"},
+            headers=headers,
         )
         assert rv.status_code == 422
         # unknown namespace -> 422
         rv = self.client.post(
-            f"/api/objects/delete-by-handle/?namespace=cars&handles={handle}",
+            "/api/objects/delete-by-handle/",
+            json={"namespace": "cars", "handles": [handle]},
             headers=headers,
         )
         assert rv.status_code == 422
@@ -571,8 +579,8 @@ class TestDeleteObjectsByHandle(unittest.TestCase):
         for _ in range(3):
             self.client.post("/api/people/", json={}, headers=headers)
         rv = self.client.post(
-            "/api/objects/delete-by-handle/?namespace=notes&handles="
-            + ",".join(handles[:2]),
+            "/api/objects/delete-by-handle/",
+            json={"namespace": "notes", "handles": handles[:2]},
             headers=headers,
         )
         assert rv.status_code == 200
