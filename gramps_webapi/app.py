@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020-2022      David Straub
+# Copyright (C) 2020-2026      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -133,6 +133,11 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
 
     if app.config.get("LOG_LEVEL"):
         app.logger.setLevel(app.config["LOG_LEVEL"])
+
+    if app.config.get("LOG_FORMAT") == "json":
+        from .logging_utils import configure_json_logging
+
+        configure_json_logging(level=app.logger.level)
 
     if app.config["TREE"] != TREE_MULTI:
         if app.config.get("TREE_ID"):
