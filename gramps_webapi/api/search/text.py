@@ -22,6 +22,7 @@
 from typing import Any, Dict, Generator, Optional, Sequence, Tuple
 
 from gramps.gen.db.base import DbReadBase
+from gramps.gen.errors import HandleError
 from gramps.gen.lib import (
     Event,
     Family,
@@ -159,7 +160,10 @@ def obj_strings_from_handle(
     """Return object strings from a handle and Gramps class name."""
     query_method = db_handle.method("get_%s_from_handle", class_name)
     assert query_method is not None  # type checker
-    obj = query_method(handle)
+    try:
+        obj = query_method(handle)
+    except HandleError:
+        return None
     return obj_strings_from_object(
         db_handle=db_handle, class_name=class_name, obj=obj, semantic=semantic
     )
