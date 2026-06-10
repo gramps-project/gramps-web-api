@@ -20,6 +20,7 @@
 """File handling utilities."""
 
 import hashlib
+import json
 import os
 from io import BytesIO
 from pathlib import Path
@@ -33,11 +34,29 @@ from gramps.gen.lib import Media
 from PIL import Image
 from werkzeug.datastructures import FileStorage
 
-from gramps_webapi.const import MIME_AVIF
+from gramps_webapi.const import MIME_AVIF, MIME_PNG
 
 from ..types import FilenameOrPath
-from .image import LocalFileThumbnailHandler, detect_faces
+from .image import LocalFileThumbnailHandler, detect_faces, get_map_tile, transparent_png_tile
 from .util import abort_with_message
+
+
+def _get_map_bounds(media) -> list | None:
+    """Return [[lat_min, lon_min], [lat_max, lon_max]] from the map:bounds attribute, or None."""
+    for attr in media.attribute_list:
+        if str(attr.get_type()) == "map:bounds":
+            try:
+                bounds = json.loads(attr.get_value())
+            except (json.JSONDecodeError, TypeError, ValueError):
+                return None
+            try:
+                (lat_min, lon_min), (lat_max, lon_max) = bounds
+                if lat_min >= lat_max or lon_min >= lon_max:
+                    return None
+                return [[float(lat_min), float(lon_min)], [float(lat_max), float(lon_max)]]
+            except (TypeError, ValueError):
+                return None
+    return None
 
 
 class FileHandler:
@@ -88,6 +107,10 @@ class FileHandler:
         self, size: int, x1: int, y1: int, x2: int, y2: int, square: bool = False
     ):
         """Send thumbnail of cropped image."""
+        raise NotImplementedError
+
+    def send_map_tile(self, z: int, x: int, y: int, max_zoom: int | None = None):
+        """Send a map tile for a georeferenced image."""
         raise NotImplementedError
 
     def _abort_if_too_large(self) -> None:
@@ -249,6 +272,22 @@ class LocalFileHandler(FileHandler):
             size=size, x1=x1, y1=y1, x2=x2, y2=y2, square=square
         )
         return send_file(buffer, mimetype=MIME_AVIF)
+
+    def send_map_tile(self, z: int, x: int, y: int, max_zoom: int | None = None):
+        """Send a map tile for a georeferenced image."""
+        if max_zoom is not None and z > max_zoom:
+            return send_file(transparent_png_tile(), mimetype=MIME_PNG)
+        try:
+            self._check_path()
+        except ValueError:
+            abort_with_message(403, "File access not allowed")
+        self._abort_if_too_large()
+        bounds = _get_map_bounds(self.media)
+        if bounds is None:
+            abort_with_message(404, "No map bounds for media object")
+        with Image.open(self.path_abs) as img:
+            buffer = get_map_tile(img, bounds, z, x, y)
+        return send_file(buffer, mimetype=MIME_PNG)
 
 
 def upload_file_local(

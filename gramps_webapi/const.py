@@ -128,6 +128,7 @@ GRAMPS_NAMESPACES = {
 MIME_PDF = "application/pdf"
 MIME_JPEG = "image/jpeg"
 MIME_AVIF = "image/avif"
+MIME_PNG = "image/png"
 
 # Some platforms may not find all of these
 MIME_TYPES = {

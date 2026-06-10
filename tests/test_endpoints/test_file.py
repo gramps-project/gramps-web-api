@@ -28,6 +28,7 @@ from gramps_webapi.const import MIME_AVIF
 
 from . import BASE_URL, get_test_client
 from .checks import check_requires_token, check_success
+from .util import fetch_header
 
 TEST_URL = BASE_URL + "/media/"
 
@@ -292,6 +293,64 @@ class TestCroppedThumbnail(unittest.TestCase):
             thumb = Image.open(BytesIO(rv.data))
             assert thumb.width == thumb.height
             assert min(full_img.width, full_img.height) == thumb.height
+
+
+class TestMapTile(unittest.TestCase):
+    """Test cases for the /api/media/{}/tile endpoint."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_get_map_tile_requires_token(self):
+        """Test that unauthenticated request returns 401 and authenticated request is reachable."""
+        rv = self.client.get(TEST_URL + "b39fe1cfc1305ac4a21/tile/5/16/11")
+        self.assertEqual(rv.status_code, 401)
+        # With auth the endpoint must be reachable (404 expected — no map:bounds on this object)
+        header = fetch_header(self.client)
+        rv = self.client.get(TEST_URL + "b39fe1cfc1305ac4a21/tile/5/16/11", headers=header)
+        self.assertNotEqual(rv.status_code, 500)
+
+    def test_get_map_tile_no_bounds_returns_404(self):
+        """Media without map:bounds attribute returns 404."""
+        media_objects = check_success(self, TEST_URL)
+        header = fetch_header(self.client)
+        for obj in media_objects:
+            rv = self.client.get(
+                f"{TEST_URL}{obj['handle']}/tile/5/16/11",
+                headers=header,
+            )
+            self.assertEqual(rv.status_code, 404)
+
+    def test_get_map_tile_max_zoom_returns_transparent_png(self):
+        """When z > max_zoom, endpoint returns 200 with a transparent 256×256 PNG."""
+        header = fetch_header(self.client)
+        # z=10 > max_zoom=5: short-circuits before checking bounds, so any handle works
+        rv = self.client.get(
+            f"{TEST_URL}b39fe1cfc1305ac4a21/tile/10/512/341?max_zoom=5",
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.mimetype, "image/png")
+        img = Image.open(BytesIO(rv.data))
+        self.assertEqual(img.size, (256, 256))
+        self.assertTrue(all(p[3] == 0 for p in img.getdata()))
+
+    def test_get_map_tile_invalid_z_returns_400(self):
+        """z > 28 returns 400; negative z is rejected by routing (404)."""
+        header = fetch_header(self.client)
+        rv = self.client.get(
+            f"{TEST_URL}b39fe1cfc1305ac4a21/tile/29/0/0",
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 400)
+        # Flask's <int:z> doesn't match negative values — route returns 404
+        rv = self.client.get(
+            TEST_URL + "b39fe1cfc1305ac4a21/tile/-1/0/0",
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 404)
 
 
 class TestFaceDetection(unittest.TestCase):

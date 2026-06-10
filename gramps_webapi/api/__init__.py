@@ -26,7 +26,7 @@ from webargs import fields, validate
 
 from ..const import API_PREFIX
 from .auth import jwt_required
-from .cache import thumbnail_cache_decorator
+from .cache import thumbnail_cache_decorator, tile_cache_decorator
 from .media import get_media_handler
 from .resources.base import Resource
 from .resources.bookmarks import (
@@ -150,7 +150,7 @@ from .resources.user import (
 )
 from .resources.ydna import PersonYDnaResource
 from .blueprint import api_blueprint
-from .util import get_db_handle, get_tree_from_jwt, parser, use_args
+from .util import abort_with_message, get_db_handle, get_tree_from_jwt, parser, use_args
 
 
 def register_endpt(
@@ -649,6 +649,31 @@ register_endpt(
 # Thumbnails
 # Shared query params: jwt (auth via URL), checksum (frontend service worker
 # cache busting by URL versioning; ignored by the backend).
+@api_blueprint.route("/media/<string:handle>/tile/<int:z>/<int:x>/<int:y>")
+@jwt_required
+@use_args(
+    {
+        "jwt": fields.String(required=False),
+        "checksum": fields.String(required=False),
+        "max_zoom": fields.Integer(required=False),
+    },
+    location="query",
+)
+@tile_cache_decorator
+def get_media_map_tile(args, handle: str, z: int, x: int, y: int):
+    """Get a map tile for a georeferenced media image."""
+    if z > 28:
+        abort_with_message(400, "Tile zoom level must be between 0 and 28")
+    if x >= 2**z or y >= 2**z:
+        abort_with_message(400, "Tile coordinates out of range for zoom level")
+    tree = get_tree_from_jwt()
+    db_handle = get_db_handle()
+    handler = get_media_handler(db_handle, tree=tree).get_file_handler(
+        handle, db_handle=db_handle
+    )
+    return handler.send_map_tile(z=z, x=x, y=y, max_zoom=args.get("max_zoom"))
+
+
 @api_blueprint.route("/media/<string:handle>/thumbnail/<int:size>")
 @jwt_required
 @use_args(

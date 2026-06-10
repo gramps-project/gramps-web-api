@@ -111,3 +111,38 @@ request_cache_decorator = request_cache.cached(
 thumbnail_cache_decorator = thumbnail_cache.cached(
     make_cache_key=make_cache_key_thumbnails
 )
+
+
+def make_cache_key_tiles(*args, **kwargs):
+    """Make a cache key for map tiles."""
+    # max_zoom is a query arg that changes the response, so include it in the key.
+    # jwt and checksum are excluded by _hash_request_args as usual.
+    arg_hash = _hash_request_args()
+
+    handle = kwargs["handle"]
+    tree = get_tree_from_jwt()
+    db_handle = get_db_handle()
+    try:
+        obj = db_handle.get_media_from_handle(handle)
+    except HandleError:
+        abort_with_message(404, f"Handle {handle} not found")
+    checksum = obj.checksum
+
+    # Include a hash of map:bounds so that updating the attribute (without
+    # changing the file) correctly invalidates cached tiles.
+    bounds_value = ""
+    for attr in obj.attribute_list:
+        if str(attr.get_type()) == "map:bounds":
+            bounds_value = attr.get_value()
+            break
+    bounds_hash = hashlib.md5(bounds_value.encode()).hexdigest()
+
+    dbmgr = get_db_manager(tree)
+    # z/x/y are encoded in request.path
+    cache_key = checksum + request.path + arg_hash + bounds_hash + dbmgr.dirname + ":tile"
+    return cache_key
+
+
+tile_cache_decorator = thumbnail_cache.cached(
+    make_cache_key=make_cache_key_tiles
+)

@@ -19,6 +19,7 @@
 
 """Object storage (e.g. S3) handling utilities."""
 
+from io import BytesIO
 from typing import BinaryIO, Dict, Optional
 
 import boto3
@@ -27,9 +28,11 @@ from botocore.exceptions import ClientError
 from flask import current_app, redirect, send_file
 from gramps.gen.db.base import DbReadBase
 
-from ..const import MIME_AVIF
-from .file import FileHandler
-from .image import ThumbnailHandler
+from PIL import Image
+
+from ..const import MIME_AVIF, MIME_PNG
+from .file import FileHandler, _get_map_bounds
+from .image import ThumbnailHandler, get_map_tile, transparent_png_tile
 from .util import abort_with_message
 
 
@@ -98,7 +101,7 @@ class ObjectStorageFileHandler(FileHandler):
             response = self.client.get_object(
                 Bucket=self.bucket_name, Key=self.object_name
             )
-            return response["Body"]
+            return BytesIO(response["Body"].read())
         except ClientError as exc:
             if exc.response["Error"]["Code"] == "NoSuchKey":
                 abort_with_message(404, "Media file not found")
@@ -167,6 +170,19 @@ class ObjectStorageFileHandler(FileHandler):
             size=size, x1=x1, y1=y1, x2=x2, y2=y2, square=square
         )
         return send_file(buffer, mimetype=MIME_AVIF)
+
+    def send_map_tile(self, z: int, x: int, y: int, max_zoom: int | None = None):
+        """Send a map tile for a georeferenced image."""
+        if max_zoom is not None and z > max_zoom:
+            return send_file(transparent_png_tile(), mimetype=MIME_PNG)
+        self._abort_if_too_large()
+        bounds = _get_map_bounds(self.media)
+        if bounds is None:
+            abort_with_message(404, "No map bounds for media object")
+        fileobj = self._download_fileobj()
+        with Image.open(fileobj) as img:
+            buffer = get_map_tile(img, bounds, z, x, y)
+        return send_file(buffer, mimetype=MIME_PNG)
 
 
 def upload_file_s3(
