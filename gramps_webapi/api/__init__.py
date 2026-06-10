@@ -150,7 +150,7 @@ from .resources.user import (
 )
 from .resources.ydna import PersonYDnaResource
 from .blueprint import api_blueprint
-from .util import get_db_handle, get_tree_from_jwt, parser, use_args
+from .util import abort_with_message, get_db_handle, get_tree_from_jwt, parser, use_args
 
 
 def register_endpt(
@@ -662,6 +662,8 @@ register_endpt(
 @tile_cache_decorator
 def get_media_map_tile(args, handle: str, z: int, x: int, y: int):
     """Get a map tile for a georeferenced media image."""
+    if not (0 <= z <= 28) or x < 0 or y < 0:
+        abort_with_message(400, "Invalid tile coordinates")
     tree = get_tree_from_jwt()
     db_handle = get_db_handle()
     handler = get_media_handler(db_handle, tree=tree).get_file_handler(

@@ -127,9 +127,19 @@ def make_cache_key_tiles(*args, **kwargs):
     except HandleError:
         abort_with_message(404, f"Handle {handle} not found")
     checksum = obj.checksum
+
+    # Include a hash of map:bounds so that updating the attribute (without
+    # changing the file) correctly invalidates cached tiles.
+    bounds_value = ""
+    for attr in obj.attribute_list:
+        if str(attr.get_type()) == "map:bounds":
+            bounds_value = attr.get_value()
+            break
+    bounds_hash = hashlib.md5(bounds_value.encode()).hexdigest()
+
     dbmgr = get_db_manager(tree)
     # z/x/y are encoded in request.path
-    cache_key = checksum + request.path + arg_hash + dbmgr.dirname + ":tile"
+    cache_key = checksum + request.path + arg_hash + bounds_hash + dbmgr.dirname + ":tile"
     return cache_key
 
 

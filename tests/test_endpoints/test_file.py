@@ -323,6 +323,30 @@ class TestMapTile(unittest.TestCase):
             )
             self.assertEqual(rv.status_code, 404)
 
+    def test_get_map_tile_max_zoom_returns_transparent_png(self):
+        """When z > max_zoom, endpoint returns 200 with a transparent 256×256 PNG."""
+        header = fetch_header(self.client)
+        # z=10 > max_zoom=5: short-circuits before checking bounds, so any handle works
+        rv = self.client.get(
+            f"{TEST_URL}b39fe1cfc1305ac4a21/tile/10/512/341?max_zoom=5",
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.mimetype, "image/png")
+        img = Image.open(BytesIO(rv.data))
+        self.assertEqual(img.size, (256, 256))
+        self.assertTrue(all(p[3] == 0 for p in img.getdata()))
+
+    def test_get_map_tile_invalid_z_returns_400(self):
+        """Negative or out-of-range z returns 400."""
+        header = fetch_header(self.client)
+        for bad_z in ("tile/-1/0/0", "tile/29/0/0"):
+            rv = self.client.get(
+                f"{TEST_URL}b39fe1cfc1305ac4a21/{bad_z}",
+                headers=header,
+            )
+            self.assertEqual(rv.status_code, 400)
+
 
 class TestFaceDetection(unittest.TestCase):
     """Test cases for the /api/media/{}/face_detection endpoint."""

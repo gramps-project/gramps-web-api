@@ -23,6 +23,7 @@ import unittest
 
 from PIL import Image
 
+from gramps_webapi.api.file import _get_map_bounds
 from gramps_webapi.api.image import (
     _lat_to_tile_pixel_y,
     _tile_bounds_lonlat,
@@ -172,6 +173,57 @@ class TestLatToTilePixelY(unittest.TestCase):
         y_85 = _lat_to_tile_pixel_y(85.0, z=0, y_tile=0)
         midpoint = (y_0 + y_85) / 2
         self.assertNotAlmostEqual(y_45, midpoint, delta=5)
+
+
+class TestGetMapBounds(unittest.TestCase):
+    class _Attr:
+        def __init__(self, type_str, value):
+            self._type = type_str
+            self._value = value
+
+        def get_type(self):
+            return self._type
+
+        def get_value(self):
+            return self._value
+
+    class _Media:
+        def __init__(self, attrs):
+            self.attribute_list = attrs
+
+    def _media(self, value):
+        return self._Media([self._Attr("map:bounds", value)])
+
+    def _no_bounds_media(self):
+        return self._Media([])
+
+    def test_valid_bounds(self):
+        m = self._media("[[10.0, 20.0], [50.0, 60.0]]")
+        result = _get_map_bounds(m)
+        self.assertEqual(result, [[10.0, 20.0], [50.0, 60.0]])
+
+    def test_no_attribute_returns_none(self):
+        self.assertIsNone(_get_map_bounds(self._no_bounds_media()))
+
+    def test_invalid_json_returns_none(self):
+        self.assertIsNone(_get_map_bounds(self._media("not json")))
+
+    def test_wrong_shape_returns_none(self):
+        self.assertIsNone(_get_map_bounds(self._media("[1, 2, 3]")))
+
+    def test_degenerate_lat_returns_none(self):
+        self.assertIsNone(_get_map_bounds(self._media("[[50.0, 20.0], [50.0, 60.0]]")))
+
+    def test_degenerate_lon_returns_none(self):
+        self.assertIsNone(_get_map_bounds(self._media("[[10.0, 60.0], [50.0, 60.0]]")))
+
+    def test_non_numeric_returns_none(self):
+        self.assertIsNone(_get_map_bounds(self._media('[["a", 20.0], [50.0, 60.0]]')))
+
+    def test_coerces_to_float(self):
+        m = self._media("[[10, 20], [50, 60]]")
+        result = _get_map_bounds(m)
+        self.assertIsInstance(result[0][0], float)
 
 
 class TestTransparentPngTile(unittest.TestCase):
