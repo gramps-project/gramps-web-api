@@ -304,9 +304,13 @@ class TestMapTile(unittest.TestCase):
         cls.client = get_test_client()
 
     def test_get_map_tile_requires_token(self):
-        """Test that unauthenticated request returns 401."""
+        """Test that unauthenticated request returns 401 and authenticated request is reachable."""
         rv = self.client.get(TEST_URL + "b39fe1cfc1305ac4a21/tile/5/16/11")
         self.assertEqual(rv.status_code, 401)
+        # With auth the endpoint must be reachable (404 expected — no map:bounds on this object)
+        header = fetch_header(self.client)
+        rv = self.client.get(TEST_URL + "b39fe1cfc1305ac4a21/tile/5/16/11", headers=header)
+        self.assertNotEqual(rv.status_code, 500)
 
     def test_get_map_tile_no_bounds_returns_404(self):
         """Media without map:bounds attribute returns 404."""

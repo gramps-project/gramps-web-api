@@ -174,12 +174,13 @@ class ObjectStorageFileHandler(FileHandler):
         """Send a map tile for a georeferenced image."""
         if max_zoom is not None and z > max_zoom:
             return send_file(transparent_png_tile(), mimetype=MIME_PNG)
+        self._abort_if_too_large()
         bounds = _get_map_bounds(self.media)
         if bounds is None:
             abort_with_message(404, "No map bounds for media object")
         fileobj = self._download_fileobj()
-        img = Image.open(fileobj)
-        buffer = get_map_tile(img, bounds, z, x, y)
+        with Image.open(fileobj) as img:
+            buffer = get_map_tile(img, bounds, z, x, y)
         return send_file(buffer, mimetype=MIME_PNG)
 
 

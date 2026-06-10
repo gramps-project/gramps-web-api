@@ -303,6 +303,8 @@ def get_map_tile(
     # Source pixels: linear equirectangular mapping
     lon_span = img_lon_max - img_lon_min
     lat_span = img_lat_max - img_lat_min
+    if lon_span == 0 or lat_span == 0:
+        return save_image_buffer(tile_img, fmt="PNG")
     src_x1 = (ov_lon_min - img_lon_min) / lon_span * img_width
     src_x2 = (ov_lon_max - img_lon_min) / lon_span * img_width
     # y=0 is top (lat_max), y=height is bottom (lat_min)

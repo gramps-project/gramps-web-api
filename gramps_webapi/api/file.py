@@ -46,8 +46,15 @@ def _get_map_bounds(media) -> list | None:
     for attr in media.attribute_list:
         if str(attr.get_type()) == "map:bounds":
             try:
-                return json.loads(attr.get_value())
+                bounds = json.loads(attr.get_value())
             except (json.JSONDecodeError, ValueError):
+                return None
+            try:
+                (lat_min, lon_min), (lat_max, lon_max) = bounds
+                if lat_min >= lat_max or lon_min >= lon_max:
+                    return None
+                return [[float(lat_min), float(lon_min)], [float(lat_max), float(lon_max)]]
+            except (TypeError, ValueError):
                 return None
     return None
 
@@ -274,11 +281,12 @@ class LocalFileHandler(FileHandler):
             self._check_path()
         except ValueError:
             abort_with_message(403, "File access not allowed")
+        self._abort_if_too_large()
         bounds = _get_map_bounds(self.media)
         if bounds is None:
             abort_with_message(404, "No map bounds for media object")
-        img = Image.open(self.path_abs)
-        buffer = get_map_tile(img, bounds, z, x, y)
+        with Image.open(self.path_abs) as img:
+            buffer = get_map_tile(img, bounds, z, x, y)
         return send_file(buffer, mimetype=MIME_PNG)
 
 
