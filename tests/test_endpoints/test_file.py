@@ -28,6 +28,7 @@ from gramps_webapi.const import MIME_AVIF
 
 from . import BASE_URL, get_test_client
 from .checks import check_requires_token, check_success
+from .util import fetch_header
 
 TEST_URL = BASE_URL + "/media/"
 
@@ -292,6 +293,31 @@ class TestCroppedThumbnail(unittest.TestCase):
             thumb = Image.open(BytesIO(rv.data))
             assert thumb.width == thumb.height
             assert min(full_img.width, full_img.height) == thumb.height
+
+
+class TestMapTile(unittest.TestCase):
+    """Test cases for the /api/media/{}/tile endpoint."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_get_map_tile_requires_token(self):
+        """Test that unauthenticated request returns 401."""
+        rv = self.client.get(TEST_URL + "b39fe1cfc1305ac4a21/tile/5/16/11")
+        self.assertEqual(rv.status_code, 401)
+
+    def test_get_map_tile_no_bounds_returns_404(self):
+        """Media without map:bounds attribute returns 404."""
+        media_objects = check_success(self, TEST_URL)
+        header = fetch_header(self.client)
+        for obj in media_objects:
+            rv = self.client.get(
+                f"{TEST_URL}{obj['handle']}/tile/5/16/11",
+                headers=header,
+            )
+            self.assertEqual(rv.status_code, 404)
 
 
 class TestFaceDetection(unittest.TestCase):

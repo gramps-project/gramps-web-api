@@ -20,6 +20,7 @@
 """Image utilities."""
 
 import io
+import math
 import os
 import shutil
 import tempfile
@@ -242,6 +243,91 @@ class LocalFileThumbnailHandler(ThumbnailHandler):
         except FileNotFoundError:
             abort_with_message(404, "Media file not found")
         super().__init__(stream=stream, mime_type=mime_type)
+
+
+def _tile_bounds_lonlat(z: int, x: int, y: int) -> tuple:
+    """Return (lon_min, lat_min, lon_max, lat_max) for an XYZ slippy map tile."""
+    n = 2**z
+    lon_min = x / n * 360.0 - 180.0
+    lon_max = (x + 1) / n * 360.0 - 180.0
+    lat_max = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * y / n))))
+    lat_min = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * (y + 1) / n))))
+    return lon_min, lat_min, lon_max, lat_max
+
+
+def _lat_to_tile_pixel_y(lat: float, z: int, y_tile: int, tile_size: int = 256) -> float:
+    """Convert latitude to pixel y within a slippy map tile (Web Mercator)."""
+    lat_rad = math.radians(lat)
+    y_merc = (1.0 - math.log(math.tan(lat_rad) + 1.0 / math.cos(lat_rad)) / math.pi) / 2.0
+    return y_merc * (2**z) * tile_size - y_tile * tile_size
+
+
+def transparent_png_tile(tile_size: int = 256) -> BinaryIO:
+    """Return a buffer containing a fully transparent RGBA PNG tile."""
+    return save_image_buffer(Image.new("RGBA", (tile_size, tile_size), (0, 0, 0, 0)), fmt="PNG")
+
+
+def get_map_tile(
+    image: ImageType,
+    bounds: list,
+    z: int,
+    x: int,
+    y: int,
+    tile_size: int = 256,
+) -> BinaryIO:
+    """Return a 256×256 RGBA PNG map tile for a georeferenced image.
+
+    bounds: [[lat_min, lon_min], [lat_max, lon_max]]
+    Source image assumed equirectangular (linear lat/lon → pixel).
+    Destination tile uses Web Mercator for correct geographic placement.
+    """
+    image = ImageOps.exif_transpose(image)
+    assert image is not None
+
+    img_lat_min, img_lon_min = bounds[0]
+    img_lat_max, img_lon_max = bounds[1]
+    img_width, img_height = image.size
+
+    tile_lon_min, tile_lat_min, tile_lon_max, tile_lat_max = _tile_bounds_lonlat(z, x, y)
+
+    ov_lon_min = max(img_lon_min, tile_lon_min)
+    ov_lon_max = min(img_lon_max, tile_lon_max)
+    ov_lat_min = max(img_lat_min, tile_lat_min)
+    ov_lat_max = min(img_lat_max, tile_lat_max)
+
+    tile_img = Image.new("RGBA", (tile_size, tile_size), (0, 0, 0, 0))
+
+    if ov_lon_min >= ov_lon_max or ov_lat_min >= ov_lat_max:
+        return save_image_buffer(tile_img, fmt="PNG")
+
+    # Source pixels: linear equirectangular mapping
+    lon_span = img_lon_max - img_lon_min
+    lat_span = img_lat_max - img_lat_min
+    src_x1 = (ov_lon_min - img_lon_min) / lon_span * img_width
+    src_x2 = (ov_lon_max - img_lon_min) / lon_span * img_width
+    # y=0 is top (lat_max), y=height is bottom (lat_min)
+    src_y1 = (img_lat_max - ov_lat_max) / lat_span * img_height
+    src_y2 = (img_lat_max - ov_lat_min) / lat_span * img_height
+
+    # Destination pixels: Mercator-correct placement within the tile
+    tile_lon_span = tile_lon_max - tile_lon_min
+    dst_x1 = round((ov_lon_min - tile_lon_min) / tile_lon_span * tile_size)
+    dst_x2 = round((ov_lon_max - tile_lon_min) / tile_lon_span * tile_size)
+    dst_y1 = round(_lat_to_tile_pixel_y(ov_lat_max, z, y, tile_size))
+    dst_y2 = round(_lat_to_tile_pixel_y(ov_lat_min, z, y, tile_size))
+
+    dst_w = dst_x2 - dst_x1
+    dst_h = dst_y2 - dst_y1
+    if dst_w <= 0 or dst_h <= 0:
+        return save_image_buffer(tile_img, fmt="PNG")
+
+    crop = image.crop((src_x1, src_y1, src_x2, src_y2))
+    if crop.mode != "RGBA":
+        crop = crop.convert("RGBA")
+    crop = crop.resize((dst_w, dst_h), Image.Resampling.LANCZOS)
+    tile_img.paste(crop, (dst_x1, dst_y1), crop)
+
+    return save_image_buffer(tile_img, fmt="PNG")
 
 
 def detect_faces(stream: BinaryIO) -> list[tuple[float, float, float, float]]:
