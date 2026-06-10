@@ -338,14 +338,19 @@ class TestMapTile(unittest.TestCase):
         self.assertTrue(all(p[3] == 0 for p in img.getdata()))
 
     def test_get_map_tile_invalid_z_returns_400(self):
-        """Negative or out-of-range z returns 400."""
+        """z > 28 returns 400; negative z is rejected by routing (404)."""
         header = fetch_header(self.client)
-        for bad_z in ("tile/-1/0/0", "tile/29/0/0"):
-            rv = self.client.get(
-                f"{TEST_URL}b39fe1cfc1305ac4a21/{bad_z}",
-                headers=header,
-            )
-            self.assertEqual(rv.status_code, 400)
+        rv = self.client.get(
+            f"{TEST_URL}b39fe1cfc1305ac4a21/tile/29/0/0",
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 400)
+        # Flask's <int:z> doesn't match negative values — route returns 404
+        rv = self.client.get(
+            TEST_URL + "b39fe1cfc1305ac4a21/tile/-1/0/0",
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 404)
 
 
 class TestFaceDetection(unittest.TestCase):
