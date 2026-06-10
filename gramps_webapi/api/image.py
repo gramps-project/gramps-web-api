@@ -275,7 +275,7 @@ def get_map_tile(
     y: int,
     tile_size: int = 256,
 ) -> BinaryIO:
-    """Return a 256×256 RGBA PNG map tile for a georeferenced image.
+    """Return a tile_size × tile_size RGBA PNG map tile for a georeferenced image.
 
     bounds: [[lat_min, lon_min], [lat_max, lon_max]]
     Source image assumed equirectangular (linear lat/lon → pixel).

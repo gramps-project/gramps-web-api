@@ -664,6 +664,8 @@ def get_media_map_tile(args, handle: str, z: int, x: int, y: int):
     """Get a map tile for a georeferenced media image."""
     if z > 28:
         abort_with_message(400, "Tile zoom level must be between 0 and 28")
+    if x >= 2**z or y >= 2**z:
+        abort_with_message(400, "Tile coordinates out of range for zoom level")
     tree = get_tree_from_jwt()
     db_handle = get_db_handle()
     handler = get_media_handler(db_handle, tree=tree).get_file_handler(

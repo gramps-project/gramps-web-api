@@ -47,7 +47,7 @@ def _get_map_bounds(media) -> list | None:
         if str(attr.get_type()) == "map:bounds":
             try:
                 bounds = json.loads(attr.get_value())
-            except (json.JSONDecodeError, ValueError):
+            except (json.JSONDecodeError, TypeError, ValueError):
                 return None
             try:
                 (lat_min, lon_min), (lat_max, lon_max) = bounds

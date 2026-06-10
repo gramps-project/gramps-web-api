@@ -19,6 +19,7 @@
 
 """Object storage (e.g. S3) handling utilities."""
 
+from io import BytesIO
 from typing import BinaryIO, Dict, Optional
 
 import boto3
@@ -100,7 +101,7 @@ class ObjectStorageFileHandler(FileHandler):
             response = self.client.get_object(
                 Bucket=self.bucket_name, Key=self.object_name
             )
-            return response["Body"]
+            return BytesIO(response["Body"].read())
         except ClientError as exc:
             if exc.response["Error"]["Code"] == "NoSuchKey":
                 abort_with_message(404, "Media file not found")
