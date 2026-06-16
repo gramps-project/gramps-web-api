@@ -150,10 +150,11 @@ class TaskResource(ProtectedResource):
             abort(HTTPStatus.NOT_FOUND)
 
         row = user_db.session.get(TaskTree, task_id)
-        if row is not None:
-            tree = get_tree_from_jwt_or_fail()
-            if row.tree != tree:
-                abort(HTTPStatus.FORBIDDEN)
+        if row is None:
+            abort(HTTPStatus.NOT_FOUND)
+        tree = get_tree_from_jwt_or_fail()
+        if row.tree != tree:
+            abort(HTTPStatus.FORBIDDEN)
 
         result = {
             "state": task.state,
@@ -161,17 +162,16 @@ class TaskResource(ProtectedResource):
             # kept for backward compatibility
             "info": _serialize_task_result(task.info),
             "result": _serialize_task_result(task.result),
+            "task_id": row.task_id,
+            "name": row.name,
+            "created_at": row.created_at,
+            "user_id": row.user_id,
         }
-        if row is not None:
-            result["task_id"] = row.task_id
-            result["name"] = row.name
-            result["created_at"] = row.created_at
-            result["user_id"] = row.user_id
-            if row.user_id:
-                user_row = user_db.session.get(User, row.user_id)
-                result["user_name"] = user_row.name if user_row else None
-            else:
-                result["user_name"] = None
+        if row.user_id:
+            user_row = user_db.session.get(User, row.user_id)
+            result["user_name"] = user_row.name if user_row else None
+        else:
+            result["user_name"] = None
         return result
 
 
