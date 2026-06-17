@@ -55,6 +55,8 @@ class TestVerify(unittest.TestCase):
         """Example DB produces at least one finding."""
         header = fetch_header(self.client, role=ROLE_OWNER)
         rv = self.client.get(TEST_URL, headers=header)
+        self.assertEqual(rv.status_code, 200)
+        self.assertIsInstance(rv.json, list)
         self.assertGreater(len(rv.json), 0)
 
     def test_result_fields(self):

@@ -122,8 +122,8 @@ class VerifyOptions:
         return f"VerifyOptions({overrides!r})"
 
 
-# Keep the bare dict for backwards compatibility and for use as schema defaults.
-DEFAULT_OPTIONS = VerifyOptions.defaults
+# Defensive copy so callers mutating DEFAULT_OPTIONS don't corrupt class defaults.
+DEFAULT_OPTIONS = dict(VerifyOptions.defaults)
 
 # ---------------------------------------------------------------------------
 # Lightweight summary objects
@@ -141,7 +141,7 @@ class VerifyFamily:
         self.mother_handle = ""
         self.father_handle = ""
         self.gramps_id = ""
-        self.child_ref_list = {}
+        self.child_ref_list = []
         self.relationship = None
 
         if family is None:
@@ -162,7 +162,13 @@ class VerifyFamily:
 
         prev_date = 0
         for event_ref in family.get_event_ref_list():
-            event = db.get_event_from_handle(event_ref.ref)
+            try:
+                event = db.get_event_from_handle(event_ref.ref)
+            except Exception:
+                event = None
+            if event is None:
+                continue
+
             date_obj = event.get_date_object()
             if date_obj and date_obj.get_day() != 0 and date_obj.get_month() != 0:
                 if prev_date > date_obj.get_sort_value() > 0:
@@ -230,8 +236,8 @@ class VerifyPerson:
         self.name_type = NameType.UNKNOWN
         self.gramps_id = ""
         self.gender = Person.UNKNOWN
-        self.family_handle_list = {}
-        self.parent_family_handle_list = {}
+        self.family_handle_list = []
+        self.parent_family_handle_list = []
         self.events_in_wrong_order = False
 
         if person is None:
@@ -249,14 +255,20 @@ class VerifyPerson:
 
         prev_date = 0
         for event_ref in person.get_event_ref_list():
-            event = db.get_event_from_handle(event_ref.ref)
+            try:
+                event = db.get_event_from_handle(event_ref.ref)
+            except Exception:
+                event = None
+            if event is None:
+                continue
+
             date_obj = event.get_date_object()
             if date_obj and date_obj.get_day() != 0 and date_obj.get_month() != 0:
                 if prev_date > date_obj.get_sort_value() > 0:
                     self.events_in_wrong_order = True
                 prev_date = date_obj.get_sort_value()
 
-            if event and event_ref.get_role() == EventRoleType.UNKNOWN:
+            if event_ref.get_role() == EventRoleType.UNKNOWN:
                 self.events_of_type_unknown = True
                 continue
             if event and event_ref.get_role() == EventRoleType.PRIMARY:
@@ -469,8 +481,10 @@ class VerifyRunner:
         family_handles = set(self.db.get_family_handles())
 
         for person in self.db.iter_people():
-            verify_person = VerifyPerson(self.db, person)
-            self._person_cache[verify_person.get_handle()] = verify_person
+            handle = person.get_handle()
+            if handle not in self._person_cache:
+                self._person_cache[handle] = VerifyPerson(self.db, person)
+            verify_person = self._person_cache[handle]
 
             for family_handle in verify_person.get_family_handle_list():
                 if family_handle in family_handles:
@@ -558,7 +572,7 @@ class Rule:
         self.db = runner.db
         self.obj = obj
 
-    def broken(self):
+    def broken(self) -> bool:
         return False
 
     def get_message(self):
@@ -862,7 +876,7 @@ class OldAgeButNoDeath(PersonRule):
     def broken(self):
         birth_date = self.obj.get_birth_date(self.est)
         dead = self.obj.get_death()
-        death_date = self.obj.get_death_date(True)
+        death_date = self.obj.get_death_date(self.est)
         if dead or death_date or not birth_date:
             return False
         return (self._today - birth_date) / 365 > self.old_age
@@ -892,12 +906,13 @@ class BirthEqualsMarriage(PersonRule):
 
     def broken(self):
         birth_date = self.obj.get_birth_date()
-        birth_ok = birth_date > 0 if birth_date is not None else False
+        if not (birth_date and birth_date > 0):
+            return False
         for fhandle in self.obj.get_family_handle_list():
             family = self.runner.find_family(fhandle)
             marr_date = family.get_marriage_date()
-            marr_ok = marr_date > 0 if marr_date is not None else False
-            return marr_ok and birth_ok and birth_date == marr_date
+            if marr_date and marr_date > 0 and birth_date == marr_date:
+                return True
         return False
 
     def get_message(self):
@@ -910,12 +925,13 @@ class DeathEqualsMarriage(PersonRule):
 
     def broken(self):
         death_date = self.obj.get_death_date()
-        death_ok = death_date > 0 if death_date is not None else False
+        if not (death_date and death_date > 0):
+            return False
         for fhandle in self.obj.get_family_handle_list():
             family = self.runner.find_family(fhandle)
             marr_date = family.get_marriage_date()
-            marr_ok = marr_date > 0 if marr_date is not None else False
-            return marr_ok and death_ok and death_date == marr_date
+            if marr_date and marr_date > 0 and death_date == marr_date:
+                return True
         return False
 
     def get_message(self):
@@ -1467,7 +1483,7 @@ class LargeChildrenSpan(FamilyRule):
 
     def broken(self):
         dates = sorted(_get_child_birth_dates(self.runner, self.obj, self.est))
-        return dates and (dates[-1] - dates[0]) / 365 > self.cbs
+        return bool(dates and (dates[-1] - dates[0]) / 365 > self.cbs)
 
     def get_message(self):
         return _("Large year span for all children")
@@ -1488,7 +1504,7 @@ class LargeChildrenAgeDiff(FamilyRule):
     def broken(self):
         dates = _get_child_birth_dates(self.runner, self.obj, self.est)
         diffs = [dates[i + 1] - dates[i] for i in range(len(dates) - 1)]
-        return diffs and max(diffs) / 365 > self.c_space
+        return bool(diffs and max(diffs) / 365 > self.c_space)
 
     def get_message(self):
         return _("Large age differences between children")
