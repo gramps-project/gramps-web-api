@@ -45,6 +45,7 @@ from ..auth import user_db
 from ..undodb import migrate as migrate_undodb
 from .check import check_database
 from .emails import email_confirm_email, email_new_user, email_reset_pw
+from ..verify_lib import run_verify
 from .export import prepare_options, run_export
 from .media import get_media_handler
 from .media_importer import MediaImporter
@@ -69,6 +70,7 @@ from .util import (
     close_db,
     get_config,
     get_db_outside_request,
+    get_locale_for_language,
     gramps_object_from_dict,
     send_email,
     update_usage_people,
@@ -501,6 +503,27 @@ def check_repair_database(self, tree: str, user_id: str):
     )
     try:
         return check_database(db_handle, progress_cb=progress_callback_count(self))
+    finally:
+        close_db(db_handle)
+
+
+@shared_task()
+def verify_database(
+    tree: str,
+    user_id: str,
+    options: Optional[Dict] = None,
+    locale: Optional[str] = None,
+):
+    """Run genealogical data verification checks against a database."""
+    translate = None
+    if locale:
+        gramps_locale = get_locale_for_language(locale, default=True)
+        translate = gramps_locale.translation.sgettext
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=True, readonly=True, user_id=user_id
+    )
+    try:
+        return run_verify(db_handle, options, translate=translate)
     finally:
         close_db(db_handle)
 
