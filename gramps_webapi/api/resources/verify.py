@@ -18,8 +18,10 @@
 
 """Data verification API resource."""
 
-from flask import Response, jsonify
+from flask import jsonify
 from flask_jwt_extended import get_jwt_identity
+
+from gramps_webapi.types import ResponseReturnValue
 
 from ...auth.const import PERM_VIEW_PRIVATE
 from ..auth import require_permissions
@@ -35,7 +37,7 @@ class VerifyResource(ProtectedResource):
     """Data verification resource."""
 
     @api_blueprint.arguments(VerifyQueryArgs, location="query")
-    def post(self, args, tree_id: str) -> Response:
+    def post(self, args, tree_id: str) -> ResponseReturnValue:
         """Run genealogical data verification checks against the database."""
         require_permissions([PERM_VIEW_PRIVATE])
         user_tree_id = get_tree_from_jwt_or_fail()
