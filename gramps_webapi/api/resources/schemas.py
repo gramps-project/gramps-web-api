@@ -13,7 +13,7 @@ Dependency order (leaf → root) is maintained so that forward-reference lambdas
 are needed only for genuinely circular pairs.
 """
 
-from marshmallow import INCLUDE, Schema, fields
+from marshmallow import INCLUDE, Schema, fields, validate
 
 
 # ---------------------------------------------------------------------------
@@ -2539,6 +2539,11 @@ class VerifyQueryArgs(Schema):
     oldunm      = fields.Int(load_default=_vd["oldunm"],      metadata={"description": _vh["oldunm"]})
     estimate_age = fields.Bool(load_default=_vd["estimate_age"], metadata={"description": _vh["estimate_age"]})
     invdate      = fields.Bool(load_default=_vd["invdate"],      metadata={"description": _vh["invdate"]})
+    locale = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={"description": "Language code for translating result messages (e.g. 'de', 'fr')."},
+    )
 
 
 class VerifyResultSchema(_Base):

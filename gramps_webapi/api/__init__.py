@@ -600,7 +600,9 @@ register_endpt(SearchResource, "/search/", "search", tags=["Search"])
 register_endpt(SearchIndexResource, "/search/index/", "search_index", tags=["Search"])
 
 # Verify
-register_endpt(VerifyResource, "/verify/", "verify", tags=["Other"])
+register_endpt(
+    VerifyResource, "/trees/<string:tree_id>/verify", "verify", tags=["Trees"]
+)
 
 # Chat
 register_endpt(ChatResource, "/chat/", "chat", tags=["Chat"])

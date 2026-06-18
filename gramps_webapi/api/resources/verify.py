@@ -18,26 +18,42 @@
 
 """Data verification API resource."""
 
-from flask import Response
+from flask import Response, jsonify
+from flask_jwt_extended import get_jwt_identity
 
-from ...verify_lib import run_verify
 from ...auth.const import PERM_VIEW_PRIVATE
 from ..auth import require_permissions
 from ..blueprint import api_blueprint
-from ..util import get_db_handle
+from ..tasks import AsyncResult, make_task_response, run_task, verify_database
+from ..util import abort_with_message, get_tree_from_jwt_or_fail
 from . import ProtectedResource
-from .emit import GrampsJSONEncoder
-from .schemas import VerifyQueryArgs, VerifyResultSchema
+from .schemas import VerifyQueryArgs
+from .trees import validate_tree_id
 
 
-class VerifyResource(ProtectedResource, GrampsJSONEncoder):
+class VerifyResource(ProtectedResource):
     """Data verification resource."""
 
-    @api_blueprint.response(200, VerifyResultSchema(many=True))
     @api_blueprint.arguments(VerifyQueryArgs, location="query")
-    def get(self, args) -> Response:
+    def post(self, args, tree_id: str) -> Response:
         """Run genealogical data verification checks against the database."""
         require_permissions([PERM_VIEW_PRIVATE])
-        db = get_db_handle()
-        results = run_verify(db, args)
-        return self.response(200, results)
+        user_tree_id = get_tree_from_jwt_or_fail()
+        if tree_id == "-":
+            tree_id = user_tree_id
+        else:
+            validate_tree_id(tree_id)
+            if tree_id != user_tree_id:
+                abort_with_message(403, "Not allowed to verify other trees")
+        user_id = get_jwt_identity()
+        locale = args.pop("locale", None)
+        task = run_task(
+            verify_database,
+            tree=tree_id,
+            user_id=user_id,
+            options=args or None,
+            locale=locale,
+        )
+        if isinstance(task, AsyncResult):
+            return make_task_response(task)
+        return jsonify(task), 201

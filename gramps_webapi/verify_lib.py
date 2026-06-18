@@ -36,6 +36,7 @@ Usage::
     results = run_verify(db_handle, {"oldage": 100, "estimate_age": True})
 """
 
+import contextvars
 import statistics
 
 from gramps.gen.const import GRAMPS_LOCALE as glocale
@@ -49,7 +50,12 @@ from gramps.gen.lib import (
 )
 from gramps.gen.lib.date import Today
 
-_ = glocale.translation.sgettext
+_tr_var: contextvars.ContextVar = contextvars.ContextVar("verify_tr", default=None)
+
+
+def _(msg: str) -> str:
+    tr = _tr_var.get()
+    return tr(msg) if tr is not None else glocale.translation.sgettext(msg)
 
 # ---------------------------------------------------------------------------
 # Options — mirrors Gramps VerifyOptions without the tool.ToolOptions dependency
@@ -472,8 +478,16 @@ class VerifyRunner:
         ]
         return [rule.report_itself() for rule in rule_list if rule.broken()]
 
-    def run(self, options=None):
+    def run(self, options=None, *, translate=None):
         opts = {**DEFAULT_OPTIONS, **(options or {})}
+        tr = translate if translate is not None else glocale.translation.sgettext
+        token = _tr_var.set(tr)
+        try:
+            return self._run(opts)
+        finally:
+            _tr_var.reset(token)
+
+    def _run(self, opts):
         self._preload()
         today = Today().get_sort_value()
 
@@ -1584,11 +1598,13 @@ class FamilyHasEventsInWrongOrder(FamilyRule):
 # ---------------------------------------------------------------------------
 
 
-def run_verify(db, options=None):
+def run_verify(db, options=None, *, translate=None):
     """Run all verification rules against *db* and return a list of findings.
 
     *options* may be a ``VerifyOptions`` instance, a plain dict of overrides,
-    or ``None`` to use all defaults.
+    or ``None`` to use all defaults.  *translate* is an optional callable that
+    maps a gettext message key to its translated string; when omitted the
+    process-default Gramps locale is used.
 
     Each finding is a dict with keys: message, object_type, object_id,
     object_handle, name, rule_id, rule_params, severity.
@@ -1596,4 +1612,4 @@ def run_verify(db, options=None):
     if isinstance(options, VerifyOptions):
         options = options.as_dict()
     runner = VerifyRunner(db)
-    return runner.run(options)
+    return runner.run(options, translate=translate)
