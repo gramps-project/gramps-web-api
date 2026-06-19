@@ -594,8 +594,7 @@ class UserTriggerResetPasswordResource(Resource):
     def post(self, user_name):
         """Post username to initiate the password reset."""
         if user_name == "-":
-            # password reset trigger does not make sense for "own" user since not logged in
-            abort(404)
+            return "", 201
         details = get_user_details(user_name)
         if details is None:
             return "", 201

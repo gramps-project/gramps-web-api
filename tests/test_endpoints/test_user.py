@@ -249,8 +249,14 @@ class TestUser(unittest.TestCase):
         assert rv.status_code == 403
 
     def test_reset_password_trigger_invalid_user(self):
-        rv = self.client.post(BASE_URL + "/users/doesn_exist/password/reset/trigger/")
-        assert rv.status_code == 404
+        with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
+            mock_smtp_instance = MagicMock()
+            mock_smtp.return_value = mock_smtp_instance
+            rv = self.client.post(
+                BASE_URL + "/users/doesn_exist/password/reset/trigger/"
+            )
+            assert rv.status_code == 201
+            mock_smtp_instance.send_message.assert_not_called()
 
     def test_reset_password_trigger_status(self):
         with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
