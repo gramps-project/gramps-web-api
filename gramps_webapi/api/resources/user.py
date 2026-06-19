@@ -75,8 +75,6 @@ from ..auth import has_permissions, require_permissions
 from ..blueprint import api_blueprint
 from ..ratelimiter import limiter
 from ..tasks import (
-    AsyncResult,
-    make_task_response,
     run_task,
     send_email_confirm_email,
     send_email_new_user,
@@ -596,20 +594,19 @@ class UserTriggerResetPasswordResource(Resource):
     def post(self, user_name):
         """Post username to initiate the password reset."""
         if user_name == "-":
-            # password reset trigger not make sense for "own" user since not logged in
+            # password reset trigger does not make sense for "own" user since not logged in
             abort(404)
         details = get_user_details(user_name)
         if details is None:
-            # user does not exist!
-            abort(404)
-        email = details["email"]
-        if email is None:
-            abort(404)
+            return "", 201
+        email = details.get("email")
+        if not email:
+            return "", 201
         user_id = get_guid(name=user_name)
         token = create_access_token(
             identity=str(user_id),
             # the hash of the existing password is stored in the token in order
-            # to make sure the rest token can only be used once
+            # to make sure the reset token can only be used once
             additional_claims={
                 "old_hash": get_pwhash(user_name),
                 CLAIM_LIMITED_SCOPE: SCOPE_RESET_PW,
@@ -618,13 +615,14 @@ class UserTriggerResetPasswordResource(Resource):
             expires_delta=datetime.timedelta(hours=1),
         )
         try:
-            task = run_task(
-                send_email_reset_password, email=email, user_name=user_name, token=token
+            run_task(
+                send_email_reset_password,
+                email=email,
+                user_name=user_name,
+                token=token,
             )
         except ValueError:
-            abort_with_message(500, "Error while trying to send e-mail")
-        if isinstance(task, AsyncResult):
-            return make_task_response(task)
+            pass
         return "", 201
 
 
