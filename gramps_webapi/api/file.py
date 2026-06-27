@@ -117,7 +117,11 @@ class FileHandler:
         """Abort with 413 if the file exceeds the thumbnail size limit."""
         max_bytes = current_app.config.get("MAX_THUMBNAIL_FILE_BYTES")
         assert max_bytes is not None  # for type checker
-        if self.get_file_size() > max_bytes:
+        try:
+            size = self.get_file_size()
+        except FileNotFoundError:
+            return  # file doesn't exist; thumbnail handler will return 404
+        if size > max_bytes:
             abort_with_message(413, "File too large for thumbnailing")
 
     def get_face_regions(self, etag: Optional[str] = None):
