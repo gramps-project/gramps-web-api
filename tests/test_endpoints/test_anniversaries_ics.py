@@ -85,6 +85,8 @@ class TestAnniversariesIcs(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         text = rv.data.decode("utf-8")
         self.assertIn("Type: Birth", text)
+        self.assertIn("\\nType: Birth", text)
+        self.assertNotIn("\\\\nType: Birth", text)
         self.assertNotIn("Type: Death", text)
 
     def test_public_feed_generation_depth_validation(self):
