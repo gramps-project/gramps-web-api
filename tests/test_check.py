@@ -39,6 +39,7 @@ class TestRebuildCustomTypeCaches(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        cls.db.close()
         cls.exampledb.close()
 
     def test_stale_custom_event_type_removed(self):
@@ -107,6 +108,7 @@ class TestCheckDatabase(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        cls.db.close()
         cls.exampledb.close()
 
     def test_reports_removed_custom_types(self):
