@@ -85,6 +85,7 @@ from ..util import (
     get_db_handle,
     get_tree_from_jwt,
 )
+from .marital_status import get_marital_status
 
 pd = PlaceDisplay()
 _ = glocale.translation.gettext
@@ -846,6 +847,9 @@ def get_family_profile_for_object(
             for child_ref in family.child_ref_list
         ],
     }
+    profile["marital_status"] = get_marital_status(
+        db_handle, family, profile["father"], profile["mother"]
+    )
     if profile["father"]:
         if profile["father"]["name_surname"] or profile["father"]["name_given"]:
             profile["family_surname"] = profile["father"]["name_surname"]

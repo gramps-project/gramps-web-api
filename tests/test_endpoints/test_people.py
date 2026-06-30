@@ -700,6 +700,7 @@ class TestPeople(unittest.TestCase):
                         },
                         "gramps_id": "F0204",
                         "handle": "R14KQCXMSQYXI2CS6W",
+                        "marital_status": "widowed",
                         "marriage": {
                             "citations": 0,
                             "confidence": 0,
@@ -807,6 +808,7 @@ class TestPeople(unittest.TestCase):
                     },
                     "gramps_id": "F0704",
                     "handle": "DT6KQCOCKIUH1J4OSV",
+                    "marital_status": "widowed",
                     "relationship": "Married",
                 },
                 "references": {
@@ -861,6 +863,7 @@ class TestPeople(unittest.TestCase):
                             },
                             "gramps_id": "F0704",
                             "handle": "DT6KQCOCKIUH1J4OSV",
+                            "marital_status": "widowed",
                             "relationship": "Married",
                         },
                         {
@@ -913,6 +916,7 @@ class TestPeople(unittest.TestCase):
                             },
                             "gramps_id": "F0204",
                             "handle": "R14KQCXMSQYXI2CS6W",
+                            "marital_status": "widowed",
                             "marriage": {
                                 "place": "Loveland, Larimer, CO, USA",
                                 "place_name": "Loveland",
