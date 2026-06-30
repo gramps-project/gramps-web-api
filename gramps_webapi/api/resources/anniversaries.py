@@ -234,8 +234,10 @@ class AnniversariesIcsResource(Resource):
         try:
             iter_event_handles = db_handle.method("iter_event_handles")
             get_event_from_handle = db_handle.method("get_event_from_handle")
-            assert iter_event_handles is not None
-            assert get_event_from_handle is not None
+            if iter_event_handles is None:
+                raise RuntimeError("Method iter_event_handles not found")
+            if get_event_from_handle is None:
+                raise RuntimeError("Method get_event_from_handle not found")
             events = []
             for handle in iter_event_handles():
                 event = get_event_from_handle(handle)
