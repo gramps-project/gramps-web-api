@@ -431,6 +431,15 @@ class FamilyProfileSchema(_Base):
     handle = fields.Str(
         metadata={"description": "Unique handle for the family."},
     )
+    marital_status = fields.Str(
+        metadata={
+            "description": (
+                "Derived union status of the family: one of 'married', "
+                "'divorced', 'widowed', 'partners' or 'unknown'. A "
+                "locale-neutral enum, not translated."
+            )
+        },
+    )
     marriage = fields.Nested(
         EventProfileSchema,
         metadata={
