@@ -155,7 +155,7 @@ def _build_ics(events: list[Event], db_handle, tree_id: str) -> str:
         dtstart = f"{year:04d}{month:02d}{day:02d}"
         summary = _escape_ics_text(get_event_summary_from_object(db_handle, event))
         description = _escape_ics_text(
-            f"Gramps ID: {event.gramps_id or ''}\\nType: {event.get_type().xml_str()}"
+            f"Gramps ID: {event.gramps_id or ''}\nType: {event.get_type().xml_str()}"
         )
         uid = _escape_ics_text(f"{event.handle}@{tree_id}.anniversaries.gramps-web")
         lines.extend(
