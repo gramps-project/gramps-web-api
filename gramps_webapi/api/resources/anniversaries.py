@@ -238,40 +238,38 @@ class AnniversariesIcsResource(Resource):
                 raise RuntimeError("Method iter_event_handles not found")
             if get_event_from_handle is None:
                 raise RuntimeError("Method get_event_from_handle not found")
-            events = []
-            for handle in iter_event_handles():
-                event = get_event_from_handle(handle)
-                if event is not None:
-                    events.append(event)
 
             allowed_types = {
                 event_type.casefold().strip()
                 for event_type in args.get("event_types", [])
                 if event_type and event_type.strip()
             }
-            events = [
-                event for event in events if _event_matches_type(event, allowed_types)
-            ]
-            events = [
-                event
-                for event in events
-                if _get_anniversary_date_components(event) is not None
-            ]
 
-            if args.get("anchor_gramps_id"):
+            anchor_gramps_id = args.get("anchor_gramps_id")
+            allowed_people = set()
+            allowed_families = set()
+            if anchor_gramps_id:
                 allowed_people = _resolve_anchor_people_handles(
-                    db_handle, args["anchor_gramps_id"], args["generation_depth"]
+                    db_handle, anchor_gramps_id, args["generation_depth"]
                 )
                 allowed_families = _resolve_family_handles_for_people(
                     db_handle, allowed_people
                 )
-                events = [
-                    event
-                    for event in events
-                    if _is_event_in_anchor_scope(
-                        db_handle, event, allowed_people, allowed_families
-                    )
-                ]
+
+            events = []
+            for handle in iter_event_handles():
+                event = get_event_from_handle(handle)
+                if event is None:
+                    continue
+                if not _event_matches_type(event, allowed_types):
+                    continue
+                if _get_anniversary_date_components(event) is None:
+                    continue
+                if anchor_gramps_id and not _is_event_in_anchor_scope(
+                    db_handle, event, allowed_people, allowed_families
+                ):
+                    continue
+                events.append(event)
 
             events.sort(key=_event_sort_key)
             payload = _build_ics(events=events, db_handle=db_handle, tree_id=tree_id)
