@@ -194,16 +194,6 @@ class TestOIDCEndpoints(unittest.TestCase):
     @patch("gramps_webapi.api.resources.oidc.get_tree_id")
     @patch("gramps_webapi.api.resources.oidc.get_permissions")
     @patch("gramps_webapi.api.resources.oidc.is_tree_disabled", return_value=False)
-    @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
-    @patch(
-        "gramps_webapi.api.resources.oidc.get_available_oidc_providers",
-        return_value=["custom"],
-    )
-    @patch("gramps_webapi.api.resources.oidc.create_or_update_oidc_user")
-    @patch("gramps_webapi.api.resources.oidc.get_name")
-    @patch("gramps_webapi.api.resources.oidc.get_tree_id")
-    @patch("gramps_webapi.api.resources.oidc.get_permissions")
-    @patch("gramps_webapi.api.resources.oidc.is_tree_disabled", return_value=False)
     @patch("gramps_webapi.api.resources.oidc.get_tokens")
     def test_oidc_callback_merges_id_token_claims(
         self,
@@ -269,6 +259,16 @@ class TestOIDCEndpoints(unittest.TestCase):
                 # userinfo endpoint values are preserved.
                 self.assertEqual(passed_userinfo.get("email"), "test@example.com")
 
+    @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
+    @patch(
+        "gramps_webapi.api.resources.oidc.get_available_oidc_providers",
+        return_value=["custom"],
+    )
+    @patch("gramps_webapi.api.resources.oidc.create_or_update_oidc_user")
+    @patch("gramps_webapi.api.resources.oidc.get_name")
+    @patch("gramps_webapi.api.resources.oidc.get_tree_id")
+    @patch("gramps_webapi.api.resources.oidc.get_permissions")
+    @patch("gramps_webapi.api.resources.oidc.is_tree_disabled", return_value=False)
     @patch("gramps_webapi.api.resources.oidc.get_tokens")
     def test_oidc_callback_success(
         self,
