@@ -194,6 +194,81 @@ class TestOIDCEndpoints(unittest.TestCase):
     @patch("gramps_webapi.api.resources.oidc.get_tree_id")
     @patch("gramps_webapi.api.resources.oidc.get_permissions")
     @patch("gramps_webapi.api.resources.oidc.is_tree_disabled", return_value=False)
+    @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
+    @patch(
+        "gramps_webapi.api.resources.oidc.get_available_oidc_providers",
+        return_value=["custom"],
+    )
+    @patch("gramps_webapi.api.resources.oidc.create_or_update_oidc_user")
+    @patch("gramps_webapi.api.resources.oidc.get_name")
+    @patch("gramps_webapi.api.resources.oidc.get_tree_id")
+    @patch("gramps_webapi.api.resources.oidc.get_permissions")
+    @patch("gramps_webapi.api.resources.oidc.is_tree_disabled", return_value=False)
+    @patch("gramps_webapi.api.resources.oidc.get_tokens")
+    def test_oidc_callback_merges_id_token_claims(
+        self,
+        mock_get_tokens,
+        mock_tree_disabled,
+        mock_get_permissions,
+        mock_get_tree_id,
+        mock_get_name,
+        mock_create_user,
+        mock_providers,
+        mock_oidc_enabled,
+    ):
+        """ID-token claims (e.g. roles) missing from userinfo are merged in.
+
+        Providers such as Microsoft Entra return app roles / group memberships
+        only in the ID token, not from the userinfo endpoint. They must still
+        reach role mapping.
+        """
+        mock_oauth = MagicMock()
+        mock_oidc_client = MagicMock()
+        mock_oauth.gramps_custom = mock_oidc_client
+
+        # userinfo endpoint response lacks the roles claim...
+        mock_userinfo = {
+            "sub": "user123",
+            "preferred_username": "testuser",
+            "email": "test@example.com",
+            "name": "Test User",
+        }
+        # ...but the ID token (parsed by Authlib into token["userinfo"]) has it.
+        mock_token = {
+            "access_token": "test_token",
+            "userinfo": {"sub": "user123", "roles": ["admin"]},
+        }
+        mock_oidc_client.authorize_access_token.return_value = mock_token
+        mock_oidc_client.userinfo.return_value = mock_userinfo
+
+        mock_create_user.return_value = "user-guid-123"
+        mock_get_name.return_value = "testuser"
+        mock_get_tree_id.return_value = "test_tree"
+        mock_get_permissions.return_value = {"ViewPrivate"}
+        mock_get_tokens.return_value = {
+            "access_token": "jwt_access_token",
+            "refresh_token": "jwt_refresh_token",
+        }
+
+        with patch.dict(
+            self.client.application.extensions,
+            {"authlib.integrations.flask_client": mock_oauth},
+            clear=False,
+        ):
+            with patch.dict(self.client.application.config, {"TREE": "test_tree"}):
+                rv = self.client.get(
+                    BASE_URL
+                    + "/oidc/callback/?code=auth_code&state=abc123&provider=custom"
+                )
+                self.assertEqual(rv.status_code, 302)
+
+                # The merged userinfo passed to user creation must include the
+                # roles claim that only existed in the ID token.
+                passed_userinfo = mock_create_user.call_args.args[0]
+                self.assertEqual(passed_userinfo.get("roles"), ["admin"])
+                # userinfo endpoint values are preserved.
+                self.assertEqual(passed_userinfo.get("email"), "test@example.com")
+
     @patch("gramps_webapi.api.resources.oidc.get_tokens")
     def test_oidc_callback_success(
         self,
