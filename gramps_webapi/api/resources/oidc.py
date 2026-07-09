@@ -220,9 +220,13 @@ class OIDCCallbackResource(Resource):
                 # claims missing from the userinfo response so that role
                 # mapping via OIDC_ROLE_CLAIM works consistently across
                 # providers. userinfo endpoint values take precedence.
-                id_token_claims = token.get("userinfo") or {}
-                for claim, value in id_token_claims.items():
-                    userinfo.setdefault(claim, value)
+                # Guard against a non-mapping value under "userinfo": an
+                # unexpected shape must be ignored, not turn a successful
+                # login into a 401.
+                id_token_claims = token.get("userinfo")
+                if isinstance(id_token_claims, dict):
+                    for claim, value in id_token_claims.items():
+                        userinfo.setdefault(claim, value)
 
         except Exception:  # pylint: disable=broad-except
             logger.exception("OIDC callback error for provider '%s'", provider_id)

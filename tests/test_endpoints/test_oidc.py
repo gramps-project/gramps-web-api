@@ -224,9 +224,15 @@ class TestOIDCEndpoints(unittest.TestCase):
             "name": "Test User",
         }
         # ...but the ID token (parsed by Authlib into token["userinfo"]) has it.
+        # It also carries a conflicting email to prove the userinfo endpoint
+        # value takes precedence over the ID-token claim.
         mock_token = {
             "access_token": "test_token",
-            "userinfo": {"sub": "user123", "roles": ["admin"]},
+            "userinfo": {
+                "sub": "user123",
+                "roles": ["admin"],
+                "email": "idtoken@example.com",
+            },
         }
         mock_oidc_client.authorize_access_token.return_value = mock_token
         mock_oidc_client.userinfo.return_value = mock_userinfo
@@ -256,7 +262,8 @@ class TestOIDCEndpoints(unittest.TestCase):
                 # roles claim that only existed in the ID token.
                 passed_userinfo = mock_create_user.call_args.args[0]
                 self.assertEqual(passed_userinfo.get("roles"), ["admin"])
-                # userinfo endpoint values are preserved.
+                # userinfo endpoint values take precedence over a conflicting
+                # ID-token claim (endpoint email wins, not idtoken@example.com).
                 self.assertEqual(passed_userinfo.get("email"), "test@example.com")
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
