@@ -213,7 +213,20 @@ class OIDCCallbackResource(Resource):
                 userinfo = resp.json()
             else:
                 # Standard OIDC - get userinfo from userinfo endpoint
-                userinfo = oidc_client.userinfo(token=token)
+                userinfo = dict(oidc_client.userinfo(token=token))
+                # Some providers (e.g. Microsoft Entra) return authorization
+                # claims such as app roles or group memberships only in the ID
+                # token, not from the userinfo endpoint. Merge any ID-token
+                # claims missing from the userinfo response so that role
+                # mapping via OIDC_ROLE_CLAIM works consistently across
+                # providers. userinfo endpoint values take precedence.
+                # Guard against a non-mapping value under "userinfo": an
+                # unexpected shape must be ignored, not turn a successful
+                # login into a 401.
+                id_token_claims = token.get("userinfo")
+                if isinstance(id_token_claims, dict):
+                    for claim, value in id_token_claims.items():
+                        userinfo.setdefault(claim, value)
 
         except Exception:  # pylint: disable=broad-except
             logger.exception("OIDC callback error for provider '%s'", provider_id)
