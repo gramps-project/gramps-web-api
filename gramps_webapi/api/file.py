@@ -168,8 +168,6 @@ class LocalFileHandler(FileHandler):
         """Initialize self given a handle and media base directory."""
         super().__init__(handle, db_handle=db_handle)
         self.base_dir = base_dir
-        if not os.path.isdir(self.base_dir):
-            raise ValueError(f"Directory {self.base_dir} does not exist")
         if os.path.isabs(self.path):
             self.path_abs = self.path
             self.path_rel = os.path.relpath(self.path, self.base_dir)
