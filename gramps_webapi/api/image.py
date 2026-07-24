@@ -262,6 +262,40 @@ def _lat_to_tile_pixel_y(lat: float, z: int, y_tile: int, tile_size: int = 256) 
     return y_merc * (2**z) * tile_size - y_tile * tile_size
 
 
+def get_native_max_zoom(img_width: int, img_height: int, bounds: list, tile_size: int = 256) -> int:
+    """Return the highest zoom level at which the image is at or above native resolution.
+
+    bounds: [[lat_min, lon_min], [lat_max, lon_max]]
+    Beyond this zoom, tiles would be showing upscaled (blurry) source pixels rather
+    than new detail.
+    """
+    img_lat_min, img_lon_min = bounds[0]
+    img_lat_max, img_lon_max = bounds[1]
+    lon_span = img_lon_max - img_lon_min
+    lat_span = img_lat_max - img_lat_min
+    if lon_span <= 0 or lat_span <= 0:
+        return 0
+
+    # Pixel span the image's bounds would occupy at zoom 0, per axis.
+    lon_pixel_span_z0 = lon_span / 360.0 * tile_size
+    try:
+        lat_pixel_span_z0 = _lat_to_tile_pixel_y(
+            img_lat_min, 0, 0, tile_size
+        ) - _lat_to_tile_pixel_y(img_lat_max, 0, 0, tile_size)
+    except ValueError:
+        # Latitude outside the valid Mercator range (e.g. malformed map:bounds).
+        return 0
+    if lon_pixel_span_z0 <= 0 or lat_pixel_span_z0 <= 0:
+        return 0
+
+    # Zoom level at which each axis reaches 1 image pixel per tile pixel.
+    z_lon = math.log2(img_width / lon_pixel_span_z0)
+    z_lat = math.log2(img_height / lat_pixel_span_z0)
+
+    # Whichever axis saturates first determines when upscaling starts.
+    return max(0, math.floor(min(z_lon, z_lat)))
+
+
 def transparent_png_tile(tile_size: int = 256) -> BinaryIO:
     """Return a buffer containing a fully transparent RGBA PNG tile."""
     return save_image_buffer(Image.new("RGBA", (tile_size, tile_size), (0, 0, 0, 0)), fmt="PNG")

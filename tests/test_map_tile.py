@@ -28,6 +28,7 @@ from gramps_webapi.api.image import (
     _lat_to_tile_pixel_y,
     _tile_bounds_lonlat,
     get_map_tile,
+    get_native_max_zoom,
     transparent_png_tile,
 )
 
@@ -173,6 +174,56 @@ class TestLatToTilePixelY(unittest.TestCase):
         y_85 = _lat_to_tile_pixel_y(85.0, z=0, y_tile=0)
         midpoint = (y_0 + y_85) / 2
         self.assertNotAlmostEqual(y_45, midpoint, delta=5)
+
+
+class TestGetNativeMaxZoom(unittest.TestCase):
+    # The z=0 world tile's exact lat/lon bounds, so pixel-density math is exact.
+    WORLD_BOUNDS = [
+        [_tile_bounds_lonlat(0, 0, 0)[1], _tile_bounds_lonlat(0, 0, 0)[0]],
+        [_tile_bounds_lonlat(0, 0, 0)[3], _tile_bounds_lonlat(0, 0, 0)[2]],
+    ]
+
+    def test_image_matching_z0_tile_size_has_native_zoom_0(self):
+        """A 256x256 image spanning the whole world is native at z=0, not beyond."""
+        z = get_native_max_zoom(256, 256, self.WORLD_BOUNDS)
+        self.assertEqual(z, 0)
+
+    def test_doubling_resolution_increases_native_zoom_by_one(self):
+        """A 512x512 world image reaches native resolution one zoom level deeper."""
+        z = get_native_max_zoom(512, 512, self.WORLD_BOUNDS)
+        self.assertEqual(z, 1)
+
+    def test_higher_resolution_never_decreases_native_zoom(self):
+        """Native zoom is monotonically non-decreasing in image resolution."""
+        bounds = [[52.50, 13.40], [52.51, 13.42]]
+        sizes = [(100, 100), (500, 500), (2000, 2000), (8000, 8000)]
+        zooms = [get_native_max_zoom(w, h, bounds) for w, h in sizes]
+        self.assertEqual(zooms, sorted(zooms))
+
+    def test_degenerate_bounds_returns_zero(self):
+        """Zero-area bounds (lat_min == lat_max) don't raise and return 0."""
+        z = get_native_max_zoom(1000, 1000, [[10.0, 20.0], [10.0, 60.0]])
+        self.assertEqual(z, 0)
+
+    def test_never_negative(self):
+        """A tiny image over large bounds still returns a non-negative zoom."""
+        z = get_native_max_zoom(1, 1, self.WORLD_BOUNDS)
+        self.assertGreaterEqual(z, 0)
+
+    def test_out_of_range_latitude_does_not_raise(self):
+        """Latitudes outside +/-90 (malformed map:bounds) return 0, not a crash.
+
+        _get_map_bounds() only validates ordering, not range, so this is reachable
+        with corrupted attribute data.
+        """
+        for bounds in (
+            [[0.0, 0.0], [95.0, 10.0]],
+            [[-90.0, 0.0], [10.0, 10.0]],
+            [[0.0, 0.0], [180.0, 10.0]],
+        ):
+            with self.subTest(bounds=bounds):
+                z = get_native_max_zoom(1000, 1000, bounds)
+                self.assertEqual(z, 0)
 
 
 class TestGetMapBounds(unittest.TestCase):

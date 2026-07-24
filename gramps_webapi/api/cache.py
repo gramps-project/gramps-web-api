@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 
 from flask import request
@@ -146,3 +147,19 @@ def make_cache_key_tiles(*args, **kwargs):
 tile_cache_decorator = thumbnail_cache.cached(
     make_cache_key=make_cache_key_tiles
 )
+
+
+def _native_max_zoom_cache_key(checksum: str, bounds: list) -> str:
+    """Make a cache key for the native max zoom of a georeferenced media file."""
+    bounds_hash = hashlib.md5(json.dumps(bounds).encode()).hexdigest()
+    return f"{checksum}:{bounds_hash}:native_max_zoom"
+
+
+def get_cached_native_max_zoom(checksum: str, bounds: list) -> int | None:
+    """Get the cached native max zoom for a georeferenced media file, if known."""
+    return persistent_cache.get(_native_max_zoom_cache_key(checksum, bounds))
+
+
+def set_cached_native_max_zoom(checksum: str, bounds: list, native_max_zoom: int) -> None:
+    """Cache the native max zoom for a georeferenced media file."""
+    persistent_cache.set(_native_max_zoom_cache_key(checksum, bounds), native_max_zoom)
