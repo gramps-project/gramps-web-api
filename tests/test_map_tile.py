@@ -210,6 +210,21 @@ class TestGetNativeMaxZoom(unittest.TestCase):
         z = get_native_max_zoom(1, 1, self.WORLD_BOUNDS)
         self.assertGreaterEqual(z, 0)
 
+    def test_out_of_range_latitude_does_not_raise(self):
+        """Latitudes outside +/-90 (malformed map:bounds) return 0, not a crash.
+
+        _get_map_bounds() only validates ordering, not range, so this is reachable
+        with corrupted attribute data.
+        """
+        for bounds in (
+            [[0.0, 0.0], [95.0, 10.0]],
+            [[-90.0, 0.0], [10.0, 10.0]],
+            [[0.0, 0.0], [180.0, 10.0]],
+        ):
+            with self.subTest(bounds=bounds):
+                z = get_native_max_zoom(1000, 1000, bounds)
+                self.assertEqual(z, 0)
+
 
 class TestGetMapBounds(unittest.TestCase):
     class _Attr:

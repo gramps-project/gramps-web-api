@@ -278,9 +278,13 @@ def get_native_max_zoom(img_width: int, img_height: int, bounds: list, tile_size
 
     # Pixel span the image's bounds would occupy at zoom 0, per axis.
     lon_pixel_span_z0 = lon_span / 360.0 * tile_size
-    lat_pixel_span_z0 = _lat_to_tile_pixel_y(
-        img_lat_min, 0, 0, tile_size
-    ) - _lat_to_tile_pixel_y(img_lat_max, 0, 0, tile_size)
+    try:
+        lat_pixel_span_z0 = _lat_to_tile_pixel_y(
+            img_lat_min, 0, 0, tile_size
+        ) - _lat_to_tile_pixel_y(img_lat_max, 0, 0, tile_size)
+    except ValueError:
+        # Latitude outside the valid Mercator range (e.g. malformed map:bounds).
+        return 0
     if lon_pixel_span_z0 <= 0 or lat_pixel_span_z0 <= 0:
         return 0
 

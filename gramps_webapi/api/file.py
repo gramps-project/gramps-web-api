@@ -299,8 +299,8 @@ class LocalFileHandler(FileHandler):
             if native_max_zoom is None:
                 native_max_zoom = get_native_max_zoom(img.width, img.height, bounds)
                 set_cached_native_max_zoom(self.checksum, bounds, native_max_zoom)
-                if z > native_max_zoom:
-                    abort_with_message(404, "Zoom level exceeds native resolution of source image")
+            if z > native_max_zoom:
+                abort_with_message(404, "Zoom level exceeds native resolution of source image")
             buffer = get_map_tile(img, bounds, z, x, y)
         return send_file(buffer, mimetype=MIME_PNG)
 
