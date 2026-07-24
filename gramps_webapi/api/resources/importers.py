@@ -25,19 +25,25 @@ import uuid
 from http import HTTPStatus
 from typing import Any, Dict
 
-from flask import Response, current_app, request
+from flask import Response, current_app, jsonify, request
 from flask_jwt_extended import get_jwt_identity
 from marshmallow import Schema
 from webargs import fields
 
-from ...auth.const import PERM_IMPORT_FILE
+from ...auth.const import PERM_DEL_OBJ_BATCH, PERM_IMPORT_FILE
 from ..auth import require_permissions
 from ..blueprint import api_blueprint
-from ..tasks import AsyncResult, import_file, make_task_response, run_task
+from ..tasks import (
+    AsyncResult,
+    import_file,
+    make_task_response,
+    restore_backup,
+    run_task,
+)
 from ..util import abort_with_message, get_db_handle, get_tree_from_jwt
-from . import ProtectedResource
+from . import FreshProtectedResource, ProtectedResource
 from .emit import GrampsJSONEncoder
-from .schemas import ImporterSchema
+from .schemas import ImporterSchema, RestoreSummarySchema
 from .util import get_importers
 
 
@@ -117,3 +123,70 @@ class ImporterFileResource(ProtectedResource):
         if isinstance(task, AsyncResult):
             return make_task_response(task)
         return Response(status=201)
+
+
+def _stream_upload_to_tempfile(extension: str) -> str:
+    """Stream the request body to a temporary file and return its path."""
+    export_path = current_app.config["EXPORT_DIR"]
+    os.makedirs(export_path, exist_ok=True)
+    file_name = f"{uuid.uuid4()}.{extension}"
+    file_path = os.path.join(export_path, file_name)
+    with open(file_path, "w+b") as ftmp:
+        chunk_size = 4 * 1024  # reading in 4 KB chunks
+        while True:
+            chunk = request.stream.read(chunk_size)
+            if not chunk:
+                break
+            ftmp.write(chunk)
+    return file_path
+
+
+class RestoreFileQueryArgs(Schema):
+    """Query arguments for POST /importers/<extension>/file/restore."""
+
+    jwt = fields.String(
+        required=False,
+        metadata={"description": "JWT token for upload authentication."},
+    )
+    dry_run = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": (
+                "If true, compute and return the changeset summary without "
+                "modifying the tree."
+            )
+        },
+    )
+
+
+class RestoreFileResource(FreshProtectedResource):
+    """Restore (reset) the tree to the state of an uploaded backup file."""
+
+    @api_blueprint.response(200, RestoreSummarySchema())
+    @api_blueprint.arguments(RestoreFileQueryArgs, location="query")
+    def post(self, args: dict, extension: str) -> Response:
+        """Reset the tree to match an uploaded backup, replacing its contents."""
+        require_permissions([PERM_IMPORT_FILE, PERM_DEL_OBJ_BATCH])
+        get_db_handle()  # needed to load plugins
+        importers = get_importers(extension.lower())
+        if not importers:
+            abort_with_message(
+                HTTPStatus.NOT_FOUND, f"Importer for extension {extension} not found"
+            )
+        file_path = _stream_upload_to_tempfile(extension)
+        if os.path.getsize(file_path) == 0:
+            os.remove(file_path)
+            abort_with_message(400, "Uploaded file is empty")
+        tree = get_tree_from_jwt()
+        user_id = get_jwt_identity()
+        task = run_task(
+            restore_backup,
+            tree=tree,
+            user_id=user_id,
+            file_name=file_path,
+            extension=extension.lower(),
+            dry_run=args.get("dry_run", False),
+        )
+        if isinstance(task, AsyncResult):
+            return make_task_response(task)
+        return jsonify(task), 200

@@ -51,6 +51,13 @@ from .media import get_media_handler
 from .media_importer import MediaImporter
 from .report import run_report
 from .resources.delete import delete_all_objects
+from .resources.restore import (
+    apply_reset_changeset,
+    changeset_people_delta,
+    compute_reset_changeset,
+    load_backup_db,
+    summarize_changeset,
+)
 from .resources.util import (
     abort_with_message,
     app_has_semantic_search,
@@ -364,6 +371,72 @@ def import_file(
                 self, title="Updating semantic search index..."
             ),
         )
+
+
+@shared_task(bind=True)
+def restore_backup(
+    self,
+    tree: str,
+    user_id: str,
+    file_name: str,
+    extension: str,
+    dry_run: bool = False,
+):
+    """Reset a tree to the state of an uploaded backup file.
+
+    Computes the delta between the live tree and the backup (add/update/delete)
+    and, unless ``dry_run`` is set, applies it in a single transaction. Returns a
+    per-object-type summary of the changeset in both cases.
+    """
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=True, readonly=dry_run, user_id=user_id
+    )
+    try:
+        set_progress_title(self, title="Computing differences...")
+        backup_db = load_backup_db(file_name=file_name, extension=extension.lower())
+        try:
+            changeset = compute_reset_changeset(db_handle, backup_db)
+        finally:
+            backup_db.close()
+        summary = summarize_changeset(changeset)
+        if dry_run:
+            return summary
+        check_quota_people(
+            to_add=max(0, changeset_people_delta(changeset)),
+            tree=tree,
+            user_id=user_id,
+        )
+        apply_reset_changeset(
+            db_handle,
+            changeset,
+            progress_cb=progress_callback_count(self, title="Restoring from backup..."),
+        )
+    finally:
+        close_db(db_handle)
+        try:
+            os.remove(file_name)
+        except OSError:
+            pass
+
+    update_usage_people(tree=tree, user_id=user_id)
+    _search_reindex_incremental(
+        tree=tree,
+        user_id=user_id,
+        semantic=False,
+        progress_cb=progress_callback_count(
+            self, title="Updating full-text search index..."
+        ),
+    )
+    if current_app.config.get("VECTOR_EMBEDDING_MODEL"):
+        _search_reindex_incremental(
+            tree=tree,
+            user_id=user_id,
+            semantic=True,
+            progress_cb=progress_callback_count(
+                self, title="Updating semantic search index..."
+            ),
+        )
+    return summary
 
 
 @shared_task(bind=True)

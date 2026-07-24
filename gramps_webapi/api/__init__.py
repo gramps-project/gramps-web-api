@@ -63,6 +63,7 @@ from .resources.importers import (
     ImporterFileResource,
     ImporterResource,
     ImportersResource,
+    RestoreFileResource,
 )
 from .resources.living import LivingDatesResource, LivingResource
 from .resources.media import MediaObjectResource, MediaObjectsResource
@@ -538,6 +539,12 @@ register_endpt(
     ImporterFileResource,
     "/importers/<string:extension>/file",
     "importer-file",
+    tags=["Importers"],
+)
+register_endpt(
+    RestoreFileResource,
+    "/importers/<string:extension>/file/restore",
+    "restore-file",
     tags=["Importers"],
 )
 register_endpt(

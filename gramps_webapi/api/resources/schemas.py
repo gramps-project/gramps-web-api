@@ -15,7 +15,6 @@ are needed only for genuinely circular pairs.
 
 from marshmallow import INCLUDE, Schema, fields, validate
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -2090,6 +2089,41 @@ class ImporterSchema(_Base):
     )
 
 
+class RestoreSummarySchema(_Base):
+    """Summary of a restore-from-backup changeset, as per-object-type counts."""
+
+    to_add = fields.Dict(
+        keys=fields.Str(),
+        values=fields.Integer(),
+        metadata={
+            "description": (
+                "Number of objects, by type, present in the backup but not in the "
+                "tree, which would be added."
+            )
+        },
+    )
+    to_update = fields.Dict(
+        keys=fields.Str(),
+        values=fields.Integer(),
+        metadata={
+            "description": (
+                "Number of objects, by type, present in both but differing, which "
+                "would be overwritten with the backup version."
+            )
+        },
+    )
+    to_delete = fields.Dict(
+        keys=fields.Str(),
+        values=fields.Integer(),
+        metadata={
+            "description": (
+                "Number of objects, by type, present in the tree but not in the "
+                "backup, which would be deleted."
+            )
+        },
+    )
+
+
 class ReportHelpOptionSchema(_Base):
     """Help information for a single report option (heterogeneous array)."""
 
@@ -2522,27 +2556,63 @@ class VerifyQueryArgs(Schema):
     ``gramps_webapi.verify_lib`` — the single source of truth.
     """
 
-    oldage      = fields.Int(load_default=_vd["oldage"],      metadata={"description": _vh["oldage"]})
-    hwdif       = fields.Int(load_default=_vd["hwdif"],       metadata={"description": _vh["hwdif"]})
-    cspace      = fields.Int(load_default=_vd["cspace"],      metadata={"description": _vh["cspace"]})
-    cbspan      = fields.Int(load_default=_vd["cbspan"],      metadata={"description": _vh["cbspan"]})
-    yngmar      = fields.Int(load_default=_vd["yngmar"],      metadata={"description": _vh["yngmar"]})
-    oldmar      = fields.Int(load_default=_vd["oldmar"],      metadata={"description": _vh["oldmar"]})
-    oldmom      = fields.Int(load_default=_vd["oldmom"],      metadata={"description": _vh["oldmom"]})
-    yngmom      = fields.Int(load_default=_vd["yngmom"],      metadata={"description": _vh["yngmom"]})
-    yngdad      = fields.Int(load_default=_vd["yngdad"],      metadata={"description": _vh["yngdad"]})
-    olddad      = fields.Int(load_default=_vd["olddad"],      metadata={"description": _vh["olddad"]})
-    wedder      = fields.Int(load_default=_vd["wedder"],      metadata={"description": _vh["wedder"]})
-    mxchildmom  = fields.Int(load_default=_vd["mxchildmom"],  metadata={"description": _vh["mxchildmom"]})
-    mxchilddad  = fields.Int(load_default=_vd["mxchilddad"],  metadata={"description": _vh["mxchilddad"]})
-    lngwdw      = fields.Int(load_default=_vd["lngwdw"],      metadata={"description": _vh["lngwdw"]})
-    oldunm      = fields.Int(load_default=_vd["oldunm"],      metadata={"description": _vh["oldunm"]})
-    estimate_age = fields.Bool(load_default=_vd["estimate_age"], metadata={"description": _vh["estimate_age"]})
-    invdate      = fields.Bool(load_default=_vd["invdate"],      metadata={"description": _vh["invdate"]})
+    oldage = fields.Int(
+        load_default=_vd["oldage"], metadata={"description": _vh["oldage"]}
+    )
+    hwdif = fields.Int(
+        load_default=_vd["hwdif"], metadata={"description": _vh["hwdif"]}
+    )
+    cspace = fields.Int(
+        load_default=_vd["cspace"], metadata={"description": _vh["cspace"]}
+    )
+    cbspan = fields.Int(
+        load_default=_vd["cbspan"], metadata={"description": _vh["cbspan"]}
+    )
+    yngmar = fields.Int(
+        load_default=_vd["yngmar"], metadata={"description": _vh["yngmar"]}
+    )
+    oldmar = fields.Int(
+        load_default=_vd["oldmar"], metadata={"description": _vh["oldmar"]}
+    )
+    oldmom = fields.Int(
+        load_default=_vd["oldmom"], metadata={"description": _vh["oldmom"]}
+    )
+    yngmom = fields.Int(
+        load_default=_vd["yngmom"], metadata={"description": _vh["yngmom"]}
+    )
+    yngdad = fields.Int(
+        load_default=_vd["yngdad"], metadata={"description": _vh["yngdad"]}
+    )
+    olddad = fields.Int(
+        load_default=_vd["olddad"], metadata={"description": _vh["olddad"]}
+    )
+    wedder = fields.Int(
+        load_default=_vd["wedder"], metadata={"description": _vh["wedder"]}
+    )
+    mxchildmom = fields.Int(
+        load_default=_vd["mxchildmom"], metadata={"description": _vh["mxchildmom"]}
+    )
+    mxchilddad = fields.Int(
+        load_default=_vd["mxchilddad"], metadata={"description": _vh["mxchilddad"]}
+    )
+    lngwdw = fields.Int(
+        load_default=_vd["lngwdw"], metadata={"description": _vh["lngwdw"]}
+    )
+    oldunm = fields.Int(
+        load_default=_vd["oldunm"], metadata={"description": _vh["oldunm"]}
+    )
+    estimate_age = fields.Bool(
+        load_default=_vd["estimate_age"], metadata={"description": _vh["estimate_age"]}
+    )
+    invdate = fields.Bool(
+        load_default=_vd["invdate"], metadata={"description": _vh["invdate"]}
+    )
     locale = fields.Str(
         load_default=None,
         validate=validate.Length(min=1, max=5),
-        metadata={"description": "Language code for translating result messages (e.g. 'de', 'fr')."},
+        metadata={
+            "description": "Language code for translating result messages (e.g. 'de', 'fr')."
+        },
     )
 
 
