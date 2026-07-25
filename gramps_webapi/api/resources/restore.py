@@ -154,8 +154,10 @@ def apply_reset_changeset(
     """
     total = len(changeset.to_add) + len(changeset.to_update) + len(changeset.to_delete)
     i = 0
-    delete_handles = {handle for _class_name, handle in changeset.to_delete}
-    unset_default_person = db_handle.get_default_handle() in delete_handles
+    person_delete_handles = {
+        handle for class_name, handle in changeset.to_delete if class_name == "Person"
+    }
+    unset_default_person = db_handle.get_default_handle() in person_delete_handles
     with DbTxn("Restore from backup", db_handle) as trans:
         if unset_default_person:
             db_handle.set_default_person_handle(None)
