@@ -71,11 +71,18 @@ class TestRestoreFile(unittest.TestCase):
     def tearDownClass(cls):
         cls.dbman.remove_database(cls.name)
 
-    def _reset_empty_db(self):
-        """Remove the sqlite file so the next request sees an empty tree."""
-        db_file = os.path.join(self.dbpath, "sqlite.db")
-        if os.path.exists(db_file):
-            os.remove(db_file)
+    def _empty_tree(self):
+        """Empty the tree via the API so tests do not depend on each other.
+
+        Deleting the SQLite file does not empty an already-populated tree,
+        because the database connection persists across requests, so we clear
+        the data through the delete-all endpoint instead. This makes each test
+        self-contained regardless of execution order.
+        """
+        headers = fetch_header(self.client, role=ROLE_OWNER)
+        rv = self.client.post(f"{BASE_URL}/objects/delete/", headers=headers)
+        self.assertIn(rv.status_code, (200, 202))
+        self.assertEqual(len(check_success(self, f"{BASE_URL}/people/")), 0)
 
     def _post_backup(self, url, role=ROLE_OWNER):
         headers = fetch_header(self.client, role=role)
@@ -108,7 +115,7 @@ class TestRestoreFile(unittest.TestCase):
     def test_restore_dry_run_then_apply(self):
         """Dry run previews the changeset; apply resets the tree to the backup."""
         # Start from a clean tree and import the backup once (the "good" state).
-        self._reset_empty_db()
+        self._empty_tree()
         rv = self._post_backup(IMPORT_URL)
         self.assertEqual(rv.status_code, 201)
         people_good = len(check_success(self, f"{BASE_URL}/people/"))
@@ -142,9 +149,7 @@ class TestRestoreFile(unittest.TestCase):
 
     def test_restore_into_empty_tree_adds_everything(self):
         """Restoring a backup into an empty tree adds all objects."""
-        self._reset_empty_db()
-        # Touch the db so the tree exists but is empty.
-        self.assertEqual(len(check_success(self, f"{BASE_URL}/people/")), 0)
+        self._empty_tree()
         rv = self._post_backup(RESTORE_URL + "?dry_run=true")
         self.assertEqual(rv.status_code, 200)
         self.assertEqual(rv.json["to_add"]["people"], 2157)

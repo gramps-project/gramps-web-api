@@ -41,6 +41,7 @@ from ..tasks import (
     run_task,
 )
 from ..util import abort_with_message, get_db_handle, get_tree_from_jwt
+from ...types import ResponseReturnValue
 from . import FreshProtectedResource, ProtectedResource
 from .emit import GrampsJSONEncoder
 from .schemas import ImporterSchema, RestoreSummarySchema
@@ -164,7 +165,7 @@ class RestoreFileResource(FreshProtectedResource):
 
     @api_blueprint.response(200, RestoreSummarySchema())
     @api_blueprint.arguments(RestoreFileQueryArgs, location="query")
-    def post(self, args: dict, extension: str) -> Response:
+    def post(self, args: dict, extension: str) -> ResponseReturnValue:
         """Reset the tree to match an uploaded backup, replacing its contents."""
         require_permissions([PERM_IMPORT_FILE, PERM_DEL_OBJ_BATCH])
         get_db_handle()  # needed to load plugins
