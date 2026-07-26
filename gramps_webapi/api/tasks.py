@@ -349,8 +349,10 @@ def import_file(
         if delete:
             try:
                 os.remove(file_name)
-            except OSError:
-                pass
+            except OSError as e:
+                logging.getLogger(__name__).warning(
+                    "Failed to delete temporary file %s: %s", file_name, e
+                )
         return object_counts
     check_quota_people(to_add=object_counts["people"], tree=tree, user_id=user_id)
     db_handle = get_db_outside_request(

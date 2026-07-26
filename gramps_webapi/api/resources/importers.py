@@ -135,7 +135,7 @@ class ImporterFileResource(ProtectedResource):
         if isinstance(task, AsyncResult):
             return make_task_response(task)
         if args.get("dry_run", False):
-            return jsonify(task), 200
+            return task, 200
         return Response(status=201)
 
 
