@@ -691,7 +691,10 @@ def get_media_map_tile(args, handle: str, z: int, x: int, y: int):
     handler = get_media_handler(db_handle, tree=tree).get_file_handler(
         handle, db_handle=db_handle
     )
-    return handler.send_map_tile(z=z, x=x, y=y, max_zoom=args.get("max_zoom"))
+    response = handler.send_map_tile(z=z, x=x, y=y, max_zoom=args.get("max_zoom"))
+    # tiles are immutable for a given handle/checksum/z/x/y
+    response.headers["Cache-Control"] = "max-age=31536000, immutable"
+    return response
 
 
 @api_blueprint.route("/media/<string:handle>/thumbnail/<int:size>")

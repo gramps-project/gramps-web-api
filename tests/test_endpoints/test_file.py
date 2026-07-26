@@ -337,6 +337,16 @@ class TestMapTile(unittest.TestCase):
         self.assertEqual(img.size, (256, 256))
         self.assertTrue(all(p[3] == 0 for p in img.getdata()))
 
+    def test_get_map_tile_sets_long_lived_cache_control(self):
+        """Successful tile responses are cacheable long-term and immutable."""
+        header = fetch_header(self.client)
+        rv = self.client.get(
+            f"{TEST_URL}b39fe1cfc1305ac4a21/tile/10/512/341?max_zoom=5",
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.headers.get("Cache-Control"), "max-age=31536000, immutable")
+
     def test_get_map_tile_invalid_z_returns_400(self):
         """z > 28 returns 400; negative z is rejected by routing (404)."""
         header = fetch_header(self.client)
