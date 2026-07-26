@@ -398,7 +398,7 @@ def restore_backup(
             changeset = compute_reset_changeset(db_handle, backup_db)
         finally:
             backup_db.close()
-        summary = summarize_changeset(changeset)
+        summary = summarize_changeset(db_handle, changeset)
         if dry_run:
             return summary
         check_quota_people(

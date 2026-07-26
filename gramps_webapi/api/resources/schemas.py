@@ -2122,6 +2122,16 @@ class RestoreSummarySchema(_Base):
             )
         },
     )
+    unchanged = fields.Dict(
+        keys=fields.Str(),
+        values=fields.Integer(),
+        metadata={
+            "description": (
+                "Number of objects, by type, present in both the tree and the "
+                "backup with identical content, which would be left as is."
+            )
+        },
+    )
 
 
 class ReportHelpOptionSchema(_Base):
