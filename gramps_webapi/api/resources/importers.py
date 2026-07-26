@@ -44,7 +44,7 @@ from ..util import abort_with_message, get_db_handle, get_tree_from_jwt
 from ...types import ResponseReturnValue
 from . import FreshProtectedResource, ProtectedResource
 from .emit import GrampsJSONEncoder
-from .schemas import ImporterSchema, RestoreSummarySchema
+from .schemas import ImporterSchema, ObjectCountsSchema, RestoreSummarySchema
 from .util import get_importers
 
 
@@ -80,13 +80,23 @@ class ImporterFileQueryArgs(Schema):
         required=False,
         metadata={"description": "JWT token for upload authentication."},
     )
+    dry_run = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": (
+                "If true, compute and return the object counts in the file "
+                "without importing it."
+            )
+        },
+    )
 
 
 class ImporterFileResource(ProtectedResource):
     """Import file resource."""
 
+    @api_blueprint.response(200, ObjectCountsSchema())
     @api_blueprint.arguments(ImporterFileQueryArgs, location="query")
-    def post(self, args: dict, extension: str) -> Response:
+    def post(self, args: dict, extension: str) -> ResponseReturnValue:
         """Import file."""
         require_permissions([PERM_IMPORT_FILE])
         get_db_handle()  # needed to load plugins
@@ -120,9 +130,12 @@ class ImporterFileResource(ProtectedResource):
             file_name=file_path,
             extension=extension.lower(),
             delete=True,
+            dry_run=args.get("dry_run", False),
         )
         if isinstance(task, AsyncResult):
             return make_task_response(task)
+        if args.get("dry_run", False):
+            return jsonify(task), 200
         return Response(status=201)
 
 

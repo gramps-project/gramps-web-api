@@ -186,6 +186,31 @@ class TestImportersExtensionFile(unittest.TestCase):
         rv = check_success(self, f"{BASE_URL}/people/")
         assert len(rv) == 2 * 2157
 
+    def test_importers_dry_run(self):
+        """Test dry-run import: counts are reported without modifying the tree."""
+        db_file = os.path.join(self.dbpath, "sqlite.db")
+        if os.path.exists(db_file):
+            os.remove(db_file)
+        example_db = ExampleDbInMemory()
+        file_obj = io.BytesIO()
+        with open(example_db.path, "rb") as f:
+            file_obj.write(f.read())
+        file_obj.seek(0)
+        headers = fetch_header(self.client, role=ROLE_OWNER)
+        # database has no people
+        rv = check_success(self, f"{BASE_URL}/people/")
+        assert len(rv) == 0
+        rv = self.client.post(
+            f"{TEST_URL}gramps/file?dry_run=true",
+            data=file_obj,
+            headers=headers,
+        )
+        assert rv.status_code == 200
+        assert rv.json["people"] == 2157
+        # the tree was not modified
+        rv = check_success(self, f"{BASE_URL}/people/")
+        assert len(rv) == 0
+
     def test_importers_example_data_quota(self):
         """Test importing example.gramps with a quota."""
         db_file = os.path.join(self.dbpath, "sqlite.db")
