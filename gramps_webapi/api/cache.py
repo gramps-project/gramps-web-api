@@ -139,8 +139,18 @@ def make_cache_key_tiles(*args, **kwargs):
     bounds_hash = hashlib.md5(bounds_value.encode()).hexdigest()
 
     dbmgr = get_db_manager(tree)
+    # affects the Cache-Control header, so must be part of the key
+    is_versioned = "versioned" if "checksum" in request.args else "unversioned"
     # z/x/y are encoded in request.path
-    cache_key = checksum + request.path + arg_hash + bounds_hash + dbmgr.dirname + ":tile"
+    cache_key = (
+        checksum
+        + request.path
+        + arg_hash
+        + bounds_hash
+        + dbmgr.dirname
+        + is_versioned
+        + ":tile"
+    )
     return cache_key
 
 
