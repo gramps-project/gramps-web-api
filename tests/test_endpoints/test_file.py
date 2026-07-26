@@ -337,15 +337,28 @@ class TestMapTile(unittest.TestCase):
         self.assertEqual(img.size, (256, 256))
         self.assertTrue(all(p[3] == 0 for p in img.getdata()))
 
-    def test_get_map_tile_sets_long_lived_cache_control(self):
-        """Successful tile responses are cacheable long-term and immutable."""
+    def test_get_map_tile_sets_long_lived_cache_control_with_checksum(self):
+        """Tile responses to checksum-versioned URLs are cacheable long-term and immutable."""
+        header = fetch_header(self.client)
+        rv = self.client.get(
+            f"{TEST_URL}b39fe1cfc1305ac4a21/tile/10/512/341?max_zoom=5&checksum=abc123",
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 200)
+        cache_control = rv.headers.get("Cache-Control", "")
+        self.assertIn("max-age=31536000", cache_control)
+        self.assertIn("immutable", cache_control)
+
+    def test_get_map_tile_no_long_cache_without_checksum(self):
+        """Tile responses to unversioned URLs are not marked immutable/long-lived."""
         header = fetch_header(self.client)
         rv = self.client.get(
             f"{TEST_URL}b39fe1cfc1305ac4a21/tile/10/512/341?max_zoom=5",
             headers=header,
         )
         self.assertEqual(rv.status_code, 200)
-        self.assertEqual(rv.headers.get("Cache-Control"), "max-age=31536000, immutable")
+        cache_control = rv.headers.get("Cache-Control", "")
+        self.assertNotIn("immutable", cache_control)
 
     def test_get_map_tile_invalid_z_returns_400(self):
         """z > 28 returns 400; negative z is rejected by routing (404)."""

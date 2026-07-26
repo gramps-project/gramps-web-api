@@ -692,8 +692,9 @@ def get_media_map_tile(args, handle: str, z: int, x: int, y: int):
         handle, db_handle=db_handle
     )
     response = handler.send_map_tile(z=z, x=x, y=y, max_zoom=args.get("max_zoom"))
-    # tiles are immutable for a given handle/checksum/z/x/y
-    response.headers["Cache-Control"] = "max-age=31536000, immutable"
+    if args.get("checksum"):
+        # URL is versioned by media checksum, so it's safe to cache long-term
+        response.headers["Cache-Control"] = "max-age=31536000, immutable"
     return response
 
 
