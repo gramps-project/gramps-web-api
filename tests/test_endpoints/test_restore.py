@@ -132,8 +132,9 @@ class TestRestoreFile(unittest.TestCase):
         summary = rv.json
         self.assertEqual(summary["to_add"]["people"], 0)
         self.assertEqual(summary["to_delete"]["people"], 2157)
-        # The duplicated copy shares no handles with the backup, so none of the
-        # original (now-duplicated) people count as unchanged.
+        # The original import's handles match the backup's exactly, so those
+        # 2157 count as unchanged; the duplicate copy has fresh handles absent
+        # from the backup, so it's entirely in to_delete instead.
         self.assertEqual(summary["unchanged"]["people"], 2157)
         # Nothing was modified by the dry run.
         self.assertEqual(len(check_success(self, f"{BASE_URL}/people/")), 2 * 2157)
