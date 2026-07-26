@@ -333,12 +333,27 @@ def search_reindex_incremental_semantic(self, tree: str, user_id: str) -> None:
 
 @shared_task(bind=True)
 def import_file(
-    self, tree: str, user_id: str, file_name: str, extension: str, delete: bool = True
+    self,
+    tree: str,
+    user_id: str,
+    file_name: str,
+    extension: str,
+    delete: bool = True,
+    dry_run: bool = False,
 ):
     """Import a file."""
     object_counts = dry_run_import(file_name=file_name, extension=extension)
     if object_counts is None:
         raise ValueError(f"Failed importing {extension} file")
+    if dry_run:
+        if delete:
+            try:
+                os.remove(file_name)
+            except OSError as e:
+                logging.getLogger(__name__).warning(
+                    "Failed to delete temporary file %s: %s", file_name, e
+                )
+        return object_counts
     check_quota_people(to_add=object_counts["people"], tree=tree, user_id=user_id)
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=False, user_id=user_id
