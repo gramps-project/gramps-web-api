@@ -116,8 +116,15 @@ def _empty_counts() -> dict[str, int]:
     return {plural: 0 for plural in GRAMPS_OBJECT_PLURAL.values()}
 
 
-def summarize_changeset(changeset: ResetChangeset) -> dict[str, dict[str, int]]:
-    """Summarize a changeset as per-object-type counts for preview/confirmation."""
+def summarize_changeset(
+    db_handle: DbReadBase, changeset: ResetChangeset
+) -> dict[str, dict[str, int]]:
+    """Summarize a changeset as per-object-type counts for preview/confirmation.
+
+    ``unchanged`` has no entry in the changeset itself -- ``diff_dbs`` never
+    mentions handles that match with identical content -- so it's derived from
+    the live counts instead of tallied.
+    """
     to_add = _empty_counts()
     to_update = _empty_counts()
     to_delete = _empty_counts()
@@ -127,7 +134,16 @@ def summarize_changeset(changeset: ResetChangeset) -> dict[str, dict[str, int]]:
         to_update[GRAMPS_OBJECT_PLURAL[class_name]] += 1
     for class_name, _handle in changeset.to_delete:
         to_delete[GRAMPS_OBJECT_PLURAL[class_name]] += 1
-    return {"to_add": to_add, "to_update": to_update, "to_delete": to_delete}
+    unchanged = _empty_counts()
+    for plural in GRAMPS_OBJECT_PLURAL.values():
+        live_total = getattr(db_handle, f"get_number_of_{plural}")()
+        unchanged[plural] = live_total - to_update[plural] - to_delete[plural]
+    return {
+        "to_add": to_add,
+        "to_update": to_update,
+        "to_delete": to_delete,
+        "unchanged": unchanged,
+    }
 
 
 def changeset_people_delta(changeset: ResetChangeset) -> int:

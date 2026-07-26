@@ -132,6 +132,9 @@ class TestRestoreFile(unittest.TestCase):
         summary = rv.json
         self.assertEqual(summary["to_add"]["people"], 0)
         self.assertEqual(summary["to_delete"]["people"], 2157)
+        # The duplicated copy shares no handles with the backup, so none of the
+        # original (now-duplicated) people count as unchanged.
+        self.assertEqual(summary["unchanged"]["people"], 2157)
         # Nothing was modified by the dry run.
         self.assertEqual(len(check_success(self, f"{BASE_URL}/people/")), 2 * 2157)
 
@@ -154,6 +157,7 @@ class TestRestoreFile(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         self.assertEqual(rv.json["to_add"]["people"], 2157)
         self.assertEqual(rv.json["to_delete"]["people"], 0)
+        self.assertEqual(rv.json["unchanged"]["people"], 0)
         rv = self._post_backup(RESTORE_URL)
         self.assertEqual(rv.status_code, 200)
         self.assertEqual(len(check_success(self, f"{BASE_URL}/people/")), 2157)
