@@ -64,7 +64,12 @@ from ..tasks import (
     upgrade_database_schema,
 )
 from ..blueprint import api_blueprint
-from ..util import abort_with_message, get_tree_from_jwt_or_fail, list_trees
+from ..util import (
+    abort_with_message,
+    get_tree_from_jwt,
+    get_tree_from_jwt_or_fail,
+    list_trees,
+)
 from . import ProtectedResource
 from .schemas import TreeConfigSchema, TreeSchema
 
@@ -225,8 +230,8 @@ class TreeResource(ProtectedResource):
             tree_id = get_tree_from_jwt_or_fail()
             require_permissions([PERM_EDIT_TREE])
         else:
-            user_tree_id = get_tree_from_jwt_or_fail()
-            if tree_id == user_tree_id:
+            user_tree_id = get_tree_from_jwt()
+            if user_tree_id is not None and tree_id == user_tree_id:
                 require_permissions([PERM_EDIT_TREE])
             else:
                 require_permissions([PERM_EDIT_OTHER_TREE])
@@ -401,8 +406,8 @@ class TreeConfigResource(ProtectedResource):
             tree_id = get_tree_from_jwt_or_fail()
             require_permissions([PERM_EDIT_TREE])
         else:
-            user_tree_id = get_tree_from_jwt_or_fail()
-            if tree_id == user_tree_id:
+            user_tree_id = get_tree_from_jwt()
+            if user_tree_id is not None and tree_id == user_tree_id:
                 require_permissions([PERM_EDIT_TREE])
             else:
                 require_permissions([PERM_EDIT_OTHER_TREE])

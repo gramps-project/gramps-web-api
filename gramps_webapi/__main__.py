@@ -39,6 +39,7 @@ from .types import ProgressCallback
 from .api.util import close_db, get_db_manager, list_trees
 from .app import create_app
 from .auth import add_user, delete_user, fill_tree, user_db
+from .auth.const import ROLE_ADMIN
 from .const import ENV_CONFIG_FILE, TREE_MULTI
 from .dbmanager import WebDbManager
 from .translogger import TransLogger
@@ -193,6 +194,13 @@ def user(ctx):
 def user_add(ctx, name, password, fullname, email, role, tree):
     """Add a user."""
     app = ctx.obj["app"]
+    if not tree and app.config["TREE"] == TREE_MULTI and role < ROLE_ADMIN:
+        # only admins may be treeless, since a non-admin without a tree
+        # could never obtain a token
+        raise click.UsageError(
+            "`tree` is required when multi-tree support is enabled, "
+            f"except for site admins (role {ROLE_ADMIN})."
+        )
     app.logger.info(f"Adding user {name} ...")
     with app.app_context():
         user_db.create_all()

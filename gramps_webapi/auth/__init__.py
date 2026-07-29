@@ -356,23 +356,34 @@ def get_user_from_access_token(token: str, scope: str) -> Optional["User"]:
 
 
 def get_all_user_details(
-    tree: Optional[str],
+    tree: str | None,
+    all_trees: bool = False,
     include_treeless=False,
     include_guid: bool = False,
     include_oidc_accounts: bool = False,
 ) -> List[Dict[str, Any]]:
     """Return details about all users.
 
-    If tree is None, return all users regardless of tree.
-    If tree is not None, only return users of given tree.
+    If all_trees is True, return all users regardless of tree.
+    Otherwise, return the users of the given tree - and if tree is None or
+    empty, only the users that have no tree.
+
+    Never pass tree=None to mean "all trees": a caller passing a tree ID
+    obtained from a JWT can legitimately get None (site admins have no tree),
+    and that must not silently widen the query to every tree. Pass
+    all_trees=True to say so explicitly.
 
     If include_treeless is True, include also users with empty tree ID.
     If include_oidc_accounts is True, include OIDC provider information.
     """
     query = user_db.session.query(User)  # pylint: disable=no-member
-    if tree:
-        if include_treeless:
-            query = query.filter(sa.or_(User.tree == tree, User.tree.is_(None)))
+    if not all_trees:
+        # treat "" and NULL equally, like fill_tree()
+        is_treeless = coalesce(User.tree, "") == ""
+        if not tree:
+            query = query.filter(is_treeless)
+        elif include_treeless:
+            query = query.filter(sa.or_(User.tree == tree, is_treeless))
         else:
             query = query.filter(User.tree == tree)
     users = query.all()
@@ -384,8 +395,11 @@ def get_all_user_details(
     ]
 
 
-def get_permissions(username: str, tree: str) -> Set[str]:
-    """Get the permissions of a given user."""
+def get_permissions(username: str, tree: str | None) -> Set[str]:
+    """Get the permissions of a given user.
+
+    `tree` can be None for site admins, who are not tied to a tree.
+    """
     query = user_db.session.query(User)  # pylint: disable=no-member
     user = query.filter_by(name=username).one()
     permissions = PERMISSIONS[user.role].copy()

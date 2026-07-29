@@ -682,13 +682,17 @@ def list_trees() -> list[tuple[str, str]]:
     return dbman.current_names
 
 
-def get_tree_id(guid: str) -> str:
-    """Get the appropriate tree ID for a user."""
+def get_tree_id_or_none(guid: str) -> str | None:
+    """Get the appropriate tree ID for a user, if any.
+
+    Returns None if multi-tree support is enabled and the user has no tree ID.
+    This is a legitimate state for site admins, who are not tied to a tree.
+    """
     tree_id = get_tree(guid)
     if not tree_id:
         if current_app.config["TREE"] == TREE_MULTI:
-            # multi-tree support enabled but user has no tree ID: forbidden!
-            abort_with_message(403, "Forbidden")
+            # multi-tree support enabled but user has no tree ID
+            return None
         # needed for backwards compatibility: single-tree mode but user without tree ID
         if current_app.config.get("TREE_ID"):
             # TREE_ID is set: use dirname directly, never look up by name
@@ -700,6 +704,15 @@ def get_tree_id(guid: str) -> str:
                 ignore_lock=current_app.config["IGNORE_DB_LOCK"],
             )
             tree_id = dbmgr.dirname
+    return tree_id
+
+
+def get_tree_id(guid: str) -> str:
+    """Get the appropriate tree ID for a user, failing if there is none."""
+    tree_id = get_tree_id_or_none(guid)
+    if tree_id is None:
+        abort_with_message(403, "Forbidden")
+        raise  # mypy; unreachable
     return tree_id
 
 

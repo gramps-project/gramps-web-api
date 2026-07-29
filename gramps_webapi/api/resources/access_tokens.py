@@ -25,7 +25,7 @@ from ...auth import (
 from ...auth.const import PERM_EDIT_OWN_USER
 from ..auth import require_permissions
 from ..blueprint import api_blueprint
-from ..util import abort_with_message
+from ..util import abort_with_message, get_tree_from_jwt_or_fail
 from . import ProtectedResource
 
 
@@ -73,6 +73,9 @@ class UserAccessTokenResource(ProtectedResource):
     def get(self, scope: str):
         """Get persistent token status for current user and scope."""
         require_permissions([PERM_EDIT_OWN_USER])
+        # persistent tokens grant access to tree-scoped data, so they are
+        # meaningless without a tree
+        get_tree_from_jwt_or_fail()
         scope = self._validate_scope(scope)
         user_name = self._get_user_name()
         active = has_user_access_token(user_name, scope)
@@ -82,6 +85,9 @@ class UserAccessTokenResource(ProtectedResource):
     def post(self, scope: str):
         """Create or rotate persistent token for current user and scope."""
         require_permissions([PERM_EDIT_OWN_USER])
+        # persistent tokens grant access to tree-scoped data, so they are
+        # meaningless without a tree
+        get_tree_from_jwt_or_fail()
         scope = self._validate_scope(scope)
         user_name = self._get_user_name()
         token = rotate_user_access_token(user_name, scope)
@@ -91,6 +97,9 @@ class UserAccessTokenResource(ProtectedResource):
     def delete(self, scope: str):
         """Revoke persistent token for current user and scope."""
         require_permissions([PERM_EDIT_OWN_USER])
+        # persistent tokens grant access to tree-scoped data, so they are
+        # meaningless without a tree
+        get_tree_from_jwt_or_fail()
         scope = self._validate_scope(scope)
         user_name = self._get_user_name()
         revoke_user_access_token(user_name, scope)
