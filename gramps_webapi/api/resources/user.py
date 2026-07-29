@@ -84,6 +84,7 @@ from ..util import (
     abort_with_message,
     get_tree_from_jwt,
     get_tree_id,
+    get_tree_id_or_none,
     tree_exists,
 )
 from . import LimitedScopeProtectedResource, ProtectedResource, Resource
@@ -108,8 +109,8 @@ class UserChangeBase(ProtectedResource):
             except ValueError:
                 abort_with_message(404, "User with this name does not exist")
             source_tree = get_tree_from_jwt()
-            destination_tree = get_tree_id(user_id)
-            if source_tree == destination_tree:
+            destination_tree = get_tree_id_or_none(user_id)
+            if source_tree is not None and source_tree == destination_tree:
                 require_permissions([PERM_EDIT_OTHER_USER])
                 other_tree = False
             else:
@@ -140,7 +141,7 @@ class UsersResource(ProtectedResource):
         if has_permissions([PERM_VIEW_OTHER_TREE_USER]):
             # return all users from all trees
             details = get_all_user_details(
-                tree=None, include_oidc_accounts=include_oidc
+                tree=None, all_trees=True, include_oidc_accounts=include_oidc
             )
         else:
             require_permissions([PERM_VIEW_OTHER_USER])
@@ -182,6 +183,14 @@ class UsersResource(ProtectedResource):
                 if user_dict["tree"] != tree:
                     require_permissions([PERM_ADD_OTHER_TREE_USER])
             else:
+                if (
+                    not tree
+                    and current_app.config["TREE"] == TREE_MULTI
+                    and user_dict.get("role", 0) < ROLE_ADMIN
+                ):
+                    # only admins may be treeless, since a non-admin without
+                    # a tree could never obtain a token
+                    abort_with_message(422, "Tree is required")
                 user_dict["tree"] = tree
         users = [
             {
@@ -278,8 +287,8 @@ class UserResource(UserChangeBase):
             except ValueError:
                 abort_with_message(404, "User with this name does not exist")
             source_tree = get_tree_from_jwt()
-            destination_tree = get_tree_id(user_id)
-            if source_tree != destination_tree:
+            destination_tree = get_tree_id_or_none(user_id)
+            if source_tree is None or source_tree != destination_tree:
                 # user lives in other tree, not allowed to view
                 abort_with_message(403, "Not authorized to view other users' details")
         details = get_user_details(user_name)
@@ -330,6 +339,19 @@ class UserResource(UserChangeBase):
             require_permissions([PERM_EDIT_USER_TREE])
             if not tree_exists(args["tree"]):
                 abort_with_message(422, "Tree does not exist")
+        if (
+            "role" in args
+            and args["role"] < ROLE_ADMIN
+            and current_app.config["TREE"] == TREE_MULTI
+        ):
+            # demoting a site admin: only admins may be treeless, since a
+            # non-admin without a tree could never obtain a token
+            try:
+                current_tree = get_tree_id_or_none(get_guid(user_name))
+            except ValueError:
+                current_tree = None
+            if not args.get("tree") and not current_tree:
+                abort_with_message(422, "Tree is required")
         try:
             modify_user(
                 name=user_name,
@@ -358,6 +380,15 @@ class UserResource(UserChangeBase):
             require_permissions([PERM_ADD_OTHER_TREE_USER])
             if not tree_exists(args["tree"]):
                 abort_with_message(422, "Tree does not exist")
+        new_tree = args.get("tree") or tree
+        if (
+            not new_tree
+            and current_app.config["TREE"] == TREE_MULTI
+            and args["role"] < ROLE_ADMIN
+        ):
+            # only admins may be treeless, since a non-admin without a tree
+            # could never obtain a token
+            abort_with_message(422, "Tree is required")
         try:
             add_user(
                 name=user_name,
@@ -366,7 +397,7 @@ class UserResource(UserChangeBase):
                 fullname=args["full_name"],
                 role=args["role"],
                 # use posting user's tree unless explicitly specified
-                tree=args.get("tree") or tree,
+                tree=new_tree,
             )
         except ValueError as exc:
             abort_with_message(409, str(exc))
@@ -382,8 +413,8 @@ class UserResource(UserChangeBase):
         except ValueError:
             abort(404)  # user not found
         source_tree = get_tree_from_jwt()
-        destination_tree = get_tree_id(user_id)
-        if source_tree == destination_tree:
+        destination_tree = get_tree_id_or_none(user_id)
+        if source_tree is not None and source_tree == destination_tree:
             require_permissions([PERM_DEL_USER])
         else:
             require_permissions([PERM_DEL_OTHER_TREE_USER])

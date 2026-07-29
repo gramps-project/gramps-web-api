@@ -19,7 +19,7 @@
 
 """Authentication endpoint blueprint."""
 
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable
 
 from flask import abort, current_app
 from flask_jwt_extended import (
@@ -39,21 +39,45 @@ from ...auth import (
     is_tree_disabled,
 )
 from ...auth.oidc_helpers import is_oidc_enabled
-from ...auth.const import CLAIM_LIMITED_SCOPE, SCOPE_CREATE_ADMIN, SCOPE_CREATE_OWNER
+from ...auth.const import (
+    CLAIM_LIMITED_SCOPE,
+    PERM_VIEW_OTHER_TREE,
+    SCOPE_CREATE_ADMIN,
+    SCOPE_CREATE_OWNER,
+)
 from ...const import TREE_MULTI
 from ..blueprint import api_blueprint
 from ..ratelimiter import limiter
-from ..util import abort_with_message, get_tree_id, tree_exists
+from ..util import abort_with_message, get_tree_id_or_none, tree_exists
 from . import RefreshProtectedResource, Resource
+
+
+def get_tree_id_and_permissions(user_id: str, username: str) -> tuple[str | None, set]:
+    """Resolve the tree ID and permissions of a user logging in.
+
+    A user without a tree only gets a token if they are a site admin, who is
+    not tied to a tree and needs a token to create one in the first place.
+    """
+    tree_id = get_tree_id_or_none(user_id)
+    permissions = get_permissions(username=username, tree=tree_id)
+    if tree_id is None and PERM_VIEW_OTHER_TREE not in permissions:
+        # A token without a tree claim cannot address any tree-scoped data,
+        # so it is only useful to users allowed to look across trees; this is
+        # the permission that says exactly that. Queries must not treat a
+        # missing tree as "all trees" - see get_all_user_details().
+        abort_with_message(403, "Forbidden")
+    if tree_id is not None and is_tree_disabled(tree=tree_id):
+        abort_with_message(503, "This tree is temporarily disabled")
+    return tree_id, permissions
 
 
 def get_tokens(
     user_id: str,
     permissions: Iterable[str],
-    tree_id: str,
+    tree_id: str | None,
     include_refresh: bool = False,
     fresh: bool = False,
-    oidc_provider: Optional[str] = None,
+    oidc_provider: str | None = None,
 ):
     """Create access token (and refresh token if desired)."""
     claims: dict[str, Any] = {"permissions": list(permissions)}
@@ -123,10 +147,9 @@ class TokenResource(Resource):
         if not authorized(args.get("username"), args.get("password")):
             abort_with_message(403, "Invalid username or password")
         user_id = get_guid(args["username"])
-        tree_id = get_tree_id(user_id)
-        if is_tree_disabled(tree=tree_id):
-            abort_with_message(503, "This tree is temporarily disabled")
-        permissions = get_permissions(username=args["username"], tree=tree_id)
+        tree_id, permissions = get_tree_id_and_permissions(
+            user_id=user_id, username=args["username"]
+        )
         return get_tokens(
             user_id=user_id,
             permissions=permissions,
@@ -157,10 +180,9 @@ class TokenRefreshResource(RefreshProtectedResource):
             username = get_name(user_id)
         except ValueError:
             abort_with_message(401, "User not found for token ID")
-        tree_id = get_tree_id(user_id)
-        if is_tree_disabled(tree=tree_id):
-            abort_with_message(503, "This tree is temporarily disabled")
-        permissions = get_permissions(username=username, tree=tree_id)
+        tree_id, permissions = get_tree_id_and_permissions(
+            user_id=user_id, username=username
+        )
         return get_tokens(
             user_id=user_id,
             permissions=permissions,
@@ -187,7 +209,7 @@ class TokenCreateOwnerResource(Resource):
     def get(self):
         """Get a token."""
         # This GET method is deprecated and only kept for backward compatibility!
-        if get_all_user_details(tree=None):
+        if get_all_user_details(tree=None, all_trees=True):
             # users already exist!
             abort_with_message(405, "Users already exist")
         token = create_access_token(
@@ -215,6 +237,8 @@ class TokenCreateOwnerResource(Resource):
         if get_all_user_details(
             # only include treeless users in single-tree setup
             tree=tree,
+            # without a tree, refuse if *any* user exists anywhere
+            all_trees=not tree,
             include_treeless=current_app.config["TREE"] != TREE_MULTI,
         ):
             # users already exist!
