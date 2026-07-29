@@ -194,15 +194,26 @@ class TestTreelessAdmin(unittest.TestCase):
     def test_missing_tree_does_not_widen_user_query(self):
         """A tree of None must not be read as "all trees"."""
         with self.app.app_context():
+            # "" and NULL are both "no tree", as in fill_tree()
+            add_user(
+                name="empty",
+                password="123",
+                email="empty@example.com",
+                role=ROLE_ADMIN,
+                tree="",
+            )
             # what a treeless caller's tree ID resolves to
             treeless = get_all_user_details(tree=None)
-            assert {user["name"] for user in treeless} == {"admin"}
+            assert {user["name"] for user in treeless} == {"admin", "empty"}
             # widening is opt-in and explicit
             everyone = get_all_user_details(tree=None, all_trees=True)
-            assert {user["name"] for user in everyone} == {"admin", "owner"}
+            assert {user["name"] for user in everyone} == {"admin", "empty", "owner"}
             # a real tree ID is unaffected
             scoped = get_all_user_details(tree=self.tree)
             assert {user["name"] for user in scoped} == {"owner"}
+            # ... and picks up treeless users only when asked
+            scoped = get_all_user_details(tree=self.tree, include_treeless=True)
+            assert {user["name"] for user in scoped} == {"owner", "admin", "empty"}
 
     def test_treeless_admin_cannot_bulk_create_treeless_user(self):
         """Bulk creation follows the same rule as single creation."""

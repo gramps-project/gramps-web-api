@@ -52,7 +52,9 @@ from ..util import abort_with_message, get_tree_id_or_none, tree_exists
 from . import RefreshProtectedResource, Resource
 
 
-def get_tree_id_and_permissions(user_id: str, username: str) -> tuple[str | None, set]:
+def get_tree_id_and_permissions(
+    user_id: str, username: str
+) -> tuple[str | None, set[str]]:
     """Resolve the tree ID and permissions of a user logging in.
 
     A user without a tree only gets a token if they are a site admin, who is

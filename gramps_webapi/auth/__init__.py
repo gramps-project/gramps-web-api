@@ -378,10 +378,12 @@ def get_all_user_details(
     """
     query = user_db.session.query(User)  # pylint: disable=no-member
     if not all_trees:
+        # treat "" and NULL equally, like fill_tree()
+        is_treeless = coalesce(User.tree, "") == ""
         if not tree:
-            query = query.filter(User.tree.is_(None))
+            query = query.filter(is_treeless)
         elif include_treeless:
-            query = query.filter(sa.or_(User.tree == tree, User.tree.is_(None)))
+            query = query.filter(sa.or_(User.tree == tree, is_treeless))
         else:
             query = query.filter(User.tree == tree)
     users = query.all()
