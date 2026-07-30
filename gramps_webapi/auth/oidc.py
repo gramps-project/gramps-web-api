@@ -22,6 +22,7 @@
 import logging
 import secrets
 import uuid
+from typing import Any
 
 from authlib.integrations.flask_client import OAuth
 from flask import current_app
@@ -65,7 +66,10 @@ PROVIDER_CUSTOM = "custom"
 #
 #   relax_issuer: do not require the ID token `iss` claim to match the issuer
 #                 advertised in the discovery document.
-BUILTIN_PROVIDERS = {
+#
+# The value type is Any because entries hold both strings and flags; without
+# the annotation mypy joins the differently shaped entries down to `object`.
+BUILTIN_PROVIDERS: dict[str, dict[str, Any]] = {
     "google": {
         "name": "Google",
         "issuer": "https://accounts.google.com",
@@ -222,7 +226,7 @@ def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> int |
         )
         return None
 
-    user_groups = []
+    user_groups: list[str] = []
     if isinstance(claim_value, list):
         user_groups = claim_value
     elif isinstance(claim_value, str):
