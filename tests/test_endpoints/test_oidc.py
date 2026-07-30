@@ -867,6 +867,63 @@ class TestOIDCSingleTree(unittest.TestCase):
         "gramps_webapi.api.resources.oidc.get_available_oidc_providers",
         return_value=["custom"],
     )
+    @patch("gramps_webapi.api.resources.oidc.create_or_update_oidc_user")
+    @patch("gramps_webapi.api.resources.oidc.get_name", return_value="testuser")
+    @patch(
+        "gramps_webapi.api.resources.oidc.get_tree_id_and_permissions",
+        return_value=("the_tree_id", set()),
+    )
+    @patch("gramps_webapi.api.resources.oidc.get_tokens")
+    def test_configured_tree_name_is_not_stored_on_the_user(
+        self,
+        mock_get_tokens,
+        mock_tree_and_perms,
+        mock_get_name,
+        mock_create_user,
+        mock_providers,
+        mock_oidc_enabled,
+    ):
+        """The tree *name* must never reach the user record.
+
+        In a single-tree setup TREE is a name, while `users.tree` holds tree
+        IDs. Storing the name there would make get_tree_id_or_none() hand back
+        a name as if it were an ID - it only resolves the configured tree when
+        the column is empty - so every later lookup would try to open a tree
+        that does not exist, and a repeat login would be rejected as belonging
+        to a different tree.
+        """
+        mock_oauth = MagicMock()
+        mock_oidc_client = MagicMock()
+        mock_oauth.gramps_custom = mock_oidc_client
+        mock_oidc_client.authorize_redirect.return_value = redirect("https://idp/auth")
+        mock_oidc_client.authorize_access_token.return_value = {"access_token": "t"}
+        mock_oidc_client.userinfo.return_value = {"sub": "user123"}
+        mock_create_user.return_value = "user-guid"
+        mock_get_tokens.return_value = {"access_token": "a", "refresh_token": "r"}
+
+        tree_name = self.client.application.config["TREE"]
+        with patch.dict(
+            self.client.application.extensions,
+            {"authlib.integrations.flask_client": mock_oauth},
+            clear=False,
+        ):
+            rv = self.client.get(
+                BASE_URL + f"/oidc/login/?provider=custom&tree={tree_name}"
+            )
+            self.assertEqual(rv.status_code, 302)
+            rv = self.client.get(BASE_URL + "/oidc/callback/custom?code=auth_code")
+
+        self.assertEqual(rv.status_code, 302)
+        # second positional argument of create_or_update_oidc_user is the tree
+        stored_tree = mock_create_user.call_args[0][1]
+        self.assertIsNone(stored_tree)
+        self.assertNotEqual(stored_tree, tree_name)
+
+    @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
+    @patch(
+        "gramps_webapi.api.resources.oidc.get_available_oidc_providers",
+        return_value=["custom"],
+    )
     def test_login_with_another_tree_is_refused(
         self, mock_providers, mock_oidc_enabled
     ):

@@ -96,11 +96,15 @@ def _validate_tree(tree: str | None) -> str | None:
             abort_with_message(422, "tree is required")
         return None
     if not is_multi:
-        # in a single-tree setup TREE holds the tree *name*, not the tree ID,
-        # so existence is implied rather than checked with tree_exists()
+        # In a single-tree setup TREE holds the tree *name*, not the tree ID.
+        # Accept it so that a client may pass it, but never propagate it: the
+        # `users.tree` column holds tree IDs, and get_tree_id_or_none() already
+        # resolves the single configured tree when the column is empty. Passing
+        # the name on would store it verbatim and every later lookup would try
+        # to open a tree by that name as if it were an ID.
         if tree != current_app.config["TREE"]:
             abort_with_message(422, "Not allowed in single-tree setup")
-        return tree
+        return None
     if not tree_exists(tree):
         abort_with_message(422, "Tree does not exist")
     return tree
