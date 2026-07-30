@@ -76,12 +76,20 @@ def _get_oidc_client(provider_id: str | None) -> tuple[object, dict]:
     if not oauth:
         abort_with_message(500, "OIDC client not properly initialized")
 
+    provider_config = get_provider_config(provider_id)
+
     oidc_client = getattr(oauth, f"gramps_{provider_id}", None)
     if not oidc_client:
+        # get_available_oidc_providers() lists a built-in provider as soon as a
+        # client ID is set, but init_oidc() only registers a client once the
+        # secret is there too. In that case the provider is misconfigured
+        # rather than broken - and /oidc/config/ does not advertise it either -
+        # so answer as we would for an unknown provider.
+        if not provider_config:
+            abort_with_message(400, f"Provider '{provider_id}' is not available")
         abort_with_message(500, f"OIDC client for provider '{provider_id}' not found")
 
-    provider_config = get_provider_config(provider_id) or {}
-    return oidc_client, provider_config
+    return oidc_client, provider_config or {}
 
 
 def _validate_tree(tree: str | None) -> str | None:

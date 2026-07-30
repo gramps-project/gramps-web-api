@@ -1063,13 +1063,42 @@ class TestOIDCLogoutEndpoint(unittest.TestCase):
 
     @patch("gramps_webapi.api.resources.oidc.get_available_oidc_providers")
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled")
-    def test_oidc_logout_no_client(self, mock_oidc_enabled, mock_providers):
-        """Test OIDC logout when OAuth client is not initialized."""
+    def test_oidc_logout_incompletely_configured_provider(
+        self, mock_oidc_enabled, mock_providers
+    ):
+        """A provider with no usable configuration is a client error, not a 500.
+
+        get_available_oidc_providers() lists a built-in provider as soon as a
+        client ID is set, but init_oidc() only registers a client once the
+        secret is there too. /oidc/config/ does not advertise such a provider,
+        so asking for it must be answered the same way as an unknown one.
+        """
         mock_oidc_enabled.return_value = True
         mock_providers.return_value = ["google"]
 
         rv = self.client.get(BASE_URL + "/oidc/logout/?provider=google")
-        # Should return 500 when client not found
+        self.assertEqual(rv.status_code, 400)
+        self.assertIn("not available", rv.get_json()["error"]["message"])
+
+    @patch("gramps_webapi.api.resources.oidc.get_available_oidc_providers")
+    @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled")
+    @patch("gramps_webapi.api.resources.oidc.get_provider_config")
+    def test_oidc_logout_configured_but_unregistered_client(
+        self, mock_provider_config, mock_oidc_enabled, mock_providers
+    ):
+        """A fully configured provider with no client really is a 500."""
+        mock_oidc_enabled.return_value = True
+        mock_providers.return_value = ["google"]
+        mock_provider_config.return_value = {"name": "Google"}
+
+        mock_oauth = MagicMock()
+        mock_oauth.gramps_google = None
+        with patch.dict(
+            self.client.application.extensions,
+            {"authlib.integrations.flask_client": mock_oauth},
+            clear=False,
+        ):
+            rv = self.client.get(BASE_URL + "/oidc/logout/?provider=google")
         self.assertEqual(rv.status_code, 500)
 
 
