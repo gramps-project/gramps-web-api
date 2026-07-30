@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
   && rm -rf /var/lib/apt/lists/*
 
 RUN pip install opencv-python
-RUN pip install gramps==6.0.4
+RUN pip install 'gramps<6.1.0'
 
 # Install Gramps addons (FilterRules for DegreesOfSeparation filter)
 RUN mkdir -p $GRAMPSHOME/gramps/gramps$GRAMPS_VERSION/plugins && \
