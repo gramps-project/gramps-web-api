@@ -36,8 +36,9 @@ the caller's job; see `after_columns()`.
 
 from __future__ import annotations
 
+import enum
 from dataclasses import dataclass
-from typing import Any, Iterable, Optional, Sequence, Tuple
+from typing import Any, Iterable, Optional, Sequence, Tuple, Union
 
 from gramps.gen.lib import (
     Citation,
@@ -143,6 +144,102 @@ def _quote_column(column: str) -> str:
     return f'"{column}"' if column in _RESERVED_SQL_WORDS else column
 
 
+class Dialect(str, enum.Enum):
+    """SQL dialect for backend-specific rendering.
+
+    `JsonPath` is the first thing this compiler emits that needs to know
+    which backend it's talking to -- everything else (`?`-parameterized
+    comparisons, `AND`/`OR`, keyset seek expressions, `COLLATE`) is
+    dialect-neutral SQL that already works unchanged on both backends.
+    """
+
+    SQLITE = "sqlite"
+    POSTGRESQL = "postgresql"
+
+
+@dataclass(frozen=True)
+class JsonPath:
+    """A path into a JSON-blob secondary column (default: `json_data`).
+
+    Not whitelisted against a fixed column list the way a plain column name
+    is -- `json_data` is a real column on every table, but its *content* is
+    arbitrary. Safety instead comes from every path segment being
+    individually type-checked (`str` keys or non-bool `int` array indices
+    only) and always bound as a query parameter, never interpolated into
+    SQL text -- see `_render_json_path`.
+
+    Not (yet) usable in `order_by`/keyset pagination -- only `select` and
+    `where`. `ObjectTypeSpec.text_columns`-based `COLLATE` selection also
+    doesn't apply to it: the JSON value's type isn't known ahead of time.
+    """
+
+    segments: Tuple[Union[str, int], ...]
+    base_column: str = "json_data"
+
+    def __post_init__(self) -> None:
+        if not self.segments:
+            raise QueryError("JsonPath requires at least one segment")
+        for segment in self.segments:
+            if isinstance(segment, bool) or not isinstance(segment, (str, int)):
+                raise QueryError(f"invalid JsonPath segment: {segment!r}")
+
+
+# A column reference is either a plain (whitelisted) column name, or a path
+# into one column's JSON content.
+ColumnRef = Union[str, JsonPath]
+
+
+def _require_dialect(dialect: Optional[Dialect], path: JsonPath) -> Dialect:
+    if dialect is None:
+        raise QueryError(
+            f"a dialect is required to compile a JsonPath ({path!r}), but none was given"
+        )
+    return dialect
+
+
+def _render_json_path(path: JsonPath, dialect: Dialect) -> Tuple[str, list]:
+    """Render a `JsonPath` into a dialect-specific SQL expression + bound params.
+
+    SQLite: `json_extract(json_data, ?)` with a single bound JSONPath-syntax
+    string (`$.primary_name.surname_list[0].surname`).
+
+    PostgreSQL: `jsonb_extract_path_text(json_data::jsonb, ?, ?, ...)` with
+    one bound parameter per path segment -- `json_data` is stored as `TEXT`
+    on both backends (no native `jsonb` column), hence the cast. Confirmed
+    live against a real PostgreSQL 16 instance: `jsonb_extract_path_text`
+    treats a numeric-looking text segment (e.g. `"0"`) as a JSON array
+    index, so integer segments are simply stringified, not cast separately.
+    """
+    if dialect == Dialect.SQLITE:
+        jsonpath = "$" + "".join(
+            f"[{segment}]" if isinstance(segment, int) else f".{segment}"
+            for segment in path.segments
+        )
+        return f"json_extract({path.base_column}, ?)", [jsonpath]
+    if dialect == Dialect.POSTGRESQL:
+        placeholders = ", ".join(["?"] * len(path.segments))
+        params = [str(segment) for segment in path.segments]
+        return (
+            f"jsonb_extract_path_text({path.base_column}::jsonb, {placeholders})",
+            params,
+        )
+    raise QueryError(f"unsupported dialect: {dialect!r}")
+
+
+def _render_column(
+    column: ColumnRef, whitelist: frozenset[str], dialect: Optional[Dialect]
+) -> Tuple[str, list]:
+    """Render a column reference (plain name or `JsonPath`) with no associated value.
+
+    Used for `SELECT` list entries, which (unlike `WHERE` comparisons) have
+    no right-hand value to bind.
+    """
+    if isinstance(column, JsonPath):
+        return _render_json_path(column, _require_dialect(dialect, column))
+    _check_column(column, whitelist)
+    return _quote_column(column), []
+
+
 # --- WHERE: comparison leaves -----------------------------------------------
 
 
@@ -151,13 +248,15 @@ class Comparison:
 
     op: str
 
-    def __init__(self, column: str, value: Any):
+    def __init__(self, column: ColumnRef, value: Any):
         self.column = column
         self.value = value
 
-    def compile(self, whitelist: frozenset[str]) -> Tuple[str, list]:
-        _check_column(self.column, whitelist)
-        return f"{_quote_column(self.column)} {self.op} ?", [self.value]
+    def compile(
+        self, whitelist: frozenset[str], dialect: Optional[Dialect] = None
+    ) -> Tuple[str, list]:
+        column_sql, column_params = _render_column(self.column, whitelist, dialect)
+        return f"{column_sql} {self.op} ?", column_params + [self.value]
 
     def __eq__(self, other: object) -> bool:
         return (
@@ -201,16 +300,18 @@ class Like(Comparison):
 class In:
     """WHERE column IN (values...)."""
 
-    def __init__(self, column: str, values: Sequence[Any]):
+    def __init__(self, column: ColumnRef, values: Sequence[Any]):
         if not values:
             raise QueryError("In() requires at least one value")
         self.column = column
         self.values = list(values)
 
-    def compile(self, whitelist: frozenset[str]) -> Tuple[str, list]:
-        _check_column(self.column, whitelist)
+    def compile(
+        self, whitelist: frozenset[str], dialect: Optional[Dialect] = None
+    ) -> Tuple[str, list]:
+        column_sql, column_params = _render_column(self.column, whitelist, dialect)
         placeholders = ", ".join(["?"] * len(self.values))
-        return f"{_quote_column(self.column)} IN ({placeholders})", list(self.values)
+        return f"{column_sql} IN ({placeholders})", column_params + list(self.values)
 
     def __eq__(self, other: object) -> bool:
         return (
@@ -232,11 +333,13 @@ class And:
             raise QueryError("And() requires at least one expression")
         self.exprs = exprs
 
-    def compile(self, whitelist: frozenset[str]) -> Tuple[str, list]:
+    def compile(
+        self, whitelist: frozenset[str], dialect: Optional[Dialect] = None
+    ) -> Tuple[str, list]:
         parts = []
         params: list = []
         for expr in self.exprs:
-            sql, p = expr.compile(whitelist)
+            sql, p = expr.compile(whitelist, dialect)
             parts.append(f"({sql})")
             params.extend(p)
         return " AND ".join(parts), params
@@ -251,11 +354,13 @@ class Or:
             raise QueryError("Or() requires at least one expression")
         self.exprs = exprs
 
-    def compile(self, whitelist: frozenset[str]) -> Tuple[str, list]:
+    def compile(
+        self, whitelist: frozenset[str], dialect: Optional[Dialect] = None
+    ) -> Tuple[str, list]:
         parts = []
         params: list = []
         for expr in self.exprs:
-            sql, p = expr.compile(whitelist)
+            sql, p = expr.compile(whitelist, dialect)
             parts.append(f"({sql})")
             params.extend(p)
         return " OR ".join(parts), params
@@ -268,8 +373,10 @@ class Not:
     def __init__(self, expr: Any):
         self.expr = expr
 
-    def compile(self, whitelist: frozenset[str]) -> Tuple[str, list]:
-        sql, params = self.expr.compile(whitelist)
+    def compile(
+        self, whitelist: frozenset[str], dialect: Optional[Dialect] = None
+    ) -> Tuple[str, list]:
+        sql, params = self.expr.compile(whitelist, dialect)
         return f"NOT ({sql})", params
 
     def __repr__(self) -> str:
@@ -327,7 +434,7 @@ def check_columns(columns: Iterable[str], spec: ObjectTypeSpec) -> None:
 
 @dataclass(frozen=True)
 class Query:
-    select: Optional[Sequence[str]] = None
+    select: Optional[Sequence[ColumnRef]] = None
     where: Optional[Any] = None
     order_by: Sequence[OrderBy] = ()
     limit: int = 50
@@ -388,7 +495,10 @@ def _compile_keyset(
 
 
 def _where_clauses(
-    spec: ObjectTypeSpec, where: Optional[Any], can_view_private: bool
+    spec: ObjectTypeSpec,
+    where: Optional[Any],
+    can_view_private: bool,
+    dialect: Optional[Dialect] = None,
 ) -> Tuple[list, list]:
     """Shared `WHERE`-clause + privacy-predicate building.
 
@@ -398,7 +508,7 @@ def _where_clauses(
     clauses = []
     params: list = []
     if where is not None:
-        sql, p = where.compile(spec.columns)
+        sql, p = where.compile(spec.columns, dialect)
         clauses.append(f"({sql})")
         params.extend(p)
     if spec.has_privacy and not can_view_private:
@@ -412,6 +522,7 @@ def compile_query(
     *,
     can_view_private: bool = False,
     collation: Optional[str] = None,
+    dialect: Optional[Dialect] = None,
 ) -> Tuple[str, list]:
     """Compile a `Query` into a parameterized `SELECT ... FROM <spec.table>` statement.
 
@@ -427,24 +538,37 @@ def compile_query(
     on the connection (see `resources/object_query.py`'s `_resolve_collation`)
     and is applied to every text-typed `ORDER BY` column (and the matching
     keyset comparisons) via `COLLATE "<collation>"`.
+
+    `dialect` selects which backend-specific SQL to render for any `select`
+    or `where` entry that's a `JsonPath` (see `_render_json_path`) rather
+    than a plain column name. Not needed, and may be omitted, for
+    plain-column-only queries -- `order_by`/keyset pagination don't support
+    `JsonPath` yet, so `dialect` never affects them.
     """
     columns = list(query.select) if query.select else sorted(spec.columns)
-    for column in columns:
-        _check_column(column, spec.columns)
 
     effective_order_by = _effective_order_by(query.order_by)
     for ob in effective_order_by:
         _check_column(ob.column, spec.columns)
 
-    where_clauses, params = _where_clauses(spec, query.where, can_view_private)
+    select_parts = []
+    params: list = []
+    for column in columns:
+        sql_frag, p = _render_column(column, spec.columns, dialect)
+        select_parts.append(sql_frag)
+        params.extend(p)
+
+    where_clauses, where_params = _where_clauses(
+        spec, query.where, can_view_private, dialect
+    )
+    params.extend(where_params)
 
     if query.after is not None:
         sql, p = _compile_keyset(effective_order_by, query.after, spec, collation)
         where_clauses.append(f"({sql})")
         params.extend(p)
 
-    select_list = ", ".join(_quote_column(c) for c in columns)
-    sql = f"SELECT {select_list} FROM {spec.table}"
+    sql = f"SELECT {', '.join(select_parts)} FROM {spec.table}"
     if where_clauses:
         sql += " WHERE " + " AND ".join(where_clauses)
     sql += " ORDER BY " + ", ".join(
@@ -459,7 +583,11 @@ def compile_query(
 
 
 def compile_count_query(
-    spec: ObjectTypeSpec, query: Query, *, can_view_private: bool = False
+    spec: ObjectTypeSpec,
+    query: Query,
+    *,
+    can_view_private: bool = False,
+    dialect: Optional[Dialect] = None,
 ) -> Tuple[str, list]:
     """Compile a `Query` into a parameterized `SELECT COUNT(*) FROM <spec.table>`.
 
@@ -468,7 +596,7 @@ def compile_count_query(
     count has no columns, sort order, or page to return. In particular this
     is a count of *all* matching rows, not of just the current keyset page.
     """
-    where_clauses, params = _where_clauses(spec, query.where, can_view_private)
+    where_clauses, params = _where_clauses(spec, query.where, can_view_private, dialect)
     sql = f"SELECT COUNT(*) FROM {spec.table}"
     if where_clauses:
         sql += " WHERE " + " AND ".join(where_clauses)

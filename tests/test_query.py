@@ -28,9 +28,11 @@ from gramps_webapi.api.query import (
     PERSON,
     TAG,
     And,
+    Dialect,
     Eq,
     Gt,
     In,
+    JsonPath,
     Like,
     Not,
     Or,
@@ -104,6 +106,109 @@ def test_compile_count_query_no_where_no_params():
     sql, params = compile_count_query(PERSON, Query(), can_view_private=True)
     assert sql == "SELECT COUNT(*) FROM person"
     assert params == []
+
+
+# --- JsonPath -----------------------------------------------------------
+
+
+def test_jsonpath_requires_at_least_one_segment():
+    with pytest.raises(QueryError):
+        JsonPath(())
+
+
+def test_jsonpath_rejects_invalid_segment_types():
+    with pytest.raises(QueryError):
+        JsonPath(("primary_name", 1.5))  # float
+    with pytest.raises(QueryError):
+        JsonPath(("primary_name", None))
+    with pytest.raises(QueryError):
+        JsonPath(("primary_name", True))  # bool is an int subclass -- rejected anyway
+
+
+def test_jsonpath_accepts_str_and_int_segments():
+    path = JsonPath(("primary_name", "surname_list", 0, "surname"))
+    assert path.segments == ("primary_name", "surname_list", 0, "surname")
+    assert path.base_column == "json_data"
+
+
+def test_compile_query_jsonpath_without_dialect_raises():
+    path = JsonPath(("primary_name", "first_name"))
+    with pytest.raises(QueryError):
+        compile_query(PERSON, Query(select=["handle", path]))
+
+
+def test_compile_query_jsonpath_select_sqlite():
+    path = JsonPath(("primary_name", "surname_list", 0, "surname"))
+    sql, params = compile_query(PERSON, Query(select=["handle", path]), dialect=Dialect.SQLITE)
+    assert "json_extract(json_data, ?)" in sql
+    assert params[0] == "$.primary_name.surname_list[0].surname"
+
+
+def test_compile_query_jsonpath_select_postgresql():
+    path = JsonPath(("primary_name", "surname_list", 0, "surname"))
+    sql, params = compile_query(
+        PERSON, Query(select=["handle", path]), dialect=Dialect.POSTGRESQL
+    )
+    assert "jsonb_extract_path_text(json_data::jsonb, ?, ?, ?, ?)" in sql
+    assert params[:4] == ["primary_name", "surname_list", "0", "surname"]
+
+
+def test_compile_query_jsonpath_where_eq():
+    path = JsonPath(("primary_name", "first_name"))
+    query = Query(select=["handle"], where=Eq(path, "Root"))
+    sql, params = compile_query(PERSON, query, dialect=Dialect.SQLITE)
+    assert "json_extract(json_data, ?) = ?" in sql
+    assert params == ["$.primary_name.first_name", "Root", 50]
+
+
+def test_compile_query_jsonpath_where_in():
+    path = JsonPath(("gender",))
+    query = Query(select=["handle"], where=In(path, [1, 2]))
+    sql, params = compile_query(PERSON, query, dialect=Dialect.SQLITE)
+    assert "json_extract(json_data, ?) IN (?, ?)" in sql
+    assert params == ["$.gender", 1, 2, 50]
+
+
+def test_compile_query_jsonpath_combined_with_plain_column():
+    path = JsonPath(("primary_name", "first_name"))
+    query = Query(select=["handle"], where=And(Eq("gender", 1), Eq(path, "Root")))
+    sql, params = compile_query(PERSON, query, dialect=Dialect.SQLITE, can_view_private=True)
+    assert "gender = ?" in sql
+    assert "json_extract(json_data, ?) = ?" in sql
+    # plain-column param first, then the JsonPath's own [path, value] pair --
+    # matches left-to-right order of appearance in the compiled SQL text.
+    assert params == [1, "$.primary_name.first_name", "Root", 50]
+
+
+def test_compile_query_jsonpath_select_params_precede_where_params():
+    # SELECT appears before WHERE in the compiled SQL text, so a JsonPath in
+    # `select` must contribute its params before any `where` params.
+    select_path = JsonPath(("primary_name", "first_name"))
+    where_path = JsonPath(("gender",))
+    query = Query(select=["handle", select_path], where=Eq(where_path, 1))
+    sql, params = compile_query(PERSON, query, dialect=Dialect.SQLITE, can_view_private=True)
+    assert params[0] == "$.primary_name.first_name"  # select path
+    assert params[1] == "$.gender"  # where path
+    assert params[2] == 1  # where value
+    assert params[-1] == query.limit  # LIMIT is always last
+
+
+def test_compile_count_query_jsonpath_where():
+    path = JsonPath(("primary_name", "first_name"))
+    sql, params = compile_count_query(
+        PERSON, Query(where=Eq(path, "Root")), dialect=Dialect.SQLITE
+    )
+    assert sql == "SELECT COUNT(*) FROM person WHERE (json_extract(json_data, ?) = ?) AND private = 0"
+    assert params == ["$.primary_name.first_name", "Root"]  # no LIMIT param -- it's a COUNT
+
+
+def test_jsonpath_not_subject_to_column_whitelist():
+    # JsonPath's safety comes from segment-level type checking + parameter
+    # binding, not the fixed column whitelist -- any path is structurally
+    # valid, unlike an unrecognized plain column name.
+    path = JsonPath(("anything", "goes", "here"))
+    sql, params = compile_query(PERSON, Query(select=[path]), dialect=Dialect.SQLITE)
+    assert "json_extract" in sql
 
 
 def test_compile_query_uses_spec_table_and_columns():
