@@ -53,12 +53,20 @@ supports today:
   Single-segment paths that match the target type's flat column whitelist
   resolve to a plain column reference (a real indexed SQL column); every
   other path becomes a `{"json_path": [...]}` reference.
+- On the *value* side of a comparison, `ClassName.CONST` (e.g. `Person.MALE`,
+  `Note.FLOWED`) resolves to the real value read off the actual Gramps class
+  -- see `_CONSTANTS` -- so `gender == Person.MALE` and `gender == 1` compile
+  identically. Only a `Name.Attribute` shape one level deep is recognized
+  (not `a.b.CONST`), and only for the fields already reachable as a flat
+  column today (`Person.gender`, `Citation.confidence`, `Note.format`).
 """
 
 from __future__ import annotations
 
 import ast
 from typing import Any, List, Union
+
+from gramps.gen.lib import Citation, Note, Person
 
 from .query import (
     CITATION,
@@ -96,6 +104,27 @@ _NAMESPACES: dict[str, ObjectTypeSpec] = {
     **{name.capitalize(): spec for name, spec in _NAMES.items()},
 }
 
+# `ClassName.CONST` value constants, e.g. `gender == Person.MALE`. Read off
+# the real Gramps classes (not hardcoded ints) so they can't drift out of
+# sync if a constant's underlying value ever changes. Scoped to constants
+# that attach to fields already reachable as a *flat* column today
+# (`Person.gender`, `Citation.confidence`, `Note.format`) -- deliberately
+# not the much larger set of GrampsType constants on other fields
+# (`EventType.BIRTH`, `FamilyRelType.MARRIED`, ...), which live nested in
+# `json_data` (`{"_class": "EventType", "value": 12, "string": ""}`) and
+# additionally support arbitrary user-defined custom values with no fixed
+# constant to name -- a separate, larger piece of work.
+_CONSTANT_NAMES: dict[str, tuple[str, ...]] = {
+    "Person": ("MALE", "FEMALE", "UNKNOWN", "OTHER"),
+    "Citation": ("CONF_VERY_LOW", "CONF_LOW", "CONF_NORMAL", "CONF_HIGH", "CONF_VERY_HIGH"),
+    "Note": ("FLOWED", "FORMATTED"),
+}
+_CONSTANT_CLASSES = {"Person": Person, "Citation": Citation, "Note": Note}
+_CONSTANTS: dict[str, dict[str, Any]] = {
+    class_name: {name: getattr(_CONSTANT_CLASSES[class_name], name) for name in names}
+    for class_name, names in _CONSTANT_NAMES.items()
+}
+
 
 class QueryLangError(ValueError):
     """Raised when an expression doesn't parse or uses unsupported syntax."""
@@ -107,6 +136,23 @@ def resolve_namespace(namespace: str) -> ObjectTypeSpec:
         return _NAMESPACES[namespace]
     except KeyError:
         raise QueryLangError(f"unknown namespace: {namespace!r}") from None
+
+
+def _translate_constant(class_name: str, const_name: str) -> Any:
+    try:
+        constants = _CONSTANTS[class_name]
+    except KeyError:
+        raise QueryLangError(
+            f"unknown constant namespace: {class_name!r} "
+            f"(known: {', '.join(sorted(_CONSTANTS))})"
+        ) from None
+    try:
+        return constants[const_name]
+    except KeyError:
+        raise QueryLangError(
+            f"unknown constant: {class_name}.{const_name} "
+            f"(known: {', '.join(class_name + '.' + n for n in constants)})"
+        ) from None
 
 
 _COMPARE_OPS: dict[type, str] = {
@@ -154,7 +200,9 @@ def _translate_column(node: ast.AST, spec: ObjectTypeSpec) -> Union[str, dict]:
 
 
 def _translate_value(node: ast.AST) -> Any:
-    """Translate a literal: string / int / float / bool / None, or `-<number>`."""
+    """Translate a literal: string / int / float / bool / None, `-<number>`,
+    or a `ClassName.CONST` value constant (e.g. `Person.MALE`) -- see `_CONSTANTS`.
+    """
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
         inner = _translate_value(node.operand)
         if not isinstance(inner, (int, float)) or isinstance(inner, bool):
@@ -162,6 +210,8 @@ def _translate_value(node: ast.AST) -> Any:
         return -inner
     if isinstance(node, ast.Constant):
         return node.value
+    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+        return _translate_constant(node.value.id, node.attr)
     raise QueryLangError(f"invalid literal: {ast.dump(node)}")
 
 

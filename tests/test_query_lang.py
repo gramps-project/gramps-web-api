@@ -258,3 +258,64 @@ def test_subscript_with_bool_index_rejected():
     # segment validation in query.py.
     with pytest.raises(QueryLangError):
         parse_expr("person", "primary_name.surname_list[True].surname == 'Smith'")
+
+
+# --- ClassName.CONST value constants --------------------------------------------
+
+
+def test_person_gender_constants():
+    from gramps.gen.lib import Person
+
+    assert parse_expr("person", "gender == Person.MALE") == [
+        {"column": "gender", "op": "eq", "value": Person.MALE}
+    ]
+    assert parse_expr("person", "gender == Person.FEMALE") == [
+        {"column": "gender", "op": "eq", "value": Person.FEMALE}
+    ]
+    assert parse_expr("person", "gender == Person.UNKNOWN") == [
+        {"column": "gender", "op": "eq", "value": Person.UNKNOWN}
+    ]
+    assert parse_expr("person", "gender == Person.OTHER") == [
+        {"column": "gender", "op": "eq", "value": Person.OTHER}
+    ]
+
+
+def test_citation_confidence_constants():
+    from gramps.gen.lib import Citation
+
+    result = parse_expr("citation", "confidence >= Citation.CONF_HIGH")
+    assert result == [{"column": "confidence", "op": "gte", "value": Citation.CONF_HIGH}]
+
+
+def test_note_format_constants():
+    from gramps.gen.lib import Note
+
+    result = parse_expr("note", "format == Note.FLOWED")
+    assert result == [{"column": "format", "op": "eq", "value": Note.FLOWED}]
+
+
+def test_constant_inside_in_list():
+    from gramps.gen.lib import Person
+
+    result = parse_expr("person", "gender in [Person.MALE, Person.OTHER]")
+    assert result == [
+        {"column": "gender", "op": "in", "value": [Person.MALE, Person.OTHER]}
+    ]
+
+
+def test_unknown_constant_namespace_rejected():
+    with pytest.raises(QueryLangError):
+        parse_expr("person", "gender == Foo.BAR")
+
+
+def test_unknown_constant_name_rejected():
+    with pytest.raises(QueryLangError):
+        parse_expr("person", "gender == Person.NOT_A_REAL_CONSTANT")
+
+
+def test_two_level_attribute_chain_rejected():
+    # Only Name.Attribute (one level) is recognized as a constant -- deeper
+    # chains fall through to "invalid literal", not treated as a constant
+    # or a path.
+    with pytest.raises(QueryLangError):
+        parse_expr("person", "gender == a.Person.MALE")
