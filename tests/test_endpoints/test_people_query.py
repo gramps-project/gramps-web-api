@@ -20,13 +20,29 @@
 """Tests for the POST /api/people/query/ endpoint using example_gramps."""
 
 import unittest
+from unittest.mock import patch
 
+from gramps.gen.proxy.proxybase import ProxyDbBase
+
+from gramps_webapi.api.util import get_db_handle
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 
 from . import BASE_URL, get_object_count, get_test_client
 from .util import fetch_header
 
 TEST_URL = BASE_URL + "/people/query/"
+
+
+class _FakeNonPrivateProxy(ProxyDbBase):
+    """Minimal stand-in for a non-privacy proxy (e.g. `LivingProxyDb`).
+
+    Deliberately skips `ProxyDbBase.__init__`'s bookmark/name-format wiring
+    -- it only needs to be recognized as *some* `ProxyDbBase` that isn't a
+    `PrivateProxyDb`, to exercise the endpoint's refusal path.
+    """
+
+    def __init__(self, db):
+        self.db = self.basedb = db
 
 
 class TestPeopleQuery(unittest.TestCase):
@@ -62,6 +78,27 @@ class TestPeopleQuery(unittest.TestCase):
     def test_requires_token(self):
         rv = self.client.post(TEST_URL, json={})
         self.assertEqual(rv.status_code, 401)
+
+    def test_non_private_proxy_database_refused(self):
+        # get_db_handle() never actually constructs anything other than the
+        # raw db or a PrivateProxyDb today -- but the endpoint must not
+        # *assume* that. If it were ever wrapped in some other proxy (e.g.
+        # LivingProxyDb, which redacts living people independent of the
+        # `private` flag), querying the raw database underneath would
+        # silently return exactly the data that proxy exists to hide.
+        header = fetch_header(self.client)
+
+        def fake_get_db_handle(readonly=True):
+            db = get_db_handle(readonly=readonly)
+            base = db.basedb if isinstance(db, ProxyDbBase) else db
+            return _FakeNonPrivateProxy(base)
+
+        with patch(
+            "gramps_webapi.api.resources.object_query.get_db_handle",
+            side_effect=fake_get_db_handle,
+        ):
+            rv = self.client.post(TEST_URL, json={"limit": 5}, headers=header)
+        self.assertEqual(rv.status_code, 501)
 
     def test_default_query_returns_all_people(self):
         header = fetch_header(self.client)

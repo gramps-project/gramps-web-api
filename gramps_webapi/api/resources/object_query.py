@@ -28,6 +28,7 @@ use with `gramps_class_name` (see `resources/people.py`/`families.py`).
 
 from typing import Any, Optional, Sequence
 
+from gramps.gen.proxy import PrivateProxyDb
 from gramps.gen.proxy.proxybase import ProxyDbBase
 from marshmallow import Schema, validate
 from webargs import fields as wf
@@ -235,6 +236,19 @@ class ObjectQueryResource(ProtectedResource):
     def post(self, args: dict) -> Any:
         """Run a structured, SQL-pushed-down query."""
         db = get_db_handle(readonly=True)
+        if isinstance(db, ProxyDbBase) and not isinstance(db, PrivateProxyDb):
+            # Only `PrivateProxyDb` (and `ModifiedPrivateProxyDb`) is safe to
+            # bypass: this compiler independently reimplements its exact
+            # filtering (`AND private = 0`) in SQL. Any other proxy (e.g.
+            # `LivingProxyDb`, `FilterProxyDb`) applies filtering with no SQL
+            # equivalent here -- querying the raw database underneath it
+            # would silently return exactly the data that proxy exists to
+            # hide. `get_db_handle()` never constructs anything else today,
+            # but this must not be assumed; refuse rather than risk a data
+            # leak if that ever changes.
+            abort_with_message(
+                501, "Structured query is not supported through this proxy database"
+            )
         basedb = db.basedb if isinstance(db, ProxyDbBase) else db
         if not hasattr(basedb, "dbapi"):
             abort_with_message(
