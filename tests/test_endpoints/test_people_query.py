@@ -106,10 +106,14 @@ class TestPeopleQuery(unittest.TestCase):
         self.assertEqual(len(items), get_object_count("people"))
 
     def test_total_count_omitted_by_default(self):
+        # Matches the rest of the API's convention (objects.py/emit.py/
+        # history.py): total count is an X-Total-Count response header, not
+        # a body field -- and it's opt-in here since, unlike those endpoints,
+        # it costs a genuinely separate COUNT(*) query.
         header = fetch_header(self.client)
         rv = self.client.post(TEST_URL, json={"limit": 5}, headers=header)
         self.assertEqual(rv.status_code, 200)
-        self.assertIsNone(rv.json["total_count"])
+        self.assertNotIn("X-Total-Count", rv.headers)
 
     def test_total_count_reflects_all_matching_rows_not_just_this_page(self):
         header = fetch_header(self.client)
@@ -118,7 +122,7 @@ class TestPeopleQuery(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 200)
         self.assertEqual(len(rv.json["items"]), 5)  # capped by limit
-        self.assertEqual(rv.json["total_count"], get_object_count("people"))
+        self.assertEqual(int(rv.headers["X-Total-Count"]), get_object_count("people"))
 
     def test_total_count_respects_where_filter(self):
         header = fetch_header(self.client)
@@ -134,8 +138,9 @@ class TestPeopleQuery(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 200)
         all_items = self._fetch_all(header, {"select": ["handle"]})
-        self.assertGreater(rv.json["total_count"], 0)
-        self.assertLess(rv.json["total_count"], len(all_items))
+        total_count = int(rv.headers["X-Total-Count"])
+        self.assertGreater(total_count, 0)
+        self.assertLess(total_count, len(all_items))
 
     def test_total_count_stable_across_pages(self):
         header = fetch_header(self.client)
@@ -148,8 +153,8 @@ class TestPeopleQuery(unittest.TestCase):
         rv1 = self.client.post(TEST_URL, json=body, headers=header)
         body_page2 = dict(body, after=rv1.json["next_after"])
         rv2 = self.client.post(TEST_URL, json=body_page2, headers=header)
-        self.assertEqual(rv1.json["total_count"], rv2.json["total_count"])
-        self.assertEqual(rv1.json["total_count"], get_object_count("people"))
+        self.assertEqual(rv1.headers["X-Total-Count"], rv2.headers["X-Total-Count"])
+        self.assertEqual(int(rv1.headers["X-Total-Count"]), get_object_count("people"))
 
     def test_select_restricts_returned_columns(self):
         header = fetch_header(self.client)

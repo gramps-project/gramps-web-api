@@ -1603,6 +1603,11 @@ class ObjectQueryResponseSchema(_Base):
     Shared by every `POST .../query/` endpoint (people, families, events,
     ...) -- the response shape doesn't depend on object type, only on the
     caller's requested `select` columns.
+
+    Total row count, when requested (`count: true`), is returned via the
+    `X-Total-Count` response header -- the same convention already used by
+    `objects.py`/`emit.py`/`history.py` -- not a body field, for consistency
+    with the rest of the API.
     """
 
     items = fields.List(
@@ -1617,14 +1622,6 @@ class ObjectQueryResponseSchema(_Base):
         metadata={
             "description": "Cursor to pass as `after` to fetch the next page, "
             "or null if this was the last page."
-        },
-    )
-    total_count = fields.Int(
-        allow_none=True,
-        metadata={
-            "description": "Total number of rows matching `where` (and privacy), "
-            "independent of `limit`/`after`. Only present when the request set "
-            "`count: true`; null otherwise."
         },
     )
 

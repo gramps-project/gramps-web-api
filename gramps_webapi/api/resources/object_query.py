@@ -170,9 +170,10 @@ class QueryBodyArgs(Schema):
     count = wf.Boolean(
         load_default=False,
         metadata={
-            "description": "If true, also return `total_count`: the total number of "
-            "rows matching `where` (and privacy), independent of `limit`/`after`. "
-            "Costs a second query, so it's opt-in."
+            "description": "If true, also compute the total number of rows matching "
+            "`where` (and privacy), independent of `limit`/`after`, and return it "
+            "in the `X-Total-Count` response header (the same convention used "
+            "elsewhere in this API). Costs a second query, so it's opt-in."
         },
     )
 
@@ -476,10 +477,10 @@ class ObjectQueryResource(ProtectedResource):
         basedb.dbapi.execute(sql, params)
         rows = basedb.dbapi.fetchall()
 
-        total_count = None
+        headers = {}
         if count_sql is not None:
             basedb.dbapi.execute(count_sql, count_params)
-            total_count = basedb.dbapi.fetchone()[0]
+            headers["X-Total-Count"] = str(basedb.dbapi.fetchone()[0])
 
         handle_index = fetch_refs.index("handle")
         items = [
@@ -488,7 +489,7 @@ class ObjectQueryResource(ProtectedResource):
         ]
         next_after = rows[-1][handle_index] if len(rows) == args["limit"] else None
 
-        return {"items": items, "next_after": next_after, "total_count": total_count}
+        return {"items": items, "next_after": next_after}, 200, headers
 
 
 class PersonQueryResource(ObjectQueryResource):
