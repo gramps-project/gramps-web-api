@@ -46,8 +46,8 @@ supports today:
   all the same `ast.Compare` node shape, just different `ops`.
   `path not in [...]`, `is`, `is not` have no wire equivalent and are
   rejected.
-- `like(path, 'pattern%')` is the one whitelisted function-call form, for
-  the one operator (`Like`) that isn't a Python operator.
+- `like(path, 'pattern%')` is a whitelisted function-call form, for the one
+  operator (`Like`) that isn't a Python operator.
 - A path is a bare identifier optionally followed by `.attr` / `[index]`
   segments, e.g. `gender` or `primary_name.surname_list[0].surname`.
   Single-segment paths that match the target type's flat column whitelist
@@ -59,6 +59,17 @@ supports today:
   identically. Only a `Name.Attribute` shape one level deep is recognized
   (not `a.b.CONST`), and only for the fields already reachable as a flat
   column today (`Person.gender`, `Citation.confidence`, `Note.format`).
+- Also on the value side, `Date('Jan 1, 1968')` -- the second and last
+  whitelisted call form -- parses a human date string with Gramps' own
+  date parser and resolves to `.sortval`, a plain comparable integer
+  (Julian day number), so `event.date.sortval >= Date('Jan 1, 1968')`
+  works with ordinary `>=`/`<=`/`<`/`>`. Only useful against object types
+  that carry their own `date` field directly (`Event`, `Citation`,
+  `Media`) -- `Person`'s birth/death dates live on a separate `Event` row
+  reached through `event_ref_list`, which requires a join this compiler
+  doesn't do yet, so `Date(...)` doesn't by itself make "people born
+  after X" expressible; it solves the date-parsing half of that problem,
+  not the join half.
 """
 
 from __future__ import annotations
@@ -66,6 +77,7 @@ from __future__ import annotations
 import ast
 from typing import Any, List, Union
 
+from gramps.gen.datehandler import parser as _date_parser
 from gramps.gen.lib import Citation, Note, Person
 
 from .query import (
@@ -199,9 +211,25 @@ def _translate_column(node: ast.AST, spec: ObjectTypeSpec) -> Union[str, dict]:
     return {"json_path": segments}
 
 
+def _translate_date_call(node: ast.Call) -> int:
+    """Translate `Date('Jan 1, 1968')` into its `.sortval` (a comparable
+    Julian day number), via Gramps' own date parser -- not a custom one.
+    """
+    if len(node.args) != 1 or node.keywords:
+        raise QueryLangError("Date(...) takes exactly 1 positional string argument")
+    text = _translate_value(node.args[0])
+    if not isinstance(text, str):
+        raise QueryLangError("Date(...)'s argument must be a string literal")
+    parsed = _date_parser.parse(text)
+    if not parsed.is_valid():
+        raise QueryLangError(f"could not parse {text!r} as a date")
+    return parsed.sortval
+
+
 def _translate_value(node: ast.AST) -> Any:
     """Translate a literal: string / int / float / bool / None, `-<number>`,
-    or a `ClassName.CONST` value constant (e.g. `Person.MALE`) -- see `_CONSTANTS`.
+    a `ClassName.CONST` value constant (e.g. `Person.MALE`, see `_CONSTANTS`),
+    or `Date('...')` (see `_translate_date_call`).
     """
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
         inner = _translate_value(node.operand)
@@ -212,6 +240,12 @@ def _translate_value(node: ast.AST) -> Any:
         return node.value
     if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
         return _translate_constant(node.value.id, node.attr)
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "Date"
+    ):
+        return _translate_date_call(node)
     raise QueryLangError(f"invalid literal: {ast.dump(node)}")
 
 

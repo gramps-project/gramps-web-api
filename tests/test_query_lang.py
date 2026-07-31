@@ -319,3 +319,63 @@ def test_two_level_attribute_chain_rejected():
     # or a path.
     with pytest.raises(QueryLangError):
         parse_expr("person", "gender == a.Person.MALE")
+
+
+# --- Date(...) call ---------------------------------------------------------------
+
+
+def test_date_call_resolves_to_sortval():
+    result = parse_expr("event", "date.sortval == Date('Jan 1, 1968')")
+    assert result == [
+        {"column": {"json_path": ["date", "sortval"]}, "op": "eq", "value": 2439857}
+    ]
+
+
+def test_date_call_supports_ordering_comparisons():
+    gte = parse_expr("event", "date.sortval >= Date('Jan 1, 1968')")
+    assert gte[0]["op"] == "gte"
+    assert gte[0]["value"] == 2439857
+
+    lt = parse_expr("event", "date.sortval < Date('Jan 1, 1968')")
+    assert lt[0]["op"] == "lt"
+    assert lt[0]["value"] == 2439857
+
+
+def test_date_call_range_via_and():
+    result = parse_expr(
+        "event",
+        "date.sortval >= Date('Jan 1, 1968') and date.sortval <= Date('Dec 31, 1968')",
+    )
+    assert len(result) == 2
+    assert result[0]["value"] < result[1]["value"]
+
+
+def test_date_call_in_list():
+    result = parse_expr("event", "date.sortval in [Date('Jan 1, 1968')]")
+    assert result == [
+        {"column": {"json_path": ["date", "sortval"]}, "op": "in", "value": [2439857]}
+    ]
+
+
+def test_date_call_unparseable_string_rejected():
+    with pytest.raises(QueryLangError):
+        parse_expr("event", "date.sortval >= Date('not a real date')")
+
+
+def test_date_call_wrong_arity_rejected():
+    with pytest.raises(QueryLangError):
+        parse_expr("event", "date.sortval >= Date()")
+    with pytest.raises(QueryLangError):
+        parse_expr("event", "date.sortval >= Date('a', 'b')")
+
+
+def test_date_call_non_string_argument_rejected():
+    with pytest.raises(QueryLangError):
+        parse_expr("event", "date.sortval >= Date(5)")
+
+
+def test_date_call_rejected_as_like_pattern():
+    # like(...)'s second argument must stay a plain string -- Date()
+    # resolves to an int, which the existing string check already rejects.
+    with pytest.raises(QueryLangError):
+        parse_expr("event", "like(description, Date('Jan 1, 1968'))")
