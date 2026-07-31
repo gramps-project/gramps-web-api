@@ -381,56 +381,79 @@ def test_date_call_rejected_as_like_pattern():
         parse_expr("event", "like(description, Date('Jan 1, 1968'))")
 
 
-# --- birth_date / death_date (RelatedEventDate) in where_expr -------------------
+# --- Relationship-crossing paths in where_expr (birth/death/father/mother/place) --
+#
+# query_lang.py has no relationship-specific knowledge of its own -- a
+# multi-segment path always becomes {"json_path": [...]}, the same as any
+# other multi-segment path; query.py's resolve_column_path (exercised via
+# object_query.py's _parse_column_ref/_build_where, not here) is what
+# actually recognizes "birth"/"father"/etc. as relationships. These tests
+# only check what this module itself produces: the raw wire JSON.
 
 
-def test_birth_date_bare_reference():
-    result = parse_expr("person", "birth_date >= Date('Jan 1, 1968')")
-    assert result == [{"column": "birth_date", "op": "gte", "value": 2439857}]
+def test_birth_date_sortval_reference():
+    result = parse_expr("person", "birth.date.sortval >= Date('Jan 1, 1968')")
+    assert result == [
+        {"column": {"json_path": ["birth", "date", "sortval"]}, "op": "gte", "value": 2439857}
+    ]
 
 
-def test_death_date_bare_reference():
-    result = parse_expr("person", "death_date < Date('Jan 1, 2000')")
-    assert result == [{"column": "death_date", "op": "lt", "value": 2451545}]
+def test_death_date_sortval_reference():
+    result = parse_expr("person", "death.date.sortval < Date('Jan 1, 2000')")
+    assert result == [
+        {"column": {"json_path": ["death", "date", "sortval"]}, "op": "lt", "value": 2451545}
+    ]
 
 
-def test_birth_date_range_via_and():
+def test_birth_date_sortval_range_via_and():
     result = parse_expr(
         "person",
-        "birth_date >= Date('Jan 1, 1968') and birth_date < Date('Jan 1, 1969')",
+        "birth.date.sortval >= Date('Jan 1, 1968') and birth.date.sortval < Date('Jan 1, 1969')",
     )
     assert len(result) == 2
-    assert result[0]["column"] == result[1]["column"] == "birth_date"
+    assert result[0]["column"] == result[1]["column"] == {
+        "json_path": ["birth", "date", "sortval"]
+    }
     assert result[0]["value"] < result[1]["value"]
 
 
-def test_birth_date_in_list():
-    result = parse_expr("person", "birth_date in [Date('Jan 1, 1968')]")
-    assert result == [{"column": "birth_date", "op": "in", "value": [2439857]}]
+def test_birth_date_sortval_in_list():
+    result = parse_expr("person", "birth.date.sortval in [Date('Jan 1, 1968')]")
+    assert result == [
+        {"column": {"json_path": ["birth", "date", "sortval"]}, "op": "in", "value": [2439857]}
+    ]
 
 
-def test_birth_date_without_comparison_still_requires_a_comparison():
-    with pytest.raises(QueryLangError):
-        parse_expr("person", "birth_date")
+def test_father_surname_reference():
+    result = parse_expr("family", "father.surname == 'Smith'")
+    assert result == [
+        {"column": {"json_path": ["father", "surname"]}, "op": "eq", "value": "Smith"}
+    ]
 
 
-def test_birth_date_sortval_suffix_rejected():
-    # sortval is the only sub-field where exposes for these fields -- no
-    # suffix needed or accepted, and it must not silently fall through to
-    # JsonPath (birth_date isn't a json_data key, so that would silently
-    # compile to a query that always returns zero matches).
-    with pytest.raises(QueryLangError):
-        parse_expr("person", "birth_date.sortval >= Date('Jan 1, 1968')")
+def test_mother_surname_reference():
+    result = parse_expr("family", "mother.surname == 'Jones'")
+    assert result == [
+        {"column": {"json_path": ["mother", "surname"]}, "op": "eq", "value": "Jones"}
+    ]
 
 
-def test_death_date_dateval_suffix_rejected():
-    with pytest.raises(QueryLangError):
-        parse_expr("person", "death_date.dateval == 5")
+def test_two_hop_chain_reference():
+    result = parse_expr("person", "birth.place.title == 'Chicago'")
+    assert result == [
+        {
+            "column": {"json_path": ["birth", "place", "title"]},
+            "op": "eq",
+            "value": "Chicago",
+        }
+    ]
 
 
-def test_birth_date_works_as_plain_column_too():
-    # Comparing directly against a raw sortval int, no Date() needed --
-    # syntactically valid, matches this parser's general stance of not
-    # policing semantic intent (like Date()-as-a-like-pattern elsewhere).
-    result = parse_expr("person", "birth_date >= 2439857")
-    assert result == [{"column": "birth_date", "op": "gte", "value": 2439857}]
+def test_bare_relationship_name_parses_here_rejected_downstream():
+    # query_lang.py itself doesn't know "birth" is special -- a bare
+    # relationship name with nothing after it just becomes a single-segment
+    # json_path here (there's nothing to compare it to at this layer's
+    # level); object_query.py's resolve_column_path is what rejects it, one
+    # layer down (see test_object_query_parsing.py).
+    result = parse_expr("person", "birth == 5")
+    assert result == [{"column": {"json_path": ["birth"]}, "op": "eq", "value": 5}]

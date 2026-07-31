@@ -39,11 +39,7 @@ from ...auth.const import PERM_VIEW_PRIVATE
 from ..auth import has_permissions
 from ..blueprint import api_blueprint
 from ..query import (
-    BIRTH_DATE,
-    BIRTH_DATE_SORTVAL,
     CITATION,
-    DEATH_DATE,
-    DEATH_DATE_SORTVAL,
     EVENT,
     FAMILY,
     MEDIA,
@@ -69,12 +65,13 @@ from ..query import (
     OrderBy,
     Query,
     QueryError,
-    RelatedEventDate,
+    RelatedObject,
     SelectRef,
     after_columns,
     check_columns,
     compile_count_query,
     compile_query,
+    resolve_column_path,
 )
 from ..query_lang import QueryLangError, parse_expr_for_spec
 from ..util import abort_with_message, get_db_handle, get_locale_for_language
@@ -99,8 +96,11 @@ class QueryWhereConditionArgs(Schema):
         required=True,
         metadata={
             "description": "Column to compare: either a plain column name (e.g. "
-            "'gramps_id'), or {'json_path': [...]} to compare a path into the "
-            "JSON blob, e.g. {'json_path': ['primary_name', 'first_name']}."
+            "'gramps_id'), or {'json_path': [...]} for a path, e.g. "
+            "{'json_path': ['primary_name', 'first_name']}. A path may cross a "
+            "relationship (Family->Person, Person->Event, Event->Place, ...), "
+            "e.g. {'json_path': ['father', 'surname']} or "
+            "{'json_path': ['birth', 'date', 'sortval']}."
         },
     )
     op = wf.Str(
@@ -138,14 +138,17 @@ class QueryBodyArgs(Schema):
         metadata={
             "description": "Columns to return. Defaults to all available columns. "
             "Each entry is either a plain column name, or {'json_path': [...], "
-            "'as': '<key>'} to select a path into the JSON blob, e.g. "
+            "'as': '<key>'} to select a path, e.g. "
             "{'json_path': ['primary_name', 'surname_list', 0, 'surname']}. "
             "'as' is optional; if omitted, the response key is a derived "
             "dotted/bracket string, e.g. 'primary_name.surname_list[0].surname'. "
-            "On Person only, 'birth_date'/'death_date' return the full Date "
-            "struct (format/calendar/modifier/quality/dateval/text/sortval) of "
-            "the referenced birth/death event, or null if none is recorded -- "
-            "select-only, not usable in 'where'/'order_by'."
+            "A path may cross a relationship (Family->Person via 'father'/"
+            "'mother', Person->Event via 'birth'/'death', Event->Place via "
+            "'place'), e.g. {'json_path': ['father', 'surname']} or "
+            "{'json_path': ['birth', 'date']} (the full Date struct -- "
+            "format/calendar/modifier/quality/dateval/text/sortval -- of the "
+            "referenced event, or null if none is recorded). Not usable in "
+            "'order_by'."
         },
     )
     where = wf.List(
@@ -200,79 +203,62 @@ class QueryBodyArgs(Schema):
     )
 
 
-def _parse_json_path(raw: dict) -> JsonPath:
-    segments = raw.get("json_path")
-    if not isinstance(segments, list) or not segments:
-        raise QueryError("'json_path' must be a non-empty list")
-    return JsonPath(tuple(segments))
-
-
-# "birth_date"/"death_date" mean different things depending on where they
-# appear: the whole Date struct in `select` (there's a result to hand back,
-# so give the caller everything), just the comparable `sortval` int in
-# `where` (see query.py's RelatedEventDate -- sortval is deliberately the
-# only sub-field exposed for comparisons; `dateval`/`modifier` aren't
-# safely comparable or aren't captured by sortval at all). Two lookup
-# tables, same bare-string recognition pattern, different target constant.
-_RELATED_EVENT_DATE_SELECT_FIELDS: dict[str, RelatedEventDate] = {
-    "birth_date": BIRTH_DATE,
-    "death_date": DEATH_DATE,
-}
-_RELATED_EVENT_DATE_WHERE_FIELDS: dict[str, RelatedEventDate] = {
-    "birth_date": BIRTH_DATE_SORTVAL,
-    "death_date": DEATH_DATE_SORTVAL,
-}
-
-
-def _parse_column_ref(raw: Any) -> ColumnRef:
-    """Parse a `where` condition's `column`: a plain column name,
-    `{"json_path": [...]}` for a `JsonPath`, or `"birth_date"`/`"death_date"`
-    for the referenced event's `sortval` (see `_RELATED_EVENT_DATE_WHERE_FIELDS`).
-    Segment-level type checking (str keys / non-bool int indices only)
-    happens in `JsonPath.__post_init__`.
+def _parse_column_ref(raw: Any, spec: ObjectTypeSpec) -> ColumnRef:
+    """Parse a `where` condition's `column`: a plain column name, or
+    `{"json_path": [...]}` resolved via `resolve_column_path()` -- which
+    may cross a relationship (`{"json_path": ["birth", "date", "sortval"]}`)
+    or stay a plain `JsonPath` into `json_data`, depending on whether the
+    first segment(s) name a registered relationship on `spec`. A bare
+    string is *not* run through the relationship resolver -- there's
+    nothing to disambiguate for a single segment beyond "is this a real
+    flat column", which `_render_column` already checks at compile time.
     """
     if isinstance(raw, str):
-        if raw in _RELATED_EVENT_DATE_WHERE_FIELDS:
-            return _RELATED_EVENT_DATE_WHERE_FIELDS[raw]
         return raw
     if isinstance(raw, dict) and "json_path" in raw:
-        return _parse_json_path(raw)
+        segments = raw["json_path"]
+        if not isinstance(segments, list) or not segments:
+            raise QueryError("'json_path' must be a non-empty list")
+        return resolve_column_path(spec, segments)
     raise QueryError(f"invalid column reference: {raw!r}")
 
 
-def _parse_select_entry(raw: Any) -> Tuple[SelectRef, str]:
+def _parse_select_entry(raw: Any, spec: ObjectTypeSpec) -> Tuple[SelectRef, str]:
     """Parse one `select` entry into `(column_ref, response_key)`.
 
-    A plain string is both the column and its own response key -- except
-    `"birth_date"`/`"death_date"`, which resolve to `RelatedEventDate`
-    (see `query.py`): valid only when querying `Person` (`compile_query`
-    rejects them otherwise). A `{"json_path": [...], "as": "..."}` object
-    uses `as` as the response key if given, otherwise a derived
-    dotted/bracket path (`_json_path_default_key`). `as: "handle"` is
-    rejected unless the entry *is* the real `handle` column -- the
-    response's `handle` key is load-bearing for the `next_after` cursor
-    (see `post()`), so silently shadowing it with unrelated JSON content
-    would corrupt pagination for the caller without any visible error.
+    A plain string is both the column and its own response key. A
+    `{"json_path": [...], "as": "..."}` object resolves the path the same
+    way `_parse_column_ref` does (relationship-aware), and uses `as` as
+    the response key if given, otherwise a derived dotted/bracket path
+    (`_default_key_for`). `as: "handle"` is rejected unless the entry *is*
+    the real `handle` column -- the response's `handle` key is
+    load-bearing for the `next_after` cursor (see `post()`), so silently
+    shadowing it with unrelated content would corrupt pagination for the
+    caller without any visible error.
     """
     if isinstance(raw, str):
-        if raw in _RELATED_EVENT_DATE_SELECT_FIELDS:
-            return _RELATED_EVENT_DATE_SELECT_FIELDS[raw], raw
         return raw, raw
     if isinstance(raw, dict) and "json_path" in raw:
-        path = _parse_json_path(raw)
-        key = raw.get("as") or _json_path_default_key(path)
+        column = _parse_column_ref(raw, spec)
+        key = raw.get("as") or _default_key_for(column)
         if key == "handle":
             raise QueryError("'handle' is reserved as a response key")
-        return path, key
+        return column, key
     raise QueryError(f"invalid column reference: {raw!r}")
 
 
-def _json_path_default_key(path: JsonPath) -> str:
-    """Dotted/bracket string built from a `JsonPath`'s segments -- the
-    response key for a `select` entry with no explicit `as` alias.
+def _default_key_for(ref: ColumnRef) -> str:
+    """Derive a default response key for a `select` entry with no explicit
+    `as` alias -- a dotted/bracket string, e.g. `primary_name.surname_list[0]`
+    for a plain `JsonPath`, or `birth.date.sortval` for a `RelatedObject`
+    chain (recursing through `.field` and prefixing each hop's `.name`).
     """
-    parts = []
-    for segment in path.segments:
+    if isinstance(ref, str):
+        return ref
+    if isinstance(ref, RelatedObject):
+        return f"{ref.name}.{_default_key_for(ref.field)}"
+    parts: list = []
+    for segment in ref.segments:
         if isinstance(segment, int):
             parts.append(f"[{segment}]")
         else:
@@ -288,26 +274,49 @@ def _check_no_duplicate_keys(parsed_select: Sequence[Tuple[SelectRef, str]]) -> 
         seen.add(key)
 
 
-def _normalize_related_event_date_value(value: Any) -> Any:
-    """Normalize a `RelatedEventDate` response value to a dict either way.
+def _terminal_is_json_path(ref: ColumnRef) -> bool:
+    """Does `ref` ultimately extract via a `JsonPath` (as opposed to a
+    plain flat column)? Recurses through a `RelatedObject` chain to its
+    leaf `field` -- `father.surname` ends in a plain column (a real SQL
+    column on `person`, no JSON functions involved at all), `birth.date`/
+    `birth.date.sortval` end in a `JsonPath` (`json_extract`/`->` on
+    PostgreSQL, `-> `SQLite`). Used to decide which response values need
+    `_normalize_json_value`'s SQLite-string-vs-PostgreSQL-dict handling --
+    a plain column's value is never JSON-encoded, so applying that
+    normalization there could wrongly reinterpret e.g. a surname that
+    happens to look like a JSON literal (`"123"`).
+    """
+    if isinstance(ref, RelatedObject):
+        return _terminal_is_json_path(ref.field)
+    return isinstance(ref, JsonPath)
 
-    SQLite's `json_extract()` returns a JSON *string*; PostgreSQL's `jsonb`
-    expressions come back through psycopg2 already parsed into a `dict`
-    (verified live against both). `None` (no such event recorded, or the
-    event is private and the caller can't view it) passes through unchanged.
+
+def _normalize_json_value(value: Any) -> Any:
+    """Normalize a JSON-sourced response value to its parsed form either way.
+
+    SQLite's `json_extract()` returns a JSON *string* for object/array
+    results (scalars come back already correctly typed); PostgreSQL's
+    `jsonb` expressions come back through psycopg2 already parsed
+    (verified live against both). `None` (no such row, or it's private and
+    the caller can't view it) passes through unchanged. Only applied to
+    response values whose `ColumnRef` is `_terminal_is_json_path()` --
+    see there.
     """
     if isinstance(value, str):
-        return json.loads(value)
+        try:
+            return json.loads(value)
+        except ValueError:
+            return value
     return value
 
 
-def _build_where(conditions: Optional[Sequence[dict]]):
+def _build_where(conditions: Optional[Sequence[dict]], spec: ObjectTypeSpec):
     """Build a `query.py` WHERE expression from parsed leaf conditions."""
     if not conditions:
         return None
     exprs: list[Any] = []
     for condition in conditions:
-        column = _parse_column_ref(condition["column"])
+        column = _parse_column_ref(condition["column"], spec)
         op = condition["op"]
         value = condition["value"]
         if op == "in":
@@ -515,7 +524,7 @@ class ObjectQueryResource(ProtectedResource):
         dialect = _resolve_dialect(basedb)
         try:
             parsed_select = (
-                [_parse_select_entry(item) for item in args["select"]]
+                [_parse_select_entry(item, self.spec) for item in args["select"]]
                 if args.get("select")
                 else [(col, col) for col in sorted(self.spec.columns)]
             )
@@ -529,7 +538,7 @@ class ObjectQueryResource(ProtectedResource):
 
             query = Query(
                 select=fetch_refs,
-                where=_build_where(_resolve_where_conditions(args, self.spec)),
+                where=_build_where(_resolve_where_conditions(args, self.spec), self.spec),
                 order_by=order_by,
                 limit=args["limit"],
                 after=after,
@@ -565,15 +574,13 @@ class ObjectQueryResource(ProtectedResource):
             headers["X-Total-Count"] = str(basedb.dbapi.fetchone()[0])
 
         handle_index = fetch_refs.index("handle")
-        related_event_date_keys = {
-            key for ref, key in zip(fetch_refs, fetch_keys) if isinstance(ref, RelatedEventDate)
+        json_path_terminal_keys = {
+            key for ref, key in zip(fetch_refs, fetch_keys) if _terminal_is_json_path(ref)
         }
         items = [
             {
                 key: (
-                    _normalize_related_event_date_value(val)
-                    if key in related_event_date_keys
-                    else val
+                    _normalize_json_value(val) if key in json_path_terminal_keys else val
                 )
                 for key, val in zip(fetch_keys, row)
                 if key in requested_keys

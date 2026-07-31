@@ -158,82 +158,169 @@ class Dialect(str, enum.Enum):
 
 
 @dataclass(frozen=True)
+class ColumnIndex:
+    """A `JsonPath` segment whose integer value comes from another column
+    on the *current* row, not a compile-time literal -- e.g.
+    `event_ref_list[N]` where `N` is this row's `birth_ref_index`. Only
+    meaningful inside a `RelatedObject.handle_ref` (see there). `-1` means
+    "no such entry" by Gramps' own convention for `birth_ref_index`/
+    `death_ref_index`, so rendering code guards this column with `>= 0` --
+    required, not defensive: confirmed live that PostgreSQL's `->`
+    operator treats a negative array index as "count from the end" rather
+    than invalid -- without the guard, a row with no such entry but
+    *something else* in the list would silently resolve to that unrelated
+    entry.
+    """
+
+    column: str
+
+
+@dataclass(frozen=True)
 class JsonPath:
     """A path into a JSON-blob secondary column (default: `json_data`).
 
     Not whitelisted against a fixed column list the way a plain column name
     is -- `json_data` is a real column on every table, but its *content* is
     arbitrary. Safety instead comes from every path segment being
-    individually type-checked (`str` keys or non-bool `int` array indices
-    only) and always bound as a query parameter, never interpolated into
-    SQL text -- see `_render_json_path`.
+    individually type-checked (`str` keys, non-bool `int` array indices, or
+    a `ColumnIndex` -- see there) and, for `str`/`int` segments, always
+    bound as a query parameter, never interpolated into SQL text -- see
+    `_render_json_path`. (A `ColumnIndex` segment is inherently a raw SQL
+    column reference, not a bindable value -- see `_render_handle_ref`,
+    the only place a `JsonPath` containing one is ever rendered; its
+    `column` always comes from the fixed internal `_RELATIONSHIPS`
+    registry, never from parsed user input, so this is safe.)
 
     Not (yet) usable in `order_by`/keyset pagination -- only `select` and
     `where`. `ObjectTypeSpec.text_columns`-based `COLLATE` selection also
     doesn't apply to it: the JSON value's type isn't known ahead of time.
     """
 
-    segments: Tuple[Union[str, int], ...]
+    segments: Tuple[Union[str, int, ColumnIndex], ...]
     base_column: str = "json_data"
 
     def __post_init__(self) -> None:
         if not self.segments:
             raise QueryError("JsonPath requires at least one segment")
         for segment in self.segments:
+            if isinstance(segment, ColumnIndex):
+                continue
             if isinstance(segment, bool) or not isinstance(segment, (str, int)):
                 raise QueryError(f"invalid JsonPath segment: {segment!r}")
 
 
 @dataclass(frozen=True)
-class RelatedEventDate:
-    """Virtual field: something extracted from the `date` of the event
-    referenced by a `Person`'s `birth_ref_index`/`death_ref_index`.
+class RelatedObject:
+    """A field reached by following a relationship from the current row to
+    another table -- a `Family`'s father (-> `Person`), a `Person`'s birth
+    event (-> `Event`), an `Event`'s place (-> `Place`), and so on.
+    Resolved via a *correlated scalar subquery*, not a `JOIN`: each
+    `RelatedObject`'s subquery is a fully independent SQL scope with its
+    own `FROM <target.table>`, correlated back to whatever row it's
+    reached from by that table's own (never aliased) name -- confirmed
+    live this composes correctly at any depth: sibling subqueries hitting
+    the same table (father vs. mother, both `FROM person`) don't collide,
+    and chains (nested subqueries, for `birth.place.title`-style paths)
+    correlate correctly across levels regardless of nesting -- see
+    `_render_related_object`.
 
-    `Person` has no date of its own -- only an index (`ref_index_column`)
-    into `event_ref_list` saying which entry is the birth/death event; the
-    actual date lives on that separate `Event` row. Resolved via a
-    *correlated scalar subquery*, not a `JOIN`: the subquery is a fully
-    independent scope with its own `FROM event`, so it needs no changes to
-    how the rest of this compiler emits column references (everything
-    outside the subquery stays exactly as unqualified as it is today) --
-    see `_render_related_event_date`.
+    `name`: the relationship's name as used in a path (`"birth"`,
+        `"father"`, ...) -- kept for error messages and deriving a default
+        response key (`"birth.date.sortval"`); not used by the SQL itself.
+    `target`: the `ObjectTypeSpec` of the related table.
+    `handle_ref`: how to find the related row's handle on the row this
+        `RelatedObject` is reached from -- a plain column name for a
+        direct foreign key (`"father_handle"`), or a `JsonPath` with
+        exactly one `ColumnIndex` segment for a dynamic, per-row index
+        (`event_ref_list[<ref_index_column>].ref`).
+    `field`: what to pull from the related row once found -- a plain
+        (whitelisted) column name, a `JsonPath` into its `json_data`, or
+        another `RelatedObject` to keep chaining.
 
-    `extract` is the path within the event's `date` struct to pull out --
-    `("date",)` (the default, used by `BIRTH_DATE`/`DEATH_DATE`) returns
-    the whole struct, for `select`. `("date", "sortval")` (used by
-    `BIRTH_DATE_SORTVAL`/`DEATH_DATE_SORTVAL`) returns just the comparable
-    Julian-day integer, for `where` -- `sortval` is deliberately the only
-    sub-field exposed for comparisons: it's the one property Gramps itself
-    treats as chronologically orderable. (`dateval`'s raw
-    `(day, month, year, slash)` tuple isn't safely comparable as a whole --
-    SQL would sort by day first, not year -- and `modifier`/`quality`,
-    which distinguish "before"/"about"/exact, collapse to the same
-    `sortval` regardless, so a range query can't currently tell those
-    apart; a known, accepted limitation, not fixed by this.)
-
-    Not (yet) usable in `order_by`/keyset pagination -- same reasoning as
-    `JsonPath` there: the join key (`ref_index_column`'s value) is a
-    *per-row* dynamic JSON array index, fine for a one-off extraction but
-    not threaded through machinery that assumes every comparable value
-    lives in the base table.
+    Not (yet) usable in `order_by`/keyset pagination: `handle_ref` may be
+    a per-row dynamic index, fine for a one-off extraction but not
+    threaded through machinery that assumes every comparable value lives
+    in the base table.
     """
 
-    ref_index_column: str
-    extract: Tuple[str, ...] = ("date",)
+    name: str
+    target: ObjectTypeSpec
+    handle_ref: ColumnRef
+    field: ColumnRef
 
 
-BIRTH_DATE = RelatedEventDate("birth_ref_index")
-DEATH_DATE = RelatedEventDate("death_ref_index")
-BIRTH_DATE_SORTVAL = RelatedEventDate("birth_ref_index", extract=("date", "sortval"))
-DEATH_DATE_SORTVAL = RelatedEventDate("death_ref_index", extract=("date", "sortval"))
+# Registry of relationship roots, keyed by the *current* table -- the only
+# thing that varies per relationship is which table it targets and how to
+# find the related row's handle; what to extract from that row (`field`) is
+# supplied by whatever's left of the path once the relationship name is
+# consumed (see `resolve_column_path`). Adding a new relationship (e.g. a
+# Citation's source) is one registry entry, not new rendering code.
+_RELATIONSHIPS: dict[str, dict[str, Tuple[ObjectTypeSpec, ColumnRef]]] = {
+    PERSON.table: {
+        "birth": (
+            EVENT,
+            JsonPath(("event_ref_list", ColumnIndex("birth_ref_index"), "ref")),
+        ),
+        "death": (
+            EVENT,
+            JsonPath(("event_ref_list", ColumnIndex("death_ref_index"), "ref")),
+        ),
+    },
+    FAMILY.table: {
+        "father": (PERSON, "father_handle"),
+        "mother": (PERSON, "mother_handle"),
+    },
+    EVENT.table: {
+        "place": (PLACE, "place"),
+    },
+}
+
+
+def resolve_column_path(
+    spec: ObjectTypeSpec, segments: Sequence[Union[str, int]]
+) -> ColumnRef:
+    """Resolve a dotted/indexed path against `spec` into a `ColumnRef`.
+
+    Recursively walks relationship roots (`_RELATIONSHIPS`) as far as the
+    path goes -- `birth.date.sortval` consumes `"birth"` as a relationship
+    (`Person` -> `Event`), then resolves the remaining `("date", "sortval")`
+    against `EVENT`, which isn't a relationship there, so it becomes a
+    `JsonPath`. `birth.place.title` keeps going: `"place"` is *also* a
+    relationship (`Event` -> `Place`), consumed the same way, leaving just
+    `("title",)` to resolve against `PLACE` (a real flat column there).
+
+    `select`/`where`/`where_expr` (`object_query.py`, `query_lang.py`) all
+    funnel through this one resolver, so a path means the same thing
+    everywhere it's written.
+
+    A relationship name with nothing after it (`segments == ("birth",)`)
+    is rejected explicitly -- there's no value to return for "the related
+    row itself", only for a field of it.
+    """
+    if not segments:
+        raise QueryError("empty column path")
+    head, *rest = segments
+    relationships = _RELATIONSHIPS.get(spec.table, {})
+    if isinstance(head, str) and head in relationships:
+        if not rest:
+            raise QueryError(
+                f"{head!r} is a relationship on {spec.table!r}, not a value on its "
+                f"own -- use {head}.<field>, e.g. {head}.gramps_id"
+            )
+        target_spec, handle_ref = relationships[head]
+        field = resolve_column_path(target_spec, rest)
+        return RelatedObject(name=head, target=target_spec, handle_ref=handle_ref, field=field)
+    if len(segments) == 1 and isinstance(head, str) and head in spec.columns:
+        return head
+    return JsonPath(tuple(segments))
 
 
 # A column reference is either a plain (whitelisted) column name, a path
-# into one column's JSON content, or a related event's date (or a field of
-# it) -- the latter select-only in its `BIRTH_DATE`/`DEATH_DATE` (whole
-# struct) form, but usable in `where` too via `BIRTH_DATE_SORTVAL`/
-# `DEATH_DATE_SORTVAL`.
-ColumnRef = Union[str, JsonPath, RelatedEventDate]
+# into one column's JSON content, or a field reached via a relationship
+# (see `RelatedObject`/`resolve_column_path`) -- `field: ColumnRef` on
+# `RelatedObject` makes this recursive, so a chain like `birth.place.title`
+# is itself a valid `ColumnRef`.
+ColumnRef = Union[str, JsonPath, RelatedObject]
 SelectRef = ColumnRef
 
 
@@ -296,113 +383,165 @@ def _render_json_path(
     raise QueryError(f"unsupported dialect: {dialect!r}")
 
 
-def _render_related_event_date(
-    related: RelatedEventDate,
-    spec: ObjectTypeSpec,
+def _sqlite_handle_ref_path_sql(
+    segments: Sequence[Union[str, int, ColumnIndex]], outer_table: str
+) -> str:
+    """Build the SQL expression for a JSONPath string used as a `handle_ref`,
+    substituting any `ColumnIndex` segment with the live value of that
+    column via `||` concatenation, e.g.
+    `'$.event_ref_list[' || person.birth_ref_index || '].ref'`. A path with
+    no `ColumnIndex` segment collapses to a single literal string, same as
+    a normal compile-time-static path.
+    """
+    fragments: list = []
+    literal = "$"
+    for segment in segments:
+        if isinstance(segment, ColumnIndex):
+            literal += "["
+            fragments.append(f"'{literal}'")
+            fragments.append(f"{outer_table}.{segment.column}")
+            literal = "]"
+        elif isinstance(segment, int):
+            literal += f"[{segment}]"
+        else:
+            literal += f".{segment}"
+    fragments.append(f"'{literal}'")
+    return " || ".join(fragments)
+
+
+def _postgresql_handle_ref_path_sql(
+    segments: Sequence[Union[str, int, ColumnIndex]], outer_table: str
+) -> str:
+    """Build the `->`/`->>` chain for a `handle_ref`, substituting any
+    `ColumnIndex` segment with the *unquoted* live value of that column --
+    PostgreSQL's `->` operator needs an actual integer (not a quoted
+    string) to use its array-index overload rather than its object-key
+    overload, confirmed live; a plain `int` literal segment gets the same
+    treatment for the same reason.
+    """
+    expr = f"{outer_table}.json_data::jsonb"
+    last_index = len(segments) - 1
+    for i, segment in enumerate(segments):
+        op = "->>" if i == last_index else "->"
+        if isinstance(segment, ColumnIndex):
+            expr += f" {op} {outer_table}.{segment.column}"
+        elif isinstance(segment, int):
+            expr += f" {op} {segment}"
+        else:
+            expr += f" {op} '{segment}'"
+    return expr
+
+
+def _render_handle_ref(
+    handle_ref: ColumnRef, outer_table: str, dialect: Dialect
+) -> Tuple[str, Optional[str]]:
+    """Render the SQL expression that finds a related row's handle from the
+    current row, plus the name of the column to guard with `>= 0` if
+    `handle_ref` uses a dynamic `ColumnIndex` segment (`None` for a direct
+    foreign key -- a `NULL` handle already fails the equality comparison
+    naturally, confirmed live, no guard needed).
+    """
+    if isinstance(handle_ref, str):
+        return f"{outer_table}.{_quote_column(handle_ref)}", None
+    if isinstance(handle_ref, JsonPath):
+        index_columns = [
+            segment.column
+            for segment in handle_ref.segments
+            if isinstance(segment, ColumnIndex)
+        ]
+        if len(index_columns) > 1:
+            raise QueryError(
+                "a handle reference supports at most one dynamic index segment"
+            )
+        guard_column = index_columns[0] if index_columns else None
+        if dialect == Dialect.SQLITE:
+            path_expr = _sqlite_handle_ref_path_sql(handle_ref.segments, outer_table)
+            return f"json_extract({outer_table}.json_data, {path_expr})", guard_column
+        if dialect == Dialect.POSTGRESQL:
+            return (
+                _postgresql_handle_ref_path_sql(handle_ref.segments, outer_table),
+                guard_column,
+            )
+        raise QueryError(f"unsupported dialect: {dialect!r}")
+    raise QueryError(f"invalid handle reference: {handle_ref!r}")
+
+
+def _render_related_object(
+    related: RelatedObject,
+    outer_table: str,
     dialect: Optional[Dialect],
     can_view_private: bool,
     treeid: Optional[int],
     value: Any = None,
 ) -> Tuple[str, list]:
-    """Render a `RelatedEventDate` as a correlated scalar subquery.
+    """Render a `RelatedObject` as a correlated scalar subquery.
 
     ```sql
-    (SELECT <extraction of related.extract> FROM event
-     WHERE event.handle = (CASE WHEN person.birth_ref_index >= 0
-                                 THEN <dynamic index extraction>
-                                 ELSE NULL END)
-       AND event.private = 0          -- unless can_view_private
-       AND event.treeid = ?           -- when treeid is given
+    (SELECT <field extraction> FROM <target.table>
+     WHERE <target.table>.handle = <handle_ref, CASE-guarded if dynamic>
+       AND <target.table>.private = 0    -- unless can_view_private
+       AND <target.table>.treeid = ?     -- when treeid is given
      LIMIT 1)
     ```
 
-    The `CASE WHEN ... >= 0` guard is required, not defensive: `-1` means
-    "no such event recorded", and confirmed live against PostgreSQL 16,
-    its `->` operator treats a negative array index as "count from the
-    end" rather than "invalid" -- without the guard, a person with no
-    birth event but *some* other event would silently get that unrelated
-    event's date reported as their birth date. SQLite has no such failure
-    mode (a negative `json_extract` array index simply yields no match),
-    but the guard is dialect-neutral so both paths stay identical.
+    Not a `JOIN` -- a self-contained SQL scope with its own `FROM`,
+    correlated back to `outer_table` by name, never aliased. Confirmed
+    live this composes correctly at any depth: sibling subqueries
+    referencing the same table (father vs. mother, both `FROM person`)
+    don't collide with each other, and a chain (nested `SELECT`s, for a
+    path like `birth.place.title`) correlates correctly across levels --
+    each `RelatedObject`'s subquery is an independent scope regardless of
+    how deep it's nested.
 
-    Privacy and `treeid` scoping are applied to the *subquery*'s `event`
-    row, not the outer query -- a private birth event with no view
-    permission must make this field come back `null`, not exclude the
-    person from the results entirely, which a top-level `WHERE` would do.
+    Privacy/`treeid` scoping apply to *this* subquery's own row, not the
+    outer query -- a private related row with no view permission makes
+    this field come back `null`, not exclude the outer row from the
+    results entirely.
 
-    Uses a correlated subquery rather than a `JOIN` specifically so this
-    needs no `JOIN`/alias support anywhere else in this compiler: the
-    subquery is a fully independent SQL scope with its own `FROM event`,
-    correlated back to the outer query via the outer table's own
-    (unaliased) name -- confirmed live on both SQLite and PostgreSQL that
-    an unaliased table's own name is a valid correlation reference from a
-    nested subquery.
-
-    `value`, when given (a `where`-comparison's right-hand value, never
-    set for `select`), picks the cast for the *last* segment of
-    `related.extract` the same way `_render_json_path` does: `bool` ->
-    `BOOLEAN`, `int`/`float` -> `NUMERIC` (via a non-text PostgreSQL `->`
-    + `CAST`, since `->>`'s `TEXT` result compares lexicographically, not
-    numerically), otherwise left as-is -- matching the existing `select`
-    (`value=None`) rendering exactly, so `BIRTH_DATE`/`DEATH_DATE`'s
-    output is unaffected by this parameter's addition.
+    `value` (a `where`-comparison's right-hand value, `None` for `select`)
+    only affects rendering when `field` is a `JsonPath` -- forwarded to
+    `_render_json_path` for the same numeric/boolean cast selection
+    already used for a plain `JsonPath` column. A `field` that's a plain
+    column ignores it (no text-vs-numeric ambiguity for a real column); a
+    `field` that's another (chained) `RelatedObject` forwards it one more
+    level down to wherever the leaf comparison actually happens.
     """
-    if related.ref_index_column not in spec.columns:
-        raise QueryError(
-            f"{related.ref_index_column!r} is not a column on {spec.table!r} -- "
-            "RelatedEventDate is only valid for Person (birth_ref_index/death_ref_index)"
-        )
     if dialect is None:
         raise QueryError(
-            f"a dialect is required to compile a RelatedEventDate ({related!r}), "
+            f"a dialect is required to compile a relationship path ({related.name!r}), "
             "but none was given"
         )
-    outer_table = spec.table
-    ref_col = related.ref_index_column
-    params: list = []
-    if dialect == Dialect.SQLITE:
-        index_extract = (
-            f"json_extract({outer_table}.json_data, "
-            f"'$.event_ref_list[' || {outer_table}.{ref_col} || '].ref')"
-        )
-        json_path_str = "$." + ".".join(related.extract)
-        date_extract = f"json_extract({EVENT.table}.json_data, '{json_path_str}')"
-    elif dialect == Dialect.POSTGRESQL:
-        index_extract = (
-            f"{outer_table}.json_data::jsonb -> 'event_ref_list' -> "
-            f"{outer_table}.{ref_col} ->> 'ref'"
-        )
-        if value is None:
-            chain = " -> ".join(f"'{segment}'" for segment in related.extract)
-            date_extract = f"{EVENT.table}.json_data::jsonb -> {chain}"
-        else:
-            *prefix_segments, last_segment = related.extract
-            prefix_chain = "".join(f" -> '{segment}'" for segment in prefix_segments)
-            base = f"{EVENT.table}.json_data::jsonb{prefix_chain}"
-            if isinstance(value, bool):
-                date_extract = f"CAST(({base} -> '{last_segment}') AS BOOLEAN)"
-            elif isinstance(value, (int, float)):
-                date_extract = f"CAST(({base} -> '{last_segment}') AS NUMERIC)"
-            else:
-                date_extract = f"({base} ->> '{last_segment}')"
-    else:
-        raise QueryError(f"unsupported dialect: {dialect!r}")
+    target_table = related.target.table
 
-    ref_handle_sql = (
-        f"CASE WHEN {outer_table}.{ref_col} >= 0 THEN {index_extract} ELSE NULL END"
-    )
-    subquery_where = [f"{EVENT.table}.handle = ({ref_handle_sql})"]
-    if not can_view_private:
-        subquery_where.append(f"{EVENT.table}.private = 0")
+    handle_sql, guard_column = _render_handle_ref(related.handle_ref, outer_table, dialect)
+    if guard_column is not None:
+        handle_sql = (
+            f"CASE WHEN {outer_table}.{guard_column} >= 0 THEN {handle_sql} ELSE NULL END"
+        )
+
+    if isinstance(related.field, RelatedObject):
+        field_sql, field_params = _render_related_object(
+            related.field, target_table, dialect, can_view_private, treeid, value
+        )
+    elif isinstance(related.field, JsonPath):
+        field_sql, field_params = _render_json_path(related.field, dialect, value)
+    else:
+        _check_column(related.field, related.target.columns)
+        field_sql, field_params = _quote_column(related.field), []
+
+    subquery_where = [f"{target_table}.handle = ({handle_sql})"]
+    where_params: list = []
+    if related.target.has_privacy and not can_view_private:
+        subquery_where.append(f"{target_table}.private = 0")
     if treeid is not None:
-        subquery_where.append(f"{EVENT.table}.treeid = ?")
-        params.append(treeid)
+        subquery_where.append(f"{target_table}.treeid = ?")
+        where_params.append(treeid)
 
     subquery = (
-        f"(SELECT {date_extract} FROM {EVENT.table} "
+        f"(SELECT {field_sql} FROM {target_table} "
         f"WHERE {' AND '.join(subquery_where)} LIMIT 1)"
     )
-    return subquery, params
+    return subquery, field_params + where_params
 
 
 def _render_column(
@@ -413,20 +552,20 @@ def _render_column(
     can_view_private: bool = False,
     treeid: Optional[int] = None,
 ) -> Tuple[str, list]:
-    """Render a column reference (plain name, `JsonPath`, or `RelatedEventDate`).
+    """Render a column reference (plain name, `JsonPath`, or `RelatedObject`).
 
     Used for both `SELECT` list entries (no right-hand value to bind,
     `value` stays `None`) and `WHERE` comparisons. `value`, when given, is
     the comparison's right-hand Python value -- used only to pick a
-    `JsonPath`/`RelatedEventDate` cast (see `_render_json_path`/
-    `_render_related_event_date`); ignored for plain column names.
-    `can_view_private`/`treeid` are only used by `RelatedEventDate`, whose
+    `JsonPath`/`RelatedObject` cast (see `_render_json_path`/
+    `_render_related_object`); ignored for plain column names.
+    `can_view_private`/`treeid` are only used by `RelatedObject`, whose
     correlated subquery needs its own privacy/tree-scoping independent of
     the outer query's.
     """
-    if isinstance(column, RelatedEventDate):
-        return _render_related_event_date(
-            column, spec, dialect, can_view_private, treeid, value
+    if isinstance(column, RelatedObject):
+        return _render_related_object(
+            column, spec.table, dialect, can_view_private, treeid, value
         )
     if isinstance(column, JsonPath):
         return _render_json_path(column, _require_dialect(dialect, column), value)
@@ -786,11 +925,11 @@ def compile_query(
     keyset comparisons) via `COLLATE "<collation>"`.
 
     `dialect` selects which backend-specific SQL to render for any `select`
-    or `where` entry that's a `JsonPath`, or any `select` entry that's a
-    `RelatedEventDate` (see `_render_json_path`/`_render_related_event_date`)
-    rather than a plain column name. Not needed, and may be omitted, for
-    plain-column-only queries -- `order_by`/keyset pagination support
-    neither yet, so `dialect` never affects them.
+    or `where` entry that's a `JsonPath` or a `RelatedObject` (see
+    `_render_json_path`/`_render_related_object`) rather than a plain
+    column name. Not needed, and may be omitted, for plain-column-only
+    queries -- `order_by`/keyset pagination support neither yet, so
+    `dialect` never affects them.
     """
     columns = list(query.select) if query.select else sorted(spec.columns)
 

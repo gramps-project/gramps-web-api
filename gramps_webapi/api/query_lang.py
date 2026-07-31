@@ -62,14 +62,16 @@ supports today:
 - Also on the value side, `Date('Jan 1, 1968')` -- the second and last
   whitelisted call form -- parses a human date string with Gramps' own
   date parser and resolves to `.sortval`, a plain comparable integer
-  (Julian day number), so `event.date.sortval >= Date('Jan 1, 1968')`
-  works with ordinary `>=`/`<=`/`<`/`>`. Only useful against object types
-  that carry their own `date` field directly (`Event`, `Citation`,
-  `Media`) -- `Person`'s birth/death dates live on a separate `Event` row
-  reached through `event_ref_list`, which requires a join this compiler
-  doesn't do yet, so `Date(...)` doesn't by itself make "people born
-  after X" expressible; it solves the date-parsing half of that problem,
-  not the join half.
+  (Julian day number), so `event.date.sortval >= Date('Jan 1, 1968')` and
+  `birth.date.sortval >= Date('Jan 1, 1968')` both work with ordinary
+  `>=`/`<=`/`<`/`>`.
+- A path may cross a relationship, not just index into one column's own
+  `json_data` -- `birth`/`death` (`Person` -> `Event`), `father`/`mother`
+  (`Family` -> `Person`), `place` (`Event` -> `Place`) are resolved by
+  `query.py`'s `resolve_column_path()`, which this module's path
+  translation defers to entirely (see `_translate_column`) rather than
+  duplicating any relationship knowledge here. `birth.date.sortval`,
+  `father.surname`, and `birth.place.title` are all valid paths this way.
 """
 
 from __future__ import annotations
@@ -201,36 +203,24 @@ def _translate_path(node: ast.AST) -> List[Union[str, int]]:
     raise QueryLangError(f"invalid path expression: {ast.dump(node)}")
 
 
-_RELATED_EVENT_DATE_NAMES = frozenset({"birth_date", "death_date"})
-
-
 def _translate_column(node: ast.AST, spec: ObjectTypeSpec) -> Union[str, dict]:
     """Translate a path into a wire column reference: a plain string if it's
-    a single segment matching a real flat column or `"birth_date"`/
-    `"death_date"`, `{"json_path": [...]}` otherwise.
+    a single segment matching a real flat column, `{"json_path": [...]}`
+    otherwise.
 
-    `birth_date`/`death_date` are returned as plain strings, same as a real
-    flat column -- `object_query.py`'s `_parse_column_ref` already resolves
-    that bare string to the comparable `sortval` (`RelatedEventDate`,
-    see `query.py`), the same one `select` uses for the response key, so
-    no `.sortval` suffix is needed (or accepted) here: it's the only
-    sub-field `where` exposes for these fields, so there's nothing for a
-    suffix to disambiguate. Anything past the bare name (`birth_date.sortval`,
-    `birth_date.dateval`, ...) is rejected explicitly, not left to fall
-    through to `JsonPath` -- `birth_date` isn't a `json_data` key, so a
-    `JsonPath` built from it would silently compile to a query that always
-    returns zero matches instead of raising (confirmed: `json_extract`
-    against a nonexistent key returns `NULL`, not an error).
+    No relationship-specific knowledge lives here -- a multi-segment path
+    like `birth.date.sortval` or `father.surname` becomes
+    `{"json_path": ["birth", "date", "sortval"]}` the same way any other
+    multi-segment path does; `object_query.py`'s `_parse_column_ref` is
+    what actually recognizes `"birth"`/`"father"`/etc. as relationship
+    roots (via `query.py`'s `resolve_column_path`) once it receives that
+    wire form. A bare relationship name with nothing after it
+    (`"birth"` alone) isn't a real flat column, so it falls through to
+    `{"json_path": ["birth"]}` here too -- `resolve_column_path` rejects
+    that with a clear error downstream, just one layer later than a
+    dedicated check here would.
     """
     segments = _translate_path(node)
-    if segments and isinstance(segments[0], str) and segments[0] in _RELATED_EVENT_DATE_NAMES:
-        if len(segments) != 1:
-            raise QueryLangError(
-                f"{segments[0]!r} only supports a bare reference in 'where' "
-                f"(compares its sortval) -- {'.'.join(str(s) for s in segments)!r} "
-                "is not valid"
-            )
-        return segments[0]
     if len(segments) == 1 and isinstance(segments[0], str) and segments[0] in spec.columns:
         return segments[0]
     return {"json_path": segments}

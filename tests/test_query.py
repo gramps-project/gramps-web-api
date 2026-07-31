@@ -22,16 +22,14 @@
 import pytest
 
 from gramps_webapi.api.query import (
-    BIRTH_DATE,
-    BIRTH_DATE_SORTVAL,
-    DEATH_DATE,
-    DEATH_DATE_SORTVAL,
     EVENT,
     FAMILY,
     MEDIA,
     PERSON,
+    PLACE,
     TAG,
     And,
+    ColumnIndex,
     Dialect,
     Eq,
     Gt,
@@ -45,10 +43,11 @@ from gramps_webapi.api.query import (
     OrderBy,
     Query,
     QueryError,
-    RelatedEventDate,
+    RelatedObject,
     after_columns,
     compile_count_query,
     compile_query,
+    resolve_column_path,
 )
 
 
@@ -308,48 +307,157 @@ def test_jsonpath_not_subject_to_column_whitelist():
     assert "json_extract" in sql
 
 
-# --- RelatedEventDate (Person.birth_date / Person.death_date) -----------------
+# --- ColumnIndex / RelatedObject / resolve_column_path -------------------------
+
+BIRTH_DATE = resolve_column_path(PERSON, ["birth", "date"])
+DEATH_DATE = resolve_column_path(PERSON, ["death", "date"])
+BIRTH_DATE_SORTVAL = resolve_column_path(PERSON, ["birth", "date", "sortval"])
+DEATH_DATE_SORTVAL = resolve_column_path(PERSON, ["death", "date", "sortval"])
+FATHER_SURNAME = resolve_column_path(FAMILY, ["father", "surname"])
+MOTHER_SURNAME = resolve_column_path(FAMILY, ["mother", "surname"])
+BIRTH_PLACE_TITLE = resolve_column_path(PERSON, ["birth", "place", "title"])
 
 
-def test_related_event_date_requires_dialect():
+def test_resolve_column_path_flat_column():
+    assert resolve_column_path(PERSON, ["gender"]) == "gender"
+
+
+def test_resolve_column_path_plain_json_path_no_relationship():
+    result = resolve_column_path(PERSON, ["primary_name", "first_name"])
+    assert result == JsonPath(("primary_name", "first_name"))
+
+
+def test_resolve_column_path_empty_raises():
+    with pytest.raises(QueryError):
+        resolve_column_path(PERSON, [])
+
+
+def test_resolve_column_path_bare_relationship_name_rejected():
+    # "birth" alone isn't a value -- needs a further path.
+    with pytest.raises(QueryError):
+        resolve_column_path(PERSON, ["birth"])
+
+
+def test_resolve_column_path_birth_date_shape():
+    assert isinstance(BIRTH_DATE, RelatedObject)
+    assert BIRTH_DATE.name == "birth"
+    assert BIRTH_DATE.target is EVENT
+    assert BIRTH_DATE.handle_ref == JsonPath(
+        ("event_ref_list", ColumnIndex("birth_ref_index"), "ref")
+    )
+    assert BIRTH_DATE.field == JsonPath(("date",))
+
+
+def test_resolve_column_path_father_surname_shape():
+    # A direct foreign key (father_handle), not a dynamic index -- handle_ref
+    # is a plain string, not a JsonPath.
+    assert isinstance(FATHER_SURNAME, RelatedObject)
+    assert FATHER_SURNAME.name == "father"
+    assert FATHER_SURNAME.target is PERSON
+    assert FATHER_SURNAME.handle_ref == "father_handle"
+    assert FATHER_SURNAME.field == "surname"
+
+
+def test_resolve_column_path_two_hop_chain():
+    # birth.place.title: Person -> Event (dynamic index) -> Place (direct FK).
+    assert isinstance(BIRTH_PLACE_TITLE, RelatedObject)
+    assert BIRTH_PLACE_TITLE.name == "birth"
+    assert BIRTH_PLACE_TITLE.target is EVENT
+    inner = BIRTH_PLACE_TITLE.field
+    assert isinstance(inner, RelatedObject)
+    assert inner.name == "place"
+    assert inner.target is PLACE
+    assert inner.handle_ref == "place"
+    assert inner.field == "title"
+
+
+def test_resolve_column_path_no_relationships_on_place():
+    # PLACE has no registered relationships -- a path through it just
+    # resolves as a flat column or JsonPath, same as any other type.
+    assert resolve_column_path(PLACE, ["title"]) == "title"
+
+
+# --- RelatedObject rendering (select) -------------------------------------------
+
+
+def test_related_object_requires_dialect():
     with pytest.raises(QueryError):
         compile_query(PERSON, Query(select=["handle", BIRTH_DATE]))
 
 
-def test_related_event_date_rejected_on_wrong_spec():
-    # birth_ref_index/death_ref_index only exist on Person.
-    with pytest.raises(QueryError):
-        compile_query(EVENT, Query(select=["handle", BIRTH_DATE]), dialect=Dialect.SQLITE)
+def test_related_object_not_a_relationship_on_wrong_spec_falls_through_to_json_path():
+    # "birth" is only a registered relationship on Person, not Event -- on
+    # Event it's just an arbitrary (harmless, matches-nothing-at-runtime)
+    # JsonPath segment, not an error. Only a bare relationship name with no
+    # further path is rejected (see test_resolve_column_path_bare_relationship_name_rejected).
+    result = resolve_column_path(EVENT, ["birth", "date"])
+    assert result == JsonPath(("birth", "date"))
 
 
-def test_related_event_date_sqlite_shape():
+def test_related_object_sqlite_shape():
     sql, params = compile_query(
         PERSON, Query(select=["handle", BIRTH_DATE], limit=10), dialect=Dialect.SQLITE
     )
     assert "FROM person" in sql
     # Correlated subquery, not a JOIN -- the outer FROM stays single-table.
     assert "JOIN" not in sql
-    assert "SELECT json_extract(event.json_data, '$.date') FROM event" in sql
+    # The subquery's own FROM event scopes json_data unambiguously without
+    # needing an explicit "event." qualifier.
+    assert "SELECT json_extract(json_data, ?) FROM event" in sql
     assert "person.birth_ref_index >= 0" in sql
     assert (
         "json_extract(person.json_data, '$.event_ref_list[' || "
         "person.birth_ref_index || '].ref')" in sql
     )
-    assert params == [10]  # no extra params on SQLite -- no treeid, view-private
+    # The field extraction's own path ('$.date', parameterized via the
+    # shared _render_json_path -- an improvement over the old bespoke
+    # inline-literal rendering) precedes the trailing LIMIT param.
+    assert params == ["$.date", 10]
 
 
-def test_related_event_date_postgresql_shape():
+def test_related_object_postgresql_shape():
     sql, params = compile_query(
         PERSON, Query(select=["handle", BIRTH_DATE], limit=10), dialect=Dialect.POSTGRESQL
     )
-    assert "event.json_data::jsonb -> 'date'" in sql
+    assert "jsonb_extract_path_text(json_data::jsonb, ?)" in sql
     assert (
         "person.json_data::jsonb -> 'event_ref_list' -> person.birth_ref_index ->> 'ref'"
         in sql
     )
+    assert "date" in params
 
 
-def test_related_event_date_privacy_applies_to_subquery_not_outer_query():
+def test_related_object_father_surname_sqlite_shape():
+    # A direct FK (father_handle) needs no CASE WHEN guard at all -- NULL
+    # already fails the handle equality naturally.
+    sql, params = compile_query(
+        FAMILY, Query(select=["handle", FATHER_SURNAME]), dialect=Dialect.SQLITE
+    )
+    assert "CASE WHEN" not in sql
+    assert "SELECT surname FROM person WHERE person.handle = (family.father_handle)" in sql
+
+
+def test_related_object_sibling_subqueries_same_table_no_conflict():
+    # father and mother both correlate to "person", unaliased -- confirmed
+    # live this doesn't collide since each subquery is an independent scope.
+    sql, params = compile_query(
+        FAMILY, Query(select=["handle", FATHER_SURNAME, MOTHER_SURNAME]), dialect=Dialect.SQLITE
+    )
+    assert sql.count("FROM person") == 2
+    assert "family.father_handle" in sql
+    assert "family.mother_handle" in sql
+
+
+def test_related_object_two_hop_chain_sqlite_shape():
+    sql, params = compile_query(
+        PERSON, Query(select=["handle", BIRTH_PLACE_TITLE]), dialect=Dialect.SQLITE
+    )
+    # Nested subquery: event lookup contains a place lookup.
+    assert "SELECT (SELECT title FROM place WHERE place.handle = (event.place)" in sql
+    assert "FROM event WHERE event.handle = (CASE WHEN person.birth_ref_index" in sql
+
+
+def test_related_object_privacy_applies_to_subquery_not_outer_query():
     # A private birth event with no view permission should make the field
     # come back null -- NOT exclude the person from the results, which a
     # top-level WHERE would incorrectly do to what's meant to be optional
@@ -365,7 +473,7 @@ def test_related_event_date_privacy_applies_to_subquery_not_outer_query():
     assert "WHERE private = 0" in outer_query  # the outer query's own clause, on `person`
 
 
-def test_related_event_date_treeid_applies_to_subquery():
+def test_related_object_treeid_applies_to_subquery():
     sql, params = compile_query(
         PERSON,
         Query(select=["handle", BIRTH_DATE, DEATH_DATE]),
@@ -373,13 +481,14 @@ def test_related_event_date_treeid_applies_to_subquery():
         can_view_private=True,
         treeid=7,
     )
-    # One treeid param per subquery (birth, death), plus one for the outer
-    # query's own treeid clause, plus the trailing LIMIT param.
-    assert params == [7, 7, 7, 50]
+    # Each subquery contributes its own field-extraction param ('$.date')
+    # before its own treeid param, plus the outer query's own treeid clause,
+    # plus the trailing LIMIT param.
+    assert params == ["$.date", 7, "$.date", 7, 7, 50]
     assert sql.count("event.treeid = ?") == 2
 
 
-def test_related_event_date_death_ref_index():
+def test_related_object_death_ref_index():
     sql, params = compile_query(
         PERSON, Query(select=["handle", DEATH_DATE]), dialect=Dialect.SQLITE
     )
@@ -387,7 +496,7 @@ def test_related_event_date_death_ref_index():
     assert "person.birth_ref_index" not in sql
 
 
-def test_related_event_date_end_to_end_sqlite_execution():
+def test_related_object_end_to_end_sqlite_execution():
     # Not just "does it compile" -- does it actually run correctly,
     # including picking the right event_ref_list entry (index 1, not 0)
     # via the *dynamic* per-row index, and correctly returning null for a
@@ -433,19 +542,32 @@ def test_related_event_date_end_to_end_sqlite_execution():
     assert row[2] is None  # death_ref_index == -1
 
 
-def test_related_event_date_repr_and_constants():
-    assert isinstance(BIRTH_DATE, RelatedEventDate)
-    assert BIRTH_DATE.ref_index_column == "birth_ref_index"
-    assert DEATH_DATE.ref_index_column == "death_ref_index"
-    assert BIRTH_DATE.extract == ("date",)
-    assert BIRTH_DATE_SORTVAL.extract == ("date", "sortval")
-    assert DEATH_DATE_SORTVAL.extract == ("date", "sortval")
+def test_related_object_father_surname_end_to_end_sqlite_execution():
+    import sqlite3
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE person (handle TEXT, surname TEXT)")
+    conn.execute("CREATE TABLE family (handle TEXT, father_handle TEXT, mother_handle TEXT)")
+    conn.execute("INSERT INTO person VALUES ('p1', 'Smith')")
+    conn.execute("INSERT INTO person VALUES ('p2', 'Jones')")
+    conn.execute("INSERT INTO family VALUES ('f1', 'p1', NULL)")  # father=Smith
+    conn.execute("INSERT INTO family VALUES ('f2', 'p2', NULL)")  # father=Jones
+    conn.execute("INSERT INTO family VALUES ('f3', NULL, NULL)")  # no father
+
+    sql, params = compile_query(
+        FAMILY,
+        Query(select=["handle"], where=Eq(FATHER_SURNAME, "Smith")),
+        dialect=Dialect.SQLITE,
+        can_view_private=True,
+    )
+    rows = conn.execute(sql, params).fetchall()
+    assert rows == [("f1",)]
 
 
-# --- RelatedEventDate in WHERE (BIRTH_DATE_SORTVAL / DEATH_DATE_SORTVAL) --------
+# --- RelatedObject in WHERE (BIRTH_DATE_SORTVAL / DEATH_DATE_SORTVAL) -----------
 
 
-def test_related_event_date_sortval_where_sqlite_shape():
+def test_related_object_sortval_where_sqlite_shape():
     sql, params = compile_query(
         PERSON,
         Query(select=["handle"], where=Gte(BIRTH_DATE_SORTVAL, 2439857)),
@@ -453,11 +575,11 @@ def test_related_event_date_sortval_where_sqlite_shape():
         can_view_private=True,
     )
     assert "JOIN" not in sql
-    assert "json_extract(event.json_data, '$.date.sortval')" in sql
-    assert params == [2439857, 50]
+    assert "json_extract(json_data, ?)" in sql
+    assert params == ["$.date.sortval", 2439857, 50]
 
 
-def test_related_event_date_sortval_where_postgresql_numeric_cast():
+def test_related_object_sortval_where_postgresql_numeric_cast():
     # Same numeric-cast correctness issue JsonPath already had: ->>'sortval'
     # is TEXT on PostgreSQL, which compares lexicographically, not
     # numerically -- must use -> + CAST(...AS NUMERIC) for a Gte/Lt/etc.
@@ -467,31 +589,32 @@ def test_related_event_date_sortval_where_postgresql_numeric_cast():
         dialect=Dialect.POSTGRESQL,
         can_view_private=True,
     )
-    assert "CAST((event.json_data::jsonb -> 'date' -> 'sortval') AS NUMERIC)" in sql
-    assert "->>'sortval'" not in sql.replace(" ", "")
+    assert "CAST(jsonb_extract_path(json_data::jsonb, ?, ?) AS NUMERIC)" in sql
+    assert "jsonb_extract_path_text" not in sql
+    assert params[:2] == ["date", "sortval"]
 
 
-def test_related_event_date_sortval_select_unaffected_by_where_addition():
+def test_related_object_sortval_select_unaffected_by_where_addition():
     # BIRTH_DATE (select, whole struct) must render exactly as before --
     # value=None still takes the original (non-cast) code path.
     sql, params = compile_query(
         PERSON, Query(select=["handle", BIRTH_DATE]), dialect=Dialect.POSTGRESQL
     )
-    assert "event.json_data::jsonb -> 'date'" in sql
+    assert "jsonb_extract_path_text(json_data::jsonb, ?)" in sql
     assert "CAST" not in sql
 
 
-def test_related_event_date_sortval_range_query():
+def test_related_object_sortval_range_query():
     query = Query(
         select=["handle"],
         where=And(Gte(BIRTH_DATE_SORTVAL, 2439857), Lt(BIRTH_DATE_SORTVAL, 2440222)),
     )
     sql, params = compile_query(PERSON, query, dialect=Dialect.SQLITE, can_view_private=True)
-    assert sql.count("SELECT json_extract(event.json_data, '$.date.sortval')") == 2
-    assert params == [2439857, 2440222, 50]
+    assert sql.count("SELECT json_extract(json_data, ?) FROM event") == 2
+    assert params == ["$.date.sortval", 2439857, "$.date.sortval", 2440222, 50]
 
 
-def test_related_event_date_sortval_treeid_scoping():
+def test_related_object_sortval_treeid_scoping():
     sql, params = compile_query(
         PERSON,
         Query(select=["handle"], where=Gte(BIRTH_DATE_SORTVAL, 2439857)),
@@ -503,7 +626,7 @@ def test_related_event_date_sortval_treeid_scoping():
     assert 7 in params
 
 
-def test_related_event_date_sortval_end_to_end_sqlite_execution():
+def test_related_object_sortval_end_to_end_sqlite_execution():
     import json
     import sqlite3
 

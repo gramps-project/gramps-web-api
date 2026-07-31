@@ -32,26 +32,26 @@ from gramps.plugins.db.dbapi.sqlite import SQLite
 from werkzeug.exceptions import HTTPException
 
 from gramps_webapi.api.query import (
-    BIRTH_DATE,
-    BIRTH_DATE_SORTVAL,
-    DEATH_DATE,
-    DEATH_DATE_SORTVAL,
+    FAMILY,
     PERSON,
     Dialect,
     JsonPath,
     OrderBy,
     QueryError,
+    RelatedObject,
+    resolve_column_path,
 )
 from gramps_webapi.api.resources.object_query import (
     _check_no_duplicate_keys,
-    _json_path_default_key,
-    _normalize_related_event_date_value,
+    _default_key_for,
+    _normalize_json_value,
     _parse_column_ref,
     _parse_select_entry,
     _resolve_after,
     _resolve_dialect,
     _resolve_treeid,
     _resolve_where_conditions,
+    _terminal_is_json_path,
 )
 
 
@@ -59,86 +59,111 @@ from gramps_webapi.api.resources.object_query import (
 
 
 def test_parse_column_ref_plain_string():
-    assert _parse_column_ref("gramps_id") == "gramps_id"
+    assert _parse_column_ref("gramps_id", PERSON) == "gramps_id"
 
 
 def test_parse_column_ref_json_path():
-    ref = _parse_column_ref({"json_path": ["primary_name", "first_name"]})
+    ref = _parse_column_ref({"json_path": ["primary_name", "first_name"]}, PERSON)
     assert ref == JsonPath(("primary_name", "first_name"))
 
 
-def test_parse_column_ref_birth_date_resolves_to_sortval_variant():
-    # WHERE context uses the sortval-extracting constant, not the
-    # full-struct one select uses for the same bare string.
-    assert _parse_column_ref("birth_date") == BIRTH_DATE_SORTVAL
-    assert _parse_column_ref("birth_date") != BIRTH_DATE
+def test_parse_column_ref_relationship_crossing_path():
+    ref = _parse_column_ref({"json_path": ["birth", "date", "sortval"]}, PERSON)
+    assert ref == resolve_column_path(PERSON, ["birth", "date", "sortval"])
+    assert isinstance(ref, RelatedObject)
 
 
-def test_parse_column_ref_death_date_resolves_to_sortval_variant():
-    assert _parse_column_ref("death_date") == DEATH_DATE_SORTVAL
+def test_parse_column_ref_family_father_surname():
+    ref = _parse_column_ref({"json_path": ["father", "surname"]}, FAMILY)
+    assert ref == resolve_column_path(FAMILY, ["father", "surname"])
 
 
 def test_parse_column_ref_rejects_non_str_non_dict():
     with pytest.raises(QueryError):
-        _parse_column_ref(123)
+        _parse_column_ref(123, PERSON)
 
 
 def test_parse_column_ref_rejects_dict_without_json_path_key():
     with pytest.raises(QueryError):
-        _parse_column_ref({"column": "gramps_id"})
+        _parse_column_ref({"column": "gramps_id"}, PERSON)
 
 
 def test_parse_column_ref_rejects_non_list_json_path():
     with pytest.raises(QueryError):
-        _parse_column_ref({"json_path": "primary_name.first_name"})
+        _parse_column_ref({"json_path": "primary_name.first_name"}, PERSON)
 
 
 def test_parse_column_ref_rejects_empty_json_path():
     with pytest.raises(QueryError):
-        _parse_column_ref({"json_path": []})
+        _parse_column_ref({"json_path": []}, PERSON)
 
 
 def test_parse_column_ref_rejects_bad_segment_type():
     # Bubbles up from JsonPath.__post_init__ -- bool disguised as int, float,
     # None, nested list, etc. are all rejected there.
     with pytest.raises(QueryError):
-        _parse_column_ref({"json_path": ["primary_name", True]})
+        _parse_column_ref({"json_path": ["primary_name", True]}, PERSON)
     with pytest.raises(QueryError):
-        _parse_column_ref({"json_path": ["primary_name", 1.5]})
+        _parse_column_ref({"json_path": ["primary_name", 1.5]}, PERSON)
 
 
-# --- _json_path_default_key ---------------------------------------------------
+def test_parse_column_ref_rejects_bare_relationship_name():
+    # "birth" alone isn't a value -- needs a further path (resolve_column_path).
+    with pytest.raises(QueryError):
+        _parse_column_ref({"json_path": ["birth"]}, PERSON)
 
 
-def test_json_path_default_key_str_segments():
+# --- _default_key_for -----------------------------------------------------------
+
+
+def test_default_key_for_plain_string():
+    assert _default_key_for("gramps_id") == "gramps_id"
+
+
+def test_default_key_for_json_path_str_segments():
     path = JsonPath(("primary_name", "first_name"))
-    assert _json_path_default_key(path) == "primary_name.first_name"
+    assert _default_key_for(path) == "primary_name.first_name"
 
 
-def test_json_path_default_key_with_int_segment():
+def test_default_key_for_json_path_with_int_segment():
     path = JsonPath(("primary_name", "surname_list", 0, "surname"))
-    assert _json_path_default_key(path) == "primary_name.surname_list[0].surname"
+    assert _default_key_for(path) == "primary_name.surname_list[0].surname"
 
 
-def test_json_path_default_key_leading_int_segment():
+def test_default_key_for_json_path_leading_int_segment():
     path = JsonPath((0, "value"))
-    assert _json_path_default_key(path) == "[0].value"
+    assert _default_key_for(path) == "[0].value"
 
 
-def test_json_path_default_key_single_segment():
-    assert _json_path_default_key(JsonPath(("gender",))) == "gender"
+def test_default_key_for_json_path_single_segment():
+    assert _default_key_for(JsonPath(("gender",))) == "gender"
+
+
+def test_default_key_for_related_object():
+    ref = resolve_column_path(PERSON, ["birth", "date", "sortval"])
+    assert _default_key_for(ref) == "birth.date.sortval"
+
+
+def test_default_key_for_two_hop_related_object():
+    ref = resolve_column_path(PERSON, ["birth", "place", "title"])
+    assert _default_key_for(ref) == "birth.place.title"
+
+
+def test_default_key_for_related_object_plain_field():
+    ref = resolve_column_path(FAMILY, ["father", "surname"])
+    assert _default_key_for(ref) == "father.surname"
 
 
 # --- _parse_select_entry -------------------------------------------------------
 
 
 def test_parse_select_entry_plain_string():
-    assert _parse_select_entry("surname") == ("surname", "surname")
+    assert _parse_select_entry("surname", PERSON) == ("surname", "surname")
 
 
 def test_parse_select_entry_json_path_without_alias_uses_derived_key():
     ref, key = _parse_select_entry(
-        {"json_path": ["primary_name", "surname_list", 0, "surname"]}
+        {"json_path": ["primary_name", "surname_list", 0, "surname"]}, PERSON
     )
     assert ref == JsonPath(("primary_name", "surname_list", 0, "surname"))
     assert key == "primary_name.surname_list[0].surname"
@@ -146,7 +171,7 @@ def test_parse_select_entry_json_path_without_alias_uses_derived_key():
 
 def test_parse_select_entry_json_path_with_alias():
     ref, key = _parse_select_entry(
-        {"json_path": ["primary_name", "first_name"], "as": "first"}
+        {"json_path": ["primary_name", "first_name"], "as": "first"}, PERSON
     )
     assert ref == JsonPath(("primary_name", "first_name"))
     assert key == "first"
@@ -157,16 +182,31 @@ def test_parse_select_entry_rejects_handle_alias_on_json_path():
     # client shadow it with unrelated JSON content would corrupt pagination
     # silently.
     with pytest.raises(QueryError):
-        _parse_select_entry({"json_path": ["primary_name", "first_name"], "as": "handle"})
+        _parse_select_entry(
+            {"json_path": ["primary_name", "first_name"], "as": "handle"}, PERSON
+        )
 
 
 def test_parse_select_entry_plain_handle_column_is_fine():
-    assert _parse_select_entry("handle") == ("handle", "handle")
+    assert _parse_select_entry("handle", PERSON) == ("handle", "handle")
 
 
 def test_parse_select_entry_rejects_invalid_shape():
     with pytest.raises(QueryError):
-        _parse_select_entry(123)
+        _parse_select_entry(123, PERSON)
+
+
+def test_parse_select_entry_relationship_crossing_default_key():
+    ref, key = _parse_select_entry({"json_path": ["birth", "date"]}, PERSON)
+    assert isinstance(ref, RelatedObject)
+    assert key == "birth.date"
+
+
+def test_parse_select_entry_relationship_crossing_with_alias():
+    ref, key = _parse_select_entry(
+        {"json_path": ["father", "surname"], "as": "father_surname"}, FAMILY
+    )
+    assert key == "father_surname"
 
 
 # --- _check_no_duplicate_keys --------------------------------------------------
@@ -181,6 +221,65 @@ def test_check_no_duplicate_keys_rejects_duplicate():
     path_b = JsonPath(("y",))
     with pytest.raises(QueryError):
         _check_no_duplicate_keys([(path_a, "same"), (path_b, "same")])
+
+
+# --- _terminal_is_json_path / _normalize_json_value -----------------------------
+
+
+def test_terminal_is_json_path_plain_string_false():
+    assert _terminal_is_json_path("surname") is False
+
+
+def test_terminal_is_json_path_json_path_true():
+    assert _terminal_is_json_path(JsonPath(("primary_name", "first_name"))) is True
+
+
+def test_terminal_is_json_path_related_object_plain_field_false():
+    # father.surname ends in a real flat column -- no JSON functions
+    # involved at all, so no normalization needed.
+    ref = resolve_column_path(FAMILY, ["father", "surname"])
+    assert _terminal_is_json_path(ref) is False
+
+
+def test_terminal_is_json_path_related_object_json_path_field_true():
+    ref = resolve_column_path(PERSON, ["birth", "date"])
+    assert _terminal_is_json_path(ref) is True
+
+
+def test_terminal_is_json_path_chained_related_object():
+    # birth.place.title: the chain's own leaf ("title") is a plain column,
+    # even though an intermediate hop (birth -> Event) uses a JsonPath
+    # internally for its handle_ref -- only the final `field` matters.
+    ref = resolve_column_path(PERSON, ["birth", "place", "title"])
+    assert _terminal_is_json_path(ref) is False
+
+
+def test_normalize_json_value_parses_json_object_string():
+    assert _normalize_json_value('{"sortval": 2439857}') == {"sortval": 2439857}
+
+
+def test_normalize_json_value_parses_json_number_string():
+    # PostgreSQL's jsonb_extract_path_text always returns TEXT, even for a
+    # scalar number -- confirmed live ('2439857', not a native int).
+    assert _normalize_json_value("2439857") == 2439857
+
+
+def test_normalize_json_value_passes_through_dict():
+    # PostgreSQL's jsonb expressions can also come back through psycopg2
+    # already parsed for some call shapes -- nothing to do in that case.
+    value = {"sortval": 2439857}
+    assert _normalize_json_value(value) is value
+
+
+def test_normalize_json_value_passes_through_none():
+    assert _normalize_json_value(None) is None
+
+
+def test_normalize_json_value_passes_through_non_json_text():
+    # A free-text value that happens not to be valid JSON (e.g. SQLite's
+    # json_extract on a plain string field already de-quotes it) must not
+    # raise -- returned unchanged.
+    assert _normalize_json_value("About 1968") == "About 1968"
 
 
 # --- _resolve_dialect -----------------------------------------------------------
@@ -337,31 +436,3 @@ def test_resolve_where_conditions_invalid_expr_rejected():
     with pytest.raises(HTTPException) as exc_info:
         _resolve_where_conditions({"where_expr": "gender == 1 or gender == 2"}, PERSON)
     assert exc_info.value.code == 422
-
-
-# --- birth_date / death_date (RelatedEventDate) --------------------------------
-
-
-def test_parse_select_entry_birth_date():
-    assert _parse_select_entry("birth_date") == (BIRTH_DATE, "birth_date")
-
-
-def test_parse_select_entry_death_date():
-    assert _parse_select_entry("death_date") == (DEATH_DATE, "death_date")
-
-
-def test_normalize_related_event_date_value_parses_sqlite_json_string():
-    assert _normalize_related_event_date_value('{"sortval": 2439857}') == {
-        "sortval": 2439857
-    }
-
-
-def test_normalize_related_event_date_value_passes_through_dict():
-    # PostgreSQL's jsonb expressions come back through psycopg2 already
-    # parsed -- nothing to do.
-    value = {"sortval": 2439857}
-    assert _normalize_related_event_date_value(value) is value
-
-
-def test_normalize_related_event_date_value_passes_through_none():
-    assert _normalize_related_event_date_value(None) is None
