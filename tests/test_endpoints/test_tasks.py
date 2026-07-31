@@ -390,6 +390,27 @@ class TestTaskEndpoints(unittest.TestCase):
         assert rv.status_code == 200
         assert rv.json["user_name"] is None
 
+    def test_get_task_failed_with_abort(self):
+        """A task aborted via abort_with_message reports the API error shape."""
+        from gramps_webapi.util.celery import TaskError
+
+        payload = {"error": {"code": 405, "message": "Not allowed by people quota"}}
+        task_id = str(uuid.uuid4())
+        self._insert_row(task_id, name="import_file", user_id=self.owner_id)
+        task = Mock()
+        task.state = "FAILURE"
+        task.result = TaskError(payload)
+        with patch("gramps_webapi.api.resources.tasks.AsyncResult", return_value=task):
+            rv = self.client.get(f"/api/tasks/{task_id}", headers=self._auth("owner"))
+        assert rv.status_code == 200
+        assert rv.json["state"] == "FAILURE"
+        assert rv.json["result_object"] == payload
+        assert (
+            rv.json["result"]
+            == '{"error":{"code":405,"message":"Not allowed by people quota"}}'
+        )
+        assert rv.json["info"] == rv.json["result"]
+
     def test_list_excludes_expired_tasks(self):
         """Tasks older than the result TTL are excluded from the list."""
         fresh_id = str(uuid.uuid4())

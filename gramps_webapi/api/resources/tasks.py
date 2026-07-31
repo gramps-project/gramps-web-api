@@ -20,6 +20,7 @@
 """Background task resources."""
 
 from http import HTTPStatus
+from typing import Any, Dict, NamedTuple, Optional
 
 from celery.result import AsyncResult
 from flask import abort
@@ -139,6 +140,41 @@ def _serializable_task_result(obj):
         return str(obj)
 
 
+class TaskMeta(NamedTuple):
+    """State and result of a task as reported by the result backend."""
+
+    state: str
+    result: Any
+
+
+def _task_error_payload(result: Any) -> Optional[Dict]:
+    """Return the TaskError payload of a failed task, if it has one.
+
+    Celery rebuilds TaskError as a synthesised class when the module is not
+    importable, so match on the shape rather than on the type.
+    """
+    if isinstance(result, BaseException) and len(result.args) == 1:
+        payload = result.args[0]
+        if isinstance(payload, dict) and "error" in payload:
+            return payload
+    return None
+
+
+def _task_meta(task: AsyncResult) -> TaskMeta:
+    """Return state and result of a task, unwrapping aborts to their payload.
+
+    Aborts stored by versions predating TaskError cannot be decoded by Celery,
+    which raises ValueError; report those as an opaque failure until they
+    expire from the result backend.
+    """
+    try:
+        state, result = task.state, task.result
+    except ValueError:
+        return TaskMeta("FAILURE", "Task failed with an unreadable result")
+    payload = _task_error_payload(result)
+    return TaskMeta(state, result if payload is None else payload)
+
+
 class TaskResource(ProtectedResource):
     """Resource for a single task."""
 
@@ -155,12 +191,13 @@ class TaskResource(ProtectedResource):
             if row.tree != tree:
                 abort(HTTPStatus.FORBIDDEN)
 
+        meta = _task_meta(task)
         result = {
-            "state": task.state,
-            "result_object": _serializable_task_result(task.result),
-            # kept for backward compatibility
-            "info": _serialize_task_result(task.info),
-            "result": _serialize_task_result(task.result),
+            "state": meta.state,
+            "result_object": _serializable_task_result(meta.result),
+            # kept for backward compatibility (info is an alias of result)
+            "info": _serialize_task_result(meta.result),
+            "result": _serialize_task_result(meta.result),
         }
         if row is not None:
             result["task_id"] = row.task_id
@@ -215,7 +252,7 @@ class TaskListResource(ProtectedResource):
                 "user_id": row.user_id,
                 "user_name": user_name_map.get(row.user_id) if row.user_id else None,
                 "state": (
-                    (AsyncResult(row.task_id).state or "PENDING")
+                    (_task_meta(AsyncResult(row.task_id)).state or "PENDING")
                     if args["include_state"]
                     else None
                 ),
