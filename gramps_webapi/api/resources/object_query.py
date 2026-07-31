@@ -48,6 +48,7 @@ from ..query import (
     SOURCE,
     TAG,
     And,
+    Dialect,
     Eq,
     Gt,
     Gte,
@@ -227,6 +228,28 @@ def _resolve_collation(basedb: Any, locale: Any) -> Optional[str]:
     return basedb.dbapi.check_collation(locale) or locale.get_collation()
 
 
+_DIALECT_BY_NAME: dict[str, Dialect] = {
+    "sqlite": Dialect.SQLITE,
+    "postgres": Dialect.POSTGRESQL,
+    "postgresql": Dialect.POSTGRESQL,
+}
+
+
+def _resolve_dialect(basedb: Any) -> Dialect:
+    """Backend SQL dialect for rendering a `JsonPath` (see `query.py`).
+
+    No released Gramps core backend advertises a `.dialect` attribute yet --
+    it's proposed but unmerged (gramps-project/gramps#2178). Once it lands,
+    this reads it straight off `basedb`. Until then, fall back to PostgreSQL:
+    `SharedPostgreSQL` is the backend actually used in production multi-tree
+    deployments, so guessing wrong is worse for SQLite (dev/single-tree,
+    lower stakes) than for Postgres. Revisit and drop the fallback once
+    `dialect` is actually available everywhere.
+    """
+    name: Optional[str] = getattr(basedb, "dialect", None)
+    return _DIALECT_BY_NAME.get(name, Dialect.POSTGRESQL) if name else Dialect.POSTGRESQL
+
+
 class ObjectQueryResource(ProtectedResource):
     """Fast, paged/filtered/sorted query over one object type, pushed down to SQL.
 
@@ -297,6 +320,7 @@ class ObjectQueryResource(ProtectedResource):
             else requested_columns + ["handle"]
         )
 
+        dialect = _resolve_dialect(basedb)
         try:
             query = Query(
                 select=fetch_columns,
@@ -306,10 +330,16 @@ class ObjectQueryResource(ProtectedResource):
                 after=after,
             )
             sql, params = compile_query(
-                self.spec, query, can_view_private=can_view_private, collation=collation
+                self.spec,
+                query,
+                can_view_private=can_view_private,
+                collation=collation,
+                dialect=dialect,
             )
             count_sql, count_params = (
-                compile_count_query(self.spec, query, can_view_private=can_view_private)
+                compile_count_query(
+                    self.spec, query, can_view_private=can_view_private, dialect=dialect
+                )
                 if args["count"]
                 else (None, None)
             )
