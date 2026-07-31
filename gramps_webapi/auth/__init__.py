@@ -125,6 +125,15 @@ def get_guid(name: str) -> str:
     return user_id
 
 
+def get_guid_by_email(email: str) -> Optional[str]:
+    """Get the GUID of the user owning an e-mail address, if any.
+
+    `users.email` is unique, so this identifies at most one account.
+    """
+    query = user_db.session.query(User.id)  # pylint: disable=no-member
+    return query.filter_by(email=email).scalar()
+
+
 def get_name(guid: str) -> str:
     """Get the username of an existing user by GUID."""
     try:

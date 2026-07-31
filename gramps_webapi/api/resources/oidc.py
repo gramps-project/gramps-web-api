@@ -21,44 +21,118 @@
 
 import logging
 from gettext import gettext as _
-from typing import Optional
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
-import jwt
 from flask import (
     current_app,
     jsonify,
     redirect,
     render_template,
     request,
+    session,
 )
 from marshmallow import EXCLUDE, Schema
 from webargs import fields
 
-from ...auth import get_name, get_permissions, get_user_details, is_tree_disabled
+from ...auth import get_name, get_user_details
 from ...auth.oidc import (
     create_or_update_oidc_user,
     get_available_oidc_providers,
     get_provider_config,
 )
 from ...auth.oidc_helpers import is_oidc_enabled
-from ...auth.token_blocklist import add_jti_to_blocklist
 from ...const import TREE_MULTI
 from ..blueprint import api_blueprint
 from ..ratelimiter import limiter
-from ..util import abort_with_message, get_config, get_tree_id
+from ..util import abort_with_message, get_config, tree_exists
 from . import Resource
-from .schemas import OIDCConfigSchema
-from .token import get_tokens
+from .schemas import OIDCConfigSchema, OIDCLogoutSchema, OIDCTokensSchema
+from .token import get_tokens, get_tree_id_and_permissions
 
 logger = logging.getLogger(__name__)
 
+# Session key used to carry the tree ID across the round trip to the provider.
+# It cannot be a query parameter on the redirect URI because providers require
+# the redirect URI to match the registered one exactly.
+SESSION_TREE_KEY = "oidc_tree"
 
-def _is_development_environment(frontend_url: Optional[str]) -> bool:
-    """Check if we're in a development environment for cookie security settings."""
-    return current_app.debug or (
-        "localhost" in (frontend_url or "") or "127.0.0.1" in (frontend_url or "")
-    )
+
+def _get_oidc_client(provider_id: str | None) -> tuple[object, dict]:
+    """Return the authlib client and configuration for a validated provider.
+
+    Aborts the request if OIDC is disabled, the provider is unknown, or the
+    client was not registered at startup.
+    """
+    if not is_oidc_enabled():
+        abort_with_message(404, "OIDC authentication is not enabled")
+
+    if not provider_id:
+        abort_with_message(400, "Provider ID is required")
+
+    if provider_id not in get_available_oidc_providers():
+        abort_with_message(400, f"Provider '{provider_id}' is not available")
+
+    oauth = current_app.extensions.get("authlib.integrations.flask_client")
+    if not oauth:
+        abort_with_message(500, "OIDC client not properly initialized")
+
+    provider_config = get_provider_config(provider_id)
+
+    oidc_client = getattr(oauth, f"gramps_{provider_id}", None)
+    if not oidc_client:
+        # get_available_oidc_providers() lists a built-in provider as soon as a
+        # client ID is set, but init_oidc() only registers a client once the
+        # secret is there too. In that case the provider is misconfigured
+        # rather than broken - and /oidc/config/ does not advertise it either -
+        # so answer as we would for an unknown provider.
+        if not provider_config:
+            abort_with_message(400, f"Provider '{provider_id}' is not available")
+        abort_with_message(500, f"OIDC client for provider '{provider_id}' not found")
+
+    return oidc_client, provider_config or {}
+
+
+def _validate_tree_id(tree_id: str | None) -> str | None:
+    """Validate the tree an OIDC login is scoped to.
+
+    Mirrors the checks the registration endpoint applies, so that an OIDC login
+    cannot create an account somewhere a registration could not.
+    """
+    is_multi = current_app.config["TREE"] == TREE_MULTI
+    if not tree_id:
+        if is_multi:
+            abort_with_message(422, "tree is required")
+        return None
+    if not is_multi:
+        # In a single-tree setup TREE holds the tree *name*, not the tree ID.
+        # Accept it so that a client may pass it, but never propagate it: the
+        # `users.tree` column holds tree IDs, and get_tree_id_or_none() already
+        # resolves the single configured tree when the column is empty. Passing
+        # the name on would store it verbatim and every later lookup would try
+        # to open a tree by that name as if it were an ID.
+        if tree_id != current_app.config["TREE"]:
+            abort_with_message(422, "Not allowed in single-tree setup")
+        return None
+    if not tree_exists(tree_id):
+        abort_with_message(422, "Tree does not exist")
+    return tree_id
+
+
+def _use_secure_cookies() -> bool:
+    """Whether to set the Secure flag on the temporary OIDC cookies.
+
+    Driven by the scheme actually in use rather than by hostname guessing: a
+    Secure cookie is silently dropped by the browser over plain HTTP, while
+    omitting the flag over HTTPS would expose the tokens. Both the configured
+    frontend URL and the incoming request are consulted, because either one on
+    its own can be misleading - `BASE_URL` is often left at its localhost
+    default, and `request.is_secure` is false behind a TLS-terminating proxy
+    unless forwarding headers are honoured.
+    """
+    frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
+    if urlparse(frontend_url or "").scheme == "https":
+        return True
+    return request.is_secure
 
 
 class OIDCLoginQueryArgs(Schema):
@@ -66,8 +140,15 @@ class OIDCLoginQueryArgs(Schema):
 
     provider = fields.Str(
         required=True,
+        metadata={"description": "The OIDC provider ID (e.g. 'google', 'microsoft')."},
+    )
+    tree = fields.Str(
+        required=False,
         metadata={
-            "description": "The OIDC provider ID (e.g. 'google', 'microsoft', 'github')."
+            "description": (
+                "ID of the tree to associate with the OIDC login. Required for"
+                " multi-tree installations, optional in single-tree ones."
+            )
         },
     )
 
@@ -82,25 +163,14 @@ class OIDCLoginResource(Resource):
     @api_blueprint.arguments(OIDCLoginQueryArgs, location="query")
     def get(self, args):
         """Redirect to OIDC provider for authentication."""
-        if not is_oidc_enabled():
-            abort_with_message(405, "OIDC authentication is not enabled")
-
         provider_id = args.get("provider")
+        oidc_client, _config = _get_oidc_client(provider_id)
 
-        # Validate provider is available
-        available_providers = get_available_oidc_providers()
-        if provider_id not in available_providers:
-            abort_with_message(400, f"Provider '{provider_id}' is not available")
-
-        oauth = current_app.extensions.get("authlib.integrations.flask_client")
-        if not oauth:
-            abort_with_message(500, "OIDC client not properly initialized")
-
-        oidc_client = getattr(oauth, f"gramps_{provider_id}", None)
-        if not oidc_client:
-            abort_with_message(
-                500, f"OIDC client for provider '{provider_id}' not found"
-            )
+        # Validate the tree up front so a misconfigured request fails here with
+        # a useful message instead of after a round trip to the provider, and
+        # stash it in the session for the callback to pick up. It cannot be
+        # passed on the redirect URI, which has to match the registered one.
+        session[SESSION_TREE_KEY] = _validate_tree_id(args.get("tree"))
 
         # Build redirect URI with provider in path (Microsoft-compatible)
         # Using path parameter instead of query parameter for broader compatibility
@@ -119,13 +189,17 @@ class OIDCCallbackQueryArgs(Schema):
 
     provider = fields.Str(
         required=False,
-        metadata={
-            "description": "The OIDC provider ID (e.g. 'google', 'microsoft', 'github')."
-        },
+        metadata={"description": "The OIDC provider ID (e.g. 'google', 'microsoft')."},
     )  # Optional for backwards compatibility
     tree = fields.Str(
         required=False,
-        metadata={"description": "Tree ID to associate with the OIDC login."},
+        metadata={
+            "description": (
+                "ID of the tree to associate with the OIDC login. Deprecated:"
+                " the tree is now carried in the session from /oidc/login/,"
+                " since providers require an exact redirect URI match."
+            )
+        },
     )
     code = fields.Str(
         required=False,
@@ -167,88 +241,59 @@ class OIDCCallbackResource(Resource):
             args: Query parameters
             provider_id: Provider ID from path parameter (if using path-based route)
         """
-        if not is_oidc_enabled():
-            abort_with_message(405, "OIDC authentication is not enabled")
-
         # Support both path parameter (new, Microsoft-compatible) and query parameter (legacy)
         provider_id = provider_id or args.get("provider")
-
-        if not provider_id:
-            abort_with_message(400, "Provider ID is required")
-
-        # Validate provider is available
-        available_providers = get_available_oidc_providers()
-        if provider_id not in available_providers:
-            abort_with_message(400, f"Provider '{provider_id}' is not available")
-
-        oauth = current_app.extensions.get("authlib.integrations.flask_client")
-        if not oauth:
-            abort_with_message(500, "OIDC client not properly initialized")
-
-        oidc_client = getattr(oauth, f"gramps_{provider_id}", None)
-        if not oidc_client:
-            abort_with_message(
-                500, f"OIDC client for provider '{provider_id}' not found"
-            )
+        oidc_client, provider_config = _get_oidc_client(provider_id)
 
         try:
-            # Microsoft OIDC has a known issue where the issuer claim in the token
-            # may not match the issuer in the discovery document when using /common.
-            # Skip issuer validation for Microsoft to handle tenant-specific issuers.
-            # Security note: This does not allow arbitrary OIDC providers, because
-            # `provider_id` was already validated against the configured providers
-            # list via `get_available_oidc_providers()` and mapped to a preconfigured
-            # client (`gramps_<provider_id>`) before reaching this code.
-            if provider_id == "microsoft":
+            # Some providers issue tokens whose `iss` claim does not match the
+            # issuer in their discovery document (see `relax_issuer` in
+            # BUILTIN_PROVIDERS). Security note: relaxing this does not allow
+            # arbitrary OIDC providers, because `provider_id` was already
+            # validated against the configured providers list and mapped to a
+            # preconfigured client before reaching this code.
+            if provider_config.get("relax_issuer"):
                 token = oidc_client.authorize_access_token(
                     claims_options={"iss": {"essential": False}}
                 )
             else:
                 token = oidc_client.authorize_access_token()
 
-            # Handle different provider types for userinfo
-            if provider_id == "github":
-                # GitHub OAuth 2.0 - get user info from API
-                resp = oidc_client.get("user", token=token)
-                userinfo = resp.json()
-            else:
-                # Standard OIDC - get userinfo from userinfo endpoint
-                userinfo = dict(oidc_client.userinfo(token=token))
-                # Some providers (e.g. Microsoft Entra) return authorization
-                # claims such as app roles or group memberships only in the ID
-                # token, not from the userinfo endpoint. Merge any ID-token
-                # claims missing from the userinfo response so that role
-                # mapping via OIDC_ROLE_CLAIM works consistently across
-                # providers. userinfo endpoint values take precedence.
-                # Guard against a non-mapping value under "userinfo": an
-                # unexpected shape must be ignored, not turn a successful
-                # login into a 401.
-                id_token_claims = token.get("userinfo")
-                if isinstance(id_token_claims, dict):
-                    for claim, value in id_token_claims.items():
-                        userinfo.setdefault(claim, value)
+            userinfo = dict(oidc_client.userinfo(token=token))
+            # Some providers (e.g. Microsoft Entra) return authorization
+            # claims such as app roles or group memberships only in the ID
+            # token, not from the userinfo endpoint. Merge any ID-token
+            # claims missing from the userinfo response so that role
+            # mapping via OIDC_ROLE_CLAIM works consistently across
+            # providers. userinfo endpoint values take precedence.
+            # Guard against a non-mapping value under "userinfo": an
+            # unexpected shape must be ignored, not turn a successful
+            # login into a 401.
+            id_token_claims = token.get("userinfo")
+            if isinstance(id_token_claims, dict):
+                for claim, value in id_token_claims.items():
+                    userinfo.setdefault(claim, value)
 
         except Exception:  # pylint: disable=broad-except
             logger.exception("OIDC callback error for provider '%s'", provider_id)
             abort_with_message(401, f"OIDC authentication failed for {provider_id}")
 
-        tree = args.get("tree")
-        if (
-            tree
-            and current_app.config["TREE"] != TREE_MULTI
-            and tree != current_app.config["TREE"]
-        ):
-            abort_with_message(403, f"Invalid tree: {tree}")
-        if not tree and current_app.config["TREE"] == TREE_MULTI:
-            abort_with_message(403, "Tree is required")
+        # The tree is put into the session by /oidc/login/. The query parameter
+        # is only a fallback for logins started before this was introduced.
+        tree_id = _validate_tree_id(
+            session.pop(SESSION_TREE_KEY, None) or args.get("tree")
+        )
 
         try:
-            user_id = create_or_update_oidc_user(userinfo, tree, provider_id)
+            user_id = create_or_update_oidc_user(userinfo, tree_id, provider_id)
             username = get_name(user_id)
-            tree_id = get_tree_id(user_id)
 
-            if is_tree_disabled(tree=tree_id):
-                abort_with_message(503, "This tree is temporarily disabled")
+            # Resolve the tree, reject a disabled one and look up permissions
+            # exactly as the local login endpoint does, so that the two ways of
+            # obtaining a token cannot drift apart.
+            tree_id, permissions = get_tree_id_and_permissions(
+                user_id=user_id, username=username
+            )
 
             # Check if user account is disabled (same as local auth flow)
             user_details = get_user_details(username)
@@ -264,8 +309,6 @@ class OIDCCallbackResource(Resource):
                 )
 
             # User is enabled - proceed with normal token flow
-            permissions = get_permissions(username=username, tree=tree_id)
-
             tokens = get_tokens(
                 user_id=user_id,
                 permissions=permissions,
@@ -279,15 +322,14 @@ class OIDCCallbackResource(Resource):
             frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
             response = redirect(f"{frontend_url.rstrip('/')}/oidc/complete")
 
-            # Set HTTP-only cookies (secure=False for localhost development)
-            is_development = _is_development_environment(frontend_url)
+            secure = _use_secure_cookies()
 
             response.set_cookie(
                 "oidc_access_token",
                 tokens["access_token"],
                 max_age=300,  # 5 minutes
                 httponly=True,
-                secure=not is_development,  # Allow HTTP in development
+                secure=secure,
                 samesite="Lax",
                 path="/",
             )
@@ -296,7 +338,7 @@ class OIDCCallbackResource(Resource):
                 tokens["refresh_token"],
                 max_age=300,  # 5 minutes
                 httponly=True,
-                secure=not is_development,  # Allow HTTP in development
+                secure=secure,
                 samesite="Lax",
                 path="/",
             )
@@ -308,12 +350,12 @@ class OIDCCallbackResource(Resource):
                     token["id_token"],
                     max_age=300,  # 5 minutes
                     httponly=True,
-                    secure=not is_development,  # Allow HTTP in development
+                    secure=secure,
                     samesite="Lax",
                     path="/",
                 )
 
-            logger.info(
+            logger.debug(
                 f"Set OIDC cookies, redirecting to {frontend_url}/oidc/complete"
             )
             return response
@@ -328,23 +370,20 @@ class OIDCCallbackResource(Resource):
 class OIDCTokenExchangeResource(Resource):
     """Resource for securely exchanging OIDC tokens from cookies."""
 
+    @api_blueprint.response(200, OIDCTokensSchema())
     @limiter.limit("10/minute")
     def get(self):
         """Exchange HTTP-only cookies for tokens that can be stored in localStorage."""
-        logger.info("OIDC token exchange request received")
-        logger.info(f"Cookies received: {list(request.cookies.keys())}")
-
         # Get tokens from HTTP-only cookies
         access_token = request.cookies.get("oidc_access_token")
         refresh_token = request.cookies.get("oidc_refresh_token")
         id_token = request.cookies.get("oidc_id_token")
 
-        logger.info(f"Access token found: {bool(access_token)}")
-        logger.info(f"Refresh token found: {bool(refresh_token)}")
-        logger.info(f"ID token found: {bool(id_token)}")
-
         if not access_token or not refresh_token:
-            logger.error("No OIDC tokens found in cookies")
+            logger.warning(
+                "OIDC token exchange with no tokens in cookies; "
+                f"cookies present: {sorted(request.cookies)}"
+            )
             abort_with_message(400, "No OIDC tokens found in cookies")
 
         # Return tokens and clear cookies
@@ -361,38 +400,19 @@ class OIDCTokenExchangeResource(Resource):
         response = jsonify(response_data)
 
         # Clear the temporary cookies with same settings as when they were set
-        frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
-        is_development = _is_development_environment(frontend_url)
+        secure = _use_secure_cookies()
+        for name in ("oidc_access_token", "oidc_refresh_token", "oidc_id_token"):
+            response.set_cookie(
+                name,
+                "",
+                expires=0,
+                httponly=True,
+                secure=secure,
+                samesite="Lax",
+                path="/",
+            )
 
-        response.set_cookie(
-            "oidc_access_token",
-            "",
-            expires=0,
-            httponly=True,
-            secure=not is_development,
-            samesite="Lax",
-            path="/",
-        )
-        response.set_cookie(
-            "oidc_refresh_token",
-            "",
-            expires=0,
-            httponly=True,
-            secure=not is_development,
-            samesite="Lax",
-            path="/",
-        )
-        response.set_cookie(
-            "oidc_id_token",
-            "",
-            expires=0,
-            httponly=True,
-            secure=not is_development,
-            samesite="Lax",
-            path="/",
-        )
-
-        logger.info("OIDC token exchange successful, cookies cleared")
+        logger.debug("OIDC token exchange successful, cookies cleared")
         return response
 
 
@@ -429,7 +449,7 @@ class OIDCConfigResource(Resource):
             "disable_local_auth": current_app.config.get(
                 "OIDC_DISABLE_LOCAL_AUTH", False
             ),
-            "auto_redirect": current_app.config.get("OIDC_AUTO_REDIRECT", True),
+            "auto_redirect": current_app.config.get("OIDC_AUTO_REDIRECT", False),
         }
 
 
@@ -438,9 +458,7 @@ class OIDCLogoutQueryArgs(Schema):
 
     provider = fields.Str(
         required=True,
-        metadata={
-            "description": "The OIDC provider ID (e.g. 'google', 'microsoft', 'github')."
-        },
+        metadata={"description": "The OIDC provider ID (e.g. 'google', 'microsoft')."},
     )
     id_token = fields.Str(
         required=False,
@@ -455,6 +473,7 @@ class OIDCLogoutQueryArgs(Schema):
 class OIDCLogoutResource(Resource):
     """Resource for getting OIDC logout URL."""
 
+    @api_blueprint.response(200, OIDCLogoutSchema())
     @api_blueprint.arguments(OIDCLogoutQueryArgs, location="query")
     def get(self, args):
         """Get OIDC logout URL for the specified provider.
@@ -462,25 +481,8 @@ class OIDCLogoutResource(Resource):
         Returns the end_session_endpoint URL from the provider's OIDC discovery document.
         If the provider doesn't support logout, returns None for graceful degradation.
         """
-        if not is_oidc_enabled():
-            abort_with_message(405, "OIDC authentication is not enabled")
-
         provider_id = args.get("provider")
-
-        # Validate provider is available
-        available_providers = get_available_oidc_providers()
-        if provider_id not in available_providers:
-            abort_with_message(400, f"Provider '{provider_id}' is not available")
-
-        oauth = current_app.extensions.get("authlib.integrations.flask_client")
-        if not oauth:
-            abort_with_message(500, "OIDC client not properly initialized")
-
-        oidc_client = getattr(oauth, f"gramps_{provider_id}", None)
-        if not oidc_client:
-            abort_with_message(
-                500, f"OIDC client for provider '{provider_id}' not found"
-            )
+        oidc_client, _config = _get_oidc_client(provider_id)
 
         try:
             # Load server metadata to get end_session_endpoint
@@ -508,81 +510,7 @@ class OIDCLogoutResource(Resource):
 
             return {"logout_url": logout_url}
 
-        except Exception as e:
+        except Exception:  # pylint: disable=broad-except
             logger.exception(f"Error getting logout URL for provider '{provider_id}'")
             # On error, gracefully degrade to local logout only
             return {"logout_url": None}
-
-
-class OIDCBackchannelLogoutResource(Resource):
-    """Resource for handling OIDC backchannel logout requests.
-
-    This endpoint receives logout_token JWTs from OIDC providers and revokes
-    the corresponding user sessions per the OpenID Connect Back-Channel Logout spec.
-    """
-
-    @limiter.limit("10/minute")
-    def post(self):
-        """Handle backchannel logout request from OIDC provider.
-
-        The provider sends a logout_token (not an id_token) as a form parameter.
-        We validate it and revoke all tokens for the user's session (sid) or subject (sub).
-        """
-        if not is_oidc_enabled():
-            abort_with_message(405, "OIDC authentication is not enabled")
-
-        # Get logout_token from form data (per OIDC spec)
-        logout_token = request.form.get("logout_token")
-        if not logout_token:
-            logger.warning("Backchannel logout request missing logout_token")
-            abort_with_message(400, "logout_token is required")
-
-        try:
-            # Decode the logout token without verification first to get the issuer
-            unverified_claims = jwt.decode(
-                logout_token, options={"verify_signature": False}
-            )
-        except jwt.InvalidTokenError as e:
-            logger.exception("Invalid logout_token in backchannel logout request")
-            abort_with_message(400, f"Invalid logout_token: {str(e)}")
-
-        logger.info(
-            f"Received backchannel logout for sub={unverified_claims.get('sub')}, "
-            f"sid={unverified_claims.get('sid')}"
-        )
-
-        # Validate the logout token structure per OIDC Back-Channel Logout spec
-        if "sub" not in unverified_claims and "sid" not in unverified_claims:
-            abort_with_message(400, "logout_token must contain either sub or sid claim")
-
-        if "nonce" in unverified_claims:
-            abort_with_message(400, "logout_token must not contain nonce claim")
-
-        events = unverified_claims.get("events", {})
-        if "http://schemas.openid.net/event/backchannel-logout" not in events:
-            abort_with_message(400, "logout_token missing required event type")
-
-        # For now, we track session revocation by adding the logout_token JTI to blocklist
-        # This prevents replay attacks
-        logout_jti = unverified_claims.get("jti")
-        if logout_jti:
-            add_jti_to_blocklist(logout_jti)
-
-        # TODO: Implement session tracking to revoke specific user sessions
-        # For now, we log the logout request but cannot revoke existing JWT tokens
-        # because we don't have a mapping from OIDC sid/sub to our JWT JTIs.
-        # A full implementation would require:
-        # 1. Store mapping of OIDC sid -> Gramps JWT JTIs when tokens are issued
-        # 2. On backchannel logout, look up all JTIs for that sid and blocklist them
-        # 3. Clean up mapping when tokens expire
-
-        sub = unverified_claims.get("sub")
-        sid = unverified_claims.get("sid")
-        logger.warning(
-            f"Backchannel logout received for sub={sub}, sid={sid} but session "
-            f"revocation not fully implemented. Existing tokens will remain valid "
-            f"until expiration."
-        )
-
-        # Return success per spec (200 OK)
-        return "", 200

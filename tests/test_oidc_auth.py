@@ -38,8 +38,109 @@ from gramps_webapi.auth.oidc import (
     get_available_oidc_providers,
     get_provider_config,
     get_role_from_claims,
+    get_usable_email,
     init_oidc,
 )
+
+
+class TestGetUsableEmail:
+    """Test cases for get_usable_email.
+
+    `users.email` is unique, so writing an address that another account already
+    holds raises an IntegrityError. That used to surface as a permanent 400 on
+    every OIDC login, with no way to recover from the UI.
+    """
+
+    def test_unused_address_is_returned(self):
+        with patch("gramps_webapi.auth.oidc.get_guid_by_email", return_value=None):
+            assert get_usable_email({"email": "a@example.com"}) == "a@example.com"
+
+    def test_missing_address_is_none(self):
+        assert get_usable_email({}) is None
+
+    def test_empty_address_is_none(self):
+        """An empty string is a value, not NULL, so it would collide too."""
+        assert get_usable_email({"email": ""}) is None
+
+    def test_address_owned_by_another_user_is_dropped(self):
+        with patch(
+            "gramps_webapi.auth.oidc.get_guid_by_email", return_value="other-guid"
+        ):
+            assert get_usable_email({"email": "a@example.com"}) is None
+
+    def test_address_owned_by_same_user_is_kept(self):
+        with patch("gramps_webapi.auth.oidc.get_guid_by_email", return_value="my-guid"):
+            assert (
+                get_usable_email({"email": "a@example.com"}, user_id="my-guid")
+                == "a@example.com"
+            )
+
+    def test_explicitly_unverified_address_is_dropped(self):
+        with patch("gramps_webapi.auth.oidc.get_guid_by_email", return_value=None):
+            assert (
+                get_usable_email({"email": "a@example.com", "email_verified": False})
+                is None
+            )
+
+    def test_absent_verified_claim_is_accepted(self):
+        """Many providers omit email_verified entirely."""
+        with patch("gramps_webapi.auth.oidc.get_guid_by_email", return_value=None):
+            assert get_usable_email({"email": "a@example.com"}) == "a@example.com"
+
+
+class TestOidcUserTreeBinding:
+    """An OIDC identity maps to one account, which belongs to one tree."""
+
+    @patch("gramps_webapi.auth.oidc.get_oidc_account", return_value="existing-guid")
+    @patch("gramps_webapi.auth.oidc.get_name", return_value="testuser")
+    @patch("gramps_webapi.auth.oidc.modify_user")
+    @patch("gramps_webapi.auth.oidc.get_provider_config")
+    def test_login_to_different_tree_is_refused(
+        self, mock_get_config, mock_modify, mock_get_name, mock_get_oidc
+    ):
+        """An existing account must not be silently moved to another tree."""
+        mock_get_config.return_value = {"username_claim": "preferred_username"}
+        mock_app = MagicMock()
+        mock_app.config.get.return_value = ""
+
+        with (
+            patch("gramps_webapi.auth.oidc.current_app", mock_app),
+            patch("gramps_webapi.auth.oidc.get_guid_by_email", return_value=None),
+            patch("gramps_webapi.api.util.get_tree_id_or_none", return_value="tree_a"),
+        ):
+            with pytest.raises(ValueError, match="different tree"):
+                create_or_update_oidc_user(
+                    {"sub": "s", "preferred_username": "testuser"},
+                    "tree_b",
+                    PROVIDER_CUSTOM,
+                )
+
+        mock_modify.assert_not_called()
+
+    @patch("gramps_webapi.auth.oidc.get_oidc_account", return_value="existing-guid")
+    @patch("gramps_webapi.auth.oidc.get_name", return_value="testuser")
+    @patch("gramps_webapi.auth.oidc.modify_user")
+    @patch("gramps_webapi.auth.oidc.get_provider_config")
+    def test_treeless_account_gets_tree_assigned(
+        self, mock_get_config, mock_modify, mock_get_name, mock_get_oidc
+    ):
+        """An account without a tree yet is bound to the one being logged into."""
+        mock_get_config.return_value = {"username_claim": "preferred_username"}
+        mock_app = MagicMock()
+        mock_app.config.get.return_value = ""
+
+        with (
+            patch("gramps_webapi.auth.oidc.current_app", mock_app),
+            patch("gramps_webapi.auth.oidc.get_guid_by_email", return_value=None),
+            patch("gramps_webapi.api.util.get_tree_id_or_none", return_value=None),
+        ):
+            create_or_update_oidc_user(
+                {"sub": "s", "preferred_username": "testuser"},
+                "tree_b",
+                PROVIDER_CUSTOM,
+            )
+
+        assert mock_modify.call_args[1]["tree"] == "tree_b"
 
 
 class TestGetRoleFromClaims:
@@ -67,6 +168,31 @@ class TestGetRoleFromClaims:
             user_claims = {"groups": []}
             role = get_role_from_claims(user_claims)
             assert role == ROLE_DISABLED
+
+    def test_absent_claim_preserves_role(self):
+        """A provider that sends no group claim must not demote existing users.
+
+        Google never sends `groups`. Returning ROLE_DISABLED here would lock out
+        every Google account on its next login as soon as role mapping is
+        configured for any other provider.
+        """
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default="": {
+            "OIDC_GROUP_ADMIN": "admin-group",
+        }.get(key, default)
+
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
+            assert get_role_from_claims({"sub": "x"}) is None
+
+    def test_absent_nested_claim_preserves_role(self):
+        """Same, for a nested claim path whose parent is missing."""
+        mock_app = MagicMock()
+        mock_app.config.get.side_effect = lambda key, default="": {
+            "OIDC_GROUP_ADMIN": "admin-group",
+        }.get(key, default)
+
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
+            assert get_role_from_claims({"sub": "x"}, "realm_access.roles") is None
 
     def test_no_matching_groups(self):
         """Test role mapping with no matching groups."""
@@ -217,14 +343,12 @@ class TestGetAvailableOidcProviders:
         mock_app.config.get.side_effect = lambda key, default=None: {
             "OIDC_GOOGLE_CLIENT_ID": "google-client-id",
             "OIDC_MICROSOFT_CLIENT_ID": "microsoft-client-id",
-            "OIDC_GITHUB_CLIENT_ID": "github-client-id",
         }.get(key, default)
 
         providers = get_available_oidc_providers(mock_app)
         assert "google" in providers
         assert "microsoft" in providers
-        assert "github" in providers
-        assert len(providers) == 3
+        assert len(providers) == 2
 
     def test_custom_provider(self):
         """Test custom provider configuration."""
@@ -295,21 +419,19 @@ class TestGetProviderConfig:
         assert config["client_id"] == "ms-client-id"
         assert config["issuer"] == "https://login.microsoftonline.com/common/v2.0"
         assert config["username_claim"] == "preferred_username"
+        # the /common endpoint issues tenant-specific issuers
+        assert config["relax_issuer"] is True
 
-    def test_github_provider_config(self):
-        """Test getting GitHub provider configuration."""
+    def test_removed_builtin_provider_is_unknown(self):
+        """GitHub was removed; it must no longer resolve as a provider."""
         mock_app = MagicMock()
         mock_app.config.get.side_effect = lambda key, default=None: {
             "OIDC_GITHUB_CLIENT_ID": "github-client-id",
             "OIDC_GITHUB_CLIENT_SECRET": "github-secret",
         }.get(key, default)
 
-        config = get_provider_config("github", mock_app)
-        assert config is not None
-        assert config["client_id"] == "github-client-id"
-        assert config["auth_url"] == "https://github.com/login/oauth/authorize"
-        assert config["token_url"] == "https://github.com/login/oauth/access_token"
-        assert config["username_claim"] == "login"
+        assert get_provider_config("github", mock_app) is None
+        assert "github" not in get_available_oidc_providers(mock_app)
 
     def test_custom_provider_config(self):
         """Test getting custom provider configuration."""
@@ -402,7 +524,14 @@ class TestCreateOrUpdateOidcUser:
         }.get(key, default)
 
         with patch("gramps_webapi.auth.oidc.current_app", mock_app):
-            result = create_or_update_oidc_user(userinfo, "test_tree", PROVIDER_CUSTOM)
+            with patch("gramps_webapi.auth.oidc.get_guid_by_email", return_value=None):
+                with patch(
+                    "gramps_webapi.api.util.get_tree_id_or_none",
+                    return_value="test_tree",
+                ):
+                    result = create_or_update_oidc_user(
+                        userinfo, "test_tree", PROVIDER_CUSTOM
+                    )
 
         assert result == "existing-user-guid"
         mock_modify.assert_called_once_with(
@@ -410,7 +539,8 @@ class TestCreateOrUpdateOidcUser:
             fullname="Test User",
             email="test@example.com",
             role=ROLE_EDITOR,
-            tree="test_tree",
+            # the account already has a tree, so it is left alone
+            tree=None,
         )
 
     @patch("gramps_webapi.auth.oidc.get_oidc_account")
@@ -439,14 +569,25 @@ class TestCreateOrUpdateOidcUser:
             with patch(
                 "gramps_webapi.auth.oidc.get_role_from_claims", return_value=None
             ):
-                result = create_or_update_oidc_user(userinfo, "test_tree", "google")
+                with patch(
+                    "gramps_webapi.auth.oidc.get_guid_by_email", return_value=None
+                ):
+                    with patch(
+                        "gramps_webapi.api.util.get_tree_id_or_none",
+                        return_value="test_tree",
+                    ):
+                        result = create_or_update_oidc_user(
+                            userinfo, "test_tree", "google"
+                        )
 
-        # Should not pass role parameter
+        assert result == "existing-user-guid"
+        # role=None leaves the stored role untouched
         mock_modify.assert_called_once_with(
             name="testuser",
             fullname="Test User",
             email="test@example.com",
-            tree="test_tree",
+            role=None,
+            tree=None,
         )
 
     @patch("gramps_webapi.auth.oidc.get_oidc_account", return_value=None)
@@ -486,8 +627,13 @@ class TestCreateOrUpdateOidcUser:
                 return_value=ROLE_DISABLED,
             ):
                 # Mock get_tree_id and run_task to avoid database/task access in disabled role path
-                with patch(
-                    "gramps_webapi.api.util.get_tree_id", return_value="test_tree"
+                with (
+                    patch(
+                        "gramps_webapi.api.util.get_tree_id", return_value="test_tree"
+                    ),
+                    patch(
+                        "gramps_webapi.auth.oidc.get_guid_by_email", return_value=None
+                    ),
                 ):
                     with patch("gramps_webapi.api.tasks.run_task"):
                         result = create_or_update_oidc_user(
@@ -544,8 +690,13 @@ class TestCreateOrUpdateOidcUser:
                 return_value=ROLE_DISABLED,
             ):
                 # Mock get_tree_id and run_task to avoid database/task access in disabled role path
-                with patch(
-                    "gramps_webapi.api.util.get_tree_id", return_value="test_tree"
+                with (
+                    patch(
+                        "gramps_webapi.api.util.get_tree_id", return_value="test_tree"
+                    ),
+                    patch(
+                        "gramps_webapi.auth.oidc.get_guid_by_email", return_value=None
+                    ),
                 ):
                     with patch("gramps_webapi.api.tasks.run_task"):
                         result = create_or_update_oidc_user(
@@ -599,8 +750,13 @@ class TestCreateOrUpdateOidcUser:
                 return_value=ROLE_DISABLED,
             ):
                 # Mock get_tree_id and run_task to avoid database/task access in disabled role path
-                with patch(
-                    "gramps_webapi.api.util.get_tree_id", return_value="test_tree"
+                with (
+                    patch(
+                        "gramps_webapi.api.util.get_tree_id", return_value="test_tree"
+                    ),
+                    patch(
+                        "gramps_webapi.auth.oidc.get_guid_by_email", return_value=None
+                    ),
                 ):
                     with patch("gramps_webapi.api.tasks.run_task"):
                         create_or_update_oidc_user(userinfo, None, "google")
@@ -686,36 +842,32 @@ class TestInitOidc:
     @patch("gramps_webapi.auth.oidc.OAuth")
     @patch("gramps_webapi.auth.oidc.get_available_oidc_providers")
     @patch("gramps_webapi.auth.oidc.get_provider_config")
-    def test_init_github_provider(
+    def test_init_survives_unreachable_discovery_document(
         self, mock_get_config, mock_get_providers, mock_oauth_class
     ):
-        """Test initializing GitHub provider (OAuth 2.0, not OIDC)."""
+        """A provider that is not up yet must not break application startup."""
         mock_app = MagicMock()
         mock_app.config.get.return_value = True
-        mock_get_providers.return_value = ["github"]
+        mock_get_providers.return_value = [PROVIDER_CUSTOM]
         mock_get_config.return_value = {
-            "name": "GitHub",
-            "client_id": "github-client-id",
-            "client_secret": "github-secret",
-            "auth_url": "https://github.com/login/oauth/authorize",
-            "token_url": "https://github.com/login/oauth/access_token",
-            "scopes": "user:email",
+            "name": "Custom",
+            "client_id": "c-id",
+            "client_secret": "c-secret",
+            "issuer": "https://custom.com",
+            "scopes": "openid email profile",
         }
 
         mock_oauth = MagicMock()
         mock_oauth_class.return_value = mock_oauth
-
-        init_oidc(mock_app)
-
-        # Should use OAuth 2.0 registration (not OIDC)
-        call_kwargs = mock_oauth.register.call_args[1]
-        assert (
-            call_kwargs["access_token_url"]
-            == "https://github.com/login/oauth/access_token"
+        mock_oauth.register.return_value.load_server_metadata.side_effect = OSError(
+            "connection refused"
         )
-        assert (
-            call_kwargs["authorize_url"] == "https://github.com/login/oauth/authorize"
-        )
+
+        result = init_oidc(mock_app)
+
+        # registration still happened; only the warm-up failed
+        assert result == mock_oauth
+        mock_oauth.register.assert_called_once()
 
     @patch("gramps_webapi.auth.oidc.OAuth")
     @patch("gramps_webapi.auth.oidc.get_available_oidc_providers")

@@ -100,7 +100,6 @@ class DefaultConfig(object):
     OIDC_ISSUER = ""
     OIDC_CLIENT_ID = ""
     OIDC_CLIENT_SECRET = ""
-    OIDC_REDIRECT_URI = ""
     OIDC_ENABLED = False
     OIDC_DISABLE_LOCAL_AUTH = False
     OIDC_AUTO_REDIRECT = False

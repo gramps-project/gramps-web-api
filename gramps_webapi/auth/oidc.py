@@ -22,22 +22,17 @@
 import logging
 import secrets
 import uuid
-from typing import Dict, List, Optional, Set
+from typing import Any
 
 from authlib.integrations.flask_client import OAuth
-from flask import current_app, session
+from flask import current_app
 
 from ..const import TREE_MULTI
-
-# NOTE: Imports from api.tasks and api.util are done inside functions to avoid
-# circular import (oidc.py -> api -> oidc.py). This is an intentional exception
-# to the top-level import standard.
-
 from . import (
     add_user,
     create_oidc_account,
-    get_all_user_details,
     get_guid,
+    get_guid_by_email,
     get_name,
     get_oidc_account,
     get_user_details,
@@ -53,13 +48,28 @@ from .const import (
     ROLE_OWNER,
 )
 
+# NOTE: Imports from api.tasks and api.util are done inside functions to avoid
+# circular import (oidc.py -> api -> oidc.py). This is an intentional exception
+# to the top-level import standard.
+
+
 logger = logging.getLogger(__name__)
 
 # Provider identifier for custom OIDC configurations
 PROVIDER_CUSTOM = "custom"
 
-# Built-in provider configurations
-BUILTIN_PROVIDERS = {
+# Built-in provider configurations.
+#
+# Every entry describes a standards-compliant OpenID Connect provider and is
+# consumed as data - there is deliberately no per-provider branching in the
+# request handlers. Recognised keys beyond the obvious ones:
+#
+#   relax_issuer: do not require the ID token `iss` claim to match the issuer
+#                 advertised in the discovery document.
+#
+# The value type is Any because entries hold both strings and flags; without
+# the annotation mypy joins the differently shaped entries down to `object`.
+BUILTIN_PROVIDERS: dict[str, dict[str, Any]] = {
     "google": {
         "name": "Google",
         "issuer": "https://accounts.google.com",
@@ -71,27 +81,26 @@ BUILTIN_PROVIDERS = {
         "issuer": "https://login.microsoftonline.com/common/v2.0",
         "scopes": "openid email profile",
         "username_claim": "preferred_username",
-    },
-    "github": {
-        "name": "GitHub",
-        "issuer": "https://github.com",
-        "auth_url": "https://github.com/login/oauth/authorize",
-        "token_url": "https://github.com/login/oauth/access_token",
-        "userinfo_url": "https://api.github.com/user",
-        "scopes": "user:email",
-        "username_claim": "login",
+        # The multi-tenant `/common` endpoint issues tokens whose `iss` claim is
+        # tenant-specific and therefore never matches the issuer in the
+        # discovery document. Relaxing the check is safe here because the
+        # provider is preconfigured: the token is fetched from the token
+        # endpoint of that discovery document, not from an attacker-supplied
+        # one. Deployments pinned to a single tenant should configure the
+        # tenant-specific issuer via the `custom` provider instead.
+        "relax_issuer": True,
     },
 }
 
 
-def get_available_oidc_providers(app=None) -> List[str]:
+def get_available_oidc_providers(app=None) -> list[str]:
     """Auto-detect available OIDC providers from Flask configuration.
 
     Scans for OIDC_{PROVIDER}_CLIENT_ID configuration values to determine
     which providers are configured.
 
     Returns:
-        List of provider names (e.g., ['google', 'microsoft', 'github', 'custom'])
+        List of provider names (e.g., ['google', 'microsoft', 'custom'])
     """
     if app is None:
         app = current_app
@@ -111,11 +120,11 @@ def get_available_oidc_providers(app=None) -> List[str]:
     return providers
 
 
-def get_provider_config(provider_id: str, app=None) -> Optional[Dict]:
+def get_provider_config(provider_id: str, app=None) -> dict | None:
     """Get configuration for a specific OIDC provider.
 
     Args:
-        provider_id: Provider identifier (e.g., 'google', 'microsoft', 'github', 'custom')
+        provider_id: Provider identifier (e.g., 'google', 'microsoft', 'custom')
         app: Flask app instance (optional, defaults to current_app)
 
     Returns:
@@ -166,9 +175,7 @@ def get_provider_config(provider_id: str, app=None) -> Optional[Dict]:
     return config
 
 
-def get_role_from_claims(
-    user_claims: dict, role_claim: str = "groups"
-) -> Optional[int]:
+def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> int | None:
     """Map OIDC claims to Gramps roles based on environment variables.
 
     Args:
@@ -197,30 +204,37 @@ def get_role_from_claims(
         )
         return None
 
-    # Extract user groups/roles from claims
-    user_groups = []
+    # Extract user groups/roles from claims. A claim that is absent altogether
+    # means something different from a claim that is present but empty: the
+    # first says the provider sends no group information, the second that the
+    # user belongs to no group.
+    claim_value = user_claims
+    claim_present = True
+    for part in role_claim.split("."):  # handles nested 'realm_access.roles'
+        if not isinstance(claim_value, dict) or part not in claim_value:
+            claim_present = False
+            break
+        claim_value = claim_value[part]
 
-    # Handle nested claims like 'realm_access.roles'
-    if "." in role_claim:
-        claim_parts = role_claim.split(".")
-        claim_value = user_claims
-        for part in claim_parts:
-            claim_value = claim_value.get(part, {})
-        if isinstance(claim_value, list):
-            user_groups = claim_value
-    else:
-        # Handle direct claims like 'groups' or 'roles'
-        claim_value = user_claims.get(role_claim, [])
-        if isinstance(claim_value, list):
-            user_groups = claim_value
-        elif isinstance(claim_value, str):
-            user_groups = [claim_value]
-
-    # Fallback: if no groups found in claims, assign default guest role
-    if not user_groups:
+    if not claim_present:
+        # Nothing to map. Preserve whatever role the account already has -
+        # new accounts are defaulted to ROLE_DISABLED by the caller. Demoting
+        # an existing user because the provider does not send the claim (Google
+        # never does) would lock working accounts out on their next login.
         logger.warning(
-            f"No '{role_claim}' claim found in user claims. Assigning guest role."
+            f"No '{role_claim}' claim found in user claims. Leaving role unchanged."
         )
+        return None
+
+    user_groups: list[str] = []
+    if isinstance(claim_value, list):
+        user_groups = claim_value
+    elif isinstance(claim_value, str):
+        user_groups = [claim_value]
+
+    # The claim is there and the user is in no group it maps: fail closed.
+    if not user_groups:
+        logger.info(f"User is in no '{role_claim}' group. Assigning disabled role.")
         return ROLE_DISABLED
 
     highest_role = ROLE_DISABLED
@@ -235,8 +249,40 @@ def get_role_from_claims(
     return highest_role
 
 
+def get_usable_email(userinfo: dict, user_id: str | None = None) -> str | None:
+    """Return an e-mail address that can safely be stored for this user.
+
+    `users.email` carries a unique constraint, so an address already claimed by
+    a different account cannot be written. Returning None in that case leaves
+    the stored address untouched instead of failing the login, which would
+    otherwise lock the user out permanently with no way to recover from the UI.
+
+    An address the provider explicitly marks as unverified is also discarded;
+    a missing `email_verified` claim is accepted, as many providers omit it.
+    """
+    email = userinfo.get("email") or None
+    if not email:
+        return None
+
+    if userinfo.get("email_verified") is False:
+        logger.warning(
+            "OIDC provider reported e-mail address as unverified; not storing it."
+        )
+        return None
+
+    owner_id = get_guid_by_email(email)
+    if owner_id is not None and (user_id is None or str(owner_id) != str(user_id)):
+        logger.warning(
+            "E-mail address from OIDC provider is already used by another "
+            "account; the OIDC user will be stored without an e-mail address."
+        )
+        return None
+
+    return email
+
+
 def create_or_update_oidc_user(
-    userinfo: Dict, tree: Optional[str], provider_id: str
+    userinfo: dict, tree_id: str | None, provider_id: str
 ) -> str:
     """Create or update a user based on OIDC userinfo using secure sub claim mapping.
 
@@ -248,7 +294,7 @@ def create_or_update_oidc_user(
 
     Args:
         userinfo: User information from OIDC provider
-        tree: Tree identifier (optional)
+        tree_id: Tree identifier (optional)
         provider_id: OIDC provider identifier
 
     Returns the user GUID.
@@ -262,7 +308,6 @@ def create_or_update_oidc_user(
             f"No 'sub' claim found in OIDC userinfo for provider '{provider_id}'. Available claims: {available_claims}"
         )
 
-    email = userinfo.get("email", "")
     full_name = userinfo.get("name", "")
 
     # Get provider-specific configuration for username display
@@ -273,11 +318,10 @@ def create_or_update_oidc_user(
     username_claim = provider_config.get("username_claim", "preferred_username")
     display_username = userinfo.get(username_claim) or userinfo.get("sub")
 
-    # Role mapping only applies to custom provider
-    role_from_claims = None
-    if provider_id == PROVIDER_CUSTOM:
-        role_claim = current_app.config.get("OIDC_ROLE_CLAIM", "groups")
-        role_from_claims = get_role_from_claims(userinfo, role_claim)
+    # Role mapping applies to every provider; get_role_from_claims returns None
+    # when no OIDC_GROUP_* option is configured, which preserves existing roles.
+    role_claim = current_app.config.get("OIDC_ROLE_CLAIM", "groups")
+    role_from_claims = get_role_from_claims(userinfo, role_claim)
 
     # Step 1: Check if OIDC account association already exists
     existing_user_id = get_oidc_account(provider_id, subject_id)
@@ -289,23 +333,26 @@ def create_or_update_oidc_user(
         # Get the existing username and update user info if needed
         existing_username = get_name(existing_user_id)
 
-        # Only update role if role mapping is configured (custom provider only)
-        if role_from_claims is not None:
-            modify_user(
-                name=existing_username,
-                fullname=full_name,
-                email=email,
-                role=role_from_claims,
-                tree=tree,
+        # An OIDC identity is bound to a single Gramps account, which in turn
+        # belongs to a single tree. Passing a different tree ID must not
+        # silently move the account - only fill in one that is not set yet.
+        from ..api.util import get_tree_id_or_none  # circular import
+
+        current_tree_id = get_tree_id_or_none(existing_user_id)
+        if current_tree_id and tree_id and current_tree_id != tree_id:
+            raise ValueError(
+                f"This account belongs to a different tree than '{tree_id}'."
             )
-        else:
-            # Preserve existing role when no role mapping is configured or for built-in providers
-            modify_user(
-                name=existing_username,
-                fullname=full_name,
-                email=email,
-                tree=tree,
-            )
+
+        # role and email are None unless they should be changed; modify_user
+        # leaves the stored value untouched in that case
+        modify_user(
+            name=existing_username,
+            fullname=full_name,
+            email=get_usable_email(userinfo, user_id=existing_user_id),
+            role=role_from_claims,
+            tree=None if current_tree_id else tree_id,
+        )
 
         return existing_user_id
 
@@ -328,9 +375,11 @@ def create_or_update_oidc_user(
 
     random_password = secrets.token_urlsafe(32)
 
-    # For new users, use role from claims if available (custom provider only),
-    # otherwise default to DISABLED
+    # For new users, use role from claims if role mapping is configured,
+    # otherwise default to DISABLED so an admin has to approve the account
     final_role = role_from_claims if role_from_claims is not None else ROLE_DISABLED
+
+    email = get_usable_email(userinfo)
 
     add_user(
         name=final_username,
@@ -338,13 +387,15 @@ def create_or_update_oidc_user(
         fullname=full_name,
         email=email,
         role=final_role,
-        tree=tree,
+        tree=tree_id,
     )
 
     user_guid = get_guid(final_username)
 
-    # Create OIDC account association
-    create_oidc_account(user_guid, provider_id, subject_id, email)
+    # Create OIDC account association. The address the provider actually sent is
+    # recorded here even when it could not be stored on the user, so that an
+    # admin can still tell which identity the account belongs to.
+    create_oidc_account(user_guid, provider_id, subject_id, userinfo.get("email"))
 
     # Send notification email to admins about new user (only for new users with ROLE_DISABLED)
     if final_role == ROLE_DISABLED:
@@ -352,14 +403,15 @@ def create_or_update_oidc_user(
         from ..api.tasks import run_task, send_email_new_user
         from ..api.util import get_tree_id
 
-        user_tree = get_tree_id(user_guid)
+        user_tree_id = get_tree_id(user_guid)
         is_multi = current_app.config["TREE"] == TREE_MULTI
         run_task(
             send_email_new_user,
             username=final_username,
             fullname=full_name or "",
-            email=email,
-            tree=user_tree,
+            # report the address the provider sent, even if it was not stored
+            email=userinfo.get("email") or "",
+            tree=user_tree_id,
             # for single-tree setups, send e-mail also to admins
             include_admins=not is_multi,
             include_treeless=not is_multi,
@@ -389,47 +441,40 @@ def init_oidc(app):
             )
             continue
 
-        try:
-            # Use provider-specific configuration
-            client_kwargs = {"scope": provider_config["scopes"]}
-
-            # Handle different provider types
-            if provider_id == "github":
-                # GitHub uses OAuth 2.0, not OIDC
-                oauth.register(
-                    name=f"gramps_{provider_id}",
-                    client_id=provider_config["client_id"],
-                    client_secret=provider_config["client_secret"],
-                    access_token_url=provider_config["token_url"],
-                    authorize_url=provider_config["auth_url"],
-                    api_base_url="https://api.github.com/",
-                    client_kwargs=client_kwargs,
-                )
-            else:
-                # Standard OIDC providers
-                # Use explicit config URL if provided, otherwise construct from issuer
-                server_metadata_url = provider_config.get("openid_config_url")
-                if not server_metadata_url:
-                    server_metadata_url = (
-                        f"{provider_config['issuer']}/.well-known/openid-configuration"
-                    )
-
-                client = oauth.register(
-                    name=f"gramps_{provider_id}",
-                    client_id=provider_config["client_id"],
-                    client_secret=provider_config["client_secret"],
-                    server_metadata_url=server_metadata_url,
-                    client_kwargs=client_kwargs,
-                )
-
-                # Explicitly load server metadata to ensure it's available at startup
-                client.load_server_metadata()
-
-            logger.info(
-                f"Registered OIDC provider: {provider_config['name']} ({provider_id})"
+        # Use explicit config URL if provided, otherwise construct from issuer
+        server_metadata_url = provider_config.get("openid_config_url")
+        if not server_metadata_url:
+            server_metadata_url = (
+                f"{provider_config['issuer']}/.well-known/openid-configuration"
             )
 
-        except Exception as e:
+        try:
+            client = oauth.register(
+                name=f"gramps_{provider_id}",
+                client_id=provider_config["client_id"],
+                client_secret=provider_config["client_secret"],
+                server_metadata_url=server_metadata_url,
+                client_kwargs={"scope": provider_config["scopes"]},
+            )
+        except Exception as e:  # pylint: disable=broad-except
             logger.error(f"Failed to register OIDC provider '{provider_id}': {e}")
+            continue
+
+        logger.info(
+            f"Registered OIDC provider: {provider_config['name']} ({provider_id})"
+        )
+
+        # Warm the discovery document so misconfiguration shows up in the log at
+        # startup rather than on a user's first login. A failure here is not
+        # fatal: the provider may simply not be up yet, and authlib will retry
+        # the fetch on demand.
+        try:
+            client.load_server_metadata()
+        except Exception as e:  # pylint: disable=broad-except
+            logger.warning(
+                f"Could not load discovery document for OIDC provider "
+                f"'{provider_id}' from {server_metadata_url}: {e}. "
+                f"It will be retried on first use."
+            )
 
     return oauth

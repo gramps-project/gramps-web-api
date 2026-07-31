@@ -1712,6 +1712,38 @@ class OIDCConfigSchema(_Base):
     )
 
 
+class OIDCTokensSchema(_Base):
+    """Tokens returned by the /oidc/tokens/ cookie exchange endpoint."""
+
+    access_token = fields.Str(
+        metadata={"description": "JWT access token."},
+    )
+    refresh_token = fields.Str(
+        metadata={"description": "JWT refresh token."},
+    )
+    token_type = fields.Str(
+        metadata={"description": "Token type, always 'Bearer'."},
+    )
+    id_token = fields.Str(
+        metadata={
+            "description": "OIDC ID token, if the provider issued one. Needed"
+            " to pass as id_token_hint when logging out."
+        },
+    )
+
+
+class OIDCLogoutSchema(_Base):
+    """Logout URL returned by the /oidc/logout/ endpoint."""
+
+    logout_url = fields.Str(
+        allow_none=True,
+        metadata={
+            "description": "URL to redirect to in order to end the session at"
+            " the provider, or null if the provider does not support it."
+        },
+    )
+
+
 class CredentialsSchema(_Base):
     """Login credentials (username + password)."""
 

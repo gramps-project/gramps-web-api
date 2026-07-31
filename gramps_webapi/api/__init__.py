@@ -114,7 +114,6 @@ from .resources.token import (
     TokenResource,
 )
 from .resources.oidc import (
-    OIDCBackchannelLogoutResource,
     OIDCCallbackResource,
     OIDCConfigResource,
     OIDCLoginResource,
@@ -236,12 +235,6 @@ register_endpt(
     tags=["OIDC"],
 )
 register_endpt(OIDCLogoutResource, "/oidc/logout/", "oidclogoutresource", tags=["OIDC"])
-register_endpt(
-    OIDCBackchannelLogoutResource,
-    "/oidc/backchannel-logout/",
-    "oidcbackchannellogoutresource",
-    tags=["OIDC"],
-)
 # People
 register_endpt(
     PersonTimelineResource,
