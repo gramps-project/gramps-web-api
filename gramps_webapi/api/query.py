@@ -197,11 +197,16 @@ def _require_dialect(dialect: Optional[Dialect], path: JsonPath) -> Dialect:
     return dialect
 
 
-def _render_json_path(path: JsonPath, dialect: Dialect) -> Tuple[str, list]:
+def _render_json_path(
+    path: JsonPath, dialect: Dialect, value: Any = None
+) -> Tuple[str, list]:
     """Render a `JsonPath` into a dialect-specific SQL expression + bound params.
 
     SQLite: `json_extract(json_data, ?)` with a single bound JSONPath-syntax
-    string (`$.primary_name.surname_list[0].surname`).
+    string (`$.primary_name.surname_list[0].surname`). SQLite's `json_extract`
+    already returns a properly-typed SQLite value (INTEGER/REAL/TEXT) matching
+    the JSON value's own type, so no cast is needed here for correct ordering
+    comparisons.
 
     PostgreSQL: `jsonb_extract_path_text(json_data::jsonb, ?, ?, ...)` with
     one bound parameter per path segment -- `json_data` is stored as `TEXT`
@@ -209,6 +214,17 @@ def _render_json_path(path: JsonPath, dialect: Dialect) -> Tuple[str, list]:
     live against a real PostgreSQL 16 instance: `jsonb_extract_path_text`
     treats a numeric-looking text segment (e.g. `"0"`) as a JSON array
     index, so integer segments are simply stringified, not cast separately.
+
+    `jsonb_extract_path_text` always returns `TEXT`, though, which is wrong
+    for `Lt`/`Gt`/etc. against a numeric or boolean `value` -- PostgreSQL
+    compares text lexicographically, not numerically (`'10' < '9'` is true).
+    `value` -- the Python value already in hand on the comparison, e.g.
+    `Gt(json_path, 5).value` -- picks the cast: `bool` -> `BOOLEAN`, `int`/
+    `float` -> `NUMERIC` (via the non-`_text` `jsonb_extract_path` + `CAST`,
+    mirroring the pattern in gramps' `SQLiteWithSelect` addon's
+    `sql_generator.py`), otherwise `TEXT` as before. This is driven by the
+    already-known comparison value rather than a separate static
+    type-inference pass.
     """
     if dialect == Dialect.SQLITE:
         jsonpath = "$" + "".join(
@@ -219,6 +235,12 @@ def _render_json_path(path: JsonPath, dialect: Dialect) -> Tuple[str, list]:
     if dialect == Dialect.POSTGRESQL:
         placeholders = ", ".join(["?"] * len(path.segments))
         params = [str(segment) for segment in path.segments]
+        if isinstance(value, bool):
+            extract = f"jsonb_extract_path({path.base_column}::jsonb, {placeholders})"
+            return f"CAST({extract} AS BOOLEAN)", params
+        if isinstance(value, (int, float)):
+            extract = f"jsonb_extract_path({path.base_column}::jsonb, {placeholders})"
+            return f"CAST({extract} AS NUMERIC)", params
         return (
             f"jsonb_extract_path_text({path.base_column}::jsonb, {placeholders})",
             params,
@@ -227,15 +249,20 @@ def _render_json_path(path: JsonPath, dialect: Dialect) -> Tuple[str, list]:
 
 
 def _render_column(
-    column: ColumnRef, whitelist: frozenset[str], dialect: Optional[Dialect]
+    column: ColumnRef,
+    whitelist: frozenset[str],
+    dialect: Optional[Dialect],
+    value: Any = None,
 ) -> Tuple[str, list]:
     """Render a column reference (plain name or `JsonPath`) with no associated value.
 
     Used for `SELECT` list entries, which (unlike `WHERE` comparisons) have
-    no right-hand value to bind.
+    no right-hand value to bind. `value`, when given, is the comparison's
+    right-hand Python value -- used only to pick a `JsonPath` cast (see
+    `_render_json_path`); ignored for plain column names.
     """
     if isinstance(column, JsonPath):
-        return _render_json_path(column, _require_dialect(dialect, column))
+        return _render_json_path(column, _require_dialect(dialect, column), value)
     _check_column(column, whitelist)
     return _quote_column(column), []
 
@@ -255,7 +282,9 @@ class Comparison:
     def compile(
         self, whitelist: frozenset[str], dialect: Optional[Dialect] = None
     ) -> Tuple[str, list]:
-        column_sql, column_params = _render_column(self.column, whitelist, dialect)
+        column_sql, column_params = _render_column(
+            self.column, whitelist, dialect, value=self.value
+        )
         return f"{column_sql} {self.op} ?", column_params + [self.value]
 
     def __eq__(self, other: object) -> bool:
@@ -309,7 +338,9 @@ class In:
     def compile(
         self, whitelist: frozenset[str], dialect: Optional[Dialect] = None
     ) -> Tuple[str, list]:
-        column_sql, column_params = _render_column(self.column, whitelist, dialect)
+        column_sql, column_params = _render_column(
+            self.column, whitelist, dialect, value=self.values[0]
+        )
         placeholders = ", ".join(["?"] * len(self.values))
         return f"{column_sql} IN ({placeholders})", column_params + list(self.values)
 

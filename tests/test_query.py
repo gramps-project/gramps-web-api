@@ -202,6 +202,49 @@ def test_compile_count_query_jsonpath_where():
     assert params == ["$.primary_name.first_name", "Root"]  # no LIMIT param -- it's a COUNT
 
 
+def test_compile_query_jsonpath_where_gt_numeric_postgresql_casts_to_numeric():
+    # jsonb_extract_path_text always returns TEXT -- comparing TEXT with `>`
+    # is lexicographic ('10' < '9'), so a numeric `value` must use the
+    # non-`_text` extractor + an explicit CAST instead.
+    path = JsonPath(("attribute_list", 0, "value"))
+    query = Query(select=["handle"], where=Gt(path, 5))
+    sql, params = compile_query(PERSON, query, dialect=Dialect.POSTGRESQL)
+    assert "CAST(jsonb_extract_path(json_data::jsonb, ?, ?, ?) AS NUMERIC) > ?" in sql
+    assert params == ["attribute_list", "0", "value", 5, 50]
+
+
+def test_compile_query_jsonpath_where_eq_bool_postgresql_casts_to_boolean():
+    path = JsonPath(("private",))
+    query = Query(select=["handle"], where=Eq(path, True))
+    sql, params = compile_query(PERSON, query, dialect=Dialect.POSTGRESQL, can_view_private=True)
+    assert "CAST(jsonb_extract_path(json_data::jsonb, ?) AS BOOLEAN) = ?" in sql
+    assert params == ["private", True, 50]
+
+
+def test_compile_query_jsonpath_where_eq_str_postgresql_stays_text():
+    path = JsonPath(("primary_name", "first_name"))
+    query = Query(select=["handle"], where=Eq(path, "Root"))
+    sql, params = compile_query(PERSON, query, dialect=Dialect.POSTGRESQL)
+    assert "jsonb_extract_path_text(json_data::jsonb, ?, ?) = ?" in sql
+    assert params == ["primary_name", "first_name", "Root", 50]
+
+
+def test_compile_query_jsonpath_select_unaffected_by_value_casting():
+    # SELECT entries have no comparison value -- always text extraction,
+    # same as before this cast logic was added.
+    path = JsonPath(("attribute_list", 0, "value"))
+    sql, params = compile_query(PERSON, Query(select=[path]), dialect=Dialect.POSTGRESQL)
+    assert "jsonb_extract_path_text(json_data::jsonb, ?, ?, ?)" in sql
+
+
+def test_compile_query_jsonpath_where_in_numeric_postgresql_casts_to_numeric():
+    path = JsonPath(("attribute_list", 0, "value"))
+    query = Query(select=["handle"], where=In(path, [1, 2]))
+    sql, params = compile_query(PERSON, query, dialect=Dialect.POSTGRESQL)
+    assert "CAST(jsonb_extract_path(json_data::jsonb, ?, ?, ?) AS NUMERIC) IN (?, ?)" in sql
+    assert params == ["attribute_list", "0", "value", 1, 2, 50]
+
+
 def test_jsonpath_not_subject_to_column_whitelist():
     # JsonPath's safety comes from segment-level type checking + parameter
     # binding, not the fixed column whitelist -- any path is structurally
