@@ -1597,6 +1597,30 @@ class FamilyExtendedSchema(_Base):
     )
 
 
+class ObjectQueryResponseSchema(_Base):
+    """Result of a fast, SQL-pushed-down structured object query.
+
+    Shared by every `POST .../query/` endpoint (people, families, events,
+    ...) -- the response shape doesn't depend on object type, only on the
+    caller's requested `select` columns.
+    """
+
+    items = fields.List(
+        fields.Dict(),
+        metadata={
+            "description": "Matching rows, each containing exactly the requested "
+            "`select` columns."
+        },
+    )
+    next_after = fields.Str(
+        allow_none=True,
+        metadata={
+            "description": "Cursor to pass as `after` to fetch the next page, "
+            "or null if this was the last page."
+        },
+    )
+
+
 class PersonExtendedSchema(_Base):
     """Extended section of a person response."""
 

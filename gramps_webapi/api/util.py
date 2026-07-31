@@ -81,7 +81,6 @@ from gramps.gen.proxy.private import (
 from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps.gen.user import UserBase
 from gramps.gen.utils.grampslocale import GrampsLocale
-from gramps.plugins.db.dbapi.dbapi import DBAPI
 from marshmallow import RAISE
 from webargs.flaskparser import FlaskParser
 from werkzeug.exceptions import HTTPException
@@ -133,7 +132,10 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
         """Initialize self."""
         super().__init__(*args, **kwargs)
         self.name_formats = self.db.name_formats
-        self.is_dbapi = isinstance(self.basedb, DBAPI)
+        # `DBAPI` and `SharedDBAPI` (used by the SharedPostgreSQL addon) are sibling
+        # classes, not parent/child, so an isinstance(basedb, DBAPI) check would miss
+        # SharedPostgreSQL. Check for the actual capability used below instead.
+        self.is_dbapi = hasattr(self.basedb, "dbapi")
 
     def get_dbname(self):
         """Get the name of the database."""
