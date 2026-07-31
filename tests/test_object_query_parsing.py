@@ -30,13 +30,15 @@ module). Full request/response wiring is still covered by
 import pytest
 from gramps.plugins.db.dbapi.sqlite import SQLite
 
-from gramps_webapi.api.query import Dialect, JsonPath, QueryError
+from gramps_webapi.api.query import PERSON, Dialect, JsonPath, OrderBy, QueryError
 from gramps_webapi.api.resources.object_query import (
     _check_no_duplicate_keys,
     _json_path_default_key,
     _parse_column_ref,
     _parse_select_entry,
+    _resolve_after,
     _resolve_dialect,
+    _resolve_treeid,
 )
 
 
@@ -194,3 +196,75 @@ def test_resolve_dialect_ignores_unrecognized_explicit_dialect_name():
     # `compile_query` raises `QueryError` if the dialect actually turns out
     # to be unsupported when rendering a `JsonPath`.
     assert _resolve_dialect(_FakeDbWithDialect("mysql")) == Dialect.POSTGRESQL
+
+
+# --- _resolve_treeid ------------------------------------------------------------
+#
+# SharedPostgreSQL stores every tree's rows in the same physical tables --
+# `treeid` is the only thing that scopes a query to the caller's own tree.
+
+
+class _FakeDbapiWithTreeid:
+    treeid = 7
+
+
+class _FakeBasedbWithTreeidDbapi:
+    dbapi = _FakeDbapiWithTreeid()
+
+
+class _FakeDbapiNoTreeid:
+    pass
+
+
+class _FakeBasedbNoTreeidDbapi:
+    dbapi = _FakeDbapiNoTreeid()
+
+
+def test_resolve_treeid_reads_dbapi_treeid_when_present():
+    assert _resolve_treeid(_FakeBasedbWithTreeidDbapi()) == 7
+
+
+def test_resolve_treeid_returns_none_for_single_tree_backend():
+    # SQLite / single-user PostgreSQL have no `.dbapi.treeid` at all --
+    # `None` means "omit the clause", not "unscoped is fine by default".
+    assert _resolve_treeid(_FakeBasedbNoTreeidDbapi()) is None
+
+
+# --- _resolve_after treeid scoping -----------------------------------------------
+
+
+class _FakeAfterDbapi:
+    def __init__(self, row):
+        self._row = row
+        self.calls = []
+
+    def execute(self, sql, params):
+        self.calls.append((sql, params))
+
+    def fetchone(self):
+        return self._row
+
+
+class _FakeAfterBasedb:
+    def __init__(self, row):
+        self.dbapi = _FakeAfterDbapi(row)
+
+
+def test_resolve_after_omits_treeid_clause_by_default():
+    basedb = _FakeAfterBasedb(row=("Smith", "h1"))
+    _resolve_after(basedb, PERSON, [OrderBy("surname", "asc")], "h1", True, treeid=None)
+    sql, params = basedb.dbapi.calls[0]
+    assert "treeid" not in sql
+    assert params == ["h1"]
+
+
+def test_resolve_after_adds_treeid_clause_when_given():
+    # Without this, a handle from another tree on a shared multi-tree
+    # backend would resolve just as well -- leaking that row's sort-column
+    # values (and confirming its existence) across tenants even though the
+    # main paginated query stays properly scoped.
+    basedb = _FakeAfterBasedb(row=("Smith", "h1"))
+    _resolve_after(basedb, PERSON, [OrderBy("surname", "asc")], "h1", True, treeid=7)
+    sql, params = basedb.dbapi.calls[0]
+    assert "AND treeid = ?" in sql
+    assert params == ["h1", 7]

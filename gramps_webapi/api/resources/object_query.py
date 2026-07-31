@@ -266,18 +266,28 @@ def _resolve_after(
     order_by: Sequence[OrderBy],
     after_handle: str,
     can_view_private: bool,
+    treeid: Optional[int] = None,
 ):
     """Resolve a client-supplied `after=<handle>` cursor into a value tuple.
 
     The sort-column values for the cursor row aren't known to the client, so
     the handle it supplies has to be looked up first. Columns were already
     validated by the caller, so this is safe to interpolate.
+
+    `treeid`, when given, restricts the lookup to the caller's own tree (see
+    `_resolve_treeid`) -- without it, a handle from any other tree on a
+    shared multi-tree backend would resolve just as well, leaking that row's
+    column values (and confirming the handle's existence) across tenants
+    even though the main paginated query stays properly scoped.
     """
     columns = after_columns(order_by)
     sql = f"SELECT {', '.join(columns)} FROM {spec.table} WHERE handle = ?"
-    params = [after_handle]
+    params: list = [after_handle]
     if spec.has_privacy and not can_view_private:
         sql += " AND private = 0"
+    if treeid is not None:
+        sql += " AND treeid = ?"
+        params.append(treeid)
     basedb.dbapi.execute(sql, params)
     row = basedb.dbapi.fetchone()
     if row is None:
@@ -314,16 +324,17 @@ _DIALECT_BY_NAME: dict[str, Dialect] = {
 def _resolve_dialect(basedb: Any) -> Dialect:
     """Backend SQL dialect for rendering a `JsonPath` (see `query.py`).
 
-    No released Gramps core backend advertises a `.dialect` attribute yet --
-    it's proposed but unmerged (gramps-project/gramps#2178). Once it lands,
-    this reads it straight off `basedb` and the rest of this function stops
-    mattering. Until then: `SQLite` (core-provided) is detected directly --
-    it's what every test fixture and single-tree/dev deployment actually
-    runs, so guessing PostgreSQL for it would emit `jsonb_extract_path(...)`
-    against a real SQLite connection and fail outright, not just sort wrong.
-    Anything else (`SharedPostgreSQL`, the single-user `PostgreSQL` addon)
-    falls back to PostgreSQL, since that covers every other backend this
-    project targets today.
+    Core `DBAPI`/`SQLite` and the `SharedPostgreSQL` addon don't advertise a
+    `.dialect` attribute yet (proposed but unmerged core-side,
+    gramps-project/gramps#2178); the single-user `PostgreSQL` addon already
+    does (`dialect = "postgresql"`), so that case is read straight off
+    `basedb` when present. Otherwise: `SQLite` (core-provided) is detected
+    directly -- it's what every test fixture and single-tree/dev deployment
+    actually runs, so guessing PostgreSQL for it would emit
+    `jsonb_extract_path(...)` against a real SQLite connection and fail
+    outright, not just sort wrong. Anything else (`SharedPostgreSQL`) falls
+    back to PostgreSQL, since that's the only other backend this project
+    targets today.
     """
     name: Optional[str] = getattr(basedb, "dialect", None)
     if name:
@@ -333,6 +344,27 @@ def _resolve_dialect(basedb: Any) -> Dialect:
     if isinstance(basedb, SQLite):
         return Dialect.SQLITE
     return Dialect.POSTGRESQL
+
+
+def _resolve_treeid(basedb: Any) -> Optional[int]:
+    """Current tree's integer ID, for shared multi-tree backends only.
+
+    `SharedPostgreSQL` stores every tree's rows together in the same
+    physical tables, discriminated by a `treeid` column that's part of
+    every object table's primary key. Nothing applies that filter
+    automatically at the connection/execute level -- every one of
+    `SharedDBAPI`'s own query methods (`get_person_handles`, etc.) adds
+    `WHERE treeid = ?` by hand. Any raw SQL issued directly against
+    `.dbapi`, as this compiler and `util.py`'s `_iter_handles()` both do,
+    MUST add it too, or it silently returns rows from every tree sharing
+    the instance -- not just the caller's own.
+
+    Returns `None` for single-tree-per-database backends (`SQLite`, the
+    single-user `PostgreSQL` addon), which have no `treeid` column at all
+    -- `compile_query`/`compile_count_query`/`_resolve_after` all treat
+    `None` as "omit the clause", not "unscoped is fine by default".
+    """
+    return getattr(basedb.dbapi, "treeid", None)
 
 
 class ObjectQueryResource(ProtectedResource):
@@ -371,6 +403,7 @@ class ObjectQueryResource(ProtectedResource):
             abort_with_message(
                 501, "Structured query is not supported on this database backend"
             )
+        treeid = _resolve_treeid(basedb)
 
         can_view_private = has_permissions({PERM_VIEW_PRIVATE})
 
@@ -386,7 +419,7 @@ class ObjectQueryResource(ProtectedResource):
         after = None
         if args.get("after"):
             after = _resolve_after(
-                basedb, self.spec, order_by, args["after"], can_view_private
+                basedb, self.spec, order_by, args["after"], can_view_private, treeid
             )
 
         # `default=False`, deliberately: falling back to the system locale
@@ -424,10 +457,15 @@ class ObjectQueryResource(ProtectedResource):
                 can_view_private=can_view_private,
                 collation=collation,
                 dialect=dialect,
+                treeid=treeid,
             )
             count_sql, count_params = (
                 compile_count_query(
-                    self.spec, query, can_view_private=can_view_private, dialect=dialect
+                    self.spec,
+                    query,
+                    can_view_private=can_view_private,
+                    dialect=dialect,
+                    treeid=treeid,
                 )
                 if args["count"]
                 else (None, None)

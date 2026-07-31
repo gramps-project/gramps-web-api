@@ -530,11 +530,24 @@ def _where_clauses(
     where: Optional[Any],
     can_view_private: bool,
     dialect: Optional[Dialect] = None,
+    treeid: Optional[int] = None,
 ) -> Tuple[list, list]:
-    """Shared `WHERE`-clause + privacy-predicate building.
+    """Shared `WHERE`-clause + privacy/tree-scoping predicate building.
 
     Used by both `compile_query` and `compile_count_query`, so the two can't
-    drift on how privacy is enforced.
+    drift on how privacy or tree-scoping is enforced.
+
+    `treeid`, when given, appends `AND treeid = ?` -- required on shared
+    multi-tree backends (`SharedPostgreSQL`), whose tables hold every tree's
+    rows together with `treeid` as part of the primary key. Nothing applies
+    this filter automatically at the connection level; every one of
+    `SharedDBAPI`'s own query methods (`get_person_handles`, etc.) adds it
+    by hand, so this compiler must too, or it silently returns rows from
+    every tree sharing the instance -- not just the caller's own. `None`
+    (the default) omits the clause entirely, for single-tree-per-database
+    backends (`SQLite`, the single-user `PostgreSQL` addon) that have no
+    `treeid` column at all -- see `resources/object_query.py`'s
+    `_resolve_treeid`.
     """
     clauses = []
     params: list = []
@@ -544,6 +557,9 @@ def _where_clauses(
         params.extend(p)
     if spec.has_privacy and not can_view_private:
         clauses.append("private = 0")
+    if treeid is not None:
+        clauses.append("treeid = ?")
+        params.append(treeid)
     return clauses, params
 
 
@@ -554,6 +570,7 @@ def compile_query(
     can_view_private: bool = False,
     collation: Optional[str] = None,
     dialect: Optional[Dialect] = None,
+    treeid: Optional[int] = None,
 ) -> Tuple[str, list]:
     """Compile a `Query` into a parameterized `SELECT ... FROM <spec.table>` statement.
 
@@ -563,7 +580,8 @@ def compile_query(
     `AND private = 0` is appended unless `can_view_private` is set or the
     type has no `private` column (`spec.has_privacy` is `False`, as for
     `Tag`) -- not a query option, baked in so it cannot be omitted by a
-    malformed or malicious request.
+    malformed or malicious request. `AND treeid = ?` is appended the same
+    non-optional way whenever `treeid` is given -- see `_where_clauses`.
 
     `collation`, if given, names a locale collation already ensured to exist
     on the connection (see `resources/object_query.py`'s `_resolve_collation`)
@@ -590,7 +608,7 @@ def compile_query(
         params.extend(p)
 
     where_clauses, where_params = _where_clauses(
-        spec, query.where, can_view_private, dialect
+        spec, query.where, can_view_private, dialect, treeid
     )
     params.extend(where_params)
 
@@ -619,15 +637,19 @@ def compile_count_query(
     *,
     can_view_private: bool = False,
     dialect: Optional[Dialect] = None,
+    treeid: Optional[int] = None,
 ) -> Tuple[str, list]:
     """Compile a `Query` into a parameterized `SELECT COUNT(*) FROM <spec.table>`.
 
-    Uses the same `where` and privacy logic as `compile_query` -- see there
-    for details -- but ignores `select`/`order_by`/`limit`/`after`, since a
-    count has no columns, sort order, or page to return. In particular this
-    is a count of *all* matching rows, not of just the current keyset page.
+    Uses the same `where`, privacy, and tree-scoping logic as `compile_query`
+    -- see there for details -- but ignores `select`/`order_by`/`limit`/
+    `after`, since a count has no columns, sort order, or page to return. In
+    particular this is a count of *all* matching rows, not of just the
+    current keyset page.
     """
-    where_clauses, params = _where_clauses(spec, query.where, can_view_private, dialect)
+    where_clauses, params = _where_clauses(
+        spec, query.where, can_view_private, dialect, treeid
+    )
     sql = f"SELECT COUNT(*) FROM {spec.table}"
     if where_clauses:
         sql += " WHERE " + " AND ".join(where_clauses)

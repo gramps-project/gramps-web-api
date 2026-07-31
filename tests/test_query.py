@@ -108,6 +108,53 @@ def test_compile_count_query_no_where_no_params():
     assert params == []
 
 
+# --- treeid scoping (SharedPostgreSQL multi-tree isolation) -----------------
+#
+# SharedPostgreSQL stores every tree's rows in the same physical tables,
+# distinguished only by a `treeid` column that's part of every table's
+# primary key. Nothing applies this filter automatically -- without it,
+# these queries would return rows from every tree sharing the instance, not
+# just the caller's own.
+
+
+def test_compile_query_omits_treeid_clause_by_default():
+    # Single-tree-per-database backends (SQLite, single-user PostgreSQL)
+    # have no `treeid` column at all -- omitting `treeid` must not add a
+    # clause referencing a column that doesn't exist there.
+    sql, params = compile_query(PERSON, Query(), can_view_private=True)
+    assert "treeid" not in sql
+    assert None not in params
+
+
+def test_compile_query_adds_treeid_clause_when_given():
+    sql, params = compile_query(PERSON, Query(), can_view_private=True, treeid=7)
+    assert "treeid = ?" in sql
+    assert 7 in params
+
+
+def test_compile_query_treeid_clause_combines_with_where_and_privacy():
+    query = Query(where=Eq("gender", 1))
+    sql, params = compile_query(PERSON, query, treeid=7)
+    assert "(gender = ?)" in sql
+    assert "private = 0" in sql
+    assert "treeid = ?" in sql
+    assert params[0] == 1  # where value
+    assert 7 in params[1:-1]  # treeid, before LIMIT
+    assert params[-1] == query.limit
+
+
+def test_compile_count_query_adds_treeid_clause_when_given():
+    sql, params = compile_count_query(PERSON, Query(), can_view_private=True, treeid=7)
+    assert sql == "SELECT COUNT(*) FROM person WHERE treeid = ?"
+    assert params == [7]
+
+
+def test_compile_count_query_omits_treeid_clause_by_default():
+    sql, params = compile_count_query(PERSON, Query(), can_view_private=True)
+    assert "treeid" not in sql
+    assert params == []
+
+
 # --- JsonPath -----------------------------------------------------------
 
 

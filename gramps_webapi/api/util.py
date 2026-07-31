@@ -184,10 +184,22 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
     def _iter_handles(self, obj_key):
         """
         Return an iterator over handles in the database
+
+        On `SharedPostgreSQL`, every tree's rows live in the same physical
+        tables discriminated by a `treeid` column -- nothing applies that
+        filter automatically at the connection level, so this raw query
+        must add it explicitly (`self.basedb.dbapi.treeid`, present only on
+        that backend) or it returns handles from every tree sharing the
+        instance, not just this one.
         """
         table = KEY_TO_NAME_MAP[obj_key]
-        sql = "SELECT handle FROM %s WHERE private=0" % table
-        self.basedb.dbapi.execute(sql)
+        treeid = getattr(self.basedb.dbapi, "treeid", None)
+        if treeid is None:
+            sql = "SELECT handle FROM %s WHERE private=0" % table
+            self.basedb.dbapi.execute(sql)
+        else:
+            sql = "SELECT handle FROM %s WHERE private=0 AND treeid=?" % table
+            self.basedb.dbapi.execute(sql, [treeid])
         rows = self.basedb.dbapi.fetchall()
         for row in rows:
             yield row[0]
