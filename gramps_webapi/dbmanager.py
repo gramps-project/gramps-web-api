@@ -81,6 +81,7 @@ class WebDbManager:
         self._check_backend()
         if self._created:
             self._initialize_db()
+            self._publish()
 
     @property
     def dbdir(self) -> str:
@@ -144,21 +145,14 @@ class WebDbManager:
         # create database
         make_database(self.create_backend)
 
-        # create dbid file before the name file, which is what makes the tree
-        # discoverable: without it, get_dbid_from_path falls back to 'bsddb'
+        # create dbid file.  The name file is deliberately not written here:
+        # it is what makes the tree discoverable, and a tree must not be
+        # discoverable before its database has been initialized.
         backend_path = os.path.join(path, DBBACKEND)
         with open(backend_path, "w", encoding="utf8") as backend_file:
             backend_file.write(self.create_backend)
 
-        # create name file
-        path_name = os.path.join(path, NAME_FILE)
-        with open(path_name, "w", encoding="utf8") as name_file:
-            name_file.write(self.name)
-
-        # cache the name written to disk so get_db() doesn't re-read name.txt
-        self._name_from_file = self.name
         # populate module-level caches so subsequent requests skip disk reads
-        _name_cache[path] = self.name
         try:
             backend_mtime = os.stat(backend_path).st_mtime_ns
         except OSError:
@@ -177,6 +171,15 @@ class WebDbManager:
             dbstate.db.close()
         finally:
             dbstate.db.undodb.close()
+
+    def _publish(self) -> None:
+        """Write the name file of a newly created tree, making it discoverable."""
+        path_name = os.path.join(self.path, NAME_FILE)
+        with open(path_name, "w", encoding="utf8") as name_file:
+            name_file.write(self.name)
+        # cache the name written to disk so get_db() doesn't re-read name.txt
+        self._name_from_file = self.name
+        _name_cache[self.path] = self.name
 
     def _check_backend(self) -> None:
         """Check that the backend is among the allowed backends."""
