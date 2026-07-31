@@ -1076,7 +1076,17 @@ class TestOIDCLogoutEndpoint(unittest.TestCase):
         mock_oidc_enabled.return_value = True
         mock_providers.return_value = ["google"]
 
-        rv = self.client.get(BASE_URL + "/oidc/logout/?provider=google")
+        # init_oidc() registers the authlib extension whenever OIDC is enabled,
+        # even when it then skips every provider, so the extension has to be
+        # present for this to reproduce the real misconfiguration.
+        mock_oauth = MagicMock()
+        mock_oauth.gramps_google = None
+        with patch.dict(
+            self.client.application.extensions,
+            {"authlib.integrations.flask_client": mock_oauth},
+            clear=False,
+        ):
+            rv = self.client.get(BASE_URL + "/oidc/logout/?provider=google")
         self.assertEqual(rv.status_code, 400)
         self.assertIn("not available", rv.get_json()["error"]["message"])
 
