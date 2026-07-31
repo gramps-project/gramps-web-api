@@ -74,11 +74,12 @@ from .query import (
     ObjectTypeSpec,
 )
 
-# Namespace -> ObjectTypeSpec. Full names are the primary, unambiguous form.
-# Single-letter aliases are convenience only, and NOT the same scheme Gramps'
-# own `gramps_id` prefixes use (there, P = Place, I = Person) -- confirm
-# these are actually what's wanted before relying on them anywhere.
-_NAMESPACES: dict[str, ObjectTypeSpec] = {
+# Namespace -> ObjectTypeSpec. Both the lowercase form and the actual Gramps
+# class-name casing (Person, Family, ...) are accepted; no single-letter
+# aliases -- those aren't what was asked for, and Gramps' own gramps_id
+# prefixes (P = Place, I = Person, ...) don't line up with the object names
+# anyway, so a letter scheme here would just invite confusion.
+_NAMES = {
     "person": PERSON,
     "family": FAMILY,
     "event": EVENT,
@@ -89,17 +90,10 @@ _NAMESPACES: dict[str, ObjectTypeSpec] = {
     "media": MEDIA,
     "note": NOTE,
     "tag": TAG,
-    # Single-letter aliases (unambiguous ones only -- "P" is deliberately
-    # omitted since person/place both plausibly want it; call by full name
-    # until that's settled).
-    "F": FAMILY,
-    "E": EVENT,
-    "R": REPOSITORY,
-    "S": SOURCE,
-    "C": CITATION,
-    "M": MEDIA,
-    "N": NOTE,
-    "T": TAG,
+}
+_NAMESPACES: dict[str, ObjectTypeSpec] = {
+    **_NAMES,
+    **{name.capitalize(): spec for name, spec in _NAMES.items()},
 }
 
 
@@ -108,7 +102,7 @@ class QueryLangError(ValueError):
 
 
 def resolve_namespace(namespace: str) -> ObjectTypeSpec:
-    """Look up the `ObjectTypeSpec` for a namespace string (`"person"`, `"F"`, ...)."""
+    """Look up the `ObjectTypeSpec` for a namespace string (`"person"` or `"Person"`, ...)."""
     try:
         return _NAMESPACES[namespace]
     except KeyError:

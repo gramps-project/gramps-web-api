@@ -28,12 +28,13 @@ from gramps_webapi.api.query import PERSON, FAMILY
 # --- namespace resolution -----------------------------------------------------
 
 
-def test_resolve_namespace_full_name():
+def test_resolve_namespace_lowercase():
     assert resolve_namespace("person") is PERSON
 
 
-def test_resolve_namespace_single_letter_alias():
-    assert resolve_namespace("F") is FAMILY
+def test_resolve_namespace_class_name_casing():
+    assert resolve_namespace("Person") is PERSON
+    assert resolve_namespace("Family") is FAMILY
 
 
 def test_resolve_namespace_unknown_raises():
@@ -41,9 +42,7 @@ def test_resolve_namespace_unknown_raises():
         resolve_namespace("bogus")
 
 
-def test_resolve_namespace_person_has_no_single_letter_alias():
-    # Deliberately unassigned -- conflicts with Gramps' own gramps_id
-    # convention (P = Place, I = Person). Use "person" until this is settled.
+def test_resolve_namespace_no_single_letter_alias():
     with pytest.raises(QueryLangError):
         resolve_namespace("P")
 
