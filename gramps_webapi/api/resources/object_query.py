@@ -69,6 +69,7 @@ from ..query import (
     compile_count_query,
     compile_query,
 )
+from ..query_lang import QueryLangError, parse_expr_for_spec
 from ..util import abort_with_message, get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .schemas import ObjectQueryResponseSchema
@@ -140,6 +141,16 @@ class QueryBodyArgs(Schema):
         wf.Nested(QueryWhereConditionArgs),
         required=False,
         metadata={"description": "Leaf conditions, implicitly combined with AND."},
+    )
+    where_expr = wf.Str(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Alternative to `where`: an \"almost Python\" expression, "
+            "e.g. \"gender == 1 and primary_name.surname_list[0].surname == 'Smith'\". "
+            "See `query_lang.py`. Mutually exclusive with `where` -- a request "
+            "setting both is rejected."
+        },
     )
     order_by = wf.List(
         wf.Nested(QueryOrderByArgs),
@@ -259,6 +270,28 @@ def _build_where(conditions: Optional[Sequence[dict]]):
     if len(exprs) == 1:
         return exprs[0]
     return And(*exprs)
+
+
+def _resolve_where_conditions(
+    args: dict, spec: ObjectTypeSpec
+) -> Optional[Sequence[dict]]:
+    """Get the leaf-condition list to feed `_build_where`, from `where` or `where_expr`.
+
+    Mutually exclusive: a request setting both is rejected rather than
+    defining merge semantics nobody asked for. `where_expr` is parsed
+    directly against `spec` (`parse_expr_for_spec`, not the namespace-string
+    `parse_expr`) -- the endpoint already knows its own type from `self.spec`,
+    so asking the client to also name it via a namespace string would be
+    redundant.
+    """
+    if args.get("where") and args.get("where_expr"):
+        abort_with_message(422, "'where' and 'where_expr' are mutually exclusive")
+    if args.get("where_expr"):
+        try:
+            return parse_expr_for_spec(spec, args["where_expr"])
+        except QueryLangError as error:
+            abort_with_message(422, str(error))
+    return args.get("where")
 
 
 def _resolve_after(
@@ -447,7 +480,7 @@ class ObjectQueryResource(ProtectedResource):
 
             query = Query(
                 select=fetch_refs,
-                where=_build_where(args.get("where")),
+                where=_build_where(_resolve_where_conditions(args, self.spec)),
                 order_by=order_by,
                 limit=args["limit"],
                 after=after,

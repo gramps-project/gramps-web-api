@@ -233,6 +233,23 @@ def _translate_top_level(node: ast.AST, spec: ObjectTypeSpec) -> List[dict]:
     return [_translate_comparison_like_node(node, spec)]
 
 
+def parse_expr_for_spec(spec: ObjectTypeSpec, expr: str) -> List[dict]:
+    """Parse an "almost Python" expression against an already-known `ObjectTypeSpec`.
+
+    For callers that already know their target type and don't need (or
+    want) a namespace string -- e.g. `resources/object_query.py`'s
+    `where_expr` field, where each endpoint's own `self.spec` already fixes
+    the type; asking the client to also name it via a namespace string would
+    be redundant. `parse_expr()` below is the namespace-string-based
+    equivalent, for standalone/library use where there's no such context.
+    """
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except SyntaxError as error:
+        raise QueryLangError(f"invalid syntax: {error}") from error
+    return _translate_top_level(tree.body, spec)
+
+
 def parse_expr(namespace: str, expr: str) -> List[dict]:
     """Parse an "almost Python" expression into a `where` condition list.
 
@@ -248,8 +265,4 @@ def parse_expr(namespace: str, expr: str) -> List[dict]:
     `eval`/`compile`/`exec`).
     """
     spec = resolve_namespace(namespace)
-    try:
-        tree = ast.parse(expr, mode="eval")
-    except SyntaxError as error:
-        raise QueryLangError(f"invalid syntax: {error}") from error
-    return _translate_top_level(tree.body, spec)
+    return parse_expr_for_spec(spec, expr)

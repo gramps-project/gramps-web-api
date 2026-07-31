@@ -29,6 +29,7 @@ module). Full request/response wiring is still covered by
 
 import pytest
 from gramps.plugins.db.dbapi.sqlite import SQLite
+from werkzeug.exceptions import HTTPException
 
 from gramps_webapi.api.query import PERSON, Dialect, JsonPath, OrderBy, QueryError
 from gramps_webapi.api.resources.object_query import (
@@ -39,6 +40,7 @@ from gramps_webapi.api.resources.object_query import (
     _resolve_after,
     _resolve_dialect,
     _resolve_treeid,
+    _resolve_where_conditions,
 )
 
 
@@ -268,3 +270,48 @@ def test_resolve_after_adds_treeid_clause_when_given():
     sql, params = basedb.dbapi.calls[0]
     assert "AND treeid = ?" in sql
     assert params == ["h1", 7]
+
+
+# --- _resolve_where_conditions (where / where_expr mutual exclusivity) ----------
+
+
+def test_resolve_where_conditions_plain_where_passthrough():
+    conditions = [{"column": "gender", "op": "eq", "value": 1}]
+    assert _resolve_where_conditions({"where": conditions}, PERSON) == conditions
+
+
+def test_resolve_where_conditions_neither_given_returns_none():
+    assert _resolve_where_conditions({}, PERSON) is None
+
+
+def test_resolve_where_conditions_where_expr_parsed_against_spec():
+    result = _resolve_where_conditions({"where_expr": "gender == 1"}, PERSON)
+    assert result == [{"column": "gender", "op": "eq", "value": 1}]
+
+
+def test_resolve_where_conditions_where_expr_json_path():
+    result = _resolve_where_conditions(
+        {"where_expr": "primary_name.surname_list[0].surname == 'Smith'"}, PERSON
+    )
+    assert result == [
+        {
+            "column": {"json_path": ["primary_name", "surname_list", 0, "surname"]},
+            "op": "eq",
+            "value": "Smith",
+        }
+    ]
+
+
+def test_resolve_where_conditions_both_given_rejected():
+    with pytest.raises(HTTPException) as exc_info:
+        _resolve_where_conditions(
+            {"where": [{"column": "gender", "op": "eq", "value": 1}], "where_expr": "gender == 1"},
+            PERSON,
+        )
+    assert exc_info.value.code == 422
+
+
+def test_resolve_where_conditions_invalid_expr_rejected():
+    with pytest.raises(HTTPException) as exc_info:
+        _resolve_where_conditions({"where_expr": "gender == 1 or gender == 2"}, PERSON)
+    assert exc_info.value.code == 422
