@@ -1619,6 +1619,14 @@ class ObjectQueryResponseSchema(_Base):
             "or null if this was the last page."
         },
     )
+    total_count = fields.Int(
+        allow_none=True,
+        metadata={
+            "description": "Total number of rows matching `where` (and privacy), "
+            "independent of `limit`/`after`. Only present when the request set "
+            "`count: true`; null otherwise."
+        },
+    )
 
 
 class PersonExtendedSchema(_Base):

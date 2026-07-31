@@ -62,6 +62,7 @@ from ..query import (
     QueryError,
     after_columns,
     check_columns,
+    compile_count_query,
     compile_query,
 )
 from ..util import abort_with_message, get_db_handle, get_locale_for_language
@@ -150,6 +151,14 @@ class QueryBodyArgs(Schema):
         metadata={
             "description": "Language code for locale-aware sorting of text columns "
             "(e.g. 'de', 'fr'). Affects ORDER BY only, not filtering."
+        },
+    )
+    count = wf.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, also return `total_count`: the total number of "
+            "rows matching `where` (and privacy), independent of `limit`/`after`. "
+            "Costs a second query, so it's opt-in."
         },
     )
 
@@ -299,11 +308,21 @@ class ObjectQueryResource(ProtectedResource):
             sql, params = compile_query(
                 self.spec, query, can_view_private=can_view_private, collation=collation
             )
+            count_sql, count_params = (
+                compile_count_query(self.spec, query, can_view_private=can_view_private)
+                if args["count"]
+                else (None, None)
+            )
         except QueryError as error:
             abort_with_message(422, str(error))
 
         basedb.dbapi.execute(sql, params)
         rows = basedb.dbapi.fetchall()
+
+        total_count = None
+        if count_sql is not None:
+            basedb.dbapi.execute(count_sql, count_params)
+            total_count = basedb.dbapi.fetchone()[0]
 
         handle_index = fetch_columns.index("handle")
         requested = set(requested_columns)
@@ -313,7 +332,7 @@ class ObjectQueryResource(ProtectedResource):
         ]
         next_after = rows[-1][handle_index] if len(rows) == args["limit"] else None
 
-        return {"items": items, "next_after": next_after}
+        return {"items": items, "next_after": next_after, "total_count": total_count}
 
 
 class PersonQueryResource(ObjectQueryResource):

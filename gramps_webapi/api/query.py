@@ -387,6 +387,25 @@ def _compile_keyset(
     return " OR ".join(or_terms), params
 
 
+def _where_clauses(
+    spec: ObjectTypeSpec, where: Optional[Any], can_view_private: bool
+) -> Tuple[list, list]:
+    """Shared `WHERE`-clause + privacy-predicate building.
+
+    Used by both `compile_query` and `compile_count_query`, so the two can't
+    drift on how privacy is enforced.
+    """
+    clauses = []
+    params: list = []
+    if where is not None:
+        sql, p = where.compile(spec.columns)
+        clauses.append(f"({sql})")
+        params.extend(p)
+    if spec.has_privacy and not can_view_private:
+        clauses.append("private = 0")
+    return clauses, params
+
+
 def compile_query(
     spec: ObjectTypeSpec,
     query: Query,
@@ -417,16 +436,7 @@ def compile_query(
     for ob in effective_order_by:
         _check_column(ob.column, spec.columns)
 
-    where_clauses = []
-    params: list = []
-
-    if query.where is not None:
-        sql, p = query.where.compile(spec.columns)
-        where_clauses.append(f"({sql})")
-        params.extend(p)
-
-    if spec.has_privacy and not can_view_private:
-        where_clauses.append("private = 0")
+    where_clauses, params = _where_clauses(spec, query.where, can_view_private)
 
     if query.after is not None:
         sql, p = _compile_keyset(effective_order_by, query.after, spec, collation)
@@ -445,4 +455,21 @@ def compile_query(
         sql += " LIMIT ?"
         params.append(query.limit)
 
+    return sql, params
+
+
+def compile_count_query(
+    spec: ObjectTypeSpec, query: Query, *, can_view_private: bool = False
+) -> Tuple[str, list]:
+    """Compile a `Query` into a parameterized `SELECT COUNT(*) FROM <spec.table>`.
+
+    Uses the same `where` and privacy logic as `compile_query` -- see there
+    for details -- but ignores `select`/`order_by`/`limit`/`after`, since a
+    count has no columns, sort order, or page to return. In particular this
+    is a count of *all* matching rows, not of just the current keyset page.
+    """
+    where_clauses, params = _where_clauses(spec, query.where, can_view_private)
+    sql = f"SELECT COUNT(*) FROM {spec.table}"
+    if where_clauses:
+        sql += " WHERE " + " AND ".join(where_clauses)
     return sql, params

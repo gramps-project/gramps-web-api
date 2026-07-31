@@ -38,6 +38,7 @@ from gramps_webapi.api.query import (
     Query,
     QueryError,
     after_columns,
+    compile_count_query,
     compile_query,
 )
 
@@ -64,6 +65,45 @@ def test_compile_query_skips_privacy_clause_for_types_without_it():
     query = Query(select=["handle"])
     sql, _ = compile_query(TAG, query)
     assert "private" not in sql
+
+
+def test_compile_count_query_shape():
+    query = Query(where=Eq("gender", 1))
+    sql, params = compile_count_query(PERSON, query)
+    assert sql == "SELECT COUNT(*) FROM person WHERE (gender = ?) AND private = 0"
+    assert params == [1]
+
+
+def test_compile_count_query_ignores_select_order_by_limit_after():
+    # A count has no columns, sort order, or page -- only `where` (+privacy)
+    # should affect it, matching total rows across the whole result set.
+    query = Query(
+        select=["handle", "surname"],
+        order_by=[OrderBy("surname", "desc")],
+        limit=5,
+        after=("Smith", "h1"),
+    )
+    sql, params = compile_count_query(PERSON, query)
+    assert sql == "SELECT COUNT(*) FROM person WHERE private = 0"
+    assert params == []
+
+
+def test_compile_count_query_respects_can_view_private():
+    query = Query()
+    sql, _ = compile_count_query(PERSON, query, can_view_private=True)
+    assert "private" not in sql
+
+
+def test_compile_count_query_skips_privacy_clause_for_types_without_it():
+    sql, params = compile_count_query(TAG, Query())
+    assert sql == "SELECT COUNT(*) FROM tag"
+    assert params == []
+
+
+def test_compile_count_query_no_where_no_params():
+    sql, params = compile_count_query(PERSON, Query(), can_view_private=True)
+    assert sql == "SELECT COUNT(*) FROM person"
+    assert params == []
 
 
 def test_compile_query_uses_spec_table_and_columns():
