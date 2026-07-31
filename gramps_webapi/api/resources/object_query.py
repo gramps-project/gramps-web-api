@@ -111,9 +111,21 @@ class QueryWhereConditionArgs(Schema):
         },
     )
     value = wf.Raw(
-        required=True,
+        required=False,
         metadata={
-            "description": "Value to compare against. Must be a list when op is 'in'."
+            "description": "Value to compare against. Must be a list when op is "
+            "'in'. Mutually exclusive with 'value_column'; exactly one is required."
+        },
+    )
+    value_column = wf.Raw(
+        required=False,
+        metadata={
+            "description": "Alternative to 'value': compare 'column' against "
+            "another column/path instead of a literal, e.g. families where the "
+            "mother died before the father -- column: {'json_path': ['mother', "
+            "'death', 'date', 'sortval']}, op: 'lt', value_column: {'json_path': "
+            "['father', 'death', 'date', 'sortval']}. Same shape as 'column' "
+            "(plain name or {'json_path': [...]}). Not supported for 'in'/'like'."
         },
     )
 
@@ -311,14 +323,35 @@ def _normalize_json_value(value: Any) -> Any:
 
 
 def _build_where(conditions: Optional[Sequence[dict]], spec: ObjectTypeSpec):
-    """Build a `query.py` WHERE expression from parsed leaf conditions."""
+    """Build a `query.py` WHERE expression from parsed leaf conditions.
+
+    Each condition carries exactly one of `value` (a literal) or
+    `value_column` (another path, for a field-vs-field comparison, e.g.
+    "families where the mother died before the father") -- validated here
+    since webargs' per-field `required=` can't express "exactly one of
+    these two", the same reason `where`/`where_expr` mutual exclusivity is
+    checked in `_resolve_where_conditions` rather than the schema.
+    """
     if not conditions:
         return None
     exprs: list[Any] = []
     for condition in conditions:
         column = _parse_column_ref(condition["column"], spec)
         op = condition["op"]
-        value = condition["value"]
+        has_value = "value" in condition
+        has_value_column = "value_column" in condition
+        if has_value == has_value_column:
+            abort_with_message(
+                422, "exactly one of 'value'/'value_column' is required"
+            )
+        if has_value_column:
+            if op in ("in", "like"):
+                abort_with_message(
+                    422, f"'value_column' is not supported for op {op!r}"
+                )
+            value = _parse_column_ref(condition["value_column"], spec)
+        else:
+            value = condition["value"]
         if op == "in":
             if not isinstance(value, list) or not value:
                 abort_with_message(422, "'in' operator requires a non-empty list value")

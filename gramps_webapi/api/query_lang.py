@@ -270,6 +270,27 @@ def _translate_list(node: ast.AST) -> List[Any]:
     return [_translate_value(elt) for elt in node.elts]
 
 
+def _is_path_node(node: ast.AST) -> bool:
+    """Is `node` a path reference (`Name`/`Attribute`/`Subscript` chain),
+    rather than a literal/`Date(...)`/`ClassName.CONST`?
+
+    The one ambiguous shape is a single-level `Attribute(Name, attr)` --
+    `Person.MALE` (a constant) and `father.surname` (a path) look
+    identical syntactically. Disambiguated the same way `_translate_value`
+    already does: whether the base `Name` is a known constant class
+    (`_CONSTANT_CLASSES`). Anything deeper (`a.b.c`, `a[0].b`) is
+    unambiguously a path -- that shape is never valid for a constant
+    (`_translate_value` only recognizes exactly one `Attribute` level).
+    """
+    if isinstance(node, (ast.Name, ast.Subscript)):
+        return True
+    if isinstance(node, ast.Attribute):
+        if isinstance(node.value, ast.Name) and node.value.id in _CONSTANT_CLASSES:
+            return False
+        return True
+    return False
+
+
 def _translate_compare(node: ast.Compare, spec: ObjectTypeSpec) -> dict:
     if len(node.ops) != 1 or len(node.comparators) != 1:
         # `a < b < c` -- Python allows chained comparisons; we don't.
@@ -284,12 +305,19 @@ def _translate_compare(node: ast.Compare, spec: ObjectTypeSpec) -> dict:
         )
     op = _COMPARE_OPS[op_type]
     column = _translate_column(node.left, spec)
+    rhs = node.comparators[0]
     if op == "in":
-        value = _translate_list(node.comparators[0])
+        value = _translate_list(rhs)
         if not value:
             raise QueryLangError("'in' requires a non-empty list")
-    else:
-        value = _translate_value(node.comparators[0])
+        return {"column": column, "op": op, "value": value}
+    if _is_path_node(rhs):
+        # Field-vs-field: "families where mother.death.date.sortval <
+        # father.death.date.sortval" -- the right-hand side is itself a
+        # path, not a value to bind.
+        value_column = _translate_column(rhs, spec)
+        return {"column": column, "op": op, "value_column": value_column}
+    value = _translate_value(rhs)
     return {"column": column, "op": op, "value": value}
 
 

@@ -661,6 +661,143 @@ def test_related_object_sortval_end_to_end_sqlite_execution():
     assert rows == [("p1",)]
 
 
+# --- Field-vs-field comparisons (e.g. "mother died before father") -------------
+
+MOTHER_DEATH_SORTVAL = resolve_column_path(FAMILY, ["mother", "death", "date", "sortval"])
+FATHER_DEATH_SORTVAL = resolve_column_path(FAMILY, ["father", "death", "date", "sortval"])
+
+
+def test_field_vs_field_sqlite_shape():
+    sql, params = compile_query(
+        FAMILY,
+        Query(select=["handle"], where=Lt(MOTHER_DEATH_SORTVAL, FATHER_DEATH_SORTVAL)),
+        dialect=Dialect.SQLITE,
+        can_view_private=True,
+    )
+    assert "JOIN" not in sql
+    # Both sides are independently-rendered correlated subqueries, joined
+    # by the operator directly -- no ? placeholder between them.
+    assert sql.count("SELECT (SELECT json_extract(json_data, ?)") == 2
+    assert "family.mother_handle" in sql
+    assert "family.father_handle" in sql
+    assert " < " in sql
+    assert params == ["$.date.sortval", "$.date.sortval", 50]
+
+
+def test_field_vs_field_postgresql_numeric_cast_both_sides():
+    sql, params = compile_query(
+        FAMILY,
+        Query(select=["handle"], where=Lt(MOTHER_DEATH_SORTVAL, FATHER_DEATH_SORTVAL)),
+        dialect=Dialect.POSTGRESQL,
+        can_view_private=True,
+    )
+    # Ordering comparison between two paths: both sides get the numeric
+    # cast (via a dummy int hint, since there's no literal runtime value
+    # to infer it from) -- not the default TEXT extraction, which would
+    # compare lexicographically.
+    assert sql.count("CAST(jsonb_extract_path(json_data::jsonb, ?, ?) AS NUMERIC)") == 2
+    assert "jsonb_extract_path_text" not in sql
+
+
+def test_field_vs_field_equality_stays_text_both_sides():
+    # Eq/Ne don't need the numeric-cast hint -- exact TEXT match is correct
+    # regardless of whether the underlying value is numeric or textual, as
+    # long as both sides extract the same way (they do).
+    sql, params = compile_query(
+        FAMILY,
+        Query(select=["handle"], where=Eq(MOTHER_DEATH_SORTVAL, FATHER_DEATH_SORTVAL)),
+        dialect=Dialect.POSTGRESQL,
+        can_view_private=True,
+    )
+    assert sql.count("jsonb_extract_path_text(json_data::jsonb, ?, ?)") == 2
+    assert "CAST" not in sql
+
+
+def test_field_vs_field_two_hop_chain():
+    # birth.place.title compared against a literal still works fine
+    # alongside field-vs-field elsewhere -- confirms the two mechanisms
+    # (field-vs-value and field-vs-field) don't interfere.
+    birth_place_title = resolve_column_path(PERSON, ["birth", "place", "title"])
+    sql, params = compile_query(
+        PERSON,
+        Query(select=["handle"], where=Eq(birth_place_title, "Chicago")),
+        dialect=Dialect.SQLITE,
+        can_view_private=True,
+    )
+    assert params[-2:] == ["Chicago", 50]
+
+
+def test_field_vs_field_privacy_and_treeid_apply_independently_to_each_side():
+    sql, params = compile_query(
+        FAMILY,
+        Query(select=["handle"], where=Lt(MOTHER_DEATH_SORTVAL, FATHER_DEATH_SORTVAL)),
+        dialect=Dialect.SQLITE,
+        can_view_private=False,
+        treeid=7,
+    )
+    # Each side's Event *and* Person subqueries get their own privacy/treeid
+    # clause (2 chains x 2 hops = 4), plus the outer family query's own
+    # (Family has a private column too) -- 5 of each, confirmed live rather
+    # than assumed.
+    assert sql.count("private = 0") == 5
+    assert sql.count("treeid = ?") == 5
+
+
+def test_field_vs_field_end_to_end_sqlite_execution():
+    import json
+    import sqlite3
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute(
+        "CREATE TABLE person (handle TEXT, death_ref_index INTEGER, json_data TEXT)"
+    )
+    conn.execute("CREATE TABLE event (handle TEXT, json_data TEXT)")
+    conn.execute("CREATE TABLE family (handle TEXT, father_handle TEXT, mother_handle TEXT)")
+
+    # f1: mother died 1950 (earlier), father died 1980 (later) -- mother < father matches
+    conn.execute(
+        "INSERT INTO person VALUES (?, ?, ?)",
+        ("mom1", 0, json.dumps({"event_ref_list": [{"ref": "mom1_death"}]})),
+    )
+    conn.execute(
+        "INSERT INTO person VALUES (?, ?, ?)",
+        ("dad1", 0, json.dumps({"event_ref_list": [{"ref": "dad1_death"}]})),
+    )
+    conn.execute(
+        "INSERT INTO event VALUES (?, ?)", ("mom1_death", json.dumps({"date": {"sortval": 2433283}}))
+    )
+    conn.execute(
+        "INSERT INTO event VALUES (?, ?)", ("dad1_death", json.dumps({"date": {"sortval": 2444239}}))
+    )
+    conn.execute("INSERT INTO family VALUES (?, ?, ?)", ("f1", "dad1", "mom1"))
+
+    # f2: mother died 1990 (later), father died 1960 (earlier) -- doesn't match
+    conn.execute(
+        "INSERT INTO person VALUES (?, ?, ?)",
+        ("mom2", 0, json.dumps({"event_ref_list": [{"ref": "mom2_death"}]})),
+    )
+    conn.execute(
+        "INSERT INTO person VALUES (?, ?, ?)",
+        ("dad2", 0, json.dumps({"event_ref_list": [{"ref": "dad2_death"}]})),
+    )
+    conn.execute(
+        "INSERT INTO event VALUES (?, ?)", ("mom2_death", json.dumps({"date": {"sortval": 2447893}}))
+    )
+    conn.execute(
+        "INSERT INTO event VALUES (?, ?)", ("dad2_death", json.dumps({"date": {"sortval": 2436935}}))
+    )
+    conn.execute("INSERT INTO family VALUES (?, ?, ?)", ("f2", "dad2", "mom2"))
+
+    sql, params = compile_query(
+        FAMILY,
+        Query(select=["handle"], where=Lt(MOTHER_DEATH_SORTVAL, FATHER_DEATH_SORTVAL)),
+        dialect=Dialect.SQLITE,
+        can_view_private=True,
+    )
+    rows = conn.execute(sql, params).fetchall()
+    assert rows == [("f1",)]
+
+
 def test_compile_query_uses_spec_table_and_columns():
     query = Query(select=["handle", "father_handle"])
     sql, _ = compile_query(FAMILY, query)

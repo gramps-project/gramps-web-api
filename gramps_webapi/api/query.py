@@ -576,8 +576,24 @@ def _render_column(
 # --- WHERE: comparison leaves -----------------------------------------------
 
 
+#: Operators for which a field-vs-field comparison gets a numeric-cast hint
+#: (see `Comparison.compile`) -- ordering only, not equality.
+_ORDERING_OPS = frozenset({"<", "<=", ">", ">="})
+
+
 class Comparison:
-    """Base class for single-column comparison leaves (`Eq`, `Lt`, ...)."""
+    """Base class for single-column comparison leaves (`Eq`, `Lt`, ...).
+
+    `value` is normally a literal, always bound as a `?` parameter. It can
+    also be another `JsonPath`/`RelatedObject` -- a *field-vs-field*
+    comparison, e.g. "families where the mother's death date is before the
+    father's" (`Lt(mother_death_sortval, father_death_sortval)`). Plain
+    `str` is deliberately never treated as a field reference here (only
+    `JsonPath`/`RelatedObject` are) -- a bare string is exactly as likely
+    to be a literal value (`Eq("surname", "Smith")`) as a column name, and
+    there's no way to tell which was meant; `JsonPath`/`RelatedObject`
+    carry no such ambiguity; nothing constructs one to represent a literal.
+    """
 
     op: str
 
@@ -592,14 +608,38 @@ class Comparison:
         can_view_private: bool = False,
         treeid: Optional[int] = None,
     ) -> Tuple[str, list]:
+        is_field_comparison = isinstance(self.value, (JsonPath, RelatedObject))
+        # A field-vs-field comparison has no literal runtime value to infer
+        # a numeric/boolean cast from (unlike field-vs-value) -- pick it
+        # structurally instead: an *ordering* comparison between two paths
+        # is overwhelmingly a numeric/date comparison in practice (e.g. two
+        # `sortval`s), so hint numeric via a dummy int (only its *type* is
+        # inspected by `_render_json_path`/`_render_related_object`, never
+        # its value). Equality doesn't need this: an exact TEXT match is
+        # correct whether the underlying value is numeric or textual, as
+        # long as both sides extract the same way -- which they do, so
+        # `cast_hint` naturally falls back to `self.value` there (a
+        # JsonPath/RelatedObject instance, neither bool nor numeric, so it
+        # still renders as TEXT on both sides via the existing type checks).
+        cast_hint = 0 if is_field_comparison and self.op in _ORDERING_OPS else self.value
         column_sql, column_params = _render_column(
             self.column,
             spec,
             dialect,
-            value=self.value,
+            value=cast_hint,
             can_view_private=can_view_private,
             treeid=treeid,
         )
+        if is_field_comparison:
+            value_sql, value_params = _render_column(
+                self.value,
+                spec,
+                dialect,
+                value=cast_hint,
+                can_view_private=can_view_private,
+                treeid=treeid,
+            )
+            return f"{column_sql} {self.op} {value_sql}", column_params + value_params
         return f"{column_sql} {self.op} ?", column_params + [self.value]
 
     def __eq__(self, other: object) -> bool:

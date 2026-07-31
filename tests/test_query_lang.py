@@ -303,9 +303,26 @@ def test_constant_inside_in_list():
     ]
 
 
-def test_unknown_constant_namespace_rejected():
+def test_unknown_constant_namespace_treated_as_path():
+    # `Foo.BAR`'s base name isn't a registered constant class
+    # (`_CONSTANT_CLASSES`), so `_is_path_node` can't tell it apart from a
+    # genuine (if made-up) relationship-style path like `father.surname` --
+    # same deferred-validation philosophy as any other unrecognized path
+    # segment (see test_bare_relationship_name_parses_here_rejected_downstream).
+    # It parses to a value_column, not an error, here.
+    result = parse_expr("person", "gender == Foo.BAR")
+    assert result == [
+        {"column": "gender", "op": "eq", "value_column": {"json_path": ["Foo", "BAR"]}}
+    ]
+
+
+def test_unknown_constant_namespace_still_rejected_inside_in_list():
+    # `in [...]` elements always go through `_translate_value` directly
+    # (`_translate_list` never consults `_is_path_node` -- a list literal
+    # has no path-shaped elements to disambiguate), so strict constant
+    # validation still applies there.
     with pytest.raises(QueryLangError):
-        parse_expr("person", "gender == Foo.BAR")
+        parse_expr("person", "gender in [Foo.BAR]")
 
 
 def test_unknown_constant_name_rejected():
@@ -313,12 +330,25 @@ def test_unknown_constant_name_rejected():
         parse_expr("person", "gender == Person.NOT_A_REAL_CONSTANT")
 
 
-def test_two_level_attribute_chain_rejected():
-    # Only Name.Attribute (one level) is recognized as a constant -- deeper
-    # chains fall through to "invalid literal", not treated as a constant
-    # or a path.
+def test_two_level_attribute_chain_treated_as_path():
+    # `_is_path_node` only special-cases a single-level Attribute(Name, attr)
+    # as a possible constant; a deeper chain like `a.Person.MALE` is
+    # structurally identical to any other multi-segment path (e.g.
+    # `birth.place.title`), so it's treated the same permissive way --
+    # not an error at this layer.
+    result = parse_expr("person", "gender == a.Person.MALE")
+    assert result == [
+        {
+            "column": "gender",
+            "op": "eq",
+            "value_column": {"json_path": ["a", "Person", "MALE"]},
+        }
+    ]
+
+
+def test_two_level_attribute_chain_still_rejected_inside_in_list():
     with pytest.raises(QueryLangError):
-        parse_expr("person", "gender == a.Person.MALE")
+        parse_expr("person", "gender in [a.Person.MALE]")
 
 
 # --- Date(...) call ---------------------------------------------------------------
@@ -457,3 +487,97 @@ def test_bare_relationship_name_parses_here_rejected_downstream():
     # layer down (see test_object_query_parsing.py).
     result = parse_expr("person", "birth == 5")
     assert result == [{"column": {"json_path": ["birth"]}, "op": "eq", "value": 5}]
+
+
+# --- Field-vs-field comparisons (value_column) -------------------------------------
+
+
+def test_field_vs_field_produces_value_column():
+    result = parse_expr(
+        "family", "mother.death.date.sortval < father.death.date.sortval"
+    )
+    assert result == [
+        {
+            "column": {"json_path": ["mother", "death", "date", "sortval"]},
+            "op": "lt",
+            "value_column": {"json_path": ["father", "death", "date", "sortval"]},
+        }
+    ]
+
+
+def test_field_vs_field_all_comparable_operators():
+    for op_src, op_json in [
+        ("==", "eq"),
+        ("!=", "ne"),
+        ("<", "lt"),
+        ("<=", "lte"),
+        (">", "gt"),
+        (">=", "gte"),
+    ]:
+        result = parse_expr("family", f"father.surname {op_src} mother.surname")
+        assert result == [
+            {
+                "column": {"json_path": ["father", "surname"]},
+                "op": op_json,
+                "value_column": {"json_path": ["mother", "surname"]},
+            }
+        ]
+
+
+def test_field_vs_field_flat_column_both_sides():
+    # Single-segment paths that happen to match a real flat column name
+    # (not a relationship name) stay plain strings on both sides, same as
+    # the single-path case.
+    result = parse_expr("family", "father_handle == mother_handle")
+    assert result == [
+        {"column": "father_handle", "op": "eq", "value_column": "mother_handle"}
+    ]
+
+
+def test_field_vs_field_subscript_rhs():
+    # A `Subscript` RHS (e.g. an indexed path) is also path-shaped, not a
+    # literal -- `_is_path_node` must recognize it too.
+    result = parse_expr(
+        "person", "primary_name.surname_list[0].surname == primary_name.surname_list[1].surname"
+    )
+    assert result == [
+        {
+            "column": {"json_path": ["primary_name", "surname_list", 0, "surname"]},
+            "op": "eq",
+            "value_column": {"json_path": ["primary_name", "surname_list", 1, "surname"]},
+        }
+    ]
+
+
+def test_field_vs_field_rejected_for_in_operator():
+    # 'in' always expects a list literal RHS; a bare path there is not a
+    # valid list and should be rejected the same way any other non-list
+    # value would be, not silently treated as a value_column.
+    with pytest.raises(QueryLangError):
+        parse_expr("family", "father.surname in mother.surname")
+
+
+def test_field_vs_field_rhs_class_constant_still_treated_as_value():
+    # The one genuinely ambiguous shape: `Person.MALE` is a single-level
+    # Attribute(Name, attr) just like `father.surname` -- must resolve as a
+    # constant (plain `value`), not misfire as `value_column`.
+    result = parse_expr("person", "gender == Person.MALE")
+    assert result == [{"column": "gender", "op": "eq", "value": 1}]
+
+
+def test_field_vs_field_lhs_and_rhs_paths_combined_with_and():
+    result = parse_expr(
+        "family",
+        "father.surname == mother.surname and father.gender == 1",
+    )
+    assert len(result) == 2
+    assert result[0] == {
+        "column": {"json_path": ["father", "surname"]},
+        "op": "eq",
+        "value_column": {"json_path": ["mother", "surname"]},
+    }
+    assert result[1] == {
+        "column": {"json_path": ["father", "gender"]},
+        "op": "eq",
+        "value": 1,
+    }

@@ -42,6 +42,7 @@ from gramps_webapi.api.query import (
     resolve_column_path,
 )
 from gramps_webapi.api.resources.object_query import (
+    _build_where,
     _check_no_duplicate_keys,
     _default_key_for,
     _normalize_json_value,
@@ -435,4 +436,58 @@ def test_resolve_where_conditions_both_given_rejected():
 def test_resolve_where_conditions_invalid_expr_rejected():
     with pytest.raises(HTTPException) as exc_info:
         _resolve_where_conditions({"where_expr": "gender == 1 or gender == 2"}, PERSON)
+    assert exc_info.value.code == 422
+
+
+# --- _build_where: value / value_column (field-vs-field comparisons) -----------
+
+
+def test_build_where_field_vs_field():
+    conditions = [
+        {
+            "column": {"json_path": ["mother", "death", "date", "sortval"]},
+            "op": "lt",
+            "value_column": {"json_path": ["father", "death", "date", "sortval"]},
+        }
+    ]
+    where = _build_where(conditions, FAMILY)
+    assert where.column == resolve_column_path(
+        FAMILY, ["mother", "death", "date", "sortval"]
+    )
+    assert where.value == resolve_column_path(
+        FAMILY, ["father", "death", "date", "sortval"]
+    )
+
+
+def test_build_where_both_value_and_value_column_rejected():
+    conditions = [
+        {"column": "gramps_id", "op": "eq", "value": "F1", "value_column": {"json_path": ["father", "surname"]}}
+    ]
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, FAMILY)
+    assert exc_info.value.code == 422
+
+
+def test_build_where_neither_value_nor_value_column_rejected():
+    conditions = [{"column": "gramps_id", "op": "eq"}]
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, FAMILY)
+    assert exc_info.value.code == 422
+
+
+def test_build_where_value_column_rejected_for_in():
+    conditions = [
+        {"column": "gramps_id", "op": "in", "value_column": {"json_path": ["father", "surname"]}}
+    ]
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, FAMILY)
+    assert exc_info.value.code == 422
+
+
+def test_build_where_value_column_rejected_for_like():
+    conditions = [
+        {"column": "gramps_id", "op": "like", "value_column": {"json_path": ["father", "surname"]}}
+    ]
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, FAMILY)
     assert exc_info.value.code == 422
