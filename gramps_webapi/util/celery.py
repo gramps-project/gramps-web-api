@@ -2,8 +2,15 @@
 
 from celery import Task
 from celery import current_app as current_celery_app
-from celery.exceptions import Ignore
 from werkzeug.exceptions import HTTPException
+
+
+class TaskError(Exception):
+    """Task failure carrying an API-style error payload as its only argument.
+
+    Celery serialises exception args, so the payload survives the round trip
+    through the result backend.
+    """
 
 
 def create_celery(app):
@@ -24,18 +31,14 @@ def create_celery(app):
                 try:
                     return self.run(*args, **kwargs)
                 except HTTPException as exc:
-                    # Utility functions like check_quota_people and run_import
-                    # use abort_with_message (a Flask/HTTP construct) for both
-                    # request handlers and Celery tasks. Preserve the standard
-                    # API error shape here so task consumers do not need
-                    # special-case parsing for background-task failures.
-                    # Ideally these utilities would raise a dedicated
-                    # TaskError instead of an HTTPException.
-                    self.update_state(
-                        state="FAILURE",
-                        meta={"error": {"code": exc.code, "message": exc.description}},
-                    )
-                    raise Ignore()
+                    # Utilities like check_quota_people abort with an
+                    # HTTPException inside tasks too; preserve the API error
+                    # shape. It must be raised, not stored via update_state:
+                    # Celery can only decode serialised exceptions in exception
+                    # states, and chokes on a plain dict when reading it back.
+                    raise TaskError(
+                        {"error": {"code": exc.code, "message": exc.description}}
+                    ) from exc
 
     celery.Task = ContextTask
     return celery
