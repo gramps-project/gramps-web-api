@@ -379,3 +379,58 @@ def test_date_call_rejected_as_like_pattern():
     # resolves to an int, which the existing string check already rejects.
     with pytest.raises(QueryLangError):
         parse_expr("event", "like(description, Date('Jan 1, 1968'))")
+
+
+# --- birth_date / death_date (RelatedEventDate) in where_expr -------------------
+
+
+def test_birth_date_bare_reference():
+    result = parse_expr("person", "birth_date >= Date('Jan 1, 1968')")
+    assert result == [{"column": "birth_date", "op": "gte", "value": 2439857}]
+
+
+def test_death_date_bare_reference():
+    result = parse_expr("person", "death_date < Date('Jan 1, 2000')")
+    assert result == [{"column": "death_date", "op": "lt", "value": 2451545}]
+
+
+def test_birth_date_range_via_and():
+    result = parse_expr(
+        "person",
+        "birth_date >= Date('Jan 1, 1968') and birth_date < Date('Jan 1, 1969')",
+    )
+    assert len(result) == 2
+    assert result[0]["column"] == result[1]["column"] == "birth_date"
+    assert result[0]["value"] < result[1]["value"]
+
+
+def test_birth_date_in_list():
+    result = parse_expr("person", "birth_date in [Date('Jan 1, 1968')]")
+    assert result == [{"column": "birth_date", "op": "in", "value": [2439857]}]
+
+
+def test_birth_date_without_comparison_still_requires_a_comparison():
+    with pytest.raises(QueryLangError):
+        parse_expr("person", "birth_date")
+
+
+def test_birth_date_sortval_suffix_rejected():
+    # sortval is the only sub-field where exposes for these fields -- no
+    # suffix needed or accepted, and it must not silently fall through to
+    # JsonPath (birth_date isn't a json_data key, so that would silently
+    # compile to a query that always returns zero matches).
+    with pytest.raises(QueryLangError):
+        parse_expr("person", "birth_date.sortval >= Date('Jan 1, 1968')")
+
+
+def test_death_date_dateval_suffix_rejected():
+    with pytest.raises(QueryLangError):
+        parse_expr("person", "death_date.dateval == 5")
+
+
+def test_birth_date_works_as_plain_column_too():
+    # Comparing directly against a raw sortval int, no Date() needed --
+    # syntactically valid, matches this parser's general stance of not
+    # policing semantic intent (like Date()-as-a-like-pattern elsewhere).
+    result = parse_expr("person", "birth_date >= 2439857")
+    assert result == [{"column": "birth_date", "op": "gte", "value": 2439857}]

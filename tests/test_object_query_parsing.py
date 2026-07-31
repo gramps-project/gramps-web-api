@@ -31,10 +31,21 @@ import pytest
 from gramps.plugins.db.dbapi.sqlite import SQLite
 from werkzeug.exceptions import HTTPException
 
-from gramps_webapi.api.query import PERSON, Dialect, JsonPath, OrderBy, QueryError
+from gramps_webapi.api.query import (
+    BIRTH_DATE,
+    BIRTH_DATE_SORTVAL,
+    DEATH_DATE,
+    DEATH_DATE_SORTVAL,
+    PERSON,
+    Dialect,
+    JsonPath,
+    OrderBy,
+    QueryError,
+)
 from gramps_webapi.api.resources.object_query import (
     _check_no_duplicate_keys,
     _json_path_default_key,
+    _normalize_related_event_date_value,
     _parse_column_ref,
     _parse_select_entry,
     _resolve_after,
@@ -54,6 +65,17 @@ def test_parse_column_ref_plain_string():
 def test_parse_column_ref_json_path():
     ref = _parse_column_ref({"json_path": ["primary_name", "first_name"]})
     assert ref == JsonPath(("primary_name", "first_name"))
+
+
+def test_parse_column_ref_birth_date_resolves_to_sortval_variant():
+    # WHERE context uses the sortval-extracting constant, not the
+    # full-struct one select uses for the same bare string.
+    assert _parse_column_ref("birth_date") == BIRTH_DATE_SORTVAL
+    assert _parse_column_ref("birth_date") != BIRTH_DATE
+
+
+def test_parse_column_ref_death_date_resolves_to_sortval_variant():
+    assert _parse_column_ref("death_date") == DEATH_DATE_SORTVAL
 
 
 def test_parse_column_ref_rejects_non_str_non_dict():
@@ -315,3 +337,31 @@ def test_resolve_where_conditions_invalid_expr_rejected():
     with pytest.raises(HTTPException) as exc_info:
         _resolve_where_conditions({"where_expr": "gender == 1 or gender == 2"}, PERSON)
     assert exc_info.value.code == 422
+
+
+# --- birth_date / death_date (RelatedEventDate) --------------------------------
+
+
+def test_parse_select_entry_birth_date():
+    assert _parse_select_entry("birth_date") == (BIRTH_DATE, "birth_date")
+
+
+def test_parse_select_entry_death_date():
+    assert _parse_select_entry("death_date") == (DEATH_DATE, "death_date")
+
+
+def test_normalize_related_event_date_value_parses_sqlite_json_string():
+    assert _normalize_related_event_date_value('{"sortval": 2439857}') == {
+        "sortval": 2439857
+    }
+
+
+def test_normalize_related_event_date_value_passes_through_dict():
+    # PostgreSQL's jsonb expressions come back through psycopg2 already
+    # parsed -- nothing to do.
+    value = {"sortval": 2439857}
+    assert _normalize_related_event_date_value(value) is value
+
+
+def test_normalize_related_event_date_value_passes_through_none():
+    assert _normalize_related_event_date_value(None) is None

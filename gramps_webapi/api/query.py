@@ -184,9 +184,57 @@ class JsonPath:
                 raise QueryError(f"invalid JsonPath segment: {segment!r}")
 
 
-# A column reference is either a plain (whitelisted) column name, or a path
-# into one column's JSON content.
-ColumnRef = Union[str, JsonPath]
+@dataclass(frozen=True)
+class RelatedEventDate:
+    """Virtual field: something extracted from the `date` of the event
+    referenced by a `Person`'s `birth_ref_index`/`death_ref_index`.
+
+    `Person` has no date of its own -- only an index (`ref_index_column`)
+    into `event_ref_list` saying which entry is the birth/death event; the
+    actual date lives on that separate `Event` row. Resolved via a
+    *correlated scalar subquery*, not a `JOIN`: the subquery is a fully
+    independent scope with its own `FROM event`, so it needs no changes to
+    how the rest of this compiler emits column references (everything
+    outside the subquery stays exactly as unqualified as it is today) --
+    see `_render_related_event_date`.
+
+    `extract` is the path within the event's `date` struct to pull out --
+    `("date",)` (the default, used by `BIRTH_DATE`/`DEATH_DATE`) returns
+    the whole struct, for `select`. `("date", "sortval")` (used by
+    `BIRTH_DATE_SORTVAL`/`DEATH_DATE_SORTVAL`) returns just the comparable
+    Julian-day integer, for `where` -- `sortval` is deliberately the only
+    sub-field exposed for comparisons: it's the one property Gramps itself
+    treats as chronologically orderable. (`dateval`'s raw
+    `(day, month, year, slash)` tuple isn't safely comparable as a whole --
+    SQL would sort by day first, not year -- and `modifier`/`quality`,
+    which distinguish "before"/"about"/exact, collapse to the same
+    `sortval` regardless, so a range query can't currently tell those
+    apart; a known, accepted limitation, not fixed by this.)
+
+    Not (yet) usable in `order_by`/keyset pagination -- same reasoning as
+    `JsonPath` there: the join key (`ref_index_column`'s value) is a
+    *per-row* dynamic JSON array index, fine for a one-off extraction but
+    not threaded through machinery that assumes every comparable value
+    lives in the base table.
+    """
+
+    ref_index_column: str
+    extract: Tuple[str, ...] = ("date",)
+
+
+BIRTH_DATE = RelatedEventDate("birth_ref_index")
+DEATH_DATE = RelatedEventDate("death_ref_index")
+BIRTH_DATE_SORTVAL = RelatedEventDate("birth_ref_index", extract=("date", "sortval"))
+DEATH_DATE_SORTVAL = RelatedEventDate("death_ref_index", extract=("date", "sortval"))
+
+
+# A column reference is either a plain (whitelisted) column name, a path
+# into one column's JSON content, or a related event's date (or a field of
+# it) -- the latter select-only in its `BIRTH_DATE`/`DEATH_DATE` (whole
+# struct) form, but usable in `where` too via `BIRTH_DATE_SORTVAL`/
+# `DEATH_DATE_SORTVAL`.
+ColumnRef = Union[str, JsonPath, RelatedEventDate]
+SelectRef = ColumnRef
 
 
 def _require_dialect(dialect: Optional[Dialect], path: JsonPath) -> Dialect:
@@ -248,22 +296,141 @@ def _render_json_path(
     raise QueryError(f"unsupported dialect: {dialect!r}")
 
 
-def _render_column(
-    column: ColumnRef,
-    whitelist: frozenset[str],
+def _render_related_event_date(
+    related: RelatedEventDate,
+    spec: ObjectTypeSpec,
     dialect: Optional[Dialect],
+    can_view_private: bool,
+    treeid: Optional[int],
     value: Any = None,
 ) -> Tuple[str, list]:
-    """Render a column reference (plain name or `JsonPath`) with no associated value.
+    """Render a `RelatedEventDate` as a correlated scalar subquery.
 
-    Used for `SELECT` list entries, which (unlike `WHERE` comparisons) have
-    no right-hand value to bind. `value`, when given, is the comparison's
-    right-hand Python value -- used only to pick a `JsonPath` cast (see
-    `_render_json_path`); ignored for plain column names.
+    ```sql
+    (SELECT <extraction of related.extract> FROM event
+     WHERE event.handle = (CASE WHEN person.birth_ref_index >= 0
+                                 THEN <dynamic index extraction>
+                                 ELSE NULL END)
+       AND event.private = 0          -- unless can_view_private
+       AND event.treeid = ?           -- when treeid is given
+     LIMIT 1)
+    ```
+
+    The `CASE WHEN ... >= 0` guard is required, not defensive: `-1` means
+    "no such event recorded", and confirmed live against PostgreSQL 16,
+    its `->` operator treats a negative array index as "count from the
+    end" rather than "invalid" -- without the guard, a person with no
+    birth event but *some* other event would silently get that unrelated
+    event's date reported as their birth date. SQLite has no such failure
+    mode (a negative `json_extract` array index simply yields no match),
+    but the guard is dialect-neutral so both paths stay identical.
+
+    Privacy and `treeid` scoping are applied to the *subquery*'s `event`
+    row, not the outer query -- a private birth event with no view
+    permission must make this field come back `null`, not exclude the
+    person from the results entirely, which a top-level `WHERE` would do.
+
+    Uses a correlated subquery rather than a `JOIN` specifically so this
+    needs no `JOIN`/alias support anywhere else in this compiler: the
+    subquery is a fully independent SQL scope with its own `FROM event`,
+    correlated back to the outer query via the outer table's own
+    (unaliased) name -- confirmed live on both SQLite and PostgreSQL that
+    an unaliased table's own name is a valid correlation reference from a
+    nested subquery.
+
+    `value`, when given (a `where`-comparison's right-hand value, never
+    set for `select`), picks the cast for the *last* segment of
+    `related.extract` the same way `_render_json_path` does: `bool` ->
+    `BOOLEAN`, `int`/`float` -> `NUMERIC` (via a non-text PostgreSQL `->`
+    + `CAST`, since `->>`'s `TEXT` result compares lexicographically, not
+    numerically), otherwise left as-is -- matching the existing `select`
+    (`value=None`) rendering exactly, so `BIRTH_DATE`/`DEATH_DATE`'s
+    output is unaffected by this parameter's addition.
     """
+    if related.ref_index_column not in spec.columns:
+        raise QueryError(
+            f"{related.ref_index_column!r} is not a column on {spec.table!r} -- "
+            "RelatedEventDate is only valid for Person (birth_ref_index/death_ref_index)"
+        )
+    if dialect is None:
+        raise QueryError(
+            f"a dialect is required to compile a RelatedEventDate ({related!r}), "
+            "but none was given"
+        )
+    outer_table = spec.table
+    ref_col = related.ref_index_column
+    params: list = []
+    if dialect == Dialect.SQLITE:
+        index_extract = (
+            f"json_extract({outer_table}.json_data, "
+            f"'$.event_ref_list[' || {outer_table}.{ref_col} || '].ref')"
+        )
+        json_path_str = "$." + ".".join(related.extract)
+        date_extract = f"json_extract({EVENT.table}.json_data, '{json_path_str}')"
+    elif dialect == Dialect.POSTGRESQL:
+        index_extract = (
+            f"{outer_table}.json_data::jsonb -> 'event_ref_list' -> "
+            f"{outer_table}.{ref_col} ->> 'ref'"
+        )
+        if value is None:
+            chain = " -> ".join(f"'{segment}'" for segment in related.extract)
+            date_extract = f"{EVENT.table}.json_data::jsonb -> {chain}"
+        else:
+            *prefix_segments, last_segment = related.extract
+            prefix_chain = "".join(f" -> '{segment}'" for segment in prefix_segments)
+            base = f"{EVENT.table}.json_data::jsonb{prefix_chain}"
+            if isinstance(value, bool):
+                date_extract = f"CAST(({base} -> '{last_segment}') AS BOOLEAN)"
+            elif isinstance(value, (int, float)):
+                date_extract = f"CAST(({base} -> '{last_segment}') AS NUMERIC)"
+            else:
+                date_extract = f"({base} ->> '{last_segment}')"
+    else:
+        raise QueryError(f"unsupported dialect: {dialect!r}")
+
+    ref_handle_sql = (
+        f"CASE WHEN {outer_table}.{ref_col} >= 0 THEN {index_extract} ELSE NULL END"
+    )
+    subquery_where = [f"{EVENT.table}.handle = ({ref_handle_sql})"]
+    if not can_view_private:
+        subquery_where.append(f"{EVENT.table}.private = 0")
+    if treeid is not None:
+        subquery_where.append(f"{EVENT.table}.treeid = ?")
+        params.append(treeid)
+
+    subquery = (
+        f"(SELECT {date_extract} FROM {EVENT.table} "
+        f"WHERE {' AND '.join(subquery_where)} LIMIT 1)"
+    )
+    return subquery, params
+
+
+def _render_column(
+    column: ColumnRef,
+    spec: ObjectTypeSpec,
+    dialect: Optional[Dialect],
+    value: Any = None,
+    can_view_private: bool = False,
+    treeid: Optional[int] = None,
+) -> Tuple[str, list]:
+    """Render a column reference (plain name, `JsonPath`, or `RelatedEventDate`).
+
+    Used for both `SELECT` list entries (no right-hand value to bind,
+    `value` stays `None`) and `WHERE` comparisons. `value`, when given, is
+    the comparison's right-hand Python value -- used only to pick a
+    `JsonPath`/`RelatedEventDate` cast (see `_render_json_path`/
+    `_render_related_event_date`); ignored for plain column names.
+    `can_view_private`/`treeid` are only used by `RelatedEventDate`, whose
+    correlated subquery needs its own privacy/tree-scoping independent of
+    the outer query's.
+    """
+    if isinstance(column, RelatedEventDate):
+        return _render_related_event_date(
+            column, spec, dialect, can_view_private, treeid, value
+        )
     if isinstance(column, JsonPath):
         return _render_json_path(column, _require_dialect(dialect, column), value)
-    _check_column(column, whitelist)
+    _check_column(column, spec.columns)
     return _quote_column(column), []
 
 
@@ -280,10 +447,19 @@ class Comparison:
         self.value = value
 
     def compile(
-        self, whitelist: frozenset[str], dialect: Optional[Dialect] = None
+        self,
+        spec: ObjectTypeSpec,
+        dialect: Optional[Dialect] = None,
+        can_view_private: bool = False,
+        treeid: Optional[int] = None,
     ) -> Tuple[str, list]:
         column_sql, column_params = _render_column(
-            self.column, whitelist, dialect, value=self.value
+            self.column,
+            spec,
+            dialect,
+            value=self.value,
+            can_view_private=can_view_private,
+            treeid=treeid,
         )
         return f"{column_sql} {self.op} ?", column_params + [self.value]
 
@@ -336,10 +512,19 @@ class In:
         self.values = list(values)
 
     def compile(
-        self, whitelist: frozenset[str], dialect: Optional[Dialect] = None
+        self,
+        spec: ObjectTypeSpec,
+        dialect: Optional[Dialect] = None,
+        can_view_private: bool = False,
+        treeid: Optional[int] = None,
     ) -> Tuple[str, list]:
         column_sql, column_params = _render_column(
-            self.column, whitelist, dialect, value=self.values[0]
+            self.column,
+            spec,
+            dialect,
+            value=self.values[0],
+            can_view_private=can_view_private,
+            treeid=treeid,
         )
         placeholders = ", ".join(["?"] * len(self.values))
         return f"{column_sql} IN ({placeholders})", column_params + list(self.values)
@@ -365,12 +550,16 @@ class And:
         self.exprs = exprs
 
     def compile(
-        self, whitelist: frozenset[str], dialect: Optional[Dialect] = None
+        self,
+        spec: ObjectTypeSpec,
+        dialect: Optional[Dialect] = None,
+        can_view_private: bool = False,
+        treeid: Optional[int] = None,
     ) -> Tuple[str, list]:
         parts = []
         params: list = []
         for expr in self.exprs:
-            sql, p = expr.compile(whitelist, dialect)
+            sql, p = expr.compile(spec, dialect, can_view_private, treeid)
             parts.append(f"({sql})")
             params.extend(p)
         return " AND ".join(parts), params
@@ -386,12 +575,16 @@ class Or:
         self.exprs = exprs
 
     def compile(
-        self, whitelist: frozenset[str], dialect: Optional[Dialect] = None
+        self,
+        spec: ObjectTypeSpec,
+        dialect: Optional[Dialect] = None,
+        can_view_private: bool = False,
+        treeid: Optional[int] = None,
     ) -> Tuple[str, list]:
         parts = []
         params: list = []
         for expr in self.exprs:
-            sql, p = expr.compile(whitelist, dialect)
+            sql, p = expr.compile(spec, dialect, can_view_private, treeid)
             parts.append(f"({sql})")
             params.extend(p)
         return " OR ".join(parts), params
@@ -405,9 +598,13 @@ class Not:
         self.expr = expr
 
     def compile(
-        self, whitelist: frozenset[str], dialect: Optional[Dialect] = None
+        self,
+        spec: ObjectTypeSpec,
+        dialect: Optional[Dialect] = None,
+        can_view_private: bool = False,
+        treeid: Optional[int] = None,
     ) -> Tuple[str, list]:
-        sql, params = self.expr.compile(whitelist, dialect)
+        sql, params = self.expr.compile(spec, dialect, can_view_private, treeid)
         return f"NOT ({sql})", params
 
     def __repr__(self) -> str:
@@ -465,7 +662,7 @@ def check_columns(columns: Iterable[str], spec: ObjectTypeSpec) -> None:
 
 @dataclass(frozen=True)
 class Query:
-    select: Optional[Sequence[ColumnRef]] = None
+    select: Optional[Sequence[SelectRef]] = None
     where: Optional[Any] = None
     order_by: Sequence[OrderBy] = ()
     limit: int = 50
@@ -552,7 +749,7 @@ def _where_clauses(
     clauses = []
     params: list = []
     if where is not None:
-        sql, p = where.compile(spec.columns, dialect)
+        sql, p = where.compile(spec, dialect, can_view_private, treeid)
         clauses.append(f"({sql})")
         params.extend(p)
     if spec.has_privacy and not can_view_private:
@@ -589,10 +786,11 @@ def compile_query(
     keyset comparisons) via `COLLATE "<collation>"`.
 
     `dialect` selects which backend-specific SQL to render for any `select`
-    or `where` entry that's a `JsonPath` (see `_render_json_path`) rather
-    than a plain column name. Not needed, and may be omitted, for
-    plain-column-only queries -- `order_by`/keyset pagination don't support
-    `JsonPath` yet, so `dialect` never affects them.
+    or `where` entry that's a `JsonPath`, or any `select` entry that's a
+    `RelatedEventDate` (see `_render_json_path`/`_render_related_event_date`)
+    rather than a plain column name. Not needed, and may be omitted, for
+    plain-column-only queries -- `order_by`/keyset pagination support
+    neither yet, so `dialect` never affects them.
     """
     columns = list(query.select) if query.select else sorted(spec.columns)
 
@@ -603,7 +801,9 @@ def compile_query(
     select_parts = []
     params: list = []
     for column in columns:
-        sql_frag, p = _render_column(column, spec.columns, dialect)
+        sql_frag, p = _render_column(
+            column, spec, dialect, can_view_private=can_view_private, treeid=treeid
+        )
         select_parts.append(sql_frag)
         params.extend(p)
 

@@ -26,6 +26,7 @@ attribute -- the same pattern `GrampsObjectResourceHelper` subclasses already
 use with `gramps_class_name` (see `resources/people.py`/`families.py`).
 """
 
+import json
 from typing import Any, Optional, Sequence, Tuple
 
 from gramps.gen.proxy import PrivateProxyDb
@@ -38,7 +39,11 @@ from ...auth.const import PERM_VIEW_PRIVATE
 from ..auth import has_permissions
 from ..blueprint import api_blueprint
 from ..query import (
+    BIRTH_DATE,
+    BIRTH_DATE_SORTVAL,
     CITATION,
+    DEATH_DATE,
+    DEATH_DATE_SORTVAL,
     EVENT,
     FAMILY,
     MEDIA,
@@ -64,6 +69,8 @@ from ..query import (
     OrderBy,
     Query,
     QueryError,
+    RelatedEventDate,
+    SelectRef,
     after_columns,
     check_columns,
     compile_count_query,
@@ -134,7 +141,11 @@ class QueryBodyArgs(Schema):
             "'as': '<key>'} to select a path into the JSON blob, e.g. "
             "{'json_path': ['primary_name', 'surname_list', 0, 'surname']}. "
             "'as' is optional; if omitted, the response key is a derived "
-            "dotted/bracket string, e.g. 'primary_name.surname_list[0].surname'."
+            "dotted/bracket string, e.g. 'primary_name.surname_list[0].surname'. "
+            "On Person only, 'birth_date'/'death_date' return the full Date "
+            "struct (format/calendar/modifier/quality/dateval/text/sortval) of "
+            "the referenced birth/death event, or null if none is recorded -- "
+            "select-only, not usable in 'where'/'order_by'."
         },
     )
     where = wf.List(
@@ -196,31 +207,56 @@ def _parse_json_path(raw: dict) -> JsonPath:
     return JsonPath(tuple(segments))
 
 
+# "birth_date"/"death_date" mean different things depending on where they
+# appear: the whole Date struct in `select` (there's a result to hand back,
+# so give the caller everything), just the comparable `sortval` int in
+# `where` (see query.py's RelatedEventDate -- sortval is deliberately the
+# only sub-field exposed for comparisons; `dateval`/`modifier` aren't
+# safely comparable or aren't captured by sortval at all). Two lookup
+# tables, same bare-string recognition pattern, different target constant.
+_RELATED_EVENT_DATE_SELECT_FIELDS: dict[str, RelatedEventDate] = {
+    "birth_date": BIRTH_DATE,
+    "death_date": DEATH_DATE,
+}
+_RELATED_EVENT_DATE_WHERE_FIELDS: dict[str, RelatedEventDate] = {
+    "birth_date": BIRTH_DATE_SORTVAL,
+    "death_date": DEATH_DATE_SORTVAL,
+}
+
+
 def _parse_column_ref(raw: Any) -> ColumnRef:
-    """Parse a `where` condition's `column`: a plain column name, or
-    `{"json_path": [...]}` for a `JsonPath`. Segment-level type checking
-    (str keys / non-bool int indices only) happens in `JsonPath.__post_init__`.
+    """Parse a `where` condition's `column`: a plain column name,
+    `{"json_path": [...]}` for a `JsonPath`, or `"birth_date"`/`"death_date"`
+    for the referenced event's `sortval` (see `_RELATED_EVENT_DATE_WHERE_FIELDS`).
+    Segment-level type checking (str keys / non-bool int indices only)
+    happens in `JsonPath.__post_init__`.
     """
     if isinstance(raw, str):
+        if raw in _RELATED_EVENT_DATE_WHERE_FIELDS:
+            return _RELATED_EVENT_DATE_WHERE_FIELDS[raw]
         return raw
     if isinstance(raw, dict) and "json_path" in raw:
         return _parse_json_path(raw)
     raise QueryError(f"invalid column reference: {raw!r}")
 
 
-def _parse_select_entry(raw: Any) -> Tuple[ColumnRef, str]:
+def _parse_select_entry(raw: Any) -> Tuple[SelectRef, str]:
     """Parse one `select` entry into `(column_ref, response_key)`.
 
-    A plain string is both the column and its own response key. A
-    `{"json_path": [...], "as": "..."}` object uses `as` as the response key
-    if given, otherwise a derived dotted/bracket path
-    (`_json_path_default_key`). `as: "handle"` is rejected unless the entry
-    *is* the real `handle` column -- the response's `handle` key is
-    load-bearing for the `next_after` cursor (see `post()`), so silently
-    shadowing it with unrelated JSON content would corrupt pagination for
-    the caller without any visible error.
+    A plain string is both the column and its own response key -- except
+    `"birth_date"`/`"death_date"`, which resolve to `RelatedEventDate`
+    (see `query.py`): valid only when querying `Person` (`compile_query`
+    rejects them otherwise). A `{"json_path": [...], "as": "..."}` object
+    uses `as` as the response key if given, otherwise a derived
+    dotted/bracket path (`_json_path_default_key`). `as: "handle"` is
+    rejected unless the entry *is* the real `handle` column -- the
+    response's `handle` key is load-bearing for the `next_after` cursor
+    (see `post()`), so silently shadowing it with unrelated JSON content
+    would corrupt pagination for the caller without any visible error.
     """
     if isinstance(raw, str):
+        if raw in _RELATED_EVENT_DATE_SELECT_FIELDS:
+            return _RELATED_EVENT_DATE_SELECT_FIELDS[raw], raw
         return raw, raw
     if isinstance(raw, dict) and "json_path" in raw:
         path = _parse_json_path(raw)
@@ -244,12 +280,25 @@ def _json_path_default_key(path: JsonPath) -> str:
     return "".join(parts)
 
 
-def _check_no_duplicate_keys(parsed_select: Sequence[Tuple[ColumnRef, str]]) -> None:
+def _check_no_duplicate_keys(parsed_select: Sequence[Tuple[SelectRef, str]]) -> None:
     seen: set = set()
     for _, key in parsed_select:
         if key in seen:
             raise QueryError(f"duplicate select key: {key!r}")
         seen.add(key)
+
+
+def _normalize_related_event_date_value(value: Any) -> Any:
+    """Normalize a `RelatedEventDate` response value to a dict either way.
+
+    SQLite's `json_extract()` returns a JSON *string*; PostgreSQL's `jsonb`
+    expressions come back through psycopg2 already parsed into a `dict`
+    (verified live against both). `None` (no such event recorded, or the
+    event is private and the caller can't view it) passes through unchanged.
+    """
+    if isinstance(value, str):
+        return json.loads(value)
+    return value
 
 
 def _build_where(conditions: Optional[Sequence[dict]]):
@@ -516,8 +565,19 @@ class ObjectQueryResource(ProtectedResource):
             headers["X-Total-Count"] = str(basedb.dbapi.fetchone()[0])
 
         handle_index = fetch_refs.index("handle")
+        related_event_date_keys = {
+            key for ref, key in zip(fetch_refs, fetch_keys) if isinstance(ref, RelatedEventDate)
+        }
         items = [
-            {key: val for key, val in zip(fetch_keys, row) if key in requested_keys}
+            {
+                key: (
+                    _normalize_related_event_date_value(val)
+                    if key in related_event_date_keys
+                    else val
+                )
+                for key, val in zip(fetch_keys, row)
+                if key in requested_keys
+            }
             for row in rows
         ]
         next_after = rows[-1][handle_index] if len(rows) == args["limit"] else None
