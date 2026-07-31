@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2026      David Straub
+# Copyright (C) 2026      Douglas Blank
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -37,7 +37,7 @@ the caller's job; see `after_columns()`.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional, Sequence, Tuple
+from typing import Any, Iterable, Optional, Sequence, Tuple
 
 from gramps.gen.lib import (
     Citation,
@@ -51,6 +51,7 @@ from gramps.gen.lib import (
     Source,
     Tag,
 )
+from gramps.gen.lib.tableobj import TableObject
 
 
 @dataclass(frozen=True)
@@ -63,7 +64,9 @@ class ObjectTypeSpec:
     has_privacy: bool
 
 
-def _spec_for(cls: type, extra_columns: frozenset[str] = frozenset()) -> ObjectTypeSpec:
+def _spec_for(
+    cls: type[TableObject], extra_columns: frozenset[str] = frozenset()
+) -> ObjectTypeSpec:
     """Build an `ObjectTypeSpec` from a Gramps object class's secondary fields.
 
     Kept in sync with core rather than hardcoded, since this *is* the set of
@@ -307,7 +310,7 @@ def after_columns(order_by: Sequence[OrderBy]) -> Tuple[str, ...]:
     return tuple(ob.column for ob in _effective_order_by(order_by))
 
 
-def check_columns(columns: Sequence[str], spec: ObjectTypeSpec) -> None:
+def check_columns(columns: Iterable[str], spec: ObjectTypeSpec) -> None:
     """Raise `QueryError` if any of `columns` is not in `spec.columns`.
 
     Exposed for wiring code that needs to validate columns before they can

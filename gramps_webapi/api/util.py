@@ -2,6 +2,7 @@
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
 # Copyright (C) 2020-2024      David Straub
+# Copyright (C) 2026           Douglas Blank
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -30,7 +31,7 @@ import socket
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 from http import HTTPStatus
-from typing import Any, BinaryIO, NoReturn, Sequence
+from typing import Any, BinaryIO, NoReturn, Optional, Sequence
 
 import gramps.gen.lib
 from celery import Task
@@ -549,7 +550,9 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
     return g.db
 
 
-def get_locale_for_language(language: str, default: bool = False) -> GrampsLocale:
+def get_locale_for_language(
+    language: Optional[str], default: bool = False
+) -> GrampsLocale:
     """Get GrampsLocale set to specified language."""
     if language is not None:
         catalog = GRAMPS_LOCALE.get_language_dict()
