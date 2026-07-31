@@ -26,10 +26,11 @@ attribute -- the same pattern `GrampsObjectResourceHelper` subclasses already
 use with `gramps_class_name` (see `resources/people.py`/`families.py`).
 """
 
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, Tuple
 
 from gramps.gen.proxy import PrivateProxyDb
 from gramps.gen.proxy.proxybase import ProxyDbBase
+from gramps.plugins.db.dbapi.sqlite import SQLite
 from marshmallow import Schema, validate
 from webargs import fields as wf
 
@@ -48,11 +49,13 @@ from ..query import (
     SOURCE,
     TAG,
     And,
+    ColumnRef,
     Dialect,
     Eq,
     Gt,
     Gte,
     In,
+    JsonPath,
     Like,
     Lt,
     Lte,
@@ -84,8 +87,13 @@ _OP_TO_EXPR = {
 class QueryWhereConditionArgs(Schema):
     """A single WHERE leaf condition."""
 
-    column = wf.Str(
-        required=True, metadata={"description": "Column to compare, e.g. 'gramps_id'."}
+    column = wf.Raw(
+        required=True,
+        metadata={
+            "description": "Column to compare: either a plain column name (e.g. "
+            "'gramps_id'), or {'json_path': [...]} to compare a path into the "
+            "JSON blob, e.g. {'json_path': ['primary_name', 'first_name']}."
+        },
     )
     op = wf.Str(
         required=True,
@@ -117,10 +125,15 @@ class QueryBodyArgs(Schema):
     """Body arguments shared by every `POST .../query/` endpoint."""
 
     select = wf.List(
-        wf.Str(),
+        wf.Raw(),
         required=False,
         metadata={
-            "description": "Columns to return. Defaults to all available columns."
+            "description": "Columns to return. Defaults to all available columns. "
+            "Each entry is either a plain column name, or {'json_path': [...], "
+            "'as': '<key>'} to select a path into the JSON blob, e.g. "
+            "{'json_path': ['primary_name', 'surname_list', 0, 'surname']}. "
+            "'as' is optional; if omitted, the response key is a derived "
+            "dotted/bracket string, e.g. 'primary_name.surname_list[0].surname'."
         },
     )
     where = wf.List(
@@ -164,13 +177,76 @@ class QueryBodyArgs(Schema):
     )
 
 
+def _parse_json_path(raw: dict) -> JsonPath:
+    segments = raw.get("json_path")
+    if not isinstance(segments, list) or not segments:
+        raise QueryError("'json_path' must be a non-empty list")
+    return JsonPath(tuple(segments))
+
+
+def _parse_column_ref(raw: Any) -> ColumnRef:
+    """Parse a `where` condition's `column`: a plain column name, or
+    `{"json_path": [...]}` for a `JsonPath`. Segment-level type checking
+    (str keys / non-bool int indices only) happens in `JsonPath.__post_init__`.
+    """
+    if isinstance(raw, str):
+        return raw
+    if isinstance(raw, dict) and "json_path" in raw:
+        return _parse_json_path(raw)
+    raise QueryError(f"invalid column reference: {raw!r}")
+
+
+def _parse_select_entry(raw: Any) -> Tuple[ColumnRef, str]:
+    """Parse one `select` entry into `(column_ref, response_key)`.
+
+    A plain string is both the column and its own response key. A
+    `{"json_path": [...], "as": "..."}` object uses `as` as the response key
+    if given, otherwise a derived dotted/bracket path
+    (`_json_path_default_key`). `as: "handle"` is rejected unless the entry
+    *is* the real `handle` column -- the response's `handle` key is
+    load-bearing for the `next_after` cursor (see `post()`), so silently
+    shadowing it with unrelated JSON content would corrupt pagination for
+    the caller without any visible error.
+    """
+    if isinstance(raw, str):
+        return raw, raw
+    if isinstance(raw, dict) and "json_path" in raw:
+        path = _parse_json_path(raw)
+        key = raw.get("as") or _json_path_default_key(path)
+        if key == "handle":
+            raise QueryError("'handle' is reserved as a response key")
+        return path, key
+    raise QueryError(f"invalid column reference: {raw!r}")
+
+
+def _json_path_default_key(path: JsonPath) -> str:
+    """Dotted/bracket string built from a `JsonPath`'s segments -- the
+    response key for a `select` entry with no explicit `as` alias.
+    """
+    parts = []
+    for segment in path.segments:
+        if isinstance(segment, int):
+            parts.append(f"[{segment}]")
+        else:
+            parts.append(f".{segment}" if parts else str(segment))
+    return "".join(parts)
+
+
+def _check_no_duplicate_keys(parsed_select: Sequence[Tuple[ColumnRef, str]]) -> None:
+    seen: set = set()
+    for _, key in parsed_select:
+        if key in seen:
+            raise QueryError(f"duplicate select key: {key!r}")
+        seen.add(key)
+
+
 def _build_where(conditions: Optional[Sequence[dict]]):
     """Build a `query.py` WHERE expression from parsed leaf conditions."""
     if not conditions:
         return None
     exprs: list[Any] = []
     for condition in conditions:
-        column = condition["column"]
+        column = _parse_column_ref(condition["column"])
         op = condition["op"]
         value = condition["value"]
         if op == "in":
@@ -240,14 +316,23 @@ def _resolve_dialect(basedb: Any) -> Dialect:
 
     No released Gramps core backend advertises a `.dialect` attribute yet --
     it's proposed but unmerged (gramps-project/gramps#2178). Once it lands,
-    this reads it straight off `basedb`. Until then, fall back to PostgreSQL:
-    `SharedPostgreSQL` is the backend actually used in production multi-tree
-    deployments, so guessing wrong is worse for SQLite (dev/single-tree,
-    lower stakes) than for Postgres. Revisit and drop the fallback once
-    `dialect` is actually available everywhere.
+    this reads it straight off `basedb` and the rest of this function stops
+    mattering. Until then: `SQLite` (core-provided) is detected directly --
+    it's what every test fixture and single-tree/dev deployment actually
+    runs, so guessing PostgreSQL for it would emit `jsonb_extract_path(...)`
+    against a real SQLite connection and fail outright, not just sort wrong.
+    Anything else (`SharedPostgreSQL`, the single-user `PostgreSQL` addon)
+    falls back to PostgreSQL, since that covers every other backend this
+    project targets today.
     """
     name: Optional[str] = getattr(basedb, "dialect", None)
-    return _DIALECT_BY_NAME.get(name, Dialect.POSTGRESQL) if name else Dialect.POSTGRESQL
+    if name:
+        dialect = _DIALECT_BY_NAME.get(name)
+        if dialect is not None:
+            return dialect
+    if isinstance(basedb, SQLite):
+        return Dialect.SQLITE
+    return Dialect.POSTGRESQL
 
 
 class ObjectQueryResource(ProtectedResource):
@@ -311,19 +396,23 @@ class ObjectQueryResource(ProtectedResource):
         locale = get_locale_for_language(args.get("locale"), default=False)
         collation = _resolve_collation(basedb, locale) if locale is not None else None
 
-        requested_columns = (
-            list(args["select"]) if args.get("select") else sorted(self.spec.columns)
-        )
-        fetch_columns = (
-            requested_columns
-            if "handle" in requested_columns
-            else requested_columns + ["handle"]
-        )
-
         dialect = _resolve_dialect(basedb)
         try:
+            parsed_select = (
+                [_parse_select_entry(item) for item in args["select"]]
+                if args.get("select")
+                else [(col, col) for col in sorted(self.spec.columns)]
+            )
+            _check_no_duplicate_keys(parsed_select)
+            fetch_refs = [ref for ref, _ in parsed_select]
+            fetch_keys = [key for _, key in parsed_select]
+            if not any(ref == "handle" for ref in fetch_refs):
+                fetch_refs = fetch_refs + ["handle"]
+                fetch_keys = fetch_keys + ["handle"]
+            requested_keys = {key for _, key in parsed_select}
+
             query = Query(
-                select=fetch_columns,
+                select=fetch_refs,
                 where=_build_where(args.get("where")),
                 order_by=order_by,
                 limit=args["limit"],
@@ -354,10 +443,9 @@ class ObjectQueryResource(ProtectedResource):
             basedb.dbapi.execute(count_sql, count_params)
             total_count = basedb.dbapi.fetchone()[0]
 
-        handle_index = fetch_columns.index("handle")
-        requested = set(requested_columns)
+        handle_index = fetch_refs.index("handle")
         items = [
-            {col: val for col, val in zip(fetch_columns, row) if col in requested}
+            {key: val for key, val in zip(fetch_keys, row) if key in requested_keys}
             for row in rows
         ]
         next_after = rows[-1][handle_index] if len(rows) == args["limit"] else None
