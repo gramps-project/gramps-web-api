@@ -859,7 +859,9 @@ class TestOIDCSingleTree(unittest.TestCase):
             {"authlib.integrations.flask_client": mock_oauth},
             clear=False,
         ):
-            rv = self.client.get(BASE_URL + f"/oidc/login/?provider=custom&tree={tree}")
+            rv = self.client.get(
+                BASE_URL + f"/oidc/login/?provider=custom&tree={tree}"
+            )
         self.assertEqual(rv.status_code, 302)
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)

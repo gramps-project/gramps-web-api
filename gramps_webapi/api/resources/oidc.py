@@ -51,7 +51,7 @@ from .token import get_tokens, get_tree_id_and_permissions
 
 logger = logging.getLogger(__name__)
 
-# Session key used to carry the tree across the round trip to the provider.
+# Session key used to carry the tree ID across the round trip to the provider.
 # It cannot be a query parameter on the redirect URI because providers require
 # the redirect URI to match the registered one exactly.
 SESSION_TREE_KEY = "oidc_tree"
@@ -92,14 +92,14 @@ def _get_oidc_client(provider_id: str | None) -> tuple[object, dict]:
     return oidc_client, provider_config or {}
 
 
-def _validate_tree(tree: str | None) -> str | None:
+def _validate_tree_id(tree_id: str | None) -> str | None:
     """Validate the tree an OIDC login is scoped to.
 
     Mirrors the checks the registration endpoint applies, so that an OIDC login
     cannot create an account somewhere a registration could not.
     """
     is_multi = current_app.config["TREE"] == TREE_MULTI
-    if not tree:
+    if not tree_id:
         if is_multi:
             abort_with_message(422, "tree is required")
         return None
@@ -110,12 +110,12 @@ def _validate_tree(tree: str | None) -> str | None:
         # resolves the single configured tree when the column is empty. Passing
         # the name on would store it verbatim and every later lookup would try
         # to open a tree by that name as if it were an ID.
-        if tree != current_app.config["TREE"]:
+        if tree_id != current_app.config["TREE"]:
             abort_with_message(422, "Not allowed in single-tree setup")
         return None
-    if not tree_exists(tree):
+    if not tree_exists(tree_id):
         abort_with_message(422, "Tree does not exist")
-    return tree
+    return tree_id
 
 
 def _use_secure_cookies() -> bool:
@@ -146,8 +146,8 @@ class OIDCLoginQueryArgs(Schema):
         required=False,
         metadata={
             "description": (
-                "Tree ID to associate with the OIDC login. Required for"
-                " multi-tree installations."
+                "ID of the tree to associate with the OIDC login. Required for"
+                " multi-tree installations, optional in single-tree ones."
             )
         },
     )
@@ -170,7 +170,7 @@ class OIDCLoginResource(Resource):
         # a useful message instead of after a round trip to the provider, and
         # stash it in the session for the callback to pick up. It cannot be
         # passed on the redirect URI, which has to match the registered one.
-        session[SESSION_TREE_KEY] = _validate_tree(args.get("tree"))
+        session[SESSION_TREE_KEY] = _validate_tree_id(args.get("tree"))
 
         # Build redirect URI with provider in path (Microsoft-compatible)
         # Using path parameter instead of query parameter for broader compatibility
@@ -195,9 +195,9 @@ class OIDCCallbackQueryArgs(Schema):
         required=False,
         metadata={
             "description": (
-                "Tree ID to associate with the OIDC login. Deprecated: the tree"
-                " is now carried in the session from /oidc/login/, since"
-                " providers require an exact redirect URI match."
+                "ID of the tree to associate with the OIDC login. Deprecated:"
+                " the tree is now carried in the session from /oidc/login/,"
+                " since providers require an exact redirect URI match."
             )
         },
     )
@@ -280,10 +280,12 @@ class OIDCCallbackResource(Resource):
 
         # The tree is put into the session by /oidc/login/. The query parameter
         # is only a fallback for logins started before this was introduced.
-        tree = _validate_tree(session.pop(SESSION_TREE_KEY, None) or args.get("tree"))
+        tree_id = _validate_tree_id(
+            session.pop(SESSION_TREE_KEY, None) or args.get("tree")
+        )
 
         try:
-            user_id = create_or_update_oidc_user(userinfo, tree, provider_id)
+            user_id = create_or_update_oidc_user(userinfo, tree_id, provider_id)
             username = get_name(user_id)
 
             # Resolve the tree, reject a disabled one and look up permissions

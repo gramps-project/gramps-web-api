@@ -282,7 +282,7 @@ def get_usable_email(userinfo: dict, user_id: str | None = None) -> str | None:
 
 
 def create_or_update_oidc_user(
-    userinfo: dict, tree: str | None, provider_id: str
+    userinfo: dict, tree_id: str | None, provider_id: str
 ) -> str:
     """Create or update a user based on OIDC userinfo using secure sub claim mapping.
 
@@ -294,7 +294,7 @@ def create_or_update_oidc_user(
 
     Args:
         userinfo: User information from OIDC provider
-        tree: Tree identifier (optional)
+        tree_id: Tree identifier (optional)
         provider_id: OIDC provider identifier
 
     Returns the user GUID.
@@ -334,13 +334,15 @@ def create_or_update_oidc_user(
         existing_username = get_name(existing_user_id)
 
         # An OIDC identity is bound to a single Gramps account, which in turn
-        # belongs to a single tree. Passing a different tree must not silently
-        # move the account - only fill in a tree that has not been set yet.
+        # belongs to a single tree. Passing a different tree ID must not
+        # silently move the account - only fill in one that is not set yet.
         from ..api.util import get_tree_id_or_none  # circular import
 
-        current_tree = get_tree_id_or_none(existing_user_id)
-        if current_tree and tree and current_tree != tree:
-            raise ValueError(f"This account belongs to a different tree than '{tree}'.")
+        current_tree_id = get_tree_id_or_none(existing_user_id)
+        if current_tree_id and tree_id and current_tree_id != tree_id:
+            raise ValueError(
+                f"This account belongs to a different tree than '{tree_id}'."
+            )
 
         # role and email are None unless they should be changed; modify_user
         # leaves the stored value untouched in that case
@@ -349,7 +351,7 @@ def create_or_update_oidc_user(
             fullname=full_name,
             email=get_usable_email(userinfo, user_id=existing_user_id),
             role=role_from_claims,
-            tree=None if current_tree else tree,
+            tree=None if current_tree_id else tree_id,
         )
 
         return existing_user_id
@@ -385,7 +387,7 @@ def create_or_update_oidc_user(
         fullname=full_name,
         email=email,
         role=final_role,
-        tree=tree,
+        tree=tree_id,
     )
 
     user_guid = get_guid(final_username)
@@ -401,7 +403,7 @@ def create_or_update_oidc_user(
         from ..api.tasks import run_task, send_email_new_user
         from ..api.util import get_tree_id
 
-        user_tree = get_tree_id(user_guid)
+        user_tree_id = get_tree_id(user_guid)
         is_multi = current_app.config["TREE"] == TREE_MULTI
         run_task(
             send_email_new_user,
@@ -409,7 +411,7 @@ def create_or_update_oidc_user(
             fullname=full_name or "",
             # report the address the provider sent, even if it was not stored
             email=userinfo.get("email") or "",
-            tree=user_tree,
+            tree=user_tree_id,
             # for single-tree setups, send e-mail also to admins
             include_admins=not is_multi,
             include_treeless=not is_multi,
