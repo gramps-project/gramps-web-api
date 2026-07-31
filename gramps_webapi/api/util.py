@@ -82,6 +82,7 @@ from gramps.gen.proxy.private import (
 from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps.gen.user import UserBase
 from gramps.gen.utils.grampslocale import GrampsLocale
+from gramps.plugins.db.dbapi.dbapi import DBAPI
 from marshmallow import RAISE
 from webargs.flaskparser import FlaskParser
 from werkzeug.exceptions import HTTPException
@@ -133,10 +134,16 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
         """Initialize self."""
         super().__init__(*args, **kwargs)
         self.name_formats = self.db.name_formats
-        # `DBAPI` and `SharedDBAPI` (used by the SharedPostgreSQL addon) are sibling
-        # classes, not parent/child, so an isinstance(basedb, DBAPI) check would miss
-        # SharedPostgreSQL. Check for the actual capability used below instead.
-        self.is_dbapi = hasattr(self.basedb, "dbapi")
+        # `DBAPI` and `SharedDBAPI` (used by the SharedPostgreSQL addon) are
+        # sibling classes, not parent/child, so this deliberately does NOT
+        # match SharedPostgreSQL -- `_iter_handles()` below issues raw SQL
+        # with no `treeid` filter, and SharedPostgreSQL stores every tree's
+        # rows in the same physical tables, discriminated only by `treeid`.
+        # Widening this to `hasattr(self.basedb, "dbapi")` looks like a
+        # narrower-than-necessary check but is actually load-bearing: it's
+        # what keeps SharedPostgreSQL on the slower, correctly tree-scoped
+        # `self.db.iter_*_handles()` path below instead of the raw one.
+        self.is_dbapi = isinstance(self.basedb, DBAPI)
 
     def get_dbname(self):
         """Get the name of the database."""
@@ -185,21 +192,15 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
         """
         Return an iterator over handles in the database
 
-        On `SharedPostgreSQL`, every tree's rows live in the same physical
-        tables discriminated by a `treeid` column -- nothing applies that
-        filter automatically at the connection level, so this raw query
-        must add it explicitly (`self.basedb.dbapi.treeid`, present only on
-        that backend) or it returns handles from every tree sharing the
-        instance, not just this one.
+        Only reachable when `self.is_dbapi` is `True` (plain `DBAPI`
+        backends -- `SQLite`, the single-user `PostgreSQL` addon), which
+        deliberately excludes `SharedPostgreSQL`: this raw query has no
+        `treeid` filter, and `SharedPostgreSQL` stores every tree's rows in
+        the same physical tables, discriminated only by `treeid`.
         """
         table = KEY_TO_NAME_MAP[obj_key]
-        treeid = getattr(self.basedb.dbapi, "treeid", None)
-        if treeid is None:
-            sql = "SELECT handle FROM %s WHERE private=0" % table
-            self.basedb.dbapi.execute(sql)
-        else:
-            sql = "SELECT handle FROM %s WHERE private=0 AND treeid=?" % table
-            self.basedb.dbapi.execute(sql, [treeid])
+        sql = "SELECT handle FROM %s WHERE private=0" % table
+        self.basedb.dbapi.execute(sql)
         rows = self.basedb.dbapi.fetchall()
         for row in rows:
             yield row[0]
