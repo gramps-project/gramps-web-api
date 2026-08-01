@@ -191,12 +191,6 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
     def _iter_handles(self, obj_key):
         """
         Return an iterator over handles in the database
-
-        Only reachable when `self.is_dbapi` is `True` (plain `DBAPI`
-        backends -- `SQLite`, the single-user `PostgreSQL` addon), which
-        deliberately excludes `SharedPostgreSQL`: this raw query has no
-        `treeid` filter, and `SharedPostgreSQL` stores every tree's rows in
-        the same physical tables, discriminated only by `treeid`.
         """
         table = KEY_TO_NAME_MAP[obj_key]
         sql = "SELECT handle FROM %s WHERE private=0" % table
