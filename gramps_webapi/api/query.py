@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass
-from typing import Any, Iterable, Optional, Sequence, Tuple, Union
+from typing import Any, Iterable, List, Optional, Sequence, Tuple, Union
 
 from gramps.gen.lib import (
     Citation,
@@ -466,6 +466,73 @@ def _render_handle_ref(
     raise QueryError(f"invalid handle reference: {handle_ref!r}")
 
 
+def _guarded_handle_ref_sql(
+    handle_ref: ColumnRef, outer_table: str, dialect: Dialect
+) -> str:
+    """`_render_handle_ref`'s SQL expression, with the dynamic-index `>= 0`
+    guard already applied when needed -- the one piece `_render_related_object`
+    and `_related_object_privacy_guards` both need identically.
+    """
+    handle_sql, guard_column = _render_handle_ref(handle_ref, outer_table, dialect)
+    if guard_column is not None:
+        handle_sql = (
+            f"CASE WHEN {outer_table}.{guard_column} >= 0 THEN {handle_sql} ELSE NULL END"
+        )
+    return handle_sql
+
+
+def _chain_has_privacy(column: ColumnRef) -> bool:
+    """Does `column`'s relationship chain cross any privacy-bearing target,
+    at any depth? Guards `Comparison.compile` doing any extra work at all
+    for a chain that could never be privacy-masked in the first place.
+    """
+    while isinstance(column, RelatedObject):
+        if column.target.has_privacy:
+            return True
+        column = column.field
+    return False
+
+
+def _related_object_visible_sql(
+    related: RelatedObject, outer_table: str, dialect: Dialect, treeid: Optional[int]
+) -> Tuple[str, list]:
+    """A scalar subquery evaluating to `0` if some *existing* row along
+    `related`'s chain is privacy-blocked, `1`/`NULL` otherwise (`NULL`
+    specifically when the chain bottoms out at a handle that doesn't
+    resolve to any row at all -- genuinely missing data, not blocked).
+
+    Mirrors `_render_related_object`'s own nesting exactly, level for
+    level: each hop's subquery is lexically nested inside its parent's own
+    `SELECT`, so it correlates back to that parent's `FROM` the same way
+    the field-value fetch already does (confirmed live -- a flat,
+    top-level list of per-hop guard clauses instead of this nesting
+    referenced an out-of-scope table for any hop past the first, e.g.
+    `event.place` with no `event` in the outer query's `FROM` at all).
+    See `Comparison.compile`'s use of this for `=`/`!=`.
+    """
+    target_table = related.target.table
+    handle_sql = _guarded_handle_ref_sql(related.handle_ref, outer_table, dialect)
+    if isinstance(related.field, RelatedObject):
+        nested_sql, nested_params = _related_object_visible_sql(
+            related.field, target_table, dialect, treeid
+        )
+        nested_expr = f"COALESCE(({nested_sql}), 1)"
+    else:
+        nested_expr, nested_params = "1", []
+    select_expr = (
+        f"CASE WHEN {target_table}.private = 1 THEN 0 ELSE {nested_expr} END"
+        if related.target.has_privacy
+        else nested_expr
+    )
+    where = [f"{target_table}.handle = ({handle_sql})"]
+    params: list = []
+    if treeid is not None:
+        where.append(f"{target_table}.treeid = ?")
+        params.append(treeid)
+    subquery = f"(SELECT {select_expr} FROM {target_table} WHERE {' AND '.join(where)} LIMIT 1)"
+    return subquery, params + nested_params
+
+
 def _render_related_object(
     related: RelatedObject,
     outer_table: str,
@@ -513,11 +580,7 @@ def _render_related_object(
         )
     target_table = related.target.table
 
-    handle_sql, guard_column = _render_handle_ref(related.handle_ref, outer_table, dialect)
-    if guard_column is not None:
-        handle_sql = (
-            f"CASE WHEN {outer_table}.{guard_column} >= 0 THEN {handle_sql} ELSE NULL END"
-        )
+    handle_sql = _guarded_handle_ref_sql(related.handle_ref, outer_table, dialect)
 
     if isinstance(related.field, RelatedObject):
         field_sql, field_params = _render_related_object(
@@ -652,8 +715,49 @@ class Comparison:
                 can_view_private=can_view_private,
                 treeid=treeid,
             )
-            return f"{column_sql} {sql_op} {value_sql}", column_params + value_params
-        return f"{column_sql} {sql_op} ?", column_params + [self.value]
+            comparison_sql = f"{column_sql} {sql_op} {value_sql}"
+            comparison_params = column_params + value_params
+        else:
+            comparison_sql = f"{column_sql} {sql_op} ?"
+            comparison_params = column_params + [self.value]
+
+        if self.op not in _NULL_SAFE_OPS or can_view_private:
+            # Ordering/LIKE/etc. already exclude a privacy-masked NULL via
+            # standard SQL three-valued logic -- no guard needed. Nor is
+            # one needed at all if the caller can see private data anyway.
+            return comparison_sql, comparison_params
+
+        # `=`/`!=` are NULL-safe, so a privacy-masked field must be
+        # explicitly excluded here rather than left to participate as
+        # comparable data -- see `_related_object_visible_sql`.
+        guards: List[str] = []
+        guard_params: list = []
+        for ref in [self.column] + ([self.value] if is_field_comparison else []):
+            if isinstance(ref, RelatedObject) and _chain_has_privacy(ref):
+                assert dialect is not None  # already required to have rendered `ref` itself
+                visible_sql, visible_params = _related_object_visible_sql(
+                    ref, spec.table, dialect, treeid
+                )
+                guards.append(f"COALESCE(({visible_sql}), 1) = 1")
+                guard_params.extend(visible_params)
+        if not guards:
+            return comparison_sql, comparison_params
+        # A blocked comparison must become SQL NULL (unknown), not a
+        # hardcoded FALSE -- `(guard) AND (comparison)` reads as a
+        # definite FALSE when blocked, and `NOT FALSE` is TRUE, which
+        # flips a wrapping `Not(...)` into wrongly matching (confirmed
+        # live: `Not(Eq(masked_field, 'real value'))` matched a row it
+        # should have excluded). NULL propagates correctly through NOT,
+        # AND, and OR on its own via SQL's native three-valued logic --
+        # `NOT NULL`, `NULL AND x`, and `x OR NULL` all stay non-TRUE
+        # (except `TRUE OR NULL`, correctly still TRUE: an independently
+        # visible, genuinely-matching sibling condition should still be
+        # able to confirm a match) -- so no per-combinator special-casing
+        # is needed, just picking the right "blocked" value here.
+        return (
+            f"CASE WHEN {' AND '.join(guards)} THEN ({comparison_sql}) ELSE NULL END",
+            guard_params + comparison_params,
+        )
 
     def __eq__(self, other: object) -> bool:
         return (

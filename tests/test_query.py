@@ -923,6 +923,297 @@ def test_null_safe_equality_end_to_end_sqlite_execution():
     assert "f4" in eq_rows
 
 
+# --- Privacy guard on NULL-safe equality --------------------------------------
+#
+# Privacy masks a private related row's field to NULL by excluding it from
+# its own subquery's WHERE (see _render_related_object) -- fine for select,
+# but combined with NULL-safe Eq/Ne, a masked NULL would otherwise
+# participate in the comparison as if it were genuinely missing data,
+# letting an unprivileged caller learn a true/false fact about hidden data
+# (verified live: two masked fields compared "equal"; one masked field
+# compared to a literal it didn't match compared "not equal"). Eq/Ne now
+# add a visibility guard for any RelatedObject side that crosses a
+# privacy-bearing relationship, excluding the row entirely rather than
+# letting a masked value participate.
+
+FATHER_SURNAME_2 = resolve_column_path(FAMILY, ["father", "surname"])
+MOTHER_SURNAME = resolve_column_path(FAMILY, ["mother", "surname"])
+BIRTH_PLACE_TITLE = resolve_column_path(PERSON, ["birth", "place", "title"])
+DEATH_PLACE_TITLE = resolve_column_path(PERSON, ["death", "place", "title"])
+
+
+def test_privacy_guard_added_for_eq_ne_without_view_private_permission():
+    sql, _ = compile_query(
+        FAMILY,
+        Query(select=["handle"], where=Eq(FATHER_SURNAME_2, MOTHER_SURNAME)),
+        dialect=Dialect.SQLITE,
+        can_view_private=False,
+    )
+    assert sql.count("COALESCE((") == 2  # one visibility guard per side
+    assert "CASE WHEN person.private = 1 THEN 0 ELSE 1 END" in sql
+
+
+def test_privacy_guard_omitted_when_caller_can_view_private():
+    sql, _ = compile_query(
+        FAMILY,
+        Query(select=["handle"], where=Eq(FATHER_SURNAME_2, MOTHER_SURNAME)),
+        dialect=Dialect.SQLITE,
+        can_view_private=True,
+    )
+    assert "COALESCE(" not in sql
+    assert "CASE WHEN" not in sql
+
+
+def test_privacy_guard_not_added_for_ordering_ops():
+    # Lt/Lte/Gt/Gte weren't made NULL-safe, so a privacy-masked NULL
+    # already excludes the row via standard three-valued logic -- no guard
+    # needed, and none should be added.
+    sql, _ = compile_query(
+        FAMILY,
+        Query(select=["handle"], where=Lt(FATHER_SURNAME_2, MOTHER_SURNAME)),
+        dialect=Dialect.SQLITE,
+        can_view_private=False,
+    )
+    assert "COALESCE(" not in sql
+    assert "CASE WHEN" not in sql
+
+
+def test_privacy_guard_end_to_end_sqlite_execution():
+    # Direct proof the guard changes matched rows, not just the SQL text --
+    # reproduces the exact scenario found live: two people with genuinely
+    # different surnames, both marked private.
+    import sqlite3
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE person (handle TEXT, surname TEXT, private INTEGER)")
+    conn.execute(
+        "CREATE TABLE family (handle TEXT, father_handle TEXT, mother_handle TEXT, private INTEGER)"
+    )
+    conn.execute("INSERT INTO person VALUES (?, ?, ?)", ("dad1", "Smith", 1))
+    conn.execute("INSERT INTO person VALUES (?, ?, ?)", ("mom1", "Jones", 1))
+    conn.execute("INSERT INTO family VALUES (?, ?, ?, ?)", ("f1", "dad1", "mom1", 0))
+
+    for op_cls, expect_match_unprivileged in [(Eq, False), (Ne, False)]:
+        # With permission: Smith != Jones, so Eq never matches, Ne always does.
+        sql, params = compile_query(
+            FAMILY,
+            Query(select=["handle"], where=op_cls(FATHER_SURNAME_2, MOTHER_SURNAME)),
+            dialect=Dialect.SQLITE,
+            can_view_private=True,
+        )
+        privileged_rows = conn.execute(sql, params).fetchall()
+        assert (len(privileged_rows) == 1) == (op_cls is Ne)
+
+        # Without permission: both sides masked to NULL -- must be excluded
+        # from BOTH Eq and Ne, not read as "equal" or "not equal".
+        sql, params = compile_query(
+            FAMILY,
+            Query(select=["handle"], where=op_cls(FATHER_SURNAME_2, MOTHER_SURNAME)),
+            dialect=Dialect.SQLITE,
+            can_view_private=False,
+        )
+        unprivileged_rows = conn.execute(sql, params).fetchall()
+        assert (len(unprivileged_rows) == 1) is expect_match_unprivileged
+
+
+def test_privacy_guard_field_vs_literal_end_to_end_sqlite_execution():
+    # The narrower, more dangerous case: a single masked field compared to
+    # a literal it genuinely DOES match -- != must not assert "different"
+    # about data the caller was never shown.
+    import sqlite3
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE person (handle TEXT, surname TEXT, private INTEGER)")
+    conn.execute(
+        "CREATE TABLE family (handle TEXT, father_handle TEXT, mother_handle TEXT, private INTEGER)"
+    )
+    conn.execute("INSERT INTO person VALUES (?, ?, ?)", ("dad1", "Smith", 1))
+    conn.execute("INSERT INTO family VALUES (?, ?, ?, ?)", ("f1", "dad1", None, 0))
+
+    for op_cls in (Eq, Ne):
+        sql, params = compile_query(
+            FAMILY,
+            Query(select=["handle"], where=op_cls(FATHER_SURNAME_2, "Smith")),
+            dialect=Dialect.SQLITE,
+            can_view_private=False,
+        )
+        rows = conn.execute(sql, params).fetchall()
+        assert rows == [], f"{op_cls.__name__} incorrectly matched a privacy-masked field"
+
+
+def test_privacy_guard_two_hop_chain_correlates_correctly():
+    # Regression test: an earlier version of this guard emitted a flat,
+    # top-level clause per hop instead of nesting each hop's guard inside
+    # its parent's own subquery scope -- for a 2-hop chain like
+    # birth.place.title, the second hop's guard referenced "event.place"
+    # with no "event" table in the outer query's FROM at all, raising
+    # "no such column: event.place" the moment it was actually executed
+    # (a pure SQL-string test wouldn't have caught this -- only runs it).
+    import json
+    import sqlite3
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute(
+        "CREATE TABLE person (handle TEXT, birth_ref_index INTEGER, death_ref_index INTEGER, "
+        "json_data TEXT, private INTEGER)"
+    )
+    conn.execute("CREATE TABLE event (handle TEXT, place TEXT, private INTEGER)")
+    conn.execute("CREATE TABLE place (handle TEXT, title TEXT, private INTEGER)")
+
+    conn.execute(
+        "INSERT INTO person VALUES (?, ?, ?, ?, ?)",
+        ("p1", 0, 1, json.dumps({"event_ref_list": [{"ref": "birth1"}, {"ref": "death1"}]}), 0),
+    )
+    conn.execute("INSERT INTO event VALUES (?, ?, ?)", ("birth1", "place1", 0))
+    conn.execute("INSERT INTO event VALUES (?, ?, ?)", ("death1", "place2", 0))
+    conn.execute("INSERT INTO place VALUES (?, ?, ?)", ("place1", "Chicago", 0))
+    conn.execute("INSERT INTO place VALUES (?, ?, ?)", ("place2", "Chicago", 0))
+
+    sql, params = compile_query(
+        PERSON,
+        Query(select=["handle"], where=Eq(BIRTH_PLACE_TITLE, DEATH_PLACE_TITLE)),
+        dialect=Dialect.SQLITE,
+        can_view_private=False,
+    )
+    rows = conn.execute(sql, params).fetchall()  # must not raise
+    assert rows == [("p1",)]  # both places visible and equal ("Chicago")
+
+    # Now mark the death place private -- the chain crosses a
+    # privacy-bearing hop 2 levels down, must still correctly block.
+    conn.execute("UPDATE place SET private = 1 WHERE handle = 'place2'")
+    rows = conn.execute(sql, params).fetchall()
+    assert rows == []  # blocked, not silently treated as still matching
+
+
+def test_privacy_guard_does_not_block_genuinely_missing_data():
+    # A chain that bottoms out at a handle with no matching row at all
+    # (not privacy -- just nothing recorded) must NOT be blocked by the
+    # guard -- only an *existing*, privacy-blocked row should be.
+    import json
+    import sqlite3
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute(
+        "CREATE TABLE person (handle TEXT, death_ref_index INTEGER, json_data TEXT, private INTEGER)"
+    )
+    conn.execute("CREATE TABLE event (handle TEXT, json_data TEXT, private INTEGER)")
+    conn.execute("CREATE TABLE family (handle TEXT, father_handle TEXT, mother_handle TEXT, private INTEGER)")
+
+    # mother: death recorded, not private. father: no death event at all.
+    conn.execute(
+        "INSERT INTO person VALUES (?, ?, ?, ?)",
+        ("mom1", 0, json.dumps({"event_ref_list": [{"ref": "mom1_death"}]}), 0),
+    )
+    conn.execute("INSERT INTO event VALUES (?, ?, ?)", ("mom1_death", json.dumps({"date": {"sortval": 100}}), 0))
+    conn.execute("INSERT INTO person VALUES (?, ?, ?, ?)", ("dad1", -1, json.dumps({}), 0))
+    conn.execute("INSERT INTO family VALUES (?, ?, ?, ?)", ("f1", "dad1", "mom1", 0))
+
+    mother_death_sortval = resolve_column_path(FAMILY, ["mother", "death", "date", "sortval"])
+    father_death_sortval = resolve_column_path(FAMILY, ["father", "death", "date", "sortval"])
+    sql, params = compile_query(
+        FAMILY,
+        Query(select=["handle"], where=Ne(mother_death_sortval, father_death_sortval)),
+        dialect=Dialect.SQLITE,
+        can_view_private=False,
+    )
+    rows = conn.execute(sql, params).fetchall()
+    # father's death is genuinely missing (not privacy-blocked) -- NULL-safe
+    # Ne should still fire normally: a real value vs. genuinely-missing is
+    # "distinct".
+    assert rows == [("f1",)]
+
+
+# --- Privacy guard survives boolean composition (Not/And/Or) -----------------
+#
+# The guard must render as SQL NULL (unknown) when blocked, not a hardcoded
+# FALSE -- an earlier version used `(guard) AND (comparison)`, which
+# evaluates to a definite FALSE when blocked; wrapping that in Not(...)
+# then flips it to TRUE (NOT FALSE = TRUE), silently re-opening the exact
+# leak this guard exists to close, just reached via Not(Eq(...)) instead of
+# Ne(...) directly. SQL's own three-valued logic already handles NULL
+# propagating correctly through NOT/AND/OR -- expressing "blocked" as NULL
+# (via CASE WHEN <guard> THEN <comparison> ELSE NULL END) needs no
+# per-combinator special-casing to get this right.
+
+
+def test_privacy_guard_survives_not_wrapping():
+    import sqlite3
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE person (handle TEXT, surname TEXT, private INTEGER)")
+    conn.execute(
+        "CREATE TABLE family (handle TEXT, father_handle TEXT, mother_handle TEXT, private INTEGER)"
+    )
+    # Father is private, and his real surname genuinely IS "Smith".
+    conn.execute("INSERT INTO person VALUES (?, ?, ?)", ("dad1", "Smith", 1))
+    conn.execute("INSERT INTO family VALUES (?, ?, ?, ?)", ("f1", "dad1", None, 0))
+
+    sql, params = compile_query(
+        FAMILY,
+        Query(select=["handle"], where=Not(Eq(FATHER_SURNAME_2, "Smith"))),
+        dialect=Dialect.SQLITE,
+        can_view_private=False,
+    )
+    rows = conn.execute(sql, params).fetchall()
+    # Must stay excluded -- NOT("unknown, blocked by privacy") is still
+    # unknown, never a confident "yes, it's not Smith".
+    assert rows == []
+
+    # With permission, this should behave normally: Smith == Smith, so
+    # Not(Eq(...)) is Not(True) -> excluded (same result, different reason
+    # -- proves the guard isn't just unconditionally suppressing the row).
+    sql, params = compile_query(
+        FAMILY,
+        Query(select=["handle"], where=Not(Eq(FATHER_SURNAME_2, "Smith"))),
+        dialect=Dialect.SQLITE,
+        can_view_private=True,
+    )
+    rows = conn.execute(sql, params).fetchall()
+    assert rows == []
+
+
+def test_privacy_guard_or_lets_a_visible_sibling_still_confirm_a_match():
+    # An Or() branch that's privacy-blocked shouldn't suppress a sibling
+    # branch that's independently visible and genuinely true -- "blocked"
+    # should behave like SQL NULL here: `NULL OR TRUE` is TRUE.
+    import sqlite3
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE person (handle TEXT, surname TEXT, private INTEGER)")
+    conn.execute(
+        "CREATE TABLE family (handle TEXT, father_handle TEXT, mother_handle TEXT, private INTEGER)"
+    )
+    conn.execute("INSERT INTO person VALUES (?, ?, ?)", ("dad1", "Smith", 1))  # private
+    conn.execute("INSERT INTO person VALUES (?, ?, ?)", ("mom1", "Jones", 0))  # visible, matches
+    conn.execute("INSERT INTO family VALUES (?, ?, ?, ?)", ("f1", "dad1", "mom1", 0))
+
+    sql, params = compile_query(
+        FAMILY,
+        Query(
+            select=["handle"],
+            where=Or(Eq(FATHER_SURNAME_2, "Smith"), Eq(MOTHER_SURNAME, "Jones")),
+        ),
+        dialect=Dialect.SQLITE,
+        can_view_private=False,
+    )
+    rows = conn.execute(sql, params).fetchall()
+    assert rows == [("f1",)]  # mother's branch alone confirms the match
+
+    # But if the visible sibling is genuinely false too, blocked OR false
+    # stays unknown -- must not match.
+    sql, params = compile_query(
+        FAMILY,
+        Query(
+            select=["handle"],
+            where=Or(Eq(FATHER_SURNAME_2, "Smith"), Eq(MOTHER_SURNAME, "NotJones")),
+        ),
+        dialect=Dialect.SQLITE,
+        can_view_private=False,
+    )
+    rows = conn.execute(sql, params).fetchall()
+    assert rows == []
+
+
 def test_compile_query_uses_spec_table_and_columns():
     query = Query(select=["handle", "father_handle"])
     sql, _ = compile_query(FAMILY, query)
