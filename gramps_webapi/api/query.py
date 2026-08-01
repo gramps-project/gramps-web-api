@@ -580,6 +580,18 @@ def _render_column(
 #: (see `Comparison.compile`) -- ordering only, not equality.
 _ORDERING_OPS = frozenset({"<", "<=", ">", ">="})
 
+#: `=`/`!=` render as `IS [NOT] DISTINCT FROM` instead -- NULL-safe
+#: equality, so a missing value is treated as a distinct, comparable value
+#: rather than "unknown" (SQL's default three-valued-logic behavior for
+#: `=`/`!=`, which silently drops any row where either side is NULL from
+#: *both* an `eq` and an `ne` count). This matters most for field-vs-field
+#: comparisons -- "born and died in different places" should include
+#: "died in an unknown place", not silently exclude it -- but applies
+#: uniformly to literal comparisons too, for the same reason. Requires
+#: SQLite 3.39+ (2022-06-25); standard, unconditionally supported on
+#: PostgreSQL.
+_NULL_SAFE_OPS = {"=": "IS NOT DISTINCT FROM", "!=": "IS DISTINCT FROM"}
+
 
 class Comparison:
     """Base class for single-column comparison leaves (`Eq`, `Lt`, ...).
@@ -622,6 +634,7 @@ class Comparison:
         # JsonPath/RelatedObject instance, neither bool nor numeric, so it
         # still renders as TEXT on both sides via the existing type checks).
         cast_hint = 0 if is_field_comparison and self.op in _ORDERING_OPS else self.value
+        sql_op = _NULL_SAFE_OPS.get(self.op, self.op)
         column_sql, column_params = _render_column(
             self.column,
             spec,
@@ -639,8 +652,8 @@ class Comparison:
                 can_view_private=can_view_private,
                 treeid=treeid,
             )
-            return f"{column_sql} {self.op} {value_sql}", column_params + value_params
-        return f"{column_sql} {self.op} ?", column_params + [self.value]
+            return f"{column_sql} {sql_op} {value_sql}", column_params + value_params
+        return f"{column_sql} {sql_op} ?", column_params + [self.value]
 
     def __eq__(self, other: object) -> bool:
         return (

@@ -38,6 +38,8 @@ from gramps_webapi.api.query import (
     JsonPath,
     Like,
     Lt,
+    Lte,
+    Ne,
     Not,
     Or,
     OrderBy,
@@ -78,7 +80,9 @@ def test_compile_query_skips_privacy_clause_for_types_without_it():
 def test_compile_count_query_shape():
     query = Query(where=Eq("gender", 1))
     sql, params = compile_count_query(PERSON, query)
-    assert sql == "SELECT COUNT(*) FROM person WHERE (gender = ?) AND private = 0"
+    assert sql == (
+        "SELECT COUNT(*) FROM person WHERE (gender IS NOT DISTINCT FROM ?) AND private = 0"
+    )
     assert params == [1]
 
 
@@ -141,7 +145,7 @@ def test_compile_query_adds_treeid_clause_when_given():
 def test_compile_query_treeid_clause_combines_with_where_and_privacy():
     query = Query(where=Eq("gender", 1))
     sql, params = compile_query(PERSON, query, treeid=7)
-    assert "(gender = ?)" in sql
+    assert "(gender IS NOT DISTINCT FROM ?)" in sql
     assert "private = 0" in sql
     assert "treeid = ?" in sql
     assert params[0] == 1  # where value
@@ -210,7 +214,7 @@ def test_compile_query_jsonpath_where_eq():
     path = JsonPath(("primary_name", "first_name"))
     query = Query(select=["handle"], where=Eq(path, "Root"))
     sql, params = compile_query(PERSON, query, dialect=Dialect.SQLITE)
-    assert "json_extract(json_data, ?) = ?" in sql
+    assert "json_extract(json_data, ?) IS NOT DISTINCT FROM ?" in sql
     assert params == ["$.primary_name.first_name", "Root", 50]
 
 
@@ -226,8 +230,8 @@ def test_compile_query_jsonpath_combined_with_plain_column():
     path = JsonPath(("primary_name", "first_name"))
     query = Query(select=["handle"], where=And(Eq("gender", 1), Eq(path, "Root")))
     sql, params = compile_query(PERSON, query, dialect=Dialect.SQLITE, can_view_private=True)
-    assert "gender = ?" in sql
-    assert "json_extract(json_data, ?) = ?" in sql
+    assert "gender IS NOT DISTINCT FROM ?" in sql
+    assert "json_extract(json_data, ?) IS NOT DISTINCT FROM ?" in sql
     # plain-column param first, then the JsonPath's own [path, value] pair --
     # matches left-to-right order of appearance in the compiled SQL text.
     assert params == [1, "$.primary_name.first_name", "Root", 50]
@@ -251,7 +255,10 @@ def test_compile_count_query_jsonpath_where():
     sql, params = compile_count_query(
         PERSON, Query(where=Eq(path, "Root")), dialect=Dialect.SQLITE
     )
-    assert sql == "SELECT COUNT(*) FROM person WHERE (json_extract(json_data, ?) = ?) AND private = 0"
+    assert sql == (
+        "SELECT COUNT(*) FROM person WHERE "
+        "(json_extract(json_data, ?) IS NOT DISTINCT FROM ?) AND private = 0"
+    )
     assert params == ["$.primary_name.first_name", "Root"]  # no LIMIT param -- it's a COUNT
 
 
@@ -270,7 +277,7 @@ def test_compile_query_jsonpath_where_eq_bool_postgresql_casts_to_boolean():
     path = JsonPath(("private",))
     query = Query(select=["handle"], where=Eq(path, True))
     sql, params = compile_query(PERSON, query, dialect=Dialect.POSTGRESQL, can_view_private=True)
-    assert "CAST(jsonb_extract_path(json_data::jsonb, ?) AS BOOLEAN) = ?" in sql
+    assert "CAST(jsonb_extract_path(json_data::jsonb, ?) AS BOOLEAN) IS NOT DISTINCT FROM ?" in sql
     assert params == ["private", True, 50]
 
 
@@ -278,7 +285,7 @@ def test_compile_query_jsonpath_where_eq_str_postgresql_stays_text():
     path = JsonPath(("primary_name", "first_name"))
     query = Query(select=["handle"], where=Eq(path, "Root"))
     sql, params = compile_query(PERSON, query, dialect=Dialect.POSTGRESQL)
-    assert "jsonb_extract_path_text(json_data::jsonb, ?, ?) = ?" in sql
+    assert "jsonb_extract_path_text(json_data::jsonb, ?, ?) IS NOT DISTINCT FROM ?" in sql
     assert params == ["primary_name", "first_name", "Root", 50]
 
 
@@ -798,6 +805,124 @@ def test_field_vs_field_end_to_end_sqlite_execution():
     assert rows == [("f1",)]
 
 
+# --- NULL-safe equality (`=`/`!=` -> IS [NOT] DISTINCT FROM) ------------------
+#
+# Plain SQL `=`/`!=` use three-valued logic: if either side is NULL, the
+# comparison is UNKNOWN, not TRUE or FALSE -- so a row where one side is
+# missing satisfies neither `eq` nor `ne`. That's a sharp edge for
+# field-vs-field comparisons specifically: "born and died in different
+# places" (`birth.place.title != death.place.title`) should include "died
+# in an unknown place", not silently drop it. `Eq`/`Ne` render as
+# `IS [NOT] DISTINCT FROM` instead -- NULL-safe, so NULL is a normal,
+# comparable value (NULL IS DISTINCT FROM 'x' is true; NULL IS DISTINCT
+# FROM NULL is false) -- for both literal and field-vs-field comparisons.
+
+
+def test_eq_ne_render_as_null_safe_distinct():
+    sql, _ = compile_query(PERSON, Query(select=["handle"], where=Eq("gender", 1)))
+    assert "gender IS NOT DISTINCT FROM ?" in sql
+    assert "gender = ?" not in sql
+
+    sql, _ = compile_query(PERSON, Query(select=["handle"], where=Ne("gender", 1)))
+    assert "gender IS DISTINCT FROM ?" in sql
+    assert "gender != ?" not in sql
+
+
+def test_field_vs_field_eq_ne_render_as_null_safe_distinct():
+    sql, _ = compile_query(
+        FAMILY,
+        Query(select=["handle"], where=Eq(MOTHER_DEATH_SORTVAL, FATHER_DEATH_SORTVAL)),
+        dialect=Dialect.SQLITE,
+        can_view_private=True,
+    )
+    # The two correlated subqueries are joined directly by the top-level
+    # operator, e.g. "...LIMIT 1) IS NOT DISTINCT FROM (SELECT..." -- check
+    # that specific join, not just "IS NOT DISTINCT FROM" appearing
+    # somewhere (the subqueries' own internal `handle = ...` correlations
+    # are unrelated `=` uses that must NOT be affected by this rewrite).
+    assert ") IS NOT DISTINCT FROM (SELECT" in sql
+
+    sql, _ = compile_query(
+        FAMILY,
+        Query(select=["handle"], where=Ne(MOTHER_DEATH_SORTVAL, FATHER_DEATH_SORTVAL)),
+        dialect=Dialect.SQLITE,
+        can_view_private=True,
+    )
+    assert ") IS DISTINCT FROM (SELECT" in sql
+    assert "!=" not in sql
+
+
+def test_ordering_and_like_and_in_ops_unaffected_by_null_safe_rewrite():
+    # Only `=`/`!=` (Eq/Ne) get the NULL-safe rewrite -- ordering operators
+    # have no natural NULL-safe equivalent in standard SQL, and In/Like are
+    # unrelated classes that don't go through Comparison.compile() at all
+    # (In) or use their own fixed `LIKE` operator (Like).
+    for op_cls, op_text in [(Lt, "<"), (Lte, "<="), (Gt, ">"), (Gte, ">=")]:
+        sql, _ = compile_query(PERSON, Query(select=["handle"], where=op_cls("gender", 1)))
+        assert f"gender {op_text} ?" in sql
+
+    sql, _ = compile_query(PERSON, Query(select=["handle"], where=Like("surname", "A%")))
+    assert "surname LIKE ?" in sql
+
+    sql, _ = compile_query(PERSON, Query(select=["handle"], where=In("gender", [1, 2])))
+    assert "gender IN (?, ?)" in sql
+
+
+def test_null_safe_equality_end_to_end_sqlite_execution():
+    # Direct proof that the NULL-safe rewrite actually changes matched rows,
+    # not just the SQL text: a family where only one side's death date is
+    # recorded is included by Ne (distinct: a real value vs. NULL) and
+    # excluded by Eq; a family where *neither* side's death date is
+    # recorded is excluded by Ne (NULL is not distinct from NULL) and
+    # included by Eq.
+    import json
+    import sqlite3
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute(
+        "CREATE TABLE person (handle TEXT, death_ref_index INTEGER, json_data TEXT)"
+    )
+    conn.execute("CREATE TABLE event (handle TEXT, json_data TEXT)")
+    conn.execute("CREATE TABLE family (handle TEXT, father_handle TEXT, mother_handle TEXT)")
+
+    # f3: mother's death is recorded, father's is not (death_ref_index -1,
+    # "no such event") -- one side NULL, one side a real value.
+    conn.execute(
+        "INSERT INTO person VALUES (?, ?, ?)",
+        ("mom3", 0, json.dumps({"event_ref_list": [{"ref": "mom3_death"}]})),
+    )
+    conn.execute("INSERT INTO person VALUES (?, ?, ?)", ("dad3", -1, json.dumps({})))
+    conn.execute(
+        "INSERT INTO event VALUES (?, ?)", ("mom3_death", json.dumps({"date": {"sortval": 2433283}}))
+    )
+    conn.execute("INSERT INTO family VALUES (?, ?, ?)", ("f3", "dad3", "mom3"))
+
+    # f4: neither side's death is recorded -- both NULL.
+    conn.execute("INSERT INTO person VALUES (?, ?, ?)", ("mom4", -1, json.dumps({})))
+    conn.execute("INSERT INTO person VALUES (?, ?, ?)", ("dad4", -1, json.dumps({})))
+    conn.execute("INSERT INTO family VALUES (?, ?, ?)", ("f4", "dad4", "mom4"))
+
+    ne_sql, ne_params = compile_query(
+        FAMILY,
+        Query(select=["handle"], where=Ne(MOTHER_DEATH_SORTVAL, FATHER_DEATH_SORTVAL)),
+        dialect=Dialect.SQLITE,
+        can_view_private=True,
+    )
+    eq_sql, eq_params = compile_query(
+        FAMILY,
+        Query(select=["handle"], where=Eq(MOTHER_DEATH_SORTVAL, FATHER_DEATH_SORTVAL)),
+        dialect=Dialect.SQLITE,
+        can_view_private=True,
+    )
+    ne_rows = {row[0] for row in conn.execute(ne_sql, ne_params).fetchall()}
+    eq_rows = {row[0] for row in conn.execute(eq_sql, eq_params).fetchall()}
+
+    assert "f3" in ne_rows  # one side missing -> distinct -> matches Ne
+    assert "f3" not in eq_rows
+    assert "f4" not in ne_rows  # both sides missing -> not distinct -> matches Eq
+    assert "f4" in eq_rows
+
+
 def test_compile_query_uses_spec_table_and_columns():
     query = Query(select=["handle", "father_handle"])
     sql, _ = compile_query(FAMILY, query)
@@ -899,7 +1024,7 @@ def test_unknown_column_in_order_by_rejected():
 def test_simple_eq_compiles_with_bound_param():
     query = Query(select=["handle"], where=Eq("gender", 1))
     sql, params = compile_query(PERSON, query)
-    assert "gender = ?" in sql
+    assert "gender IS NOT DISTINCT FROM ?" in sql
     assert params[0] == 1
     # the value is bound as a parameter, never interpolated into the SQL text
     where_clause = sql.split("WHERE", 1)[1]
