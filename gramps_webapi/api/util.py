@@ -134,15 +134,6 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
         """Initialize self."""
         super().__init__(*args, **kwargs)
         self.name_formats = self.db.name_formats
-        # `DBAPI` and `SharedDBAPI` (used by the SharedPostgreSQL addon) are
-        # sibling classes, not parent/child, so this deliberately does NOT
-        # match SharedPostgreSQL -- `_iter_handles()` below issues raw SQL
-        # with no `treeid` filter, and SharedPostgreSQL stores every tree's
-        # rows in the same physical tables, discriminated only by `treeid`.
-        # Widening this to `hasattr(self.basedb, "dbapi")` looks like a
-        # narrower-than-necessary check but is actually load-bearing: it's
-        # what keeps SharedPostgreSQL on the slower, correctly tree-scoped
-        # `self.db.iter_*_handles()` path below instead of the raw one.
         self.is_dbapi = isinstance(self.basedb, DBAPI)
 
     def get_dbname(self):
