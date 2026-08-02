@@ -35,7 +35,7 @@ the same pattern `GrampsObjectResourceHelper` subclasses already use with
 """
 
 import json
-from typing import Any, Optional, Sequence, Tuple
+from typing import Any, Callable, Optional, Sequence, Tuple
 
 from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps.plugins.db.dbapi.sqlite import SQLite
@@ -306,6 +306,22 @@ def _sort_key(value: Any) -> Tuple[bool, Any]:
     the SQL path's `ORDER BY` has its own (backend-native) NULL ordering.
     """
     return (value is not None, value)
+
+
+def _sort_key_for_column(
+    column: str, spec: ObjectTypeSpec
+) -> Callable[[Any], Tuple[bool, Any]]:
+    """A `list.sort(key=...)` callable for `column`, bound via closure rather
+    than a lambda's default-argument trick -- mypy can't infer the type of a
+    `lambda obj, c=column: ...` used as a sort key (`Cannot infer type of
+    lambda`), since the extra defaulted parameter breaks its unification
+    with `list.sort`'s expected single-argument callable.
+    """
+
+    def key(obj: Any) -> Tuple[bool, Any]:
+        return _sort_key(get_flat_column(obj, column, spec))
+
+    return key
 
 
 def _terminal_is_json_path(ref: ColumnRef) -> bool:
