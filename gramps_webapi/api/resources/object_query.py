@@ -700,7 +700,7 @@ class ObjectQueryResource(ProtectedResource):
         directions = {ob.column: ob.direction for ob in order_by}
         for column in reversed(sort_columns):
             matches.sort(
-                key=lambda obj, c=column: _sort_key(get_flat_column(obj, c, self.spec)),
+                key=_sort_key_for_column(column, self.spec),
                 reverse=directions.get(column, "asc") == "desc",
             )
 
