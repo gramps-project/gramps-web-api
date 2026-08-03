@@ -318,7 +318,8 @@ def _default_key_for(ref: "str | JsonPath | RelatedObject") -> str:
     if isinstance(ref, str):
         return ref
     if isinstance(ref, RelatedObject):
-        return f"{ref.name}.{_default_key_for(ref.field)}"
+        field = cast(Union[str, JsonPath, RelatedObject], ref.field)
+        return f"{ref.name}.{_default_key_for(field)}"
     parts: list = []
     for segment in ref.segments:
         if isinstance(segment, int):
