@@ -35,7 +35,7 @@ the same pattern `GrampsObjectResourceHelper` subclasses already use with
 """
 
 import json
-from typing import Any, Optional, Sequence, Tuple
+from typing import Any, Callable, Optional, Sequence, Tuple
 
 from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps.plugins.db.dbapi.sqlite import SQLite
@@ -296,11 +296,17 @@ def _parse_select_entry(raw: Any, spec: ObjectTypeSpec) -> Tuple[SelectRef, str]
     raise QueryError(f"invalid column reference: {raw!r}")
 
 
-def _default_key_for(ref: ColumnRef) -> str:
+def _default_key_for(ref: "str | JsonPath | RelatedObject") -> str:
     """Derive a default response key for a `select` entry with no explicit
     `as` alias -- a dotted/bracket string, e.g. `primary_name.surname_list[0]`
     for a plain `JsonPath`, or `birth.date.sortval` for a `RelatedObject`
     chain (recursing through `.field` and prefixing each hop's `.name`).
+
+    Only ever called for a `json_path` select entry (see `_parse_select_entry`)
+    -- `resolve_column_path` (what `json_column_to_ref` delegates a
+    `json_path` payload to) only ever returns one of these three, never a
+    `CollectionCount`/`FlatColumnRef`, so the narrower type here (rather than
+    the full `ColumnRef` union) is accurate, not just convenient.
     """
     if isinstance(ref, str):
         return ref
@@ -331,6 +337,22 @@ def _sort_key(value: Any) -> Tuple[bool, Any]:
     the SQL path's `ORDER BY` has its own (backend-native) NULL ordering.
     """
     return (value is not None, value)
+
+
+def _sort_key_for_column(
+    column: str, spec: ObjectTypeSpec
+) -> Callable[[Any], Tuple[bool, Any]]:
+    """A `list.sort(key=...)` callable for `column`, bound via closure rather
+    than a lambda's default-argument trick -- mypy can't infer the type of a
+    `lambda obj, c=column: ...` used as a sort key ("Cannot infer type of
+    lambda"), since the extra defaulted parameter breaks its unification
+    with `list.sort`'s expected single-argument callable.
+    """
+
+    def key(obj: Any) -> Tuple[bool, Any]:
+        return _sort_key(get_flat_column(obj, column, spec))
+
+    return key
 
 
 def _terminal_is_json_path(ref: ColumnRef) -> bool:
@@ -418,7 +440,7 @@ def _build_where(conditions: Optional[Sequence[dict]], spec: ObjectTypeSpec):
         if "column" in condition:
             _validate_leaf_condition(condition)
     try:
-        return where_list_to_ast(conditions, spec)
+        return where_list_to_ast(list(conditions), spec)
     except QueryError as error:
         abort_with_message(422, str(error))
 
@@ -741,7 +763,7 @@ class ObjectQueryResource(ProtectedResource):
         directions = {ob.column: ob.direction for ob in order_by}
         for column in reversed(sort_columns):
             matches.sort(
-                key=lambda obj, c=column: _sort_key(get_flat_column(obj, c, self.spec)),
+                key=_sort_key_for_column(column, self.spec),
                 reverse=directions.get(column, "asc") == "desc",
             )
 
