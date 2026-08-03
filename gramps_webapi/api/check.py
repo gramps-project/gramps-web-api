@@ -28,7 +28,6 @@ from typing import Callable, Optional
 
 from gramps.gen.db import DbTxn, DbWriteBase
 from gramps.gen.dbstate import DbState
-from gramps.plugins.tool.check import CheckIntegrity
 
 # db.<attr> caches of custom type values (e.g. db.event_names); only ever
 # grow as records commit, so they need rebuilding from live data here.
@@ -144,6 +143,8 @@ def rebuild_custom_type_caches(db_handle: DbWriteBase) -> list[tuple[str, str]]:
 
 
 def check_database(db_handle: DbWriteBase, progress_cb: Optional[Callable] = None):
+    from gramps.plugins.tool.check import CheckIntegrity
+
     i = 0
 
     def progress(i):

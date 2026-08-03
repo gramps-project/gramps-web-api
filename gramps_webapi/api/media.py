@@ -19,10 +19,12 @@
 
 """Generic media handler."""
 
+from __future__ import annotations
+
 import os
 import zipfile
 from pathlib import Path
-from typing import BinaryIO, Callable, List, Optional, Set
+from typing import TYPE_CHECKING, BinaryIO, Callable, List, Optional, Set
 
 from flask import current_app
 from flask_jwt_extended import get_jwt_identity
@@ -34,7 +36,6 @@ from ..auth import get_tree_usage, set_tree_usage
 from ..types import FilenameOrPath
 from ..util import get_extension
 from .file import FileHandler, LocalFileHandler, upload_file_local
-from .s3 import ObjectStorageFileHandler, get_object_keys_size, upload_file_s3
 from .util import (
     abort_with_message,
     close_db,
@@ -43,6 +44,9 @@ from .util import (
     get_tree_from_jwt,
     get_tree_from_jwt_or_fail,
 )
+
+if TYPE_CHECKING:
+    from .s3 import ObjectStorageFileHandler
 
 PREFIX_S3 = "s3://"
 
@@ -224,6 +228,8 @@ class MediaHandlerS3(MediaHandlerBase):
 
     def get_remote_keys(self) -> Set[str]:
         """Return the set of all object keys that are known to exist on remote."""
+        from .s3 import get_object_keys_size
+
         keys = get_object_keys_size(
             self.bucket_name, prefix=self.prefix, endpoint_url=self.endpoint_url
         )
@@ -233,6 +239,8 @@ class MediaHandlerS3(MediaHandlerBase):
         self, handle, db_handle: DbReadBase
     ) -> ObjectStorageFileHandler:
         """Get an S3 file handler."""
+        from .s3 import ObjectStorageFileHandler
+
         return ObjectStorageFileHandler(
             handle,
             bucket_name=self.bucket_name,
@@ -249,6 +257,8 @@ class MediaHandlerS3(MediaHandlerBase):
         path: Optional[FilenameOrPath] = None,
     ) -> None:
         """Upload a file from a stream."""
+        from .s3 import upload_file_s3
+
         upload_file_s3(
             self.bucket_name,
             stream,
@@ -269,6 +279,8 @@ class MediaHandlerS3(MediaHandlerBase):
 
     def get_media_size(self, db_handle: Optional[DbReadBase] = None) -> int:
         """Return the total disk space used by all existing media objects."""
+        from .s3 import get_object_keys_size
+
         if not db_handle:
             db_handle = get_db_handle()
         keys = set(obj.checksum for obj in db_handle.iter_media())

@@ -26,7 +26,6 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, BinaryIO, Optional, Tuple, Union
 
-import pytesseract
 from flask import jsonify, make_response, send_file, send_from_directory, current_app
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
@@ -147,6 +146,8 @@ class FileHandler:
         """Return regions containing faces."""
         if not self.mime.startswith("image"):
             return {}
+        import pytesseract
+
         try:
             pytesseract.get_tesseract_version()
         except pytesseract.TesseractNotFoundError:
