@@ -28,8 +28,11 @@ app = create_app()
 # when using gunicorn, make sure flask log messages are shown
 gunicorn_logger = logging.getLogger("gunicorn.error")
 if app.config.get("LOG_FORMAT") == "json":
-    # Root logger already has the JSON handler; just sync the level.
-    # Replacing app.logger.handlers with gunicorn's would swap in a plain-text handler.
+    # Gunicorn's own loggers have propagate=False and their own plain-text
+    # handler; point them at the root logger's JSON handler instead.
+    json_handler = logging.getLogger().handlers[0]
+    gunicorn_logger.handlers = [json_handler]
+    logging.getLogger("gunicorn.access").handlers = [json_handler]
     app.logger.setLevel(gunicorn_logger.level or logging.INFO)
 else:
     app.logger.handlers = gunicorn_logger.handlers
