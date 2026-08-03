@@ -109,20 +109,21 @@ class TestAppLoggerJsonHandlers:
     """In JSON mode app.logger must not keep Flask's plain-text handler."""
 
     def setup_method(self):
-        """Reset the shared root and Flask app loggers for a deterministic start."""
+        """Snapshot the shared loggers create_app mutates, for a deterministic start."""
         self.root = logging.getLogger()
         self.app_logger = logging.getLogger("gramps_webapi.app")
-        self._orig = (
-            self.root.handlers[:],
-            self.root.level,
-            self.app_logger.handlers[:],
-        )
+        self._orig_root_handlers = self.root.handlers[:]
+        self._orig_root_level = self.root.level
+        self._orig_app_handlers = self.app_logger.handlers[:]
+        self._orig_app_level = self.app_logger.level
         self.root.handlers = []
         self.app_logger.handlers = []
 
     def teardown_method(self):
-        self.root.handlers, root_level, self.app_logger.handlers = self._orig
-        self.root.setLevel(root_level)
+        self.root.handlers = self._orig_root_handlers
+        self.root.setLevel(self._orig_root_level)
+        self.app_logger.handlers = self._orig_app_handlers
+        self.app_logger.setLevel(self._orig_app_level)
 
     def _create_app(self, **config):
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
