@@ -35,18 +35,14 @@ the same pattern `GrampsObjectResourceHelper` subclasses already use with
 """
 
 import json
-from typing import Any, Callable, Optional, Sequence, Tuple, Union, cast
+from typing import Any, Optional, Sequence, Tuple, Union, cast
 
 from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps.plugins.db.dbapi.sqlite import SQLite
 from marshmallow import Schema, validate
 from webargs import fields as wf
 
-from gramps_object_query_language.evaluator import (
-    GETTER_BY_TABLE,
-    get_flat_column,
-    resolve_column_ref,
-)
+from gramps_object_query_language.evaluator import GETTER_BY_TABLE, resolve_column_ref
 from gramps_object_query_language.proxied_query import run_query
 from gramps_object_query_language.query import (
     CITATION,
@@ -337,32 +333,6 @@ def _check_no_duplicate_keys(parsed_select: Sequence[Tuple[SelectRef, str]]) -> 
         seen.add(key)
 
 
-def _sort_key(value: Any) -> Tuple[bool, Any]:
-    """Sort key treating `None` (missing/masked) as sorting first in
-    ascending order -- `(False, ...) < (True, ...)` regardless of `value`'s
-    own type, and two `None`s compare equal without ever needing `value`
-    itself to support `<` against `None`. Used only by `_post_proxied`;
-    the SQL path's `ORDER BY` has its own (backend-native) NULL ordering.
-    """
-    return (value is not None, value)
-
-
-def _sort_key_for_column(
-    column: str, spec: ObjectTypeSpec
-) -> Callable[[Any], Tuple[bool, Any]]:
-    """A `list.sort(key=...)` callable for `column`, bound via closure rather
-    than a lambda's default-argument trick -- mypy can't infer the type of a
-    `lambda obj, c=column: ...` used as a sort key ("Cannot infer type of
-    lambda"), since the extra defaulted parameter breaks its unification
-    with `list.sort`'s expected single-argument callable.
-    """
-
-    def key(obj: Any) -> Tuple[bool, Any]:
-        return _sort_key(get_flat_column(obj, column, spec))
-
-    return key
-
-
 def _terminal_is_json_path(ref: ColumnRef) -> bool:
     """Does `ref` ultimately extract via a `JsonPath` (as opposed to a
     plain flat column)? Recurses through a `RelatedObject` chain to its
@@ -508,6 +478,28 @@ def _resolve_after(
     if row is None:
         abort_with_message(422, "Invalid 'after' cursor")
     return tuple(row)
+
+
+def _resolve_after_proxied(
+    db: Any, spec: ObjectTypeSpec, order_by: Sequence[OrderBy], after_handle: str
+) -> Tuple[Any, ...]:
+    """`_resolve_after`'s evaluator-path counterpart: resolves a client-
+    supplied `after=<handle>` cursor into the same value-tuple shape
+    (`after_columns(order_by)`), but by fetching the real (possibly
+    proxied) object through `db` and reading its columns via
+    `resolve_column_ref`, rather than a raw SQL lookup -- so a masked/
+    sanitized value is used the same way it would be for any other row
+    `run_query` evaluates, consistent with this path never running a
+    second, unproxied query behind the caller's back.
+    """
+    getter = getattr(db, GETTER_BY_TABLE[spec.table])
+    after_obj = getter(after_handle)
+    if after_obj is None:
+        abort_with_message(422, "Invalid 'after' cursor")
+    return tuple(
+        resolve_column_ref(db, after_obj, column, spec)
+        for column in after_columns(order_by)
+    )
 
 
 def _resolve_collation(basedb: Any, locale: Any) -> Optional[str]:
@@ -728,19 +720,18 @@ class ObjectQueryResource(ProtectedResource):
 
     def _post_proxied(self, db: Any, args: dict) -> Any:
         """Same request/response contract as `_post_sql`, but for a proxied
-        `db` -- runs through Gramps' own `Filter`/`Rule` machinery
-        (`proxied_query.run_query`) instead of SQL. Every candidate is
-        deserialized and tested in Python (no SQL push-down, no keyset
-        narrowing before that happens), so this is intentionally not fast --
-        see `proxied_query.py`'s module docstring.
+        `db` -- delegates directly to `proxied_query.run_query`'s own
+        `order_by`/`limit`/`after`/`select` support rather than
+        reimplementing sort/seek/limit here: every candidate is still
+        deserialized and tested in Python (no SQL push-down), so this is
+        intentionally not fast -- see `proxied_query.py`'s module docstring.
 
         `order_by` is only ever a flat top-level column (`OrderBy.column`
-        never carries a `JsonPath`/`RelatedObject` -- see `query.py`), so
-        sorting real objects here needs only `evaluator.get_flat_column`,
-        never the full `resolve_column_ref` recursion `select` needs.
-        Locale-aware `COLLATE` sorting (the SQL path's `locale` param) has
-        no equivalent here yet -- this path always sorts in plain Python
-        `<` order, regardless of `locale`.
+        never carries a `JsonPath`/`RelatedObject` -- see `query.py`),
+        matching `run_query`'s own scope cap. Locale-aware `COLLATE`
+        sorting (the SQL path's `locale` param) has no equivalent here --
+        `run_query` always sorts in plain, NULL-safe Python `<` order
+        (matching SQLite's own default), regardless of `locale`.
         """
         order_by = [
             OrderBy(item["column"], item.get("direction", "asc"))
@@ -765,52 +756,34 @@ class ObjectQueryResource(ProtectedResource):
             fetch_keys = fetch_keys + ["handle"]
         requested_keys = {key for _, key in parsed_select}
 
-        matches = run_query(db, self.spec, where)
-
-        sort_columns = after_columns(order_by)  # tie-broken with 'handle'
-        directions = {ob.column: ob.direction for ob in order_by}
-        for column in reversed(sort_columns):
-            matches.sort(
-                key=_sort_key_for_column(column, self.spec),
-                reverse=directions.get(column, "asc") == "desc",
-            )
-
-        total_count = len(matches)
-
-        start = 0
+        after = None
         if args.get("after"):
-            getter = getattr(db, GETTER_BY_TABLE[self.spec.table])
-            after_obj = getter(args["after"])
-            if after_obj is None:
-                abort_with_message(422, "Invalid 'after' cursor")
-            for index, obj in enumerate(matches):
-                if obj.handle == after_obj.handle:
-                    start = index + 1
-                    break
-            else:
-                # The cursor handle exists (through `db`) but isn't a member
-                # of this exact `matches` set -- e.g. `where` narrowed since
-                # the cursor was issued. Same "invalid" outcome as a handle
-                # that doesn't resolve at all; a stale cursor isn't a
-                # resumable position either way.
-                abort_with_message(422, "Invalid 'after' cursor")
+            after = _resolve_after_proxied(db, self.spec, order_by, args["after"])
 
-        limit = args["limit"]
-        page = matches[start : start + limit]
-        next_after = page[-1].handle if len(page) == limit else None
+        rows = run_query(
+            db,
+            self.spec,
+            where,
+            order_by=order_by,
+            limit=args["limit"],
+            after=after,
+            select=fetch_refs,
+        )
 
         headers = {}
         if args["count"]:
-            headers["X-Total-Count"] = str(total_count)
+            # `limit`/`after` narrow `rows` to one page; the total needs
+            # every `where`-match independent of both -- same "costs a
+            # second query, opt-in" tradeoff `_post_sql` already makes for
+            # its own `count_sql`, not a new cost this path introduces.
+            headers["X-Total-Count"] = str(len(run_query(db, self.spec, where)))
 
+        handle_index = fetch_refs.index("handle")
         items = [
-            {
-                key: resolve_column_ref(db, obj, ref, self.spec)
-                for ref, key in zip(fetch_refs, fetch_keys)
-                if key in requested_keys
-            }
-            for obj in page
+            {key: val for key, val in zip(fetch_keys, row) if key in requested_keys}
+            for row in rows
         ]
+        next_after = rows[-1][handle_index] if len(rows) == args["limit"] else None
 
         return {"items": items, "next_after": next_after}, 200, headers
 
