@@ -35,7 +35,7 @@ the same pattern `GrampsObjectResourceHelper` subclasses already use with
 """
 
 import json
-from typing import Any, Callable, Optional, Sequence, Tuple
+from typing import Any, Callable, Optional, Sequence, Tuple, Union, cast
 
 from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps.plugins.db.dbapi.sqlite import SQLite
@@ -281,7 +281,14 @@ def _parse_select_entry(raw: Any, spec: ObjectTypeSpec) -> Tuple[SelectRef, str]
         return raw, raw
     if isinstance(raw, dict) and "json_path" in raw:
         column = _parse_column_ref(raw, spec)
-        key = raw.get("as") or _default_key_for(column)
+        # A "json_path" payload only ever resolves to one of these three --
+        # see `_default_key_for`'s docstring -- never a CollectionCount/
+        # FlatColumnRef, which `_parse_column_ref`'s return type (the full
+        # ColumnRef union, shared with the "count_of" branch below) doesn't
+        # capture on its own.
+        key = raw.get("as") or _default_key_for(
+            cast(Union[str, JsonPath, RelatedObject], column)
+        )
         if key == "handle":
             raise QueryError("'handle' is reserved as a response key")
         return column, key
