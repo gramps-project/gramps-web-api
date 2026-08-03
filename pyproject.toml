@@ -40,6 +40,7 @@ dependencies = [
     "celery[redis]",
     "Unidecode",
     "pytesseract",
+    "gramps-object-query-language>=0.3.1",
     "gramps-ql>=0.4.0",
     "object-ql>=0.1.3",
     "sifts>=1.1.0",
@@ -71,9 +72,4 @@ profile = "black"
 version = {attr = "gramps_webapi.__version__"}
 
 [tool.setuptools.packages.find]
-include = [
-    "gramps_webapi",
-    "gramps_webapi.*",
-    "gramps_object_query_language",
-    "gramps_object_query_language.*",
-]
+include = ["gramps_webapi", "gramps_webapi.*"]
