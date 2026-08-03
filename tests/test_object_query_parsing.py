@@ -34,14 +34,24 @@ from werkzeug.exceptions import HTTPException
 from gramps_object_query_language.query import (
     FAMILY,
     PERSON,
+    And,
+    CollectionCount,
     Dialect,
+    Eq,
+    Exists,
+    FlatColumnRef,
+    Gt,
     JsonPath,
+    Not,
+    Or,
     OrderBy,
     QueryError,
     RelatedObject,
     resolve_column_path,
 )
+from gramps_object_query_language.query_lang import VALID_LEAF_OPS
 from gramps_webapi.api.resources.object_query import (
+    QueryWhereConditionArgs,
     _build_where,
     _check_no_duplicate_keys,
     _default_key_for,
@@ -112,6 +122,58 @@ def test_parse_column_ref_rejects_bare_relationship_name():
     # "birth" alone isn't a value -- needs a further path (resolve_column_path).
     with pytest.raises(QueryError):
         _parse_column_ref({"json_path": ["birth"]}, PERSON)
+
+
+def test_parse_column_ref_count_of():
+    # count(events) > 2's column side -- previously only reachable via
+    # where_expr (which bypasses _parse_column_ref entirely); this is the
+    # regression test for that gap.
+    ref = _parse_column_ref({"count_of": {"relationship": "events"}}, PERSON)
+    assert isinstance(ref, CollectionCount)
+    assert ref.collection.name == "events"
+    assert ref.condition is None
+
+
+def test_parse_column_ref_count_of_with_where():
+    ref = _parse_column_ref(
+        {
+            "count_of": {
+                "relationship": "events",
+                "where": [{"column": {"json_path": ["type", "value"]}, "op": "eq", "value": 12}],
+            }
+        },
+        PERSON,
+    )
+    assert isinstance(ref, CollectionCount)
+    assert isinstance(ref.condition, Eq)
+
+
+def test_parse_column_ref_rejects_count_of_missing_relationship():
+    with pytest.raises(QueryError):
+        _parse_column_ref({"count_of": {}}, PERSON)
+
+
+def test_parse_column_ref_rejects_count_of_non_list_where():
+    with pytest.raises(QueryError):
+        _parse_column_ref(
+            {"count_of": {"relationship": "events", "where": "not-a-list"}}, PERSON
+        )
+
+
+def test_parse_column_ref_rejects_count_of_malformed_nested_leaf():
+    # The same value/value_column XOR check a top-level `where` leaf gets --
+    # count_of's nested `where` is just as untrusted (select/order_by have
+    # no schema shape at all), so it needs the same guard.
+    with pytest.raises(HTTPException):
+        _parse_column_ref(
+            {
+                "count_of": {
+                    "relationship": "events",
+                    "where": [{"column": "gramps_id", "op": "eq"}],
+                }
+            },
+            PERSON,
+        )
 
 
 # --- _default_key_for -----------------------------------------------------------
@@ -195,6 +257,27 @@ def test_parse_select_entry_plain_handle_column_is_fine():
 def test_parse_select_entry_rejects_invalid_shape():
     with pytest.raises(QueryError):
         _parse_select_entry(123, PERSON)
+
+
+def test_parse_select_entry_count_of_with_alias():
+    ref, key = _parse_select_entry(
+        {"count_of": {"relationship": "events"}, "as": "event_count"}, PERSON
+    )
+    assert isinstance(ref, CollectionCount)
+    assert key == "event_count"
+
+
+def test_parse_select_entry_count_of_requires_alias():
+    # Unlike json_path, there's no natural dotted-name default to derive.
+    with pytest.raises(QueryError):
+        _parse_select_entry({"count_of": {"relationship": "events"}}, PERSON)
+
+
+def test_parse_select_entry_count_of_rejects_handle_alias():
+    with pytest.raises(QueryError):
+        _parse_select_entry(
+            {"count_of": {"relationship": "events"}, "as": "handle"}, PERSON
+        )
 
 
 def test_parse_select_entry_relationship_crossing_default_key():
@@ -433,10 +516,19 @@ def test_resolve_where_conditions_both_given_rejected():
     assert exc_info.value.code == 422
 
 
-def test_resolve_where_conditions_invalid_expr_rejected():
-    with pytest.raises(HTTPException) as exc_info:
-        _resolve_where_conditions({"where_expr": "gender == 1 or gender == 2"}, PERSON)
-    assert exc_info.value.code == 422
+def test_resolve_where_conditions_where_expr_or_group():
+    # `or` (and `not`) compile to a nested {"or": [...]}/{"not": ...} node
+    # rather than a QueryLangError -- see _build_where's "or"/"not" tests
+    # below for what happens to this shape next.
+    result = _resolve_where_conditions({"where_expr": "gender == 1 or gender == 2"}, PERSON)
+    assert result == [
+        {
+            "or": [
+                {"column": "gender", "op": "eq", "value": 1},
+                {"column": "gender", "op": "eq", "value": 2},
+            ]
+        }
+    ]
 
 
 # --- _build_where: value / value_column (field-vs-field comparisons) -----------
@@ -491,3 +583,126 @@ def test_build_where_value_column_rejected_for_like():
     with pytest.raises(HTTPException) as exc_info:
         _build_where(conditions, FAMILY)
     assert exc_info.value.code == 422
+
+
+# --- _build_where: 'or'/'not' groups (from where_expr's "a or b"/"not a") ------
+
+
+def test_build_where_or_group():
+    conditions = [
+        {
+            "or": [
+                {"column": "gender", "op": "eq", "value": 1},
+                {"column": "gender", "op": "eq", "value": 2},
+            ]
+        }
+    ]
+    where = _build_where(conditions, PERSON)
+    assert isinstance(where, Or)
+    assert len(where.exprs) == 2
+    assert all(isinstance(e, Eq) and e.column == "gender" for e in where.exprs)
+    assert [e.value for e in where.exprs] == [1, 2]
+
+
+def test_build_where_not_group():
+    conditions = [{"not": {"column": "gender", "op": "eq", "value": 1}}]
+    where = _build_where(conditions, PERSON)
+    assert isinstance(where, Not)
+    assert isinstance(where.expr, Eq)
+    assert where.expr.column == "gender"
+    assert where.expr.value == 1
+
+
+def test_build_where_or_empty_rejected():
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where([{"or": []}], PERSON)
+    assert exc_info.value.code == 422
+
+
+def test_build_where_nested_or_and_leaf():
+    # "gender == 1 and (surname == 'Smith' or surname == 'Jones')" --
+    # top-level list item 0 is a plain leaf, item 1 is an 'or' group; the
+    # two combine via the same implicit-AND _build_where already does for
+    # an all-leaf conditions list.
+    conditions = [
+        {"column": "gender", "op": "eq", "value": 1},
+        {
+            "or": [
+                {"column": "surname", "op": "eq", "value": "Smith"},
+                {"column": "surname", "op": "eq", "value": "Jones"},
+            ]
+        },
+    ]
+    where = _build_where(conditions, PERSON)
+    assert len(where.exprs) == 2
+    assert isinstance(where.exprs[0], Eq)
+    assert isinstance(where.exprs[1], Or)
+
+
+# --- _build_where: end-to-end via where_expr (and/exists/count_of/FlatColumnRef) --
+#
+# These go through the real _resolve_where_conditions -> _build_where pair
+# together, the same as _post_sql, since 'and'/'exists'/'count_of' only ever
+# arise from where_expr (QueryWhereConditionArgs' schema can't produce them
+# for a raw `where` body) -- see where_list_to_ast's docstring for why these
+# are delegated there rather than hand-built here.
+
+
+def _where(expr: str, spec=PERSON):
+    return _build_where(_resolve_where_conditions({"where_expr": expr}, spec), spec)
+
+
+def test_build_where_and_group_nested_under_not():
+    where = _where("not (gender == 1 and gramps_id == 'I1')")
+    assert isinstance(where, Not)
+    assert isinstance(where.expr, And)
+    assert all(isinstance(e, Eq) for e in where.expr.exprs)
+
+
+def test_build_where_exists():
+    where = _where("exists(events, type.value == 12)")
+    assert isinstance(where, Exists)
+    assert where.collection.name == "events"
+    assert where.condition is not None
+
+
+def test_build_where_exists_any_sugar_equivalent():
+    assert repr(_where("exists(events, type.value == 12)")) == repr(
+        _where("any(e.type.value == 12 for e in events)")
+    )
+
+
+def test_build_where_count_of():
+    where = _where("count(events) > 2")
+    assert isinstance(where, Gt)
+    assert isinstance(where.column, CollectionCount)
+    assert where.column.collection.name == "events"
+    assert where.value == 2
+
+
+def test_build_where_value_column_same_table_wrapped_as_flat_column_ref():
+    # Regression test: a same-table plain-string value_column ("given_name
+    # == surname") must resolve to a FlatColumnRef, not a bare str -- a bare
+    # str is indistinguishable from an ordinary literal to Comparison/
+    # Contains, so without this wrapping the query would silently compare
+    # given_name against the *literal text* "surname" instead of the two
+    # columns against each other (see FlatColumnRef's docstring).
+    conditions = [{"column": "given_name", "op": "eq", "value_column": "surname"}]
+    where = _build_where(conditions, PERSON)
+    assert isinstance(where, Eq)
+    assert isinstance(where.value, FlatColumnRef)
+    assert where.value.name == "surname"
+
+
+# --- QueryWhereConditionArgs.op: derived from VALID_LEAF_OPS, not hand-copied --
+
+
+def test_where_op_schema_matches_valid_leaf_ops():
+    # Regression test for the whole point of VALID_LEAF_OPS existing: a new
+    # op added to gramps_object_query_language should become valid for a raw
+    # `where` JSON body automatically, with no gramps-web-api edit needed --
+    # this fails the moment the schema's allowed set and VALID_LEAF_OPS
+    # diverge, whichever direction that happens.
+    op_field = QueryWhereConditionArgs().fields["op"]
+    allowed = {choice for validator in op_field.validators for choice in validator.choices}
+    assert allowed == set(VALID_LEAF_OPS)

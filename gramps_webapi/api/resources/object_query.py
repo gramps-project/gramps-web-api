@@ -35,7 +35,7 @@ the same pattern `GrampsObjectResourceHelper` subclasses already use with
 """
 
 import json
-from typing import Any, Callable, Optional, Sequence, Tuple
+from typing import Any, Optional, Sequence, Tuple
 
 from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps.plugins.db.dbapi.sqlite import SQLite
@@ -59,18 +59,9 @@ from gramps_object_query_language.query import (
     REPOSITORY,
     SOURCE,
     TAG,
-    And,
     ColumnRef,
     Dialect,
-    Eq,
-    Gt,
-    Gte,
-    In,
     JsonPath,
-    Like,
-    Lt,
-    Lte,
-    Ne,
     ObjectTypeSpec,
     OrderBy,
     Query,
@@ -81,24 +72,19 @@ from gramps_object_query_language.query import (
     check_columns,
     compile_count_query,
     compile_query,
-    resolve_column_path,
 )
-from gramps_object_query_language.query_lang import QueryLangError, parse_expr_for_spec
+from gramps_object_query_language.query_lang import (
+    VALID_LEAF_OPS,
+    QueryLangError,
+    json_column_to_ref,
+    parse_expr_for_spec,
+    where_list_to_ast,
+)
 
 from ..blueprint import api_blueprint
 from ..util import abort_with_message, get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .schemas import ObjectQueryResponseSchema
-
-_OP_TO_EXPR = {
-    "eq": Eq,
-    "ne": Ne,
-    "lt": Lt,
-    "lte": Lte,
-    "gt": Gt,
-    "gte": Gte,
-    "like": Like,
-}
 
 
 class QueryWhereConditionArgs(Schema):
@@ -117,9 +103,10 @@ class QueryWhereConditionArgs(Schema):
     )
     op = wf.Str(
         required=True,
-        validate=validate.OneOf(list(_OP_TO_EXPR) + ["in"]),
+        validate=validate.OneOf(list(VALID_LEAF_OPS)),
         metadata={
-            "description": "Comparison operator: eq, ne, lt, lte, gt, gte, like, or in."
+            "description": "Comparison operator: eq, ne, lt, lte, gt, gte, like, "
+            "contains, or in."
         },
     )
     value = wf.Raw(
@@ -228,22 +215,45 @@ class QueryBodyArgs(Schema):
 
 
 def _parse_column_ref(raw: Any, spec: ObjectTypeSpec) -> ColumnRef:
-    """Parse a `where` condition's `column`: a plain column name, or
-    `{"json_path": [...]}` resolved via `resolve_column_path()` -- which
-    may cross a relationship (`{"json_path": ["birth", "date", "sortval"]}`)
-    or stay a plain `JsonPath` into `json_data`, depending on whether the
-    first segment(s) name a registered relationship on `spec`. A bare
-    string is *not* run through the relationship resolver -- there's
-    nothing to disambiguate for a single segment beyond "is this a real
-    flat column", which `_render_column` already checks at compile time.
+    """Parse a `select`/`where`/`order_by` column reference: a plain column
+    name, `{"json_path": [...]}` (may cross a relationship, e.g.
+    `{"json_path": ["birth", "date", "sortval"]}`, or stay a plain `JsonPath`
+    into `json_data`), or `{"count_of": {"relationship": ..., "where": [...]}}`
+    (a `Collection`'s cardinality, optionally narrowed -- `count(events) > 2`'s
+    column side).
+
+    Delegates the actual resolution to
+    `gramps_object_query_language.query_lang`'s `json_column_to_ref` -- the
+    same function `where_expr`'s column references go through -- rather than
+    a second, hand-maintained copy (see `_build_where`'s equivalent note for
+    why: that's exactly how `count_of` ended up supported for filtering via
+    `where_expr` but not for a `select`/plain `where` column reference, before
+    this function was rewritten to delegate too). Only the validation below
+    stays local: `json_column_to_ref`/`resolve_column_path` trust their input
+    (always well-formed when it comes from `parse_expr_for_spec`), but this
+    function's caller is raw, untrusted client JSON -- `select`/`order_by`
+    entries in particular have no schema shape at all (`wf.Raw()` all the
+    way down), so a `json_path`/`count_of` payload could arrive as anything.
     """
     if isinstance(raw, str):
-        return raw
+        return json_column_to_ref(raw, spec)
     if isinstance(raw, dict) and "json_path" in raw:
         segments = raw["json_path"]
         if not isinstance(segments, list) or not segments:
             raise QueryError("'json_path' must be a non-empty list")
-        return resolve_column_path(spec, segments)
+        return json_column_to_ref(raw, spec)
+    if isinstance(raw, dict) and "count_of" in raw:
+        payload = raw["count_of"]
+        if not isinstance(payload, dict) or "relationship" not in payload:
+            raise QueryError("'count_of' requires a 'relationship' field")
+        where = payload.get("where")
+        if where is not None:
+            if not isinstance(where, list):
+                raise QueryError("'count_of.where' must be a list of conditions")
+            for condition in where:
+                if isinstance(condition, dict) and "column" in condition:
+                    _validate_leaf_condition(condition)
+        return json_column_to_ref(raw, spec)
     raise QueryError(f"invalid column reference: {raw!r}")
 
 
@@ -259,12 +269,27 @@ def _parse_select_entry(raw: Any, spec: ObjectTypeSpec) -> Tuple[SelectRef, str]
     load-bearing for the `next_after` cursor (see `post()`), so silently
     shadowing it with unrelated content would corrupt pagination for the
     caller without any visible error.
+
+    `{"count_of": {"relationship": ..., "where": [...]}, "as": "..."}`
+    selects a `Collection`'s cardinality directly as a result column (e.g.
+    "how many events does each person have"), not just as a `where_expr`
+    filter target -- `as` is required for it, since unlike a `json_path`
+    there's no natural dotted-name default to derive (`_default_key_for`
+    has nothing to walk).
     """
     if isinstance(raw, str):
         return raw, raw
     if isinstance(raw, dict) and "json_path" in raw:
         column = _parse_column_ref(raw, spec)
         key = raw.get("as") or _default_key_for(column)
+        if key == "handle":
+            raise QueryError("'handle' is reserved as a response key")
+        return column, key
+    if isinstance(raw, dict) and "count_of" in raw:
+        column = _parse_column_ref(raw, spec)
+        key = raw.get("as")
+        if not key:
+            raise QueryError("'count_of' select entries require an explicit 'as'")
         if key == "handle":
             raise QueryError("'handle' is reserved as a response key")
         return column, key
@@ -308,22 +333,6 @@ def _sort_key(value: Any) -> Tuple[bool, Any]:
     return (value is not None, value)
 
 
-def _sort_key_for_column(
-    column: str, spec: ObjectTypeSpec
-) -> Callable[[Any], Tuple[bool, Any]]:
-    """A `list.sort(key=...)` callable for `column`, bound via closure rather
-    than a lambda's default-argument trick -- mypy can't infer the type of a
-    `lambda obj, c=column: ...` used as a sort key (`Cannot infer type of
-    lambda`), since the extra defaulted parameter breaks its unification
-    with `list.sort`'s expected single-argument callable.
-    """
-
-    def key(obj: Any) -> Tuple[bool, Any]:
-        return _sort_key(get_flat_column(obj, column, spec))
-
-    return key
-
-
 def _terminal_is_json_path(ref: ColumnRef) -> bool:
     """Does `ref` ultimately extract via a `JsonPath` (as opposed to a
     plain flat column)? Recurses through a `RelatedObject` chain to its
@@ -360,45 +369,58 @@ def _normalize_json_value(value: Any) -> Any:
     return value
 
 
-def _build_where(conditions: Optional[Sequence[dict]], spec: ObjectTypeSpec):
-    """Build a `query.py` WHERE expression from parsed leaf conditions.
+def _validate_leaf_condition(condition: dict) -> None:
+    """Cross-field checks `QueryWhereConditionArgs`'s schema can't express on
+    its own -- "exactly one of value/value_column", `value_column` not
+    supported for `in`/`like`, `in` needing a non-empty list -- the same
+    reasoning `where`/`where_expr` mutual exclusivity is checked here rather
+    than in the schema.
 
-    Each condition carries exactly one of `value` (a literal) or
-    `value_column` (another path, for a field-vs-field comparison, e.g.
-    "families where the mother died before the father") -- validated here
-    since webargs' per-field `required=` can't express "exactly one of
-    these two", the same reason `where`/`where_expr` mutual exclusivity is
-    checked in `_resolve_where_conditions` rather than the schema.
+    Only ever applied to a raw, client-submitted `where` JSON leaf (see
+    `_build_where`'s guard) -- a `where_expr`-sourced condition is always
+    well-formed already, by construction of `parse_expr_for_spec`'s own
+    translation, so re-checking it here would be redundant; it's also not
+    always a leaf at all (`or`/`not`/`and`/`exists` nodes have none of
+    `column`/`value`/`value_column`), which this function assumes.
+    """
+    has_value = "value" in condition
+    has_value_column = "value_column" in condition
+    if has_value == has_value_column:
+        abort_with_message(
+            422, "exactly one of 'value'/'value_column' is required"
+        )
+    op = condition["op"]
+    if has_value_column and op in ("in", "like"):
+        abort_with_message(422, f"'value_column' is not supported for op {op!r}")
+    if op == "in":
+        value = condition.get("value")
+        if not isinstance(value, list) or not value:
+            abort_with_message(422, "'in' operator requires a non-empty list value")
+
+
+def _build_where(conditions: Optional[Sequence[dict]], spec: ObjectTypeSpec):
+    """Build a `query.py` WHERE expression from top-level conditions,
+    implicitly AND-combined (see `QueryBodyArgs.where`'s docstring).
+
+    The actual JSON -> `query.py` AST translation -- leaves, and
+    `where_expr`'s `and`/`or`/`not`/`exists`/`count(...)` nesting, and
+    same-table field-vs-field `FlatColumnRef` wrapping -- is
+    `where_list_to_ast`'s job (gramps_object_query_language.query_lang),
+    not reimplemented here; see that function's docstring for why. Only the
+    leaf-shape validation stays local, since it's specific to the raw,
+    untrusted `where` JSON body (see `_validate_leaf_condition`) -- skipped
+    for anything that isn't a leaf (`or`/`not`/`and`/`exists`, `where_expr`
+    -only shapes the `where` schema can never produce in the first place).
     """
     if not conditions:
         return None
-    exprs: list[Any] = []
     for condition in conditions:
-        column = _parse_column_ref(condition["column"], spec)
-        op = condition["op"]
-        has_value = "value" in condition
-        has_value_column = "value_column" in condition
-        if has_value == has_value_column:
-            abort_with_message(
-                422, "exactly one of 'value'/'value_column' is required"
-            )
-        if has_value_column:
-            if op in ("in", "like"):
-                abort_with_message(
-                    422, f"'value_column' is not supported for op {op!r}"
-                )
-            value = _parse_column_ref(condition["value_column"], spec)
-        else:
-            value = condition["value"]
-        if op == "in":
-            if not isinstance(value, list) or not value:
-                abort_with_message(422, "'in' operator requires a non-empty list value")
-            exprs.append(In(column, value))
-        else:
-            exprs.append(_OP_TO_EXPR[op](column, value))
-    if len(exprs) == 1:
-        return exprs[0]
-    return And(*exprs)
+        if "column" in condition:
+            _validate_leaf_condition(condition)
+    try:
+        return where_list_to_ast(conditions, spec)
+    except QueryError as error:
+        abort_with_message(422, str(error))
 
 
 def _resolve_where_conditions(
@@ -498,13 +520,32 @@ def _resolve_dialect(basedb: Any) -> Dialect:
     outright, not just sort wrong. Anything else (`SharedPostgreSQL`) falls
     back to PostgreSQL, since that's the only other backend this project
     targets today.
+
+    The `SQLite` check is by class *name*, not `isinstance`, deliberately:
+    Gramps' plugin loader imports database backend plugins (including core
+    ones) as freestanding modules under a bare name (`sqlite`, not
+    `gramps.plugins.db.dbapi.sqlite`) rather than via a normal package
+    import, so a real request's `basedb` is a *different* class object than
+    this file's own `from gramps.plugins.db.dbapi.sqlite import SQLite` --
+    same name, same behavior, different identity. `isinstance(basedb,
+    SQLite)` silently returns `False` for it every time, which was live
+    (not just theoretically) confirmed to fall through to the
+    `Dialect.POSTGRESQL` default for an actual SQLite deployment -- any
+    dialect-sensitive SQL (`JsonPath`, `Exists`, `CollectionCount`) then
+    renders `::jsonb`/`jsonb_extract_path(...)`/`jsonb_array_elements(...)`
+    against a real SQLite connection and fails outright. A plain flat-column
+    comparison (`Eq`/`Like`/...) never hits this branch at all, which is why
+    the bug went unnoticed until an `exists(...)`/`count(...)` query
+    actually exercised it. `isinstance` is kept first since it's the
+    correct, more specific check when it *does* match (e.g. a `SQLite()`
+    constructed directly in-process, as this file's own tests do).
     """
     name: Optional[str] = getattr(basedb, "dialect", None)
     if name:
         dialect = _DIALECT_BY_NAME.get(name)
         if dialect is not None:
             return dialect
-    if isinstance(basedb, SQLite):
+    if isinstance(basedb, SQLite) or type(basedb).__name__ == "SQLite":
         return Dialect.SQLITE
     return Dialect.POSTGRESQL
 
@@ -700,7 +741,7 @@ class ObjectQueryResource(ProtectedResource):
         directions = {ob.column: ob.direction for ob in order_by}
         for column in reversed(sort_columns):
             matches.sort(
-                key=_sort_key_for_column(column, self.spec),
+                key=lambda obj, c=column: _sort_key(get_flat_column(obj, c, self.spec)),
                 reverse=directions.get(column, "asc") == "desc",
             )
 
