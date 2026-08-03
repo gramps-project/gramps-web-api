@@ -134,9 +134,13 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         app.logger.setLevel(app.config["LOG_LEVEL"])
 
     if app.config.get("LOG_FORMAT") == "json":
+        from flask.logging import default_handler
+
         from .logging_utils import configure_json_logging
 
         configure_json_logging(level=app.logger.level)
+        # Flask's plain-text handler would duplicate every record on stderr.
+        app.logger.removeHandler(default_handler)
 
     if app.config["TREE"] != TREE_MULTI:
         if app.config.get("TREE_ID"):
