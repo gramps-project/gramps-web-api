@@ -43,8 +43,8 @@ def init_sentry(app) -> bool:
         dsn=dsn,
         release=app.config.get("API_VERSION"),
         environment=app.config.get("SENTRY_ENVIRONMENT") or None,
-        traces_sample_rate=float(app.config.get("SENTRY_TRACES_SAMPLE_RATE", 0.0)),
+        traces_sample_rate=app.config["SENTRY_TRACES_SAMPLE_RATE"],
         # off by default: family tree data is sensitive
-        send_default_pii=bool(app.config.get("SENTRY_SEND_DEFAULT_PII", False)),
+        send_default_pii=app.config["SENTRY_SEND_DEFAULT_PII"],
     )
     return True
