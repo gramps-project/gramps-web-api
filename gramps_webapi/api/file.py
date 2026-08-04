@@ -114,19 +114,13 @@ class FileHandler:
         raise NotImplementedError
 
     def _abort_if_too_large(self) -> None:
-        """Abort with 413 if the file exceeds the thumbnail size limit.
-
-        If the file does not exist, returns `None` without aborting. Callers
-        are expected to attempt to read the file afterwards and handle the
-        resulting `FileNotFoundError` (e.g. `LocalFileThumbnailHandler`
-        aborts with 404 in that case).
-        """
+        """Abort with 404 if the file is missing, or 413 if it is too large."""
         max_bytes = current_app.config.get("MAX_THUMBNAIL_FILE_BYTES")
         assert max_bytes is not None  # for type checker
         try:
             size = self.get_file_size()
         except FileNotFoundError:
-            return
+            abort_with_message(404, "Media file not found")
         if size > max_bytes:
             abort_with_message(413, "File too large for thumbnailing")
 
