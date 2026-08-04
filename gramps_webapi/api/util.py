@@ -56,7 +56,6 @@ from gramps.gen.db.dbconst import (
     DBBACKEND,
     EVENT_KEY,
     FAMILY_KEY,
-    KEY_TO_NAME_MAP,
     MEDIA_KEY,
     NOTE_KEY,
     PERSON_KEY,
@@ -82,7 +81,6 @@ from gramps.gen.proxy.private import (
 from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps.gen.user import UserBase
 from gramps.gen.utils.grampslocale import GrampsLocale
-from gramps.plugins.db.dbapi.dbapi import DBAPI
 from marshmallow import RAISE
 from webargs.flaskparser import FlaskParser
 from werkzeug.exceptions import HTTPException
@@ -134,16 +132,6 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
         """Initialize self."""
         super().__init__(*args, **kwargs)
         self.name_formats = self.db.name_formats
-        # `DBAPI` and `SharedDBAPI` (used by the SharedPostgreSQL addon) are
-        # sibling classes, not parent/child, so this deliberately does NOT
-        # match SharedPostgreSQL -- `_iter_handles()` below issues raw SQL
-        # with no `treeid` filter, and SharedPostgreSQL stores every tree's
-        # rows in the same physical tables, discriminated only by `treeid`.
-        # Widening this to `hasattr(self.basedb, "dbapi")` looks like a
-        # narrower-than-necessary check but is actually load-bearing: it's
-        # what keeps SharedPostgreSQL on the slower, correctly tree-scoped
-        # `self.db.iter_*_handles()` path below instead of the raw one.
-        self.is_dbapi = isinstance(self.basedb, DBAPI)
 
     def get_dbname(self):
         """Get the name of the database."""
@@ -190,95 +178,77 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
 
     def _iter_handles(self, obj_key):
         """
-        Return an iterator over handles in the database
+        Return an iterator over the handles of all non-private objects.
         """
-        table = KEY_TO_NAME_MAP[obj_key]
-        sql = "SELECT handle FROM %s WHERE private=0" % table
-        self.basedb.dbapi.execute(sql)
-        rows = self.basedb.dbapi.fetchall()
-        for row in rows:
-            yield row[0]
+        # faster than the include_* predicates, which instantiate every object.
+        # _iter_raw_data is implemented by every backend, so no assumptions
+        # about the storage schema (or the tree scoping) are needed here.
+        for handle, data in self.basedb._iter_raw_data(obj_key):
+            if not data.private:
+                yield handle
 
     def iter_person_handles(self):
         """
         Return an iterator over database handles, one handle for each Person in
         the database.
         """
-        if self.is_dbapi:
-            return self._iter_handles(PERSON_KEY)
-        return filter(self.include_person, self.db.iter_person_handles())
+        return self._iter_handles(PERSON_KEY)
 
     def iter_family_handles(self):
         """
         Return an iterator over database handles, one handle for each Family in
         the database.
         """
-        if self.is_dbapi:
-            return self._iter_handles(FAMILY_KEY)
-        return filter(self.include_family, self.db.iter_family_handles())
+        return self._iter_handles(FAMILY_KEY)
 
     def iter_event_handles(self):
         """
         Return an iterator over database handles, one handle for each Event in
         the database.
         """
-        if self.is_dbapi:
-            return self._iter_handles(EVENT_KEY)
-        return filter(self.include_event, self.db.iter_event_handles())
+        return self._iter_handles(EVENT_KEY)
 
     def iter_source_handles(self):
         """
         Return an iterator over database handles, one handle for each Source in
         the database.
         """
-        if self.is_dbapi:
-            return self._iter_handles(SOURCE_KEY)
-        return filter(self.include_source, self.db.iter_source_handles())
+        return self._iter_handles(SOURCE_KEY)
 
     def iter_citation_handles(self):
         """
         Return an iterator over database handles, one handle for each Citation
         in the database.
         """
-        if self.is_dbapi:
-            return self._iter_handles(CITATION_KEY)
-        return filter(self.include_citation, self.db.iter_citation_handles())
+        return self._iter_handles(CITATION_KEY)
 
     def iter_place_handles(self):
         """
         Return an iterator over database handles, one handle for each Place in
         the database.
         """
-        if self.is_dbapi:
-            return self._iter_handles(PLACE_KEY)
-        return filter(self.include_place, self.db.iter_place_handles())
+        return self._iter_handles(PLACE_KEY)
 
     def iter_media_handles(self):
         """
         Return an iterator over database handles, one handle for each Media
         Object in the database.
         """
-        if self.is_dbapi:
-            return self._iter_handles(MEDIA_KEY)
-        return filter(self.include_media, self.db.iter_media_handles())
+        return self._iter_handles(MEDIA_KEY)
 
     def iter_repository_handles(self):
         """
         Return an iterator over database handles, one handle for each
         Repository in the database.
         """
-        if self.is_dbapi:
-            return self._iter_handles(REPOSITORY_KEY)
-        return filter(self.include_repository, self.db.iter_repository_handles())
+        return self._iter_handles(REPOSITORY_KEY)
 
     def iter_note_handles(self):
         """
         Return an iterator over database handles, one handle for each Note in
         the database.
         """
-        if self.is_dbapi:
-            return self._iter_handles(NOTE_KEY)
-        return filter(self.include_note, self.db.iter_note_handles())
+        return self._iter_handles(NOTE_KEY)
 
     def iter_people(self):
         """Return an iterator over Person objects, filtered and sanitized."""

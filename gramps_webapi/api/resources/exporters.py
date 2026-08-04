@@ -30,6 +30,7 @@ import re
 import time
 from typing import Dict
 
+import gramps.gen.mime  # noqa: F401  (registers .gramps/.gpkg/.ged in mimetypes)
 from flask import Response, abort, current_app, jsonify, send_file
 from flask_jwt_extended import get_jwt_identity
 from marshmallow import Schema

@@ -22,9 +22,6 @@
 from io import BytesIO
 from typing import BinaryIO, Dict, Optional
 
-import boto3
-from botocore.config import Config
-from botocore.exceptions import ClientError
 from flask import current_app, redirect, send_file
 from gramps.gen.db.base import DbReadBase
 
@@ -39,6 +36,9 @@ from .util import abort_with_message
 
 def get_client(endpoint_url: Optional[str] = None):
     """Return an S3 client configured for GCS compatibility."""
+    import boto3
+    from botocore.config import Config
+
     config = Config(
         s3={"addressing_style": "path"},
         signature_version="s3v4",
@@ -78,6 +78,8 @@ class ObjectStorageFileHandler(FileHandler):
         self, expires_in: float, download: bool = False, filename: str = ""
     ):
         """Get a presigned URL to a file object."""
+        from botocore.exceptions import ClientError
+
         params = {
             "Bucket": self.bucket_name,
             "Key": self.object_name,
@@ -98,6 +100,8 @@ class ObjectStorageFileHandler(FileHandler):
 
     def _download_fileobj(self) -> BinaryIO:
         """Download a binary file object."""
+        from botocore.exceptions import ClientError
+
         try:
             response = self.client.get_object(
                 Bucket=self.bucket_name, Key=self.object_name
@@ -118,6 +122,8 @@ class ObjectStorageFileHandler(FileHandler):
 
     def file_exists(self) -> bool:
         """Check if the file exists."""
+        from botocore.exceptions import ClientError
+
         try:
             self.client.head_object(Bucket=self.bucket_name, Key=self.object_name)
             return True
@@ -126,6 +132,8 @@ class ObjectStorageFileHandler(FileHandler):
 
     def get_file_size(self) -> int:
         """Return the file size in bytes."""
+        from botocore.exceptions import ClientError
+
         try:
             response = self.client.head_object(
                 Bucket=self.bucket_name, Key=self.object_name
