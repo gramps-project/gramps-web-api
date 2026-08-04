@@ -316,3 +316,47 @@ def test_iter_notes_includes_public_note(db_handles, proxy):
     _db, handles = db_handles
     note_handles = {n.handle for n in proxy.iter_notes()}
     assert handles["public_note"] in note_handles
+
+
+# ---------------------------------------------------------------------------
+# iter_*_handles
+# ---------------------------------------------------------------------------
+
+ITER_HANDLE_METHODS = [
+    ("iter_person_handles", "include_person"),
+    ("iter_family_handles", "include_family"),
+    ("iter_event_handles", "include_event"),
+    ("iter_source_handles", "include_source"),
+    ("iter_citation_handles", "include_citation"),
+    ("iter_place_handles", "include_place"),
+    ("iter_media_handles", "include_media"),
+    ("iter_repository_handles", "include_repository"),
+    ("iter_note_handles", "include_note"),
+]
+
+
+@pytest.mark.parametrize("method,predicate", ITER_HANDLE_METHODS)
+def test_iter_handles_agrees_with_include_predicate(
+    db_handles, proxy, method, predicate
+):
+    """The raw data based fast path must agree with the stock include_* filtering."""
+    db, _handles = db_handles
+    assert set(getattr(proxy, method)()) == set(
+        filter(getattr(proxy, predicate), getattr(db, method)())
+    )
+
+
+def test_iter_note_handles_excludes_private_note(db_handles, proxy):
+    """Private note must be absent from, public note present in iter_note_handles()."""
+    _db, handles = db_handles
+    note_handles = set(proxy.iter_note_handles())
+    assert handles["private_note"] not in note_handles
+    assert handles["public_note"] in note_handles
+
+
+def test_iter_event_handles_excludes_private_event(db_handles, proxy):
+    """Private event must be absent from, public event present in iter_event_handles()."""
+    _db, handles = db_handles
+    event_handles = set(proxy.iter_event_handles())
+    assert handles["private_event"] not in event_handles
+    assert handles["public_event"] in event_handles
