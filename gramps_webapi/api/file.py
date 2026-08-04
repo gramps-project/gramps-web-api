@@ -146,7 +146,10 @@ class FileHandler:
         """Return regions containing faces."""
         if not self.mime.startswith("image"):
             return {}
-        import pytesseract
+        try:
+            import pytesseract
+        except ImportError:
+            abort_with_message(501, "pytesseract is not installed")
 
         try:
             pytesseract.get_tesseract_version()

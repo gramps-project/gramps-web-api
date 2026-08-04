@@ -158,7 +158,10 @@ class ThumbnailHandler:
 
     def _get_image_pdf(self) -> ImageType:
         """Get a Pillow Image instance of the PDF's first page."""
-        from pdf2image import convert_from_path
+        try:
+            from pdf2image import convert_from_path
+        except ImportError:
+            abort_with_message(501, "pdf2image is not installed")
 
         ims = self._apply_to_path(
             convert_from_path,
@@ -188,7 +191,10 @@ class ThumbnailHandler:
 
     def _get_image_video(self) -> ImageType:
         """Get a Pillow Image instance of the video's first frame."""
-        import ffmpeg
+        try:
+            import ffmpeg
+        except ImportError:
+            abort_with_message(501, "ffmpeg-python is not installed")
 
         out, _ = self._apply_to_path(
             lambda path: (
