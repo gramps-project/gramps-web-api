@@ -28,8 +28,6 @@ from importlib.resources import as_file, files
 from pathlib import Path
 from typing import BinaryIO, Callable
 
-import ffmpeg
-from pdf2image import convert_from_path
 from PIL import Image, ImageOps
 from PIL.Image import Image as ImageType
 
@@ -160,6 +158,11 @@ class ThumbnailHandler:
 
     def _get_image_pdf(self) -> ImageType:
         """Get a Pillow Image instance of the PDF's first page."""
+        try:
+            from pdf2image import convert_from_path
+        except ImportError:
+            abort_with_message(501, "pdf2image is not installed")
+
         ims = self._apply_to_path(
             convert_from_path,
             first_page=1,
@@ -188,6 +191,11 @@ class ThumbnailHandler:
 
     def _get_image_video(self) -> ImageType:
         """Get a Pillow Image instance of the video's first frame."""
+        try:
+            import ffmpeg
+        except ImportError:
+            abort_with_message(501, "ffmpeg-python is not installed")
+
         out, _ = self._apply_to_path(
             lambda path: (
                 ffmpeg.input(path, ss=0)

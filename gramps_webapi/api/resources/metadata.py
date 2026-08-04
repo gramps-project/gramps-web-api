@@ -25,7 +25,6 @@ from importlib import metadata
 
 import gramps_ql as gql
 import object_ql as oql
-import pytesseract
 import sifts
 from flask import Response, current_app
 from gramps.gen.const import ENV, GRAMPS_LOCALE
@@ -54,6 +53,10 @@ from .schemas import MetadataSchema, ResearcherSchema
 @functools.cache
 def _get_ocr_info() -> tuple[bool, list[str]]:
     """Detect OCR availability once and cache the result."""
+    try:
+        import pytesseract
+    except ImportError:
+        return False, []
     try:
         pytesseract.get_tesseract_version()
         return True, [lang for lang in pytesseract.get_languages() if lang != "osd"]
