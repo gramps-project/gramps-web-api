@@ -97,6 +97,10 @@ class DefaultConfig(object):
     # Optional API key for authenticated embedding providers
     VECTOR_EMBEDDING_API_KEY = None
     DISABLE_TELEMETRY = False
+    SENTRY_DSN = ""
+    SENTRY_ENVIRONMENT = ""
+    SENTRY_TRACES_SAMPLE_RATE = 0.0
+    SENTRY_SEND_DEFAULT_PII = False
     OIDC_ISSUER = ""
     OIDC_CLIENT_ID = ""
     OIDC_CLIENT_SECRET = ""

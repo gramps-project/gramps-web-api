@@ -28,7 +28,7 @@ ENV HF_HUB_OFFLINE=1
 
 # copy package source and install
 COPY . /app/src
-RUN pip install --no-cache-dir /app/src[ai]
+RUN pip install --no-cache-dir /app/src[ai,sentry]
 
 # download and cache YFull tree for yclade
 RUN python3 -c "import yclade; yclade.tree.download_yfull_tree()"
