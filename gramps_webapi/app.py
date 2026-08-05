@@ -57,6 +57,7 @@ from .auth.oidc import init_oidc
 from .config import DefaultConfig, DefaultConfigJWT
 from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI, VERSION
 from .dbmanager import WebDbManager
+from .sentry import init_sentry
 from .util.celery import create_celery
 
 _LOG = logging.getLogger(__name__)
@@ -141,6 +142,9 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         configure_json_logging(level=app.logger.level)
         # Flask's plain-text handler would duplicate every record on stderr.
         app.logger.removeHandler(default_handler)
+
+    if init_sentry(app):
+        app.logger.info("Sentry error reporting enabled.")
 
     if app.config["TREE"] != TREE_MULTI:
         if app.config.get("TREE_ID"):
