@@ -166,6 +166,8 @@ class TreesResource(ProtectedResource):
         WebDbManager(
             dirname=tree_id,
             name=args["name"],
+            username=current_app.config["POSTGRES_USER"],
+            password=current_app.config["POSTGRES_PASSWORD"],
             create_if_missing=True,
             create_backend=backend,
             ignore_lock=current_app.config["IGNORE_DB_LOCK"],
