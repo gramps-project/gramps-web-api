@@ -1061,12 +1061,19 @@ def get_backlinks(db_handle: DbReadBase, handle: Handle) -> dict[str, list[Handl
     return backlinks
 
 
-def _get_person_or_none(db_handle: DbReadBase, handle: Handle) -> Optional[Person]:
+def _get_person_or_none(
+    db_handle: DbReadBase, handle: Handle, referrer: GrampsObject
+) -> Optional[Person]:
     """Get a person by handle, returning None if the reference is broken."""
     try:
         return db_handle.get_person_from_handle(handle)
     except HandleError as exc:
-        _LOG.warning("Broken person reference: %s", exc)
+        _LOG.warning(
+            "Broken person reference for %s %s: %s",
+            referrer.__class__.__name__.lower(),
+            referrer.handle,
+            exc,
+        )
         return None
 
 
@@ -1077,9 +1084,9 @@ def get_soundex(
     if gramps_class_name == "Family":
         person = None
         if obj.father_handle is not None:
-            person = _get_person_or_none(db_handle, obj.father_handle)
+            person = _get_person_or_none(db_handle, obj.father_handle, obj)
         if person is None and obj.mother_handle is not None:
-            person = _get_person_or_none(db_handle, obj.mother_handle)
+            person = _get_person_or_none(db_handle, obj.mother_handle, obj)
         if person is None:
             return ""
     else:
@@ -1167,7 +1174,12 @@ def get_rating(db_handle: DbReadBase, obj: GrampsObject) -> tuple[int, int]:
                 try:
                     citation = db_handle.get_citation_from_handle(handle)
                 except HandleError as exc:
-                    _LOG.warning("Broken citation reference: %s", exc)
+                    _LOG.warning(
+                        "Broken citation reference for %s %s: %s",
+                        obj.__class__.__name__.lower(),
+                        obj.handle,
+                        exc,
+                    )
                     continue
                 if citation.confidence > confidence:
                     confidence = citation.confidence
