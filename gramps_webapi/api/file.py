@@ -120,10 +120,14 @@ class FileHandler:
         raise NotImplementedError
 
     def _abort_if_too_large(self) -> None:
-        """Abort with 413 if the file exceeds the thumbnail size limit."""
+        """Abort with 404 if the file is missing, or 413 if it is too large."""
         max_bytes = current_app.config.get("MAX_THUMBNAIL_FILE_BYTES")
         assert max_bytes is not None  # for type checker
-        if self.get_file_size() > max_bytes:
+        try:
+            size = self.get_file_size()
+        except FileNotFoundError:
+            abort_with_message(404, "Media file not found")
+        if size > max_bytes:
             abort_with_message(413, "File too large for thumbnailing")
 
     def get_face_regions(self, etag: Optional[str] = None):
