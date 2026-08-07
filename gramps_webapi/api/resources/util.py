@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 import gzip
+import logging
 import os
 import re
 from hashlib import sha256
@@ -88,6 +89,7 @@ from ..util import (
 
 pd = PlaceDisplay()
 _ = glocale.translation.gettext
+_LOG = logging.getLogger(__name__)
 
 
 def get_person_by_handle(db_handle: DbReadBase, handle: Handle) -> Union[Person, dict]:
@@ -473,7 +475,11 @@ def get_birth_profile(
     name_format: str | None = None,
 ) -> tuple[dict, Union[Event, None]]:
     """Return best available birth information for a person."""
-    event = get_birth_or_fallback(db_handle, person)
+    try:
+        event = get_birth_or_fallback(db_handle, person)
+    except HandleError as exc:
+        _LOG.warning("Broken event reference for person %s: %s", person.handle, exc)
+        return {}, None
     if event is None:
         return {}, None
     args = args or []
@@ -493,7 +499,11 @@ def get_death_profile(
     name_format: str | None = None,
 ) -> tuple[dict, Union[Event, None]]:
     """Return best available death information for a person."""
-    event = get_death_or_fallback(db_handle, person)
+    try:
+        event = get_death_or_fallback(db_handle, person)
+    except HandleError as exc:
+        _LOG.warning("Broken event reference for person %s: %s", person.handle, exc)
+        return {}, None
     if event is None:
         return {}, None
     args = args or []
@@ -1051,6 +1061,15 @@ def get_backlinks(db_handle: DbReadBase, handle: Handle) -> dict[str, list[Handl
     return backlinks
 
 
+def _get_person_or_none(db_handle: DbReadBase, handle: Handle) -> Optional[Person]:
+    """Get a person by handle, returning None if the reference is broken."""
+    try:
+        return db_handle.get_person_from_handle(handle)
+    except HandleError as exc:
+        _LOG.warning("Broken person reference: %s", exc)
+        return None
+
+
 def get_soundex(
     db_handle: DbReadBase, obj: GrampsObject, gramps_class_name: str
 ) -> str:
@@ -1058,9 +1077,9 @@ def get_soundex(
     if gramps_class_name == "Family":
         person = None
         if obj.father_handle is not None:
-            person = db_handle.get_person_from_handle(obj.father_handle)
+            person = _get_person_or_none(db_handle, obj.father_handle)
         if person is None and obj.mother_handle is not None:
-            person = db_handle.get_person_from_handle(obj.mother_handle)
+            person = _get_person_or_none(db_handle, obj.mother_handle)
         if person is None:
             return ""
     else:
@@ -1145,7 +1164,11 @@ def get_rating(db_handle: DbReadBase, obj: GrampsObject) -> tuple[int, int]:
                     confidence = citation.confidence
         else:
             for handle in obj.citation_list:
-                citation = db_handle.get_citation_from_handle(handle)
+                try:
+                    citation = db_handle.get_citation_from_handle(handle)
+                except HandleError as exc:
+                    _LOG.warning("Broken citation reference: %s", exc)
+                    continue
                 if citation.confidence > confidence:
                     confidence = citation.confidence
     return count, confidence

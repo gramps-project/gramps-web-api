@@ -32,6 +32,7 @@ from flask_jwt_extended import JWTManager, verify_jwt_in_request
 from flask_jwt_extended.exceptions import WrongTokenError
 from gramps.gen.config import config as gramps_config
 from gramps.gen.config import set as setconfig
+from gramps.gen.errors import HandleError
 from PIL import Image
 
 from .api import api_blueprint
@@ -327,6 +328,17 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         if e.response is not None:
             return e.response
         return api.handle_http_exception(e)
+
+    @app.errorhandler(HandleError)
+    def handle_gramps_handle_error(e):
+        _LOG.exception("Broken handle reference: %s", e)
+        payload = {
+            "error": {
+                "code": 500,
+                "message": "A referenced record could not be found. The family tree may contain a broken reference.",
+            }
+        }
+        return payload, 500
 
     # instantiate celery
     create_celery(app)
