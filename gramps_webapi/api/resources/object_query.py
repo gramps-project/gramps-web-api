@@ -104,7 +104,7 @@ class QueryWhereConditionArgs(Schema):
         validate=validate.OneOf(list(VALID_LEAF_OPS)),
         metadata={
             "description": "Comparison operator: eq, ne, lt, lte, gt, gte, like, "
-            "contains, or in."
+            "regex, contains, or in."
         },
     )
     value = wf.Raw(
@@ -122,7 +122,8 @@ class QueryWhereConditionArgs(Schema):
             "mother died before the father -- column: {'json_path': ['mother', "
             "'death', 'date', 'sortval']}, op: 'lt', value_column: {'json_path': "
             "['father', 'death', 'date', 'sortval']}. Same shape as 'column' "
-            "(plain name or {'json_path': [...]}). Not supported for 'in'/'like'."
+            "(plain name or {'json_path': [...]}). Not supported for "
+            "'in'/'like'/'regex'."
         },
     )
 
@@ -374,9 +375,9 @@ def _normalize_json_value(value: Any) -> Any:
 def _validate_leaf_condition(condition: dict) -> None:
     """Cross-field checks `QueryWhereConditionArgs`'s schema can't express on
     its own -- "exactly one of value/value_column", `value_column` not
-    supported for `in`/`like`, `in` needing a non-empty list -- the same
-    reasoning `where`/`where_expr` mutual exclusivity is checked here rather
-    than in the schema.
+    supported for `in`/`like`/`regex`, `in` needing a non-empty list -- the
+    same reasoning `where`/`where_expr` mutual exclusivity is checked here
+    rather than in the schema.
 
     Only ever applied to a raw, client-submitted `where` JSON leaf (see
     `_build_where`'s guard) -- a `where_expr`-sourced condition is always
@@ -392,7 +393,7 @@ def _validate_leaf_condition(condition: dict) -> None:
             422, "exactly one of 'value'/'value_column' is required"
         )
     op = condition["op"]
-    if has_value_column and op in ("in", "like"):
+    if has_value_column and op in ("in", "like", "regex"):
         abort_with_message(422, f"'value_column' is not supported for op {op!r}")
     if op == "in":
         value = condition.get("value")

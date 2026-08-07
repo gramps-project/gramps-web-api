@@ -50,6 +50,7 @@ from gramps_object_query_language.query import (
     Query,
     QueryError,
     RelatedObject,
+    Regex,
     compile_count_query,
     compile_query,
     resolve_column_path,
@@ -637,6 +638,30 @@ def test_build_where_value_column_rejected_for_like():
     with pytest.raises(HTTPException) as exc_info:
         _build_where(conditions, FAMILY)
     assert exc_info.value.code == 422
+
+
+def test_build_where_value_column_rejected_for_regex():
+    # A pattern only known at row-execution time can't be validated as a
+    # compilable regex ahead of time, same reasoning as "in"/"like" above --
+    # this is the guard that keeps a hand-crafted raw `where` JSON leaf from
+    # reaching Regex(column, RelatedObject(...)) with no field-vs-field
+    # support of its own for this op.
+    conditions = [
+        {"column": "gramps_id", "op": "regex", "value_column": {"json_path": ["father", "surname"]}}
+    ]
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, FAMILY)
+    assert exc_info.value.code == 422
+
+
+def test_build_where_regex_with_plain_value_accepted():
+    # The value_column guard above is scoped to `value_column` specifically
+    # -- a plain literal pattern (the normal case) must still build fine.
+    conditions = [{"column": "gramps_id", "op": "regex", "value": "^F.*"}]
+    where = _build_where(conditions, FAMILY)
+    assert isinstance(where, Regex)
+    assert where.column == resolve_column_path(FAMILY, ["gramps_id"])
+    assert where.value == "^F.*"
 
 
 # --- _build_where: 'or'/'not' groups (from where_expr's "a or b"/"not a") ------
