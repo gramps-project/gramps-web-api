@@ -40,7 +40,7 @@ dependencies = [
     "celery[redis]",
     "Unidecode",
     "pytesseract",
-    "gramps-object-query-language>=0.3.3",
+    "gramps-object-query-language>=0.3.3,<0.4",
     "gramps-ql>=0.4.0",
     "object-ql>=0.1.3",
     "sifts>=1.1.0",

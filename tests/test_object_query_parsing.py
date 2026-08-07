@@ -32,7 +32,9 @@ from gramps.plugins.db.dbapi.sqlite import SQLite
 from werkzeug.exceptions import HTTPException
 
 from gramps_object_query_language.query import (
+    EVENT,
     FAMILY,
+    MEDIA,
     PERSON,
     And,
     CollectionCount,
@@ -45,8 +47,11 @@ from gramps_object_query_language.query import (
     Not,
     Or,
     OrderBy,
+    Query,
     QueryError,
     RelatedObject,
+    compile_count_query,
+    compile_query,
     resolve_column_path,
 )
 from gramps_object_query_language.query_lang import VALID_LEAF_OPS
@@ -378,6 +383,15 @@ class _FakeDbNoDialect:
     pass
 
 
+# Named "PostgreSQL"/"SomeFutureBackend" via `type(...)` rather than a real
+# subclass -- exercises the class-*name* allowlist `_resolve_dialect`/
+# `_resolve_treeid` actually check (see `_resolve_dialect`'s docstring on why
+# `isinstance` can't be trusted for a plugin-loaded backend class), without
+# importing the real addon.
+_FakeSingleUserPostgresBackend = type("PostgreSQL", (), {})
+_FakeUnknownBackend = type("SomeFutureBackend", (), {})
+
+
 def test_resolve_dialect_uses_explicit_attribute_when_present():
     assert _resolve_dialect(_FakeDbWithDialect("sqlite")) == Dialect.SQLITE
     assert _resolve_dialect(_FakeDbWithDialect("postgres")) == Dialect.POSTGRESQL
@@ -393,16 +407,41 @@ def test_resolve_dialect_detects_real_sqlite_instance_without_dialect_attr():
     assert _resolve_dialect(basedb) == Dialect.SQLITE
 
 
-def test_resolve_dialect_falls_back_to_postgresql_for_unknown_backend():
-    assert _resolve_dialect(_FakeDbNoDialect()) == Dialect.POSTGRESQL
+def test_resolve_dialect_detects_shared_postgres_by_class_name():
+    # `SharedPostgreSQL` versions without a `.dialect` attribute yet are
+    # still recognized by class name -- not lumped in with genuinely unknown
+    # backends.
+    basedb = type("SharedPostgreSQL", (), {})()
+    assert not hasattr(basedb, "dialect")
+    assert _resolve_dialect(basedb) == Dialect.POSTGRESQL
 
 
-def test_resolve_dialect_ignores_unrecognized_explicit_dialect_name():
-    # An unrecognized `.dialect` string falls through to the isinstance/
-    # default fallback rather than raising -- resolution here never fails,
-    # `compile_query` raises `QueryError` if the dialect actually turns out
-    # to be unsupported when rendering a `JsonPath`.
-    assert _resolve_dialect(_FakeDbWithDialect("mysql")) == Dialect.POSTGRESQL
+def test_resolve_dialect_aborts_for_unknown_backend():
+    # Guessing PostgreSQL for a backend this module has never seen can
+    # render dialect-specific SQL (`::jsonb`, `jsonb_extract_path(...)`)
+    # against a connection that can't run it -- failing closed (501) is
+    # safer than a silent, possibly-wrong guess.
+    with pytest.raises(HTTPException) as exc_info:
+        _resolve_dialect(_FakeDbNoDialect())
+    assert exc_info.value.code == 501
+
+
+def test_resolve_dialect_falls_through_unrecognized_explicit_dialect_name_to_class_check():
+    # An unrecognized `.dialect` string falls through to the class-name
+    # checks rather than being trusted outright or immediately aborting.
+    fake_shared_postgres_with_bad_dialect = type(
+        "SharedPostgreSQL", (), {"dialect": "mysql"}
+    )
+    assert (
+        _resolve_dialect(fake_shared_postgres_with_bad_dialect())
+        == Dialect.POSTGRESQL
+    )
+
+
+def test_resolve_dialect_aborts_when_explicit_dialect_name_and_class_both_unrecognized():
+    with pytest.raises(HTTPException) as exc_info:
+        _resolve_dialect(_FakeDbWithDialect("mysql"))
+    assert exc_info.value.code == 501
 
 
 # --- _resolve_treeid ------------------------------------------------------------
@@ -423,10 +462,6 @@ class _FakeDbapiNoTreeid:
     pass
 
 
-class _FakeBasedbNoTreeidDbapi:
-    dbapi = _FakeDbapiNoTreeid()
-
-
 def test_resolve_treeid_reads_dbapi_treeid_when_present():
     assert _resolve_treeid(_FakeBasedbWithTreeidDbapi()) == 7
 
@@ -434,7 +469,26 @@ def test_resolve_treeid_reads_dbapi_treeid_when_present():
 def test_resolve_treeid_returns_none_for_single_tree_backend():
     # SQLite / single-user PostgreSQL have no `.dbapi.treeid` at all --
     # `None` means "omit the clause", not "unscoped is fine by default".
-    assert _resolve_treeid(_FakeBasedbNoTreeidDbapi()) is None
+    basedb = _FakeSingleUserPostgresBackend()
+    basedb.dbapi = _FakeDbapiNoTreeid()
+    assert _resolve_treeid(basedb) is None
+
+    sqlite_basedb = SQLite.__new__(SQLite)
+    sqlite_basedb.dbapi = _FakeDbapiNoTreeid()
+    assert _resolve_treeid(sqlite_basedb) is None
+
+
+def test_resolve_treeid_aborts_for_unrecognized_backend():
+    # A backend this module has never seen, with no `.dbapi.treeid` and a
+    # class name matching neither known single-tree backend, must not be
+    # treated as "no scoping needed" -- on a genuinely shared backend that
+    # would let an unscoped query return other tenants' rows instead of
+    # erroring.
+    basedb = _FakeUnknownBackend()
+    basedb.dbapi = _FakeDbapiNoTreeid()
+    with pytest.raises(HTTPException) as exc_info:
+        _resolve_treeid(basedb)
+    assert exc_info.value.code == 501
 
 
 # --- _resolve_after treeid scoping -----------------------------------------------
@@ -706,3 +760,117 @@ def test_where_op_schema_matches_valid_leaf_ops():
     op_field = QueryWhereConditionArgs().fields["op"]
     allowed = {choice for validator in op_field.validators for choice in validator.choices}
     assert allowed == set(VALID_LEAF_OPS)
+
+
+# --- treeid threading through every SQL-emitting path -----------------------
+#
+# `_resolve_treeid` (tested above) is only half the story -- the value it
+# returns has to actually reach every place raw SQL gets built, or a new
+# query shape added later without scoping would silently return rows from
+# every tree sharing a `SharedPostgreSQL` instance, not just the caller's
+# own. `_resolve_after`'s own treeid clause is already covered above
+# (`test_resolve_after_adds_treeid_clause_when_given`); the three below --
+# main query, COUNT query, and a RelatedObject subquery -- are `compile_query`/
+# `compile_count_query`'s own responsibility, called from `_post_sql` with
+# whatever `_resolve_treeid` returned.
+
+
+def test_compile_query_adds_treeid_clause_to_main_query():
+    query = Query(select=["handle"], where=None, order_by=[], limit=10, after=None)
+    sql, params = compile_query(PERSON, query, dialect=Dialect.SQLITE, treeid=7)
+    assert "WHERE treeid = ?" in sql
+    assert 7 in params
+
+
+def test_compile_query_omits_treeid_clause_when_none():
+    query = Query(select=["handle"], where=None, order_by=[], limit=10, after=None)
+    sql, params = compile_query(PERSON, query, dialect=Dialect.SQLITE, treeid=None)
+    assert "treeid" not in sql
+    assert 7 not in params
+
+
+def test_compile_count_query_adds_treeid_clause():
+    query = Query(select=["handle"], where=None, order_by=[], limit=10, after=None)
+    sql, params = compile_count_query(PERSON, query, dialect=Dialect.SQLITE, treeid=7)
+    assert "treeid = ?" in sql
+    assert params == [7]
+
+
+def test_compile_count_query_omits_treeid_clause_when_none():
+    query = Query(select=["handle"], where=None, order_by=[], limit=10, after=None)
+    sql, params = compile_count_query(PERSON, query, dialect=Dialect.SQLITE, treeid=None)
+    assert "treeid" not in sql
+    assert params == []
+
+
+def test_compile_query_related_object_subquery_carries_treeid():
+    # A `select`/`where` column that crosses a relationship (Person->Event
+    # via "birth") compiles to a correlated subquery against the related
+    # table -- that subquery's own `FROM event ...` needs its own
+    # `treeid = ?` scoping, independent of (and in addition to) the outer
+    # `person` table's, since the related row lives in the same
+    # shared-tenant physical table.
+    ref = resolve_column_path(PERSON, ["birth", "date", "sortval"])
+    query = Query(select=[ref, "handle"], where=None, order_by=[], limit=10, after=None)
+    sql, params = compile_query(PERSON, query, dialect=Dialect.SQLITE, treeid=7)
+    # Once for the correlated subquery's own related-table scoping, once for
+    # the outer table.
+    assert sql.count("treeid = ?") == 2
+    assert params.count(7) == 2
+
+
+def test_compile_query_related_object_subquery_omits_treeid_when_none():
+    ref = resolve_column_path(PERSON, ["birth", "date", "sortval"])
+    query = Query(select=[ref, "handle"], where=None, order_by=[], limit=10, after=None)
+    sql, params = compile_query(PERSON, query, dialect=Dialect.SQLITE, treeid=None)
+    assert "treeid" not in sql
+
+
+# --- PostgreSQL physical-name column overrides -------------------------------
+#
+# The `SharedPostgreSQL`/`PostgreSQL` addons physically rename a handful of
+# columns that collide with reserved SQL words (`Media.desc` -> `desc_`,
+# `Event.description` -> `desc_ription`) -- see `query.py`'s
+# `_POSTGRESQL_PHYSICAL_COLUMN_OVERRIDES`. `compile_query` takes an explicit
+# `dialect`, so this is asserted directly against the rendered SQL string,
+# with no Postgres instance required.
+
+
+def test_compile_query_renders_postgresql_physical_name_for_desc_select():
+    query = Query(select=["desc", "handle"], where=None, order_by=[], limit=10, after=None)
+    sql, _ = compile_query(MEDIA, query, dialect=Dialect.POSTGRESQL)
+    assert "desc_," in sql or "desc_ FROM" in sql or "SELECT desc_," in sql
+    assert '"desc"' not in sql
+
+
+def test_compile_query_keeps_plain_desc_column_name_for_sqlite():
+    query = Query(select=["desc", "handle"], where=None, order_by=[], limit=10, after=None)
+    sql, _ = compile_query(MEDIA, query, dialect=Dialect.SQLITE)
+    assert '"desc"' in sql
+    assert "desc_" not in sql
+
+
+def test_compile_query_renders_postgresql_physical_name_for_desc_order_by():
+    query = Query(
+        select=["handle"],
+        where=None,
+        order_by=[OrderBy("desc", "asc")],
+        limit=10,
+        after=None,
+    )
+    sql, _ = compile_query(MEDIA, query, dialect=Dialect.POSTGRESQL)
+    assert "ORDER BY desc_ ASC" in sql
+
+
+def test_compile_query_renders_postgresql_physical_name_for_desc_where():
+    query = Query(select=["handle"], where=Eq("desc", ""), order_by=[], limit=10, after=None)
+    sql, params = compile_query(MEDIA, query, dialect=Dialect.POSTGRESQL)
+    assert "desc_" in sql
+    assert '"desc"' not in sql
+    assert params == ["", 10]
+
+
+def test_compile_query_renders_postgresql_physical_name_for_description():
+    query = Query(select=["handle"], where=Eq("description", ""), order_by=[], limit=10, after=None)
+    sql, _ = compile_query(EVENT, query, dialect=Dialect.POSTGRESQL)
+    assert "desc_ription" in sql

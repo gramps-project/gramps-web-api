@@ -27,6 +27,11 @@ own database table, whitelist, and privacy behavior.
 """
 
 import unittest
+from unittest.mock import patch
+
+from gramps.gen.proxy.proxybase import ProxyDbBase
+
+from gramps_webapi.api.util import get_db_handle
 
 from . import BASE_URL, get_object_count, get_test_client
 from .util import fetch_header
@@ -175,3 +180,156 @@ class TestObjectQueryMedia(unittest.TestCase):
             headers=header,
         )
         self.assertEqual(rv.status_code, 200)
+
+
+class _FakeNonPrivateProxy(ProxyDbBase):
+    """Minimal stand-in for a non-privacy proxy (e.g. `LivingProxyDb`).
+
+    Same technique as `test_people_query.py`'s copy of this class (kept
+    local rather than shared, so each test file stays independently
+    runnable): skips `ProxyDbBase.__init__` and defines no `include_*`/
+    `sanitize_*` overrides, so it filters nothing -- a query through it must
+    return exactly what the same query gets unproxied.
+    """
+
+    def __init__(self, db):
+        self.db = self.basedb = db
+
+
+# (url, a real text-typed select/order_by column for that type) -- every
+# object type this feature supports, including Person and Media (which
+# `TYPES` above omits since they get their own dedicated smoke-test classes).
+EQUIVALENCE_TYPES = [
+    ("/people/query/", "surname"),
+    ("/families/query/", "father_handle"),
+    ("/events/query/", "description"),
+    ("/places/query/", "title"),
+    ("/repositories/query/", "name"),
+    ("/sources/query/", "title"),
+    ("/citations/query/", "page"),
+    ("/notes/query/", "gramps_id"),
+    ("/tags/query/", "name"),
+    ("/media/query/", "desc"),
+]
+
+
+def _combo_plain_select(column):
+    return {"select": ["handle", column]}
+
+
+def _combo_where_filtered_and_sorted(column):
+    # "handle ne <bogus>" is true for every row -- it exists to exercise the
+    # WHERE-clause path itself (compiled SQL vs. evaluator-tested condition),
+    # not to narrow the result set, since which rows are private/excluded is
+    # covered elsewhere (e.g. test_private_people_excluded_without_permission).
+    return {
+        "select": ["handle", column],
+        "where": [{"column": "handle", "op": "ne", "value": "does-not-exist"}],
+        "order_by": [{"column": column, "direction": "asc"}],
+    }
+
+
+def _combo_order_by_handle_desc(column):
+    return {
+        "select": ["handle", column],
+        "order_by": [{"column": "handle", "direction": "desc"}],
+    }
+
+
+QUERY_COMBOS = [
+    _combo_plain_select,
+    _combo_where_filtered_and_sorted,
+    _combo_order_by_handle_desc,
+]
+
+
+class TestObjectQuerySqlProxiedEquivalence(unittest.TestCase):
+    """`_FakeNonPrivateProxy` filters nothing, so a request routed through it
+    (the Python evaluator, `proxied_query.run_query`) must return
+    byte-identical results to the same request unproxied (the SQL compiler,
+    `query.compile_query`) -- isolating "does the evaluator agree with the
+    compiler" from "does privacy filtering work" (covered elsewhere). A
+    small page size forces keyset pagination (`after`) on both paths too.
+
+    Parametrised across every object type and a few representative
+    select/where/order_by/limit/after shapes, so a future
+    gramps-object-query-language release that makes the two implementations
+    diverge on some type or shape doesn't go unnoticed -- previously only
+    one such comparison existed
+    (`test_non_private_proxy_database_routes_through_proxied_path`, Person
+    only, `select: ["handle"]` only).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+        cls.maxDiff = None
+
+    def _fetch_all(self, url, header, body_without_paging, page_size=1000):
+        body = dict(body_without_paging)
+        body["limit"] = page_size
+        items = []
+        after = None
+        while True:
+            if after is not None:
+                body["after"] = after
+            rv = self.client.post(BASE_URL + url, json=body, headers=header)
+            self.assertEqual(rv.status_code, 200)
+            items.extend(rv.json["items"])
+            after = rv.json["next_after"]
+            if after is None:
+                return items
+
+    def _fetch_all_proxied(self, url, header, body_without_paging, page_size=1000):
+        def fake_get_db_handle(readonly=True):
+            db = get_db_handle(readonly=readonly)
+            base = db.basedb if isinstance(db, ProxyDbBase) else db
+            return _FakeNonPrivateProxy(base)
+
+        with patch(
+            "gramps_webapi.api.resources.object_query.get_db_handle",
+            side_effect=fake_get_db_handle,
+        ):
+            return self._fetch_all(url, header, body_without_paging, page_size)
+
+    def test_sql_and_proxied_paths_agree(self):
+        # page_size=1000 (the endpoint's own max `limit`) keeps this to a
+        # handful of pages per type even for example_gramps's largest tables
+        # (thousands of events/citations) -- a page size small enough to
+        # force many more round trips would make this prohibitively slow
+        # without exercising any code path a single crossed page boundary
+        # doesn't already cover (see the dedicated small-page test below for
+        # that).
+        header = fetch_header(self.client)
+        for url, column in EQUIVALENCE_TYPES:
+            for combo_fn in QUERY_COMBOS:
+                body = combo_fn(column)
+                with self.subTest(url=url, body=body):
+                    sql_items = self._fetch_all(url, header, body)
+                    proxied_items = self._fetch_all_proxied(url, header, body)
+                    self.assertEqual(sql_items, proxied_items)
+
+    def test_sql_and_proxied_paths_agree_across_small_pages(self):
+        # A page size of 1 forces every row boundary to also be a keyset-
+        # pagination boundary (`after`) on both paths -- exercises
+        # `_resolve_after`/`_resolve_after_proxied` agreeing on cursor
+        # resolution, not just the bulk row content a single large page
+        # would cover. Limited to the lowest-count types (repositories: 3,
+        # tags: 2 in example_gramps) so this stays a handful of requests
+        # instead of thousands.
+        header = fetch_header(self.client)
+        small_count_types = [
+            (url, column)
+            for url, column in EQUIVALENCE_TYPES
+            if url in ("/repositories/query/", "/tags/query/")
+        ]
+        for url, column in small_count_types:
+            body = _combo_where_filtered_and_sorted(column)
+            with self.subTest(url=url, body=body):
+                sql_items = self._fetch_all(url, header, body, page_size=1)
+                proxied_items = self._fetch_all_proxied(
+                    url, header, body, page_size=1
+                )
+                self.assertEqual(sql_items, proxied_items)
+                self.assertGreater(len(sql_items), 1)

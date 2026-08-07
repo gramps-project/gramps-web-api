@@ -530,6 +530,18 @@ _DIALECT_BY_NAME: dict[str, Dialect] = {
 }
 
 
+# Backends known to have no `treeid`/dialect concept of their own, checked
+# by class *name* rather than `isinstance` -- see `_resolve_dialect`'s
+# docstring for why `isinstance` is unreliable for a plugin-loaded class.
+_SQLITE_CLASS_NAME = "SQLite"
+_SINGLE_TREE_POSTGRES_CLASS_NAME = "PostgreSQL"
+_SHARED_POSTGRES_CLASS_NAME = "SharedPostgreSQL"
+
+
+def _is_sqlite(basedb: Any) -> bool:
+    return isinstance(basedb, SQLite) or type(basedb).__name__ == _SQLITE_CLASS_NAME
+
+
 def _resolve_dialect(basedb: Any) -> Dialect:
     """Backend SQL dialect for rendering a `JsonPath` (see `query.py`).
 
@@ -541,37 +553,54 @@ def _resolve_dialect(basedb: Any) -> Dialect:
     directly -- it's what every test fixture and single-tree/dev deployment
     actually runs, so guessing PostgreSQL for it would emit
     `jsonb_extract_path(...)` against a real SQLite connection and fail
-    outright, not just sort wrong. Anything else (`SharedPostgreSQL`) falls
-    back to PostgreSQL, since that's the only other backend this project
-    targets today.
+    outright, not just sort wrong. `SharedPostgreSQL` is likewise detected
+    directly, by class name, for the versions of that addon which don't set
+    `.dialect` yet.
 
-    The `SQLite` check is by class *name*, not `isinstance`, deliberately:
-    Gramps' plugin loader imports database backend plugins (including core
-    ones) as freestanding modules under a bare name (`sqlite`, not
-    `gramps.plugins.db.dbapi.sqlite`) rather than via a normal package
-    import, so a real request's `basedb` is a *different* class object than
-    this file's own `from gramps.plugins.db.dbapi.sqlite import SQLite` --
-    same name, same behavior, different identity. `isinstance(basedb,
-    SQLite)` silently returns `False` for it every time, which was live
-    (not just theoretically) confirmed to fall through to the
-    `Dialect.POSTGRESQL` default for an actual SQLite deployment -- any
-    dialect-sensitive SQL (`JsonPath`, `Exists`, `CollectionCount`) then
-    renders `::jsonb`/`jsonb_extract_path(...)`/`jsonb_array_elements(...)`
-    against a real SQLite connection and fails outright. A plain flat-column
+    Anything else -- a backend this module has never seen, where a `.dialect`
+    string didn't resolve and the class name matches neither known SQLite nor
+    Postgres backend -- aborts with 501 rather than guessing PostgreSQL. A
+    wrong guess here doesn't just sort oddly: it can render dialect-specific
+    SQL (`::jsonb`, `jsonb_extract_path(...)`) against a connection that
+    can't run it, or -- worse, for `_resolve_treeid`'s equivalent fallback --
+    silently return another tenant's rows. Failing closed means a genuinely
+    new backend needs this module updated before structured query works
+    against it, rather than working by accident until it doesn't.
+
+    The `SQLite`/`SharedPostgreSQL` checks are by class *name*, not
+    `isinstance`, deliberately: Gramps' plugin loader imports database
+    backend plugins (including core ones) as freestanding modules under a
+    bare name (`sqlite`, not `gramps.plugins.db.dbapi.sqlite`) rather than
+    via a normal package import, so a real request's `basedb` is a
+    *different* class object than this file's own `from
+    gramps.plugins.db.dbapi.sqlite import SQLite` -- same name, same
+    behavior, different identity. `isinstance(basedb, SQLite)` silently
+    returns `False` for it every time, which was live (not just
+    theoretically) confirmed to fall through to the `Dialect.POSTGRESQL`
+    default for an actual SQLite deployment -- any dialect-sensitive SQL
+    (`JsonPath`, `Exists`, `CollectionCount`) then renders
+    `::jsonb`/`jsonb_extract_path(...)`/`jsonb_array_elements(...)` against a
+    real SQLite connection and fails outright. A plain flat-column
     comparison (`Eq`/`Like`/...) never hits this branch at all, which is why
     the bug went unnoticed until an `exists(...)`/`count(...)` query
-    actually exercised it. `isinstance` is kept first since it's the
-    correct, more specific check when it *does* match (e.g. a `SQLite()`
-    constructed directly in-process, as this file's own tests do).
+    actually exercised it. `isinstance` is kept first for `SQLite` since
+    it's the correct, more specific check when it *does* match (e.g. a
+    `SQLite()` constructed directly in-process, as this file's own tests do).
     """
     name: Optional[str] = getattr(basedb, "dialect", None)
     if name:
         dialect = _DIALECT_BY_NAME.get(name)
         if dialect is not None:
             return dialect
-    if isinstance(basedb, SQLite) or type(basedb).__name__ == "SQLite":
+    if _is_sqlite(basedb):
         return Dialect.SQLITE
-    return Dialect.POSTGRESQL
+    class_name = type(basedb).__name__
+    if class_name in (_SINGLE_TREE_POSTGRES_CLASS_NAME, _SHARED_POSTGRES_CLASS_NAME):
+        return Dialect.POSTGRESQL
+    abort_with_message(
+        501,
+        f"Structured query does not recognize database backend {class_name!r}",
+    )
 
 
 def _resolve_treeid(basedb: Any) -> Optional[int]:
@@ -591,8 +620,27 @@ def _resolve_treeid(basedb: Any) -> Optional[int]:
     single-user `PostgreSQL` addon), which have no `treeid` column at all
     -- `compile_query`/`compile_count_query`/`_resolve_after` all treat
     `None` as "omit the clause", not "unscoped is fine by default".
+
+    Anything else -- a backend whose `.dbapi` has no `treeid` and isn't one
+    of the known single-tree backends above -- aborts with 501 instead of
+    treating the missing attribute as "no scoping needed". `None` here
+    doesn't just mean "detection didn't find a value"; every caller downstream
+    treats it as "this backend has no tenant concept, an unscoped query is
+    fine" -- conflating that with "detection failed" would let an unscoped
+    query against a genuinely shared backend succeed and return other
+    tenants' rows instead of erroring.
     """
-    return getattr(basedb.dbapi, "treeid", None)
+    treeid = getattr(basedb.dbapi, "treeid", None)
+    if treeid is not None:
+        return treeid
+    class_name = type(basedb).__name__
+    if _is_sqlite(basedb) or class_name == _SINGLE_TREE_POSTGRES_CLASS_NAME:
+        return None
+    abort_with_message(
+        501,
+        f"Structured query cannot determine tree scoping for database "
+        f"backend {class_name!r}",
+    )
 
 
 class ObjectQueryResource(ProtectedResource):
@@ -753,9 +801,8 @@ class ObjectQueryResource(ProtectedResource):
         if args.get("locale"):
             abort_with_message(
                 422,
-                "locale-aware sorting is not supported for a caller without "
-                "PERM_VIEW_PRIVATE (no COLLATE equivalent on the proxied "
-                "query path)",
+                "locale-aware sorting is not supported on the proxied query "
+                "path (no COLLATE equivalent there)",
             )
         order_by = [
             OrderBy(item["column"], item.get("direction", "asc"))
