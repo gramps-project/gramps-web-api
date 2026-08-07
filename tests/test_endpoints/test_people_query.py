@@ -287,6 +287,39 @@ class TestPeopleQuery(unittest.TestCase):
         self.assertEqual(len(seen_handles), total)
         self.assertEqual(len(set(seen_handles)), total)  # no duplicates/overlap
 
+    def test_next_after_is_null_when_page_exactly_exhausts_results(self):
+        # Regression test: a naive `len(rows) == limit` check can't tell "the
+        # last page happens to be full" apart from "there's another page
+        # coming", forcing a wasted follow-up request. Asking for exactly
+        # as many rows as match in one page must report no next page.
+        # Filtered to gender == FEMALE since example_gramps has more people
+        # than the endpoint's max `limit` (1000) -- a where filter is needed
+        # to get a matching count small enough to request in a single page.
+        header = fetch_header(self.client)
+        where = [{"column": "gender", "op": "eq", "value": 0}]
+        probe = self.client.post(
+            TEST_URL,
+            json={"select": ["handle"], "where": where, "limit": 1, "count": True},
+            headers=header,
+        )
+        self.assertEqual(probe.status_code, 200)
+        total = int(probe.headers["X-Total-Count"])
+        self.assertLessEqual(total, 1000)  # fits in a single page
+
+        rv = self.client.post(
+            TEST_URL,
+            json={
+                "select": ["handle"],
+                "where": where,
+                "order_by": [{"column": "handle", "direction": "asc"}],
+                "limit": total,
+            },
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(len(rv.json["items"]), total)
+        self.assertIsNone(rv.json["next_after"])
+
     def test_invalid_after_cursor_rejected(self):
         header = fetch_header(self.client)
         rv = self.client.post(
@@ -346,6 +379,35 @@ class TestPeopleQuery(unittest.TestCase):
             headers=header,
         )
         self.assertEqual(rv.status_code, 200)
+
+    def test_locale_rejected_on_proxied_path(self):
+        # The proxied path (`run_query`) sorts in plain Python order with no
+        # `COLLATE` equivalent to the SQL path's `locale` param -- silently
+        # ignoring `locale` there would return a different sort order than
+        # the same request gets when unproxied, depending on the caller's
+        # permissions alone. Must be rejected outright instead.
+        header = fetch_header(self.client)
+
+        def fake_get_db_handle(readonly=True):
+            db = get_db_handle(readonly=readonly)
+            base = db.basedb if isinstance(db, ProxyDbBase) else db
+            return _FakeNonPrivateProxy(base)
+
+        with patch(
+            "gramps_webapi.api.resources.object_query.get_db_handle",
+            side_effect=fake_get_db_handle,
+        ):
+            rv = self.client.post(
+                TEST_URL,
+                json={
+                    "select": ["handle"],
+                    "order_by": [{"column": "surname", "direction": "asc"}],
+                    "locale": "de",
+                    "limit": 5,
+                },
+                headers=header,
+            )
+        self.assertEqual(rv.status_code, 422)
 
     def test_private_people_excluded_without_permission(self):
         # ROLE_GUEST lacks PERM_VIEW_PRIVATE; ROLE_OWNER has it. (ROLE_MEMBER

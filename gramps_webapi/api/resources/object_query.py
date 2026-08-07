@@ -77,6 +77,8 @@ from gramps_object_query_language.query_lang import (
     where_list_to_ast,
 )
 
+from ...auth.const import PERM_VIEW_PRIVATE
+from ..auth import require_permissions
 from ..blueprint import api_blueprint
 from ..util import abort_with_message, get_db_handle, get_locale_for_language
 from . import ProtectedResource
@@ -627,8 +629,15 @@ class ObjectQueryResource(ProtectedResource):
 
     def _post_sql(self, basedb: Any, args: dict) -> Any:
         """Fast, SQL-pushed-down query -- only ever called with an unproxied
-        `basedb`, so there is no privacy predicate to apply here at all.
+        `basedb`, so there is no privacy predicate to apply in the query
+        itself. That's only safe because an unproxied `db` is supposed to
+        imply the caller has `PERM_VIEW_PRIVATE` -- an invariant enforced
+        two modules away, in `get_db_handle()`. Asserting it again here,
+        redundantly, keeps that coupling local: if it's ever violated, this
+        raises 403 instead of silently emitting private records with no
+        privacy predicate at all.
         """
+        require_permissions([PERM_VIEW_PRIVATE])
         if not hasattr(basedb, "dbapi"):
             abort_with_message(
                 501, "Structured query is not supported on this database backend"
@@ -670,11 +679,15 @@ class ObjectQueryResource(ProtectedResource):
                 fetch_keys = fetch_keys + ["handle"]
             requested_keys = {key for _, key in parsed_select}
 
+            # Fetch one extra row beyond `limit` so a result set that's an
+            # exact multiple of `limit` doesn't need a wasted follow-up
+            # request just to learn there's no next page; the extra row is
+            # trimmed back off below and never reaches the response.
             query = Query(
                 select=fetch_refs,
                 where=_build_where(_resolve_where_conditions(args, self.spec), self.spec),
                 order_by=order_by,
-                limit=args["limit"],
+                limit=args["limit"] + 1,
                 after=after,
             )
             sql, params = compile_query(
@@ -694,6 +707,8 @@ class ObjectQueryResource(ProtectedResource):
 
         basedb.dbapi.execute(sql, params)
         rows = basedb.dbapi.fetchall()
+        has_more = len(rows) > args["limit"]
+        rows = rows[: args["limit"]]
 
         headers = {}
         if count_sql is not None:
@@ -714,7 +729,7 @@ class ObjectQueryResource(ProtectedResource):
             }
             for row in rows
         ]
-        next_after = rows[-1][handle_index] if len(rows) == args["limit"] else None
+        next_after = rows[-1][handle_index] if has_more else None
 
         return {"items": items, "next_after": next_after}, 200, headers
 
@@ -731,8 +746,17 @@ class ObjectQueryResource(ProtectedResource):
         matching `run_query`'s own scope cap. Locale-aware `COLLATE`
         sorting (the SQL path's `locale` param) has no equivalent here --
         `run_query` always sorts in plain, NULL-safe Python `<` order
-        (matching SQLite's own default), regardless of `locale`.
+        (matching SQLite's own default). Rather than silently returning a
+        different sort order than the same request would get on the SQL
+        path, an explicit `locale` is rejected outright below.
         """
+        if args.get("locale"):
+            abort_with_message(
+                422,
+                "locale-aware sorting is not supported for a caller without "
+                "PERM_VIEW_PRIVATE (no COLLATE equivalent on the proxied "
+                "query path)",
+            )
         order_by = [
             OrderBy(item["column"], item.get("direction", "asc"))
             for item in args.get("order_by") or []
@@ -760,22 +784,30 @@ class ObjectQueryResource(ProtectedResource):
         if args.get("after"):
             after = _resolve_after_proxied(db, self.spec, order_by, args["after"])
 
+        # See the matching comment in `_post_sql`: over-fetch by one row so
+        # an exact-multiple-of-`limit` result set doesn't need a wasted
+        # follow-up request to learn there's no next page.
         rows = run_query(
             db,
             self.spec,
             where,
             order_by=order_by,
-            limit=args["limit"],
+            limit=args["limit"] + 1,
             after=after,
             select=fetch_refs,
         )
+        has_more = len(rows) > args["limit"]
+        rows = rows[: args["limit"]]
 
         headers = {}
         if args["count"]:
             # `limit`/`after` narrow `rows` to one page; the total needs
             # every `where`-match independent of both -- same "costs a
             # second query, opt-in" tradeoff `_post_sql` already makes for
-            # its own `count_sql`, not a new cost this path introduces.
+            # its own `count_sql`. Unlike `count_sql`, which is a single
+            # index-backed `COUNT(*)`, this re-runs the full per-object
+            # deserialize-and-privacy-sanitize pass a second time with no
+            # `limit` at all -- the more expensive of the two by far.
             headers["X-Total-Count"] = str(len(run_query(db, self.spec, where)))
 
         handle_index = fetch_refs.index("handle")
@@ -783,7 +815,7 @@ class ObjectQueryResource(ProtectedResource):
             {key: val for key, val in zip(fetch_keys, row) if key in requested_keys}
             for row in rows
         ]
-        next_after = rows[-1][handle_index] if len(rows) == args["limit"] else None
+        next_after = rows[-1][handle_index] if has_more else None
 
         return {"items": items, "next_after": next_after}, 200, headers
 
