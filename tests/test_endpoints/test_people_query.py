@@ -24,6 +24,7 @@ from unittest.mock import patch
 
 from gramps.gen.proxy.proxybase import ProxyDbBase
 
+from gramps_webapi.api.resources.object_query import run_query as _real_run_query
 from gramps_webapi.api.util import get_db_handle
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 
@@ -408,6 +409,63 @@ class TestPeopleQuery(unittest.TestCase):
                 headers=header,
             )
         self.assertEqual(rv.status_code, 422)
+
+    def _count_with_call_tracking(self, header, body):
+        """POST to the proxied path, returning (response, run_query call count)."""
+
+        def fake_get_db_handle(readonly=True):
+            db = get_db_handle(readonly=readonly)
+            base = db.basedb if isinstance(db, ProxyDbBase) else db
+            return _FakeNonPrivateProxy(base)
+
+        calls = []
+
+        def counting_run_query(*args, **kwargs):
+            calls.append(kwargs)
+            return _real_run_query(*args, **kwargs)
+
+        with patch(
+            "gramps_webapi.api.resources.object_query.get_db_handle",
+            side_effect=fake_get_db_handle,
+        ), patch(
+            "gramps_webapi.api.resources.object_query.run_query",
+            side_effect=counting_run_query,
+        ):
+            rv = self.client.post(TEST_URL, json=body, headers=header)
+        return rv, len(calls)
+
+    def test_proxied_count_reuses_first_page_when_it_is_the_whole_result(self):
+        # When the (over-fetched) first page already contains every match --
+        # no `after`, and fewer rows came back than the over-fetch asked
+        # for -- the total is just `len(rows)`. No need to re-run
+        # `run_query` a second time, with no `limit` at all, just to
+        # recompute a number the first call already established.
+        header = fetch_header(self.client)
+        rv, call_count = self._count_with_call_tracking(
+            header,
+            {
+                "select": ["handle"],
+                "where": [{"column": "gramps_id", "op": "eq", "value": "I0000"}],
+                "limit": 50,
+                "count": True,
+            },
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(int(rv.headers["X-Total-Count"]), len(rv.json["items"]))
+        self.assertEqual(call_count, 1)  # no second, unlimited count query
+
+    def test_proxied_count_still_needs_second_query_when_paginated(self):
+        # A page that does *not* already contain every match -- because
+        # there are more rows beyond it -- can't infer the total from
+        # `rows` alone, and still needs the second, unlimited `run_query`.
+        header = fetch_header(self.client)
+        rv, call_count = self._count_with_call_tracking(
+            header,
+            {"select": ["handle"], "limit": 2, "count": True},
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(int(rv.headers["X-Total-Count"]), get_object_count("people"))
+        self.assertEqual(call_count, 2)
 
     def test_private_people_excluded_without_permission(self):
         # ROLE_GUEST lacks PERM_VIEW_PRIVATE; ROLE_OWNER has it. (ROLE_MEMBER

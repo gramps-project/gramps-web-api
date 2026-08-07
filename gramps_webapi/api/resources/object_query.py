@@ -801,14 +801,24 @@ class ObjectQueryResource(ProtectedResource):
 
         headers = {}
         if args["count"]:
-            # `limit`/`after` narrow `rows` to one page; the total needs
-            # every `where`-match independent of both -- same "costs a
-            # second query, opt-in" tradeoff `_post_sql` already makes for
-            # its own `count_sql`. Unlike `count_sql`, which is a single
-            # index-backed `COUNT(*)`, this re-runs the full per-object
-            # deserialize-and-privacy-sanitize pass a second time with no
-            # `limit` at all -- the more expensive of the two by far.
-            headers["X-Total-Count"] = str(len(run_query(db, self.spec, where)))
+            if after is None and not has_more:
+                # The first page already *is* every match -- no `after` to
+                # have skipped earlier rows, and no `has_more` to mean later
+                # ones exist beyond what was fetched. Reuse it instead of
+                # re-deserializing the whole table a second time just to
+                # count what's already sitting in `rows`.
+                total = len(rows)
+            else:
+                # `limit`/`after` narrow `rows` to one page; the total needs
+                # every `where`-match independent of both -- same "costs a
+                # second query, opt-in" tradeoff `_post_sql` already makes
+                # for its own `count_sql`. Unlike `count_sql`, which is a
+                # single index-backed `COUNT(*)`, this re-runs the full
+                # per-object deserialize-and-privacy-sanitize pass a second
+                # time with no `limit` at all -- the more expensive of the
+                # two by far.
+                total = len(run_query(db, self.spec, where))
+            headers["X-Total-Count"] = str(total)
 
         handle_index = fetch_refs.index("handle")
         items = [
