@@ -537,8 +537,8 @@ class DbUndoSQLWeb(DbUndoSQL):
         old_data: bool = True,
         new_data: bool = True,
         ascending: bool = True,
-        before: int | None = None,
-        after: int | None = None,
+        before: float | None = None,
+        after: float | None = None,
         before_id: int | None = None,
         after_id: int | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
