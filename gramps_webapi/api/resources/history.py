@@ -100,6 +100,20 @@ class TransactionsHistoryQueryArgs(Schema):
             "description": "Unix timestamp; if provided, return only transactions committed after this time."
         },
     )
+    before_id = fields.Integer(
+        load_default=None,
+        validate=validate.Range(min=0),
+        metadata={
+            "description": "Transaction ID; if provided, return only transactions with an id strictly less than this value. Unlike the timestamp-based `before`/`after` cursor, this is exact and has no floating-point precision loss."
+        },
+    )
+    after_id = fields.Integer(
+        load_default=None,
+        validate=validate.Range(min=0),
+        metadata={
+            "description": "Transaction ID; if provided, return only transactions with an id strictly greater than this value. Unlike the timestamp-based `before`/`after` cursor, this is exact and has no floating-point precision loss. 0 means 'from the beginning'."
+        },
+    )
 
 
 class TransactionsHistoryResource(ProtectedResource):
@@ -122,6 +136,8 @@ class TransactionsHistoryResource(ProtectedResource):
             ascending=ascending,
             before=args["before"],
             after=args["after"],
+            before_id=args["before_id"],
+            after_id=args["after_id"],
         )
 
         # replace user IDs by user name

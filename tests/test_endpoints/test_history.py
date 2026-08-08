@@ -26,6 +26,7 @@ from unittest.mock import patch
 
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
+from sqlalchemy import create_engine, text
 
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import add_user, user_db
@@ -51,6 +52,7 @@ class TestTransactionHistoryResource(unittest.TestCase):
         self.name = "Test Web API History"
         self.dbman = CLIDbManager(DbState())
         dirpath, _ = self.dbman.create_new_db_cli(self.name, dbid="sqlite")
+        self.dirpath = dirpath
         tree = os.path.basename(dirpath)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EMPTY_GRAMPS_AUTH_CONFIG}):
             self.app = create_app(config_from_env=False, config={"TREE": self.name})
@@ -252,6 +254,106 @@ class TestTransactionHistoryResource(unittest.TestCase):
         )
         assert rv.status_code == 200
         assert len(rv.json) == 1
+
+    def test_after_id_before_id(self):
+        headers = get_headers(self.client, "editor", "123")
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        transactions = rv.json
+        assert [t["id"] for t in transactions] == [1, 2, 3]
+
+        # after_id excludes exactly the given id and everything before it
+        rv = self.client.get("/api/transactions/history/?after_id=1", headers=headers)
+        assert rv.status_code == 200
+        assert [t["id"] for t in rv.json] == [2, 3]
+
+        # after_id=0 is the "everything" sentinel, not a falsy no-op
+        rv = self.client.get("/api/transactions/history/?after_id=0", headers=headers)
+        assert rv.status_code == 200
+        assert [t["id"] for t in rv.json] == [1, 2, 3]
+
+        # before_id excludes exactly the given id and everything after it
+        rv = self.client.get("/api/transactions/history/?before_id=3", headers=headers)
+        assert rv.status_code == 200
+        assert [t["id"] for t in rv.json] == [1, 2]
+
+        # before_id/after_id AND-compose with each other
+        rv = self.client.get(
+            "/api/transactions/history/?after_id=1&before_id=3", headers=headers
+        )
+        assert rv.status_code == 200
+        assert [t["id"] for t in rv.json] == [2]
+
+        # before_id/after_id AND-compose with the legacy timestamp before/after
+        after_ts = transactions[0]["timestamp"]
+        rv = self.client.get(
+            f"/api/transactions/history/?after={after_ts}&after_id=0",
+            headers=headers,
+        )
+        assert rv.status_code == 200
+        assert [t["id"] for t in rv.json] == [2, 3]
+
+        # an over-constrained combination yields fewer rows, never wrong ones
+        rv = self.client.get(
+            f"/api/transactions/history/?after={after_ts}&before_id=2",
+            headers=headers,
+        )
+        assert rv.status_code == 200
+        assert rv.json == []
+
+    def test_after_precision_bug_vs_after_id(self):
+        """Legacy timestamp cursor can redeliver a transaction forever; id cursor cannot.
+
+        T1 is a hand-picked nanosecond epoch where the float round-trip
+        through the served `timestamp` field (`self.timestamp / 1e9`) loses
+        precision: T1 / 1e9 == 1700000000.0 exactly, but
+        1700000000.0 * 1e9 == 1_700_000_000_000_000_000, which is *less
+        than* T1. So filtering with `after=<served timestamp>` reconstructs
+        a threshold below the transaction's actual stored timestamp, the
+        `>` comparison still matches it, and it gets redelivered on every
+        subsequent poll. This is a known, deliberately-preserved legacy
+        bug (existing consumers rely on the current `after`/`before`
+        timestamp contract, so it is not changed) -- the assertion below
+        documents it and must not be "fixed" by deleting it.
+        """
+        headers = get_headers(self.client, "editor", "123")
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+
+        T1 = 1_700_000_000_000_000_001
+        assert T1 / 1e9 == 1700000000.0
+        assert 1700000000.0 * 1e9 < T1
+
+        undo_db_path = os.path.join(self.dirpath, "undo.db")
+        engine = create_engine(f"sqlite:///{undo_db_path}")
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE transactions SET timestamp = :ts WHERE id = 1"),
+                {"ts": T1},
+            )
+
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        served_timestamp = rv.json[0]["timestamp"]
+        assert served_timestamp == 1700000000.0
+
+        # legacy timestamp cursor: redelivers transaction 1 forever (known bug)
+        rv = self.client.get(
+            f"/api/transactions/history/?after={served_timestamp}", headers=headers
+        )
+        assert rv.status_code == 200
+        assert [t["id"] for t in rv.json] == [1]
+
+        # id cursor: exact, no precision loss, no redelivery
+        rv = self.client.get("/api/transactions/history/?after_id=1", headers=headers)
+        assert rv.status_code == 200
+        assert rv.json == []
 
     def test_guest(self):
         headers = get_headers(self.client, "user", "123")
