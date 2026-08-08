@@ -539,6 +539,8 @@ class DbUndoSQLWeb(DbUndoSQL):
         ascending: bool = True,
         before: int | None = None,
         after: int | None = None,
+        before_id: int | None = None,
+        after_id: int | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
         """Get transactions as a JSONifiable list."""
         with self.session_scope() as session:
@@ -551,6 +553,10 @@ class DbUndoSQLWeb(DbUndoSQL):
                 query = query.filter(Transaction.timestamp < before * 1e9)
             if after:
                 query = query.filter(Transaction.timestamp > after * 1e9)
+            if before_id is not None:
+                query = query.filter(Transaction.id < before_id)
+            if after_id is not None:
+                query = query.filter(Transaction.id > after_id)
             count = query.count()
             if ascending:
                 query = query.order_by(Transaction.id)
