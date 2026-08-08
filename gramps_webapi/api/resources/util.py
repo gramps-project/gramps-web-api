@@ -22,6 +22,7 @@
 
 from __future__ import annotations
 
+import copy
 import gzip
 import logging
 import os
@@ -1283,6 +1284,11 @@ def validate_object_dict(obj_dict: dict[str, Any]) -> bool:
         and schema.get("properties", {}).get("gender", {}).get("maximum") is not None
         and other > schema["properties"]["gender"]["maximum"]
     ):
+        # `get_schema()` may return an object shared across calls (e.g. a
+        # cached class-level schema); never mutate it in place, since that
+        # would leak this one-off patch into every other caller. Copy it
+        # first, since we only need a locally patched view for validation.
+        schema = copy.deepcopy(schema)
         schema["properties"]["gender"]["maximum"] = other
 
     obj_dict_fixed = {k: v for k, v in obj_dict.items() if k != "complete"}

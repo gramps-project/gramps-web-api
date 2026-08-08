@@ -323,3 +323,40 @@ def test_recalc_date_sortvals_year_only():
     date_dict["sortval"] = 0
     recalc_date_sortvals({"_class": "Event", "date": date_dict})
     assert date_dict["sortval"] == correct
+
+
+def test_validate_object_dict_does_not_mutate_shared_schema():
+    """validate_object_dict() must not mutate a shared/cached get_schema() result.
+
+    Gramps core may cache Person.get_schema() and return the same object to
+    every caller. The gender-max patch here (for Person.OTHER, added in
+    Gramps 5.2) previously mutated that returned schema in place, which
+    would corrupt it for every other caller of get_schema() once Gramps
+    starts sharing/caching it, or raise outright if the shared object is
+    made read-only.
+    """
+    from gramps.gen.lib import Person
+
+    from gramps_webapi.api.resources.util import validate_object_dict
+
+    # Simulate a schema whose declared gender maximum hasn't caught up with
+    # Person.OTHER yet -- the exact case this patch exists to handle.
+    shared_schema = {
+        "type": "object",
+        "properties": {
+            "_class": {"enum": ["Person"]},
+            "gender": {"type": "integer", "maximum": Person.OTHER - 1},
+        },
+    }
+
+    with patch.object(Person, "get_schema", return_value=shared_schema):
+        obj_dict = {"_class": "Person", "gender": Person.OTHER}
+        assert validate_object_dict(obj_dict) is True
+
+        # The object returned by get_schema() is shared across every call;
+        # it must come back untouched.
+        assert shared_schema["properties"]["gender"]["maximum"] == Person.OTHER - 1
+
+        # And a second call must still succeed -- it can't rely on a
+        # mutation left behind by the first call.
+        assert validate_object_dict(obj_dict) is True
