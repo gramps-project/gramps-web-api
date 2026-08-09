@@ -24,6 +24,7 @@
 from __future__ import annotations
 
 import pickle
+from collections import defaultdict
 from contextlib import contextmanager
 from time import time_ns
 from typing import Any
@@ -47,15 +48,28 @@ from sqlalchemy import (
     LargeBinary,
     PrimaryKeyConstraint,
     Text,
+    and_,
     create_engine,
     inspect,
+    or_,
     text,
 )
 
-from sqlalchemy.orm import DeclarativeBase, mapped_column, relationship, sessionmaker
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Session,
+    contains_eager,
+    defer,
+    mapped_column,
+    relationship,
+    sessionmaker,
+)
 from sqlalchemy.sql import func
 
 _ = glocale.translation.gettext
+
+# transactions per change query, to keep the statement size bounded
+CHANGES_QUERY_CHUNK_SIZE = 500
 
 
 def string_to_data_or_list(string: str):
@@ -159,7 +173,7 @@ class Transaction(Base):
 
     connection = relationship("Connection", back_populates="transactions")
 
-    def _to_dict(self, old_data: bool = True, new_data: bool = True):
+    def _to_dict(self, changes: list[dict[str, Any]]):
         """Return a dict representation of the transaction."""
         return {
             "id": self.id,
@@ -169,13 +183,82 @@ class Transaction(Base):
             "last": self.last,
             "undo": bool(self.undo),
             "timestamp": self.timestamp / 1e9,
-            "changes": [
-                change._to_dict(old_data=old_data, new_data=new_data)
-                for change in self.connection.changes
-                if self.first is None
-                or (change.id >= self.first and change.id <= self.last)
-            ],
+            "changes": changes,
         }
+
+
+def _get_changes(
+    session: Session,
+    transactions: list[Transaction],
+    old_data: bool,
+    new_data: bool,
+) -> dict[int, list[dict[str, Any]]]:
+    """Return the changes of the given transactions, keyed by transaction ID.
+
+    The history can be requested unpaginated, so the transactions are chunked
+    to keep the SQL statement bounded.
+    """
+    result: dict[int, list[dict[str, Any]]] = {}
+    for start in range(0, len(transactions), CHANGES_QUERY_CHUNK_SIZE):
+        chunk = transactions[start : start + CHANGES_QUERY_CHUNK_SIZE]
+        result.update(_get_changes_chunk(session, chunk, old_data, new_data))
+    return result
+
+
+def _get_changes_chunk(
+    session: Session,
+    transactions: list[Transaction],
+    old_data: bool,
+    new_data: bool,
+) -> dict[int, list[dict[str, Any]]]:
+    """Return the changes of the given transactions in a single query."""
+    # a transaction without a change range covers its whole connection
+    whole_connection = {
+        transaction.connection_id
+        for transaction in transactions
+        if transaction.first is None
+    }
+    conditions = [
+        and_(
+            Change.connection_id == transaction.connection_id,
+            Change.id >= transaction.first,
+            Change.id <= transaction.last,
+        )
+        for transaction in transactions
+        if transaction.first is not None
+    ]
+    if whole_connection:
+        conditions.append(Change.connection_id.in_(whole_connection))
+    # the legacy binary columns are never serialised, the JSON ones only on demand
+    deferred = [defer(Change.old_data), defer(Change.new_data)]
+    if not old_data:
+        deferred.append(defer(Change.old_json))
+    if not new_data:
+        deferred.append(defer(Change.new_json))
+    changes = (
+        session.query(Change)
+        .filter(or_(*conditions))
+        .options(*deferred)
+        .order_by(Change.connection_id, Change.id)
+        .all()
+    )
+    changes_by_connection: dict[int, list[Change]] = defaultdict(list)
+    for change in changes:
+        changes_by_connection[change.connection_id].append(change)
+    result = {}
+    for transaction in transactions:
+        candidates = changes_by_connection[transaction.connection_id]
+        if transaction.first is not None:
+            candidates = [
+                change
+                for change in candidates
+                if transaction.first <= change.id <= transaction.last
+            ]
+        result[transaction.id] = [
+            change._to_dict(old_data=old_data, new_data=new_data)
+            for change in candidates
+        ]
+    return result
 
 
 class DbUndoSQL(DbUndo):
@@ -530,6 +613,54 @@ class DbUndoSQL(DbUndo):
 class DbUndoSQLWeb(DbUndoSQL):
     """SQL-based undo database with additional methods for Web API."""
 
+    def _transactions_query(
+        self,
+        session: Session,
+        before: float | None = None,
+        after: float | None = None,
+        before_id: int | None = None,
+        after_id: int | None = None,
+    ):
+        """Build the base query for this tree's transactions."""
+        query = (
+            session.query(Transaction)
+            .join(Transaction.connection)
+            .filter(Connection.tree_id == self.tree_id)
+        )
+        if before:
+            query = query.filter(Transaction.timestamp < before * 1e9)
+        if after:
+            query = query.filter(Transaction.timestamp > after * 1e9)
+        if before_id is not None:
+            query = query.filter(Transaction.id < before_id)
+        if after_id is not None:
+            query = query.filter(Transaction.id > after_id)
+        return query
+
+    def get_transactions_state(
+        self,
+        before: float | None = None,
+        after: float | None = None,
+        before_id: int | None = None,
+        after_id: int | None = None,
+    ) -> tuple[int | None, int]:
+        """Get the highest transaction ID and the number of transactions.
+
+        Transactions are append-only and immutable, so this pair changes
+        whenever the result of a history query changes.
+        """
+        with self.session_scope() as session:
+            query = self._transactions_query(
+                session,
+                before=before,
+                after=after,
+                before_id=before_id,
+                after_id=after_id,
+            )
+            return query.with_entities(
+                func.max(Transaction.id), func.count(Transaction.id)
+            ).one()
+
     def get_transactions(
         self,
         page: int = 1,
@@ -544,19 +675,13 @@ class DbUndoSQLWeb(DbUndoSQL):
     ) -> tuple[list[dict[str, Any]], int]:
         """Get transactions as a JSONifiable list."""
         with self.session_scope() as session:
-            query = (
-                session.query(Transaction)
-                .join(Connection)
-                .filter(Connection.tree_id == self.tree_id)
+            query = self._transactions_query(
+                session,
+                before=before,
+                after=after,
+                before_id=before_id,
+                after_id=after_id,
             )
-            if before:
-                query = query.filter(Transaction.timestamp < before * 1e9)
-            if after:
-                query = query.filter(Transaction.timestamp > after * 1e9)
-            if before_id is not None:
-                query = query.filter(Transaction.id < before_id)
-            if after_id is not None:
-                query = query.filter(Transaction.id > after_id)
             count = query.count()
             if ascending:
                 query = query.order_by(Transaction.id)
@@ -564,9 +689,10 @@ class DbUndoSQLWeb(DbUndoSQL):
                 query = query.order_by(Transaction.id.desc())
             if page and pagesize:
                 query = query.limit(pagesize).offset((page - 1) * pagesize)
-            transactions = query.all()
+            transactions = query.options(contains_eager(Transaction.connection)).all()
+            changes = _get_changes(session, transactions, old_data, new_data)
             return [
-                transaction._to_dict(old_data=old_data, new_data=new_data)
+                transaction._to_dict(changes[transaction.id])
                 for transaction in transactions
             ], count
 
@@ -575,17 +701,19 @@ class DbUndoSQLWeb(DbUndoSQL):
         transaction_id: int,
         old_data: bool = True,
         new_data: bool = True,
-    ) -> list[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Get a single transaction as a JSONifiable dict."""
         with self.session_scope() as session:
-            query = (
-                session.query(Transaction)
-                .join(Connection)
-                .filter(Connection.tree_id == self.tree_id)
+            transaction = (
+                self._transactions_query(session)
                 .filter(Transaction.id == transaction_id)
+                .options(contains_eager(Transaction.connection))
+                .scalar()
             )
-            transaction = query.scalar()
-            return transaction._to_dict(old_data=old_data, new_data=new_data)
+            if transaction is None:
+                return None
+            changes = _get_changes(session, [transaction], old_data, new_data)
+            return transaction._to_dict(changes[transaction.id])
 
 
 def _add_json_columns(undodb: DbUndoSQL) -> None:

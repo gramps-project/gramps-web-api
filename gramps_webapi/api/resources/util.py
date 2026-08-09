@@ -1851,11 +1851,16 @@ def normalize_etag(etag: str | None) -> str | None:
     return etag
 
 
+def etag_unchanged(etag: str) -> bool:
+    """Check whether the if none match header agrees with the current etag."""
+    old_etag = request.headers.get("If-None-Match")
+    return bool(old_etag) and normalize_etag(old_etag) == etag
+
+
 def return_304_if_unchanged(response: Response, etag: str) -> Response:
     """Change the response status to 304 if the if none match header agrees
     with the current etag."""
-    old_etag = request.headers.get("If-None-Match")
-    if old_etag and normalize_etag(old_etag) == etag:
+    if etag_unchanged(etag):
         response.status = "304"
         response.response = ""
     return response

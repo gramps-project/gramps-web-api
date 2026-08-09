@@ -25,6 +25,7 @@ import shutil
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 from gramps.gen.lib.json_utils import (
     object_to_dict,
@@ -46,7 +47,7 @@ from gramps.gen.lib import (
 )
 from sqlalchemy import text
 
-from gramps_webapi.undodb import DbUndoSQL
+from gramps_webapi.undodb import DbUndoSQL, DbUndoSQLWeb
 
 
 def dict_factory(cursor, row):
@@ -223,6 +224,84 @@ class TestUndoHistory(unittest.TestCase):
         assert string_to_dict(commit["new_json"]) == object_to_dict(person)
         assert string_to_dict(commit["new_json"]) == object_to_dict(new_person)
         assert string_to_dict(commit["old_json"]) == object_to_dict(old_person)
+
+
+class TestGetTransactions(unittest.TestCase):
+    """Tests for the transaction history queries of `DbUndoSQLWeb`."""
+
+    def setUp(self):
+        self.dbdir = tempfile.mkdtemp()
+        self.db: DbWriteBase = make_database("sqlite")
+
+        def create_undo_manager():
+            path = self.db.undolog
+            return DbUndoSQLWeb(grampsdb=self.db, dburl=f"sqlite:///{path}", tree_id=1)
+
+        self.db._create_undo_manager = create_undo_manager
+        self.db.load(self.dbdir)
+
+        # separate transactions, all within the same connection
+        for description, obj_class, add_func in [
+            ("Add person", Person, self.db.add_person),
+            ("Add note", Note, self.db.add_note),
+            ("Add place", Place, self.db.add_place),
+        ]:
+            with DbTxn(description, self.db) as trans:
+                add_func(obj_class(), trans)
+
+    def tearDown(self):
+        self.db.close(update=False)
+        shutil.rmtree(self.dbdir)
+
+    def test_changes_of_shared_connection(self):
+        undodb = self.db.get_undodb()
+        transactions, count = undodb.get_transactions()
+        assert count == 3
+        assert {transaction["connection"]["id"] for transaction in transactions} == {1}
+        assert [transaction["description"] for transaction in transactions] == [
+            "Add person",
+            "Add note",
+            "Add place",
+        ]
+        for transaction, obj_class in zip(transactions, ["Person", "Note", "Place"]):
+            assert [change["obj_class"] for change in transaction["changes"]] == [
+                obj_class
+            ]
+
+    def test_get_transaction(self):
+        undodb = self.db.get_undodb()
+        transaction = undodb.get_transaction(2)
+        assert transaction["description"] == "Add note"
+        assert [change["obj_class"] for change in transaction["changes"]] == ["Note"]
+        assert undodb.get_transaction(99) is None
+
+    def test_changes_of_chunked_transactions(self):
+        undodb = self.db.get_undodb()
+        with patch("gramps_webapi.undodb.CHANGES_QUERY_CHUNK_SIZE", 2):
+            transactions, _ = undodb.get_transactions()
+        assert [
+            change["obj_class"]
+            for transaction in transactions
+            for change in transaction["changes"]
+        ] == ["Person", "Note", "Place"]
+
+    def test_transactions_state(self):
+        undodb = self.db.get_undodb()
+        assert undodb.get_transactions_state() == (3, 3)
+        with DbTxn("Add another person", self.db) as trans:
+            self.db.add_person(Person(), trans)
+        assert undodb.get_transactions_state() == (4, 4)
+
+    def test_data_only_included_on_demand(self):
+        undodb = self.db.get_undodb()
+        transactions, _ = undodb.get_transactions(old_data=False, new_data=False)
+        change = transactions[0]["changes"][0]
+        assert "old_data" not in change
+        assert "new_data" not in change
+        transactions, _ = undodb.get_transactions(old_data=True, new_data=True)
+        change = transactions[0]["changes"][0]
+        assert change["old_data"] == {}
+        assert change["new_data"]["_class"] == "Person"
 
 
 class TestMigrate(unittest.TestCase):
