@@ -1274,6 +1274,8 @@ def validate_object_dict(obj_dict: dict[str, Any]) -> bool:
         return False
     schema = obj_cls.get_schema()
 
+    obj_dict_fixed = {k: v for k, v in obj_dict.items() if k != "complete"}
+
     # Gramps 5.2 added Person.OTHER = 3, but the JSON schema still caps gender
     # at 2. Patch the schema to allow the actual maximum value.
     # This patch can be removed once https://github.com/gramps-project/gramps/pull/2213
@@ -1281,6 +1283,7 @@ def validate_object_dict(obj_dict: dict[str, Any]) -> bool:
     other = getattr(obj_cls, "OTHER", None)
     if (
         other is not None
+        and obj_dict_fixed.get("gender") == other
         and schema.get("properties", {}).get("gender", {}).get("maximum") is not None
         and other > schema["properties"]["gender"]["maximum"]
     ):
@@ -1291,7 +1294,6 @@ def validate_object_dict(obj_dict: dict[str, Any]) -> bool:
         schema = copy.deepcopy(schema)
         schema["properties"]["gender"]["maximum"] = other
 
-    obj_dict_fixed = {k: v for k, v in obj_dict.items() if k != "complete"}
     try:
         jsonschema.validate(obj_dict_fixed, schema)
     except jsonschema.exceptions.ValidationError as exc:
