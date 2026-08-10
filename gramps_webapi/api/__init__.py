@@ -2,6 +2,7 @@
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
 # Copyright (C) 2020-2026      David Straub
+# Copyright (C) 2026           Douglas Blank
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -26,15 +27,16 @@ from webargs import fields, validate
 
 from ..const import API_PREFIX
 from .auth import jwt_required
+from .blueprint import api_blueprint
 from .cache import thumbnail_cache_decorator, tile_cache_decorator
 from .media import get_media_handler
+from .resources.access_tokens import UserAccessTokenResource
 from .resources.base import Resource
 from .resources.bookmarks import (
     BookmarkEditResource,
     BookmarkResource,
     BookmarksResource,
 )
-from .resources.access_tokens import UserAccessTokenResource
 from .resources.chat import ChatResource
 from .resources.citations import CitationResource, CitationsResource
 from .resources.config import ConfigResource, ConfigsResource
@@ -54,8 +56,8 @@ from .resources.file import MediaFileResource
 from .resources.filters import FilterResource, FiltersResource, FiltersResources
 from .resources.history import (
     TransactionHistoryResource,
-    TransactionUndoResource,
     TransactionsHistoryResource,
+    TransactionUndoResource,
 )
 from .resources.holidays import HolidayResource, HolidaysResource
 from .resources.import_media import MediaUploadZipResource
@@ -67,9 +69,6 @@ from .resources.importers import (
 )
 from .resources.living import LivingDatesResource, LivingResource
 from .resources.media import MediaObjectResource, MediaObjectsResource
-from .resources.metadata import MetadataResource, MetadataResearcherResource
-from .resources.name_formats import NameFormatsResource
-from .resources.name_groups import NameGroupsResource
 from .resources.merge import (
     MergeCitationResource,
     MergeEventResource,
@@ -81,13 +80,35 @@ from .resources.merge import (
     MergeRepositoryResource,
     MergeSourceResource,
 )
+from .resources.metadata import MetadataResearcherResource, MetadataResource
+from .resources.name_formats import NameFormatsResource
+from .resources.name_groups import NameGroupsResource
 from .resources.notes import NoteResource, NotesResource
+from .resources.object_query import (
+    CitationQueryResource,
+    EventQueryResource,
+    FamilyQueryResource,
+    MediaQueryResource,
+    NoteQueryResource,
+    PersonQueryResource,
+    PlaceQueryResource,
+    RepositoryQueryResource,
+    SourceQueryResource,
+    TagQueryResource,
+)
 from .resources.objects import (
     CreateObjectsResource,
     DeleteObjectsByHandleResource,
     DeleteObjectsResource,
 )
 from .resources.ocr import MediaOcrResource
+from .resources.oidc import (
+    OIDCCallbackResource,
+    OIDCConfigResource,
+    OIDCLoginResource,
+    OIDCLogoutResource,
+    OIDCTokenExchangeResource,
+)
 from .resources.people import PeopleResource, PersonResource
 from .resources.places import PlaceResource, PlacesResource
 from .resources.relations import RelationResource, RelationsResource
@@ -112,13 +133,6 @@ from .resources.token import (
     TokenCreateOwnerResource,
     TokenRefreshResource,
     TokenResource,
-)
-from .resources.oidc import (
-    OIDCCallbackResource,
-    OIDCConfigResource,
-    OIDCLoginResource,
-    OIDCLogoutResource,
-    OIDCTokenExchangeResource,
 )
 from .resources.transactions import TransactionsResource
 from .resources.translations import TranslationResource, TranslationsResource
@@ -149,9 +163,8 @@ from .resources.user import (
     UsersResource,
     UserTriggerResetPasswordResource,
 )
-from .resources.ydna import PersonYDnaResource
 from .resources.verify import VerifyResource
-from .blueprint import api_blueprint
+from .resources.ydna import PersonYDnaResource
 from .util import abort_with_message, get_db_handle, get_tree_from_jwt, parser, use_args
 
 
@@ -253,6 +266,7 @@ register_endpt(
     PersonYDnaResource, "/people/<string:handle>/ydna", "person-ydna", tags=["DNA"]
 )
 register_endpt(PeopleResource, "/people/", "people", tags=["People"])
+register_endpt(PersonQueryResource, "/people/query/", "people-query", tags=["People"])
 register_endpt(
     MergePersonResource,
     "/people/<string:phoenix_handle>/merge/<string:titanic_handle>",
@@ -269,6 +283,9 @@ register_endpt(
 register_endpt(FamilyResource, "/families/<string:handle>", "family", tags=["Families"])
 register_endpt(FamiliesResource, "/families/", "families", tags=["Families"])
 register_endpt(
+    FamilyQueryResource, "/families/query/", "families-query", tags=["Families"]
+)
+register_endpt(
     MergeFamilyResource,
     "/families/<string:phoenix_handle>/merge/<string:titanic_handle>",
     "merge-family",
@@ -283,6 +300,7 @@ register_endpt(
 )
 register_endpt(EventResource, "/events/<string:handle>", "event", tags=["Events"])
 register_endpt(EventsResource, "/events/", "events", tags=["Events"])
+register_endpt(EventQueryResource, "/events/query/", "events-query", tags=["Events"])
 register_endpt(
     MergeEventResource,
     "/events/<string:phoenix_handle>/merge/<string:titanic_handle>",
@@ -302,6 +320,7 @@ register_endpt(
 # Places
 register_endpt(PlaceResource, "/places/<string:handle>", "place", tags=["Places"])
 register_endpt(PlacesResource, "/places/", "places", tags=["Places"])
+register_endpt(PlaceQueryResource, "/places/query/", "places-query", tags=["Places"])
 register_endpt(
     MergePlaceResource,
     "/places/<string:phoenix_handle>/merge/<string:titanic_handle>",
@@ -314,6 +333,9 @@ register_endpt(
 )
 register_endpt(CitationsResource, "/citations/", "citations", tags=["Citations"])
 register_endpt(
+    CitationQueryResource, "/citations/query/", "citations-query", tags=["Citations"]
+)
+register_endpt(
     MergeCitationResource,
     "/citations/<string:phoenix_handle>/merge/<string:titanic_handle>",
     "merge-citation",
@@ -322,6 +344,9 @@ register_endpt(
 # Sources
 register_endpt(SourceResource, "/sources/<string:handle>", "source", tags=["Sources"])
 register_endpt(SourcesResource, "/sources/", "sources", tags=["Sources"])
+register_endpt(
+    SourceQueryResource, "/sources/query/", "sources-query", tags=["Sources"]
+)
 register_endpt(
     MergeSourceResource,
     "/sources/<string:phoenix_handle>/merge/<string:titanic_handle>",
@@ -339,6 +364,12 @@ register_endpt(
     RepositoriesResource, "/repositories/", "repositories", tags=["Repositories"]
 )
 register_endpt(
+    RepositoryQueryResource,
+    "/repositories/query/",
+    "repositories-query",
+    tags=["Repositories"],
+)
+register_endpt(
     MergeRepositoryResource,
     "/repositories/<string:phoenix_handle>/merge/<string:titanic_handle>",
     "merge-repository",
@@ -349,6 +380,7 @@ register_endpt(
     MediaObjectResource, "/media/<string:handle>", "media_object", tags=["Media"]
 )
 register_endpt(MediaObjectsResource, "/media/", "media_objects", tags=["Media"])
+register_endpt(MediaQueryResource, "/media/query/", "media-query", tags=["Media"])
 register_endpt(
     MergeMediaResource,
     "/media/<string:phoenix_handle>/merge/<string:titanic_handle>",
@@ -358,6 +390,7 @@ register_endpt(
 # Notes
 register_endpt(NoteResource, "/notes/<string:handle>", "note", tags=["Notes"])
 register_endpt(NotesResource, "/notes/", "notes", tags=["Notes"])
+register_endpt(NoteQueryResource, "/notes/query/", "notes-query", tags=["Notes"])
 register_endpt(
     MergeNoteResource,
     "/notes/<string:phoenix_handle>/merge/<string:titanic_handle>",
@@ -367,6 +400,7 @@ register_endpt(
 # Tags
 register_endpt(TagResource, "/tags/<string:handle>", "tag", tags=["Tags"])
 register_endpt(TagsResource, "/tags/", "tags", tags=["Tags"])
+register_endpt(TagQueryResource, "/tags/query/", "tags-query", tags=["Tags"])
 # Trees
 register_endpt(TreeResource, "/trees/<string:tree_id>", "tree", tags=["Trees"])
 register_endpt(TreesResource, "/trees/", "trees", tags=["Trees"])
