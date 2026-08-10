@@ -672,8 +672,13 @@ class DbUndoSQLWeb(DbUndoSQL):
         after: float | None = None,
         before_id: int | None = None,
         after_id: int | None = None,
+        known_count: int | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
-        """Get transactions as a JSONifiable list."""
+        """Get transactions as a JSONifiable list.
+
+        `known_count` is returned in place of counting the matching
+        transactions again.
+        """
         with self.session_scope() as session:
             query = self._transactions_query(
                 session,
@@ -682,7 +687,7 @@ class DbUndoSQLWeb(DbUndoSQL):
                 before_id=before_id,
                 after_id=after_id,
             )
-            count = query.count()
+            count = query.count() if known_count is None else known_count
             if ascending:
                 query = query.order_by(Transaction.id)
             else:

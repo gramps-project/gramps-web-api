@@ -147,7 +147,7 @@ def get_user_dict(user_ids: Collection[str] = ()) -> dict[str, dict]:
     include_treeless = current_app.config["TREE"] != TREE_MULTI
     cache_key = f"user_dict:{tree}:{int(include_treeless)}"
     user_dict = request_cache.get(cache_key)
-    if user_dict is None or not set(user_ids) <= set(user_dict):
+    if user_dict is None or any(user_id not in user_dict for user_id in user_ids):
         user_dict = _fetch_user_dict(tree, include_treeless)
         request_cache.set(cache_key, user_dict, timeout=USER_DICT_CACHE_TIMEOUT)
     return user_dict

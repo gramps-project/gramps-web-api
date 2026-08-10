@@ -147,6 +147,7 @@ class TransactionsHistoryResource(ProtectedResource):
             after=args["after"],
             before_id=args["before_id"],
             after_id=args["after_id"],
+            known_count=count,
         )
 
         # replace user IDs by user name
