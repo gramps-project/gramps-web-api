@@ -68,8 +68,10 @@ from sqlalchemy.sql import func
 
 _ = glocale.translation.gettext
 
-# transactions per change query, to keep the statement size bounded
-CHANGES_QUERY_CHUNK_SIZE = 500
+# transactions per change query. Each one contributes a term of three bind
+# parameters, so this stays clear of both SQLite's expression depth limit and
+# the 999 parameter limit of SQLite versions before 3.32.
+CHANGES_QUERY_CHUNK_SIZE = 200
 
 
 def string_to_data_or_list(string: str):

@@ -179,6 +179,19 @@ class TestTransactionHistoryResource(unittest.TestCase):
         assert len(rv.json) == 2
         assert rv.headers["ETag"] != etag
 
+    def test_etag_list_of_validators(self):
+        headers = get_headers(self.client, "editor", "123")
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        etag = rv.headers["ETag"]
+        rv = self.client.get(
+            "/api/transactions/history/",
+            headers={**headers, "If-None-Match": f'"stale", {etag}'},
+        )
+        assert rv.status_code == 304
+
     def test_etag_depends_on_query(self):
         headers = get_headers(self.client, "editor", "123")
         for _ in range(2):
