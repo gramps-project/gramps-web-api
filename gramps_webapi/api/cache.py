@@ -6,13 +6,12 @@ import hashlib
 import json
 import os
 
-from flask import request
+from flask import g, request
 from flask_caching import Cache
 from gramps.gen.errors import HandleError
 
 from gramps_webapi.api.auth import has_permissions
 from gramps_webapi.api.util import (
-    abort_with_message,
     get_db_handle,
     get_db_manager,
     get_tree_from_jwt,
@@ -60,14 +59,8 @@ def make_cache_key_thumbnails(*args, **kwargs):
 
     # Checksum comes from the DB, not the query parameter (which is only a
     # frontend service worker cache-busting hint and is excluded from arg_hash).
-    handle = kwargs["handle"]
     tree = get_tree_from_jwt()
-    db_handle = get_db_handle()
-    try:
-        obj = db_handle.get_media_from_handle(handle)
-    except HandleError:
-        abort_with_message(404, f"Handle {handle} not found")
-    checksum = obj.checksum
+    checksum = g.cached_media.checksum
 
     dbmgr = get_db_manager(tree)
 
@@ -106,11 +99,24 @@ def skip_cache_condition_request(*args, **kwargs) -> bool:
     return should_skip
 
 
+def skip_cache_missing_media(*args, **kwargs) -> bool:
+    """Look up the media object, and skip caching when it does not exist.
+
+    Runs before the cache key is made, so the key functions can rely on
+    `g.cached_media` and the view is left to raise the 404.
+    """
+    try:
+        g.cached_media = get_db_handle().get_media_from_handle(kwargs["handle"])
+    except HandleError:
+        return True
+    return False
+
+
 request_cache_decorator = request_cache.cached(
     make_cache_key=make_cache_key_request, unless=skip_cache_condition_request
 )
 thumbnail_cache_decorator = thumbnail_cache.cached(
-    make_cache_key=make_cache_key_thumbnails
+    make_cache_key=make_cache_key_thumbnails, unless=skip_cache_missing_media
 )
 
 
@@ -120,13 +126,8 @@ def make_cache_key_tiles(*args, **kwargs):
     # jwt and checksum are excluded by _hash_request_args as usual.
     arg_hash = _hash_request_args()
 
-    handle = kwargs["handle"]
     tree = get_tree_from_jwt()
-    db_handle = get_db_handle()
-    try:
-        obj = db_handle.get_media_from_handle(handle)
-    except HandleError:
-        abort_with_message(404, f"Handle {handle} not found")
+    obj = g.cached_media
     checksum = obj.checksum
 
     # Include a hash of map:bounds so that updating the attribute (without
@@ -155,7 +156,7 @@ def make_cache_key_tiles(*args, **kwargs):
 
 
 tile_cache_decorator = thumbnail_cache.cached(
-    make_cache_key=make_cache_key_tiles
+    make_cache_key=make_cache_key_tiles, unless=skip_cache_missing_media
 )
 
 
