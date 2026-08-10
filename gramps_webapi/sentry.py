@@ -21,6 +21,8 @@
 
 import logging
 
+from .util.celery import TaskRejection
+
 _LOG = logging.getLogger(__name__)
 
 
@@ -44,6 +46,8 @@ def init_sentry(app) -> bool:
         release=app.config.get("API_VERSION"),
         environment=app.config.get("SENTRY_ENVIRONMENT") or None,
         traces_sample_rate=app.config["SENTRY_TRACES_SAMPLE_RATE"],
+        # a rejected request is not a defect; the client is told about it
+        ignore_errors=[TaskRejection],
         # off by default: family tree data is sensitive
         send_default_pii=app.config["SENTRY_SEND_DEFAULT_PII"],
     )

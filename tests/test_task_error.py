@@ -24,9 +24,11 @@ import unittest
 import pytest
 from celery import Celery
 from celery.backends.base import Backend
+from flask import Flask, Response
+from werkzeug.exceptions import HTTPException
 
 from gramps_webapi.api.resources.tasks import _task_error_payload, _task_meta
-from gramps_webapi.util.celery import TaskError
+from gramps_webapi.util.celery import TaskError, TaskRejection, create_celery
 
 PAYLOAD = {"error": {"code": 405, "message": "Not allowed by people quota"}}
 
@@ -86,6 +88,51 @@ class TestTaskErrorPayload(unittest.TestCase):
 
     def test_non_exception_result(self):
         assert _task_error_payload({"people": 3}) is None
+
+
+def _abort(status, message):
+    """Raise the same exception as api.util.abort_with_message."""
+    exc = HTTPException(response=Response(status=status), description=message)
+    exc.code = status
+    raise exc
+
+
+def _celery_app():
+    """Return a celery app wired to a Flask app, as gramps_webapi.celery does."""
+    app = Flask(__name__)
+    app.config["CELERY_CONFIG"] = {}
+    return create_celery(app)
+
+
+_celery = _celery_app()
+
+
+@_celery.task()
+def _rejected_task():
+    _abort(405, "Not allowed by people quota")
+
+
+@_celery.task()
+def _failed_task():
+    _abort(500, "Import failed")
+
+
+class TestAbortClassification(unittest.TestCase):
+    """Aborts inside a task are split by who is at fault.
+
+    Only a fault deserves to reach error reporting, so the distinction has to
+    survive as far as the exception type.
+    """
+
+    def test_client_error_is_a_rejection(self):
+        with pytest.raises(TaskRejection) as info:
+            _rejected_task.apply(throw=True)
+        assert info.value.args[0] == PAYLOAD
+
+    def test_server_error_stays_a_task_error(self):
+        with pytest.raises(TaskError) as info:
+            _failed_task.apply(throw=True)
+        assert not isinstance(info.value, TaskRejection)
 
 
 class _PoisonedAsyncResult:

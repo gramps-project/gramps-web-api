@@ -13,6 +13,13 @@ class TaskError(Exception):
     """
 
 
+class TaskRejection(TaskError):
+    """Failure caused by the request itself rather than by a fault (4xx).
+
+    An expected outcome: the payload is the client's answer, not a defect.
+    """
+
+
 def create_celery(app):
     """App factory for celery."""
     celery = current_celery_app
@@ -36,9 +43,10 @@ def create_celery(app):
                     # shape. It must be raised, not stored via update_state:
                     # Celery can only decode serialised exceptions in exception
                     # states, and chokes on a plain dict when reading it back.
-                    raise TaskError(
-                        {"error": {"code": exc.code, "message": exc.description}}
-                    ) from exc
+                    payload = {"error": {"code": exc.code, "message": exc.description}}
+                    if (exc.code or 500) < 500:
+                        raise TaskRejection(payload) from exc
+                    raise TaskError(payload) from exc
 
     celery.Task = ContextTask
     return celery
