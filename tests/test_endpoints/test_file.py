@@ -109,6 +109,17 @@ class TestThumbnail(unittest.TestCase):
             )
             assert rv.data == rv_checksum.data
 
+    def test_get_thumbnail_unknown_handle(self):
+        """A missing media object is a plain 404, not a cache backend failure.
+
+        Aborting while the cache key is computed would be swallowed and logged
+        by flask_caching instead of reaching the client as an error.
+        """
+        header = fetch_header(self.client)
+        with self.assertNoLogs("flask_caching", level="ERROR"):
+            rv = self.client.get(f"{TEST_URL}does_not_exist/thumbnail/20", headers=header)
+        assert rv.status_code == 404
+
     def test_get_thumbnail_large_requires_token(self):
         """Test authorization required."""
         check_requires_token(self, TEST_URL + "b39fe1cfc1305ac4a21/thumbnail/10000")

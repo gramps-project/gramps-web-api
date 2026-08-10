@@ -12,7 +12,6 @@ from gramps.gen.errors import HandleError
 
 from gramps_webapi.api.auth import has_permissions
 from gramps_webapi.api.util import (
-    abort_with_message,
     get_db_handle,
     get_db_manager,
     get_tree_from_jwt,
@@ -66,7 +65,8 @@ def make_cache_key_thumbnails(*args, **kwargs):
     try:
         obj = db_handle.get_media_from_handle(handle)
     except HandleError:
-        abort_with_message(404, f"Handle {handle} not found")
+        # no checksum to key on; the view raises the 404
+        return f"{handle}{request.path}{arg_hash}:missing"
     checksum = obj.checksum
 
     dbmgr = get_db_manager(tree)
@@ -126,7 +126,8 @@ def make_cache_key_tiles(*args, **kwargs):
     try:
         obj = db_handle.get_media_from_handle(handle)
     except HandleError:
-        abort_with_message(404, f"Handle {handle} not found")
+        # no checksum to key on; the view raises the 404
+        return f"{handle}{request.path}{arg_hash}:missing"
     checksum = obj.checksum
 
     # Include a hash of map:bounds so that updating the attribute (without
