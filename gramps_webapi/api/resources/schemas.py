@@ -1741,8 +1741,20 @@ class OIDCConfigSchema(_Base):
     )
 
 
+class OIDCTokenExchangeSchema(_Base):
+    """Body of a POST to the /oidc/tokens/ exchange endpoint."""
+
+    code = fields.Str(
+        required=True,
+        metadata={
+            "description": "Single-use code from the fragment of the OIDC login"
+            " redirect."
+        },
+    )
+
+
 class OIDCTokensSchema(_Base):
-    """Tokens returned by the /oidc/tokens/ cookie exchange endpoint."""
+    """Tokens returned by the /oidc/tokens/ code exchange endpoint."""
 
     access_token = fields.Str(
         metadata={"description": "JWT access token."},

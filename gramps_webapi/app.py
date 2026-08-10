@@ -214,7 +214,7 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
             resources={
                 f"{API_PREFIX}/*": {
                     "origins": app.config["CORS_ORIGINS"],
-                    "supports_credentials": True,
+                    "supports_credentials": False,
                 }
             },
         )

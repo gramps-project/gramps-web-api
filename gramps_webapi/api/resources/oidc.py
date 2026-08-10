@@ -20,17 +20,17 @@
 """OIDC authentication resources."""
 
 import logging
+import secrets
 from gettext import gettext as _
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode
 
 from flask import (
     current_app,
-    jsonify,
     redirect,
     render_template,
-    request,
     session,
 )
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from marshmallow import EXCLUDE, Schema
 from webargs import fields
 
@@ -43,10 +43,16 @@ from ...auth.oidc import (
 from ...auth.oidc_helpers import is_oidc_enabled
 from ...const import TREE_MULTI
 from ..blueprint import api_blueprint
+from ..cache import persistent_cache
 from ..ratelimiter import limiter
 from ..util import abort_with_message, get_config, tree_exists
 from . import Resource
-from .schemas import OIDCConfigSchema, OIDCLogoutSchema, OIDCTokensSchema
+from .schemas import (
+    OIDCConfigSchema,
+    OIDCLogoutSchema,
+    OIDCTokenExchangeSchema,
+    OIDCTokensSchema,
+)
 from .token import get_tokens, get_tree_id_and_permissions
 
 logger = logging.getLogger(__name__)
@@ -55,6 +61,20 @@ logger = logging.getLogger(__name__)
 # It cannot be a query parameter on the redirect URI because providers require
 # the redirect URI to match the registered one exactly.
 SESSION_TREE_KEY = "oidc_tree"
+
+# Prefix for the server-side entry holding the tokens of a pending exchange.
+OIDC_CODE_PREFIX = "oidc_code:"
+
+# Seconds a code stays redeemable, i.e. how long the frontend has to load.
+OIDC_CODE_TIMEOUT = 120
+
+# The cached entry outlives the code itself, so that an expired code is always
+# reported as expired rather than as a missing entry, and so that a redeemed
+# one is still known to have been redeemed.
+OIDC_CODE_CACHE_TIMEOUT = OIDC_CODE_TIMEOUT + 60
+
+# Replaces the tokens once redeemed, to tell a replay apart from a lost entry.
+OIDC_CODE_REDEEMED = "redeemed"
 
 
 def _get_oidc_client(provider_id: str | None) -> tuple[object, dict]:
@@ -118,21 +138,54 @@ def _validate_tree_id(tree_id: str | None) -> str | None:
     return tree_id
 
 
-def _use_secure_cookies() -> bool:
-    """Whether to set the Secure flag on the temporary OIDC cookies.
+def _code_serializer() -> URLSafeTimedSerializer:
+    """Serializer signing the exchange code, so its origin and age are provable."""
+    return URLSafeTimedSerializer(
+        current_app.config["SECRET_KEY"], salt="oidc-exchange-code"
+    )
 
-    Driven by the scheme actually in use rather than by hostname guessing: a
-    Secure cookie is silently dropped by the browser over plain HTTP, while
-    omitting the flag over HTTPS would expose the tokens. Both the configured
-    frontend URL and the incoming request are consulted, because either one on
-    its own can be misleading - `BASE_URL` is often left at its localhost
-    default, and `request.is_secure` is false behind a TLS-terminating proxy
-    unless forwarding headers are honoured.
-    """
-    frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
-    if urlparse(frontend_url or "").scheme == "https":
-        return True
-    return request.is_secure
+
+def _store_exchange_code(tokens: dict) -> str:
+    """Park the tokens server-side and return the code that redeems them."""
+    code_id = secrets.token_urlsafe(32)
+    persistent_cache.set(
+        f"{OIDC_CODE_PREFIX}{code_id}", tokens, timeout=OIDC_CODE_CACHE_TIMEOUT
+    )
+    return _code_serializer().dumps(code_id)
+
+
+def _redeem_exchange_code(code: str) -> dict:
+    """Return the tokens for a code, consuming it so it works only once."""
+    try:
+        code_id = _code_serializer().loads(code, max_age=OIDC_CODE_TIMEOUT)
+    except SignatureExpired:
+        abort_with_message(400, "The OIDC exchange code has expired, please log in again")
+    except BadSignature:
+        abort_with_message(400, "Invalid OIDC exchange code")
+
+    key = f"{OIDC_CODE_PREFIX}{code_id}"
+    entry = persistent_cache.get(key)
+
+    if entry == OIDC_CODE_REDEEMED:
+        abort_with_message(400, "The OIDC exchange code has already been used")
+
+    if entry is None:
+        # The signature proves this server issued the code and that it is not
+        # yet expired, so the entry it names should still be in the cache.
+        logger.error(
+            "The persistent cache did not retain a valid OIDC exchange code."
+            " OIDC login requires a cache shared by every worker and replica,"
+            " such as Redis; a per-process or disabled cache cannot work."
+        )
+        abort_with_message(
+            500,
+            "Login could not be completed because the server did not retain the"
+            " pending tokens. The persistent cache is most likely not shared"
+            " between workers.",
+        )
+
+    persistent_cache.set(key, OIDC_CODE_REDEEMED, timeout=OIDC_CODE_CACHE_TIMEOUT)
+    return entry
 
 
 class OIDCLoginQueryArgs(Schema):
@@ -318,47 +371,22 @@ class OIDCCallbackResource(Resource):
                 oidc_provider=provider_id,
             )
 
-            # Redirect to frontend with secure HTTP-only cookies
-            frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
-            response = redirect(f"{frontend_url.rstrip('/')}/oidc/complete")
-
-            secure = _use_secure_cookies()
-
-            response.set_cookie(
-                "oidc_access_token",
-                tokens["access_token"],
-                max_age=300,  # 5 minutes
-                httponly=True,
-                secure=secure,
-                samesite="Lax",
-                path="/",
-            )
-            response.set_cookie(
-                "oidc_refresh_token",
-                tokens["refresh_token"],
-                max_age=300,  # 5 minutes
-                httponly=True,
-                secure=secure,
-                samesite="Lax",
-                path="/",
-            )
-
-            # Store id_token if available (needed for OIDC logout)
+            exchange_tokens = {
+                "access_token": tokens["access_token"],
+                "refresh_token": tokens["refresh_token"],
+            }
+            # Keep the id_token around, it is needed as id_token_hint on logout.
             if token.get("id_token"):
-                response.set_cookie(
-                    "oidc_id_token",
-                    token["id_token"],
-                    max_age=300,  # 5 minutes
-                    httponly=True,
-                    secure=secure,
-                    samesite="Lax",
-                    path="/",
-                )
+                exchange_tokens["id_token"] = token["id_token"]
 
-            logger.debug(
-                f"Set OIDC cookies, redirecting to {frontend_url}/oidc/complete"
-            )
-            return response
+            code = _store_exchange_code(exchange_tokens)
+
+            # In the fragment, which is not sent to the frontend's web server.
+            frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
+            complete_url = f"{frontend_url.rstrip('/')}/oidc/complete#code={code}"
+
+            logger.debug(f"Redirecting to {frontend_url}/oidc/complete with code")
+            return redirect(complete_url)
 
         except ValueError as e:
             logger.exception(
@@ -368,52 +396,27 @@ class OIDCCallbackResource(Resource):
 
 
 class OIDCTokenExchangeResource(Resource):
-    """Resource for securely exchanging OIDC tokens from cookies."""
+    """Resource for exchanging a single-use OIDC code for tokens."""
 
     @api_blueprint.response(200, OIDCTokensSchema())
+    @api_blueprint.arguments(OIDCTokenExchangeSchema, location="json")
     @limiter.limit("10/minute")
-    def get(self):
-        """Exchange HTTP-only cookies for tokens that can be stored in localStorage."""
-        # Get tokens from HTTP-only cookies
-        access_token = request.cookies.get("oidc_access_token")
-        refresh_token = request.cookies.get("oidc_refresh_token")
-        id_token = request.cookies.get("oidc_id_token")
+    def post(self, args):
+        """Exchange the code from the login redirect for tokens."""
+        tokens = _redeem_exchange_code(args["code"])
 
-        if not access_token or not refresh_token:
-            logger.warning(
-                "OIDC token exchange with no tokens in cookies; "
-                f"cookies present: {sorted(request.cookies)}"
-            )
-            abort_with_message(400, "No OIDC tokens found in cookies")
-
-        # Return tokens and clear cookies
         response_data = {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
+            "access_token": tokens["access_token"],
+            "refresh_token": tokens["refresh_token"],
             "token_type": "Bearer",
         }
 
         # Include id_token if available (needed for OIDC logout)
-        if id_token:
-            response_data["id_token"] = id_token
+        if tokens.get("id_token"):
+            response_data["id_token"] = tokens["id_token"]
 
-        response = jsonify(response_data)
-
-        # Clear the temporary cookies with same settings as when they were set
-        secure = _use_secure_cookies()
-        for name in ("oidc_access_token", "oidc_refresh_token", "oidc_id_token"):
-            response.set_cookie(
-                name,
-                "",
-                expires=0,
-                httponly=True,
-                secure=secure,
-                samesite="Lax",
-                path="/",
-            )
-
-        logger.debug("OIDC token exchange successful, cookies cleared")
-        return response
+        logger.debug("OIDC token exchange successful, code consumed")
+        return response_data
 
 
 class OIDCConfigResource(Resource):
