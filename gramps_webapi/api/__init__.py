@@ -31,6 +31,7 @@ from .blueprint import api_blueprint
 from .cache import thumbnail_cache_decorator, tile_cache_decorator
 from .media import get_media_handler
 from .resources.access_tokens import UserAccessTokenResource
+from .resources.anniversaries import AnniversariesIcsResource
 from .resources.base import Resource
 from .resources.bookmarks import (
     BookmarkEditResource,
@@ -593,6 +594,13 @@ register_endpt(
     "/metadata/researcher/",
     "metadata_researcher",
     tags=["Metadata"],
+)
+# Anniversaries
+register_endpt(
+    AnniversariesIcsResource,
+    "/anniversaries.ics",
+    "anniversaries_ics",
+    tags=["Anniversaries"],
 )
 # User
 register_endpt(UsersResource, "/users/", "users", tags=["Users"])
