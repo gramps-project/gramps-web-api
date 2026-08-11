@@ -155,6 +155,60 @@ class TestTransactionHistoryResource(unittest.TestCase):
         assert change["obj_class"] == "Person"
         assert change["trans_type"] == 0
 
+    def test_etag_revalidation(self):
+        headers = get_headers(self.client, "editor", "123")
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        assert rv.headers["Cache-Control"] == "no-cache"
+        etag = rv.headers["ETag"]
+        rv = self.client.get(
+            "/api/transactions/history/", headers={**headers, "If-None-Match": etag}
+        )
+        assert rv.status_code == 304
+        assert rv.data == b""
+        assert rv.headers["X-Total-Count"] == "1"
+        # a new transaction invalidates the client's copy
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        rv = self.client.get(
+            "/api/transactions/history/", headers={**headers, "If-None-Match": etag}
+        )
+        assert rv.status_code == 200
+        assert len(rv.json) == 2
+        assert rv.headers["ETag"] != etag
+
+    def test_etag_list_of_validators(self):
+        headers = get_headers(self.client, "editor", "123")
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        rv = self.client.get("/api/transactions/history/", headers=headers)
+        assert rv.status_code == 200
+        etag = rv.headers["ETag"]
+        rv = self.client.get(
+            "/api/transactions/history/",
+            headers={**headers, "If-None-Match": f'"stale", {etag}'},
+        )
+        assert rv.status_code == 304
+
+    def test_etag_depends_on_query(self):
+        headers = get_headers(self.client, "editor", "123")
+        for _ in range(2):
+            rv = self.client.post("/api/people/", json={}, headers=headers)
+            assert rv.status_code == 201
+        rv = self.client.get(
+            "/api/transactions/history/?page=1&pagesize=1", headers=headers
+        )
+        assert rv.status_code == 200
+        etag = rv.headers["ETag"]
+        rv = self.client.get(
+            "/api/transactions/history/?page=2&pagesize=1",
+            headers={**headers, "If-None-Match": etag},
+        )
+        assert rv.status_code == 200
+        assert [transaction["id"] for transaction in rv.json] == [2]
+
     def test_add_modify_delete(self):
         headers = get_headers(self.client, "editor", "123")
         rv = self.client.get("/api/transactions/history/", headers=headers)

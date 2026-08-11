@@ -6,7 +6,9 @@ import hashlib
 import json
 import os
 
-from flask import g, request
+from typing import Collection
+
+from flask import current_app, g, request
 from flask_caching import Cache
 from gramps.gen.errors import HandleError
 
@@ -17,11 +19,15 @@ from gramps_webapi.api.util import (
     get_tree_from_jwt,
     get_tree_from_jwt_or_fail,
 )
+from gramps_webapi.auth import get_all_user_details
 from gramps_webapi.auth.const import PERM_VIEW_PRIVATE
+from gramps_webapi.const import TREE_MULTI
 
 thumbnail_cache = Cache()
 request_cache = Cache()
 persistent_cache = Cache()
+
+USER_DICT_CACHE_TIMEOUT = 60
 
 
 def get_db_last_change_timestamp(tree_id: str) -> int | float | None:
@@ -118,6 +124,33 @@ request_cache_decorator = request_cache.cached(
 thumbnail_cache_decorator = thumbnail_cache.cached(
     make_cache_key=make_cache_key_thumbnails, unless=skip_cache_missing_media
 )
+
+
+def _fetch_user_dict(tree: str | None, include_treeless: bool) -> dict[str, dict]:
+    """Get a mapping of user IDs to user names from the auth database."""
+    users = get_all_user_details(
+        tree=tree, include_treeless=include_treeless, include_guid=True
+    )
+    return {
+        str(user["user_id"]): {"name": user["name"], "full_name": user["full_name"]}
+        for user in users
+    }
+
+
+def get_user_dict(user_ids: Collection[str] = ()) -> dict[str, dict]:
+    """Get a mapping of user IDs to user names, cached for a short time.
+
+    A cached mapping missing one of `user_ids` is refetched, so a user that is
+    not in the cache yet is never reported as unknown.
+    """
+    tree = get_tree_from_jwt()
+    include_treeless = current_app.config["TREE"] != TREE_MULTI
+    cache_key = f"user_dict:{tree}:{int(include_treeless)}"
+    user_dict = request_cache.get(cache_key)
+    if user_dict is None or any(user_id not in user_dict for user_id in user_ids):
+        user_dict = _fetch_user_dict(tree, include_treeless)
+        request_cache.set(cache_key, user_dict, timeout=USER_DICT_CACHE_TIMEOUT)
+    return user_dict
 
 
 def make_cache_key_tiles(*args, **kwargs):

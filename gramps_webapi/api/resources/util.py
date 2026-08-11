@@ -1851,11 +1851,24 @@ def normalize_etag(etag: str | None) -> str | None:
     return etag
 
 
+def etag_unchanged(etag: str) -> bool:
+    """Check whether the if none match header agrees with the current etag.
+
+    The header may carry a comma-separated list of validators. The wildcard
+    `*` is not treated as a match.
+    """
+    header = request.headers.get("If-None-Match")
+    if not header:
+        return False
+    return any(
+        normalize_etag(candidate.strip()) == etag for candidate in header.split(",")
+    )
+
+
 def return_304_if_unchanged(response: Response, etag: str) -> Response:
     """Change the response status to 304 if the if none match header agrees
     with the current etag."""
-    old_etag = request.headers.get("If-None-Match")
-    if old_etag and normalize_etag(old_etag) == etag:
+    if etag_unchanged(etag):
         response.status = "304"
         response.response = ""
     return response

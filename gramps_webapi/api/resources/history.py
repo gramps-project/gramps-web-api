@@ -19,21 +19,21 @@
 
 """Database Transaction history endpoints."""
 
+import hashlib
 import json
 from typing import Dict
 
-from flask import Response, current_app
+from flask import Response
 from flask_jwt_extended import get_jwt_identity
 from gramps.gen.db import REFERENCE_KEY
 from gramps.gen.db.dbconst import TXNADD, TXNDEL, TXNUPD
 from marshmallow import Schema
 from webargs import fields, validate
 
-from ...auth import get_all_user_details
 from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ, PERM_VIEW_PRIVATE
-from ...const import TREE_MULTI
 from ...types import ResponseReturnValue
 from ..auth import require_permissions
+from ..cache import get_user_dict
 from ..tasks import (
     AsyncResult,
     make_task_response,
@@ -44,13 +44,12 @@ from ..tasks import (
 from ..util import (
     abort_with_message,
     get_db_handle,
-    get_tree_from_jwt,
     get_tree_from_jwt_or_fail,
 )
 from ..blueprint import api_blueprint
 from . import ProtectedResource
 from .schemas import UndoTransactionSchema
-from .util import reverse_transaction
+from .util import etag_unchanged, reverse_transaction
 
 trans_code = {"delete": TXNDEL, "add": TXNADD, "update": TXNUPD}
 
@@ -125,8 +124,18 @@ class TransactionsHistoryResource(ProtectedResource):
         """Return a list of transactions."""
         require_permissions([PERM_VIEW_PRIVATE])
         db_handle = get_db_handle()
-        transactions = []
         undodb = db_handle.undodb
+
+        max_id, count = undodb.get_transactions_state(
+            before=args["before"],
+            after=args["after"],
+            before_id=args["before_id"],
+            after_id=args["after_id"],
+        )
+        etag = transactions_etag(args, max_id, count)
+        if etag_unchanged(etag):
+            return transactions_response(None, count=count, etag=etag)
+
         ascending = args.get("sort") != "-id"
         transactions, count = undodb.get_transactions(
             page=args["page"],
@@ -138,20 +147,15 @@ class TransactionsHistoryResource(ProtectedResource):
             after=args["after"],
             before_id=args["before_id"],
             after_id=args["after_id"],
+            known_count=count,
         )
 
         # replace user IDs by user name
-        user_dict = get_user_dict()
+        user_dict = get_user_dict(transaction_user_ids(transactions))
         transactions = [
             fix_transaction_user(transaction, user_dict) for transaction in transactions
         ]
-        res = Response(
-            response=json.dumps(transactions),
-            status=200,
-            mimetype="application/json",
-        )
-        res.headers.add("X-Total-Count", count)
-        return res
+        return transactions_response(json.dumps(transactions), count=count, etag=etag)
 
 
 class TransactionHistoryQueryArgs(Schema):
@@ -186,9 +190,11 @@ class TransactionHistoryResource(ProtectedResource):
             old_data=args["old"],
             new_data=args["new"],
         )
+        if not transaction:
+            abort_with_message(404, f"Transaction {transaction_id} not found")
 
         # replace user IDs by user name
-        user_dict = get_user_dict()
+        user_dict = get_user_dict(transaction_user_ids([transaction]))
         transaction = fix_transaction_user(transaction, user_dict)
 
         return transaction
@@ -221,15 +227,11 @@ class TransactionUndoResource(ProtectedResource):
         # Get the transaction to check
         db_handle = get_db_handle()
         undodb = db_handle.undodb
-        try:
-            transaction = undodb.get_transaction(
-                transaction_id=transaction_id,
-                old_data=True,
-                new_data=True,
-            )
-        except AttributeError:
-            abort_with_message(404, f"Transaction {transaction_id} not found")
-
+        transaction = undodb.get_transaction(
+            transaction_id=transaction_id,
+            old_data=True,
+            new_data=True,
+        )
         if not transaction:
             abort_with_message(404, f"Transaction {transaction_id} not found")
 
@@ -326,16 +328,11 @@ class TransactionUndoResource(ProtectedResource):
         # Get the transaction to undo
         db_handle = get_db_handle()
         undodb = db_handle.undodb
-        try:
-            transaction = undodb.get_transaction(
-                transaction_id=transaction_id,
-                old_data=True,
-                new_data=True,
-            )
-        except AttributeError:
-            # This happens when get_transaction returns None and we try to call _to_dict()
-            abort_with_message(404, f"Transaction {transaction_id} not found")
-
+        transaction = undodb.get_transaction(
+            transaction_id=transaction_id,
+            old_data=True,
+            new_data=True,
+        )
         if not transaction:
             abort_with_message(404, f"Transaction {transaction_id} not found")
 
@@ -377,17 +374,34 @@ class TransactionUndoResource(ProtectedResource):
         return task, 200
 
 
-def get_user_dict() -> Dict[str, Dict[str, str]]:
-    """Get a dictionary with user IDs to user names."""
-    tree = get_tree_from_jwt()
-    is_single = current_app.config["TREE"] != TREE_MULTI
-    users = get_all_user_details(
-        tree=tree, include_treeless=is_single, include_guid=True
+def transaction_user_ids(transactions: list[Dict]) -> set[str]:
+    """Get the IDs of the users that committed the given transactions."""
+    return {transaction["connection"]["user_id"] for transaction in transactions}
+
+
+def transactions_etag(args: Dict, max_id: int | None, count: int) -> str:
+    """Build a cache validator for a page of the transaction history.
+
+    The user names resolved into the response are not covered: a rename becomes
+    visible only once the next transaction is written.
+    """
+    tree_id = get_tree_from_jwt_or_fail()
+    state = json.dumps([tree_id, max_id, count, args], sort_keys=True, default=str)
+    return hashlib.sha256(state.encode()).hexdigest()
+
+
+def transactions_response(payload: str | None, count: int, etag: str) -> Response:
+    """Build the transaction history response, or a 304 if payload is None."""
+    res = Response(
+        response=payload,
+        status=200 if payload is not None else 304,
+        mimetype="application/json",
     )
-    return {
-        str(user["user_id"]): {"name": user["name"], "full_name": user["full_name"]}
-        for user in users
-    }
+    res.headers.add("X-Total-Count", str(count))
+    res.headers.add("ETag", f'"{etag}"')
+    # let the client cache the response, but always revalidate it
+    res.headers.add("Cache-Control", "no-cache")
+    return res
 
 
 def fix_transaction_user(transaction, user_dict):
