@@ -24,6 +24,8 @@ from unittest.mock import MagicMock, patch
 
 from flask import redirect
 
+from gramps_webapi.api.cache import persistent_cache
+
 from . import BASE_URL, get_single_tree_test_client, get_test_client
 
 
@@ -332,31 +334,17 @@ class TestOIDCEndpoints(unittest.TestCase):
                 mock_create_user.assert_called_once_with(mock_userinfo, None, "custom")
                 mock_get_tokens.assert_called_once()
 
-                # Verify redirect location
+                # Verify redirect location carries an exchange code
                 self.assertIn("/oidc/complete", rv.location)
+                self.assertIn("#code=", rv.location)
 
-                # Verify cookies are set
-                set_cookie_headers = rv.headers.getlist("Set-Cookie")
-                self.assertTrue(
-                    any("oidc_access_token" in cookie for cookie in set_cookie_headers)
+                # The tokens themselves must not travel back to the browser.
+                # The session cookie may well be set, it carries no tokens.
+                cookies = rv.headers.getlist("Set-Cookie")
+                self.assertFalse([c for c in cookies if c.startswith("oidc_")])
+                self.assertNotIn(
+                    mock_get_tokens.return_value["refresh_token"], rv.location
                 )
-                self.assertTrue(
-                    any("oidc_refresh_token" in cookie for cookie in set_cookie_headers)
-                )
-
-                # Verify HttpOnly flag is set
-                access_token_cookie = next(
-                    cookie
-                    for cookie in set_cookie_headers
-                    if "oidc_access_token" in cookie
-                )
-                refresh_token_cookie = next(
-                    cookie
-                    for cookie in set_cookie_headers
-                    if "oidc_refresh_token" in cookie
-                )
-                self.assertIn("HttpOnly", access_token_cookie)
-                self.assertIn("HttpOnly", refresh_token_cookie)
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch(
@@ -786,6 +774,10 @@ class TestOIDCMultiTree(unittest.TestCase):
         self.assertIn("/oidc/complete", rv.location)
         # the tree from the login request was handed to user creation
         self.assertEqual(mock_create_user.call_args[0][1], "the_tree")
+        # popping the tree dirties the session, so a session cookie is set here
+        # - but still never a token cookie
+        cookies = rv.headers.getlist("Set-Cookie")
+        self.assertFalse([c for c in cookies if c.startswith("oidc_")])
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch(
@@ -943,20 +935,23 @@ class TestOIDCSingleTree(unittest.TestCase):
         self.assertEqual(rv.status_code, 422)
 
 
-class TestOIDCCookies(unittest.TestCase):
-    """Test cases for the temporary token cookies and their exchange."""
+class TestOIDCCodeExchange(unittest.TestCase):
+    """Test cases for the single-use exchange code and its redemption."""
 
     @classmethod
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
 
-    def _run_callback(self, frontend_url):
-        """Run a successful callback and return the Set-Cookie headers."""
+    def _run_callback(self, frontend_url, id_token=None):
+        """Run a successful callback and return the exchange code."""
         mock_oauth = MagicMock()
         mock_oidc_client = MagicMock()
         mock_oauth.gramps_custom = mock_oidc_client
-        mock_oidc_client.authorize_access_token.return_value = {"access_token": "t"}
+        provider_token = {"access_token": "t"}
+        if id_token:
+            provider_token["id_token"] = id_token
+        mock_oidc_client.authorize_access_token.return_value = provider_token
         mock_oidc_client.userinfo.return_value = {"sub": "user123"}
 
         with (
@@ -995,46 +990,60 @@ class TestOIDCCookies(unittest.TestCase):
                 BASE_URL + "/oidc/callback/custom?code=auth_code&tree=t"
             )
         self.assertEqual(rv.status_code, 302)
-        return rv.headers.getlist("Set-Cookie")
+        return rv.location.partition("#code=")[2]
 
-    def test_cookies_are_secure_over_https(self):
-        """Tokens must never be sent without the Secure flag over HTTPS."""
-        cookies = self._run_callback("https://app.example.com")
-        token_cookies = [c for c in cookies if c.startswith("oidc_")]
-        self.assertTrue(token_cookies)
-        for cookie in token_cookies:
-            self.assertIn("Secure", cookie)
-            self.assertIn("HttpOnly", cookie)
+    def test_code_is_redeemed_exactly_once(self):
+        """A replayed code must not yield a second set of tokens."""
+        code = self._run_callback("https://app.example.com")
 
-    def test_cookies_are_not_secure_over_plain_http(self):
-        """A Secure cookie would be dropped by the browser over plain HTTP."""
-        cookies = self._run_callback("http://localhost:5000")
-        token_cookies = [c for c in cookies if c.startswith("oidc_")]
-        self.assertTrue(token_cookies)
-        for cookie in token_cookies:
-            self.assertNotIn("Secure", cookie)
-
-    def test_token_exchange_returns_and_clears_cookies(self):
-        """The frontend trades the HttpOnly cookies for tokens exactly once."""
-        self.client.set_cookie("oidc_access_token", "access-1", domain="localhost")
-        self.client.set_cookie("oidc_refresh_token", "refresh-1", domain="localhost")
-
-        rv = self.client.get(BASE_URL + "/oidc/tokens/")
+        rv = self.client.post(BASE_URL + "/oidc/tokens/", json={"code": code})
         self.assertEqual(rv.status_code, 200)
         data = rv.get_json()
-        self.assertEqual(data["access_token"], "access-1")
-        self.assertEqual(data["refresh_token"], "refresh-1")
+        self.assertEqual(data["access_token"], "a")
+        self.assertEqual(data["refresh_token"], "r")
         self.assertEqual(data["token_type"], "Bearer")
 
-        # the cookies are cleared, so a replay finds nothing
-        rv = self.client.get(BASE_URL + "/oidc/tokens/")
+        rv = self.client.post(BASE_URL + "/oidc/tokens/", json={"code": code})
         self.assertEqual(rv.status_code, 400)
+        self.assertIn("already been used", rv.get_json()["error"]["message"])
 
-    def test_token_exchange_without_cookies(self):
-        """Exchange with no cookies present is a client error, not a crash."""
-        rv = self.client.get(BASE_URL + "/oidc/tokens/")
+    def test_id_token_survives_the_exchange(self):
+        """The id_token is needed later as id_token_hint on logout."""
+        code = self._run_callback("https://app.example.com", id_token="id-1")
+        rv = self.client.post(BASE_URL + "/oidc/tokens/", json={"code": code})
+        self.assertEqual(rv.get_json()["id_token"], "id-1")
+
+    def test_unsigned_code_is_rejected(self):
+        """A guessed code carries no signature and cannot name a cache entry."""
+        rv = self.client.post(
+            BASE_URL + "/oidc/tokens/", json={"code": "not-a-real-code"}
+        )
         self.assertEqual(rv.status_code, 400)
-        self.assertIn("No OIDC tokens found", rv.get_json()["error"]["message"])
+        self.assertIn("Invalid", rv.get_json()["error"]["message"])
+
+    def test_expired_code_is_reported_as_expired(self):
+        """Age is read from the signature, not from whether the entry survived."""
+        code = self._run_callback("https://app.example.com")
+        with patch(
+            "gramps_webapi.api.resources.oidc.OIDC_CODE_TIMEOUT", -1
+        ):
+            rv = self.client.post(BASE_URL + "/oidc/tokens/", json={"code": code})
+        self.assertEqual(rv.status_code, 400)
+        self.assertIn("expired", rv.get_json()["error"]["message"])
+
+    def test_lost_entry_names_the_unshared_cache(self):
+        """A valid, unexpired code with no entry means the cache is not shared.
+
+        This is what a per-worker cache looks like from the worker that did not
+        handle the callback, and it must not be reported as an expired code.
+        """
+        code = self._run_callback("https://app.example.com")
+        with self.client.application.app_context():
+            persistent_cache.clear()
+
+        rv = self.client.post(BASE_URL + "/oidc/tokens/", json={"code": code})
+        self.assertEqual(rv.status_code, 500)
+        self.assertIn("not shared", rv.get_json()["error"]["message"])
 
 
 class TestOIDCLogoutEndpoint(unittest.TestCase):
