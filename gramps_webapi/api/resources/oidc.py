@@ -68,13 +68,10 @@ OIDC_CODE_PREFIX = "oidc_code:"
 # Seconds a code stays redeemable, i.e. how long the frontend has to load.
 OIDC_CODE_TIMEOUT = 120
 
-# The cached entry outlives the code itself, so that an expired code is always
-# reported as expired rather than as a missing entry, and so that a redeemed
-# one is still known to have been redeemed.
+# The cached entries outlive the code itself, so that an expired code is always
+# reported as expired rather than as a missing entry, and so that a redeemed one
+# is still known to have been redeemed.
 OIDC_CODE_CACHE_TIMEOUT = OIDC_CODE_TIMEOUT + 60
-
-# Replaces the tokens once redeemed, to tell a replay apart from a lost entry.
-OIDC_CODE_REDEEMED = "redeemed"
 
 
 def _get_oidc_client(provider_id: str | None) -> tuple[object, dict]:
@@ -159,19 +156,25 @@ def _redeem_exchange_code(code: str) -> dict:
     try:
         code_id = _code_serializer().loads(code, max_age=OIDC_CODE_TIMEOUT)
     except SignatureExpired:
-        abort_with_message(400, "The OIDC exchange code has expired, please log in again")
+        abort_with_message(
+            400, "The OIDC exchange code has expired, please log in again"
+        )
     except BadSignature:
         abort_with_message(400, "Invalid OIDC exchange code")
 
     key = f"{OIDC_CODE_PREFIX}{code_id}"
+    claim_key = f"{key}:claimed"
     entry = persistent_cache.get(key)
 
-    if entry == OIDC_CODE_REDEEMED:
+    # Claiming with add() rather than checking and then writing, so that two
+    # simultaneous requests cannot both redeem the same code.
+    if not persistent_cache.add(claim_key, "1", timeout=OIDC_CODE_CACHE_TIMEOUT):
         abort_with_message(400, "The OIDC exchange code has already been used")
 
     if entry is None:
         # The signature proves this server issued the code and that it is not
         # yet expired, so the entry it names should still be in the cache.
+        persistent_cache.delete(claim_key)
         logger.error(
             "The persistent cache did not retain a valid OIDC exchange code."
             " OIDC login requires a cache shared by every worker and replica,"
@@ -180,11 +183,11 @@ def _redeem_exchange_code(code: str) -> dict:
         abort_with_message(
             500,
             "Login could not be completed because the server did not retain the"
-            " pending tokens. The persistent cache is most likely not shared"
-            " between workers.",
+            " pending tokens. The persistent cache is most likely disabled, or"
+            " not shared between workers.",
         )
 
-    persistent_cache.set(key, OIDC_CODE_REDEEMED, timeout=OIDC_CODE_CACHE_TIMEOUT)
+    persistent_cache.delete(key)
     return entry
 
 

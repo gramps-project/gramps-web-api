@@ -338,9 +338,13 @@ class TestOIDCEndpoints(unittest.TestCase):
                 self.assertIn("/oidc/complete", rv.location)
                 self.assertIn("#code=", rv.location)
 
-                # The tokens themselves must not travel back to the browser
-                self.assertNotIn("Set-Cookie", rv.headers)
-                self.assertNotIn(mock_get_tokens.return_value["refresh_token"], rv.location)
+                # The tokens themselves must not travel back to the browser.
+                # The session cookie may well be set, it carries no tokens.
+                cookies = rv.headers.getlist("Set-Cookie")
+                self.assertFalse([c for c in cookies if c.startswith("oidc_")])
+                self.assertNotIn(
+                    mock_get_tokens.return_value["refresh_token"], rv.location
+                )
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch(
@@ -770,6 +774,10 @@ class TestOIDCMultiTree(unittest.TestCase):
         self.assertIn("/oidc/complete", rv.location)
         # the tree from the login request was handed to user creation
         self.assertEqual(mock_create_user.call_args[0][1], "the_tree")
+        # popping the tree dirties the session, so a session cookie is set here
+        # - but still never a token cookie
+        cookies = rv.headers.getlist("Set-Cookie")
+        self.assertFalse([c for c in cookies if c.startswith("oidc_")])
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch(
