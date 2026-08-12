@@ -197,10 +197,13 @@ def answer_with_agent(
             # 529 is Anthropic's "overloaded"
             abort_with_message(503, "The AI model provider is temporarily unavailable.")
         abort_with_message(502, "The AI model provider returned an error.")
+    except httpx.TimeoutException as e:
+        logger.error("Model provider request timed out: %r", e)
+        abort_with_message(504, "The AI model did not respond in time. Please try again.")
     except (ModelAPIError, httpx.TransportError) as e:
-        # network failure or timeout talking to the provider
+        # connection refused, DNS failure, protocol error, or an SDK-wrapped equivalent
         logger.error("Model provider request failed: %r", e)
-        abort_with_message(504, "The AI model did not respond. Please try again.")
+        abort_with_message(503, "The AI model provider is temporarily unavailable.")
     except (UnexpectedModelBehavior, ModelRetry) as e:
         logger.error("Pydantic AI error: %s", e)
         abort_with_message(500, "Error communicating with the AI model")

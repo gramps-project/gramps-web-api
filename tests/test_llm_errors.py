@@ -40,7 +40,8 @@ def fixture_app():
     "error,status",
     [
         (httpx.ReadTimeout(""), 504),
-        (ModelAPIError(model_name="test-model", message="connection error"), 504),
+        (httpx.ConnectError("connection refused"), 503),
+        (ModelAPIError(model_name="test-model", message="connection error"), 503),
         (ModelHTTPError(status_code=429, model_name="test-model"), 429),
         (ModelHTTPError(status_code=503, model_name="test-model"), 503),
         (ModelHTTPError(status_code=400, model_name="test-model"), 502),
