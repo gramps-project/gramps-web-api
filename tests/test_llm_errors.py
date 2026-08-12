@@ -41,7 +41,10 @@ def fixture_app():
     [
         (httpx.ReadTimeout(""), 504),
         (ModelAPIError(model_name="test-model", message="connection error"), 504),
-        (ModelHTTPError(status_code=503, model_name="test-model"), 502),
+        (ModelHTTPError(status_code=429, model_name="test-model"), 429),
+        (ModelHTTPError(status_code=503, model_name="test-model"), 503),
+        (ModelHTTPError(status_code=400, model_name="test-model"), 502),
+        (ModelHTTPError(status_code=401, model_name="test-model"), 502),
         (UnexpectedModelBehavior("garbage"), 500),
         (RuntimeError("boom"), 500),
     ],

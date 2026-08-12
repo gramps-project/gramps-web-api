@@ -189,6 +189,13 @@ def answer_with_agent(
         abort_with_message(429, "The AI agent exceeded its usage limits for this request.")
     except ModelHTTPError as e:
         logger.error("Model provider returned an error: %s", e)
+        if e.status_code == 429:
+            abort_with_message(
+                429, "The AI model provider is rate limiting requests. Please try again later."
+            )
+        if e.status_code in (502, 503, 504, 529):
+            # 529 is Anthropic's "overloaded"
+            abort_with_message(503, "The AI model provider is temporarily unavailable.")
         abort_with_message(502, "The AI model provider returned an error.")
     except (ModelAPIError, httpx.TransportError) as e:
         # network failure or timeout talking to the provider
