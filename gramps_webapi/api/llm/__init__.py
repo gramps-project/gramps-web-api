@@ -5,9 +5,16 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+import httpx
 from flask import current_app
 from pydantic_ai import ModelMessagesTypeAdapter
-from pydantic_ai.exceptions import ModelRetry, UnexpectedModelBehavior, UsageLimitExceeded
+from pydantic_ai.exceptions import (
+    ModelAPIError,
+    ModelHTTPError,
+    ModelRetry,
+    UnexpectedModelBehavior,
+    UsageLimitExceeded,
+)
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -180,9 +187,16 @@ def answer_with_agent(
     except UsageLimitExceeded as e:
         logger.warning("Agent usage limit exceeded: %s", e)
         abort_with_message(429, "The AI agent exceeded its usage limits for this request.")
+    except ModelHTTPError as e:
+        logger.error("Model provider returned an error: %s", e)
+        abort_with_message(502, "The AI model provider returned an error.")
+    except (ModelAPIError, httpx.TransportError) as e:
+        # network failure or timeout talking to the provider
+        logger.error("Model provider request failed: %r", e)
+        abort_with_message(504, "The AI model did not respond. Please try again.")
     except (UnexpectedModelBehavior, ModelRetry) as e:
         logger.error("Pydantic AI error: %s", e)
         abort_with_message(500, "Error communicating with the AI model")
-    except Exception as e:
-        logger.error("Unexpected error in agent: %s", e)
+    except Exception:
+        logger.exception("Unexpected error in agent")
         abort_with_message(500, "Unexpected error.")
