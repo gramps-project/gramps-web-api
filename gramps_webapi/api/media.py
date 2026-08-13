@@ -172,8 +172,6 @@ class MediaHandlerLocal(MediaHandlerBase):
         progress_cb: Optional[Callable] = None,
     ) -> None:
         """Create a ZIP archive on disk containing all media files."""
-        if not os.path.isdir(self.base_dir):
-            raise ValueError(f"Directory {self.base_dir} does not exist")
         paths_seen = set()
         if progress_cb:
             total = db_handle.get_number_of_media()
