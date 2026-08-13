@@ -23,6 +23,7 @@ import io
 import os
 import shutil
 import tempfile
+import zipfile
 from unittest.mock import patch
 
 import pytest
@@ -120,10 +121,12 @@ def test_upload_missing_file(setup):
 
 
 def test_create_archive(setup):
-    """A media archive of a tree without a prefixed folder must be empty."""
+    """Archiving a tree without a prefixed folder must yield an empty archive."""
     client, _handle, _prefixed_dir = setup
     headers = get_headers(client)
     rv = client.post("/api/media/archive/", headers=headers)
-    assert rv.status_code == 201
+    assert rv.status_code == 201, rv.json
     rv = client.get(rv.json["url"], headers=headers)
     assert rv.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(rv.data)) as zip_file:
+        assert zip_file.namelist() == []
