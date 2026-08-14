@@ -199,8 +199,14 @@ def test_file_max_pillow_image_pixels_lower():
 
 # Tests negative and None values of PILLOW_MAX_IMAGE_PIXELS
 def test_file_max_pillow_image_pixels_incorrect():
-    img, _, _ = get_image(0, 500, 500)
+    width, height = 500, 500
+    img, _, _ = get_image(0, width, height)
     fh = ThumbnailHandler(img, "image/png")
+
+    # invalid values must leave the limit in place, so set it here rather than
+    # relying on an earlier test having lowered it
+    Image.MAX_IMAGE_PIXELS = width * height // 2 - 1
+
     opts = {
         "TREE": "test",
         "SECRET_KEY": "test",

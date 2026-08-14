@@ -24,9 +24,10 @@ import math
 import os
 import shutil
 import tempfile
+from contextlib import contextmanager
 from importlib.resources import as_file, files
 from pathlib import Path
-from typing import BinaryIO, Callable
+from typing import BinaryIO, Callable, Iterator, Union
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 from PIL.Image import DecompressionBombError
@@ -36,6 +37,31 @@ from gramps_webapi.const import MIME_PDF
 from gramps_webapi.types import FilenameOrPath
 
 from .util import abort_with_message
+
+
+@contextmanager
+def abort_on_image_errors() -> Iterator[None]:
+    """Translate Pillow errors for unreadable images into HTTP error responses.
+
+    Pillow only reads the header on open, so corrupt or truncated files raise a bare
+    `OSError` whenever the pixels are actually decoded, which may be much later.
+    """
+    try:
+        yield
+    except DecompressionBombError:
+        abort_with_message(413, "Image has too many pixels")
+    except UnidentifiedImageError:
+        abort_with_message(422, "File is not a valid image file")
+    except OSError:
+        abort_with_message(422, "Image file is corrupt or truncated")
+
+
+def open_image(fp: Union[BinaryIO, FilenameOrPath]) -> ImageType:
+    """Open an image, decoding it eagerly so that corrupt data fails here."""
+    with abort_on_image_errors():
+        image = Image.open(fp)
+        image.load()
+        return image
 
 
 def image_thumbnail(image: ImageType, size: int, square: bool = False) -> ImageType:
@@ -129,21 +155,12 @@ class ThumbnailHandler:
 
     def get_image(self) -> ImageType:
         """Get a Pillow Image instance."""
-        try:
+        with abort_on_image_errors():
             if self.mime_type == MIME_PDF:
                 return self._get_image_pdf()
             if self.is_video:
                 return self._get_image_video()
-            image = Image.open(self.stream)
-            # decode eagerly so that corrupt data fails here rather than downstream
-            image.load()
-            return image
-        except DecompressionBombError:
-            abort_with_message(413, "Image has too many pixels for thumbnailing")
-        except UnidentifiedImageError:
-            abort_with_message(422, "File is not a valid image file")
-        except OSError:
-            abort_with_message(422, "Image file is corrupt or truncated")
+            return open_image(self.stream)
 
     def get_cropped(
         self,
@@ -229,7 +246,7 @@ class ThumbnailHandler:
             abort_with_message(501, "The ffmpeg binary is not installed")
         except ffmpeg.Error:
             abort_with_message(422, "Unable to extract a frame from the video file")
-        return Image.open(io.BytesIO(out))
+        return open_image(io.BytesIO(out))
 
     def get_thumbnail(
         self, size: int, square: bool = False, fmt: str = "AVIF"
