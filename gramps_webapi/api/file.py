@@ -30,7 +30,7 @@ from flask import jsonify, make_response, send_file, send_from_directory, curren
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Media
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from werkzeug.datastructures import FileStorage
 
 from gramps_webapi.const import MIME_AVIF, MIME_PNG
@@ -160,7 +160,10 @@ class FileHandler:
         except pytesseract.TesseractNotFoundError:
             abort_with_message(501, "Tesseract is not installed")
         fobj = self.get_file_object()
-        image = Image.open(fobj)
+        try:
+            image = Image.open(fobj)
+        except UnidentifiedImageError:
+            abort_with_message(422, "File is not a valid image file")
         if output_format == "string":
             data = pytesseract.image_to_string(image, lang=lang)
         elif output_format == "boxes":
@@ -301,7 +304,11 @@ class LocalFileHandler(FileHandler):
         native_max_zoom = get_cached_native_max_zoom(self.checksum, bounds)
         if native_max_zoom is not None and z > native_max_zoom:
             abort_with_message(404, "Zoom level exceeds native resolution of source image")
-        with Image.open(self.path_abs) as img:
+        try:
+            img = Image.open(self.path_abs)
+        except UnidentifiedImageError:
+            abort_with_message(422, "File is not a valid image file")
+        with img:
             if native_max_zoom is None:
                 native_max_zoom = get_native_max_zoom(img.width, img.height, bounds)
                 set_cached_native_max_zoom(self.checksum, bounds, native_max_zoom)

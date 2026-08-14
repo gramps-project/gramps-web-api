@@ -25,7 +25,7 @@ from typing import BinaryIO, Dict, Optional
 from flask import current_app, redirect, send_file
 from gramps.gen.db.base import DbReadBase
 
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 from ..const import MIME_AVIF, MIME_PNG
 from .cache import get_cached_native_max_zoom, set_cached_native_max_zoom
@@ -192,7 +192,11 @@ class ObjectStorageFileHandler(FileHandler):
         if native_max_zoom is not None and z > native_max_zoom:
             abort_with_message(404, "Zoom level exceeds native resolution of source image")
         fileobj = self._download_fileobj()
-        with Image.open(fileobj) as img:
+        try:
+            img = Image.open(fileobj)
+        except UnidentifiedImageError:
+            abort_with_message(422, "File is not a valid image file")
+        with img:
             if native_max_zoom is None:
                 native_max_zoom = get_native_max_zoom(img.width, img.height, bounds)
                 set_cached_native_max_zoom(self.checksum, bounds, native_max_zoom)
