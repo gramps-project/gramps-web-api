@@ -25,8 +25,8 @@ import pytest
 from gramps_webapi.app import create_app
 from gramps_webapi.api.image import ThumbnailHandler
 from gramps_webapi.const import MIME_PDF
-from PIL.Image import DecompressionBombError
 from PIL import Image
+from werkzeug.exceptions import HTTPException
 
 from .test_endpoints.test_upload import get_image
 
@@ -73,9 +73,42 @@ def test_pdf_render_size_capped():
     assert img.width <= 2000 and img.height <= 2000
 
 
+def test_unsupported_mime_type_aborts_415():
+    """A MIME type with no thumbnailer must abort, not raise ValueError."""
+    with pytest.raises(HTTPException) as exc_info:
+        ThumbnailHandler(io.BytesIO(b""), "application/x-zip-compressed")
+    assert exc_info.value.code == 415
+
+
+def test_corrupt_pdf_aborts_422():
+    """A file whose MIME says PDF but whose content is not must abort."""
+    handler = ThumbnailHandler(io.BytesIO(b"PK\x03\x04not a pdf"), MIME_PDF)
+    with pytest.raises(HTTPException) as exc_info:
+        handler.get_image()
+    assert exc_info.value.code == 422
+
+
+def test_corrupt_image_aborts_422():
+    """A file whose MIME says image but whose content is not must abort."""
+    handler = ThumbnailHandler(io.BytesIO(b"PK\x03\x04not an image"), "image/png")
+    with pytest.raises(HTTPException) as exc_info:
+        handler.get_image()
+    assert exc_info.value.code == 422
+
+
+def test_truncated_image_aborts_422():
+    """A truncated image decodes only on load() and must abort there too."""
+    buf = io.BytesIO()
+    Image.new("RGB", (200, 200), color=(255, 0, 0)).save(buf, format="PNG")
+    truncated = io.BytesIO(buf.getvalue()[: len(buf.getvalue()) // 2])
+    handler = ThumbnailHandler(truncated, "image/png")
+    with pytest.raises(HTTPException) as exc_info:
+        handler.get_image()
+    assert exc_info.value.code == 422
+
+
 def test_abort_if_too_large_returns_413():
     """_abort_if_too_large must raise HTTPException with code 413 when over the limit."""
-    from werkzeug.exceptions import HTTPException
     from gramps_webapi.api.file import FileHandler
     from gramps_webapi.config import DefaultConfig
 
@@ -159,14 +192,21 @@ def test_file_max_pillow_image_pixels_lower():
         config=opts,
         config_from_env=False,
     )
-    with pytest.raises(DecompressionBombError):
+    with pytest.raises(HTTPException) as exc_info:
         fh.get_image()
+    assert exc_info.value.code == 413
 
 
 # Tests negative and None values of PILLOW_MAX_IMAGE_PIXELS
 def test_file_max_pillow_image_pixels_incorrect():
-    img, _, _ = get_image(0, 500, 500)
+    width, height = 500, 500
+    img, _, _ = get_image(0, width, height)
     fh = ThumbnailHandler(img, "image/png")
+
+    # invalid values must leave the limit in place, so set it here rather than
+    # relying on an earlier test having lowered it
+    Image.MAX_IMAGE_PIXELS = width * height // 2 - 1
+
     opts = {
         "TREE": "test",
         "SECRET_KEY": "test",
@@ -177,13 +217,15 @@ def test_file_max_pillow_image_pixels_incorrect():
         config=opts,
         config_from_env=False,
     )
-    with pytest.raises(DecompressionBombError):
+    with pytest.raises(HTTPException) as exc_info:
         fh.get_image()
+    assert exc_info.value.code == 413
 
     opts["PILLOW_MAX_IMAGE_PIXELS"] = None
     create_app(
         config=opts,
         config_from_env=False,
     )
-    with pytest.raises(DecompressionBombError):
+    with pytest.raises(HTTPException) as exc_info:
         fh.get_image()
+    assert exc_info.value.code == 413

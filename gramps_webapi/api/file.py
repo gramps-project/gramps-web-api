@@ -39,9 +39,11 @@ from ..types import FilenameOrPath
 from .cache import get_cached_native_max_zoom, set_cached_native_max_zoom
 from .image import (
     LocalFileThumbnailHandler,
+    abort_on_image_errors,
     detect_faces,
     get_map_tile,
     get_native_max_zoom,
+    open_image,
     transparent_png_tile,
 )
 from .util import abort_with_message
@@ -160,7 +162,7 @@ class FileHandler:
         except pytesseract.TesseractNotFoundError:
             abort_with_message(501, "Tesseract is not installed")
         fobj = self.get_file_object()
-        image = Image.open(fobj)
+        image = open_image(fobj)
         if output_format == "string":
             data = pytesseract.image_to_string(image, lang=lang)
         elif output_format == "boxes":
@@ -301,7 +303,7 @@ class LocalFileHandler(FileHandler):
         native_max_zoom = get_cached_native_max_zoom(self.checksum, bounds)
         if native_max_zoom is not None and z > native_max_zoom:
             abort_with_message(404, "Zoom level exceeds native resolution of source image")
-        with Image.open(self.path_abs) as img:
+        with abort_on_image_errors(), Image.open(self.path_abs) as img:
             if native_max_zoom is None:
                 native_max_zoom = get_native_max_zoom(img.width, img.height, bounds)
                 set_cached_native_max_zoom(self.checksum, bounds, native_max_zoom)

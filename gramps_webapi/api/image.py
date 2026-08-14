@@ -24,17 +24,44 @@ import math
 import os
 import shutil
 import tempfile
+from contextlib import contextmanager
 from importlib.resources import as_file, files
 from pathlib import Path
-from typing import BinaryIO, Callable
+from typing import BinaryIO, Callable, Iterator, Union
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL.Image import DecompressionBombError
 from PIL.Image import Image as ImageType
 
 from gramps_webapi.const import MIME_PDF
 from gramps_webapi.types import FilenameOrPath
 
 from .util import abort_with_message
+
+
+@contextmanager
+def abort_on_image_errors() -> Iterator[None]:
+    """Translate Pillow errors for unreadable images into HTTP error responses.
+
+    Pillow only reads the header on open, so corrupt or truncated files raise a bare
+    `OSError` whenever the pixels are actually decoded, which may be much later.
+    """
+    try:
+        yield
+    except DecompressionBombError:
+        abort_with_message(413, "Image has too many pixels")
+    except UnidentifiedImageError:
+        abort_with_message(422, "File is not a valid image file")
+    except OSError:
+        abort_with_message(422, "Image file is corrupt or truncated")
+
+
+def open_image(fp: Union[BinaryIO, FilenameOrPath]) -> ImageType:
+    """Open an image, decoding it eagerly so that corrupt data fails here."""
+    with abort_on_image_errors():
+        image = Image.open(fp)
+        image.load()
+        return image
 
 
 def image_thumbnail(image: ImageType, size: int, square: bool = False) -> ImageType:
@@ -120,19 +147,20 @@ class ThumbnailHandler:
             self.is_video = True
         else:
             if self.mime_type not in self.MIME_NO_IMAGE:
-                raise ValueError(
-                    "No thumbnailer found for MIME type {}.".format(self.mime_type)
+                abort_with_message(
+                    415, f"No thumbnailer found for MIME type {self.mime_type}."
                 )
             self.is_image = False
             self.is_video = False
 
     def get_image(self) -> ImageType:
         """Get a Pillow Image instance."""
-        if self.mime_type == MIME_PDF:
-            return self._get_image_pdf()
-        if self.is_video:
-            return self._get_image_video()
-        return Image.open(self.stream)
+        with abort_on_image_errors():
+            if self.mime_type == MIME_PDF:
+                return self._get_image_pdf()
+            if self.is_video:
+                return self._get_image_video()
+            return open_image(self.stream)
 
     def get_cropped(
         self,
@@ -160,17 +188,27 @@ class ThumbnailHandler:
         """Get a Pillow Image instance of the PDF's first page."""
         try:
             from pdf2image import convert_from_path
+            from pdf2image.exceptions import (
+                PDFPageCountError,
+                PDFSyntaxError,
+                PopplerNotInstalledError,
+            )
         except ImportError:
             abort_with_message(501, "pdf2image is not installed")
 
-        ims = self._apply_to_path(
-            convert_from_path,
-            first_page=1,
-            last_page=1,
-            use_cropbox=True,
-            dpi=100,
-            size=(2000, 2000),
-        )
+        try:
+            ims = self._apply_to_path(
+                convert_from_path,
+                first_page=1,
+                last_page=1,
+                use_cropbox=True,
+                dpi=100,
+                size=(2000, 2000),
+            )
+        except PopplerNotInstalledError:
+            abort_with_message(501, "Poppler is not installed")
+        except (PDFPageCountError, PDFSyntaxError):
+            abort_with_message(422, "File is not a valid PDF file")
         return ims[0]
 
     def _apply_to_path(self, func: Callable, *args, **kwargs):
@@ -196,14 +234,19 @@ class ThumbnailHandler:
         except ImportError:
             abort_with_message(501, "ffmpeg-python is not installed")
 
-        out, _ = self._apply_to_path(
-            lambda path: (
-                ffmpeg.input(path, ss=0)
-                .output("pipe:", format="image2", pix_fmt="rgb24", vframes=1)
-                .run(capture_stdout=True, capture_stderr=True)
+        try:
+            out, _ = self._apply_to_path(
+                lambda path: (
+                    ffmpeg.input(path, ss=0)
+                    .output("pipe:", format="image2", pix_fmt="rgb24", vframes=1)
+                    .run(capture_stdout=True, capture_stderr=True)
+                )
             )
-        )
-        return Image.open(io.BytesIO(out))
+        except FileNotFoundError:
+            abort_with_message(501, "The ffmpeg binary is not installed")
+        except ffmpeg.Error:
+            abort_with_message(422, "Unable to extract a frame from the video file")
+        return open_image(io.BytesIO(out))
 
     def get_thumbnail(
         self, size: int, square: bool = False, fmt: str = "AVIF"
@@ -382,7 +425,8 @@ def detect_faces(stream: BinaryIO) -> list[tuple[float, float, float, float]]:
 
     file_bytes = np.asarray(bytearray(stream.read()), dtype=np.uint8)
     cv_image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-    assert cv_image is not None, "cv_image is None"  # for type checker
+    if cv_image is None:
+        abort_with_message(422, "File is not a valid image file")
 
     # Load the YuNet model
     ref = files("gramps_webapi") / "data/face_detection_yunet_2023mar.onnx"
