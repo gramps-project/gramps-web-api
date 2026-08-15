@@ -74,11 +74,9 @@ class CreateObjectsResource(ProtectedResource):
         for obj_dict in payload:
             try:
                 obj_dict = fix_object_dict(obj_dict)
-            except ValueError:
-                abort_with_message(400, "Error processing objects")
-            validation_error = validate_object_dict(obj_dict)
-            if validation_error is not None:
-                abort_with_message(400, f"Validation error while processing objects: {validation_error}")
+                validate_object_dict(obj_dict)
+            except ValueError as exc:
+                abort_with_message(400, f"Error while processing objects: {exc}")
             obj = gramps_object_from_dict(obj_dict)
             objects.append(obj)
         return objects

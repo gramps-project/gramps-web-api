@@ -1266,15 +1266,19 @@ def add_family_update_refs(
         db_handle.commit_person(child, trans)
 
 
-def validate_object_dict(obj_dict: dict[str, Any]) -> Optional[str]:
+# jsonschema puts the offending instance into its message; cap it.
+MAX_VALIDATION_ERROR_LENGTH = 200
+
+
+def validate_object_dict(obj_dict: dict[str, Any]) -> None:
     """Validate a dict representation of a Gramps object vs. its schema.
 
-    Returns None if validation passes, or an error message string if it fails.
+    Raises ValueError if the object does not conform to its schema.
     """
     try:
         obj_cls = getattr(gramps.gen.lib, obj_dict["_class"])
-    except (KeyError, AttributeError, TypeError):
-        return "Unknown object class"
+    except (KeyError, AttributeError, TypeError) as exc:
+        raise ValueError("unknown object class") from exc
     schema = obj_cls.get_schema()
 
     obj_dict_fixed = {k: v for k, v in obj_dict.items() if k != "complete"}
@@ -1300,9 +1304,11 @@ def validate_object_dict(obj_dict: dict[str, Any]) -> Optional[str]:
     try:
         jsonschema.validate(obj_dict_fixed, schema)
     except jsonschema.exceptions.ValidationError as exc:
-        current_app.logger.warning("Schema validation failed: %s", exc.message)
-        return exc.message
-    return None
+        message = f"{exc.json_path}: {exc.message}"
+        if len(message) > MAX_VALIDATION_ERROR_LENGTH:
+            message = message[:MAX_VALIDATION_ERROR_LENGTH] + "..."
+        current_app.logger.warning("Schema validation failed: %s", message)
+        raise ValueError(message) from exc
 
 
 def xml_to_locale(gramps_type_name: str, string: str) -> str:
