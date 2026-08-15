@@ -1297,7 +1297,7 @@ def validate_object_dict(obj_dict: dict[str, Any]) -> bool:
     try:
         jsonschema.validate(obj_dict_fixed, schema)
     except jsonschema.exceptions.ValidationError as exc:
-        current_app.log_exception(exc)
+        current_app.logger.warning("Schema validation failed: %s", exc.message)
         return False
     return True
 
