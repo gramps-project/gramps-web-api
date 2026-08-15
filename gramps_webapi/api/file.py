@@ -45,6 +45,7 @@ from .image import (
     get_native_max_zoom,
     negotiate_thumbnail_format,
     open_image,
+    send_negotiated_thumbnail,
     transparent_png_tile,
 )
 from .util import abort_with_message
@@ -262,7 +263,7 @@ class LocalFileHandler(FileHandler):
         thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
         fmt, mimetype = negotiate_thumbnail_format()
         buffer = thumb.get_cropped(x1=x1, y1=y1, x2=x2, y2=y2, square=square, fmt=fmt)
-        return send_file(buffer, mimetype=mimetype)
+        return send_negotiated_thumbnail(buffer, mimetype)
 
     def send_thumbnail(self, size: int, square: bool = False):
         """Send thumbnail of image."""
@@ -274,7 +275,7 @@ class LocalFileHandler(FileHandler):
         thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
         fmt, mimetype = negotiate_thumbnail_format()
         buffer = thumb.get_thumbnail(size=size, square=square, fmt=fmt)
-        return send_file(buffer, mimetype=mimetype)
+        return send_negotiated_thumbnail(buffer, mimetype)
 
     def send_thumbnail_cropped(
         self, size: int, x1: int, y1: int, x2: int, y2: int, square: bool = False
@@ -290,7 +291,7 @@ class LocalFileHandler(FileHandler):
         buffer = thumb.get_thumbnail_cropped(
             size=size, x1=x1, y1=y1, x2=x2, y2=y2, square=square, fmt=fmt
         )
-        return send_file(buffer, mimetype=mimetype)
+        return send_negotiated_thumbnail(buffer, mimetype)
 
     def send_map_tile(self, z: int, x: int, y: int, max_zoom: int | None = None):
         """Send a map tile for a georeferenced image."""

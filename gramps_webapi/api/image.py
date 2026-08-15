@@ -29,7 +29,7 @@ from importlib.resources import as_file, files
 from pathlib import Path
 from typing import BinaryIO, Callable, Iterator, Union
 
-from flask import request
+from flask import Response, request, send_file
 from PIL import Image, ImageOps, UnidentifiedImageError
 from PIL.Image import DecompressionBombError
 from PIL.Image import Image as ImageType
@@ -157,6 +157,20 @@ def negotiate_thumbnail_format() -> tuple[str, str]:
     if MIME_AVIF in accepted:
         return "AVIF", MIME_AVIF
     return "JPEG", MIME_JPEG
+
+
+def send_negotiated_thumbnail(buffer: BinaryIO, mimetype: str) -> Response:
+    """Send a thumbnail buffer whose format was picked by `negotiate_thumbnail_format`.
+
+    Sets `Vary: Accept` since the response body now depends on the request's
+    Accept header -- without it, a shared cache sitting in front of the API
+    (a CDN or reverse-proxy cache, not Gramps Web API's own file cache, which
+    already keys on the negotiated MIME type) could serve one client's
+    negotiated format to a different client requesting the same URL.
+    """
+    response = send_file(buffer, mimetype=mimetype)
+    response.headers["Vary"] = "Accept"
+    return response
 
 
 class ThumbnailHandler:
