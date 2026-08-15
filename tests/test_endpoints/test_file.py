@@ -24,7 +24,7 @@ from io import BytesIO
 
 from PIL import Image
 
-from gramps_webapi.const import MIME_AVIF
+from gramps_webapi.const import MIME_AVIF, MIME_JPEG
 
 from . import BASE_URL, get_test_client
 from .checks import check_requires_token, check_success
@@ -69,12 +69,28 @@ class TestThumbnail(unittest.TestCase):
         check_requires_token(self, TEST_URL + "b39fe1cfc1305ac4a21/thumbnail/20")
 
     def test_get_thumbnail_small(self):
-        """Test reponse for thumbnails."""
+        """Test reponse for thumbnails: JPEG by default (no AVIF in Accept)."""
         media_objects = check_success(self, TEST_URL)
         for obj in media_objects:
             rv = check_success(
                 self, "{}{}/thumbnail/20".format(TEST_URL, obj["handle"]), full=True
             )
+            assert rv.mimetype == MIME_JPEG
+            img = Image.open(BytesIO(rv.data))
+            assert img.format == "JPEG"
+            # long side should be 20 px
+            assert max(img.width, img.height) == 20
+
+    def test_get_thumbnail_small_avif(self):
+        """Test AVIF is served when the client's Accept header asks for it."""
+        media_objects = check_success(self, TEST_URL)
+        for obj in media_objects:
+            header = fetch_header(self.client)
+            header["Accept"] = MIME_AVIF
+            rv = self.client.get(
+                "{}{}/thumbnail/20".format(TEST_URL, obj["handle"]), headers=header
+            )
+            assert rv.status_code == 200
             assert rv.mimetype == MIME_AVIF
             img = Image.open(BytesIO(rv.data))
             assert img.format == "AVIF"
@@ -165,7 +181,7 @@ class TestCropped(unittest.TestCase):
         )
 
     def test_get_cropped(self):
-        """Test reponse for cropped image."""
+        """Test reponse for cropped image: JPEG by default (no AVIF in Accept)."""
         media_objects = check_success(self, TEST_URL)
         for obj in media_objects:
             rv = check_success(
@@ -177,6 +193,28 @@ class TestCropped(unittest.TestCase):
                 "{}{}/cropped/10/80/20/100".format(TEST_URL, obj["handle"]),
                 full=True,
             )
+            assert rv.mimetype == MIME_JPEG
+            img = Image.open(BytesIO(rv.data))
+            assert img.format == "JPEG"
+            # allow 1 px difference due to rounding
+            self.assertAlmostEqual(img.width, 0.1 * full_img.width, delta=1)
+            self.assertAlmostEqual(img.height, 0.2 * full_img.height, delta=1)
+
+    def test_get_cropped_avif(self):
+        """Test AVIF is served when the client's Accept header asks for it."""
+        media_objects = check_success(self, TEST_URL)
+        for obj in media_objects:
+            rv = check_success(
+                self, "{}{}/file".format(TEST_URL, obj["handle"]), full=True
+            )
+            full_img = Image.open(BytesIO(rv.data))
+            header = fetch_header(self.client)
+            header["Accept"] = MIME_AVIF
+            rv = self.client.get(
+                "{}{}/cropped/10/80/20/100".format(TEST_URL, obj["handle"]),
+                headers=header,
+            )
+            assert rv.status_code == 200
             assert rv.mimetype == MIME_AVIF
             img = Image.open(BytesIO(rv.data))
             assert img.format == "AVIF"
@@ -218,7 +256,7 @@ class TestCroppedThumbnail(unittest.TestCase):
         )
 
     def test_get_cropped_thumbnail_small(self):
-        """Test reponse for thumbnails."""
+        """Test reponse for thumbnails: JPEG by default (no AVIF in Accept)."""
         media_objects = check_success(self, TEST_URL)
         for obj in media_objects:
             rv = check_success(
@@ -226,6 +264,23 @@ class TestCroppedThumbnail(unittest.TestCase):
                 "{}{}/cropped/10/10/90/90/thumbnail/20".format(TEST_URL, obj["handle"]),
                 full=True,
             )
+            assert rv.mimetype == MIME_JPEG
+            img = Image.open(BytesIO(rv.data))
+            assert img.format == "JPEG"
+            # long side should be 20 px
+            assert max(img.width, img.height) == 20
+
+    def test_get_cropped_thumbnail_small_avif(self):
+        """Test AVIF is served when the client's Accept header asks for it."""
+        media_objects = check_success(self, TEST_URL)
+        for obj in media_objects:
+            header = fetch_header(self.client)
+            header["Accept"] = MIME_AVIF
+            rv = self.client.get(
+                "{}{}/cropped/10/10/90/90/thumbnail/20".format(TEST_URL, obj["handle"]),
+                headers=header,
+            )
+            assert rv.status_code == 200
             assert rv.mimetype == MIME_AVIF
             img = Image.open(BytesIO(rv.data))
             assert img.format == "AVIF"
