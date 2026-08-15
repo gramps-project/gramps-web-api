@@ -1266,12 +1266,15 @@ def add_family_update_refs(
         db_handle.commit_person(child, trans)
 
 
-def validate_object_dict(obj_dict: dict[str, Any]) -> bool:
-    """Validate a dict representation of a Gramps object vs. its schema."""
+def validate_object_dict(obj_dict: dict[str, Any]) -> Optional[str]:
+    """Validate a dict representation of a Gramps object vs. its schema.
+
+    Returns None if validation passes, or an error message string if it fails.
+    """
     try:
         obj_cls = getattr(gramps.gen.lib, obj_dict["_class"])
     except (KeyError, AttributeError, TypeError):
-        return False
+        return "Unknown object class"
     schema = obj_cls.get_schema()
 
     obj_dict_fixed = {k: v for k, v in obj_dict.items() if k != "complete"}
@@ -1298,8 +1301,8 @@ def validate_object_dict(obj_dict: dict[str, Any]) -> bool:
         jsonschema.validate(obj_dict_fixed, schema)
     except jsonschema.exceptions.ValidationError as exc:
         current_app.logger.warning("Schema validation failed: %s", exc.message)
-        return False
-    return True
+        return exc.message
+    return None
 
 
 def xml_to_locale(gramps_type_name: str, string: str) -> str:

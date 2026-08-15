@@ -351,7 +351,7 @@ def test_validate_object_dict_does_not_mutate_shared_schema():
 
     with patch.object(Person, "get_schema", return_value=shared_schema):
         obj_dict = {"_class": "Person", "gender": Person.OTHER}
-        assert validate_object_dict(obj_dict) is True
+        assert validate_object_dict(obj_dict) is None
 
         # The object returned by get_schema() is shared across every call;
         # it must come back untouched.
@@ -359,4 +359,4 @@ def test_validate_object_dict_does_not_mutate_shared_schema():
 
         # And a second call must still succeed -- it can't rely on a
         # mutation left behind by the first call.
-        assert validate_object_dict(obj_dict) is True
+        assert validate_object_dict(obj_dict) is None
