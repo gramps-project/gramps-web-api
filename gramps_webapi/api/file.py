@@ -33,7 +33,7 @@ from gramps.gen.lib import Media
 from PIL import Image
 from werkzeug.datastructures import FileStorage
 
-from gramps_webapi.const import MIME_AVIF, MIME_PNG
+from gramps_webapi.const import MIME_PNG
 
 from ..types import FilenameOrPath
 from .cache import get_cached_native_max_zoom, set_cached_native_max_zoom
@@ -43,6 +43,7 @@ from .image import (
     detect_faces,
     get_map_tile,
     get_native_max_zoom,
+    negotiate_thumbnail_format,
     open_image,
     transparent_png_tile,
 )
@@ -259,8 +260,9 @@ class LocalFileHandler(FileHandler):
             abort_with_message(403, "File access not allowed")
         self._abort_if_too_large()
         thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
-        buffer = thumb.get_cropped(x1=x1, y1=y1, x2=x2, y2=y2, square=square)
-        return send_file(buffer, mimetype=MIME_AVIF)
+        fmt, mimetype = negotiate_thumbnail_format()
+        buffer = thumb.get_cropped(x1=x1, y1=y1, x2=x2, y2=y2, square=square, fmt=fmt)
+        return send_file(buffer, mimetype=mimetype)
 
     def send_thumbnail(self, size: int, square: bool = False):
         """Send thumbnail of image."""
@@ -270,8 +272,9 @@ class LocalFileHandler(FileHandler):
             abort_with_message(403, "File access not allowed")
         self._abort_if_too_large()
         thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
-        buffer = thumb.get_thumbnail(size=size, square=square)
-        return send_file(buffer, mimetype=MIME_AVIF)
+        fmt, mimetype = negotiate_thumbnail_format()
+        buffer = thumb.get_thumbnail(size=size, square=square, fmt=fmt)
+        return send_file(buffer, mimetype=mimetype)
 
     def send_thumbnail_cropped(
         self, size: int, x1: int, y1: int, x2: int, y2: int, square: bool = False
@@ -283,10 +286,11 @@ class LocalFileHandler(FileHandler):
             abort_with_message(403, "File access not allowed")
         self._abort_if_too_large()
         thumb = LocalFileThumbnailHandler(self.path_abs, self.mime)
+        fmt, mimetype = negotiate_thumbnail_format()
         buffer = thumb.get_thumbnail_cropped(
-            size=size, x1=x1, y1=y1, x2=x2, y2=y2, square=square
+            size=size, x1=x1, y1=y1, x2=x2, y2=y2, square=square, fmt=fmt
         )
-        return send_file(buffer, mimetype=MIME_AVIF)
+        return send_file(buffer, mimetype=mimetype)
 
     def send_map_tile(self, z: int, x: int, y: int, max_zoom: int | None = None):
         """Send a map tile for a georeferenced image."""

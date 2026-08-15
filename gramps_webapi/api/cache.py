@@ -13,6 +13,7 @@ from flask_caching import Cache
 from gramps.gen.errors import HandleError
 
 from gramps_webapi.api.auth import has_permissions
+from gramps_webapi.api.image import negotiate_thumbnail_format
 from gramps_webapi.api.util import (
     get_db_handle,
     get_db_manager,
@@ -70,7 +71,12 @@ def make_cache_key_thumbnails(*args, **kwargs):
 
     dbmgr = get_db_manager(tree)
 
-    cache_key = checksum + request.path + arg_hash + dbmgr.dirname + ":avif"
+    # Format is negotiated per-client (see negotiate_thumbnail_format's
+    # docstring -- AVIF decoding isn't universal), so it has to be part of
+    # the cache key too, or the first requester's format would get served
+    # to every later client regardless of what *they* can decode.
+    _fmt, mimetype = negotiate_thumbnail_format()
+    cache_key = checksum + request.path + arg_hash + dbmgr.dirname + ":" + mimetype
 
     return cache_key
 

@@ -29,11 +29,12 @@ from importlib.resources import as_file, files
 from pathlib import Path
 from typing import BinaryIO, Callable, Iterator, Union
 
+from flask import request
 from PIL import Image, ImageOps, UnidentifiedImageError
 from PIL.Image import DecompressionBombError
 from PIL.Image import Image as ImageType
 
-from gramps_webapi.const import MIME_PDF
+from gramps_webapi.const import MIME_AVIF, MIME_JPEG, MIME_PDF
 from gramps_webapi.types import FilenameOrPath
 
 from .util import abort_with_message
@@ -127,6 +128,35 @@ def save_image_buffer(image: ImageType, fmt="AVIF") -> BinaryIO:
     image.save(buffer, format=fmt)
     buffer.seek(0)
     return buffer
+
+
+def negotiate_thumbnail_format() -> tuple[str, str]:
+    """Pick a thumbnail encoding the requesting client actually said it can decode.
+
+    AVIF decoding isn't universal -- e.g. Ubuntu's stock WebKitGTK (used for
+    gramps-connect's standalone Linux build's native window) ships with no
+    libavif/dav1d decoder at all, so an AVIF thumbnail 200s over the wire and
+    then silently fails to render, with no error anywhere. JPEG is the one
+    format every client can be assumed to decode, so it's the default;
+    AVIF is only sent to a client whose Accept header explicitly lists it
+    (real browsers with AVIF support do -- Chromium-family engines since
+    ~2020: `image/avif,image/webp,...,image/*,*/*;q=0.8`).
+
+    Deliberately not accept_mimetypes.best_match([MIME_AVIF, MIME_JPEG]):
+    that treats a bare "*/*" (which curl sends by default, and which
+    trails most real Accept headers as a catch-all) as a match for every
+    candidate, so it can't tell "this client explicitly said it decodes
+    AVIF" apart from "this client accepts anything" -- confirmed live, it
+    returned AVIF even for a request with no avif/webp/image/* entry at
+    all, just "*/*;q=0.8". Checking for an exact "image/avif" entry
+    sidesteps that entirely.
+
+    Returns a `(PIL format string, MIME type)` pair.
+    """
+    accepted = {mimetype.lower() for mimetype, _quality in request.accept_mimetypes}
+    if MIME_AVIF in accepted:
+        return "AVIF", MIME_AVIF
+    return "JPEG", MIME_JPEG
 
 
 class ThumbnailHandler:
