@@ -1282,7 +1282,7 @@ def validate_object_dict(obj_dict: dict[str, Any]) -> None:
         else None
     )
     # module attributes like `person` or `__path__` resolve but are not classes.
-    if not hasattr(obj_cls, "get_schema"):
+    if obj_cls is None or not hasattr(obj_cls, "get_schema"):
         raise ValueError("unknown object class")
     schema = obj_cls.get_schema()
 
