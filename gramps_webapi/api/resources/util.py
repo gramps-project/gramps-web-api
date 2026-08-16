@@ -1266,12 +1266,27 @@ def add_family_update_refs(
         db_handle.commit_person(child, trans)
 
 
-def validate_object_dict(obj_dict: dict[str, Any]) -> bool:
-    """Validate a dict representation of a Gramps object vs. its schema."""
-    try:
-        obj_cls = getattr(gramps.gen.lib, obj_dict["_class"])
-    except (KeyError, AttributeError, TypeError):
-        return False
+# validation errors echo client input back; cap what goes into the response.
+MAX_VALIDATION_ERROR_LENGTH = 200
+
+
+def validate_object_dict(obj_dict: dict[str, Any]) -> None:
+    """Validate a dict representation of a Gramps object vs. its schema.
+
+    Raises ValueError if the object does not conform to its schema.
+    """
+    class_name = obj_dict.get("_class")
+    obj_cls = (
+        getattr(gramps.gen.lib, class_name, None)
+        if isinstance(class_name, str)
+        else None
+    )
+    # module attributes like `person` or `__path__` resolve but are not classes.
+    if obj_cls is None or not hasattr(obj_cls, "get_schema"):
+        # name the class: a batch POST reports no index, so it is the only
+        # way to tell which of the submitted objects was rejected.
+        name = repr(class_name)[:MAX_VALIDATION_ERROR_LENGTH]
+        raise ValueError(f"unknown object class {name}")
     schema = obj_cls.get_schema()
 
     obj_dict_fixed = {k: v for k, v in obj_dict.items() if k != "complete"}
@@ -1297,9 +1312,17 @@ def validate_object_dict(obj_dict: dict[str, Any]) -> bool:
     try:
         jsonschema.validate(obj_dict_fixed, schema)
     except jsonschema.exceptions.ValidationError as exc:
-        current_app.log_exception(exc)
-        return False
-    return True
+        # log the constraint but not the value: the client gets its own payload
+        # echoed back, the log must not retain family tree data.
+        current_app.logger.warning(
+            "Schema validation failed: %s does not satisfy %s",
+            exc.json_path,
+            exc.validator,
+        )
+        message = f"{exc.json_path}: {exc.message}"
+        if len(message) > MAX_VALIDATION_ERROR_LENGTH:
+            message = message[:MAX_VALIDATION_ERROR_LENGTH] + "..."
+        raise ValueError(message) from exc
 
 
 def xml_to_locale(gramps_type_name: str, string: str) -> str:

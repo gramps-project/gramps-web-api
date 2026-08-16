@@ -351,7 +351,7 @@ def test_validate_object_dict_does_not_mutate_shared_schema():
 
     with patch.object(Person, "get_schema", return_value=shared_schema):
         obj_dict = {"_class": "Person", "gender": Person.OTHER}
-        assert validate_object_dict(obj_dict) is True
+        validate_object_dict(obj_dict)
 
         # The object returned by get_schema() is shared across every call;
         # it must come back untouched.
@@ -359,4 +359,31 @@ def test_validate_object_dict_does_not_mutate_shared_schema():
 
         # And a second call must still succeed -- it can't rely on a
         # mutation left behind by the first call.
-        assert validate_object_dict(obj_dict) is True
+        validate_object_dict(obj_dict)
+
+
+def test_validate_object_dict_error_names_the_offending_field():
+    """A schema violation must say which field was wrong, not just that one was."""
+    from flask import Flask
+
+    from gramps_webapi.api.resources.util import validate_object_dict
+
+    with Flask(__name__).app_context():
+        with pytest.raises(ValueError) as excinfo:
+            validate_object_dict({"_class": "Person", "citation_list": "not-a-list"})
+
+    assert "citation_list" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("class_name", ["__path__", "person", "__spec__", 42])
+def test_validate_object_dict_rejects_non_class_attributes(class_name):
+    """`_class` is client-controlled on POST /objects/.
+
+    Names like "person" or "__path__" resolve as gramps.gen.lib attributes but
+    have no get_schema(), which used to surface as an uncaught AttributeError
+    -- a 500 reported to Sentry -- rather than a 400.
+    """
+    from gramps_webapi.api.resources.util import validate_object_dict
+
+    with pytest.raises(ValueError):
+        validate_object_dict({"_class": class_name})

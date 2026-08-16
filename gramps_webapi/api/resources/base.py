@@ -160,10 +160,9 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
             abort_with_message(400, "Wrong object type")
         try:
             obj_dict = fix_object_dict(obj_dict)
+            validate_object_dict(obj_dict)
         except ValueError as exc:
             abort_with_message(400, f"Error while processing object: {exc}")
-        if not validate_object_dict(obj_dict):
-            abort_with_message(400, "Schema validation failed")
         return gramps_object_from_dict(obj_dict)
 
     def has_handle(self, handle: str) -> bool:
