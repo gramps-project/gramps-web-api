@@ -41,6 +41,8 @@ class DefaultConfig(object):
     OPENAPI_SWAGGER_UI_URL = "https://cdn.jsdelivr.net/npm/swagger-ui-dist/"
     SEARCH_INDEX_DIR = "indexdir"  # deprecated!
     SEARCH_INDEX_DB_URI = ""
+    # verify pooled connections on checkout, as idle ones can be dropped server-side
+    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
     EMAIL_HOST = "localhost"
     EMAIL_PORT = "465"
     EMAIL_HOST_USER = ""
