@@ -1266,7 +1266,7 @@ def add_family_update_refs(
         db_handle.commit_person(child, trans)
 
 
-# jsonschema puts the offending instance into its message; cap it.
+# validation errors echo client input back; cap what goes into the response.
 MAX_VALIDATION_ERROR_LENGTH = 200
 
 
@@ -1283,7 +1283,10 @@ def validate_object_dict(obj_dict: dict[str, Any]) -> None:
     )
     # module attributes like `person` or `__path__` resolve but are not classes.
     if obj_cls is None or not hasattr(obj_cls, "get_schema"):
-        raise ValueError("unknown object class")
+        # name the class: a batch POST reports no index, so it is the only
+        # way to tell which of the submitted objects was rejected.
+        name = repr(class_name)[:MAX_VALIDATION_ERROR_LENGTH]
+        raise ValueError(f"unknown object class {name}")
     schema = obj_cls.get_schema()
 
     obj_dict_fixed = {k: v for k, v in obj_dict.items() if k != "complete"}
