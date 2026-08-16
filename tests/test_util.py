@@ -373,3 +373,17 @@ def test_validate_object_dict_error_names_the_offending_field():
             validate_object_dict({"_class": "Person", "citation_list": "not-a-list"})
 
     assert "citation_list" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("class_name", ["__path__", "person", "__spec__", 42])
+def test_validate_object_dict_rejects_non_class_attributes(class_name):
+    """`_class` is client-controlled on POST /objects/.
+
+    Names like "person" or "__path__" resolve as gramps.gen.lib attributes but
+    have no get_schema(), which used to surface as an uncaught AttributeError
+    -- a 500 reported to Sentry -- rather than a 400.
+    """
+    from gramps_webapi.api.resources.util import validate_object_dict
+
+    with pytest.raises(ValueError):
+        validate_object_dict({"_class": class_name})

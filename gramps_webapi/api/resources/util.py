@@ -1275,10 +1275,15 @@ def validate_object_dict(obj_dict: dict[str, Any]) -> None:
 
     Raises ValueError if the object does not conform to its schema.
     """
-    try:
-        obj_cls = getattr(gramps.gen.lib, obj_dict["_class"])
-    except (KeyError, AttributeError, TypeError) as exc:
-        raise ValueError("unknown object class") from exc
+    class_name = obj_dict.get("_class")
+    obj_cls = (
+        getattr(gramps.gen.lib, class_name, None)
+        if isinstance(class_name, str)
+        else None
+    )
+    # module attributes like `person` or `__path__` resolve but are not classes.
+    if not hasattr(obj_cls, "get_schema"):
+        raise ValueError("unknown object class")
     schema = obj_cls.get_schema()
 
     obj_dict_fixed = {k: v for k, v in obj_dict.items() if k != "complete"}
@@ -1304,10 +1309,16 @@ def validate_object_dict(obj_dict: dict[str, Any]) -> None:
     try:
         jsonschema.validate(obj_dict_fixed, schema)
     except jsonschema.exceptions.ValidationError as exc:
+        # log the constraint but not the value: the client gets its own payload
+        # echoed back, the log must not retain family tree data.
+        current_app.logger.warning(
+            "Schema validation failed: %s does not satisfy %s",
+            exc.json_path,
+            exc.validator,
+        )
         message = f"{exc.json_path}: {exc.message}"
         if len(message) > MAX_VALIDATION_ERROR_LENGTH:
             message = message[:MAX_VALIDATION_ERROR_LENGTH] + "..."
-        current_app.logger.warning("Schema validation failed: %s", message)
         raise ValueError(message) from exc
 
 
