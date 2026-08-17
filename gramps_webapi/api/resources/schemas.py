@@ -2007,6 +2007,26 @@ class ResearcherSchema(_Base):
     street = fields.Str(metadata={"description": "Street address."})
 
 
+class DeprecationSchema(_Base):
+    """A deprecated configuration option the server currently relies on."""
+
+    option = fields.Str(
+        metadata={"description": "Name of the deprecated configuration option."},
+    )
+    replacement = fields.Str(
+        metadata={"description": "Name of the option to use instead."},
+    )
+    message = fields.Str(
+        metadata={"description": "Human-readable description of the deprecation."},
+    )
+    removed_in = fields.Str(
+        metadata={
+            "description": "Version of Gramps Web API in which the option will stop"
+            " working."
+        },
+    )
+
+
 class MetadataSchema(_Base):
     """Server and database metadata returned by /api/metadata/."""
 
@@ -2015,6 +2035,12 @@ class MetadataSchema(_Base):
     )
     default_person = fields.Str(
         metadata={"description": "Handle of the default person."},
+    )
+    deprecations = fields.List(
+        fields.Nested(DeprecationSchema),
+        metadata={
+            "description": "Deprecated configuration options in use (admins only)."
+        },
     )
     gramps = fields.Dict(
         metadata={"description": "Information about the active Gramps installation."},

@@ -607,11 +607,6 @@ def send_email(
     use_starttls = get_config("EMAIL_USE_STARTTLS")
     use_tls = get_config("EMAIL_USE_TLS")
 
-    if use_ssl is None and use_starttls is None and use_tls is not None:
-        current_app.logger.warning(
-            "EMAIL_USE_TLS is deprecated. Use EMAIL_USE_SSL or EMAIL_USE_STARTTLS instead."
-        )
-
     # Resolve config
     use_ssl, use_starttls = _resolve_smtp_config(use_ssl, use_starttls, use_tls, port)
 
