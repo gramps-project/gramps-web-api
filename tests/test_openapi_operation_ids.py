@@ -17,23 +17,38 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""Test that the generic object CRUD endpoints have distinct OpenAPI operationIds.
+"""Test that `register_endpt()` gives every OpenAPI operation a distinct id.
 
-The generic get/post/put/delete methods for Person, Family, Event, ... are
-defined once in `GrampsObjectResource`/`GrampsObjectsResource` and inherited
-unchanged by every object type. Without per-type operationIds, tools that
-generate clients (or MCP servers) from the OpenAPI spec cannot tell the
-generated operations apart.
+`register_endpt()` derives an operationId of `{verb}_{name}` from the
+endpoint `name` every call site already passes, instead of each resource
+having to derive one for itself. Without a distinct operationId, tools that
+generate clients (or MCP servers) from the OpenAPI spec cannot tell
+operations apart.
 """
 
 import unittest
 
 from gramps_webapi.app import create_app
-from gramps_webapi.const import GRAMPS_OBJECT_PLURAL
+
+# gramps_class_name -> (url path segment, singular route name, plural route name)
+# The route names mirror the `name` argument passed to register_endpt() in
+# gramps_webapi/api/__init__.py for that type's endpoints.
+OBJECT_ROUTES = {
+    "Person": ("people", "person", "people"),
+    "Family": ("families", "family", "families"),
+    "Event": ("events", "event", "events"),
+    "Place": ("places", "place", "places"),
+    "Citation": ("citations", "citation", "citations"),
+    "Source": ("sources", "source", "sources"),
+    "Repository": ("repositories", "repository", "repositories"),
+    "Media": ("media", "media_object", "media_objects"),
+    "Note": ("notes", "note", "notes"),
+    "Tag": ("tags", "tag", "tags"),
+}
 
 
 class TestOpenapiOperationIds(unittest.TestCase):
-    """Test operationId/requestBody documentation for the object CRUD endpoints."""
+    """Test operationId/requestBody documentation across the OpenAPI spec."""
 
     @classmethod
     def setUpClass(cls):
@@ -44,55 +59,84 @@ class TestOpenapiOperationIds(unittest.TestCase):
         )
         with app.test_client() as client:
             response = client.get("/api/openapi.json")
-            assert (
-                response.status_code == 200
-            ), f"Failed to fetch OpenAPI spec: {response.status_code}"
+            if response.status_code != 200:
+                raise AssertionError(
+                    f"Failed to fetch OpenAPI spec: {response.status_code}"
+                )
             cls.spec = response.get_json()
-            assert cls.spec is not None, "OpenAPI spec returned non-JSON response"
+            if cls.spec is None:
+                raise AssertionError("OpenAPI spec returned non-JSON response")
 
     def _operation(self, path, method):
         methods = self.spec["paths"][path]
         return methods[method]
 
-    def test_operation_ids_are_unique_per_object_type(self):
-        """Every object type's CRUD operations get a distinct operationId."""
-        operation_ids = []
-        for gramps_class_name, plural in GRAMPS_OBJECT_PLURAL.items():
-            operation_ids.append(
-                self._operation(f"/api/{plural}/", "get").get("operationId")
-            )
-            operation_ids.append(
-                self._operation(f"/api/{plural}/", "post").get("operationId")
-            )
-            operation_ids.append(
-                self._operation(f"/api/{plural}/{{handle}}", "get").get(
-                    "operationId"
-                )
-            )
-            operation_ids.append(
-                self._operation(f"/api/{plural}/{{handle}}", "put").get(
-                    "operationId"
-                )
-            )
-            operation_ids.append(
-                self._operation(f"/api/{plural}/{{handle}}", "delete").get(
-                    "operationId"
-                )
-            )
-        self.assertTrue(all(operation_ids), "Every CRUD operation needs an operationId")
+    def test_every_operation_has_a_unique_operation_id(self):
+        """Every operation in the spec has a non-null, unique operationId."""
+        operation_ids = [
+            operation.get("operationId")
+            for methods in self.spec["paths"].values()
+            for method, operation in methods.items()
+            if method in ("get", "post", "put", "delete", "patch")
+        ]
+        self.assertTrue(all(operation_ids), "Every operation needs an operationId")
         self.assertEqual(
             len(operation_ids),
             len(set(operation_ids)),
-            "operationIds must be unique across object types",
+            "operationIds must be unique across the whole spec",
         )
+
+    def test_object_crud_operation_ids_match_expected_names(self):
+        """Object CRUD operationIds follow the `{verb}_{route_name}` scheme."""
+        for gramps_class_name, (url_segment, singular, plural) in OBJECT_ROUTES.items():
+            with self.subTest(gramps_class_name=gramps_class_name):
+                self.assertEqual(
+                    self._operation(f"/api/{url_segment}/{{handle}}", "get").get(
+                        "operationId"
+                    ),
+                    f"get_{singular}",
+                )
+                self.assertEqual(
+                    self._operation(f"/api/{url_segment}/{{handle}}", "put").get(
+                        "operationId"
+                    ),
+                    f"put_{singular}",
+                )
+                self.assertEqual(
+                    self._operation(f"/api/{url_segment}/{{handle}}", "delete").get(
+                        "operationId"
+                    ),
+                    f"delete_{singular}",
+                )
+                self.assertEqual(
+                    self._operation(f"/api/{url_segment}/", "get").get("operationId"),
+                    f"get_{plural}",
+                )
+                self.assertEqual(
+                    self._operation(f"/api/{url_segment}/", "post").get("operationId"),
+                    f"post_{plural}",
+                )
 
     def test_mutation_endpoints_document_a_request_body(self):
         """POST/PUT on object endpoints advertise the expected JSON payload."""
-        for gramps_class_name, plural in GRAMPS_OBJECT_PLURAL.items():
+        for gramps_class_name, (url_segment, _, _) in OBJECT_ROUTES.items():
             with self.subTest(gramps_class_name=gramps_class_name):
-                post_op = self._operation(f"/api/{plural}/", "post")
+                expected_ref = f"#/components/schemas/{gramps_class_name}"
+                post_op = self._operation(f"/api/{url_segment}/", "post")
                 if gramps_class_name != "Media":
                     # Media upload takes a raw file, not a JSON object.
-                    self.assertIn("requestBody", post_op)
-                put_op = self._operation(f"/api/{plural}/{{handle}}", "put")
-                self.assertIn("requestBody", put_op)
+                    self.assertEqual(
+                        post_op["requestBody"]["content"]["application/json"]["schema"][
+                            "$ref"
+                        ],
+                        expected_ref,
+                    )
+                else:
+                    self.assertNotIn("requestBody", post_op)
+                put_op = self._operation(f"/api/{url_segment}/{{handle}}", "put")
+                self.assertEqual(
+                    put_op["requestBody"]["content"]["application/json"]["schema"][
+                        "$ref"
+                    ],
+                    expected_ref,
+                )
