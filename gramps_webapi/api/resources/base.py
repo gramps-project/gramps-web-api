@@ -19,7 +19,7 @@
 
 """Base for Gramps object API resources."""
 
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import gramps_ql as gql
 import object_ql as oql
@@ -337,17 +337,31 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             return
         name = gramps_class_name.lower()
         article = _indefinite_article(name)
-        cls.get = api_blueprint.doc(
-            operationId=f"get_{name}", summary=f"Get {article} {name}"
-        )(cls.get)
-        cls.put = api_blueprint.doc(
-            operationId=f"update_{name}",
-            summary=f"Update an existing {name}",
-            requestBody=_object_request_body(gramps_class_name),
-        )(cls.put)
-        cls.delete = api_blueprint.doc(
-            operationId=f"delete_{name}", summary=f"Delete {article} {name}"
-        )(cls.delete)
+        # setattr rather than plain assignment: mypy rejects assigning to a
+        # method, and these are inherited methods being re-decorated.
+        setattr(
+            cls,
+            "get",
+            api_blueprint.doc(
+                operationId=f"get_{name}", summary=f"Get {article} {name}"
+            )(cls.get),
+        )
+        setattr(
+            cls,
+            "put",
+            api_blueprint.doc(
+                operationId=f"update_{name}",
+                summary=f"Update an existing {name}",
+                requestBody=_object_request_body(gramps_class_name),
+            )(cls.put),
+        )
+        setattr(
+            cls,
+            "delete",
+            api_blueprint.doc(
+                operationId=f"delete_{name}", summary=f"Delete {article} {name}"
+            )(cls.delete),
+        )
 
     @api_blueprint.response(200, Schema())
     @api_blueprint.arguments(GrampsObjectQueryArgs, location="query")
@@ -623,10 +637,16 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             return
         plural = GRAMPS_OBJECT_PLURAL[gramps_class_name]
         singular = gramps_class_name.lower()
-        cls.get = api_blueprint.doc(
-            operationId=f"list_{plural}", summary=f"List {plural}"
-        )(cls.get)
-        post_doc = {
+        # setattr rather than plain assignment: mypy rejects assigning to a
+        # method, and these are inherited methods being re-decorated.
+        setattr(
+            cls,
+            "get",
+            api_blueprint.doc(
+                operationId=f"list_{plural}", summary=f"List {plural}"
+            )(cls.get),
+        )
+        post_doc: dict[str, Any] = {
             "operationId": f"create_{singular}",
             "summary": f"Create {_indefinite_article(singular)} new {singular}",
         }
@@ -634,7 +654,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             # Media's POST takes a raw file upload (multipart), not a JSON
             # object, so it keeps its own request body documentation.
             post_doc["requestBody"] = _object_request_body(gramps_class_name)
-        cls.post = api_blueprint.doc(**post_doc)(cls.post)
+        setattr(cls, "post", api_blueprint.doc(**post_doc)(cls.post))
 
     @api_blueprint.response(200, Schema(many=True))
     @api_blueprint.arguments(GrampsObjectsQueryArgs, location="query")
