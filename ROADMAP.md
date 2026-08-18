@@ -1,7 +1,7 @@
 # Roadmap
 
-Rough timelines and planned breaking changes, so projects building on the API can
-plan ahead. Not a commitment, not an issue tracker.
+Release timing and breaking changes, for projects building on the API.
+Features live in the issue tracker; dates here are estimates.
 
 ## Versioning
 
@@ -11,12 +11,12 @@ removed no earlier than the next major.
 
 ## Releases
 
-| Version | Target | Gramps | Focus |
+| Version | Target | Gramps | Breaking changes |
 |---|---|---|---|
-| 3.21.x | current | 6.0 | Fixes only |
-| 3.22.0 | September 2026 | 6.0 | Features |
-| 3.x | as needed | 6.0 | Features |
-| 4.0.0 | TBD | 6.0, 6.1 or 6.2 (open) | Multi-tree by default, removal of deprecations |
+| 3.21.x | current | 6.0 | none |
+| 3.22.0 | September 2026 | 6.0 | none |
+| 3.x | as needed | 6.0 | none |
+| 4.0.0 | TBD | 6.0, 6.1 or 6.2 (open) | multi-tree by default, removals below |
 
 ## Breaking in 4.0
 
