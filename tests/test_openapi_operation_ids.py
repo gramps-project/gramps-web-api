@@ -91,9 +91,8 @@ class TestOpenapiOperationIds(unittest.TestCase):
         for gramps_class_name, plural in GRAMPS_OBJECT_PLURAL.items():
             with self.subTest(gramps_class_name=gramps_class_name):
                 post_op = self._operation(f"/api/{plural}/", "post")
-                if gramps_class_name == "Media":
+                if gramps_class_name != "Media":
                     # Media upload takes a raw file, not a JSON object.
-                    continue
-                self.assertIn("requestBody", post_op)
+                    self.assertIn("requestBody", post_op)
                 put_op = self._operation(f"/api/{plural}/{{handle}}", "put")
                 self.assertIn("requestBody", put_op)
