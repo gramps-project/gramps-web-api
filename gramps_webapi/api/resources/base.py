@@ -289,6 +289,11 @@ class GrampsObjectQueryArgs(Schema):
     )
 
 
+def _indefinite_article(word: str) -> str:
+    """Return "a" or "an" depending on the word's leading sound."""
+    return "an" if word[:1].lower() in "aeiou" else "a"
+
+
 GRAMPS_OBJECT_REQUEST_BODY = {
     "required": True,
     "content": {
@@ -324,8 +329,9 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         if not gramps_class_name:
             return
         name = gramps_class_name.lower()
+        article = _indefinite_article(name)
         cls.get = api_blueprint.doc(
-            operationId=f"get_{name}", summary=f"Get a {name}"
+            operationId=f"get_{name}", summary=f"Get {article} {name}"
         )(cls.get)
         cls.put = api_blueprint.doc(
             operationId=f"update_{name}",
@@ -333,7 +339,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             requestBody=GRAMPS_OBJECT_REQUEST_BODY,
         )(cls.put)
         cls.delete = api_blueprint.doc(
-            operationId=f"delete_{name}", summary=f"Delete a {name}"
+            operationId=f"delete_{name}", summary=f"Delete {article} {name}"
         )(cls.delete)
 
     @api_blueprint.response(200, Schema())
@@ -615,7 +621,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         )(cls.get)
         post_doc = {
             "operationId": f"create_{singular}",
-            "summary": f"Create a new {singular}",
+            "summary": f"Create {_indefinite_article(singular)} new {singular}",
         }
         if gramps_class_name != "Media":
             # Media's POST takes a raw file upload (multipart), not a JSON
