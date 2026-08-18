@@ -36,18 +36,6 @@ from gramps.gen.errors import HandleError
 from PIL import Image
 
 from .api import api_blueprint
-from .api.resources.schemas import (
-    CitationSchema,
-    EventSchema,
-    FamilySchema,
-    MediaSchema,
-    NoteSchema,
-    PersonSchema,
-    PlaceSchema,
-    RepositorySchema,
-    SourceSchema,
-    TagSchema,
-)
 from .api.cache import persistent_cache, request_cache, thumbnail_cache
 from .api.ratelimiter import limiter
 from .api.search.embeddings import create_remote_embedding_function, load_model
@@ -298,26 +286,6 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         },
     )
     api.register_blueprint(api_blueprint)
-
-    # Explicitly register core Gramps object schemas so they appear in the
-    # generated OpenAPI spec even though the base-class GET methods use the
-    # generic Schema() response decorator.
-    for _schema_name, _schema_cls in [
-        ("Citation", CitationSchema),
-        ("Event", EventSchema),
-        ("Family", FamilySchema),
-        ("Media", MediaSchema),
-        ("Note", NoteSchema),
-        ("Person", PersonSchema),
-        ("Place", PlaceSchema),
-        ("Repository", RepositorySchema),
-        ("Source", SourceSchema),
-        ("Tag", TagSchema),
-    ]:
-        # Some of these (e.g. Person, via LivingDates) are already registered
-        # transitively as nested schemas while registering the blueprint.
-        if _schema_name not in api.spec.components.schemas:
-            api.spec.components.schema(_schema_name, schema=_schema_cls())
 
     limiter.init_app(app)
 

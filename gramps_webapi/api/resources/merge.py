@@ -181,31 +181,6 @@ class _SimpleMergeResource(GrampsJSONEncoder, ProtectedResource):
     gramps_class_name: str
     _merge_query_class: Type
 
-    def __init_subclass__(cls, **kwargs) -> None:
-        """Give each object type (Event, Place, ...) its own operationId.
-
-        post is defined once here and inherited unchanged by every merge
-        resource, so every generated OpenAPI operation would otherwise
-        share the same auto-derived operationId/summary ("Merge two
-        objects..."). That breaks tools that key off operationId, such as
-        OpenAPI-to-MCP generators.
-        """
-        super().__init_subclass__(**kwargs)
-        gramps_class_name = getattr(cls, "gramps_class_name", None)
-        if not gramps_class_name:
-            return
-        name = gramps_class_name.lower()
-        # setattr rather than plain assignment: mypy rejects assigning to a
-        # method, and this is an inherited method being re-decorated.
-        setattr(
-            cls,
-            "post",
-            api_blueprint.doc(
-                operationId=f"merge_{name}",
-                summary=f"Merge two {name} objects; phoenix survives, titanic is deleted",
-            )(cls.post),
-        )
-
     @api_blueprint.response(200, Schema())
     def post(self, phoenix_handle: str, titanic_handle: str) -> ResponseReturnValue:
         """Merge two objects. Phoenix survives; titanic is deleted."""

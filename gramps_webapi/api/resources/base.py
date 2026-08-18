@@ -19,7 +19,7 @@
 
 """Base for Gramps object API resources."""
 
-from typing import Any, TypeVar
+from typing import TypeVar
 
 import gramps_ql as gql
 import object_ql as oql
@@ -289,12 +289,7 @@ class GrampsObjectQueryArgs(Schema):
     )
 
 
-def _indefinite_article(word: str) -> str:
-    """Return "a" or "an" depending on the word's leading sound."""
-    return "an" if word[:1].lower() in "aeiou" else "a"
-
-
-def _object_request_body(gramps_class_name: str) -> dict:
+def object_request_body(gramps_class_name: str) -> dict:
     """Build the requestBody doc for a Gramps object mutation endpoint.
 
     The payload is the object itself, so it is documented by referencing
@@ -321,47 +316,6 @@ def _object_request_body(gramps_class_name: str) -> dict:
 
 class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
     """Resource for a single object."""
-
-    def __init_subclass__(cls, **kwargs) -> None:
-        """Give each object type (Person, Family, ...) its own operationId.
-
-        get/put/delete are defined once here and inherited unchanged by
-        every object type, so every generated OpenAPI operation would
-        otherwise share the same auto-derived operationId/summary (e.g.
-        "Get the object."). That breaks tools that key off operationId,
-        such as OpenAPI-to-MCP generators.
-        """
-        super().__init_subclass__(**kwargs)
-        gramps_class_name = getattr(cls, "gramps_class_name", None)
-        if not gramps_class_name:
-            return
-        name = gramps_class_name.lower()
-        article = _indefinite_article(name)
-        # setattr rather than plain assignment: mypy rejects assigning to a
-        # method, and these are inherited methods being re-decorated.
-        setattr(
-            cls,
-            "get",
-            api_blueprint.doc(
-                operationId=f"get_{name}", summary=f"Get {article} {name}"
-            )(cls.get),
-        )
-        setattr(
-            cls,
-            "put",
-            api_blueprint.doc(
-                operationId=f"update_{name}",
-                summary=f"Update an existing {name}",
-                requestBody=_object_request_body(gramps_class_name),
-            )(cls.put),
-        )
-        setattr(
-            cls,
-            "delete",
-            api_blueprint.doc(
-                operationId=f"delete_{name}", summary=f"Delete {article} {name}"
-            )(cls.delete),
-        )
 
     @api_blueprint.response(200, Schema())
     @api_blueprint.arguments(GrampsObjectQueryArgs, location="query")
@@ -632,33 +586,6 @@ class GrampsObjectsQueryArgs(Schema):
 
 class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
     """Resource for multiple objects."""
-
-    def __init_subclass__(cls, **kwargs) -> None:
-        """See `GrampsObjectResource.__init_subclass__`."""
-        super().__init_subclass__(**kwargs)
-        gramps_class_name = getattr(cls, "gramps_class_name", None)
-        if not gramps_class_name:
-            return
-        plural = GRAMPS_OBJECT_PLURAL[gramps_class_name]
-        singular = gramps_class_name.lower()
-        # setattr rather than plain assignment: mypy rejects assigning to a
-        # method, and these are inherited methods being re-decorated.
-        setattr(
-            cls,
-            "get",
-            api_blueprint.doc(
-                operationId=f"list_{plural}", summary=f"List {plural}"
-            )(cls.get),
-        )
-        post_doc: dict[str, Any] = {
-            "operationId": f"create_{singular}",
-            "summary": f"Create {_indefinite_article(singular)} new {singular}",
-        }
-        if gramps_class_name != "Media":
-            # Media's POST takes a raw file upload (multipart), not a JSON
-            # object, so it keeps its own request body documentation.
-            post_doc["requestBody"] = _object_request_body(gramps_class_name)
-        setattr(cls, "post", api_blueprint.doc(**post_doc)(cls.post))
 
     @api_blueprint.response(200, Schema(many=True))
     @api_blueprint.arguments(GrampsObjectsQueryArgs, location="query")
