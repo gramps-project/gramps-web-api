@@ -289,8 +289,52 @@ class GrampsObjectQueryArgs(Schema):
     )
 
 
+GRAMPS_OBJECT_REQUEST_BODY = {
+    "required": True,
+    "content": {
+        "application/json": {
+            "schema": {
+                "type": "object",
+                "additionalProperties": True,
+                "description": (
+                    "A Gramps object dict for this resource's object type. "
+                    "The `_class` field is optional; if present it must "
+                    "match the resource's object type."
+                ),
+            }
+        }
+    },
+}
+
+
 class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
     """Resource for a single object."""
+
+    def __init_subclass__(cls, **kwargs) -> None:
+        """Give each object type (Person, Family, ...) its own operationId.
+
+        get/put/delete are defined once here and inherited unchanged by
+        every object type, so every generated OpenAPI operation would
+        otherwise share the same auto-derived operationId/summary (e.g.
+        "Get the object."). That breaks tools that key off operationId,
+        such as OpenAPI-to-MCP generators.
+        """
+        super().__init_subclass__(**kwargs)
+        gramps_class_name = getattr(cls, "gramps_class_name", None)
+        if not gramps_class_name:
+            return
+        name = gramps_class_name.lower()
+        cls.get = api_blueprint.doc(
+            operationId=f"get_{name}", summary=f"Get a {name}"
+        )(cls.get)
+        cls.put = api_blueprint.doc(
+            operationId=f"update_{name}",
+            summary=f"Update an existing {name}",
+            requestBody=GRAMPS_OBJECT_REQUEST_BODY,
+        )(cls.put)
+        cls.delete = api_blueprint.doc(
+            operationId=f"delete_{name}", summary=f"Delete a {name}"
+        )(cls.delete)
 
     @api_blueprint.response(200, Schema())
     @api_blueprint.arguments(GrampsObjectQueryArgs, location="query")
@@ -557,6 +601,27 @@ class GrampsObjectsQueryArgs(Schema):
 
 class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
     """Resource for multiple objects."""
+
+    def __init_subclass__(cls, **kwargs) -> None:
+        """See `GrampsObjectResource.__init_subclass__`."""
+        super().__init_subclass__(**kwargs)
+        gramps_class_name = getattr(cls, "gramps_class_name", None)
+        if not gramps_class_name:
+            return
+        plural = GRAMPS_OBJECT_PLURAL[gramps_class_name]
+        singular = gramps_class_name.lower()
+        cls.get = api_blueprint.doc(
+            operationId=f"list_{plural}", summary=f"List {plural}"
+        )(cls.get)
+        post_doc = {
+            "operationId": f"create_{singular}",
+            "summary": f"Create a new {singular}",
+        }
+        if gramps_class_name != "Media":
+            # Media's POST takes a raw file upload (multipart), not a JSON
+            # object, so it keeps its own request body documentation.
+            post_doc["requestBody"] = GRAMPS_OBJECT_REQUEST_BODY
+        cls.post = api_blueprint.doc(**post_doc)(cls.post)
 
     @api_blueprint.response(200, Schema(many=True))
     @api_blueprint.arguments(GrampsObjectsQueryArgs, location="query")
