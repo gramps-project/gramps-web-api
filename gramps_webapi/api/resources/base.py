@@ -504,7 +504,11 @@ class GrampsObjectsQueryArgs(Schema):
     gql = fields.Str(
         validate=validate.Length(min=1),
         metadata={
-            "description": "A Gramps QL query string used to filter the objects (e.g. 'media_list.length >= 10')."
+            "description": (
+                "A Gramps QL (GQL) query string used to filter the objects "
+                "(e.g. 'media_list.length >= 10'). Full syntax reference: "
+                "https://github.com/DavidMStraub/gramps-ql/blob/main/README.md"
+            )
         },
     )
     oql = fields.Str(
