@@ -42,6 +42,7 @@ from .api.resources.schemas import (
     FamilySchema,
     MediaSchema,
     NoteSchema,
+    PersonSchema,
     PlaceSchema,
     RepositorySchema,
     SourceSchema,
@@ -307,12 +308,16 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         ("Family", FamilySchema),
         ("Media", MediaSchema),
         ("Note", NoteSchema),
+        ("Person", PersonSchema),
         ("Place", PlaceSchema),
         ("Repository", RepositorySchema),
         ("Source", SourceSchema),
         ("Tag", TagSchema),
     ]:
-        api.spec.components.schema(_schema_name, schema=_schema_cls())
+        # Some of these (e.g. Person, via LivingDates) are already registered
+        # transitively as nested schemas while registering the blueprint.
+        if _schema_name not in api.spec.components.schemas:
+            api.spec.components.schema(_schema_name, schema=_schema_cls())
 
     limiter.init_app(app)
 

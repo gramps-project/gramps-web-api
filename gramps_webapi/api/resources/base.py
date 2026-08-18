@@ -294,22 +294,29 @@ def _indefinite_article(word: str) -> str:
     return "an" if word[:1].lower() in "aeiou" else "a"
 
 
-GRAMPS_OBJECT_REQUEST_BODY = {
-    "required": True,
-    "content": {
-        "application/json": {
-            "schema": {
-                "type": "object",
-                "additionalProperties": True,
-                "description": (
-                    "A Gramps object dict for this resource's object type. "
-                    "The `_class` field is optional; if present it must "
-                    "match the resource's object type."
-                ),
+def _object_request_body(gramps_class_name: str) -> dict:
+    """Build the requestBody doc for a Gramps object mutation endpoint.
+
+    The payload is the object itself, so it is documented by referencing
+    the object's already-registered component schema rather than an
+    opaque `type: object`. The schema is shared with the response, so it
+    also lists the read-only fields (`backlinks`, `extended`, `profile`)
+    that the server adds on output and ignores on input.
+    """
+    return {
+        "required": True,
+        "content": {
+            "application/json": {
+                "schema": {
+                    "$ref": f"#/components/schemas/{gramps_class_name}",
+                }
             }
-        }
-    },
-}
+        },
+        "description": (
+            f"The {gramps_class_name} object to store. The `_class` field is "
+            f"optional; if present it must be `{gramps_class_name}`."
+        ),
+    }
 
 
 class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
@@ -336,7 +343,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         cls.put = api_blueprint.doc(
             operationId=f"update_{name}",
             summary=f"Update an existing {name}",
-            requestBody=GRAMPS_OBJECT_REQUEST_BODY,
+            requestBody=_object_request_body(gramps_class_name),
         )(cls.put)
         cls.delete = api_blueprint.doc(
             operationId=f"delete_{name}", summary=f"Delete {article} {name}"
@@ -626,7 +633,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         if gramps_class_name != "Media":
             # Media's POST takes a raw file upload (multipart), not a JSON
             # object, so it keeps its own request body documentation.
-            post_doc["requestBody"] = GRAMPS_OBJECT_REQUEST_BODY
+            post_doc["requestBody"] = _object_request_body(gramps_class_name)
         cls.post = api_blueprint.doc(**post_doc)(cls.post)
 
     @api_blueprint.response(200, Schema(many=True))
