@@ -36,6 +36,8 @@ from gramps.gen.errors import HandleError
 from PIL import Image
 
 from .api import api_blueprint
+from .api.cache import persistent_cache, request_cache, thumbnail_cache
+from .api.ratelimiter import limiter
 from .api.resources.schemas import (
     CitationSchema,
     EventSchema,
@@ -48,8 +50,6 @@ from .api.resources.schemas import (
     SourceSchema,
     TagSchema,
 )
-from .api.cache import persistent_cache, request_cache, thumbnail_cache
-from .api.ratelimiter import limiter
 from .api.search.embeddings import create_remote_embedding_function, load_model
 from .api.tasks import run_task, send_telemetry_task
 from .api.telemetry import get_server_uuid, should_send_telemetry
