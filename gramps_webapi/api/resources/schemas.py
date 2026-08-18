@@ -744,6 +744,7 @@ class NoteSchema(_Base):
     backlinks = fields.Nested(
         BacklinksSchema,
         metadata={"description": "Objects referring to this note, grouped by type."},
+        dump_only=True,
     )
     change = fields.Float(
         metadata={"description": "Unix timestamp of the last modification."},
@@ -752,6 +753,7 @@ class NoteSchema(_Base):
         metadata={
             "description": "Optional extended section with full referenced records."
         },
+        dump_only=True,
     )
     format = fields.Int(
         metadata={"description": "Format identifier (0=plain text, 1=pre-formatted)."},
@@ -792,6 +794,7 @@ class MediaSchema(_Base):
         metadata={
             "description": "Objects referring to this media item, grouped by type."
         },
+        dump_only=True,
     )
     change = fields.Float(
         metadata={"description": "Unix timestamp of the last modification."},
@@ -814,6 +817,7 @@ class MediaSchema(_Base):
         metadata={
             "description": "Optional extended section with full referenced records."
         },
+        dump_only=True,
     )
     gramps_id = fields.Str(
         metadata={"description": "Alternate user-managed identifier."},
@@ -837,6 +841,7 @@ class MediaSchema(_Base):
     profile = fields.Nested(
         MediaProfileSchema,
         metadata={"description": "Optional summary of media information."},
+        dump_only=True,
     )
     tag_list = fields.List(
         fields.Str(),
@@ -860,6 +865,7 @@ class RepositorySchema(_Base):
         metadata={
             "description": "Objects referring to this repository, grouped by type."
         },
+        dump_only=True,
     )
     change = fields.Float(
         metadata={"description": "Unix timestamp of the last modification."},
@@ -868,6 +874,7 @@ class RepositorySchema(_Base):
         metadata={
             "description": "Optional extended section with full referenced records."
         },
+        dump_only=True,
     )
     gramps_id = fields.Str(
         metadata={"description": "Alternate user-managed identifier."},
@@ -918,6 +925,7 @@ class SourceSchema(_Base):
     backlinks = fields.Nested(
         BacklinksSchema,
         metadata={"description": "Objects referring to this source, grouped by type."},
+        dump_only=True,
     )
     change = fields.Float(
         metadata={"description": "Unix timestamp of the last modification."},
@@ -926,6 +934,7 @@ class SourceSchema(_Base):
         metadata={
             "description": "Optional extended section with full referenced records."
         },
+        dump_only=True,
     )
     gramps_id = fields.Str(
         metadata={"description": "Alternate user-managed identifier."},
@@ -945,6 +954,7 @@ class SourceSchema(_Base):
     profile = fields.Nested(
         SourceProfileSchema,
         metadata={"description": "Optional summary of source information."},
+        dump_only=True,
     )
     pubinfo = fields.Str(
         metadata={"description": "Publication information."},
@@ -978,6 +988,7 @@ class CitationSchema(_Base):
         metadata={
             "description": "Objects referring to this citation, grouped by type."
         },
+        dump_only=True,
     )
     change = fields.Float(
         metadata={"description": "Unix timestamp of the last modification."},
@@ -993,6 +1004,7 @@ class CitationSchema(_Base):
         metadata={
             "description": "Optional extended section with full referenced records."
         },
+        dump_only=True,
     )
     gramps_id = fields.Str(
         metadata={"description": "Alternate user-managed identifier."},
@@ -1015,6 +1027,7 @@ class CitationSchema(_Base):
     profile = fields.Nested(
         CitationProfileSchema,
         metadata={"description": "Optional summary of citation information."},
+        dump_only=True,
     )
     source_handle = fields.Str(
         metadata={"description": "Handle of the source being cited."},
@@ -1043,6 +1056,7 @@ class PlaceSchema(_Base):
     backlinks = fields.Nested(
         BacklinksSchema,
         metadata={"description": "Objects referring to this place, grouped by type."},
+        dump_only=True,
     )
     change = fields.Float(
         metadata={"description": "Unix timestamp of the last modification."},
@@ -1058,6 +1072,7 @@ class PlaceSchema(_Base):
         metadata={
             "description": "Optional extended section with full referenced records."
         },
+        dump_only=True,
     )
     gramps_id = fields.Str(
         metadata={"description": "Alternate user-managed identifier."},
@@ -1094,6 +1109,7 @@ class PlaceSchema(_Base):
     profile = fields.Nested(
         PlaceProfileSchema,
         metadata={"description": "Optional summary of place information."},
+        dump_only=True,
     )
     tag_list = fields.List(
         fields.Str(),
@@ -1122,6 +1138,7 @@ class EventSchema(_Base):
     backlinks = fields.Nested(
         BacklinksSchema,
         metadata={"description": "Objects referring to this event, grouped by type."},
+        dump_only=True,
     )
     change = fields.Float(
         metadata={"description": "Unix timestamp of the last modification."},
@@ -1141,6 +1158,7 @@ class EventSchema(_Base):
         metadata={
             "description": "Optional extended section with full referenced records."
         },
+        dump_only=True,
     )
     gramps_id = fields.Str(
         metadata={"description": "Alternate user-managed identifier."},
@@ -1163,6 +1181,7 @@ class EventSchema(_Base):
     profile = fields.Nested(
         EventProfileSchema,
         metadata={"description": "Optional summary of event information."},
+        dump_only=True,
     )
     tag_list = fields.List(
         fields.Str(),
@@ -1187,6 +1206,7 @@ class FamilySchema(_Base):
     backlinks = fields.Nested(
         BacklinksSchema,
         metadata={"description": "Objects referring to this family, grouped by type."},
+        dump_only=True,
     )
     change = fields.Float(
         metadata={"description": "Unix timestamp of the last modification."},
@@ -1207,6 +1227,7 @@ class FamilySchema(_Base):
         metadata={
             "description": "Optional extended section with full referenced records."
         },
+        dump_only=True,
     )
     father_handle = fields.Str(
         metadata={"description": "Handle of the father."},
@@ -1236,6 +1257,7 @@ class FamilySchema(_Base):
     profile = fields.Nested(
         FamilyProfileSchema,
         metadata={"description": "Optional summary of family information."},
+        dump_only=True,
     )
     tag_list = fields.List(
         fields.Str(),
@@ -1270,6 +1292,7 @@ class PersonSchema(_Base):
     backlinks = fields.Nested(
         BacklinksSchema,
         metadata={"description": "Objects referring to this person, grouped by type."},
+        dump_only=True,
     )
     birth_ref_index = fields.Int(
         metadata={
@@ -1296,6 +1319,7 @@ class PersonSchema(_Base):
         metadata={
             "description": "Optional extended section with full referenced records."
         },
+        dump_only=True,
     )
     family_list = fields.List(
         fields.Str(),
@@ -1340,6 +1364,7 @@ class PersonSchema(_Base):
     profile = fields.Nested(
         PersonProfileSchema,
         metadata={"description": "Optional summary of key biographical information."},
+        dump_only=True,
     )
     tag_list = fields.List(
         fields.Str(),
