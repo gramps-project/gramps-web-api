@@ -36,19 +36,20 @@ from gramps.gen.errors import HandleError
 from PIL import Image
 
 from .api import api_blueprint
+from .api.cache import persistent_cache, request_cache, thumbnail_cache
+from .api.ratelimiter import limiter
 from .api.resources.schemas import (
     CitationSchema,
     EventSchema,
     FamilySchema,
     MediaSchema,
     NoteSchema,
+    PersonSchema,
     PlaceSchema,
     RepositorySchema,
     SourceSchema,
     TagSchema,
 )
-from .api.cache import persistent_cache, request_cache, thumbnail_cache
-from .api.ratelimiter import limiter
 from .api.search.embeddings import create_remote_embedding_function, load_model
 from .api.tasks import run_task, send_telemetry_task
 from .api.telemetry import get_server_uuid, should_send_telemetry
@@ -300,19 +301,23 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
 
     # Explicitly register core Gramps object schemas so they appear in the
     # generated OpenAPI spec even though the base-class GET methods use the
-    # generic Schema() response decorator.
+    # generic Schema() response decorator. Verified against the real app:
+    # only Person ends up in components.schemas without this (pulled in
+    # transitively via LivingDates); the other 9 need it registered here.
     for _schema_name, _schema_cls in [
         ("Citation", CitationSchema),
         ("Event", EventSchema),
         ("Family", FamilySchema),
         ("Media", MediaSchema),
         ("Note", NoteSchema),
+        ("Person", PersonSchema),
         ("Place", PlaceSchema),
         ("Repository", RepositorySchema),
         ("Source", SourceSchema),
         ("Tag", TagSchema),
     ]:
-        api.spec.components.schema(_schema_name, schema=_schema_cls())
+        if _schema_name not in api.spec.components.schemas:
+            api.spec.components.schema(_schema_name, schema=_schema_cls())
 
     limiter.init_app(app)
 
