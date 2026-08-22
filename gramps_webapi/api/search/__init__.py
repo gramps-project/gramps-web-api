@@ -19,7 +19,6 @@
 
 """Full-text search utilities."""
 
-import warnings
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -35,13 +34,8 @@ def _get_search_index_db_url() -> str:
     """
     db_url = current_app.config["SEARCH_INDEX_DB_URI"] or None
     if not db_url and current_app.config["SEARCH_INDEX_DIR"]:
-        # backwards compatibility...
+        # backwards compatibility, see gramps_webapi.api.deprecations
         db_url = f"sqlite:///{current_app.config['SEARCH_INDEX_DIR']}/search_index.db"
-        warnings.warn(
-            "The SEARCH_INDEX_DIR config option is deprecated and will be removed in a "
-            "future release. Please use SEARCH_INDEX_DB_URI instead, "
-            f"e.g. setting it to {db_url}"
-        )
     if not db_url:
         raise ValueError("SEARCH_INDEX_DB_URI option not set")
     url_parts = urlparse(db_url)

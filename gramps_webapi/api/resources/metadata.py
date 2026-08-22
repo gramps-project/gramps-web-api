@@ -37,7 +37,7 @@ from webargs import fields
 
 from gramps_webapi.const import TREE_MULTI, VERSION
 
-from ...auth.const import PERM_EDIT_TREE, PERM_VIEW_PRIVATE
+from ...auth.const import PERM_EDIT_SETTINGS, PERM_EDIT_TREE, PERM_VIEW_PRIVATE
 from ...dbmanager import WebDbManager
 from ..auth import has_permissions, require_permissions
 from ..blueprint import api_blueprint
@@ -227,6 +227,8 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 "chat": has_chat,
             },
         }
+        if has_permissions({PERM_EDIT_SETTINGS}):
+            result["deprecations"] = current_app.extensions["deprecations"]
         if args["surnames"]:
             result["surnames"] = db_handle.get_surname_list()
         data = db_handle.get_summary()
