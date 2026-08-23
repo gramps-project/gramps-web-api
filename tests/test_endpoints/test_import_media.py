@@ -143,3 +143,39 @@ class TestImporterMedia(unittest.TestCase):
         rv = self.client.get("/api/trees/-", headers=headers)
         assert rv.status_code == 200
         assert rv.json["usage_media"] == 2000 + 3000
+
+    def test_upload_too_large(self):
+        """An archive exceeding the configured maximum is rejected."""
+        headers = get_headers(self.client, "owner", "owner")
+        zip_path = os.path.join(self.tmp_dir, "toolarge.zip")
+        with zipfile.ZipFile(zip_path, "w") as fzip:
+            fzip.writestr("f5.jpg", os.urandom(1000))
+        self.test_app.config["MAX_MEDIA_ARCHIVE_UPLOAD_BYTES"] = 10
+        try:
+            with open(zip_path, "rb") as f:
+                rv = self.client.post(
+                    "/api/media/archive/upload/zip", headers=headers, data=f.read()
+                )
+        finally:
+            self.test_app.config["MAX_MEDIA_ARCHIVE_UPLOAD_BYTES"] = None
+        assert rv.status_code == 413
+        # no temporary file left behind
+        assert [fn for fn in os.listdir(self.export_dir) if fn.endswith(".zip")] == []
+
+    def test_upload_not_a_zip(self):
+        """An upload that is not a ZIP file does not leave a file behind."""
+        headers = get_headers(self.client, "owner", "owner")
+        rv = self.client.post(
+            "/api/media/archive/upload/zip", headers=headers, data=b"not a zip"
+        )
+        assert rv.status_code == 400
+        assert [fn for fn in os.listdir(self.export_dir) if fn.endswith(".zip")] == []
+
+    def test_upload_empty(self):
+        """An empty upload does not leave a file behind."""
+        headers = get_headers(self.client, "owner", "owner")
+        rv = self.client.post(
+            "/api/media/archive/upload/zip", headers=headers, data=b""
+        )
+        assert rv.status_code == 400
+        assert [fn for fn in os.listdir(self.export_dir) if fn.endswith(".zip")] == []
