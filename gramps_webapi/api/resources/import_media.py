@@ -20,6 +20,7 @@
 """Endpoint for importing a media archive."""
 
 import os
+import shutil
 import uuid
 import zipfile
 
@@ -33,6 +34,35 @@ from ..util import abort_with_message, get_tree_from_jwt
 from . import ProtectedResource
 from gramps_webapi.types import ResponseReturnValue
 
+# free disk space never to be consumed by an uploaded archive, so that a large
+# upload cannot fill up the file system holding EXPORT_DIR
+DISK_SPACE_RESERVE = 64 * 1024 * 1024  # 64 MB
+
+
+def get_max_upload_bytes(export_path: str) -> int:
+    """Return the maximum number of bytes an uploaded archive may have."""
+    free = shutil.disk_usage(export_path).free
+    max_bytes = max(free - DISK_SPACE_RESERVE, 0)
+    configured = current_app.config.get("MAX_MEDIA_ARCHIVE_UPLOAD_BYTES")
+    if configured:
+        return min(max_bytes, configured)
+    return max_bytes
+
+
+def write_upload_to_file(file_path: str, max_bytes: int) -> None:
+    """Stream the request body to a file, aborting if it exceeds `max_bytes`."""
+    request_stream = request.stream
+    size = 0
+    with open(file_path, "w+b") as ftmp:
+        chunk_size = 4 * 1024  # reading in 4 KB chunks
+        while True:
+            chunk = request_stream.read(chunk_size)
+            if not chunk:
+                break
+            size += len(chunk)
+            if size > max_bytes:
+                abort_with_message(413, "Uploaded archive is too large")
+            ftmp.write(chunk)
 
 
 class MediaUploadZipResource(ProtectedResource):
@@ -41,30 +71,36 @@ class MediaUploadZipResource(ProtectedResource):
     def post(self) -> ResponseReturnValue:
         """Upload an archive of media files."""
         require_permissions([PERM_IMPORT_FILE])
-        request_stream = request.stream
 
         # we use EXPORT_DIR as location to store the temporary file
         export_path = current_app.config["EXPORT_DIR"]
         os.makedirs(export_path, exist_ok=True)
+
+        max_bytes = get_max_upload_bytes(export_path)
+        if not max_bytes:
+            abort_with_message(507, "Not enough free space on disk")
+        if request.content_length and request.content_length > max_bytes:
+            abort_with_message(413, "Uploaded archive is too large")
+
         file_name = f"{uuid.uuid4()}.zip"
         file_path = os.path.join(export_path, file_name)
 
-        with open(file_path, "w+b") as ftmp:
-            chunk_size = 4 * 1024  # reading in 4 KB chunks
-            while True:
-                chunk = request_stream.read(chunk_size)
-                if not chunk:
-                    break
-                ftmp.write(chunk)
-
-        if os.path.getsize(file_path) == 0:
-            abort_with_message(400, "Imported file is empty")
-
         try:
-            with zipfile.ZipFile(file_path) as zip_file:
-                zip_file.namelist()
-        except zipfile.BadZipFile:
-            abort_with_message(400, "The uploaded file is not a valid ZIP file.")
+            write_upload_to_file(file_path, max_bytes=max_bytes)
+
+            if os.path.getsize(file_path) == 0:
+                abort_with_message(400, "Imported file is empty")
+
+            try:
+                with zipfile.ZipFile(file_path) as zip_file:
+                    zip_file.namelist()
+            except zipfile.BadZipFile:
+                abort_with_message(400, "The uploaded file is not a valid ZIP file.")
+        except Exception:
+            # don't leave the partial or rejected upload behind
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+            raise
 
         tree = get_tree_from_jwt()
         user_id = get_jwt_identity()

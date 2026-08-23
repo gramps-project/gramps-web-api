@@ -90,28 +90,38 @@ class MediaImporter:
 
         return missing_files
 
-    def _check_disk_space_and_extract(self) -> str:
-        """Check disk space and extract files into a temporary directory."""
-        total_size = 0
-        with zipfile.ZipFile(self.file_name, "r") as zip_file:
-            for file_info in zip_file.infolist():
-                total_size += file_info.file_size
+    def _extract_files(
+        self, to_upload: Dict[str, Tuple[str, int]]
+    ) -> Tuple[str, Dict[str, Tuple[str, int]]]:
+        """Extract the members to be uploaded into a temporary directory.
 
-            disk_usage = shutil.disk_usage(self.file_name)
-            if total_size > disk_usage.free:
+        Only the members that are actually needed are extracted, and only if
+        the file system holding the temporary directory has room for them.
+        Returns the temporary directory and a dictionary mapping checksums to
+        the extracted file path and size.
+        """
+        temp_dir = tempfile.mkdtemp()
+        try:
+            temp_dir_real = os.path.realpath(temp_dir)
+            total_size = sum(file_size for (_, file_size) in to_upload.values())
+            if total_size > shutil.disk_usage(temp_dir_real).free:
                 raise ValueError("Not enough free space on disk")
 
-            temp_dir = tempfile.mkdtemp()
-            temp_dir_real = os.path.realpath(temp_dir)
-            for member in zip_file.namelist():
-                member_path = os.path.realpath(os.path.join(temp_dir_real, member))
-                if not member_path.startswith(temp_dir_real + os.sep):
-                    raise ValueError(f"Zip Slip path traversal detected: {member}")
-            zip_file.extractall(temp_dir)
+            extracted: Dict[str, Tuple[str, int]] = {}
+            with zipfile.ZipFile(self.file_name, "r") as zip_file:
+                for checksum, (member, file_size) in to_upload.items():
+                    member_path = os.path.realpath(os.path.join(temp_dir_real, member))
+                    if not member_path.startswith(temp_dir_real + os.sep):
+                        raise ValueError(f"Zip Slip path traversal detected: {member}")
+                    file_path = zip_file.extract(member, temp_dir)
+                    extracted[checksum] = (file_path, file_size)
+        except Exception:
+            self._delete_temporary_directory(temp_dir)
+            raise
 
-        return temp_dir
+        return temp_dir, extracted
 
-    def _fix_missing_checksums(self, temp_dir: str, missing_files: MissingFiles) -> int:
+    def _fix_missing_checksums(self, missing_files: MissingFiles) -> int:
         """Fix objects with missing checksums if we have a file with matching path."""
         handles_by_path: Dict[str, List[str]] = {}
         for obj_details in missing_files[""]:
@@ -120,15 +130,14 @@ class MediaImporter:
                 handles_by_path[path] = []
             handles_by_path[path].append(obj_details["handle"])
         checksums_by_handle: Dict[str, str] = {}
-        for root, _, files in os.walk(temp_dir):
-            for name in files:
-                abs_file_path = os.path.join(root, name)
-                rel_file_path = os.path.relpath(abs_file_path, temp_dir)
-                if rel_file_path in handles_by_path:
-                    with open(abs_file_path, "rb") as f:
-                        checksum = get_checksum(f)
-                    for handle in handles_by_path[rel_file_path]:
-                        checksums_by_handle[handle] = checksum
+        with zipfile.ZipFile(self.file_name, "r") as zip_file:
+            for file_info in zip_file.infolist():
+                if file_info.is_dir() or file_info.filename not in handles_by_path:
+                    continue
+                with zip_file.open(file_info, "r") as f:
+                    checksum = get_checksum(f)
+                for handle in handles_by_path[file_info.filename]:
+                    checksums_by_handle[handle] = checksum
         if not checksums_by_handle:
             return 0
         with DbTxn("Updating checksums on media", self.db_handle) as trans:
@@ -145,17 +154,23 @@ class MediaImporter:
         return len(checksums_by_handle)
 
     def _identify_files_to_upload(
-        self, temp_dir: str, missing_files: MissingFiles
+        self, missing_files: MissingFiles
     ) -> Dict[str, Tuple[str, int]]:
-        """Identify files to upload from the extracted temporary directory."""
-        to_upload = {}
-        for root, _, files in os.walk(temp_dir):
-            for name in files:
-                file_path = os.path.join(root, name)
-                with open(file_path, "rb") as f:
+        """Identify the ZIP members to upload, keyed by checksum.
+
+        The archive is read as a stream, so nothing is written to disk yet.
+        Returns a dictionary mapping checksums to the member name and its
+        uncompressed size.
+        """
+        to_upload: Dict[str, Tuple[str, int]] = {}
+        with zipfile.ZipFile(self.file_name, "r") as zip_file:
+            for file_info in zip_file.infolist():
+                if file_info.is_dir():
+                    continue
+                with zip_file.open(file_info, "r") as f:
                     checksum = get_checksum(f)
-                    if checksum in missing_files and checksum not in to_upload:
-                        to_upload[checksum] = (file_path, os.path.getsize(file_path))
+                if checksum in missing_files and checksum not in to_upload:
+                    to_upload[checksum] = (file_info.filename, file_info.file_size)
 
         return to_upload
 
@@ -186,8 +201,11 @@ class MediaImporter:
         return num_failures
 
     def _delete_zip_file(self):
-        """Delete the ZIP file."""
-        return os.remove(self.file_name)
+        """Delete the ZIP file, if it still exists."""
+        try:
+            os.remove(self.file_name)
+        except FileNotFoundError:
+            pass
 
     def _delete_temporary_directory(self, temp_dir):
         """Delete the temporary directory."""
@@ -202,49 +220,62 @@ class MediaImporter:
         self, fix_missing_checksums: bool = True, progress_cb: Optional[Callable] = None
     ) -> Dict[str, int]:
         """Import a media archive file."""
+        try:
+            return self._import(
+                fix_missing_checksums=fix_missing_checksums, progress_cb=progress_cb
+            )
+        finally:
+            if self.delete:
+                self._delete_zip_file()
+
+    def _import(
+        self, fix_missing_checksums: bool = True, progress_cb: Optional[Callable] = None
+    ) -> Dict[str, int]:
+        """Import a media archive file, without deleting the ZIP file."""
         missing_files = self._identify_missing_files()
 
         if not missing_files:
             # no missing files
-            # delete ZIP file
-            if self.delete:
-                self._delete_zip_file()
             return {"missing": 0, "uploaded": 0, "failures": 0}
-
-        temp_dir = self._check_disk_space_and_extract()
 
         if "" in missing_files:
             if fix_missing_checksums:
                 # files without checksum! Need to fix that first
-                fixed = self._fix_missing_checksums(temp_dir, missing_files)
+                fixed = self._fix_missing_checksums(missing_files)
                 # after fixing checksums, we need fetch media objects again and re-run
                 if fixed:
                     self._update_objects()
                     # set fix_missing_checksums to False to avoid an infinite loop
-                    return self(fix_missing_checksums=False)
+                    return self._import(
+                        fix_missing_checksums=False, progress_cb=progress_cb
+                    )
             else:
                 # we already tried fixing checksums - ignore the 2nd time
                 missing_files.pop("")
 
-        # delete ZIP file
-        if self.delete:
-            self._delete_zip_file()
-
-        to_upload = self._identify_files_to_upload(temp_dir, missing_files)
+        to_upload = self._identify_files_to_upload(missing_files)
 
         if not to_upload:
             # no files to upload
-            self._delete_temporary_directory(temp_dir)
             return {"missing": len(missing_files), "uploaded": 0, "failures": 0}
 
+        # check the quota before writing anything to disk
         upload_size = sum(file_size for (_, file_size) in to_upload.values())
         check_quota_media(to_add=upload_size, tree=self.tree, user_id=self.user_id)
 
-        num_failures = self._upload_files(
-            to_upload, missing_files, progress_cb=progress_cb
-        )
+        temp_dir, extracted = self._extract_files(to_upload)
 
-        self._delete_temporary_directory(temp_dir)
+        # the ZIP file is no longer needed - free the disk space it uses
+        if self.delete:
+            self._delete_zip_file()
+
+        try:
+            num_failures = self._upload_files(
+                extracted, missing_files, progress_cb=progress_cb
+            )
+        finally:
+            self._delete_temporary_directory(temp_dir)
+
         self._update_media_usage()
 
         return {

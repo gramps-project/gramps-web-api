@@ -173,3 +173,68 @@ def test_mixed(setup):
     mi = MediaImporter(tree, "uid", db_handle, zip_file_name)
     result = mi()
     assert result == {"missing": 4, "uploaded": 2, "failures": 0}
+
+
+def test_quota_checked_before_extraction(setup):
+    """The quota must be checked before anything is written to disk."""
+    tree, db_handle, temp_dir = setup
+    files = ["f1.jpg", "subfolder/f2.jpg"]
+    checksums = create_zip(files, temp_dir, delete_files=True)
+    create_media(db_handle, files, checksums)
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    mi = MediaImporter(tree, "uid", db_handle, zip_file_name, delete=False)
+    with patch.object(
+        MediaImporter, "_extract_files", side_effect=AssertionError("extracted")
+    ):
+        with patch(
+            "gramps_webapi.api.media_importer.check_quota_media",
+            side_effect=ValueError("quota exceeded"),
+        ) as check_quota:
+            with pytest.raises(ValueError, match="quota exceeded"):
+                mi()
+    # the quota is checked for the size of the files to be uploaded only
+    assert check_quota.call_args.kwargs["to_add"] == 2000
+
+
+def test_only_missing_files_extracted(setup):
+    """Only the ZIP members that are actually needed are extracted."""
+    tree, db_handle, temp_dir = setup
+    files = ["f1.jpg", "subfolder/f2.jpg"]
+    checksums = create_zip(files, temp_dir, delete_files=True)
+    # only the first file has a media object, so only it needs to be extracted
+    create_media(db_handle, files[:1], checksums[:1])
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    mi = MediaImporter(tree, "uid", db_handle, zip_file_name, delete=False)
+    # enough space for one of the two files, but not for both
+    usage = shutil.disk_usage(temp_dir)._replace(free=1500)
+    with patch("shutil.disk_usage", return_value=usage):
+        result = mi()
+    assert result == {"missing": 1, "uploaded": 1, "failures": 0}
+
+
+def test_not_enough_disk_space(setup):
+    """Extraction is refused if the temporary file system is too small."""
+    tree, db_handle, temp_dir = setup
+    files = ["f1.jpg", "subfolder/f2.jpg"]
+    checksums = create_zip(files, temp_dir, delete_files=True)
+    create_media(db_handle, files, checksums)
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    mi = MediaImporter(tree, "uid", db_handle, zip_file_name, delete=False)
+    usage = shutil.disk_usage(temp_dir)._replace(free=1500)
+    with patch("shutil.disk_usage", return_value=usage):
+        with pytest.raises(ValueError, match="Not enough free space"):
+            mi()
+
+
+def test_zip_file_deleted_on_error(setup):
+    """The ZIP file is deleted even if the import fails."""
+    tree, db_handle, temp_dir = setup
+    files = ["f1.jpg"]
+    checksums = create_zip(files, temp_dir, delete_files=True)
+    create_media(db_handle, files, checksums)
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    mi = MediaImporter(tree, "uid", db_handle, zip_file_name, delete=True)
+    with patch.object(MediaImporter, "_upload_files", side_effect=ValueError("boom")):
+        with pytest.raises(ValueError, match="boom"):
+            mi()
+    assert not os.path.exists(zip_file_name)
