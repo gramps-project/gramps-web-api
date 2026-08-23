@@ -37,6 +37,7 @@ from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.json_utils import object_to_dict
 from gramps.gen.merge.diff import diff_items
+from werkzeug.exceptions import HTTPException
 
 from gramps_webapi.api.search.indexer import SearchIndexer, SemanticSearchIndexer
 
@@ -125,6 +126,9 @@ def run_task(task: Task, **kwargs) -> Union[AsyncResult, Any]:
         with current_app.app_context():
             try:
                 return task(**kwargs)
+            except HTTPException:
+                # the task aborted with an API error - preserve status & message
+                raise
             except Exception as exc:
                 abort_with_message(500, str(exc))
     task_id = str(uuid.uuid4())
