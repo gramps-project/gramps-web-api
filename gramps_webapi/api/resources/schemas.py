@@ -350,6 +350,12 @@ class EventProfileSchema(_Base):
 class PersonProfileSchema(_Base):
     """A summary of a person's key biographical information."""
 
+    addresses = fields.List(
+        fields.Raw(),
+        metadata={
+            "description": "Addresses with formatted dates, parallel to address_list."
+        },
+    )
     birth = fields.Nested(
         EventProfileSchema,
         metadata={"description": "Birth event profile (or best available fallback)."},

@@ -709,6 +709,10 @@ def get_person_profile_for_object(
             else name_displayer.display(person)
         ),
         "name_suffix": person.primary_name.get_suffix(),
+        "addresses": [
+            {"date_str": locale.date_displayer.display(address.date)}
+            for address in person.address_list
+        ],
     }
     if "all" in args or "span" in args:
         options.append("span")

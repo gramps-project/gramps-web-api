@@ -387,6 +387,7 @@ class TestEvents(unittest.TestCase):
                     "people": [
                         {
                             "person": {
+                                "addresses": [],
                                 "birth": {
                                     "date": "1987-08-29",
                                     "place": "Gainesville, Llano, TX, USA",
@@ -410,6 +411,7 @@ class TestEvents(unittest.TestCase):
                 "references": {
                     "person": [
                         {
+                            "addresses": [],
                             "birth": {
                                 "date": "1987-08-29",
                                 "place": "Gainesville, Llano, TX, USA",
@@ -674,6 +676,7 @@ class TestEventsHandle(unittest.TestCase):
                     "people": [
                         {
                             "person": {
+                                "addresses": [],
                                 "birth": {
                                     "date": "1250",
                                     "place": "Atchison, Atchison, KS, USA",
@@ -703,6 +706,7 @@ class TestEventsHandle(unittest.TestCase):
                 "references": {
                     "person": [
                         {
+                            "addresses": [],
                             "birth": {
                                 "date": "1250",
                                 "place": "Atchison, Atchison, KS, USA",
@@ -748,6 +752,7 @@ class TestEventsHandle(unittest.TestCase):
                     "people": [
                         {
                             "person": {
+                                "addresses": [],
                                 "birth": {
                                     "date": "1250",
                                     "place": "Atchison, Atchison, KS, USA",
@@ -777,6 +782,7 @@ class TestEventsHandle(unittest.TestCase):
                 "references": {
                     "person": [
                         {
+                            "addresses": [],
                             "birth": {
                                 "date": "1250",
                                 "place": "Atchison, Atchison, KS, USA",
@@ -825,6 +831,7 @@ class TestEventsHandle(unittest.TestCase):
                     "people": [
                         {
                             "person": {
+                                "addresses": [],
                                 "birth": {
                                     "date": "1250",
                                     "place": "Atchison, Atchison, KS, USA",
@@ -854,6 +861,7 @@ class TestEventsHandle(unittest.TestCase):
                 "references": {
                     "person": [
                         {
+                            "addresses": [],
                             "birth": {
                                 "date": "1250",
                                 "place": "Atchison, Atchison, KS, USA",
