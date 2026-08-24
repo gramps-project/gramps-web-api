@@ -232,7 +232,7 @@ class TestReportsReportIdFile(unittest.TestCase):
         self.assertTrue(rv.json["error"]["message"])
 
     def test_post_reports_report_id_file_report_error(self):
-        """Test that a ReportError in a background task gives a 422."""
+        """Test that a ReportError gives a 422 on the POST endpoint as well."""
         header = fetch_header(self.client)
         rv = self.client.post(TEST_URL + "place_report/file", headers=header)
         self.assertEqual(rv.status_code, 422)
