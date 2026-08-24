@@ -279,7 +279,9 @@ class DbUndoSQL(DbUndo):
         self.tree_id = tree_id
         self.user_id = user_id
         self.undodb: list[bytes] = []
-        self.engine = create_engine(dburl)
+        # verify pooled connections on checkout, as idle ones can be dropped
+        # server-side between operations on this engine
+        self.engine = create_engine(dburl, pool_pre_ping=True)
 
     @contextmanager
     def session_scope(self):
