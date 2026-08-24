@@ -1269,6 +1269,28 @@ def add_family_update_refs(
 # validation errors echo client input back; cap what goes into the response.
 MAX_VALIDATION_ERROR_LENGTH = 200
 
+# The Gramps schema neither requires `ref` nor forbids an empty one, so a
+# reference with no target is stored as `ref = None` and breaks the XML export.
+# See https://github.com/gramps-project/gramps-web-api/issues/479
+REF_CLASSES = frozenset(
+    {"ChildRef", "EventRef", "MediaRef", "PersonRef", "PlaceRef", "RepoRef"}
+)
+
+
+def _validate_refs(value: Any, path: str = "$") -> None:
+    """Check recursively that every reference object has a non-empty ref.
+
+    Raises ValueError naming the offending path, like jsonschema does.
+    """
+    if isinstance(value, dict):
+        if value.get("_class") in REF_CLASSES and not value.get("ref"):
+            raise ValueError(f"{path}: '{value['_class']}' requires a non-empty 'ref'")
+        for key, item in value.items():
+            _validate_refs(item, f"{path}.{key}")
+    elif isinstance(value, list):
+        for i, item in enumerate(value):
+            _validate_refs(item, f"{path}[{i}]")
+
 
 def validate_object_dict(obj_dict: dict[str, Any]) -> None:
     """Validate a dict representation of a Gramps object vs. its schema.
@@ -1323,6 +1345,8 @@ def validate_object_dict(obj_dict: dict[str, Any]) -> None:
         if len(message) > MAX_VALIDATION_ERROR_LENGTH:
             message = message[:MAX_VALIDATION_ERROR_LENGTH] + "..."
         raise ValueError(message) from exc
+
+    _validate_refs(obj_dict_fixed)
 
 
 def xml_to_locale(gramps_type_name: str, string: str) -> str:

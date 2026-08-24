@@ -28,6 +28,7 @@ from typing import Callable, Optional
 
 from gramps.gen.db import DbTxn, DbWriteBase
 from gramps.gen.dbstate import DbState
+from gramps.gen.lib import Person
 
 # db.<attr> caches of custom type values (e.g. db.event_names); only ever
 # grow as records commit, so they need rebuilding from live data here.
@@ -142,13 +143,73 @@ def rebuild_custom_type_caches(db_handle: DbWriteBase) -> list[tuple[str, str]]:
     return removed
 
 
+# Reference objects with an empty `ref` are invisible to Gramps' own check
+# tool: `MediaRef.get_referenced_handles()` and its siblings guard the ref with
+# `if self.ref`, so the empty-ref branches in `CheckIntegrity.check_*_references()`
+# can never fire. Such references survive check & repair and then break the
+# Gramps XML export, which writes `"_" + ref` for an <objref>.
+# See https://github.com/gramps-project/gramps-web-api/issues/479
+REF_LIST_ATTRS = (
+    # (plural for iter_*, singular for commit_*, reference list attributes)
+    ("people", "person", ("media_list", "event_ref_list", "person_ref_list")),
+    ("families", "family", ("media_list", "event_ref_list", "child_ref_list")),
+    ("events", "event", ("media_list",)),
+    ("places", "place", ("media_list", "placeref_list")),
+    ("sources", "source", ("media_list", "reporef_list")),
+    ("citations", "citation", ("media_list",)),
+)
+
+
+def _strip_empty_refs_from_object(obj, attrs: tuple[str, ...]) -> int:
+    """Drop references without a target from one object.
+
+    Returns the number of references removed.
+    """
+    removed = 0
+    for attr in attrs:
+        ref_list = getattr(obj, attr)
+        kept = [ref for ref in ref_list if ref.ref]
+        if len(kept) == len(ref_list):
+            continue
+        removed += len(ref_list) - len(kept)
+        if attr == "event_ref_list" and isinstance(obj, Person):
+            # birth_ref_index and death_ref_index are positions in
+            # event_ref_list, so they have to be re-derived after dropping
+            # entries. set_*_ref() looks the reference up in the new list;
+            # a birth or death reference that was itself dropped is unset.
+            birth_ref = obj.get_birth_ref()
+            death_ref = obj.get_death_ref()
+            obj.event_ref_list = kept
+            obj.set_birth_ref(birth_ref if birth_ref and birth_ref.ref else None)
+            obj.set_death_ref(death_ref if death_ref and death_ref.ref else None)
+        else:
+            setattr(obj, attr, kept)
+    return removed
+
+
+def strip_empty_refs(db_handle: DbWriteBase, trans: DbTxn) -> list[tuple[str, str]]:
+    """Remove references without a target from all primary objects.
+
+    Returns the list of (object type, Gramps ID) pairs that were repaired.
+    """
+    repaired: list[tuple[str, str]] = []
+    for plural, singular, attrs in REF_LIST_ATTRS:
+        iter_objects = getattr(db_handle, f"iter_{plural}")
+        commit = getattr(db_handle, f"commit_{singular}")
+        for obj in iter_objects():
+            if _strip_empty_refs_from_object(obj, attrs):
+                commit(obj, trans)
+                repaired.append((singular, obj.gramps_id))
+    return repaired
+
+
 def check_database(db_handle: DbWriteBase, progress_cb: Optional[Callable] = None):
     from gramps.plugins.tool.check import CheckIntegrity
 
     i = 0
 
     def progress(i):
-        total = 21
+        total = 22
         if progress_cb:
             progress_cb(current=i, total=total)
         i += 1
@@ -202,6 +263,11 @@ def check_database(db_handle: DbWriteBase, progress_cb: Optional[Callable] = Non
         checker.check_events()
 
         i = progress(i)
+        # has to run before the reference checks below, which cannot see
+        # references whose ref is empty - see REF_LIST_ATTRS
+        stripped_refs = strip_empty_refs(db_handle, trans)
+
+        i = progress(i)
         checker.check_person_references()
 
         i = progress(i)
@@ -249,8 +315,13 @@ def check_database(db_handle: DbWriteBase, progress_cb: Optional[Callable] = Non
     db_handle.enable_signals()
     db_handle.request_rebuild()
 
-    errs = checker.build_report() + len(removed_custom_types)
+    errs = checker.build_report() + len(removed_custom_types) + len(stripped_refs)
     text = checker.text.getvalue()
+    if stripped_refs:
+        text += (
+            f"{len(stripped_refs)} object(s) had references without a target, "
+            "which were removed\n"
+        )
     if removed_custom_types:
         text += (
             f"{len(removed_custom_types)} unused custom type value(s) were "

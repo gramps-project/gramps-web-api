@@ -387,3 +387,51 @@ def test_validate_object_dict_rejects_non_class_attributes(class_name):
 
     with pytest.raises(ValueError):
         validate_object_dict({"_class": class_name})
+
+
+@pytest.mark.parametrize(
+    "obj_dict,expected",
+    [
+        # the payload the frontend produces when a media object form is saved
+        # with nothing selected -- see gramps-web-api#479
+        ({"_class": "Person", "media_list": [{}]}, "MediaRef"),
+        (
+            {"_class": "Person", "media_list": [{"_class": "MediaRef", "ref": ""}]},
+            "MediaRef",
+        ),
+        ({"_class": "Person", "event_ref_list": [{}]}, "EventRef"),
+        ({"_class": "Person", "person_ref_list": [{}]}, "PersonRef"),
+        ({"_class": "Family", "child_ref_list": [{}]}, "ChildRef"),
+        ({"_class": "Place", "placeref_list": [{}]}, "PlaceRef"),
+        ({"_class": "Source", "reporef_list": [{}]}, "RepoRef"),
+    ],
+)
+def test_validate_object_dict_rejects_reference_without_target(obj_dict, expected):
+    """A reference without a target is stored as `ref = None`.
+
+    Gramps' check tool cannot see such a reference and the Gramps XML export
+    crashes on it, so it has to be rejected on the way in.
+    """
+    from flask import Flask
+
+    from gramps_webapi.api.resources.util import fix_object_dict, validate_object_dict
+
+    with Flask(__name__).app_context():
+        with pytest.raises(ValueError) as excinfo:
+            validate_object_dict(fix_object_dict(obj_dict))
+
+    assert expected in str(excinfo.value)
+
+
+def test_validate_object_dict_accepts_reference_with_target():
+    """A reference that names a handle must still pass."""
+    from flask import Flask
+
+    from gramps_webapi.api.resources.util import fix_object_dict, validate_object_dict
+
+    obj_dict = {
+        "_class": "Person",
+        "media_list": [{"_class": "MediaRef", "ref": "abcd1234"}],
+    }
+    with Flask(__name__).app_context():
+        validate_object_dict(fix_object_dict(obj_dict))
