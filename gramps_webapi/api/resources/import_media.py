@@ -39,14 +39,18 @@ from gramps_webapi.types import ResponseReturnValue
 DISK_SPACE_RESERVE = 64 * 1024 * 1024  # 64 MB
 
 
-def get_max_upload_bytes(export_path: str) -> int:
-    """Return the maximum number of bytes an uploaded archive may have."""
+def get_free_upload_bytes(export_path: str) -> int:
+    """Return the free disk space usable by an uploaded archive."""
     free = shutil.disk_usage(export_path).free
-    max_bytes = max(free - DISK_SPACE_RESERVE, 0)
+    return max(free - DISK_SPACE_RESERVE, 0)
+
+
+def get_max_upload_bytes(free_bytes: int) -> int:
+    """Return the maximum number of bytes an uploaded archive may have."""
     configured = current_app.config.get("MAX_MEDIA_ARCHIVE_UPLOAD_BYTES")
-    if configured:
-        return min(max_bytes, configured)
-    return max_bytes
+    if configured is not None:
+        return min(free_bytes, configured)
+    return free_bytes
 
 
 def write_upload_to_file(file_path: str, max_bytes: int) -> None:
@@ -76,9 +80,11 @@ class MediaUploadZipResource(ProtectedResource):
         export_path = current_app.config["EXPORT_DIR"]
         os.makedirs(export_path, exist_ok=True)
 
-        max_bytes = get_max_upload_bytes(export_path)
-        if not max_bytes:
+        free_bytes = get_free_upload_bytes(export_path)
+        if not free_bytes:
             abort_with_message(507, "Not enough free space on disk")
+
+        max_bytes = get_max_upload_bytes(free_bytes)
         if request.content_length and request.content_length > max_bytes:
             abort_with_message(413, "Uploaded archive is too large")
 

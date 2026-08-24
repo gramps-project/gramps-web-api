@@ -231,7 +231,11 @@ class MediaImporter:
     def _import(
         self, fix_missing_checksums: bool = True, progress_cb: Optional[Callable] = None
     ) -> Dict[str, int]:
-        """Import a media archive file, without deleting the ZIP file."""
+        """Import a media archive file.
+
+        The ZIP file is deleted as soon as it is no longer needed; `__call__`
+        makes sure it is deleted as well if this method raises.
+        """
         missing_files = self._identify_missing_files()
 
         if not missing_files:

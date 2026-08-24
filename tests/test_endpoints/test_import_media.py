@@ -150,6 +150,7 @@ class TestImporterMedia(unittest.TestCase):
         zip_path = os.path.join(self.tmp_dir, "toolarge.zip")
         with zipfile.ZipFile(zip_path, "w") as fzip:
             fzip.writestr("f5.jpg", os.urandom(1000))
+        previous = self.test_app.config.get("MAX_MEDIA_ARCHIVE_UPLOAD_BYTES")
         self.test_app.config["MAX_MEDIA_ARCHIVE_UPLOAD_BYTES"] = 10
         try:
             with open(zip_path, "rb") as f:
@@ -157,7 +158,7 @@ class TestImporterMedia(unittest.TestCase):
                     "/api/media/archive/upload/zip", headers=headers, data=f.read()
                 )
         finally:
-            self.test_app.config["MAX_MEDIA_ARCHIVE_UPLOAD_BYTES"] = None
+            self.test_app.config["MAX_MEDIA_ARCHIVE_UPLOAD_BYTES"] = previous
         assert rv.status_code == 413
         # no temporary file left behind
         assert [fn for fn in os.listdir(self.export_dir) if fn.endswith(".zip")] == []
