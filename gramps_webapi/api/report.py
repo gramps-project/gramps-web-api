@@ -34,7 +34,7 @@ from gramps.cli.user import User
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.display.name import displayer as name_displayer
-from gramps.gen.errors import HandleError
+from gramps.gen.errors import HandleError, ReportError
 from gramps.gen.filters import reload_custom_filters
 from gramps.gen.plug import BasePluginManager
 from gramps.gen.plug.docgen import PaperStyle
@@ -371,15 +371,22 @@ def run_report(
             module = plugin_manager.load_plugin(report_data)
             option_class = getattr(module, report_data.optionclass)
             report_class = getattr(module, report_data.reportclass)
-            cl_report_new(
-                db_handle,
-                report_data.name,
-                report_data.category,
-                report_class,
-                option_class,
-                report_options,
-                language=language,
-            )
+            try:
+                cl_report_new(
+                    db_handle,
+                    report_data.name,
+                    report_data.category,
+                    report_class,
+                    option_class,
+                    report_options,
+                    language=language,
+                )
+            except ReportError as exc:
+                # raised by report plugins when the options don't allow
+                # producing a report, e.g. no place selected for the place
+                # report - the client's problem, not a server fault
+                title, detail = exc.messages()
+                abort_with_message(422, detail or title)
             if (
                 file_type == ".dot"
                 and not os.path.isfile(report_options["of"])

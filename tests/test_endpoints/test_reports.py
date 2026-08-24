@@ -223,6 +223,25 @@ class TestReportsReportIdFile(unittest.TestCase):
         contents = rv.get_data(as_text=True)
         assert "Ahnentafel Bericht für" in contents
 
+    def test_get_reports_report_id_file_report_error(self):
+        """Test that a ReportError raised by a report plugin gives a 422."""
+        header = fetch_header(self.client)
+        rv = self.client.get(TEST_URL + "place_report/file", headers=header)
+        self.assertEqual(rv.status_code, 422)
+        # the message is localized, so only check that one is returned
+        self.assertTrue(rv.json["error"]["message"])
+
+    def test_post_reports_report_id_file_report_error(self):
+        """Test that a ReportError gives a 422 on the POST endpoint as well."""
+        header = fetch_header(self.client)
+        rv = self.client.post(TEST_URL + "place_report/file", headers=header)
+        self.assertEqual(rv.status_code, 422)
+        # the error payload must survive the task execution
+        self.assertTrue(rv.is_json)
+        self.assertEqual(rv.json["error"]["code"], 422)
+        # the message is localized, so only check that one is returned
+        self.assertTrue(rv.json["error"]["message"])
+
     def test_get_reports_report_id_file_one_of_each(self):
         """Test one of each available report."""
         # note some reports have unidentified mandatory options with no defaults
