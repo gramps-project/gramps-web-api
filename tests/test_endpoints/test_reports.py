@@ -236,6 +236,11 @@ class TestReportsReportIdFile(unittest.TestCase):
         header = fetch_header(self.client)
         rv = self.client.post(TEST_URL + "place_report/file", headers=header)
         self.assertEqual(rv.status_code, 422)
+        # the error payload must survive the task execution
+        self.assertTrue(rv.is_json)
+        self.assertEqual(rv.json["error"]["code"], 422)
+        # the message is localized, so only check that one is returned
+        self.assertTrue(rv.json["error"]["message"])
 
     def test_get_reports_report_id_file_one_of_each(self):
         """Test one of each available report."""
