@@ -395,7 +395,12 @@ def display_date(date: Optional[Date], locale: GrampsLocale = glocale) -> str:
         return ""
     try:
         return locale.date_displayer.display(date)
-    except Exception:
+    except IndexError:
+        # every way a malformed date breaks the displayer surfaces as an
+        # IndexError -- it indexes tuples by modifier, quality and calendar,
+        # and slices `dateval` for the stop half of a range. Anything else is
+        # a real bug and has to propagate rather than turn into a blank date.
+        #
         # log the shape of the date but never its values: the log must not
         # retain family tree data.
         _LOG.warning(

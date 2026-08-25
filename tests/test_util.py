@@ -562,3 +562,20 @@ def test_display_date_handles_a_missing_date():
     from gramps_webapi.api.resources.util import display_date
 
     assert display_date(None) == ""
+
+
+def test_display_date_does_not_swallow_unexpected_errors():
+    """Only malformed stored dates are tolerated; real bugs must surface.
+
+    A misconfigured locale or a programming error would otherwise be converted
+    into a blank date and go unnoticed in production.
+    """
+    from gramps.gen.lib import Date
+
+    from gramps_webapi.api.resources.util import display_date
+
+    locale = MagicMock()
+    locale.date_displayer.display.side_effect = RuntimeError("locale is broken")
+
+    with pytest.raises(RuntimeError):
+        display_date(Date(), locale)
