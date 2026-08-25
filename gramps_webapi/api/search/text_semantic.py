@@ -454,7 +454,6 @@ def family_to_text(obj: Family, db_handle: DbReadBase) -> tuple[str, str]:
     if obj.type:
         string += f"Their relationship was: {obj.type.xml_str()}. "
     if obj.event_ref_list:
-        string += name + " had the following family events: "
         event_strings = []
         for event_ref in obj.event_ref_list:
             try:
@@ -463,12 +462,12 @@ def family_to_text(obj: Family, db_handle: DbReadBase) -> tuple[str, str]:
                 continue
             event_text = event_to_line(event, db_handle)
             event_strings.append(event_text)
-        string += pjoin(";", event_strings) + ". "
-    if obj.child_ref_list:
-        string += PString(
-            name + " had the following children: ",
-            private=all([child_ref.private for child_ref in obj.child_ref_list]),
+        string += pwrap(
+            name + " had the following family events: ",
+            pjoin(";", event_strings),
+            ". ",
         )
+    if obj.child_ref_list:
         child_strings = []
         for child_ref in obj.child_ref_list:
             try:
@@ -489,7 +488,14 @@ def family_to_text(obj: Family, db_handle: DbReadBase) -> tuple[str, str]:
                 )
             if string_child:
                 child_strings.append(string_child)
-        string += pjoin(", ", child_strings)
+        string += pwrap(
+            PString(
+                name + " had the following children: ",
+                private=all([child_ref.private for child_ref in obj.child_ref_list]),
+            ),
+            pjoin(", ", child_strings),
+            "",
+        )
     # not included:
     # media, attribute, citation, note
     # childref citation, note, gender

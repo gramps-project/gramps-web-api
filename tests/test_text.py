@@ -20,7 +20,7 @@
 """Test search text functions."""
 
 from gramps.gen.errors import HandleError
-from gramps.gen.lib import Event, EventRef, Family
+from gramps.gen.lib import ChildRef, Event, EventRef, Family
 
 from gramps_webapi.api.search.text_semantic import (
     PString,
@@ -123,3 +123,21 @@ def test_family_to_text_dangling_event_ref():
     public, private = family_to_text(family, DanglingDb())
     assert "F0000" in private
     assert "F0000" in public
+    # no empty "had the following family events: ." sentence
+    assert "family events" not in private
+    assert "family events" not in public
+
+
+def test_family_to_text_dangling_child_ref():
+    family = Family()
+    family.set_gramps_id("F0000")
+    family.set_handle("family-handle")
+    child_ref = ChildRef()
+    child_ref.set_reference_handle("does-not-exist")
+    family.set_child_ref_list([child_ref])
+    public, private = family_to_text(family, DanglingDb())
+    assert "F0000" in private
+    assert "F0000" in public
+    # no dangling "had the following children: " sentence
+    assert "following children" not in private
+    assert "following children" not in public
