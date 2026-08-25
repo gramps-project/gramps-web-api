@@ -741,24 +741,10 @@ def process_transactions(
         if num_people_new:
             update_usage_people(tree=tree, user_id=user_id)
         # update search index
-        indexer: SearchIndexer = get_search_indexer(tree)
-        for _trans_dict in trans_dict:
-            handle = _trans_dict["handle"]
-            class_name = _trans_dict["_class"]
-            if _trans_dict["type"] == "delete":
-                indexer.delete_object(handle, class_name)
-            else:
-                indexer.add_or_update_object(handle, db_handle, class_name)
+        _index_objects(get_search_indexer(tree), trans_dict, db_handle)
         # update semantic search index
         if app_has_semantic_search():
-            semantic_indexer: SemanticSearchIndexer = get_semantic_search_indexer(tree)
-            for _trans_dict in trans_dict:
-                handle = _trans_dict["handle"]
-                class_name = _trans_dict["_class"]
-                if _trans_dict["type"] == "delete":
-                    semantic_indexer.delete_object(handle, class_name)
-                else:
-                    semantic_indexer.add_or_update_object(handle, db_handle, class_name)
+            _index_objects(get_semantic_search_indexer(tree), trans_dict, db_handle)
     finally:
         close_db(db_handle)
     return trans_dict
@@ -804,7 +790,7 @@ def _index_objects(
     trans_dict: list[dict],
     db_handle: DbReadBase,
 ) -> None:
-    """Add or update every object of a transaction in one search index.
+    """Apply every record of a transaction to one search index.
 
     The whole transaction shares a single task, so an object that cannot be
     indexed must not abort the loop: nothing retries this task, and every
@@ -814,7 +800,12 @@ def _index_objects(
         handle = _trans_dict["handle"]
         class_name = _trans_dict["_class"]
         try:
-            indexer.add_or_update_object(handle, db_handle, class_name)
+            # `type` is absent from the entry a merge builds by hand, which
+            # only ever needs re-indexing
+            if _trans_dict.get("type") == "delete":
+                indexer.delete_object(handle, class_name)
+            else:
+                indexer.add_or_update_object(handle, db_handle, class_name)
         except Exception:
             # handle and class name are identifiers rather than tree data,
             # so they are safe to log and are needed to find the object.

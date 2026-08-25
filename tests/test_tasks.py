@@ -52,6 +52,29 @@ def test_index_objects_keeps_going_after_a_failure(caplog):
     assert "Event bbbb2222" in caplog.text
 
 
+def test_index_objects_applies_deletes_and_updates():
+    """A transaction record says which of the two actions the index needs."""
+    indexer = MagicMock()
+    db_handle = MagicMock()
+
+    _index_objects(
+        indexer,
+        [
+            {"handle": "aaaa1111", "_class": "Person", "type": "delete"},
+            {"handle": "bbbb2222", "_class": "Event", "type": "update"},
+            # the entry a merge builds by hand carries no type at all
+            {"handle": "cccc3333", "_class": "Family"},
+        ],
+        db_handle,
+    )
+
+    indexer.delete_object.assert_called_once_with("aaaa1111", "Person")
+    assert [call.args for call in indexer.add_or_update_object.call_args_list] == [
+        ("bbbb2222", db_handle, "Event"),
+        ("cccc3333", db_handle, "Family"),
+    ]
+
+
 def test_index_objects_indexes_every_object():
     """The normal case must be unaffected."""
     indexer = MagicMock()
