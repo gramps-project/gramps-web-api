@@ -1,3 +1,4 @@
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -435,3 +436,129 @@ def test_validate_object_dict_accepts_reference_with_target():
     }
     with Flask(__name__).app_context():
         validate_object_dict(fix_object_dict(obj_dict))
+
+
+@pytest.mark.parametrize(
+    "date_dict",
+    [
+        # a range/span whose stop half is missing -- Date.get_stop_date() slices
+        # dateval[4:8] and returns an empty tuple, which the date displayer
+        # then indexes into
+        {"_class": "Date", "modifier": 4, "dateval": [1, 1, 1900, False]},
+        {"_class": "Date", "modifier": 5, "dateval": [1, 1, 1900, False]},
+        # no dateval at all: completion fills in the empty four-value date,
+        # which is just as short
+        {"_class": "Date", "modifier": 4},
+        # a simple date that cannot even fill its start half
+        {"_class": "Date", "modifier": 0, "dateval": [1, 1]},
+        {"_class": "Date", "modifier": 3, "dateval": []},
+    ],
+)
+def test_validate_object_dict_rejects_date_too_short_for_modifier(date_dict):
+    """A date with fewer values than its modifier needs must not be stored.
+
+    Gramps' own Date.set() enforces this, but data_to_object() bypasses it and
+    the Gramps JSON schema puts no length constraint on dateval, so such a date
+    is persisted and then raises IndexError on every attempt to display it.
+    """
+    from flask import Flask
+
+    from gramps_webapi.api.resources.util import fix_object_dict, validate_object_dict
+
+    obj_dict = {"_class": "Event", "date": date_dict}
+    with Flask(__name__).app_context():
+        with pytest.raises(ValueError) as excinfo:
+            validate_object_dict(fix_object_dict(obj_dict))
+
+    assert "dateval" in str(excinfo.value)
+    assert "$.date" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "date_dict",
+    [
+        {"_class": "Date", "modifier": 0, "dateval": [1, 1, 1900, False]},
+        {
+            "_class": "Date",
+            "modifier": 4,
+            "dateval": [1, 1, 1900, False, 2, 2, 1950, False],
+        },
+        # text-only dates do not read dateval
+        {"_class": "Date", "modifier": 6, "dateval": [], "text": "sometime"},
+        # a partial date dict must keep working
+        {"_class": "Date"},
+    ],
+)
+def test_validate_object_dict_accepts_displayable_date(date_dict):
+    """Every date Gramps itself can display must still pass."""
+    from flask import Flask
+    from gramps.gen.const import GRAMPS_LOCALE as glocale
+
+    from gramps_webapi.api.resources.util import fix_object_dict, validate_object_dict
+    from gramps_webapi.api.util import gramps_object_from_dict
+
+    obj_dict = fix_object_dict({"_class": "Event", "date": date_dict})
+    with Flask(__name__).app_context():
+        validate_object_dict(obj_dict)
+
+    # the point of the check: whatever survives it can be displayed
+    obj = gramps_object_from_dict(obj_dict)
+    glocale.date_displayer.display(obj.date)
+
+
+@pytest.mark.parametrize("modifier", [4, 5])
+def test_display_date_survives_a_date_gramps_cannot_format(modifier, caplog):
+    """A date already stored with too few values must not raise.
+
+    Validation rejects these on the way in, but trees written before that check
+    existed still hold them, and one such date must not turn a whole profile
+    response into a 500.
+    """
+    from gramps.gen.lib import Date
+
+    from gramps_webapi.api.resources.util import display_date
+
+    date = Date()
+    date.set_modifier(modifier)
+    date.dateval = (1, 1, 1900, False)
+
+    with caplog.at_level(logging.WARNING):
+        assert display_date(date) == ""
+
+    # the log names the shape of the date, never its values
+    assert "Cannot display date" in caplog.text
+    assert "1900" not in caplog.text
+
+
+def test_display_date_falls_back_to_the_date_text():
+    """A broken date that carries verbatim user input shows that input."""
+    from gramps.gen.lib import Date
+
+    from gramps_webapi.api.resources.util import display_date
+
+    date = Date()
+    date.set_modifier(Date.MOD_SPAN)
+    date.dateval = (1, 1, 1900, False)
+    date.text = "from about 1900"
+
+    assert display_date(date) == "from about 1900"
+
+
+def test_display_date_formats_a_normal_date():
+    """The fallback must not change what a valid date looks like."""
+    from gramps.gen.const import GRAMPS_LOCALE as glocale
+    from gramps.gen.lib import Date
+
+    from gramps_webapi.api.resources.util import display_date
+
+    date = Date()
+    date.set_yr_mon_day(1900, 1, 1)
+
+    assert display_date(date) == glocale.date_displayer.display(date)
+
+
+def test_display_date_handles_a_missing_date():
+    """`probably_alive_range` returns None when it cannot infer a date."""
+    from gramps_webapi.api.resources.util import display_date
+
+    assert display_date(None) == ""

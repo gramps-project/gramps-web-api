@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from typing import Sequence
 
-from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import (
@@ -27,7 +26,7 @@ from gramps.gen.lib import (
 from gramps.gen.utils.location import get_location_list
 from gramps.gen.utils.place import conv_lat_lon
 
-from ..resources.util import get_event_participants_for_handle
+from ..resources.util import display_date, get_event_participants_for_handle
 
 
 class PString:
@@ -148,7 +147,7 @@ def pwrap(
 
 def date_to_text(date: Date) -> str:
     """Convert a date to text."""
-    return glocale.date_displayer.display(date)
+    return display_date(date)
 
 
 def name_to_text(name: Name) -> str:

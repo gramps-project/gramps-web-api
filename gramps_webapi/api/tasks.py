@@ -799,6 +799,30 @@ def old_unchanged(db: DbReadBase, class_name: str, handle: str, old_data: Dict) 
     return True
 
 
+def _index_objects(
+    indexer: SearchIndexer | SemanticSearchIndexer,
+    trans_dict: list[dict],
+    db_handle: DbReadBase,
+) -> None:
+    """Add or update every object of a transaction in one search index.
+
+    The whole transaction shares a single task, so an object that cannot be
+    indexed must not abort the loop: nothing retries this task, and every
+    object after the failing one would silently stay out of the index.
+    """
+    for _trans_dict in trans_dict:
+        handle = _trans_dict["handle"]
+        class_name = _trans_dict["_class"]
+        try:
+            indexer.add_or_update_object(handle, db_handle, class_name)
+        except Exception:
+            # handle and class name are identifiers rather than tree data,
+            # so they are safe to log and are needed to find the object.
+            logging.getLogger(__name__).exception(
+                "Failed to update search index for %s %s", class_name, handle
+            )
+
+
 @shared_task(bind=True)
 def update_search_indices_from_transaction(
     self, trans_dict: list[dict], tree: str, user_id: str
@@ -808,17 +832,9 @@ def update_search_indices_from_transaction(
         tree=tree, view_private=True, readonly=True, user_id=user_id
     )
     try:
-        indexer = get_search_indexer(tree)
-        for _trans_dict in trans_dict:
-            handle = _trans_dict["handle"]
-            class_name = _trans_dict["_class"]
-            indexer.add_or_update_object(handle, db_handle, class_name)
+        _index_objects(get_search_indexer(tree), trans_dict, db_handle)
         if app_has_semantic_search():
-            indexer_semantic = get_semantic_search_indexer(tree)
-            for _trans_dict in trans_dict:
-                handle = _trans_dict["handle"]
-                class_name = _trans_dict["_class"]
-                indexer_semantic.add_or_update_object(handle, db_handle, class_name)
+            _index_objects(get_semantic_search_indexer(tree), trans_dict, db_handle)
     finally:
         close_db(db_handle)
 
