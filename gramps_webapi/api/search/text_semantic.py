@@ -464,7 +464,7 @@ def family_to_text(obj: Family, db_handle: DbReadBase) -> tuple[str, str]:
             event_strings.append(event_text)
         string += pwrap(
             name + " had the following family events: ",
-            pjoin(";", event_strings),
+            pjoin("; ", event_strings),
             ". ",
         )
     if obj.child_ref_list:
