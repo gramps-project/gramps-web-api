@@ -291,28 +291,34 @@ pronouns_pers = {
 
 def get_family_title(obj: Family, db_handle: DbReadBase) -> PString:
     """Get a title for a family."""
+    father_name = PString("Unknown father")
     if obj.father_handle:
-        person = db_handle.get_person_from_handle(obj.father_handle)
-        private = person.private or person.primary_name.private
-        father_name = PString(
-            name_to_text(person.primary_name),
-            private=private,
-        )
-        if private:
-            father_name += PString("Unknown father", public_only=True)
-    else:
-        father_name = PString("Unknown father")
+        try:
+            person = db_handle.get_person_from_handle(obj.father_handle)
+        except HandleError:
+            person = None
+        if person is not None:
+            private = person.private or person.primary_name.private
+            father_name = PString(
+                name_to_text(person.primary_name),
+                private=private,
+            )
+            if private:
+                father_name += PString("Unknown father", public_only=True)
+    mother_name = PString("unknown mother")
     if obj.mother_handle:
-        person = db_handle.get_person_from_handle(obj.mother_handle)
-        private = person.private or person.primary_name.private
-        mother_name = PString(
-            name_to_text(person.primary_name),
-            private=private,
-        )
-        if private:
-            mother_name += PString("unknown mother", public_only=True)
-    else:
-        mother_name = PString("unknown mother")
+        try:
+            person = db_handle.get_person_from_handle(obj.mother_handle)
+        except HandleError:
+            person = None
+        if person is not None:
+            private = person.private or person.primary_name.private
+            mother_name = PString(
+                name_to_text(person.primary_name),
+                private=private,
+            )
+            if private:
+                mother_name += PString("unknown mother", public_only=True)
     return father_name + " and " + mother_name
 
 
@@ -451,7 +457,10 @@ def family_to_text(obj: Family, db_handle: DbReadBase) -> tuple[str, str]:
         string += name + " had the following family events: "
         event_strings = []
         for event_ref in obj.event_ref_list:
-            event = db_handle.get_event_from_handle(event_ref.ref)
+            try:
+                event = db_handle.get_event_from_handle(event_ref.ref)
+            except HandleError:
+                continue
             event_text = event_to_line(event, db_handle)
             event_strings.append(event_text)
         string += pjoin(";", event_strings) + ". "
@@ -507,11 +516,14 @@ def event_to_text(obj: Event, db_handle: DbReadBase) -> tuple[str, str]:
     if obj.date and not obj.date.is_empty():
         string += f"It happened on the following date: {date_to_text(obj.date)}. "
     if obj.place:
-        place = db_handle.get_place_from_handle(obj.place)
-        place_string = place_to_line(place, db_handle)
-        string += PString(
-            "The event location was " + place_string + ". ", private=place.private
-        )
+        try:
+            place = db_handle.get_place_from_handle(obj.place)
+            place_string = place_to_line(place, db_handle)
+            string += PString(
+                "The event location was " + place_string + ". ", private=place.private
+            )
+        except HandleError:
+            pass
     if obj.description:
         string += f'The event description is as follows: "{obj.description}". '
     participants = get_event_participants_for_handle(
