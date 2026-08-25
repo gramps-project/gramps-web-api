@@ -26,7 +26,7 @@ from typing import Dict
 from flask import Response
 from flask_jwt_extended import get_jwt_identity
 from gramps.gen.db import REFERENCE_KEY
-from gramps.gen.db.dbconst import TXNADD, TXNDEL, TXNUPD
+from gramps.gen.db.dbconst import KEY_TO_CLASS_MAP, TXNADD, TXNDEL, TXNUPD
 from marshmallow import Schema
 from webargs import fields, validate
 
@@ -52,6 +52,7 @@ from .schemas import UndoTransactionSchema
 from .util import etag_unchanged, reverse_transaction
 
 trans_code = {"delete": TXNDEL, "add": TXNADD, "update": TXNUPD}
+OBJECT_CLASSES = sorted(set(KEY_TO_CLASS_MAP.values()))
 
 
 class TransactionsHistoryQueryArgs(Schema):
@@ -113,6 +114,20 @@ class TransactionsHistoryQueryArgs(Schema):
             "description": "Transaction ID; if provided, return only transactions with an id strictly greater than this value. Unlike the timestamp-based `before`/`after` cursor, this is exact and has no floating-point precision loss. 0 means 'from the beginning'."
         },
     )
+    obj_class = fields.Str(
+        load_default=None,
+        validate=validate.OneOf(OBJECT_CLASSES),
+        metadata={
+            "description": "Object class to scope the history to, e.g. 'Person'. Must be given together with `obj_handle`; when both are set, only that object's own changes are returned (as a flat list of changes rather than transactions), instead of every transaction in the tree."
+        },
+    )
+    obj_handle = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=1),
+        metadata={
+            "description": "Handle of the object to scope the history to. Must be given together with `obj_class`."
+        },
+    )
 
 
 class TransactionsHistoryResource(ProtectedResource):
@@ -121,10 +136,17 @@ class TransactionsHistoryResource(ProtectedResource):
     @api_blueprint.response(200, UndoTransactionSchema(many=True))
     @api_blueprint.arguments(TransactionsHistoryQueryArgs, location="query")
     def get(self, args: Dict) -> Response:
-        """Return a list of transactions."""
+        """Return a list of transactions, or a single object's change history."""
         require_permissions([PERM_VIEW_PRIVATE])
         db_handle = get_db_handle()
         undodb = db_handle.undodb
+
+        if args["obj_class"] or args["obj_handle"]:
+            if not (args["obj_class"] and args["obj_handle"]):
+                abort_with_message(
+                    422, "`obj_class` and `obj_handle` must be given together"
+                )
+            return object_history_response(undodb, args)
 
         max_id, count = undodb.get_transactions_state(
             before=args["before"],
@@ -156,6 +178,40 @@ class TransactionsHistoryResource(ProtectedResource):
             fix_transaction_user(transaction, user_dict) for transaction in transactions
         ]
         return transactions_response(json.dumps(transactions), count=count, etag=etag)
+
+
+def object_history_response(undodb, args: Dict) -> Response:
+    """Return the change history of a single object as a flat list of changes."""
+    obj_class = args["obj_class"]
+    obj_handle = args["obj_handle"]
+    max_ts, count = undodb.get_object_changes_state(
+        obj_class=obj_class,
+        obj_handle=obj_handle,
+        before=args["before"],
+        after=args["after"],
+    )
+    etag = transactions_etag(args, max_ts, count)
+    if etag_unchanged(etag):
+        return transactions_response(None, count=count, etag=etag)
+
+    ascending = args.get("sort") != "-id"
+    changes, count = undodb.get_object_changes(
+        obj_class=obj_class,
+        obj_handle=obj_handle,
+        page=args["page"],
+        pagesize=args["pagesize"],
+        old_data=args["old"],
+        new_data=args["new"],
+        ascending=ascending,
+        before=args["before"],
+        after=args["after"],
+        known_count=count,
+    )
+
+    # replace user IDs by user name
+    user_dict = get_user_dict(transaction_user_ids(changes))
+    changes = [fix_transaction_user(change, user_dict) for change in changes]
+    return transactions_response(json.dumps(changes), count=count, etag=etag)
 
 
 class TransactionHistoryQueryArgs(Schema):

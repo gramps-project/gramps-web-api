@@ -304,6 +304,103 @@ class TestGetTransactions(unittest.TestCase):
         assert change["new_data"]["_class"] == "Person"
 
 
+class TestGetObjectChanges(unittest.TestCase):
+    """Tests for the object-scoped change history queries of `DbUndoSQLWeb`."""
+
+    def setUp(self):
+        self.dbdir = tempfile.mkdtemp()
+        self.db: DbWriteBase = make_database("sqlite")
+
+        def create_undo_manager():
+            path = self.db.undolog
+            return DbUndoSQLWeb(grampsdb=self.db, dburl=f"sqlite:///{path}", tree_id=1)
+
+        self.db._create_undo_manager = create_undo_manager
+        self.db.load(self.dbdir)
+
+        with DbTxn("Add person and note", self.db) as trans:
+            person = Person()
+            self.db.add_person(person, trans)
+            note = Note()
+            self.db.add_note(note, trans)
+        self.person_handle = person.handle
+        self.note_handle = note.handle
+
+        person.gramps_id = "modified"
+        with DbTxn("Modify person", self.db) as trans:
+            self.db.commit_person(person, trans)
+
+    def tearDown(self):
+        self.db.close(update=False)
+        shutil.rmtree(self.dbdir)
+
+    def test_returns_only_this_object_changes(self):
+        undodb = self.db.get_undodb()
+        changes, count = undodb.get_object_changes("Person", self.person_handle)
+        assert count == 2
+        assert [change["trans_type"] for change in changes] == [0, 1]  # add, modify
+        assert all(change["obj_handle"] == self.person_handle for change in changes)
+        assert all(change["obj_class"] == "Person" for change in changes)
+
+    def test_excludes_sibling_changes_from_same_transaction(self):
+        undodb = self.db.get_undodb()
+        changes, count = undodb.get_object_changes("Note", self.note_handle)
+        assert count == 1
+        assert changes[0]["obj_handle"] == self.note_handle
+
+    def test_unknown_handle_returns_empty(self):
+        undodb = self.db.get_undodb()
+        changes, count = undodb.get_object_changes("Person", "nonexistent")
+        assert changes == []
+        assert count == 0
+
+    def test_state(self):
+        undodb = self.db.get_undodb()
+        max_ts, count = undodb.get_object_changes_state("Person", self.person_handle)
+        assert count == 2
+        assert isinstance(max_ts, int)
+        with DbTxn("Modify person again", self.db) as trans:
+            person = self.db.get_person_from_handle(self.person_handle)
+            person.gramps_id = "modified again"
+            self.db.commit_person(person, trans)
+        new_max_ts, new_count = undodb.get_object_changes_state(
+            "Person", self.person_handle
+        )
+        assert new_count == 3
+        assert new_max_ts >= max_ts
+
+    def test_data_only_included_on_demand(self):
+        undodb = self.db.get_undodb()
+        changes, _ = undodb.get_object_changes(
+            "Person", self.person_handle, old_data=False, new_data=False
+        )
+        assert "old_data" not in changes[0]
+        assert "new_data" not in changes[0]
+        changes, _ = undodb.get_object_changes(
+            "Person", self.person_handle, old_data=True, new_data=True
+        )
+        assert changes[1]["old_data"]["gramps_id"] != "modified"
+        assert changes[1]["new_data"]["gramps_id"] == "modified"
+
+    def test_pagination_and_descending(self):
+        undodb = self.db.get_undodb()
+        changes, count = undodb.get_object_changes(
+            "Person", self.person_handle, page=1, pagesize=1
+        )
+        assert count == 2
+        assert len(changes) == 1
+        assert changes[0]["trans_type"] == 0  # add, ascending default
+        changes, _ = undodb.get_object_changes(
+            "Person", self.person_handle, ascending=False
+        )
+        assert [change["trans_type"] for change in changes] == [1, 0]
+
+    def test_connection_included(self):
+        undodb = self.db.get_undodb()
+        changes, _ = undodb.get_object_changes("Person", self.person_handle)
+        assert changes[0]["connection"]["id"] == 1
+
+
 class TestMigrate(unittest.TestCase):
     """Tests for the migrate() function (pre-v3.0 → v3.0 undo DB migration)."""
 
@@ -360,8 +457,7 @@ class TestMigrate(unittest.TestCase):
         undodb = self._get_undodb()
 
         cols_before = {
-            col["name"]
-            for col in sa_inspect(undodb.engine).get_columns("changes")
+            col["name"] for col in sa_inspect(undodb.engine).get_columns("changes")
         }
         self.assertNotIn("old_json", cols_before)
         self.assertNotIn("new_json", cols_before)
@@ -369,8 +465,7 @@ class TestMigrate(unittest.TestCase):
         migrate(undodb)
 
         cols_after = {
-            col["name"]
-            for col in sa_inspect(undodb.engine).get_columns("changes")
+            col["name"] for col in sa_inspect(undodb.engine).get_columns("changes")
         }
         self.assertIn("old_json", cols_after)
         self.assertIn("new_json", cols_after)
@@ -383,9 +478,12 @@ class TestMigrate(unittest.TestCase):
         undodb = self._get_undodb()
 
         with undodb.session_scope() as session:
-            nulls: int = session.execute(
-                text("SELECT COUNT(*) FROM changes WHERE new_json IS NULL")
-            ).scalar() or 0
+            nulls: int = (
+                session.execute(
+                    text("SELECT COUNT(*) FROM changes WHERE new_json IS NULL")
+                ).scalar()
+                or 0
+            )
         self.assertGreater(nulls, 0)
 
         migrate(undodb)
@@ -405,10 +503,46 @@ class TestMigrate(unittest.TestCase):
 
         undodb = self._get_undodb()
         with undodb.session_scope() as session:
-            count: int = session.execute(
-                text("SELECT COUNT(*) FROM changes")
-            ).scalar() or 0
+            count: int = (
+                session.execute(text("SELECT COUNT(*) FROM changes")).scalar() or 0
+            )
         self.assertGreater(count, 0)
+
+    def test_migrate_adds_missing_object_index(self):
+        """migrate() adds the (obj_class, obj_handle) index when absent."""
+        from gramps_webapi.undodb import migrate
+        from sqlalchemy import inspect as sa_inspect
+
+        undodb = self._get_undodb()
+        with undodb.engine.begin() as conn:
+            conn.execute(text("DROP INDEX ix_changes_obj_class_obj_handle"))
+
+        index_names_before = {
+            idx["name"] for idx in sa_inspect(undodb.engine).get_indexes("changes")
+        }
+        self.assertNotIn("ix_changes_obj_class_obj_handle", index_names_before)
+
+        migrate(undodb)
+
+        index_names_after = {
+            idx["name"] for idx in sa_inspect(undodb.engine).get_indexes("changes")
+        }
+        self.assertIn("ix_changes_obj_class_obj_handle", index_names_after)
+
+    def test_migrate_object_index_idempotent(self):
+        """Calling migrate() when the index already exists does not raise."""
+        from gramps_webapi.undodb import migrate
+
+        undodb = self._get_undodb()
+        migrate(undodb)
+        migrate(undodb)  # second call must not crash
+
+        from sqlalchemy import inspect as sa_inspect
+
+        index_names = {
+            idx["name"] for idx in sa_inspect(undodb.engine).get_indexes("changes")
+        }
+        self.assertIn("ix_changes_obj_class_obj_handle", index_names)
 
     def test_migrate_noop_when_current(self):
         """migrate() on an already-current DB (all JSON populated) is a no-op."""

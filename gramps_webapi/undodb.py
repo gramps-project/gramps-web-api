@@ -44,6 +44,7 @@ from gramps.gen.lib.json_utils import (
 from sqlalchemy import (
     BigInteger,
     ForeignKey,
+    Index,
     Integer,
     LargeBinary,
     PrimaryKeyConstraint,
@@ -89,7 +90,12 @@ class Change(Base):
     """A change is a single addition, deletion, or modification of a Gramps object."""
 
     __tablename__ = "changes"
-    __table_args__ = (PrimaryKeyConstraint("id", "connection_id"),)
+    __table_args__ = (
+        PrimaryKeyConstraint("id", "connection_id"),
+        # handles aren't guaranteed unique across object classes, so both
+        # columns are needed to look up a single object's change history
+        Index("ix_changes_obj_class_obj_handle", "obj_class", "obj_handle"),
+    )
 
     id = mapped_column(Integer)
     connection_id = mapped_column(Integer, ForeignKey("connections.id"), index=True)
@@ -333,7 +339,7 @@ class DbUndoSQL(DbUndo):
 
     def append(self, value) -> None:
         """Add a new entry on the end."""
-        (obj_type, trans_type, handle, old_data, new_data) = pickle.loads(value)
+        obj_type, trans_type, handle, old_data, new_data = pickle.loads(value)
         if isinstance(handle, tuple):
             obj_handle, ref_handle = handle
         else:
@@ -432,7 +438,7 @@ class DbUndoSQL(DbUndo):
         """
         Set an entry to a value.
         """
-        (obj_type, trans_type, handle, old_data, new_data) = pickle.loads(value)
+        obj_type, trans_type, handle, old_data, new_data = pickle.loads(value)
         if isinstance(handle, tuple):
             obj_handle, ref_handle = handle
         else:
@@ -489,7 +495,7 @@ class DbUndoSQL(DbUndo):
         try:
             self.db._txn_begin()
             for record_id in subitems:
-                (key, trans_type, handle, old_data, new_data) = pickle.loads(
+                key, trans_type, handle, old_data, new_data = pickle.loads(
                     records[record_id]
                 )
 
@@ -544,7 +550,7 @@ class DbUndoSQL(DbUndo):
         try:
             self.db._txn_begin()
             for record_id in subitems:
-                (key, trans_type, handle, old_data, new_data) = pickle.loads(
+                key, trans_type, handle, old_data, new_data = pickle.loads(
                     records[record_id]
                 )
 
@@ -724,6 +730,111 @@ class DbUndoSQLWeb(DbUndoSQL):
             changes = _get_changes(session, [transaction], old_data, new_data)
             return transaction._to_dict(changes[transaction.id])
 
+    def _object_changes_query(
+        self,
+        session: Session,
+        obj_class: str,
+        obj_handle: str,
+        before: float | None = None,
+        after: float | None = None,
+    ):
+        """Build the base query for a single object's changes in this tree.
+
+        Filters on the indexed (obj_class, obj_handle) pair, so this is a
+        direct lookup rather than a scan of every change ever made.
+        """
+        query = (
+            session.query(Change)
+            .join(Change.connection)
+            .filter(Connection.tree_id == self.tree_id)
+            .filter(Change.obj_class == obj_class, Change.obj_handle == obj_handle)
+        )
+        if before:
+            query = query.filter(Change.timestamp < before * 1e9)
+        if after:
+            query = query.filter(Change.timestamp > after * 1e9)
+        return query
+
+    def get_object_changes_state(
+        self,
+        obj_class: str,
+        obj_handle: str,
+        before: float | None = None,
+        after: float | None = None,
+    ) -> tuple[int | None, int]:
+        """Get the latest change timestamp and count for a single object.
+
+        Changes are append-only and immutable, so this pair changes whenever
+        the result of an object history query changes.
+        """
+        with self.session_scope() as session:
+            query = self._object_changes_query(
+                session, obj_class, obj_handle, before=before, after=after
+            )
+            return query.with_entities(
+                func.max(Change.timestamp), func.count(Change.id)
+            ).one()
+
+    def get_object_changes(
+        self,
+        obj_class: str,
+        obj_handle: str,
+        page: int = 1,
+        pagesize: int = 20,
+        old_data: bool = True,
+        new_data: bool = True,
+        ascending: bool = True,
+        before: float | None = None,
+        after: float | None = None,
+        known_count: int | None = None,
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Get a single object's own change history as a JSONifiable list.
+
+        Unlike `get_transactions`, this queries `Change` directly instead of
+        resolving through `Transaction`'s first/last id-range logic: it's the
+        object's own change rows that a history view wants, not the sibling
+        changes that happened to share a transaction with them.
+
+        `Change.id` is only unique within a connection (it is part of a
+        composite primary key together with `connection_id`), so unlike
+        `Transaction.id` it cannot be used as a global ordering key or
+        cursor here; changes are ordered/filtered by timestamp instead.
+
+        `known_count` is returned in place of counting the matching changes
+        again.
+        """
+        with self.session_scope() as session:
+            query = self._object_changes_query(
+                session, obj_class, obj_handle, before=before, after=after
+            )
+            count = query.count() if known_count is None else known_count
+            if ascending:
+                query = query.order_by(
+                    Change.timestamp, Change.connection_id, Change.id
+                )
+            else:
+                query = query.order_by(
+                    Change.timestamp.desc(),
+                    Change.connection_id.desc(),
+                    Change.id.desc(),
+                )
+            if page and pagesize:
+                query = query.limit(pagesize).offset((page - 1) * pagesize)
+            # the legacy binary columns are never serialised, the JSON ones only on demand
+            deferred = [defer(Change.old_data), defer(Change.new_data)]
+            if not old_data:
+                deferred.append(defer(Change.old_json))
+            if not new_data:
+                deferred.append(defer(Change.new_json))
+            changes = query.options(contains_eager(Change.connection), *deferred).all()
+            return [
+                {
+                    **change._to_dict(old_data=old_data, new_data=new_data),
+                    "connection": change.connection._to_dict(),
+                }
+                for change in changes
+            ], count
+
 
 def _add_json_columns(undodb: DbUndoSQL) -> None:
     """Add old_json/new_json columns to the changes table if not already present.
@@ -744,10 +855,32 @@ def _add_json_columns(undodb: DbUndoSQL) -> None:
                 )
 
 
+def _add_object_index(undodb: DbUndoSQL) -> None:
+    """Add an index on (obj_class, obj_handle) to the changes table if absent.
+
+    Only needed when migrating a database created before this index was
+    added to the schema. Unlike `_add_json_columns`'s row-by-row JSON
+    backfill below, this needs no data migration: a single
+    `CREATE INDEX IF NOT EXISTS` is built natively by the database engine,
+    without reading or rewriting any row data through the ORM.
+    """
+    inspector = inspect(undodb.engine)
+    index_names = {idx["name"] for idx in inspector.get_indexes("changes")}
+    if "ix_changes_obj_class_obj_handle" not in index_names:
+        with undodb.engine.begin() as conn:
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_changes_obj_class_obj_handle "
+                    "ON changes (obj_class, obj_handle)"
+                )
+            )
+
+
 def migrate(undodb: DbUndoSQL) -> None:
     """Migrate the undo db to a new schema if needed."""
     undodb._ensure_schema()
     _add_json_columns(undodb)
+    _add_object_index(undodb)
     with undodb.session_scope() as session:
         # return all rows where old_json AND new_json are NULL
         rows = (
