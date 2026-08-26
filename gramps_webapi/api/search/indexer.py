@@ -225,6 +225,23 @@ class SearchIndexerBase:
         self, db_handle: DbReadBase, progress_cb: ProgressCallback | None = None
     ):
         """Update the index incrementally."""
+        if self.index.count() == 0:
+            # Empty index -- every object in db_handle is "new", so this
+            # call is really a full reindex (e.g. right after a bulk
+            # import into a previously-empty tree). The path below fetches
+            # each new/changed object individually by handle
+            # (obj_strings_from_handle -> get_<class>_from_handle: one DB
+            # round trip per object, before even counting the extra
+            # per-object lookups object_to_strings() does for
+            # Family/Event parent and participant names). reindex_full()
+            # instead streams every object via the DB's own bulk iterators
+            # (iter_people() etc. -- one query per object type, not one
+            # per object), which is what it's already built for. For a
+            # tree with hundreds of thousands of objects fresh off a bulk
+            # import, that's the difference between roughly ten queries
+            # and potentially millions of individual round trips.
+            self.reindex_full(db_handle, progress_cb=progress_cb)
+            return
         update_info = self._get_update_info(db_handle)
         total = sum(
             len(handles)
