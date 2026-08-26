@@ -39,7 +39,7 @@ from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from unidecode import unidecode
 
 from ...const import GRAMPS_OBJECT_PLURAL, PRIMARY_GRAMPS_OBJECTS
-from ..resources.util import get_event_participants_for_handle
+from ..resources.util import get_event_participants_for_handle, preload_event_backlinks
 from .text_semantic import (
     person_to_text,
     family_to_text,
@@ -53,13 +53,22 @@ from .text_semantic import (
 )
 
 
-def object_to_strings(obj: GrampsObject, db_handle: DbReadBase) -> Tuple[str, str]:
+def object_to_strings(
+    obj: GrampsObject,
+    db_handle: DbReadBase,
+    backlink_index: Optional[Dict[Any, Any]] = None,
+) -> Tuple[str, str]:
     """Create strings from a Gramps object's textual pieces.
 
     This function returns a tuple of two strings: the first one contains
     the concatenated string of the object and the strings of all
     non-private child objects. The second contains the concatenated
-    strings of the objects and all non-private *and* private child objects."""
+    strings of the objects and all non-private *and* private child objects.
+
+    `backlink_index`, if given, is passed through to
+    get_event_participants_for_handle() -- see that function's and
+    preload_event_backlinks()'s docstrings. Pass None (the default) for
+    a one-off call on a single object."""
     strings = obj.get_text_data_list()
     private_strings = []
     if hasattr(obj, "gramps_id") and obj.gramps_id not in strings:
@@ -75,7 +84,9 @@ def object_to_strings(obj: GrampsObject, db_handle: DbReadBase) -> Tuple[str, st
                 text_data_child_list.append(parent_obj.get_primary_name())
     # event: add primary/family role participants' names
     if isinstance(obj, Event):
-        participants = get_event_participants_for_handle(db_handle, obj.handle)
+        participants = get_event_participants_for_handle(
+            db_handle, obj.handle, backlink_index=backlink_index
+        )
         for role, person in participants["people"]:
             if role.is_primary():
                 text_data_child_list.append(person.get_primary_name())
@@ -170,13 +181,19 @@ def obj_strings_from_handle(
 
 
 def obj_strings_from_object(
-    db_handle: DbReadBase, class_name: str, obj: GrampsObject, semantic: bool = False
+    db_handle: DbReadBase,
+    class_name: str,
+    obj: GrampsObject,
+    semantic: bool = False,
+    backlink_index: Optional[Dict[Any, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Return object strings from a handle and Gramps class name."""
     if semantic:
         obj_string_public, obj_string_all = object_to_strings_semantic(obj, db_handle)
     else:
-        obj_string_public, obj_string_all = object_to_strings(obj, db_handle)
+        obj_string_public, obj_string_all = object_to_strings(
+            obj, db_handle, backlink_index=backlink_index
+        )
     private = hasattr(obj, "private") and obj.private
     if obj_string_all:
         return {
@@ -194,13 +211,23 @@ def iter_obj_strings(
     db_handle: DbReadBase, semantic: bool = False
 ) -> Generator[Dict[str, Any], None, None]:
     """Iterate over object strings in the whole database."""
+    # One query for every event's backlinks instead of one query per
+    # event (a full pass processes every event) -- see
+    # preload_event_backlinks()'s docstring. None (its fallback for a
+    # backend gramps-web-api doesn't control) just means
+    # get_event_participants_for_handle() queries per event as before.
+    backlink_index = preload_event_backlinks(db_handle)
     for class_name in PRIMARY_GRAMPS_OBJECTS:
         plural_name = GRAMPS_OBJECT_PLURAL[class_name]
         iter_method = db_handle.method("iter_%s", plural_name)
         assert iter_method is not None  # type checker
         for obj in iter_method():
             obj_strings = obj_strings_from_object(
-                db_handle, class_name, obj, semantic=semantic
+                db_handle,
+                class_name,
+                obj,
+                semantic=semantic,
+                backlink_index=backlink_index,
             )
             if obj_strings:
                 yield obj_strings

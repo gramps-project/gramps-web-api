@@ -153,9 +153,16 @@ class SearchIndexerBase:
             if i % chunk_size == 0 and i != 0:
                 self._add_objects(obj_dicts)
                 obj_dicts = []
-            if progress_cb:
-                progress_cb(current=i, total=total, prev=prev)
-            prev = i
+                # Tied to the same chunk_size cadence as the indexing
+                # flush above, not called every single object: each call
+                # is a Celery update_state() (JSON-encode + a Redis
+                # round trip), and for a tree with hundreds of thousands
+                # of objects, calling this per-object turns a ~1-minute
+                # reindex into one dominated by hundreds of thousands of
+                # Redis writes instead of the indexing work itself.
+                if progress_cb:
+                    progress_cb(current=i, total=total, prev=prev)
+                prev = i
         self._add_objects(obj_dicts)
         if progress_cb:
             progress_cb(current=total - 1, total=total)
