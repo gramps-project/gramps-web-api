@@ -63,7 +63,10 @@ from .resources.util import (
     abort_with_message,
     app_has_semantic_search,
     dry_run_import,
+    parse_import_to_scratch,
+    run_fast_path_copy,
     run_import,
+    scratch_object_counts,
     transaction_to_json,
 )
 from .search import get_search_indexer, get_semantic_search_indexer
@@ -346,10 +349,10 @@ def import_file(
     dry_run: bool = False,
 ):
     """Import a file."""
-    object_counts = dry_run_import(file_name=file_name, extension=extension)
-    if object_counts is None:
-        raise ValueError(f"Failed importing {extension} file")
     if dry_run:
+        object_counts = dry_run_import(file_name=file_name, extension=extension)
+        if object_counts is None:
+            raise ValueError(f"Failed importing {extension} file")
         if delete:
             try:
                 os.remove(file_name)
@@ -358,18 +361,52 @@ def import_file(
                     "Failed to delete temporary file %s: %s", file_name, e
                 )
         return object_counts
-    check_quota_people(to_add=object_counts["people"], tree=tree, user_id=user_id)
+
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=False, user_id=user_id
     )
     try:
-        run_import(
-            db_handle=db_handle,
-            file_name=file_name,
-            extension=extension.lower(),
-            delete=delete,
-            task=self,
-        )
+        if db_handle.get_total() == 0 and not os.environ.get(
+            "GRAMPS_WEBAPI_FORCE_OLD_IMPORT_PATH"
+        ):
+            # Empty tree: parse the file once, into a scratch DB, and
+            # reuse that same parse for both the quota-check count and
+            # the actual bulk-copy -- instead of the old behavior, which
+            # always called dry_run_import() up front for a people-count
+            # (a full parse, thrown away), then had run_import() parse
+            # the same file again from scratch to actually do the
+            # import. See [[project_fast_import_perf_work]] for why this
+            # only covers the empty-tree case.
+            scratch, baseline_metadata = parse_import_to_scratch(
+                file_name, extension.lower(), task=self, delete=delete
+            )
+            try:
+                object_counts = scratch_object_counts(scratch)
+                check_quota_people(
+                    to_add=object_counts["people"], tree=tree, user_id=user_id
+                )
+                run_fast_path_copy(scratch, db_handle, baseline_metadata)
+            finally:
+                scratch.close()
+        else:
+            # Non-empty tree (or fast path explicitly disabled): the real
+            # import needs legalize_id() collision handling against the
+            # tree's existing data, which requires parsing straight into
+            # db_handle -- that parse can't be reused for a quota-check
+            # count ahead of it, so this still parses the file twice.
+            object_counts = dry_run_import(file_name=file_name, extension=extension)
+            if object_counts is None:
+                raise ValueError(f"Failed importing {extension} file")
+            check_quota_people(
+                to_add=object_counts["people"], tree=tree, user_id=user_id
+            )
+            run_import(
+                db_handle=db_handle,
+                file_name=file_name,
+                extension=extension.lower(),
+                delete=delete,
+                task=self,
+            )
     finally:
         close_db(db_handle)
     update_usage_people(tree=tree, user_id=user_id)
