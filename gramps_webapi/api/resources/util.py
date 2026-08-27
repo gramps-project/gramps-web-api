@@ -47,6 +47,7 @@ from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import (
     Citation,
+    Date,
     Event,
     EventRoleType,
     Family,
@@ -379,6 +380,37 @@ def get_event_summary_from_object(
     return f"{event_type} - {participant}"
 
 
+def display_date(date: Optional[Date], locale: GrampsLocale = glocale) -> str:
+    """Format a date, tolerating one that Gramps cannot display.
+
+    A date whose `dateval` is too short for its `modifier` makes the date
+    displayer raise IndexError (see `_validate_date`). Such dates are rejected
+    on the way in, but a tree may still hold ones written before that check
+    existed, and one of them must not take down a whole profile response or a
+    search index update.
+    """
+    if date is None:
+        # `probably_alive_range` returns None for a date it cannot infer, and
+        # the date displayer has no answer for that either.
+        return ""
+    try:
+        return locale.date_displayer.display(date)
+    except IndexError:
+        # every way a malformed date breaks the displayer surfaces as an
+        # IndexError -- it indexes tuples by modifier, quality and calendar,
+        # and slices `dateval` for the stop half of a range. Anything else is
+        # a real bug and has to propagate rather than turn into a blank date.
+        #
+        # log the shape of the date but never its values: the log must not
+        # retain family tree data.
+        _LOG.warning(
+            "Cannot display date with modifier %s and %s value(s)",
+            date.modifier,
+            len(date.dateval),
+        )
+        return date.text or ""
+
+
 def get_event_profile_for_object(
     db_handle: DbReadBase,
     event: Event,
@@ -393,7 +425,7 @@ def get_event_profile_for_object(
     """Get event profile given an Event."""
     result = {
         "type": locale.translation.sgettext(event.type.xml_str()),
-        "date": locale.date_displayer.display(event.date),
+        "date": display_date(event.date, locale),
         "place": pd.display_event(db_handle, event),
         "place_name": get_place_name_for_event(db_handle, event),
         "summary": get_event_summary_from_object(db_handle, event, locale=locale),
@@ -581,7 +613,7 @@ def get_place_profile_for_object(
         "alternate_place_names": [
             {
                 "value": place_name.value,
-                "date_str": locale.date_displayer.display(place_name.date),
+                "date_str": display_date(place_name.date, locale),
             }
             for place_name in place.get_alternative_names()
         ],
@@ -639,7 +671,7 @@ def get_place_profile_for_object(
                             locale=locale,
                             parent_places=False,
                         ),
-                        "date_str": locale.date_displayer.display(place_ref.date),
+                        "date_str": display_date(place_ref.date, locale),
                     }
                 )
             except HandleError:
@@ -926,7 +958,7 @@ def get_citation_profile_for_object(
             "gramps_id": source.gramps_id,
         },
         "gramps_id": citation.gramps_id,
-        "date": locale.date_displayer.display(citation.date),
+        "date": display_date(citation.date, locale),
         "page": citation.page,
     }
 
@@ -950,7 +982,7 @@ def get_media_profile_for_object(
     """Get media profile given Media."""
     return {
         "gramps_id": media.gramps_id,
-        "date": locale.date_displayer.display(media.date),
+        "date": display_date(media.date, locale),
     }
 
 
@@ -1277,19 +1309,59 @@ REF_CLASSES = frozenset(
 )
 
 
-def _validate_refs(value: Any, path: str = "$") -> None:
-    """Check recursively that every reference object has a non-empty ref.
+# `Date.set()` requires four values in `dateval` for a simple date and eight
+# for a compound one (range or span), but the Gramps JSON schema puts no length
+# constraint on `dateval` and `data_to_object` bypasses `set()`. A compound date
+# carrying only four values is therefore stored as-is and then raises IndexError
+# in `Date.get_stop_date()` every time it is displayed -- in the search indexer
+# as well as in every `?profile=` response.
+DATEVAL_MIN_LENGTH = {
+    Date.MOD_NONE: 4,
+    Date.MOD_BEFORE: 4,
+    Date.MOD_AFTER: 4,
+    Date.MOD_ABOUT: 4,
+    Date.MOD_FROM: 4,
+    Date.MOD_TO: 4,
+    Date.MOD_RANGE: 8,
+    Date.MOD_SPAN: 8,
+}
+
+# what `complete_gramps_object_dict` fills in when `dateval` is missing
+EMPTY_DATEVAL = list(Date.EMPTY)
+
+
+def _validate_date(value: dict[str, Any], path: str) -> None:
+    """Check that a serialized date holds enough values for its modifier."""
+    # a partial date dict is allowed, so validate what completion will fill in
+    modifier = value.get("modifier", Date.MOD_NONE)
+    minimum = DATEVAL_MIN_LENGTH.get(modifier)
+    if minimum is None:
+        # text-only or an unknown modifier: `dateval` is not read for display
+        return
+    dateval = value.get("dateval", EMPTY_DATEVAL)
+    if not isinstance(dateval, list) or len(dateval) < minimum:
+        raise ValueError(
+            f"{path}: 'Date' with modifier {modifier} requires at least"
+            f" {minimum} values in 'dateval'"
+        )
+
+
+def _validate_embedded(value: Any, path: str = "$") -> None:
+    """Check recursively that embedded ref and date objects are displayable.
 
     Raises ValueError naming the offending path, like jsonschema does.
     """
     if isinstance(value, dict):
-        if value.get("_class") in REF_CLASSES and not value.get("ref"):
-            raise ValueError(f"{path}: '{value['_class']}' requires a non-empty 'ref'")
+        class_name = value.get("_class")
+        if class_name in REF_CLASSES and not value.get("ref"):
+            raise ValueError(f"{path}: '{class_name}' requires a non-empty 'ref'")
+        if class_name == "Date":
+            _validate_date(value, path)
         for key, item in value.items():
-            _validate_refs(item, f"{path}.{key}")
+            _validate_embedded(item, f"{path}.{key}")
     elif isinstance(value, list):
         for i, item in enumerate(value):
-            _validate_refs(item, f"{path}[{i}]")
+            _validate_embedded(item, f"{path}[{i}]")
 
 
 def validate_object_dict(obj_dict: dict[str, Any]) -> None:
@@ -1346,7 +1418,7 @@ def validate_object_dict(obj_dict: dict[str, Any]) -> None:
             message = message[:MAX_VALIDATION_ERROR_LENGTH] + "..."
         raise ValueError(message) from exc
 
-    _validate_refs(obj_dict_fixed)
+    _validate_embedded(obj_dict_fixed)
 
 
 def xml_to_locale(gramps_type_name: str, string: str) -> str:
