@@ -19,7 +19,6 @@
 
 """Tests for file handling utilities."""
 
-import os
 from io import BytesIO
 
 import pytest
@@ -41,12 +40,18 @@ def test_upload_file_local(base_dir):
     assert (base_dir / "sub" / "dir" / "file.txt").read_bytes() == b"content"
 
 
-@pytest.mark.parametrize(
-    "rel_path", ["../escaped.txt", "sub/../../escaped.txt", "/tmp/escaped.txt"]
-)
-def test_upload_file_local_outside_base_dir(base_dir, rel_path):
-    """Paths escaping the base directory are rejected without writing."""
+@pytest.mark.parametrize("rel_path", ["../escaped.txt", "sub/../../escaped.txt"])
+def test_upload_file_local_traversal(base_dir, rel_path):
+    """Relative paths escaping the base directory are rejected without writing."""
+    escaped = base_dir.parent / "escaped.txt"
     with pytest.raises(ValueError):
         upload_file_local(base_dir, rel_path, BytesIO(b"pwned"))
-    assert not (base_dir.parent / "escaped.txt").exists()
-    assert not os.path.exists("/tmp/escaped.txt")
+    assert not escaped.exists()
+
+
+def test_upload_file_local_absolute_path(base_dir):
+    """An absolute path outside the base directory is rejected without writing."""
+    escaped = base_dir.parent / "escaped.txt"
+    with pytest.raises(ValueError):
+        upload_file_local(base_dir, str(escaped), BytesIO(b"pwned"))
+    assert not escaped.exists()
