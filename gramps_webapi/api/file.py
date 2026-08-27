@@ -316,7 +316,10 @@ class LocalFileHandler(FileHandler):
 def upload_file_local(
     base_dir: FilenameOrPath, rel_path: FilenameOrPath, stream: BinaryIO
 ) -> None:
-    """Upload a file from a stream, returning the file path."""
+    """Upload a file from a stream to a path inside the base directory.
+
+    Raises a `ValueError` if the path is outside the base directory.
+    """
     base_path = Path(base_dir).resolve()
     path = Path(base_path, rel_path).resolve()
     if base_path not in path.parents:
