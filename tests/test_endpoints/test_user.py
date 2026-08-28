@@ -778,6 +778,33 @@ class TestUser(unittest.TestCase):
         )
         assert rv.status_code == 409
 
+    def test_bulk_add_users_non_string_email(self):
+        """A non-string address is rejected, not stringified into the column."""
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token_owner = rv.json["access_token"]
+        rv = self.client.post(
+            BASE_URL + "/users/",
+            headers={"Authorization": f"Bearer {token_owner}"},
+            json=[
+                {
+                    "name": "bulk1",
+                    "email": ["family@example.com"],
+                    "full_name": "Bulk One",
+                    "role": ROLE_MEMBER,
+                    "tree": self.tree,
+                }
+            ],
+        )
+        assert rv.status_code == 409
+        rv = self.client.get(
+            BASE_URL + "/users/bulk1/",
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 404
+
     def test_register_user(self):
         with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
             mock_smtp_instance = MagicMock()

@@ -121,7 +121,11 @@ def add_users(
         user["pwhash"] = hash_password(str(user.pop("password")))
         email = user.get("email")
         if email is not None:
-            normalized = normalize_email(str(email))
+            # the payload of this endpoint is not schema-validated, so a
+            # non-string address must be rejected rather than stringified
+            if not isinstance(email, str):
+                raise ValueError("E-mail address must be a string")
+            normalized = normalize_email(email)
             if normalized is None:
                 del user["email"]
             else:
