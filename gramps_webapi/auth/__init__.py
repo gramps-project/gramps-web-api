@@ -86,6 +86,7 @@ def add_user(
         user_db.session.add(user)  # pylint: disable=no-member
         user_db.session.commit()  # pylint: disable=no-member
     except IntegrityError as exc:
+        user_db.session.rollback()  # pylint: disable=no-member
         reason = str(exc.orig.args) if exc.orig else ""
         if "name" in reason:
             message = "User already exists"
