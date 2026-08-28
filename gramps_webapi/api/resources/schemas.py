@@ -547,6 +547,34 @@ class MediaProfileSchema(_Base):
     )
 
 
+class RepositoryProfileSchema(_Base):
+    """A summary of a repository record."""
+
+    addresses = fields.List(
+        fields.Raw(),
+        metadata={
+            "description": "Addresses with formatted dates, parallel to address_list."
+        },
+    )
+    gramps_id = fields.Str(
+        metadata={
+            "description": "Alternate user-managed identifier for the repository."
+        },
+    )
+    handle = fields.Str(
+        metadata={"description": "Unique handle for the repository."},
+    )
+    name = fields.Str(
+        metadata={"description": "Name of the repository."},
+    )
+    references = fields.Dict(
+        metadata={"description": "References to this repository from other objects."},
+    )
+    type = fields.Str(
+        metadata={"description": "Localized type of repository."},
+    )
+
+
 # ===========================================================================
 # 4. Reference schemas
 # ===========================================================================
@@ -891,6 +919,10 @@ class RepositorySchema(_Base):
         },
     )
     private = fields.Bool(metadata={"description": "Private object indicator."})
+    profile = fields.Nested(
+        RepositoryProfileSchema,
+        metadata={"description": "Optional summary of repository information."},
+    )
     tag_list = fields.List(
         fields.Str(),
         metadata={"description": "Handles of tags attached to this repository."},

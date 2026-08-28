@@ -54,6 +54,7 @@ from gramps.gen.lib import (
     Person,
     Place,
     PlaceType,
+    Repository,
     Source,
     Span,
 )
@@ -969,6 +970,25 @@ def get_media_profile_for_handle(
     except HandleError:
         return {}
     return get_media_profile_for_object(db_handle, obj, args, locale=locale)
+
+
+def get_repository_profile_for_object(
+    db_handle: DbReadBase,
+    repository: Repository,
+    args: list,
+    locale: GrampsLocale = glocale,
+) -> dict[str, Any]:
+    """Get repository profile given a Repository."""
+    return {
+        "handle": repository.handle,
+        "gramps_id": repository.gramps_id,
+        "name": repository.name,
+        "type": locale.translation.sgettext(repository.type.xml_str()),
+        "addresses": [
+            {"date_str": locale.date_displayer.display(address.date)}
+            for address in repository.address_list
+        ],
+    }
 
 
 def catch_handle_error(method, handle):
