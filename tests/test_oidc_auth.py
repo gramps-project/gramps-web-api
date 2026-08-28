@@ -47,6 +47,7 @@ class TestGetUsableEmail:
     """Test cases for get_usable_email."""
 
     def test_address_is_returned(self):
+        """A missing email_verified claim is accepted - many providers omit it."""
         assert get_usable_email({"email": "a@example.com"}) == "a@example.com"
 
     def test_missing_address_is_none(self):
@@ -55,19 +56,15 @@ class TestGetUsableEmail:
     def test_empty_address_is_none(self):
         assert get_usable_email({"email": ""}) is None
 
-    def test_address_used_by_another_account_is_kept(self):
-        """Addresses are not unique - two accounts may share a mailbox."""
-        assert get_usable_email({"email": "a@example.com"}) == "a@example.com"
+    def test_blank_address_is_none(self):
+        """A blank claim must not clear the address stored for the account."""
+        assert get_usable_email({"email": "   "}) is None
 
     def test_explicitly_unverified_address_is_dropped(self):
         assert (
             get_usable_email({"email": "a@example.com", "email_verified": False})
             is None
         )
-
-    def test_absent_verified_claim_is_accepted(self):
-        """Many providers omit email_verified entirely."""
-        assert get_usable_email({"email": "a@example.com"}) == "a@example.com"
 
 
 class TestOidcUserTreeBinding:

@@ -36,6 +36,7 @@ from . import (
     get_oidc_account,
     get_user_details,
     modify_user,
+    normalize_email,
 )
 from .const import (
     ROLE_ADMIN,
@@ -253,8 +254,12 @@ def get_usable_email(userinfo: dict) -> str | None:
 
     An address the provider explicitly marks as unverified is discarded; a
     missing `email_verified` claim is accepted, as many providers omit it.
+
+    A blank claim is treated as a missing one: returning it would clear the
+    address already stored for the account, since `modify_user` only leaves the
+    stored value alone when it is passed None.
     """
-    email = userinfo.get("email") or None
+    email = normalize_email(userinfo.get("email"))
     if not email:
         return None
 
