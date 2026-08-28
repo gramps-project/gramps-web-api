@@ -268,9 +268,7 @@ class TestUser(unittest.TestCase):
         with self.app.app_context():
             add_user(name="noemail", password="123", role=ROLE_MEMBER, tree=self.tree)
         with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
-            rv = self.client.post(
-                BASE_URL + "/users/noemail/password/reset/trigger/"
-            )
+            rv = self.client.post(BASE_URL + "/users/noemail/password/reset/trigger/")
             assert rv.status_code == 201
             mock_smtp.assert_not_called()
 
@@ -568,37 +566,46 @@ class TestUser(unittest.TestCase):
             },
         )
 
-    def test_edit_user_duplicate_email(self):
-        """Test that duplicate email returns 409 Conflict."""
+    def test_edit_user_shared_email(self):
+        """Two accounts may share an e-mail address, e.g. a family mailbox."""
         rv = self.client.post(
             BASE_URL + "/token/", json={"username": "owner", "password": "123"}
         )
         assert rv.status_code == 200
         token_owner = rv.json["access_token"]
-        # Owner tries to change user's email to owner's existing email (duplicate)
+        # owner gives user the address owner already uses
         rv = self.client.put(
             BASE_URL + "/users/user/",
             headers={"Authorization": f"Bearer {token_owner}"},
             json={"email": "owner@example.com"},
         )
-        assert rv.status_code == 409
-        assert "E-mail already exists" in rv.json["error"]["message"]
+        assert rv.status_code == 200
+        rv = self.client.get(
+            BASE_URL + "/users/user/",
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 200
+        assert rv.json["email"] == "owner@example.com"
 
-    def test_edit_own_user_duplicate_email(self):
-        """Test that duplicate email returns 409 Conflict when modifying own user."""
+    def test_edit_own_user_shared_email(self):
+        """A user may set their own address to one another account uses."""
         rv = self.client.post(
             BASE_URL + "/token/", json={"username": "user", "password": "123"}
         )
         assert rv.status_code == 200
         token_user = rv.json["access_token"]
-        # User tries to change their own email to owner's existing email (duplicate)
         rv = self.client.put(
             BASE_URL + "/users/-/",
             headers={"Authorization": f"Bearer {token_user}"},
             json={"email": "owner@example.com"},
         )
-        assert rv.status_code == 409
-        assert "E-mail already exists" in rv.json["error"]["message"]
+        assert rv.status_code == 200
+        rv = self.client.get(
+            BASE_URL + "/users/-/",
+            headers={"Authorization": f"Bearer {token_user}"},
+        )
+        assert rv.status_code == 200
+        assert rv.json["email"] == "owner@example.com"
 
     def test_add_user(self):
         rv = self.client.post(
@@ -681,6 +688,95 @@ class TestUser(unittest.TestCase):
             BASE_URL + "/token/", json={"username": "new_user", "password": "abc"}
         )
         assert rv.status_code == 200
+
+    def test_add_users_blank_email(self):
+        """A blank address is stored as NULL, so several may coexist."""
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token_owner = rv.json["access_token"]
+        for name in ("new_user", "another_user"):
+            rv = self.client.post(
+                BASE_URL + f"/users/{name}/",
+                headers={"Authorization": f"Bearer {token_owner}"},
+                json={
+                    "email": "  ",
+                    "role": ROLE_MEMBER,
+                    "full_name": "New Name",
+                    "password": "abc",
+                },
+            )
+            assert rv.status_code == 201
+            rv = self.client.get(
+                BASE_URL + f"/users/{name}/",
+                headers={"Authorization": f"Bearer {token_owner}"},
+            )
+            assert rv.status_code == 200
+            assert rv.json["email"] is None
+
+    def test_add_user_shared_email(self):
+        """A new account may use an address another account already has."""
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token_owner = rv.json["access_token"]
+        rv = self.client.post(
+            BASE_URL + "/users/new_user/",
+            headers={"Authorization": f"Bearer {token_owner}"},
+            json={
+                "email": "owner@example.com",
+                "role": ROLE_MEMBER,
+                "full_name": "New Name",
+                "password": "abc",
+            },
+        )
+        assert rv.status_code == 201
+
+    def test_bulk_add_users(self):
+        """Bulk creation shares addresses, and reports a name clash as 409."""
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        assert rv.status_code == 200
+        token_owner = rv.json["access_token"]
+        rv = self.client.post(
+            BASE_URL + "/users/",
+            headers={"Authorization": f"Bearer {token_owner}"},
+            json=[
+                {
+                    "name": "bulk1",
+                    "email": "family@example.com",
+                    "full_name": "Bulk One",
+                    "role": ROLE_MEMBER,
+                    "tree": self.tree,
+                },
+                {
+                    "name": "bulk2",
+                    "email": "family@example.com",
+                    "full_name": "Bulk Two",
+                    "role": ROLE_MEMBER,
+                    "tree": self.tree,
+                },
+            ],
+        )
+        assert rv.status_code == 201
+        # a username clash is only detected on commit
+        rv = self.client.post(
+            BASE_URL + "/users/",
+            headers={"Authorization": f"Bearer {token_owner}"},
+            json=[
+                {
+                    "name": "bulk1",
+                    "email": "other@example.com",
+                    "full_name": "Bulk One Again",
+                    "role": ROLE_MEMBER,
+                    "tree": self.tree,
+                }
+            ],
+        )
+        assert rv.status_code == 409
 
     def test_register_user(self):
         with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
