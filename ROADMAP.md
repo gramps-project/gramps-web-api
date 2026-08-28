@@ -18,6 +18,10 @@ removed no earlier than the next major.
 | 3.x | as needed | 6.0 | none |
 | 4.0.0 | TBD | 6.0, 6.1 or 6.2 (open) | multi-tree by default, removals below |
 
+## Notable in 3.22
+
+E-mail addresses no longer have to be unique across accounts; a user database migration drops the constraint ([#961](https://github.com/gramps-project/gramps-web-api/pull/961)).
+
 ## Breaking in 4.0
 
 Multi-tree mode becomes the default and single-tree mode goes away
