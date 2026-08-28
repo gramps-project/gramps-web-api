@@ -36,6 +36,7 @@ from gramps_webapi.auth.oidc import (
     PROVIDER_CUSTOM,
     create_or_update_oidc_user,
     get_available_oidc_providers,
+    get_email_claim,
     get_provider_config,
     get_role_from_claims,
     get_usable_email,
@@ -59,6 +60,12 @@ class TestGetUsableEmail:
     def test_blank_address_is_none(self):
         """A blank claim must not clear the address stored for the account."""
         assert get_usable_email({"email": "   "}) is None
+
+    @pytest.mark.parametrize("claim", [["a@example.com"], {"a": 1}, 42, True])
+    def test_non_string_claim_is_none(self, claim):
+        """A malformed claim from the provider must not fail the login."""
+        assert get_usable_email({"email": claim}) is None
+        assert get_email_claim({"email": claim}) is None
 
     def test_explicitly_unverified_address_is_dropped(self):
         assert (
