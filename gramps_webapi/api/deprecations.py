@@ -108,12 +108,23 @@ def check_deprecations(
         # so this is looked up last to avoid the query where possible
         and get_option("DEFAULT_FROM_EMAIL")
     ):
+        # `EMAIL_USE_TLS` enables implicit TLS, otherwise STARTTLS is used unless
+        # the SMTP port is 25 - see `gramps_webapi.api.util._resolve_smtp_config`
+        if config["EMAIL_USE_TLS"]:
+            replacement = "EMAIL_USE_SSL"
+            advice = "Please set `EMAIL_USE_SSL` to `True` instead."
+        else:
+            replacement = "EMAIL_USE_STARTTLS"
+            advice = (
+                "Please set `EMAIL_USE_STARTTLS` to `True` instead, unless your SMTP"
+                " server is on port 25 without encryption, in which case set it to"
+                " `False`."
+            )
         deprecations.append(
             _deprecation(
                 "EMAIL_USE_TLS",
-                "EMAIL_USE_SSL",
-                "The `EMAIL_USE_TLS` config option is deprecated. Please use"
-                " `EMAIL_USE_SSL` or `EMAIL_USE_STARTTLS` instead.",
+                replacement,
+                f"The `EMAIL_USE_TLS` config option is deprecated. {advice}",
             )
         )
     return deprecations

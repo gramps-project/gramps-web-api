@@ -44,6 +44,17 @@ def test_email_use_tls_only_flagged_if_email_configured():
     ]
 
 
+def test_email_use_tls_replacement_depends_on_its_value():
+    """`EMAIL_USE_TLS` means implicit TLS, its absence STARTTLS - see #942."""
+    config = {**DEFAULTS, "DEFAULT_FROM_EMAIL": "gramps@example.com"}
+    assert DefaultConfig.EMAIL_USE_TLS is True
+    assert check_deprecations(config, environ={})[0]["replacement"] == "EMAIL_USE_SSL"
+    config["EMAIL_USE_TLS"] = False
+    assert (
+        check_deprecations(config, environ={})[0]["replacement"] == "EMAIL_USE_STARTTLS"
+    )
+
+
 def test_email_use_tls_not_flagged_if_ssl_configured():
     """Setting one of the replacement options is enough to not be flagged."""
     config = {
