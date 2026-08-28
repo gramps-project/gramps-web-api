@@ -397,9 +397,10 @@ def create_or_update_oidc_user(
 
     user_guid = get_guid(final_username)
 
-    # Create OIDC account association. The address the provider actually sent is
-    # recorded here even when it could not be stored on the user, so that an
-    # admin can still tell which identity the account belongs to.
+    # Create OIDC account association. The address the provider sent is recorded
+    # here even when it was not stored on the user - because it is unverified,
+    # say - so that an admin can still tell which identity the account belongs
+    # to. Only a string claim is recorded; a malformed one is dropped.
     create_oidc_account(user_guid, provider_id, subject_id, get_email_claim(userinfo))
 
     # Send notification email to admins about new user (only for new users with ROLE_DISABLED)
