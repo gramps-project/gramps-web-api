@@ -22,7 +22,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from ..config import DefaultConfig
 
@@ -61,14 +61,23 @@ def _deprecation(
 
 
 def check_deprecations(
-    config: Mapping[str, Any], environ: Mapping[str, str] | None = None
+    config: Mapping[str, Any],
+    environ: Mapping[str, str] | None = None,
+    get_option: Callable[[str], Any] | None = None,
 ) -> list[dict[str, str]]:
-    """Return the deprecated configuration options this deployment relies on."""
+    """Return the deprecated configuration options this deployment relies on.
+
+    `get_option` is used to look up options that can also be stored in the user
+    database rather than in the app config; it defaults to the app config.
+    """
     if environ is None:
         environ = os.environ
+    if get_option is None:
+        get_option = config.get
     deprecations = []
     for option in DEPRECATED_ENV_OPTIONS:
-        if environ.get(option):
+        # a prefixed variable takes precedence, so the unprefixed one is unused
+        if environ.get(option) and not environ.get(f"GRAMPSWEB_{option}"):
             deprecations.append(
                 _deprecation(
                     option,
@@ -93,10 +102,11 @@ def check_deprecations(
             )
         )
     if (
-        # only relevant if e-mails are sent at all
-        config["DEFAULT_FROM_EMAIL"]
-        and config["EMAIL_USE_SSL"] is None
+        config["EMAIL_USE_SSL"] is None
         and config["EMAIL_USE_STARTTLS"] is None
+        # only relevant if e-mails are sent at all; may be stored in the database,
+        # so this is looked up last to avoid the query where possible
+        and get_option("DEFAULT_FROM_EMAIL")
     ):
         deprecations.append(
             _deprecation(

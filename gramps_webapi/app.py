@@ -124,8 +124,7 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         # Flask's plain-text handler would duplicate every record on stderr.
         app.logger.removeHandler(default_handler)
 
-    app.extensions["deprecations"] = check_deprecations(app.config)
-    for deprecation in app.extensions["deprecations"]:
+    for deprecation in check_deprecations(app.config):
         app.logger.warning(
             "%s Support will be removed in Gramps Web API %s.",
             deprecation["message"],
