@@ -43,7 +43,6 @@ from ...auth import (
     get_user_details,
     get_user_oidc_accounts,
     modify_user,
-    normalize_email,
     user_db,
 )
 from ...auth.oidc_helpers import is_oidc_enabled
@@ -484,15 +483,11 @@ class UserRegisterResource(Resource):
             abort_with_message(422, "Not allowed in single-tree setup")
         if "tree" in args and not tree_exists(args["tree"]):
             abort_with_message(422, "Tree does not exist")
-        # the address has to be normalized here, not only in add_user: the
-        # confirmation token carries it as a claim and the confirm endpoint
-        # compares that claim to the stored value
-        email = normalize_email(args["email"])
         try:
             add_user(
                 name=user_name,
                 password=args["password"],
-                email=email,
+                email=args["email"],
                 fullname=args["full_name"],
                 tree=args.get("tree"),
                 role=ROLE_UNCONFIRMED,
@@ -503,7 +498,7 @@ class UserRegisterResource(Resource):
         token = create_access_token(
             identity=str(user_id),
             additional_claims={
-                "email": email,
+                "email": args["email"],
                 CLAIM_LIMITED_SCOPE: SCOPE_CONF_EMAIL,
             },
             # link does not expire
@@ -511,7 +506,7 @@ class UserRegisterResource(Resource):
         )
         run_task(
             send_email_confirm_email,
-            email=email,
+            email=args["email"],
             user_name=user_name,
             token=token,
         )

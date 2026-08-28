@@ -48,18 +48,6 @@ from .sql_guid import GUID
 user_db = SQLAlchemy()
 
 
-def normalize_email(email: Optional[str]) -> Optional[str]:
-    """Normalize an e-mail address for storage.
-
-    Surrounding whitespace is stripped and a blank address is stored as NULL
-    rather than as an empty string. Addresses are not unique, so no further
-    canonicalization is applied - the address is stored as the user typed it.
-    """
-    if email is None:
-        return None
-    return email.strip() or None
-
-
 def add_user(
     name: str,
     password: str,
@@ -78,7 +66,7 @@ def add_user(
             id=uuid.uuid4(),
             name=name,
             fullname=fullname,
-            email=normalize_email(email),
+            email=email,
             pwhash=hash_password(password),
             role=role,
             tree=tree,
@@ -119,17 +107,6 @@ def add_users(
             # generate random password
             user["password"] = secrets.token_urlsafe(16)
         user["pwhash"] = hash_password(str(user.pop("password")))
-        email = user.get("email")
-        if email is not None:
-            # the payload of this endpoint is not schema-validated, so a
-            # non-string address must be rejected rather than stringified
-            if not isinstance(email, str):
-                raise ValueError("E-mail address must be a string")
-            normalized = normalize_email(email)
-            if normalized is None:
-                del user["email"]
-            else:
-                user["email"] = normalized
     try:
         for user in data:
             user_obj = User(**user)
@@ -207,7 +184,7 @@ def modify_user(
     if fullname is not None:
         user.fullname = fullname
     if email is not None:
-        user.email = normalize_email(email)
+        user.email = email
     if role is not None:
         user.role = role
     if tree is not None:

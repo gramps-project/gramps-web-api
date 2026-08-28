@@ -36,7 +36,6 @@ from . import (
     get_oidc_account,
     get_user_details,
     modify_user,
-    normalize_email,
 )
 from .const import (
     ROLE_ADMIN,
@@ -249,31 +248,13 @@ def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> int |
     return highest_role
 
 
-def get_email_claim(userinfo: dict) -> str | None:
-    """Return the raw e-mail claim, or None if the provider did not send a string.
-
-    `userinfo` comes from the provider, so the claim is not guaranteed to have
-    the type the spec calls for. A malformed one must be ignored rather than
-    raise, which would turn a login into a 500.
-    """
-    claim = userinfo.get("email")
-    if claim is None or isinstance(claim, str):
-        return claim
-    logger.warning("OIDC provider returned a non-string e-mail claim; ignoring it.")
-    return None
-
-
 def get_usable_email(userinfo: dict) -> str | None:
     """Return an e-mail address that can safely be stored for this user.
 
     An address the provider explicitly marks as unverified is discarded; a
     missing `email_verified` claim is accepted, as many providers omit it.
-
-    A blank claim is treated as a missing one: returning it would clear the
-    address already stored for the account, since `modify_user` only leaves the
-    stored value alone when it is passed None.
     """
-    email = normalize_email(get_email_claim(userinfo))
+    email = userinfo.get("email") or None
     if not email:
         return None
 
@@ -397,11 +378,10 @@ def create_or_update_oidc_user(
 
     user_guid = get_guid(final_username)
 
-    # Create OIDC account association. The address the provider sent is recorded
-    # here even when it was not stored on the user - because it is unverified,
-    # say - so that an admin can still tell which identity the account belongs
-    # to. Only a string claim is recorded; a malformed one is dropped.
-    create_oidc_account(user_guid, provider_id, subject_id, get_email_claim(userinfo))
+    # Create OIDC account association. The address the provider actually sent is
+    # recorded here even when it could not be stored on the user, so that an
+    # admin can still tell which identity the account belongs to.
+    create_oidc_account(user_guid, provider_id, subject_id, userinfo.get("email"))
 
     # Send notification email to admins about new user (only for new users with ROLE_DISABLED)
     if final_role == ROLE_DISABLED:
@@ -416,7 +396,7 @@ def create_or_update_oidc_user(
             username=final_username,
             fullname=full_name or "",
             # report the address the provider sent, even if it was not stored
-            email=get_email_claim(userinfo) or "",
+            email=userinfo.get("email") or "",
             tree=user_tree_id,
             # for single-tree setups, send e-mail also to admins
             include_admins=not is_multi,

@@ -689,32 +689,6 @@ class TestUser(unittest.TestCase):
         )
         assert rv.status_code == 200
 
-    def test_add_users_blank_email(self):
-        """A blank address is stored as NULL, so several may coexist."""
-        rv = self.client.post(
-            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
-        )
-        assert rv.status_code == 200
-        token_owner = rv.json["access_token"]
-        for name in ("new_user", "another_user"):
-            rv = self.client.post(
-                BASE_URL + f"/users/{name}/",
-                headers={"Authorization": f"Bearer {token_owner}"},
-                json={
-                    "email": "  ",
-                    "role": ROLE_MEMBER,
-                    "full_name": "New Name",
-                    "password": "abc",
-                },
-            )
-            assert rv.status_code == 201
-            rv = self.client.get(
-                BASE_URL + f"/users/{name}/",
-                headers={"Authorization": f"Bearer {token_owner}"},
-            )
-            assert rv.status_code == 200
-            assert rv.json["email"] is None
-
     def test_add_user_shared_email(self):
         """A new account may use an address another account already has."""
         rv = self.client.post(
@@ -777,33 +751,6 @@ class TestUser(unittest.TestCase):
             ],
         )
         assert rv.status_code == 409
-
-    def test_bulk_add_users_non_string_email(self):
-        """A non-string address is rejected, not stringified into the column."""
-        rv = self.client.post(
-            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
-        )
-        assert rv.status_code == 200
-        token_owner = rv.json["access_token"]
-        rv = self.client.post(
-            BASE_URL + "/users/",
-            headers={"Authorization": f"Bearer {token_owner}"},
-            json=[
-                {
-                    "name": "bulk1",
-                    "email": ["family@example.com"],
-                    "full_name": "Bulk One",
-                    "role": ROLE_MEMBER,
-                    "tree": self.tree,
-                }
-            ],
-        )
-        assert rv.status_code == 409
-        rv = self.client.get(
-            BASE_URL + "/users/bulk1/",
-            headers={"Authorization": f"Bearer {token_owner}"},
-        )
-        assert rv.status_code == 404
 
     def test_register_user(self):
         with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
@@ -890,45 +837,6 @@ class TestUser(unittest.TestCase):
                 BASE_URL + "/token/", json={"username": "new_user_2", "password": "abc"}
             )
             assert rv.status_code == 403
-
-    def test_confirm_email_whitespace_address(self):
-        """A padded address must still confirm: token and DB have to agree."""
-        with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
-            mock_smtp_instance = MagicMock()
-            mock_smtp.return_value = mock_smtp_instance
-            rv = self.client.post(
-                BASE_URL + "/users/new_user_4/register/",
-                json={
-                    "email": "  new_4@example.com  ",
-                    "full_name": "New Name",
-                    "password": "abc",
-                    "tree": self.tree,
-                },
-            )
-            assert rv.status_code == 201
-            msg = mock_smtp_instance.send_message.call_args[0][0]
-            body = msg.get_body().get_payload().replace("=\n", "")
-            matches = re.findall(
-                r"jwt=3D([a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+)", body
-            )
-            self.assertEqual(len(matches), 1, msg=body)
-            token = matches[0]
-            rv = self.client.get(
-                BASE_URL + "/users/-/email/confirm/",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            self.assertEqual(rv.status_code, 200, rv.data)
-            rv = self.client.post(
-                BASE_URL + "/token/", json={"username": "owner", "password": "123"}
-            )
-            token_owner = rv.json["access_token"]
-            rv = self.client.get(
-                BASE_URL + "/users/new_user_4/",
-                headers={"Authorization": f"Bearer {token_owner}"},
-            )
-            assert rv.status_code == 200
-            assert rv.json["email"] == "new_4@example.com"
-            assert rv.json["role"] == ROLE_DISABLED
 
     def test_confirm_email(self):
         with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
