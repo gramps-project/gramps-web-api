@@ -316,6 +316,14 @@ class NameSchema(_Base):
 # ===========================================================================
 
 
+class AddressProfileSchema(_Base):
+    """A summary of an address, used within profile responses."""
+
+    date_str = fields.Str(
+        metadata={"description": "Date of the address as a formatted string."},
+    )
+
+
 class EventProfileSchema(_Base):
     """A summary of a Gramps event, used within profile responses."""
 
@@ -351,7 +359,7 @@ class PersonProfileSchema(_Base):
     """A summary of a person's key biographical information."""
 
     addresses = fields.List(
-        fields.Raw(),
+        fields.Nested(AddressProfileSchema),
         metadata={
             "description": "Addresses with formatted dates, parallel to address_list."
         },
@@ -551,7 +559,7 @@ class RepositoryProfileSchema(_Base):
     """A summary of a repository record."""
 
     addresses = fields.List(
-        fields.Raw(),
+        fields.Nested(AddressProfileSchema),
         metadata={
             "description": "Addresses with formatted dates, parallel to address_list."
         },
