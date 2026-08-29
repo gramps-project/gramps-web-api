@@ -861,25 +861,10 @@ class TestTransactionHistoryResource(unittest.TestCase):
         assert rv.status_code == 200
         assert rv.json[-1]["description"] == "Undo"
 
-    def test_object_history_requires_both_params(self):
-        headers = get_headers(self.client, "editor", "123")
-        rv = self.client.post("/api/people/", json={}, headers=headers)
-        assert rv.status_code == 201
-        person_handle = rv.json[0]["new"]["handle"]
-
-        rv = self.client.get(
-            "/api/transactions/history/?obj_class=Person", headers=headers
-        )
-        assert rv.status_code == 422
-        rv = self.client.get(
-            f"/api/transactions/history/?obj_handle={person_handle}", headers=headers
-        )
-        assert rv.status_code == 422
-
     def test_object_history_invalid_class(self):
         headers = get_headers(self.client, "editor", "123")
         rv = self.client.get(
-            "/api/transactions/history/?obj_class=NotAClass&obj_handle=abc",
+            "/api/transactions/history/objects/NotAClass/abc",
             headers=headers,
         )
         assert rv.status_code == 422
@@ -905,7 +890,7 @@ class TestTransactionHistoryResource(unittest.TestCase):
         assert other_handle != person_handle
 
         rv = self.client.get(
-            f"/api/transactions/history/?obj_class=Person&obj_handle={person_handle}",
+            f"/api/transactions/history/objects/Person/{person_handle}",
             headers=headers,
         )
         assert rv.status_code == 200
@@ -917,7 +902,7 @@ class TestTransactionHistoryResource(unittest.TestCase):
         assert "new_data" not in changes[0]
 
         rv = self.client.get(
-            f"/api/transactions/history/?obj_class=Person&obj_handle={other_handle}",
+            f"/api/transactions/history/objects/Person/{other_handle}",
             headers=headers,
         )
         assert rv.status_code == 200
@@ -933,7 +918,7 @@ class TestTransactionHistoryResource(unittest.TestCase):
         person_handle = person["handle"]
 
         rv = self.client.get(
-            f"/api/transactions/history/?obj_class=Person&obj_handle={person_handle}&old=1&new=1",
+            f"/api/transactions/history/objects/Person/{person_handle}?old=1&new=1",
             headers=headers,
         )
         assert rv.status_code == 200
@@ -944,12 +929,34 @@ class TestTransactionHistoryResource(unittest.TestCase):
     def test_object_history_unknown_handle(self):
         headers = get_headers(self.client, "editor", "123")
         rv = self.client.get(
-            "/api/transactions/history/?obj_class=Person&obj_handle=doesnotexist",
+            "/api/transactions/history/objects/Person/doesnotexist",
             headers=headers,
         )
         assert rv.status_code == 200
         assert rv.json == []
         assert rv.headers["X-Total-Count"] == "0"
+
+    def test_object_history_before_zero_not_treated_as_unset(self):
+        """`before=0`/`after=0` are real cursor values, not 'no filter'."""
+        headers = get_headers(self.client, "editor", "123")
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        person_handle = rv.json[0]["new"]["handle"]
+
+        rv = self.client.get(
+            f"/api/transactions/history/objects/Person/{person_handle}?before=0",
+            headers=headers,
+        )
+        assert rv.status_code == 200
+        assert rv.json == []
+        assert rv.headers["X-Total-Count"] == "0"
+
+        rv = self.client.get(
+            f"/api/transactions/history/objects/Person/{person_handle}?after=0",
+            headers=headers,
+        )
+        assert rv.status_code == 200
+        assert len(rv.json) == 1
 
     def test_object_history_etag_revalidation(self):
         headers = get_headers(self.client, "editor", "123")
@@ -957,7 +964,7 @@ class TestTransactionHistoryResource(unittest.TestCase):
         assert rv.status_code == 201
         person_handle = rv.json[0]["new"]["handle"]
 
-        url = f"/api/transactions/history/?obj_class=Person&obj_handle={person_handle}"
+        url = f"/api/transactions/history/objects/Person/{person_handle}"
         rv = self.client.get(url, headers=headers)
         assert rv.status_code == 200
         etag = rv.headers["ETag"]
@@ -981,7 +988,7 @@ class TestTransactionHistoryResource(unittest.TestCase):
     def test_object_history_guest_forbidden(self):
         headers = get_headers(self.client, "user", "123")
         rv = self.client.get(
-            "/api/transactions/history/?obj_class=Person&obj_handle=abc",
+            "/api/transactions/history/objects/Person/abc",
             headers=headers,
         )
         assert rv.status_code == 403

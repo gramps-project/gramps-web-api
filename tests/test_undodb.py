@@ -400,6 +400,20 @@ class TestGetObjectChanges(unittest.TestCase):
         changes, _ = undodb.get_object_changes("Person", self.person_handle)
         assert changes[0]["connection"]["id"] == 1
 
+    def test_before_after_zero_is_a_real_cursor_not_unset(self):
+        """`before=0`/`after=0` must filter, not be treated as 'no filter'."""
+        undodb = self.db.get_undodb()
+        changes, count = undodb.get_object_changes(
+            "Person", self.person_handle, before=0
+        )
+        assert changes == []
+        assert count == 0
+
+        changes, count = undodb.get_object_changes(
+            "Person", self.person_handle, after=0
+        )
+        assert count == 2
+
 
 class TestMigrate(unittest.TestCase):
     """Tests for the migrate() function (pre-v3.0 → v3.0 undo DB migration)."""

@@ -48,7 +48,7 @@ from ..util import (
 )
 from ..blueprint import api_blueprint
 from . import ProtectedResource
-from .schemas import UndoTransactionSchema
+from .schemas import ObjectChangeSchema, UndoTransactionSchema
 from .util import etag_unchanged, reverse_transaction
 
 trans_code = {"delete": TXNDEL, "add": TXNADD, "update": TXNUPD}
@@ -114,20 +114,6 @@ class TransactionsHistoryQueryArgs(Schema):
             "description": "Transaction ID; if provided, return only transactions with an id strictly greater than this value. Unlike the timestamp-based `before`/`after` cursor, this is exact and has no floating-point precision loss. 0 means 'from the beginning'."
         },
     )
-    obj_class = fields.Str(
-        load_default=None,
-        validate=validate.OneOf(OBJECT_CLASSES),
-        metadata={
-            "description": "Object class to scope the history to, e.g. 'Person'. Must be given together with `obj_handle`; when both are set, only that object's own changes are returned (as a flat list of changes rather than transactions), instead of every transaction in the tree."
-        },
-    )
-    obj_handle = fields.Str(
-        load_default=None,
-        validate=validate.Length(min=1),
-        metadata={
-            "description": "Handle of the object to scope the history to. Must be given together with `obj_class`."
-        },
-    )
 
 
 class TransactionsHistoryResource(ProtectedResource):
@@ -136,17 +122,10 @@ class TransactionsHistoryResource(ProtectedResource):
     @api_blueprint.response(200, UndoTransactionSchema(many=True))
     @api_blueprint.arguments(TransactionsHistoryQueryArgs, location="query")
     def get(self, args: Dict) -> Response:
-        """Return a list of transactions, or a single object's change history."""
+        """Return a list of transactions."""
         require_permissions([PERM_VIEW_PRIVATE])
         db_handle = get_db_handle()
         undodb = db_handle.undodb
-
-        if args["obj_class"] or args["obj_handle"]:
-            if not (args["obj_class"] and args["obj_handle"]):
-                abort_with_message(
-                    422, "`obj_class` and `obj_handle` must be given together"
-                )
-            return object_history_response(undodb, args)
 
         max_id, count = undodb.get_transactions_state(
             before=args["before"],
@@ -180,38 +159,94 @@ class TransactionsHistoryResource(ProtectedResource):
         return transactions_response(json.dumps(transactions), count=count, etag=etag)
 
 
-def object_history_response(undodb, args: Dict) -> Response:
-    """Return the change history of a single object as a flat list of changes."""
-    obj_class = args["obj_class"]
-    obj_handle = args["obj_handle"]
-    max_ts, count = undodb.get_object_changes_state(
-        obj_class=obj_class,
-        obj_handle=obj_handle,
-        before=args["before"],
-        after=args["after"],
-    )
-    etag = transactions_etag(args, max_ts, count)
-    if etag_unchanged(etag):
-        return transactions_response(None, count=count, etag=etag)
+class ObjectHistoryQueryArgs(Schema):
+    """Query arguments for GET /history/transactions/objects/<class>/<handle>/."""
 
-    ascending = args.get("sort") != "-id"
-    changes, count = undodb.get_object_changes(
-        obj_class=obj_class,
-        obj_handle=obj_handle,
-        page=args["page"],
-        pagesize=args["pagesize"],
-        old_data=args["old"],
-        new_data=args["new"],
-        ascending=ascending,
-        before=args["before"],
-        after=args["after"],
-        known_count=count,
+    old = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, include the raw object data before the change."
+        },
+    )
+    new = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, include the raw object data after the change."
+        },
+    )
+    page = fields.Integer(
+        load_default=0,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Page number of the result subset to return. If omitted, all results are returned."
+        },
+    )
+    pagesize = fields.Integer(
+        load_default=20,
+        validate=validate.Range(min=1),
+        metadata={"description": "Number of items per page when pagination is active."},
+    )
+    sort = fields.Str(
+        validate=validate.Length(min=1),
+        metadata={
+            "description": "Sort order for changes. Use 'id' for ascending or '-id' for descending (by timestamp)."
+        },
+    )
+    before = fields.Float(
+        load_default=None,
+        metadata={
+            "description": "Unix timestamp; if provided, return only changes committed before this time."
+        },
+    )
+    after = fields.Float(
+        load_default=None,
+        metadata={
+            "description": "Unix timestamp; if provided, return only changes committed after this time."
+        },
     )
 
-    # replace user IDs by user name
-    user_dict = get_user_dict(transaction_user_ids(changes))
-    changes = [fix_transaction_user(change, user_dict) for change in changes]
-    return transactions_response(json.dumps(changes), count=count, etag=etag)
+
+class ObjectHistoryResource(ProtectedResource):
+    """Resource for the change history of a single object."""
+
+    @api_blueprint.response(200, ObjectChangeSchema(many=True))
+    @api_blueprint.arguments(ObjectHistoryQueryArgs, location="query")
+    def get(self, args: Dict, obj_class: str, obj_handle: str) -> Response:
+        """Return the change history of a single object as a flat list of changes."""
+        require_permissions([PERM_VIEW_PRIVATE])
+        if obj_class not in OBJECT_CLASSES:
+            abort_with_message(422, f"Unknown object class: {obj_class}")
+        db_handle = get_db_handle()
+        undodb = db_handle.undodb
+
+        max_ts, count = undodb.get_object_changes_state(
+            obj_class=obj_class,
+            obj_handle=obj_handle,
+            before=args["before"],
+            after=args["after"],
+        )
+        etag = transactions_etag(args, max_ts, count)
+        if etag_unchanged(etag):
+            return transactions_response(None, count=count, etag=etag)
+
+        ascending = args.get("sort") != "-id"
+        changes, count = undodb.get_object_changes(
+            obj_class=obj_class,
+            obj_handle=obj_handle,
+            page=args["page"],
+            pagesize=args["pagesize"],
+            old_data=args["old"],
+            new_data=args["new"],
+            ascending=ascending,
+            before=args["before"],
+            after=args["after"],
+            known_count=count,
+        )
+
+        # replace user IDs by user name
+        user_dict = get_user_dict(transaction_user_ids(changes))
+        changes = [fix_transaction_user(change, user_dict) for change in changes]
+        return transactions_response(json.dumps(changes), count=count, etag=etag)
 
 
 class TransactionHistoryQueryArgs(Schema):

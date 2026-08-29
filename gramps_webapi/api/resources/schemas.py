@@ -1844,6 +1844,38 @@ class UndoTransactionSchema(_Base):
     )
 
 
+class ObjectChangeSchema(_Base):
+    """A single change to one object, as returned by the object history endpoint."""
+
+    id = fields.Int(
+        metadata={"description": "Change ID (unique only within its connection)."},
+    )
+    connection = fields.Raw(
+        metadata={"description": "Internal connection object."},
+    )
+    obj_class = fields.Str(
+        metadata={"description": "Object class name (e.g. 'Person', 'Event')."},
+    )
+    obj_handle = fields.Str(
+        metadata={"description": "Handle of the changed object."},
+    )
+    ref_handle = fields.Str(
+        metadata={"description": "Handle of a referenced object, if this change is a reference update."},
+    )
+    trans_type = fields.Int(
+        metadata={"description": "Change type: 0 (add), 1 (update), or 2 (delete)."},
+    )
+    timestamp = fields.Float(
+        metadata={"description": "Unix timestamp when the change was committed."},
+    )
+    old_data = fields.Raw(
+        metadata={"description": "Object state before the change (only included if requested)."},
+    )
+    new_data = fields.Raw(
+        metadata={"description": "Object state after the change (only included if requested)."},
+    )
+
+
 class FilterRuleDescriptionSchema(_Base):
     """Description of a built-in Gramps filter rule."""
 

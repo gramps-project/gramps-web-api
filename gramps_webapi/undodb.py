@@ -749,10 +749,10 @@ class DbUndoSQLWeb(DbUndoSQL):
             .filter(Connection.tree_id == self.tree_id)
             .filter(Change.obj_class == obj_class, Change.obj_handle == obj_handle)
         )
-        if before:
-            query = query.filter(Change.timestamp < before * 1e9)
-        if after:
-            query = query.filter(Change.timestamp > after * 1e9)
+        if before is not None:
+            query = query.filter(Change.timestamp < int(before * 1e9))
+        if after is not None:
+            query = query.filter(Change.timestamp > int(after * 1e9))
         return query
 
     def get_object_changes_state(
