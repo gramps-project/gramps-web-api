@@ -328,7 +328,7 @@ def _parse_select_entry(raw: Any, spec: ObjectTypeSpec) -> Tuple[SelectRef, str]
         return column, key
     if isinstance(raw, dict) and "count_of" in raw:
         column = _parse_column_ref(raw, spec)
-        key = raw.get("as")
+        key = raw.get("as") or ""
         if not key:
             raise QueryError("'count_of' select entries require an explicit 'as'")
         _check_response_key(key, column)
