@@ -35,7 +35,7 @@ the same pattern `GrampsObjectResourceHelper` subclasses already use with
 """
 
 import json
-from typing import Any, Optional, Sequence, Tuple, Union, cast
+from typing import Any, Optional, Sequence, Tuple
 
 from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps.plugins.db.dbapi.sqlite import SQLite
@@ -57,23 +57,26 @@ from gramps_object_query_language.query import (
     TAG,
     ColumnRef,
     Dialect,
-    JsonPath,
     ObjectTypeSpec,
     OrderBy,
     Query,
     QueryError,
-    RelatedObject,
     SelectRef,
     after_columns,
-    check_columns,
+    compile_after_lookup,
     compile_count_query,
     compile_query,
+    default_ref_key,
+    is_composite_type,
+    ref_value_type,
+    resolve_order_by,
 )
 from gramps_object_query_language.query_lang import (
     VALID_LEAF_OPS,
     QueryLangError,
     json_column_to_ref,
     parse_expr_for_spec,
+    parse_select_entry,
     where_list_to_ast,
 )
 
@@ -96,7 +99,8 @@ class QueryWhereConditionArgs(Schema):
             "{'json_path': ['primary_name', 'first_name']}. A path may cross a "
             "relationship (Family->Person, Person->Event, Event->Place, ...), "
             "e.g. {'json_path': ['father', 'surname']} or "
-            "{'json_path': ['birth', 'date', 'sortval']}."
+            "{'json_path': ['birth', 'date', 'sortval']}. A plain string may "
+            "also be a path ('birth.date.sortval'), not only a flat column name."
         },
     )
     op = wf.Str(
@@ -131,7 +135,21 @@ class QueryWhereConditionArgs(Schema):
 class QueryOrderByArgs(Schema):
     """A single ORDER BY column."""
 
-    column = wf.Str(required=True, metadata={"description": "Column to sort by."})
+    column = wf.Str(
+        required=True,
+        metadata={
+            "description": "Column to sort by: a flat column name ('surname'), "
+            "or a path ('birth.date.sortval', "
+            "'primary_name.surname_list[0].surname'), resolved exactly as the "
+            "same text is in 'select'. Note the cost: flat columns like "
+            "'surname' and 'given_name' are indexed, while nothing indexes "
+            "inside a record, so sorting by a path reads and parses every row "
+            "in the tree, and a relationship path ('birth.date.sortval') adds a "
+            "lookup per row on top. That work repeats for every page. Fine for "
+            "a result set 'where' has already narrowed; slow as the default "
+            "order of a large tree."
+        },
+    )
     direction = wf.Str(
         load_default="asc",
         validate=validate.OneOf(["asc", "desc"]),
@@ -147,18 +165,23 @@ class QueryBodyArgs(Schema):
         required=False,
         metadata={
             "description": "Columns to return. Defaults to all available columns. "
-            "Each entry is either a plain column name, or {'json_path': [...], "
-            "'as': '<key>'} to select a path, e.g. "
-            "{'json_path': ['primary_name', 'surname_list', 0, 'surname']}. "
-            "'as' is optional; if omitted, the response key is a derived "
-            "dotted/bracket string, e.g. 'primary_name.surname_list[0].surname'. "
+            "Each entry is either an expression string or a {'json_path': [...], "
+            "'as': '<key>'} object. An expression is a column name "
+            "('gramps_id'), a path ('primary_name.surname_list[0].surname'), or "
+            "count(relationship[, condition]) ('count(events)'), each optionally "
+            "followed by 'as <key>' to name it in the response, e.g. "
+            "'birth.place.title as birthplace' or 'count(events) as n_events'. "
+            "Without 'as', the response key is the expression's own text. "
             "A path may cross a relationship (Family->Person via 'father'/"
             "'mother', Person->Event via 'birth'/'death', Event->Place via "
-            "'place'), e.g. {'json_path': ['father', 'surname']} or "
-            "{'json_path': ['birth', 'date']} (the full Date struct -- "
-            "format/calendar/modifier/quality/dateval/text/sortval -- of the "
-            "referenced event, or null if none is recorded). Not usable in "
-            "'order_by'."
+            "'place', Citation->Source via 'source', Place->Place via "
+            "'enclosed_by'), e.g. 'father.surname' or 'birth.date' (the full "
+            "Date struct -- format/calendar/modifier/quality/dateval/text/"
+            "sortval -- of the referenced event, or null if none is recorded). "
+            "Every path is checked against Gramps' own schema for the type: an "
+            "unknown field is a 422 naming the fields that exist, not a column "
+            "of nulls. The same paths work in 'order_by' -- see there for the "
+            "cost."
         },
     )
     where = wf.List(
@@ -259,73 +282,68 @@ def _parse_column_ref(raw: Any, spec: ObjectTypeSpec) -> ColumnRef:
 def _parse_select_entry(raw: Any, spec: ObjectTypeSpec) -> Tuple[SelectRef, str]:
     """Parse one `select` entry into `(column_ref, response_key)`.
 
-    A plain string is both the column and its own response key. A
-    `{"json_path": [...], "as": "..."}` object resolves the path the same
-    way `_parse_column_ref` does (relationship-aware), and uses `as` as
-    the response key if given, otherwise a derived dotted/bracket path
-    (`_default_key_for`). `as: "handle"` is rejected unless the entry *is*
-    the real `handle` column -- the response's `handle` key is
-    load-bearing for the `next_after` cursor (see `post()`), so silently
-    shadowing it with unrelated content would corrupt pagination for the
-    caller without any visible error.
+    A **string** is an expression in the same "almost Python" grammar
+    `where_expr` uses for a comparison's column side, delegated wholesale to
+    `query_lang.parse_select_entry`: a flat column (`gramps_id`), a path
+    (`birth.place.title`, `primary_name.surname_list[0].surname`), or a
+    `count(relationship[, condition])` call, each optionally followed by
+    `as <key>`. Delegating rather than re-deriving is the same fix
+    `_parse_column_ref` and `_build_where` already got: a hand-maintained
+    second copy is exactly how `count_of` ended up supported for filtering
+    but not for a plain column reference. It is also what makes a response
+    value's *type* knowable here -- see `_needs_json_decoding`, which needs
+    a resolved reference and used to be handed the raw string.
+
+    A **`{"json_path": [...], "as": "..."}`** object resolves the path the
+    same way `_parse_column_ref` does, and uses `as` as the response key if
+    given, otherwise the path's own dotted/bracket spelling
+    (`default_ref_key`). This is the older, more explicit wire form; it stays
+    supported, and it remains the way to reach anything the expression
+    grammar can't spell.
+
+    `as: "handle"` is rejected unless the entry *is* the real `handle`
+    column -- the response's `handle` key is load-bearing for the
+    `next_after` cursor (see `post()`), so silently shadowing it with
+    unrelated content would corrupt pagination for the caller without any
+    visible error.
 
     `{"count_of": {"relationship": ..., "where": [...]}, "as": "..."}`
     selects a `Collection`'s cardinality directly as a result column (e.g.
     "how many events does each person have"), not just as a `where_expr`
-    filter target -- `as` is required for it, since unlike a `json_path`
-    there's no natural dotted-name default to derive (`_default_key_for`
-    has nothing to walk).
+    filter target. `as` is required in *this* form, since a JSON payload has
+    no source text to fall back on -- the string form (`"count(events)"`)
+    does, and uses it.
     """
     if isinstance(raw, str):
-        return raw, raw
+        try:
+            column, key = parse_select_entry(spec, raw)
+        except QueryLangError as error:
+            raise QueryError(str(error)) from error
+        _check_response_key(key, column)
+        return column, key
     if isinstance(raw, dict) and "json_path" in raw:
         column = _parse_column_ref(raw, spec)
-        # A "json_path" payload only ever resolves to one of these three --
-        # see `_default_key_for`'s docstring -- never a CollectionCount/
-        # FlatColumnRef, which `_parse_column_ref`'s return type (the full
-        # ColumnRef union, shared with the "count_of" branch below) doesn't
-        # capture on its own.
-        key = raw.get("as") or _default_key_for(
-            cast(Union[str, JsonPath, RelatedObject], column)
-        )
-        if key == "handle":
-            raise QueryError("'handle' is reserved as a response key")
+        key = raw.get("as") or default_ref_key(column)
+        _check_response_key(key, column)
         return column, key
     if isinstance(raw, dict) and "count_of" in raw:
         column = _parse_column_ref(raw, spec)
         key = raw.get("as")
         if not key:
             raise QueryError("'count_of' select entries require an explicit 'as'")
-        if key == "handle":
-            raise QueryError("'handle' is reserved as a response key")
+        _check_response_key(key, column)
         return column, key
     raise QueryError(f"invalid column reference: {raw!r}")
 
 
-def _default_key_for(ref: "str | JsonPath | RelatedObject") -> str:
-    """Derive a default response key for a `select` entry with no explicit
-    `as` alias -- a dotted/bracket string, e.g. `primary_name.surname_list[0]`
-    for a plain `JsonPath`, or `birth.date.sortval` for a `RelatedObject`
-    chain (recursing through `.field` and prefixing each hop's `.name`).
-
-    Only ever called for a `json_path` select entry (see `_parse_select_entry`)
-    -- `resolve_column_path` (what `json_column_to_ref` delegates a
-    `json_path` payload to) only ever returns one of these three, never a
-    `CollectionCount`/`FlatColumnRef`, so the narrower type here (rather than
-    the full `ColumnRef` union) is accurate, not just convenient.
+def _check_response_key(key: str, column: SelectRef) -> None:
+    """`handle` is reserved as a response key for anything that isn't the
+    real `handle` column -- `post()` reads the cursor for `next_after` out
+    of that key, so shadowing it would corrupt the caller's pagination with
+    no visible error.
     """
-    if isinstance(ref, str):
-        return ref
-    if isinstance(ref, RelatedObject):
-        field = cast(Union[str, JsonPath, RelatedObject], ref.field)
-        return f"{ref.name}.{_default_key_for(field)}"
-    parts: list = []
-    for segment in ref.segments:
-        if isinstance(segment, int):
-            parts.append(f"[{segment}]")
-        else:
-            parts.append(f".{segment}" if parts else str(segment))
-    return "".join(parts)
+    if key == "handle" and column != "handle":
+        raise QueryError("'handle' is reserved as a response key")
 
 
 def _check_no_duplicate_keys(parsed_select: Sequence[Tuple[SelectRef, str]]) -> None:
@@ -336,21 +354,24 @@ def _check_no_duplicate_keys(parsed_select: Sequence[Tuple[SelectRef, str]]) -> 
         seen.add(key)
 
 
-def _terminal_is_json_path(ref: ColumnRef) -> bool:
-    """Does `ref` ultimately extract via a `JsonPath` (as opposed to a
-    plain flat column)? Recurses through a `RelatedObject` chain to its
-    leaf `field` -- `father.surname` ends in a plain column (a real SQL
-    column on `person`, no JSON functions involved at all), `birth.date`/
-    `birth.date.sortval` end in a `JsonPath` (`json_extract`/`->` on
-    PostgreSQL, `-> `SQLite`). Used to decide which response values need
-    `_normalize_json_value`'s SQLite-string-vs-PostgreSQL-dict handling --
-    a plain column's value is never JSON-encoded, so applying that
-    normalization there could wrongly reinterpret e.g. a surname that
-    happens to look like a JSON literal (`"123"`).
+def _needs_json_decoding(ref: ColumnRef, spec: ObjectTypeSpec) -> bool:
+    """Does `ref`'s value arrive JSON-encoded, and so need
+    `_normalize_json_value`?
+
+    Only *composite* values do: SQLite's `json_extract` returns objects and
+    arrays as JSON text, while scalars come back already correctly typed
+    (and PostgreSQL's `jsonb` expressions arrive parsed either way). The
+    answer comes from the type Gramps' own schema gives the path
+    (`ref_value_type`), resolved statically before the query runs.
+
+    This deliberately replaces an older "does it terminate in a `JsonPath`?"
+    test, which was too broad in exactly the way its own docstring warned
+    about for flat columns: `primary_name.first_name` terminates in a
+    `JsonPath` but holds a *string*, so a person actually named "123" came
+    back from the API as the integer `123`. Nothing could distinguish those
+    cases before the schema was available to ask.
     """
-    if isinstance(ref, RelatedObject):
-        return _terminal_is_json_path(ref.field)
-    return isinstance(ref, JsonPath)
+    return is_composite_type(ref_value_type(spec, ref))
 
 
 def _normalize_json_value(value: Any) -> Any:
@@ -361,8 +382,8 @@ def _normalize_json_value(value: Any) -> Any:
     `jsonb` expressions come back through psycopg2 already parsed
     (verified live against both). `None` (no such row, or it's private and
     the caller can't view it) passes through unchanged. Only applied to
-    response values whose `ColumnRef` is `_terminal_is_json_path()` --
-    see there.
+    response values whose `ColumnRef` is `_needs_json_decoding()` -- see
+    there.
     """
     if isinstance(value, str):
         try:
@@ -454,15 +475,18 @@ def _resolve_after(
     order_by: Sequence[OrderBy],
     after_handle: str,
     treeid: Optional[int] = None,
+    dialect: Optional[Dialect] = None,
 ):
     """Resolve a client-supplied `after=<handle>` cursor into a value tuple.
 
     The sort-column values for the cursor row aren't known to the client, so
-    the handle it supplies has to be looked up first. Columns were already
-    validated by the caller, so this is safe to interpolate. Only ever
-    called from `_post_sql`, which only ever runs against an unproxied
-    database -- no privacy predicate needed here (see `query.py`'s module
-    docstring).
+    the handle it supplies has to be looked up first. Compiled by
+    `compile_after_lookup` rather than assembled here: a sort column may be
+    a path (`birth.date.sortval`), which is a correlated subquery carrying
+    bound parameters, not a name that can be interpolated into a `SELECT`
+    list. Only ever called from `_post_sql`, which only ever runs against an
+    unproxied database -- no privacy predicate needed here (see `query.py`'s
+    module docstring).
 
     `treeid`, when given, restricts the lookup to the caller's own tree (see
     `_resolve_treeid`) -- without it, a handle from any other tree on a
@@ -470,12 +494,12 @@ def _resolve_after(
     column values (and confirming the handle's existence) across tenants
     even though the main paginated query stays properly scoped.
     """
-    columns = after_columns(order_by)
-    sql = f"SELECT {', '.join(columns)} FROM {spec.table} WHERE handle = ?"
-    params: list = [after_handle]
-    if treeid is not None:
-        sql += " AND treeid = ?"
-        params.append(treeid)
+    try:
+        sql, params = compile_after_lookup(
+            spec, order_by, after_handle, dialect=dialect, treeid=treeid
+        )
+    except QueryError as error:
+        abort_with_message(422, str(error))
     basedb.dbapi.execute(sql, params)
     row = basedb.dbapi.fetchone()
     if row is None:
@@ -693,18 +717,25 @@ class ObjectQueryResource(ProtectedResource):
             )
         treeid = _resolve_treeid(basedb)
 
-        order_by = [
-            OrderBy(item["column"], item.get("direction", "asc"))
-            for item in args.get("order_by") or []
-        ]
         try:
-            check_columns((ob.column for ob in order_by), self.spec)
+            # Resolved, not whitelist-checked: a sort column may be a path
+            # (`birth.date.sortval`), which resolves exactly as the same text
+            # does in `select`/`where_expr`. Unknown paths raise here.
+            order_by = resolve_order_by(
+                self.spec,
+                [
+                    OrderBy(item["column"], item.get("direction", "asc"))
+                    for item in args.get("order_by") or []
+                ],
+            )
         except QueryError as error:
             abort_with_message(422, str(error))
 
         after = None
         if args.get("after"):
-            after = _resolve_after(basedb, self.spec, order_by, args["after"], treeid)
+            after = _resolve_after(
+                basedb, self.spec, order_by, args["after"], treeid, _resolve_dialect(basedb)
+            )
 
         # `default=False`, deliberately: falling back to the system locale
         # here would apply COLLATE to every request, silently changing sort
@@ -765,13 +796,15 @@ class ObjectQueryResource(ProtectedResource):
             headers["X-Total-Count"] = str(basedb.dbapi.fetchone()[0])
 
         handle_index = fetch_refs.index("handle")
-        json_path_terminal_keys = {
-            key for ref, key in zip(fetch_refs, fetch_keys) if _terminal_is_json_path(ref)
+        decoded_keys = {
+            key
+            for ref, key in zip(fetch_refs, fetch_keys)
+            if _needs_json_decoding(ref, self.spec)
         }
         items = [
             {
                 key: (
-                    _normalize_json_value(val) if key in json_path_terminal_keys else val
+                    _normalize_json_value(val) if key in decoded_keys else val
                 )
                 for key, val in zip(fetch_keys, row)
                 if key in requested_keys
@@ -805,12 +838,14 @@ class ObjectQueryResource(ProtectedResource):
                 "locale-aware sorting is not supported on the proxied query "
                 "path (no COLLATE equivalent there)",
             )
-        order_by = [
-            OrderBy(item["column"], item.get("direction", "asc"))
-            for item in args.get("order_by") or []
-        ]
         try:
-            check_columns((ob.column for ob in order_by), self.spec)
+            order_by = resolve_order_by(
+                self.spec,
+                [
+                    OrderBy(item["column"], item.get("direction", "asc"))
+                    for item in args.get("order_by") or []
+                ],
+            )
             where = _build_where(_resolve_where_conditions(args, self.spec), self.spec)
             parsed_select = (
                 [_parse_select_entry(item, self.spec) for item in args["select"]]
