@@ -44,12 +44,15 @@ def test_index_objects_keeps_going_after_a_failure(caplog):
         None,
     ]
 
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.WARNING):
         _index_objects(indexer, TRANS_DICT, MagicMock())
 
     assert indexer.add_or_update_object.call_count == len(TRANS_DICT)
     # the failure is reported rather than swallowed, and names the object
     assert "Event bbbb2222" in caplog.text
+    # ... below error level, so it is not reported as a defect
+    assert [record.levelno for record in caplog.records] == [logging.WARNING]
+    assert caplog.records[0].exc_info is not None
 
 
 def test_index_objects_applies_deletes_and_updates():

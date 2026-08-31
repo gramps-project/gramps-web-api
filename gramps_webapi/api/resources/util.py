@@ -138,10 +138,15 @@ def get_family_by_handle(
 
 def get_source_by_handle(
     db_handle: DbReadBase, handle: Handle, args: Optional[dict] = None
-) -> Source:
+) -> Union[Source, dict]:
     """Get a source and optional extended attributes."""
+    try:
+        obj = db_handle.get_source_from_handle(handle)
+        if obj is None:
+            return {}
+    except HandleError:
+        return {}
     args = args or {}
-    obj = db_handle.get_source_from_handle(handle)
     if "extend" in args:
         obj.extended = get_extended_attributes(db_handle, obj, args)
     return obj
@@ -178,12 +183,12 @@ def get_family_name_localized(
     father = None
     father_handle = family.get_father_handle()
     if father_handle:
-        father = db_handle.get_person_from_handle(father_handle)
+        father = get_person_by_handle(db_handle, father_handle) or None
 
     mother = None
     mother_handle = family.get_mother_handle()
     if mother_handle:
-        mother = db_handle.get_person_from_handle(mother_handle)
+        mother = get_person_by_handle(db_handle, mother_handle) or None
 
     if father and mother:
         fname = default_name_displayer.display(father)
@@ -234,7 +239,7 @@ def get_participant_from_event_localized(
     families = set([x[1] for x in result_list if x[0] == "Family"])
 
     for person_handle in people:
-        person = db_handle.get_person_from_handle(person_handle)
+        person = get_person_by_handle(db_handle, person_handle)
         if not person:
             continue
         for event_ref in person.get_event_ref_list():
@@ -254,7 +259,12 @@ def get_participant_from_event_localized(
         return locale.translation.gettext("%s, ...") % participant
 
     for family_handle in families:
-        family = db_handle.get_family_from_handle(family_handle)
+        try:
+            family = db_handle.get_family_from_handle(family_handle)
+        except HandleError:
+            continue
+        if not family:
+            continue
         for event_ref in family.get_event_ref_list():
             if event_handle == event_ref.ref and event_ref.get_role().is_family():
                 if participant:
@@ -949,14 +959,18 @@ def get_citation_profile_for_object(
     locale: GrampsLocale = glocale,
 ) -> Citation:
     """Get citation profile given a Citation."""
-    source = db_handle.get_source_from_handle(citation.source_handle)
+    source = get_source_by_handle(db_handle, citation.source_handle)
     return {
-        "source": {
-            "author": source.author,
-            "title": source.title,
-            "pubinfo": source.pubinfo,
-            "gramps_id": source.gramps_id,
-        },
+        "source": (
+            {
+                "author": source.author,
+                "title": source.title,
+                "pubinfo": source.pubinfo,
+                "gramps_id": source.gramps_id,
+            }
+            if source
+            else {}
+        ),
         "gramps_id": citation.gramps_id,
         "date": display_date(citation.date, locale),
         "page": citation.page,
@@ -1276,6 +1290,16 @@ def add_object(
         raise ValueError("Database does not support writing.")
 
 
+def _get_referenced_person(db_handle: DbWriteBase, handle: Handle) -> Person:
+    """Get a person newly referenced by a family, or fail with 422."""
+    try:
+        return db_handle.get_person_from_handle(handle)
+    except HandleError:
+        abort_with_message(
+            422, f"Family references a person that does not exist: {handle}"
+        )
+
+
 def add_family_update_refs(
     db_handle: DbWriteBase,
     obj: Family,
@@ -1288,12 +1312,12 @@ def add_family_update_refs(
     # add family handle to parents
     for handle in [obj.get_father_handle(), obj.get_mother_handle()]:
         if handle:
-            parent = db_handle.get_person_from_handle(handle)
+            parent = _get_referenced_person(db_handle, handle)
             parent.add_family_handle(obj.handle)
             db_handle.commit_person(parent, trans)
     # for each child, add the family handle to the child
     for ref in obj.get_child_ref_list():
-        child = db_handle.get_person_from_handle(ref.ref)
+        child = _get_referenced_person(db_handle, ref.ref)
         child.add_parent_family_handle(obj.handle)
         db_handle.commit_person(child, trans)
 
@@ -1662,13 +1686,17 @@ def update_family_update_refs(
 
     # remove the family from children which have been removed
     for ref in orig_set - new_set:
-        person = db_handle.get_person_from_handle(ref)
+        try:
+            person = db_handle.get_person_from_handle(ref)
+        except HandleError:
+            # nothing to update for a reference that is already broken
+            continue
         person.remove_parent_family_handle(obj.handle)
         db_handle.commit_person(person, trans)
 
     # add the family to children which have been added
     for ref in new_set - orig_set:
-        person = db_handle.get_person_from_handle(ref)
+        person = _get_referenced_person(db_handle, ref)
         person.add_parent_family_handle(obj.handle)
         db_handle.commit_person(person, trans)
 
@@ -1678,11 +1706,16 @@ def _fix_parent_handles(
 ) -> None:
     if orig_handle != new_handle:
         if orig_handle:
-            person = db_handle.get_person_from_handle(orig_handle)
-            person.family_list.remove(obj.handle)
-            db_handle.commit_person(person, trans)
+            try:
+                person = db_handle.get_person_from_handle(orig_handle)
+            except HandleError:
+                # nothing to update for a reference that is already broken
+                person = None
+            if person is not None:
+                person.family_list.remove(obj.handle)
+                db_handle.commit_person(person, trans)
         if new_handle:
-            person = db_handle.get_person_from_handle(new_handle)
+            person = _get_referenced_person(db_handle, new_handle)
             person.family_list.append(obj.handle)
             db_handle.commit_person(person, trans)
 

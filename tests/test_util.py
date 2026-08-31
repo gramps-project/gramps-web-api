@@ -2,11 +2,15 @@ import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
-from gramps.gen.lib import EventType
+from gramps.gen.errors import HandleError
+from gramps.gen.lib import Citation, EventType
 from gramps.gen.lib.json_utils import data_to_object
 
 from gramps_webapi.api import util
-from gramps_webapi.api.resources.util import fix_object_dict
+from gramps_webapi.api.resources.util import (
+    fix_object_dict,
+    get_citation_profile_for_object,
+)
 from gramps_webapi.api.util import send_email
 from gramps_webapi.const import PRIMARY_GRAMPS_OBJECTS
 
@@ -579,3 +583,22 @@ def test_display_date_does_not_swallow_unexpected_errors():
 
     with pytest.raises(RuntimeError):
         display_date(Date(), locale)
+
+
+def test_citation_profile_survives_a_broken_source_reference():
+    """A citation whose source is missing is still a valid citation."""
+    db_handle = MagicMock()
+    db_handle.get_source_from_handle.side_effect = HandleError(
+        "Handle nonexistent not found"
+    )
+    citation = Citation()
+    citation.set_handle("c0001")
+    citation.set_gramps_id("C0001")
+    citation.set_page("p. 42")
+    citation.set_reference_handle("nonexistent")
+
+    profile = get_citation_profile_for_object(db_handle, citation, [])
+
+    assert profile["source"] == {}
+    assert profile["gramps_id"] == "C0001"
+    assert profile["page"] == "p. 42"

@@ -809,8 +809,12 @@ def _index_objects(
         except Exception:
             # handle and class name are identifiers rather than tree data,
             # so they are safe to log and are needed to find the object.
-            logging.getLogger(__name__).exception(
-                "Failed to update search index for %s %s", class_name, handle
+            # warning, not error: skipping the object is intended here
+            logging.getLogger(__name__).warning(
+                "Failed to update search index for %s %s",
+                class_name,
+                handle,
+                exc_info=True,
             )
 
 
