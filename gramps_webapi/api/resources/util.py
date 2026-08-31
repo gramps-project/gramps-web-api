@@ -239,7 +239,10 @@ def get_participant_from_event_localized(
     families = set([x[1] for x in result_list if x[0] == "Family"])
 
     for person_handle in people:
-        person = get_person_by_handle(db_handle, person_handle)
+        try:
+            person = db_handle.get_person_from_handle(person_handle)
+        except HandleError:
+            continue
         if not person:
             continue
         for event_ref in person.get_event_ref_list():
@@ -968,7 +971,7 @@ def get_citation_profile_for_object(
                 "pubinfo": source.pubinfo,
                 "gramps_id": source.gramps_id,
             }
-            if source
+            if isinstance(source, Source)
             else {}
         ),
         "gramps_id": citation.gramps_id,
