@@ -74,11 +74,10 @@ def add_user(
         user_db.session.add(user)  # pylint: disable=no-member
         user_db.session.commit()  # pylint: disable=no-member
     except IntegrityError as exc:
+        user_db.session.rollback()  # pylint: disable=no-member
         reason = str(exc.orig.args) if exc.orig else ""
         if "name" in reason:
             message = "User already exists"
-        elif "email" in reason:
-            message = "E-mail already exists"
         else:
             message = "Unexpected database error while trying to add user"
         raise ValueError(message) from exc
@@ -108,12 +107,14 @@ def add_users(
             # generate random password
             user["password"] = secrets.token_urlsafe(16)
         user["pwhash"] = hash_password(str(user.pop("password")))
-        try:
+    try:
+        for user in data:
             user_obj = User(**user)
             user_db.session.add(user_obj)  # pylint: disable=no-member
-        except IntegrityError as exc:
-            raise ValueError("Invalid or existing user") from exc
-    user_db.session.commit()  # pylint: disable=no-member
+        user_db.session.commit()  # pylint: disable=no-member
+    except IntegrityError as exc:
+        user_db.session.rollback()  # pylint: disable=no-member
+        raise ValueError("Invalid or existing user") from exc
 
 
 def get_guid(name: str) -> str:
@@ -123,15 +124,6 @@ def get_guid(name: str) -> str:
     if user_id is None:
         raise ValueError(f"User {name} not found")
     return user_id
-
-
-def get_guid_by_email(email: str) -> Optional[str]:
-    """Get the GUID of the user owning an e-mail address, if any.
-
-    `users.email` is unique, so this identifies at most one account.
-    """
-    query = user_db.session.query(User.id)  # pylint: disable=no-member
-    return query.filter_by(email=email).scalar()
 
 
 def get_name(guid: str) -> str:
@@ -202,14 +194,10 @@ def modify_user(
     except IntegrityError as exc:
         user_db.session.rollback()  # pylint: disable=no-member
         reason = str(exc.orig.args) if exc.orig else ""
-        # Check for unique constraint violations on username or email
-        # PostgreSQL: "users_name_key" or "users_email_key"
-        # SQLite: "users.name" or "users.email"
+        # Check for unique constraint violation on the username
+        # PostgreSQL: "users_name_key" / SQLite: "users.name"
         if "users_name_key" in reason or "users.name" in reason:
             message = "User already exists"
-            raise ValueError(message) from exc
-        elif "users_email_key" in reason or "users.email" in reason:
-            message = "E-mail already exists"
             raise ValueError(message) from exc
         else:
             # Let unexpected database errors bubble up as IntegrityError
@@ -658,7 +646,7 @@ class User(user_db.Model):  # type: ignore
 
     id = mapped_column(GUID, primary_key=True)
     name = mapped_column(sa.String, unique=True, nullable=False)
-    email = mapped_column(sa.String, unique=True)
+    email = mapped_column(sa.String, index=True)
     fullname = mapped_column(sa.String)
     pwhash = mapped_column(sa.String, nullable=False)
     role = mapped_column(sa.Integer, default=0)
