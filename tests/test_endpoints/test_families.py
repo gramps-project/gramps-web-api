@@ -417,6 +417,7 @@ class TestFamilies(unittest.TestCase):
             {
                 "children": [
                     {
+                        "addresses": [],
                         "birth": {
                             "age": "0 days",
                             "citations": 0,
@@ -441,6 +442,7 @@ class TestFamilies(unittest.TestCase):
                 "events": [],
                 "family_surname": "",
                 "father": {
+                    "addresses": [],
                     "birth": {
                         "age": "0 days",
                         "citations": 0,
@@ -473,6 +475,7 @@ class TestFamilies(unittest.TestCase):
                 "handle": "cc82060505948b9e57f",
                 "marriage": {},
                 "mother": {
+                    "addresses": [],
                     "birth": {},
                     "death": {
                         "citations": 0,
@@ -494,6 +497,7 @@ class TestFamilies(unittest.TestCase):
                 "references": {
                     "person": [
                         {
+                            "addresses": [],
                             "birth": {
                                 "date": "164-03 (Islamic)",
                                 "place": "",
@@ -517,6 +521,7 @@ class TestFamilies(unittest.TestCase):
                             "sex": "M",
                         },
                         {
+                            "addresses": [],
                             "birth": {},
                             "death": {
                                 "date": "234 (Islamic)",
@@ -534,6 +539,7 @@ class TestFamilies(unittest.TestCase):
                             "sex": "F",
                         },
                         {
+                            "addresses": [],
                             "birth": {
                                 "date": "203 (Islamic)",
                                 "place": "",
@@ -789,6 +795,7 @@ class TestFamiliesHandle(unittest.TestCase):
             {
                 "children": [
                     {
+                        "addresses": [],
                         "birth": {
                             "age": "0 days",
                             "citations": 0,
@@ -809,6 +816,7 @@ class TestFamiliesHandle(unittest.TestCase):
                         "sex": "M",
                     },
                     {
+                        "addresses": [],
                         "birth": {
                             "age": "0 days",
                             "citations": 0,
@@ -844,6 +852,7 @@ class TestFamiliesHandle(unittest.TestCase):
                 ],
                 "family_surname": "Garner",
                 "father": {
+                    "addresses": [],
                     "birth": {
                         "age": "0 days",
                         "citations": 0,
@@ -876,6 +885,7 @@ class TestFamiliesHandle(unittest.TestCase):
                     "summary": "Marriage - Garner, Gerard Stephen and George, Elizabeth",
                 },
                 "mother": {
+                    "addresses": [],
                     "birth": {
                         "age": "0 days",
                         "citations": 0,
@@ -898,6 +908,7 @@ class TestFamiliesHandle(unittest.TestCase):
                 "references": {
                     "person": [
                         {
+                            "addresses": [],
                             "birth": {
                                 "date": "1983-10-05",
                                 "place": "Ottawa, La Salle, IL, USA",
@@ -915,6 +926,7 @@ class TestFamiliesHandle(unittest.TestCase):
                             "sex": "M",
                         },
                         {
+                            "addresses": [],
                             "birth": {
                                 "date": "1985-02-11",
                                 "place": "Ottawa, La Salle, IL, USA",
@@ -932,6 +944,7 @@ class TestFamiliesHandle(unittest.TestCase):
                             "sex": "M",
                         },
                         {
+                            "addresses": [],
                             "birth": {
                                 "date": "1957-01-31",
                                 "place": "",
@@ -949,6 +962,7 @@ class TestFamiliesHandle(unittest.TestCase):
                             "sex": "F",
                         },
                         {
+                            "addresses": [],
                             "birth": {
                                 "date": "1955-07-31",
                                 "place": "Ottawa, La Salle, IL, USA",

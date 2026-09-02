@@ -1190,6 +1190,7 @@ class TestPeopleHandle(unittest.TestCase):
         self.assertEqual(
             rv["profile"],
             {
+                "addresses": [],
                 "birth": {
                     "date": "1906-09-05",
                     "place": "Central City, Muhlenberg, KY, USA",
@@ -1213,6 +1214,11 @@ class TestPeopleHandle(unittest.TestCase):
                 "sex": "F",
             },
         )
+
+    def test_get_people_handle_parameter_profile_expected_result_addresses(self):
+        """Test address dates are formatted in the profile."""
+        rv = check_success(self, TEST_URL + "GNUJQCL9MD64AM56OH?profile=self")
+        self.assertEqual(rv["profile"]["addresses"], [{"date_str": "2000-01-02"}])
 
     def test_get_people_handle_parameter_profile_expected_result_age(self):
         """Test profile parameter age option."""

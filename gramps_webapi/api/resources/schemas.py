@@ -316,6 +316,14 @@ class NameSchema(_Base):
 # ===========================================================================
 
 
+class AddressProfileSchema(_Base):
+    """A summary of an address, used within profile responses."""
+
+    date_str = fields.Str(
+        metadata={"description": "Date of the address as a formatted string."},
+    )
+
+
 class EventProfileSchema(_Base):
     """A summary of a Gramps event, used within profile responses."""
 
@@ -350,6 +358,12 @@ class EventProfileSchema(_Base):
 class PersonProfileSchema(_Base):
     """A summary of a person's key biographical information."""
 
+    addresses = fields.List(
+        fields.Nested(AddressProfileSchema),
+        metadata={
+            "description": "Addresses with formatted dates, parallel to address_list."
+        },
+    )
     birth = fields.Nested(
         EventProfileSchema,
         metadata={"description": "Birth event profile (or best available fallback)."},
@@ -538,6 +552,34 @@ class MediaProfileSchema(_Base):
     )
     references = fields.Dict(
         metadata={"description": "References to this media item from other objects."},
+    )
+
+
+class RepositoryProfileSchema(_Base):
+    """A summary of a repository record."""
+
+    addresses = fields.List(
+        fields.Nested(AddressProfileSchema),
+        metadata={
+            "description": "Addresses with formatted dates, parallel to address_list."
+        },
+    )
+    gramps_id = fields.Str(
+        metadata={
+            "description": "Alternate user-managed identifier for the repository."
+        },
+    )
+    handle = fields.Str(
+        metadata={"description": "Unique handle for the repository."},
+    )
+    name = fields.Str(
+        metadata={"description": "Name of the repository."},
+    )
+    references = fields.Dict(
+        metadata={"description": "References to this repository from other objects."},
+    )
+    type = fields.Str(
+        metadata={"description": "Localized type of repository."},
     )
 
 
@@ -885,6 +927,10 @@ class RepositorySchema(_Base):
         },
     )
     private = fields.Bool(metadata={"description": "Private object indicator."})
+    profile = fields.Nested(
+        RepositoryProfileSchema,
+        metadata={"description": "Optional summary of repository information."},
+    )
     tag_list = fields.List(
         fields.Str(),
         metadata={"description": "Handles of tags attached to this repository."},
