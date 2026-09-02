@@ -16,6 +16,7 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     "gramps[all]>=6.0.4,<6.1.0",
+    "gramps-sql-extensions>=0.1.0",
     "PYGObject<=3.50.0",
     "orjson",
     "Click>=7.0",

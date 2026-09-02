@@ -27,12 +27,8 @@ privacy-proxied) `db_handle` into the one thing `RelationshipGraph`
 actually needs, an `execute(sql, params) -> rows` callable, and resolving
 which backend dialect and (for Postgres) integer treeid apply.
 
-DEPENDENCY NOTE: `gramps-sql-extensions` is not published yet, so it is
-deliberately NOT listed in pyproject.toml's `dependencies` (that would
-break `pip install .` and CI, since nothing could resolve it). For now
-it's installed locally as an editable sibling checkout
-(`pip install -e ../gramps-sql-extensions`). Move it into pyproject.toml's
-real dependency list once it has a published release.
+`gramps-sql-extensions` is published on PyPI and listed in
+pyproject.toml's `dependencies`.
 """
 
 from gramps.gen.const import GRAMPS_LOCALE as glocale
