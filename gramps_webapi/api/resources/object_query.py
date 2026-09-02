@@ -831,10 +831,13 @@ class ObjectQueryResource(ProtectedResource):
         top-level column -- `run_query`'s own sort (`_sort_key_row`)
         resolves whatever it's given via `resolve_column_ref`. Locale-aware
         `COLLATE` sorting (the SQL path's `locale` param) has no equivalent
-        here -- `run_query` always sorts in plain, NULL-safe Python `<`
-        order (matching SQLite's own default). Rather than silently
-        returning a different sort order than the same request would get
-        on the SQL path, an explicit `locale` is rejected outright below.
+        here -- `run_query` sorts in NULL-safe Python comparisons that
+        ASCII-case-fold text values, matching the SQL path's own NOCASE
+        default (SQLite's built-in collation, applied when `locale` is
+        unset -- see `_resolve_collation`), not full locale collation.
+        Rather than silently returning a different sort order than the
+        same request would get on the SQL path, an explicit `locale` is
+        rejected outright below.
         """
         if args.get("locale"):
             abort_with_message(

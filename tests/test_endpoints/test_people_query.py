@@ -19,6 +19,7 @@
 
 """Tests for the POST /api/people/query/ endpoint using example_gramps."""
 
+import string
 import unittest
 from unittest.mock import patch
 
@@ -32,6 +33,16 @@ from . import BASE_URL, get_object_count, get_test_client
 from .util import fetch_header
 
 TEST_URL = BASE_URL + "/people/query/"
+
+_ASCII_NOCASE_TABLE = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
+
+
+def _ascii_nocase_key(value: str) -> str:
+    """ASCII-only case fold, matching SQLite's built-in `NOCASE` collation --
+    gramps-object-query-language's default for text `ORDER BY` columns when
+    no explicit `collation` is requested.
+    """
+    return value.translate(_ASCII_NOCASE_TABLE)
 
 
 class _FakeNonPrivateProxy(ProxyDbBase):
@@ -235,16 +246,18 @@ class TestPeopleQuery(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 200)
         surnames = [item["surname"] or "" for item in rv.json["items"]]
-        self.assertEqual(surnames, sorted(surnames))
+        self.assertEqual(surnames, sorted(surnames, key=_ascii_nocase_key))
 
     def test_no_locale_uses_plain_codepoint_order_not_system_locale(self):
         # Regression test: requests without an explicit `locale` must sort by
-        # plain codepoint order (matching Python's sorted()), not silently
-        # apply the server process's system locale collation. example_gramps
-        # includes "Álvarez", which a locale-aware (e.g. en_US) collation
-        # sorts near "Alvarez" -- with "A" names -- while codepoint order
-        # (and SQLite's default BINARY collation) sorts it after all
-        # plain-ASCII names, since 'Á' > 'z' by codepoint.
+        # plain ASCII-case-insensitive codepoint order (matching SQLite's own
+        # built-in NOCASE default -- see gramps-object-query-language's
+        # `_column_expr`), not silently apply the server process's system
+        # locale collation. example_gramps includes "Álvarez", which a
+        # locale-aware (e.g. en_US) collation sorts near "Alvarez" -- with
+        # "A" names -- while ASCII-NOCASE order (and SQLite's NOCASE
+        # collation) sorts it after all plain-ASCII names, since 'Á' > 'z'
+        # by codepoint and NOCASE doesn't fold non-ASCII letters.
         header = fetch_header(self.client)
         items = self._fetch_all(
             header,
@@ -254,7 +267,7 @@ class TestPeopleQuery(unittest.TestCase):
             },
         )
         surnames = [item["surname"] or "" for item in items]
-        self.assertEqual(surnames, sorted(surnames))
+        self.assertEqual(surnames, sorted(surnames, key=_ascii_nocase_key))
         self.assertIn("Álvarez", surnames)
         # Under codepoint order, "Á" (U+00C1) sorts after all plain-ASCII
         # letters -- so "Álvarez" must come after "Andersen", not be
