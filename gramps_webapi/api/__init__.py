@@ -188,11 +188,12 @@ def register_endpt(
     via `object_request_body()`); omit it for endpoints that take no body
     or a non-JSON one (such as Media's raw file upload).
     """
+    operation_name = name.replace("-", "_")
     for verb in ("get", "post", "put", "delete", "patch"):
         method = getattr(resource, verb, None)
         if method is None:
             continue
-        doc_kwargs: dict = {"operationId": f"{verb}_{name}"}
+        doc_kwargs: dict = {"operationId": f"{verb}_{operation_name}"}
         if request_body is not None and verb in ("post", "put"):
             doc_kwargs["requestBody"] = request_body
         # setattr rather than plain assignment: mypy rejects assigning to a
