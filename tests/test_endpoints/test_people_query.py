@@ -503,17 +503,12 @@ class TestPeopleQuery(unittest.TestCase):
         for a comparison's column side.
         """
         header = fetch_header(self.client)
-        rv = self.client.post(
-            TEST_URL,
-            json={"select": ["handle", "birth.place.title"], "limit": 20},
-            headers=header,
-        )
-        self.assertEqual(rv.status_code, 200)
-        for item in rv.json["items"]:
+        items = self._fetch_all(header, {"select": ["handle", "birth.place.title"]})
+        for item in items:
             self.assertEqual(set(item), {"handle", "birth.place.title"})
         # Not vacuous: somebody in the example tree has a birth place.
         self.assertTrue(
-            any(item["birth.place.title"] for item in rv.json["items"]),
+            any(item["birth.place.title"] is not None for item in items),
             "no birth place resolved -- the test would pass vacuously",
         )
 

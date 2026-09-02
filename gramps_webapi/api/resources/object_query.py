@@ -165,8 +165,10 @@ class QueryBodyArgs(Schema):
         required=False,
         metadata={
             "description": "Columns to return. Defaults to all available columns. "
-            "Each entry is either an expression string or a {'json_path': [...], "
-            "'as': '<key>'} object. An expression is a column name "
+            "Each entry is either an expression string or a {'json_path': [...]} "
+            "object, optionally with 'as': '<key>' -- omitted, the response key "
+            "falls back to the path's own dotted/bracket spelling, same as the "
+            "expression string form. An expression is a column name "
             "('gramps_id'), a path ('primary_name.surname_list[0].surname'), or "
             "count(relationship[, condition]) ('count(events)'), each optionally "
             "followed by 'as <key>' to name it in the response, e.g. "
@@ -823,14 +825,16 @@ class ObjectQueryResource(ProtectedResource):
         deserialized and tested in Python (no SQL push-down), so this is
         intentionally not fast -- see `proxied_query.py`'s module docstring.
 
-        `order_by` is only ever a flat top-level column (`OrderBy.column`
-        never carries a `JsonPath`/`RelatedObject` -- see `query.py`),
-        matching `run_query`'s own scope cap. Locale-aware `COLLATE`
-        sorting (the SQL path's `locale` param) has no equivalent here --
-        `run_query` always sorts in plain, NULL-safe Python `<` order
-        (matching SQLite's own default). Rather than silently returning a
-        different sort order than the same request would get on the SQL
-        path, an explicit `locale` is rejected outright below.
+        `order_by` is resolved via `resolve_order_by`, the same as the SQL
+        path, so `OrderBy.column` may carry a `JsonPath`/`RelatedObject`
+        path (e.g. `birth.date.sortval`) here too, not just a flat
+        top-level column -- `run_query`'s own sort (`_sort_key_row`)
+        resolves whatever it's given via `resolve_column_ref`. Locale-aware
+        `COLLATE` sorting (the SQL path's `locale` param) has no equivalent
+        here -- `run_query` always sorts in plain, NULL-safe Python `<`
+        order (matching SQLite's own default). Rather than silently
+        returning a different sort order than the same request would get
+        on the SQL path, an explicit `locale` is rejected outright below.
         """
         if args.get("locale"):
             abort_with_message(
