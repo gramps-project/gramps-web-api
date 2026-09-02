@@ -331,7 +331,8 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
 
     @app.errorhandler(HandleError)
     def handle_gramps_handle_error(e):
-        _LOG.exception("Broken handle reference: %s", e)
+        # warning, not error: tree damage, not a server defect
+        _LOG.warning("Broken handle reference: %s", e, exc_info=True)
         payload = {
             "error": {
                 "code": 500,

@@ -285,7 +285,16 @@ def run_export(
                 user = UserTaskProgress(task=task)
             else:
                 user = User()
-            result = export_function(db_handle, file_path, user, options)
+            try:
+                result = export_function(db_handle, file_path, user, options)
+            except HandleError:
+                # skipping the reference would silently write an incomplete file
+                abort_with_message(
+                    422,
+                    "The family tree contains a reference to a record that does "
+                    "not exist, so it cannot be exported. Running the check & "
+                    "repair tool on the tree should fix this.",
+                )
             if not result:
                 abort_with_message(500, "Export function failed")
             return file_name, "." + extension
