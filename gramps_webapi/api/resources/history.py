@@ -56,7 +56,7 @@ OBJECT_CLASSES = sorted(set(KEY_TO_CLASS_MAP.values()))
 
 
 class TransactionsHistoryQueryArgs(Schema):
-    """Query arguments for GET /history/transactions/."""
+    """Query arguments for GET /transactions/history/."""
 
     old = fields.Boolean(
         load_default=False,
@@ -160,7 +160,7 @@ class TransactionsHistoryResource(ProtectedResource):
 
 
 class ObjectHistoryQueryArgs(Schema):
-    """Query arguments for GET /history/transactions/objects/<class>/<handle>/."""
+    """Query arguments for GET /transactions/history/objects/<obj_class>/<obj_handle>/."""
 
     old = fields.Boolean(
         load_default=False,
@@ -225,7 +225,7 @@ class ObjectHistoryResource(ProtectedResource):
             before=args["before"],
             after=args["after"],
         )
-        etag = transactions_etag(args, max_ts, count)
+        etag = transactions_etag(args, max_ts, count, obj_key=(obj_class, obj_handle))
         if etag_unchanged(etag):
             return transactions_response(None, count=count, etag=etag)
 
@@ -250,7 +250,7 @@ class ObjectHistoryResource(ProtectedResource):
 
 
 class TransactionHistoryQueryArgs(Schema):
-    """Query arguments for GET /history/transactions/<id>/."""
+    """Query arguments for GET /transactions/history/<id>/."""
 
     old = fields.Boolean(
         load_default=False,
@@ -470,14 +470,21 @@ def transaction_user_ids(transactions: list[Dict]) -> set[str]:
     return {transaction["connection"]["user_id"] for transaction in transactions}
 
 
-def transactions_etag(args: Dict, max_id: int | None, count: int) -> str:
+def transactions_etag(
+    args: Dict, max_id: int | None, count: int, obj_key: tuple | None = None
+) -> str:
     """Build a cache validator for a page of the transaction history.
+
+    `obj_key` (obj_class, obj_handle) scopes the ETag to a single object's
+    history so it cannot collide with the ETag of another object's history.
 
     The user names resolved into the response are not covered: a rename becomes
     visible only once the next transaction is written.
     """
     tree_id = get_tree_from_jwt_or_fail()
-    state = json.dumps([tree_id, max_id, count, args], sort_keys=True, default=str)
+    state = json.dumps(
+        [tree_id, obj_key, max_id, count, args], sort_keys=True, default=str
+    )
     return hashlib.sha256(state.encode()).hexdigest()
 
 
