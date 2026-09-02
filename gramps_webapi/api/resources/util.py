@@ -38,10 +38,10 @@ from celery import Task
 from flask import Response, current_app, request
 from gramps.gen.config import config
 from gramps.gen.const import GRAMPS_LOCALE as glocale
+from gramps.gen.const import PLUGINS_DIR, USER_PLUGINS
 from gramps.gen.db import KEY_TO_CLASS_MAP, DbTxn
 from gramps.gen.db.base import DbReadBase, DbWriteBase
 from gramps.gen.db.dbconst import TXNADD, TXNDEL, TXNUPD
-from gramps.gen.db.utils import make_database
 from gramps.gen.display.name import NameDisplay
 from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
@@ -58,9 +58,15 @@ from gramps.gen.lib import (
     Source,
     Span,
 )
+from gramps.gen.lib.genderstats import GenderStats
 
 # from gramps.gen.lib.serialize import to_json
-from gramps.gen.lib.json_utils import object_to_dict, object_to_string, remove_object
+from gramps.gen.lib.json_utils import (
+    object_to_dict,
+    object_to_string,
+    remove_object,
+    string_to_object,
+)
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.plug import BasePluginManager
 from gramps.gen.relationship import get_relationship_calculator
@@ -81,6 +87,7 @@ import gramps_gedcom7
 
 from ...const import DISABLED_IMPORTERS, SEX_FEMALE, SEX_MALE, SEX_OTHER, SEX_UNKNOWN
 from ...types import FilenameOrPath, Handle, TransactionJson
+from .fast_sqlite import FastSQLite
 from ..media import get_media_handler
 from ..util import (
     UserTaskProgress,
@@ -1902,12 +1909,532 @@ def remove_mediapath_from_gramps_xml(file_name: FilenameOrPath) -> None:
             f.write(content_modified)
 
 
+def _ensure_plugins_registered() -> None:
+    """Make sure gramps' import/export plugins (and everything else in
+    PLUGINS_DIR/USER_PLUGINS) are registered in this process.
+
+    gramps.gen.db.utils.make_database() does this itself as a side effect
+    of looking up the requested backend id (see its own `if not pdata:`
+    fallback) -- which is *why* nothing in gramps-web-api has ever needed
+    to call this explicitly before: some make_database(...) call (e.g.
+    ImporterFileResource.post()'s get_db_handle(), which resolves the
+    real tree's backend) has always run first and registered everything
+    as a byproduct. make_scratch_db() constructing FastSQLite() directly
+    (see below) skips that lookup, and dry_run_import()'s Celery task
+    calls it *before* any such get_db_handle() -- so in a fresh worker
+    process, nothing else triggers registration in time, and
+    get_import_plugins() silently returns an empty list (an import
+    "succeeds" having matched zero objects, since nothing raises). Same
+    guarded check make_database() uses, so this is a no-op once plugins
+    are already registered.
+    """
+    pmgr = BasePluginManager.get_instance()
+    if not pmgr.get_plugin("sqlite"):
+        pmgr.reg_plugins(PLUGINS_DIR, None, None)
+        pmgr.reg_plugins(USER_PLUGINS, None, None, load_on_reg=True)
+
+
+def make_scratch_db() -> DbWriteBase:
+    """Create the throwaway in-memory Gramps DB used both to preview an
+    import (dry_run_import) and, when the real tree is empty, to actually
+    run it (see run_import's empty-tree fast path / bulk_copy).
+
+    Uses FastSQLite directly (bypassing make_database()'s plugin lookup
+    for the "sqlite" id -- make_database() just does `database_class()`
+    with no arguments, so this is equally valid) so
+    drop_bulk_import_indexes() is available regardless of whether the
+    installed gramps-core ships it -- see fast_sqlite.py. That lookup's
+    plugin-registration side effect is replicated explicitly instead, via
+    _ensure_plugins_registered() -- see its docstring for why skipping it
+    silently breaks imports in a fresh process.
+    """
+    _ensure_plugins_registered()
+    db_handle = FastSQLite()
+    db_handle.load(":memory:")
+    db_handle.set_feature("skip-import-additions", True)
+    db_handle.set_prefixes(
+        config.get("preferences.iprefix"),
+        config.get("preferences.oprefix"),
+        config.get("preferences.fprefix"),
+        config.get("preferences.sprefix"),
+        config.get("preferences.cprefix"),
+        config.get("preferences.pprefix"),
+        config.get("preferences.eprefix"),
+        config.get("preferences.rprefix"),
+        config.get("preferences.nprefix"),
+    )
+    return db_handle
+
+
+# Every table make_scratch_db()'s plain sqlite backend creates (see
+# gramps/plugins/db/dbapi/dbapi.py's _create_schema) with a bare
+# (handle, json_data) shape -- excludes derived/secondary columns
+# (given_name, surname, title, ...), which bulk_copy() deliberately leaves
+# for rebuild_secondary() to fill in afterward rather than reproducing here.
+_BULK_COPY_TABLES = (
+    "person",
+    "family",
+    "event",
+    "place",
+    "media",
+    "source",
+    "citation",
+    "repository",
+    "note",
+    "tag",
+)
+
+
+def _insert_rows(dbapi, table: str, columns: list[str], rows: list[tuple]) -> None:
+    """Insert `rows` (each matching `columns`) into `table`.
+
+    Uses the backend's own bulk_insert() -- every real backend
+    (sqlite/postgresql/sharedpostgresql) has one: the Postgres ones page
+    through psycopg2's execute_values() (one multi-row INSERT per page
+    instead of one round trip per row), sqlite's uses executemany() (no
+    round trip to save, but skips the per-row Python/interpreter
+    overhead of looping individual execute() calls). Falls back to a
+    plain execute() per row only for a hypothetical backend with
+    neither.
+    """
+    if not rows:
+        return
+    # TEMP DEBUG -- remove before this goes anywhere real.
+    force_row_by_row = os.environ.get("GRAMPS_WEBAPI_FORCE_ROW_BY_ROW_INSERT")
+    bulk_insert = None if force_row_by_row else getattr(dbapi, "bulk_insert", None)
+    if bulk_insert is not None:
+        bulk_insert(table, columns, rows)
+        return
+    placeholders = ", ".join("?" for _ in columns)
+    sql = f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({placeholders})"
+    for row in rows:
+        dbapi.execute(sql, list(row))
+
+
+def _supports_inline_secondary_columns(real_db: DbWriteBase) -> bool:
+    """Whether real_db's backend can compute secondary (derived) columns
+    from an object alone, with no DB access -- see
+    DbWriteBase.get_secondary_columns(). If not, callers must fall back
+    to real_db.rebuild_secondary() to backfill those columns instead.
+
+    Deliberately does not assume DbWriteBase.get_secondary_columns
+    exists: that hook is an uncommitted gramps-core change with no
+    release timeline we control, so a plain, currently-released
+    gramps-core has no such attribute on DbWriteBase at all. A backend
+    that defines get_secondary_columns() directly on itself (e.g. the
+    SharedPostgreSQL/PostgreSQL addons, which don't wait on gramps-core
+    for this) must still be detected correctly either way.
+    """
+    method = getattr(type(real_db), "get_secondary_columns", None)
+    if method is None:
+        return False
+    base_method = getattr(DbWriteBase, "get_secondary_columns", None)
+    return base_method is None or method is not base_method
+
+
+def _prefixed(rows: list[tuple], treeid: Optional[int]) -> list[tuple]:
+    """Prepend `treeid` to each row, or pass `rows` through unchanged for
+    a single-tenant backend (treeid is None)."""
+    if treeid is None:
+        return rows
+    return [(treeid, *row) for row in rows]
+
+
+def _bulk_copy_table(
+    scratch: DbWriteBase,
+    real_db: DbWriteBase,
+    table: str,
+    treeid: Optional[int],
+    inline_secondary: bool,
+) -> list[tuple]:
+    """Stream `table` out of scratch in cursor-sized chunks (its
+    arraysize, ARRAYSIZE == 1000 -- see Cursor.__enter__) and bulk-insert
+    each chunk into real_db, instead of loading the whole table into
+    memory at once with fetchall(). A table can be the largest thing in
+    a tree (events/citations easily run into the hundreds of thousands
+    for a large genealogy), so this bounds bulk_copy()'s memory use to
+    one chunk rather than one full table.
+
+    When `inline_secondary` is true, folds each row's derived columns
+    (given_name, surname, title, ...) into the same INSERT by computing
+    them from its json_data -- avoiding the separate SELECT+UPDATE per
+    row that rebuild_secondary() would otherwise need to backfill them
+    afterward. Uses real_db.get_secondary_columns(), so column naming
+    (e.g. SharedPostgreSQL's reserved-word renaming, desc -> desc_) is
+    handled the same way it already is for a normal single-object commit.
+
+    Returns the raw (handle, json_data) rows for the "person" table only
+    (needed afterward for gender-stats rebuild, which needs every person
+    in hand); an empty list for every other table.
+    """
+    person_rows: list[tuple] = []
+    extra_columns: Optional[list[str]] = None
+    with scratch.dbapi.cursor() as cur:
+        cur.execute(f"SELECT handle, json_data FROM {table}")
+        while True:
+            raw_rows = cur.fetchmany()
+            if not raw_rows:
+                break
+            if table == "person":
+                person_rows.extend(raw_rows)
+
+            if not inline_secondary:
+                columns = (["treeid"] if treeid is not None else []) + [
+                    "handle",
+                    "json_data",
+                ]
+                rows = _prefixed(raw_rows, treeid)
+            else:
+                out_rows = []
+                for handle, json_data in raw_rows:
+                    obj = string_to_object(json_data)
+                    secondary = real_db.get_secondary_columns(obj)
+                    if extra_columns is None:
+                        extra_columns = list(secondary.keys())
+                    prefix = (treeid,) if treeid is not None else ()
+                    # Matches what _update_secondary_values() already does
+                    # for a normal single-row UPDATE (e.g. Person.private
+                    # is a Python bool, but its physical column is
+                    # INTEGER -- psycopg2 sends a bare bool as SQL
+                    # boolean, which Postgres then refuses to write into
+                    # an integer column).
+                    extra_values = real_db._sql_cast_list(
+                        [secondary[col] for col in extra_columns]
+                    )
+                    out_rows.append(prefix + (handle, json_data) + tuple(extra_values))
+                columns = (
+                    (["treeid"] if treeid is not None else [])
+                    + ["handle", "json_data"]
+                    + (extra_columns or [])
+                )
+                rows = out_rows
+
+            _insert_rows(real_db.dbapi, table, columns, rows)
+    return person_rows
+
+
+def _rebuild_gender_stats(real_db: DbWriteBase, person_rows: list[tuple]) -> None:
+    """Rebuild real_db's GenderStats from the person rows just bulk-copied
+    in.
+
+    bulk_copy() never copies the gender_stats table itself, and
+    rebuild_secondary()'s own tail (get_gender_stats()) just reads back
+    whatever's already in that table rather than recomputing it -- so
+    without this, a fast-path import leaves gender stats empty.
+    """
+    gstats = GenderStats()
+    for _handle, json_data in person_rows:
+        gstats.count_person(string_to_object(json_data))
+    real_db.genderStats = gstats
+    real_db.save_gender_stats(gstats)
+
+
+def bulk_copy(scratch: DbWriteBase, real_db: DbWriteBase) -> None:
+    """Copy every row from an empty scratch DB straight into real_db.
+
+    Only valid when real_db is empty: there is no gramps_id/handle
+    reconciliation here, just a raw copy of (handle, json_data) per table
+    plus the reference table -- see run_import's `db_handle.get_total() ==
+    0` fast path, which is the only caller.
+
+    Derived/secondary columns (given_name, surname, title, ...) are
+    computed from each row's json_data and included directly in that
+    row's INSERT when real_db's backend supports it (see
+    _bulk_copy_table()); otherwise they're left unset here and backfilled
+    by a rebuild_secondary() call at the end, the same way this worked
+    before per-backend inline support existed. Every table is streamed
+    out of scratch in chunks rather than loaded in full with fetchall(),
+    to bound memory use on a large tree.
+    """
+    # SharedPostgreSQL's tables are multi-tenant (one shared table per
+    # object type across every tree, discriminated by a treeid column);
+    # plain sqlite/postgresql backends are one-tree-per-database and have
+    # no such column. dbapi.treeid only exists on the former.
+    treeid = getattr(real_db.dbapi, "treeid", None)
+    inline_secondary = _supports_inline_secondary_columns(real_db)
+
+    person_rows: list[tuple] = []
+    for table in _BULK_COPY_TABLES:
+        rows = _bulk_copy_table(scratch, real_db, table, treeid, inline_secondary)
+        if rows:
+            person_rows = rows
+
+    with scratch.dbapi.cursor() as cur:
+        cur.execute(
+            "SELECT obj_handle, obj_class, ref_handle, ref_class FROM reference"
+        )
+        while True:
+            ref_rows = cur.fetchmany()
+            if not ref_rows:
+                break
+            _insert_rows(
+                real_db.dbapi,
+                "reference",
+                (["treeid"] if treeid is not None else [])
+                + ["obj_handle", "obj_class", "ref_handle", "ref_class"],
+                _prefixed(ref_rows, treeid),
+            )
+
+    real_db.dbapi.commit()
+    # A bulk INSERT finishes far faster than autovacuum's normal cycle, so
+    # the tables just written still carry stale (pre-import) planner
+    # statistics -- without this, any lookups against them (including
+    # rebuild_secondary()'s, on the fallback path below) can get planned
+    # as sequential scans instead of index scans. Cheap enough on an
+    # otherwise-empty tree's worth of tables to run unconditionally
+    # rather than special-case any one backend.
+    for table in (*_BULK_COPY_TABLES, "reference"):
+        real_db.dbapi.execute(f"ANALYZE {table};")
+
+    if not inline_secondary:
+        # Fallback: backend can't compute secondary columns from an
+        # object alone, so backfill them the old way (SELECT+UPDATE per
+        # row).
+        real_db.rebuild_secondary(callback=None)
+    _rebuild_gender_stats(real_db, person_rows)
+    real_db.request_rebuild()
+
+
+def _flush_and_snapshot_metadata(db: DbWriteBase) -> dict:
+    """Flush every in-memory-only metadata attribute to `db`'s metadata
+    table, then read the table back into a dict keyed by setting name.
+
+    Setters called during import land in two different places depending
+    on which one a given importer/format uses: some (e.g.
+    set_default_person_handle()) write straight to the metadata table via
+    _set_metadata(); others (set_researcher(), bookmarks, custom
+    type/attribute registries -- see DbGeneric._set_all_metadata()) only
+    mutate an in-memory attribute on the DB object, normally flushed to
+    the table by close(). For an in-memory (":memory:") scratch DB, close()
+    skips that flush entirely (DbGeneric.close()'s own `if self._directory
+    != ":memory:":` guard) -- so without calling _set_all_metadata()
+    directly here (which has no such guard itself), values like the
+    researcher name would never reach the metadata table at all, no
+    matter when this snapshot is taken.
+    """
+    db._set_all_metadata()
+    return {key: db._get_metadata(key) for key in db._get_metadata_keys()}
+
+
+def _propagate_metadata(
+    scratch: DbWriteBase, real_db: DbWriteBase, baseline: dict
+) -> None:
+    """Copy whatever metadata import_function() added or changed on
+    scratch beyond `baseline` into real_db.
+
+    Format importers commonly set tree-level metadata while parsing --
+    e.g. importxml.py calls set_researcher()/set_default_person_handle()
+    for a file's <researcher>/home-person data. On the empty-tree fast
+    path that lands on the *scratch* DB (since import_function() is
+    called with scratch, not real_db), and bulk_copy() deliberately never
+    touches the metadata table (it also holds real_db's own pre-existing
+    tree-level settings, which must not be blindly overwritten) -- so
+    without this, that data would be silently lost. Diffing against a
+    pre-parse baseline (rather than copying everything) is what keeps
+    make_scratch_db()'s own setup calls (set_prefixes(), using
+    server-global config) from being copied over real_db's own prefixes.
+    `baseline` must come from _flush_and_snapshot_metadata(scratch),
+    called before import_function() runs, and this function expects
+    _flush_and_snapshot_metadata(scratch) to have been called *again*
+    (its return value discarded) right after import_function() returns,
+    so scratch's own metadata table reflects the parsed state, not just
+    whatever a handful of setters wrote immediately.
+    """
+    for key in scratch._get_metadata_keys():
+        value = scratch._get_metadata(key)
+        try:
+            unchanged = key in baseline and baseline[key] == value
+        except Exception:
+            # Some metadata value types may not support == cleanly --
+            # default to propagating rather than silently dropping data,
+            # since that's the exact failure mode this function exists to
+            # avoid.
+            unchanged = False
+        if not unchanged:
+            real_db._set_metadata(key, value)
+
+    # "researcher" is one of the keys DbGeneric._set_all_metadata() writes
+    # from an in-memory attribute (self.owner) rather than something a
+    # setter persists immediately (see that method, and set_researcher()'s
+    # own `self.owner.set_from(owner)`). real_db.close() calls
+    # _set_all_metadata() again at the end of the request -- since it's
+    # not a ":memory:" DB, the guard that skips that call for scratch
+    # doesn't apply to it -- and that later call writes whatever
+    # real_db.owner currently holds, silently overwriting the direct
+    # _set_metadata() write above unless real_db's own attribute is
+    # updated to match. (bookmarks and the custom type/attribute registries
+    # are flushed the same deferred way and have the same gap; only
+    # researcher is fixed here, matching what was actually reported lost.)
+    real_db.owner.set_from(scratch.get_researcher())
+
+
+def _tree_lock_key(db_handle: DbWriteBase) -> Optional[int]:
+    """Postgres advisory-lock key for db_handle's tree, if the backend
+    supports one. Only SharedPostgreSQL needs this: it's multi-tenant
+    (every tree shares the same tables, discriminated by a `treeid`
+    column), so two concurrent empty-tree imports for the *same* tree
+    could otherwise both pass the `get_total() == 0` check and both
+    bulk-copy in at once. Plain sqlite/postgresql are one-tree-per-
+    database, so there's no shared table for two *different* trees to
+    corrupt this way."""
+    return getattr(db_handle.dbapi, "treeid", None)
+
+
+def run_fast_path_copy(
+    scratch: DbWriteBase, real_db: DbWriteBase, baseline_metadata: dict
+) -> None:
+    """Bulk-copy scratch into real_db under an advisory lock (when the
+    backend has one), re-checking the empty-tree precondition once the
+    lock is held, and rolling back to empty on any failure.
+
+    run_import()'s initial `db_handle.get_total() == 0` check happens
+    before this, unlocked -- and that window includes the entire file
+    parse, not just the copy, so a concurrent writer has plenty of time to
+    act in it. Re-checking here, lock held, closes that race: if the tree
+    is no longer empty, this aborts loudly instead of bulk-copying without
+    the gramps_id/handle reconciliation that normally protects a
+    non-empty tree.
+    """
+    lock_key = _tree_lock_key(real_db)
+    if lock_key is not None:
+        real_db.dbapi.execute("SELECT pg_advisory_lock(?)", [lock_key])
+    try:
+        if real_db.get_total() != 0:
+            raise RuntimeError(
+                "Tree is no longer empty (a concurrent write happened during "
+                "import) -- please retry the import."
+            )
+        try:
+            bulk_copy(scratch, real_db)
+            _propagate_metadata(scratch, real_db, baseline_metadata)
+        except Exception:
+            # real_db was just confirmed empty above, so "delete
+            # everything" undoes exactly this attempt and nothing else --
+            # leaves the tree as it started rather than a partially
+            # copied, partially reindexed mess.
+            from .delete import delete_all_objects
+
+            delete_all_objects(real_db)
+            raise
+    finally:
+        if lock_key is not None:
+            real_db.dbapi.execute("SELECT pg_advisory_unlock(?)", [lock_key])
+
+
+def scratch_object_counts(db_handle: DbWriteBase) -> dict[str, int]:
+    """Object counts for a (scratch or real) db_handle, in the shape the
+    importer preview / quota check expect."""
+    return {
+        "people": db_handle.get_number_of_people(),
+        "families": db_handle.get_number_of_families(),
+        "sources": db_handle.get_number_of_sources(),
+        "citations": db_handle.get_number_of_citations(),
+        "events": db_handle.get_number_of_events(),
+        "media": db_handle.get_number_of_media(),
+        "places": db_handle.get_number_of_places(),
+        "repositories": db_handle.get_number_of_repositories(),
+        "notes": db_handle.get_number_of_notes(),
+        "tags": db_handle.get_number_of_tags(),
+    }
+
+
+def parse_import_to_scratch(
+    file_name: FilenameOrPath,
+    extension: str,
+    task: Optional[Task] = None,
+    delete: bool = True,
+) -> tuple[DbWriteBase, dict]:
+    """Parse `file_name` into a fresh scratch DB and return it, still
+    open, along with its pre-parse metadata baseline (see
+    _flush_and_snapshot_metadata).
+
+    This is the plugin-dispatch import path (everything run_import()
+    does other than its GEDCOM7 special case, which writes straight to
+    whatever db_handle it's given and never goes through a scratch DB at
+    all -- see run_import()).
+
+    The caller owns the returned DB's lifecycle from here (close it when
+    done) and decides what to do with it:
+    - dry_run_import() just reads object counts off it and closes it.
+    - a real import into an empty tree can bulk-copy it into the real
+      tree afterward (see tasks.py's import_file()) -- reusing this one
+      parse instead of run_import() parsing the same file a second time
+      from scratch, which is what used to happen unconditionally (every
+      real import first called dry_run_import() for a people-count to
+      quota-check against, threw that parse away, then run_import()
+      parsed the same file again for real).
+
+    Raises (via abort_with_message) on failure, same as run_import().
+    """
+    if extension.lower() == "gramps":
+        # Remove mediapath tag from Gramps XML files before import
+        # This is necessary because the mediapath tag can cause import failures
+        try:
+            remove_mediapath_from_gramps_xml(file_name)
+        except Exception as e:
+            # Log the error but continue with import attempt
+            current_app.logger.warning(
+                f"Failed to remove mediapath tag from {file_name}: {e}"
+            )
+
+    plugin_manager = BasePluginManager.get_instance()
+    import_function = None
+    for plugin in plugin_manager.get_import_plugins():
+        if extension == plugin.get_extension():
+            import_function = plugin.get_import_function()
+            break
+    if import_function is None:
+        abort_with_message(422, f"No importer found for extension {extension}")
+
+    user = UserTaskProgress(task=task) if task else User()
+
+    scratch = make_scratch_db()
+    try:
+        baseline_metadata = _flush_and_snapshot_metadata(scratch)
+        # Drop scratch's own non-essential secondary indexes (surname,
+        # given_name, title, page, desc, enclosed_by,
+        # reference_ref_handle -- see DBAPI._BULK_IMPORT_DROPPABLE_INDEXES)
+        # before parsing into it: maintaining them incrementally on every
+        # single insert is wasted work here, since nothing else in this
+        # fast path ever looks them up -- bulk_copy() reads scratch back
+        # out with a plain sequential SELECT per table, not an indexed
+        # lookup. We deliberately never call the paired
+        # rebuild_bulk_import_indexes() -- see this function's own
+        # docstring for what happens to `scratch` afterward; none of
+        # those callers need scratch's indexes rebuilt either.
+        # getattr-guarded: no-op on a gramps version without this hook.
+        drop_scratch_indexes = getattr(scratch, "drop_bulk_import_indexes", None)
+        if drop_scratch_indexes is not None:
+            drop_scratch_indexes()
+        result = import_function(scratch, str(file_name), user)
+        if not result:
+            abort_with_message(500, "Import failed")
+        # Flush whatever set_researcher()/bookmarks/custom-type
+        # registries the parse just populated in memory into scratch's
+        # own metadata table (see _flush_and_snapshot_metadata's
+        # docstring) -- return value unused, just the side effect.
+        _flush_and_snapshot_metadata(scratch)
+    except Exception:
+        scratch.close()
+        raise
+    finally:
+        if delete:
+            try:
+                os.remove(file_name)
+            except OSError as e:
+                current_app.logger.warning(
+                    f"Failed to delete temporary file {file_name}: {e}"
+                )
+    return scratch, baseline_metadata
+
+
 def run_import(
     db_handle: DbWriteBase,
     file_name: FilenameOrPath,
     extension: str,
     delete: bool = True,
     task: Optional[Task] = None,
+    use_fast_path: bool = True,
 ) -> None:
     """Import a file."""
     if extension.lower() == "ged" and detect_gedcom_major_version(str(file_name)) == 7:
@@ -1930,13 +2457,29 @@ def run_import(
                         f"Failed to delete temporary file {file_name}: {e}"
                     )
         return
+    if (
+        use_fast_path
+        and not os.environ.get("GRAMPS_WEBAPI_FORCE_OLD_IMPORT_PATH")
+        and db_handle.get_total() == 0
+    ):
+        # Empty-tree fast path: parse into a scratch in-memory DB (no
+        # legalize_id() collision checks needed -- there's nothing to
+        # collide with) and bulk-copy the result in, instead of parsing
+        # the file a second time straight into the real (likely
+        # networked Postgres) tree.
+        scratch, baseline_metadata = parse_import_to_scratch(
+            file_name, extension, task=task, delete=delete
+        )
+        try:
+            run_fast_path_copy(scratch, db_handle, baseline_metadata)
+        finally:
+            scratch.close()
+        return
+
     if extension.lower() == "gramps":
-        # Remove mediapath tag from Gramps XML files before import
-        # This is necessary because the mediapath tag can cause import failures
         try:
             remove_mediapath_from_gramps_xml(file_name)
         except Exception as e:
-            # Log the error but continue with import attempt
             current_app.logger.warning(
                 f"Failed to remove mediapath tag from {file_name}: {e}"
             )
@@ -1944,10 +2487,7 @@ def run_import(
     for plugin in plugin_manager.get_import_plugins():
         if extension == plugin.get_extension():
             import_function = plugin.get_import_function()
-            if task:
-                user = UserTaskProgress(task=task)
-            else:
-                user = User()
+            user = UserTaskProgress(task=task) if task else User()
             result = import_function(db_handle, str(file_name), user)
             if delete:
                 os.remove(file_name)
@@ -1961,36 +2501,11 @@ def dry_run_import(
     extension: str,
 ) -> Optional[dict[str, int]]:
     """Import a file into an in-memory database and returns object counts."""
-    db_handle = make_database("sqlite")
-    db_handle.load(":memory:")
-    db_handle.set_feature("skip-import-additions", True)
-    db_handle.set_prefixes(
-        config.get("preferences.iprefix"),
-        config.get("preferences.oprefix"),
-        config.get("preferences.fprefix"),
-        config.get("preferences.sprefix"),
-        config.get("preferences.cprefix"),
-        config.get("preferences.pprefix"),
-        config.get("preferences.eprefix"),
-        config.get("preferences.rprefix"),
-        config.get("preferences.nprefix"),
+    scratch, _baseline_metadata = parse_import_to_scratch(
+        file_name, extension, delete=False
     )
-    run_import(
-        db_handle=db_handle, file_name=file_name, extension=extension, delete=False
-    )
-    result = {
-        "people": db_handle.get_number_of_people(),
-        "families": db_handle.get_number_of_families(),
-        "sources": db_handle.get_number_of_sources(),
-        "citations": db_handle.get_number_of_citations(),
-        "events": db_handle.get_number_of_events(),
-        "media": db_handle.get_number_of_media(),
-        "places": db_handle.get_number_of_places(),
-        "repositories": db_handle.get_number_of_repositories(),
-        "notes": db_handle.get_number_of_notes(),
-        "tags": db_handle.get_number_of_tags(),
-    }
-    db_handle.close()
+    result = scratch_object_counts(scratch)
+    scratch.close()
     return result
 
 

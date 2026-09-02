@@ -213,9 +213,15 @@ class TestImportersExtensionFile(unittest.TestCase):
 
     def test_importers_example_data_quota(self):
         """Test importing example.gramps with a quota."""
-        db_file = os.path.join(self.dbpath, "sqlite.db")
-        if os.path.exists(db_file):
-            os.remove(db_file)
+        with self.test_app.app_context():
+            from gramps_webapi.api.resources.delete import delete_all_objects
+            from gramps_webapi.api.util import get_db_outside_request
+
+            db_handle = get_db_outside_request(
+                self.tree, view_private=True, readonly=False, user_id="test_user"
+            )
+            delete_all_objects(db_handle)
+            db_handle.close()
         with self.test_app.app_context():
             set_tree_details(self.tree, quota_people=2000)
         example_db = ExampleDbInMemory()
