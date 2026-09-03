@@ -19,6 +19,7 @@
 
 """Tests for the POST /api/people/query/ endpoint using example_gramps."""
 
+import string
 import unittest
 from unittest.mock import patch
 
@@ -32,6 +33,16 @@ from . import BASE_URL, get_object_count, get_test_client
 from .util import fetch_header
 
 TEST_URL = BASE_URL + "/people/query/"
+
+_ASCII_NOCASE_TABLE = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
+
+
+def _ascii_nocase_key(value: str) -> str:
+    """ASCII-only case fold, matching SQLite's built-in `NOCASE` collation --
+    gramps-object-query-language's default for text `ORDER BY` columns when
+    no explicit `collation` is requested.
+    """
+    return value.translate(_ASCII_NOCASE_TABLE)
 
 
 class _FakeNonPrivateProxy(ProxyDbBase):
@@ -235,16 +246,18 @@ class TestPeopleQuery(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 200)
         surnames = [item["surname"] or "" for item in rv.json["items"]]
-        self.assertEqual(surnames, sorted(surnames))
+        self.assertEqual(surnames, sorted(surnames, key=_ascii_nocase_key))
 
     def test_no_locale_uses_plain_codepoint_order_not_system_locale(self):
         # Regression test: requests without an explicit `locale` must sort by
-        # plain codepoint order (matching Python's sorted()), not silently
-        # apply the server process's system locale collation. example_gramps
-        # includes "Álvarez", which a locale-aware (e.g. en_US) collation
-        # sorts near "Alvarez" -- with "A" names -- while codepoint order
-        # (and SQLite's default BINARY collation) sorts it after all
-        # plain-ASCII names, since 'Á' > 'z' by codepoint.
+        # plain ASCII-case-insensitive codepoint order (matching SQLite's own
+        # built-in NOCASE default -- see gramps-object-query-language's
+        # `_column_expr`), not silently apply the server process's system
+        # locale collation. example_gramps includes "Álvarez", which a
+        # locale-aware (e.g. en_US) collation sorts near "Alvarez" -- with
+        # "A" names -- while ASCII-NOCASE order (and SQLite's NOCASE
+        # collation) sorts it after all plain-ASCII names, since 'Á' > 'z'
+        # by codepoint and NOCASE doesn't fold non-ASCII letters.
         header = fetch_header(self.client)
         items = self._fetch_all(
             header,
@@ -254,7 +267,7 @@ class TestPeopleQuery(unittest.TestCase):
             },
         )
         surnames = [item["surname"] or "" for item in items]
-        self.assertEqual(surnames, sorted(surnames))
+        self.assertEqual(surnames, sorted(surnames, key=_ascii_nocase_key))
         self.assertIn("Álvarez", surnames)
         # Under codepoint order, "Á" (U+00C1) sorts after all plain-ASCII
         # letters -- so "Álvarez" must come after "Andersen", not be
@@ -495,3 +508,211 @@ class TestPeopleQuery(unittest.TestCase):
             self.assertEqual(len(owner_handles) - len(guest_handles), 1)
         finally:
             self.client.delete(BASE_URL + f"/people/{handle}", headers=header_owner)
+
+    # --- path expressions (gramps-object-query-language >= 0.4.0) ------------
+
+    def test_select_path_expression(self):
+        """A path as a `select` entry, in the same grammar `where_expr` uses
+        for a comparison's column side.
+        """
+        header = fetch_header(self.client)
+        items = self._fetch_all(header, {"select": ["handle", "birth.place.title"]})
+        for item in items:
+            self.assertEqual(set(item), {"handle", "birth.place.title"})
+        # Not vacuous: somebody in the example tree has a birth place.
+        self.assertTrue(
+            any(item["birth.place.title"] is not None for item in items),
+            "no birth place resolved -- the test would pass vacuously",
+        )
+
+    def test_select_path_expression_with_alias(self):
+        header = fetch_header(self.client)
+        rv = self.client.post(
+            TEST_URL,
+            json={"select": ["handle", "birth.place.title as birthplace"], "limit": 5},
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 200)
+        for item in rv.json["items"]:
+            self.assertEqual(set(item), {"handle", "birthplace"})
+
+    def test_select_string_and_json_path_forms_agree(self):
+        """The expression string and the older {"json_path": [...]} wire form
+        are two spellings of one reference -- same values, same default key.
+        """
+        header = fetch_header(self.client)
+        as_string = self.client.post(
+            TEST_URL,
+            json={"select": ["handle", "birth.date.sortval"], "limit": 10},
+            headers=header,
+        ).json["items"]
+        as_json = self.client.post(
+            TEST_URL,
+            json={
+                "select": ["handle", {"json_path": ["birth", "date", "sortval"]}],
+                "limit": 10,
+            },
+            headers=header,
+        ).json["items"]
+        self.assertEqual(as_string, as_json)
+
+    def test_select_count_of_collection(self):
+        header = fetch_header(self.client)
+        rv = self.client.post(
+            TEST_URL,
+            json={"select": ["handle", "count(events) as n_events"], "limit": 10},
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 200)
+        counts = [item["n_events"] for item in rv.json["items"]]
+        self.assertTrue(all(isinstance(count, int) for count in counts))
+        self.assertTrue(any(count > 0 for count in counts))
+
+    def test_select_composite_value_is_decoded(self):
+        """A whole Date struct comes back as an object, not as JSON text --
+        SQLite's json_extract hands composites back encoded.
+        """
+        header = fetch_header(self.client)
+        rv = self.client.post(
+            TEST_URL,
+            json={"select": ["handle", "birth.date"], "limit": 20},
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 200)
+        dates = [item["birth.date"] for item in rv.json["items"] if item["birth.date"]]
+        self.assertTrue(dates, "no birth dates resolved -- test would pass vacuously")
+        for date in dates:
+            self.assertIsInstance(date, dict)
+
+    def test_select_scalar_string_is_not_decoded(self):
+        """Regression: a scalar JSON value must not be JSON-decoded. A name
+        of "123" is the string "123", not the integer 123.
+        """
+        header = fetch_header(self.client)
+        rv = self.client.post(
+            TEST_URL,
+            json={"select": ["handle", "primary_name.first_name"], "limit": 50},
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 200)
+        names = [
+            item["primary_name.first_name"]
+            for item in rv.json["items"]
+            if item["primary_name.first_name"] is not None
+        ]
+        self.assertTrue(names, "no given names resolved -- test would pass vacuously")
+        for name in names:
+            self.assertIsInstance(name, str)
+
+    def test_unknown_path_in_select_rejected_with_field_names(self):
+        header = fetch_header(self.client)
+        rv = self.client.post(
+            TEST_URL, json={"select": ["primary_name.frist_name"]}, headers=header
+        )
+        self.assertEqual(rv.status_code, 422)
+        # The error names the field that would have worked, rather than
+        # returning a column of nulls.
+        self.assertIn("frist_name", rv.json["error"]["message"])
+
+    def test_order_by_path_expression(self):
+        header = fetch_header(self.client)
+        rv = self.client.post(
+            TEST_URL,
+            json={
+                "select": ["handle", "birth.date.sortval"],
+                # People with no recorded birth date sort first (NULL is the
+                # smallest value), so filter to those that have one --
+                # otherwise the first page is all nulls and proves nothing.
+                "where": [{"column": "birth.date.sortval", "op": "gt", "value": 0}],
+                "order_by": [{"column": "birth.date.sortval", "direction": "asc"}],
+                "limit": 30,
+            },
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 200)
+        sortvals = [
+            item["birth.date.sortval"]
+            for item in rv.json["items"]
+            if item["birth.date.sortval"] is not None
+        ]
+        self.assertTrue(sortvals, "no sortvals resolved -- test would pass vacuously")
+        self.assertEqual(sortvals, sorted(sortvals))
+
+    def test_order_by_path_expression_paginates(self):
+        """Keyset pagination over a path sort column: the cursor row's value
+        can't be read by interpolating a column name, so this exercises the
+        compiled `after` lookup as well as the seek predicate.
+        """
+        header = fetch_header(self.client)
+        body = {
+            "select": ["handle", "birth.date.sortval"],
+            "where": [{"column": "birth.date.sortval", "op": "gt", "value": 0}],
+            "order_by": [{"column": "birth.date.sortval", "direction": "asc"}],
+            "limit": 10,
+        }
+        walked = []
+        after = None
+        for _ in range(5):
+            page_body = dict(body, after=after) if after else body
+            rv = self.client.post(TEST_URL, json=page_body, headers=header)
+            self.assertEqual(rv.status_code, 200)
+            walked.extend(item["handle"] for item in rv.json["items"])
+            after = rv.json["next_after"]
+            if not after:
+                break
+        self.assertEqual(len(walked), len(set(walked)), "a row repeated across pages")
+
+        unpaged = self.client.post(
+            TEST_URL, json=dict(body, limit=len(walked)), headers=header
+        ).json["items"]
+        self.assertEqual(walked, [item["handle"] for item in unpaged])
+
+    def test_order_by_unknown_path_rejected(self):
+        header = fetch_header(self.client)
+        rv = self.client.post(
+            TEST_URL,
+            json={"order_by": [{"column": "primary_name.frist_name"}]},
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 422)
+
+    def test_where_path_expression_as_plain_string_column(self):
+        header = fetch_header(self.client)
+        rv = self.client.post(
+            TEST_URL,
+            json={
+                "select": ["handle"],
+                "where": [
+                    {"column": "birth.date.sortval", "op": "gt", "value": 0}
+                ],
+                "limit": 10,
+            },
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertTrue(rv.json["items"])
+
+    def test_order_by_path_expression_on_the_proxied_path(self):
+        """A guest hits `_post_proxied` (no SQL push-down), which sorts in
+        Python instead. A path sort column has to work there too, and agree
+        with the unproxied path's ordering.
+        """
+        header_guest = fetch_header(self.client, role=ROLE_GUEST)
+        rv = self.client.post(
+            TEST_URL,
+            json={
+                "select": ["handle", "birth.date.sortval"],
+                "where": [{"column": "birth.date.sortval", "op": "gt", "value": 0}],
+                "order_by": [{"column": "birth.date.sortval", "direction": "asc"}],
+                "limit": 20,
+            },
+            headers=header_guest,
+        )
+        self.assertEqual(rv.status_code, 200)
+        sortvals = [
+            item["birth.date.sortval"]
+            for item in rv.json["items"]
+            if item["birth.date.sortval"] is not None
+        ]
+        self.assertTrue(sortvals, "no sortvals resolved -- test would pass vacuously")
+        self.assertEqual(sortvals, sorted(sortvals))
