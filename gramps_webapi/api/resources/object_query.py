@@ -39,7 +39,7 @@ from typing import Any, Optional, Sequence, Tuple
 
 from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps.plugins.db.dbapi.sqlite import SQLite
-from marshmallow import Schema, validate
+from marshmallow import Schema, ValidationError, validate, validates_schema
 from webargs import fields as wf
 
 from gramps_object_query_language.evaluator import GETTER_BY_TABLE, resolve_column_ref
@@ -88,11 +88,55 @@ from . import ProtectedResource
 from .schemas import ObjectQueryResponseSchema
 
 
+class QueryExistsPayloadArgs(Schema):
+    """The payload of a WHERE condition node's `exists` combinator --
+    `{"relationship": ..., "where": [...]}`, the same shape `where_expr`'s
+    `exists(relationship, condition)` already produces (see
+    `gramps_object_query_language.query_lang`'s `_node_from_json`). Defined
+    before `QueryWhereConditionArgs` so its own `exists` field can reference
+    this directly, with no forward-reference lambda needed; the reverse
+    reference (`where`, here) still needs one, since `QueryWhereConditionArgs`
+    isn't defined yet at this point in the file.
+    """
+
+    relationship = wf.Str(
+        required=True,
+        metadata={
+            "description": "A registered collection name on the enclosing "
+            "condition's own object type, e.g. 'notes', 'children', "
+            "'backlinks' -- the same names `where_expr`'s `exists(...)`/"
+            "`count(...)` accept."
+        },
+    )
+    where = wf.List(
+        wf.Nested(lambda: QueryWhereConditionArgs()),
+        required=False,
+        metadata={
+            "description": "Condition narrowing which related rows count, "
+            "evaluated against the collection's own target type -- the same "
+            "shape as the outer 'where'. Omitted entirely means 'at least "
+            "one related row at all,' with no further condition."
+        },
+    )
+
+
 class QueryWhereConditionArgs(Schema):
-    """A single WHERE leaf condition."""
+    """A single WHERE condition *node*: either a leaf (`column`+`op`,
+    optionally `value`/`value_column`) or exactly one combinator (`and`/
+    `or`/`not`/`exists`) wrapping further nodes of this same shape -- the
+    same boolean-tree grammar `where_expr` already has (see
+    `gramps_object_query_language.query_lang`'s `where_list_to_ast`/
+    `_node_from_json`, which this schema's output is built to feed
+    unchanged; see `_build_where` below).
+
+    `column`/`op` are optional at the field level (unlike before) because
+    they're only required for a leaf, not a combinator -- that and every
+    other shape rule (`_check_shape` below) needs more than one field's own
+    validators can express on their own, so it's checked cross-field.
+    """
 
     column = wf.Raw(
-        required=True,
+        required=False,
         metadata={
             "description": "Column to compare: either a plain column name (e.g. "
             "'gramps_id'), or {'json_path': [...]} for a path, e.g. "
@@ -100,22 +144,26 @@ class QueryWhereConditionArgs(Schema):
             "relationship (Family->Person, Person->Event, Event->Place, ...), "
             "e.g. {'json_path': ['father', 'surname']} or "
             "{'json_path': ['birth', 'date', 'sortval']}. A plain string may "
-            "also be a path ('birth.date.sortval'), not only a flat column name."
+            "also be a path ('birth.date.sortval'), not only a flat column "
+            "name. Required for a leaf condition (one with no 'and'/'or'/"
+            "'not'/'exists'); not allowed otherwise."
         },
     )
     op = wf.Str(
-        required=True,
+        required=False,
         validate=validate.OneOf(list(VALID_LEAF_OPS)),
         metadata={
             "description": "Comparison operator: eq, ne, lt, lte, gt, gte, like, "
-            "regex, contains, or in."
+            "regex, contains, or in. Required for a leaf condition; not "
+            "allowed otherwise."
         },
     )
     value = wf.Raw(
         required=False,
         metadata={
             "description": "Value to compare against. Must be a list when op is "
-            "'in'. Mutually exclusive with 'value_column'; exactly one is required."
+            "'in'. Mutually exclusive with 'value_column'; for a leaf condition "
+            "exactly one is required."
         },
     )
     value_column = wf.Raw(
@@ -130,6 +178,72 @@ class QueryWhereConditionArgs(Schema):
             "'in'/'like'/'regex'."
         },
     )
+    and_ = wf.List(
+        wf.Nested(lambda: QueryWhereConditionArgs()),
+        required=False,
+        data_key="and",
+        # `attribute` (not just `data_key`) so the *loaded* dict this schema
+        # produces -- what actually reaches _build_where/where_list_to_ast --
+        # is keyed "and", matching the wire shape where_expr's own parser
+        # already emits (query_lang.py's _node_from_json checks `"and" in
+        # node`, never `"and_"`). `and`/`or`/`not` are reserved words only as
+        # Python *identifiers*; a plain string dict key has no such
+        # restriction, so this is legal and does exactly what's needed.
+        attribute="and",
+        metadata={"description": "True only if every condition in this list is."},
+    )
+    or_ = wf.List(
+        wf.Nested(lambda: QueryWhereConditionArgs()),
+        required=False,
+        data_key="or",
+        attribute="or",
+        metadata={"description": "True if any condition in this list is."},
+    )
+    not_ = wf.Nested(
+        lambda: QueryWhereConditionArgs(),
+        required=False,
+        data_key="not",
+        attribute="not",
+        metadata={"description": "True only if the wrapped condition is false."},
+    )
+    exists = wf.Nested(
+        QueryExistsPayloadArgs,
+        required=False,
+        metadata={
+            "description": "True if at least one row in the named collection "
+            "(optionally narrowed by 'where') exists -- the JSON-body "
+            "equivalent of where_expr's exists(relationship[, condition])."
+        },
+    )
+
+    @validates_schema
+    def _check_shape(self, data: dict, **kwargs: Any) -> None:
+        """Exactly one of: a leaf (`column`+`op`), or one combinator key --
+        matching `where_expr`'s own grammar, where a condition is always
+        unambiguously one or the other. `data` is already keyed by each
+        field's `attribute` (`"and"`/`"or"`/`"not"`, not the `and_`/`or_`/
+        `not_` Python names those fields have to use instead of the
+        reserved words -- see those fields' own comments), so these checks
+        and their error messages both use the same spelling a client
+        actually sent.
+        """
+        combinators = [key for key in ("and", "or", "not", "exists") if key in data]
+        if len(combinators) > 1:
+            raise ValidationError(
+                f"at most one of 'and'/'or'/'not'/'exists' is allowed per "
+                f"condition, got: {sorted(combinators)}"
+            )
+        is_leaf_ish = any(key in data for key in ("column", "op", "value", "value_column"))
+        if combinators and is_leaf_ish:
+            raise ValidationError(
+                "a condition can't combine 'and'/'or'/'not'/'exists' with "
+                "'column'/'op'/'value'/'value_column'"
+            )
+        if not combinators and not ("column" in data and "op" in data):
+            raise ValidationError(
+                "a condition must be either a leaf ('column' and 'op' "
+                "required) or exactly one of 'and'/'or'/'not'/'exists'"
+            )
 
 
 class QueryOrderByArgs(Schema):
@@ -189,7 +303,15 @@ class QueryBodyArgs(Schema):
     where = wf.List(
         wf.Nested(QueryWhereConditionArgs),
         required=False,
-        metadata={"description": "Leaf conditions, implicitly combined with AND."},
+        metadata={
+            "description": "Top-level conditions, implicitly combined with AND "
+            "(the list itself is never wrapped in an extra 'and'). Each entry "
+            "is a full condition tree -- a leaf, or an 'and'/'or'/'not'/'exists' "
+            "combinator nesting further conditions of this same shape -- the "
+            "JSON-native equivalent of `where_expr` below (same grammar, two "
+            "wire formats; pick whichever a given client finds easier to "
+            "construct, a string or a JSON tree). See `QueryWhereConditionArgs`."
+        },
     )
     where_expr = wf.Str(
         required=False,
@@ -402,12 +524,13 @@ def _validate_leaf_condition(condition: dict) -> None:
     same reasoning `where`/`where_expr` mutual exclusivity is checked here
     rather than in the schema.
 
-    Only ever applied to a raw, client-submitted `where` JSON leaf (see
-    `_build_where`'s guard) -- a `where_expr`-sourced condition is always
-    well-formed already, by construction of `parse_expr_for_spec`'s own
-    translation, so re-checking it here would be redundant; it's also not
-    always a leaf at all (`or`/`not`/`and`/`exists` nodes have none of
-    `column`/`value`/`value_column`), which this function assumes.
+    Applied to every leaf reachable in a `where` tree, at any depth, by
+    `_validate_where_tree` -- never called directly on something that might
+    not be a leaf (`and`/`or`/`not`/`exists` nodes have none of `column`/
+    `value`/`value_column`), which this function assumes. A `where_expr`
+    -sourced condition is always well-formed already, by construction of
+    `parse_expr_for_spec`'s own translation, so re-checking it here is
+    redundant but harmless, not a correctness requirement of that path.
     """
     has_value = "value" in condition
     has_value_column = "value_column" in condition
@@ -424,25 +547,57 @@ def _validate_leaf_condition(condition: dict) -> None:
             abort_with_message(422, "'in' operator requires a non-empty list value")
 
 
+def _validate_where_tree(conditions: Sequence[dict]) -> None:
+    """Applies `_validate_leaf_condition` to every leaf reachable at *any*
+    depth, not just the top level -- a leaf can now be nested inside `and`/
+    `or`/`not`/`exists`'s own `where` (`QueryWhereConditionArgs`'s
+    combinators), and inside a `count_of` column's own `where` (has been
+    possible since `count(...)` shipped, `column`/`value_column` being
+    untyped `wf.Raw()` -- confirmed live, before this function existed, that
+    a malformed leaf nested there already silently bypassed validation
+    rather than 422ing).
+
+    Recurses into `and`/`or`'s own lists, `not`'s single wrapped condition,
+    `exists.where`, and `count_of.where` reached through either `column` or
+    `value_column` -- every place this schema (or `where_expr`, which
+    reaches this same function) can nest a further condition list.
+    """
+    for condition in conditions:
+        if "column" in condition:
+            _validate_leaf_condition(condition)
+            for column_ref in (condition.get("column"), condition.get("value_column")):
+                if isinstance(column_ref, dict) and "count_of" in column_ref:
+                    _validate_where_tree(column_ref["count_of"].get("where") or [])
+        elif "and" in condition:
+            _validate_where_tree(condition["and"])
+        elif "or" in condition:
+            _validate_where_tree(condition["or"])
+        elif "not" in condition:
+            _validate_where_tree([condition["not"]])
+        elif "exists" in condition:
+            _validate_where_tree(condition["exists"].get("where") or [])
+
+
 def _build_where(conditions: Optional[Sequence[dict]], spec: ObjectTypeSpec):
     """Build a `query.py` WHERE expression from top-level conditions,
     implicitly AND-combined (see `QueryBodyArgs.where`'s docstring).
 
     The actual JSON -> `query.py` AST translation -- leaves, and
-    `where_expr`'s `and`/`or`/`not`/`exists`/`count(...)` nesting, and
-    same-table field-vs-field `FlatColumnRef` wrapping -- is
-    `where_list_to_ast`'s job (gramps_object_query_language.query_lang),
-    not reimplemented here; see that function's docstring for why. Only the
-    leaf-shape validation stays local, since it's specific to the raw,
-    untrusted `where` JSON body (see `_validate_leaf_condition`) -- skipped
-    for anything that isn't a leaf (`or`/`not`/`and`/`exists`, `where_expr`
-    -only shapes the `where` schema can never produce in the first place).
+    `and`/`or`/`not`/`exists`/`count(...)` nesting (now reachable from a raw
+    `where` JSON body the same way `where_expr` always could -- see
+    `QueryWhereConditionArgs`), and same-table field-vs-field
+    `FlatColumnRef` wrapping -- is `where_list_to_ast`'s job
+    (gramps_object_query_language.query_lang), not reimplemented here; see
+    that function's docstring for why. Only the leaf-shape validation stays
+    local, since it's specific to the raw, untrusted `where` JSON body (see
+    `_validate_leaf_condition`/`_validate_where_tree`) -- a `where_expr`
+    -sourced condition is always well-formed already by construction, so
+    this is redundant-but-harmless work for that path, not a correctness
+    requirement of it.
     """
     if not conditions:
         return None
-    for condition in conditions:
-        if "column" in condition:
-            _validate_leaf_condition(condition)
+    _validate_where_tree(conditions)
     try:
         return where_list_to_ast(list(conditions), spec)
     except QueryError as error:
