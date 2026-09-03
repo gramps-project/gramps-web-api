@@ -48,6 +48,7 @@ from .api.resources.schemas import (
     TagSchema,
 )
 from .api.cache import persistent_cache, request_cache, thumbnail_cache
+from .api.deprecations import DEPRECATED_ENV_OPTIONS, check_deprecations
 from .api.ratelimiter import limiter
 from .api.search.embeddings import create_remote_embedding_function, load_model
 from .api.tasks import run_task, send_telemetry_task
@@ -69,31 +70,10 @@ def deprecated_config_from_env(app):
 
     This function will be removed eventually!
     """
-    options = [
-        "TREE",
-        "SECRET_KEY",
-        "USER_DB_URI",
-        "POSTGRES_USER",
-        "POSTGRES_PASSWORD",
-        "MEDIA_BASE_DIR",
-        "SEARCH_INDEX_DIR",
-        "EMAIL_HOST",
-        "EMAIL_PORT",
-        "EMAIL_HOST_USER",
-        "EMAIL_HOST_PASSWORD",
-        "DEFAULT_FROM_EMAIL",
-        "BASE_URL",
-        "STATIC_PATH",
-    ]
-    for option in options:
+    for option in DEPRECATED_ENV_OPTIONS:
         value = os.getenv(option)
         if value:
             app.config[option] = value
-            warnings.warn(
-                f"Setting the `{option}` config option via the `{option}` environment"
-                " variable is deprecated and will stop working in the future."
-                f" Please use `GRAMPSWEB_{option}` instead."
-            )
     return app
 
 
@@ -143,6 +123,13 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         configure_json_logging(level=app.logger.level)
         # Flask's plain-text handler would duplicate every record on stderr.
         app.logger.removeHandler(default_handler)
+
+    for deprecation in check_deprecations(app.config):
+        app.logger.warning(
+            "%s Support will be removed in Gramps Web API %s.",
+            deprecation["message"],
+            deprecation["removed_in"],
+        )
 
     if init_sentry(app):
         app.logger.info("Sentry error reporting enabled.")

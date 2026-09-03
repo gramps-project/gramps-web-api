@@ -224,10 +224,8 @@ def test_send_email_legacy_use_tls_true(mock_smtp, mock_smtp_ssl, mock_get_confi
     mock_get_config["EMAIL_USE_TLS"] = True
     mock_get_config["EMAIL_PORT"] = "465"
     mock_smtp_ssl.return_value = MagicMock()
-    mock_app = MagicMock()
-    with patch("gramps_webapi.api.util.current_app", mock_app):
+    with patch("gramps_webapi.api.util.current_app", MagicMock()):
         send_email("Subject", "Body", ["test@example.com"])
-        mock_app.logger.warning.assert_called_once()
     mock_smtp_ssl.assert_called_once()
     mock_smtp.assert_not_called()
 
@@ -256,31 +254,8 @@ def test_send_email_ssl_false_starttls_true(mock_smtp, mock_smtp_ssl, mock_get_c
     mock_get_config["EMAIL_PORT"] = "587"
     mock_smtp_instance = MagicMock()
     mock_smtp.return_value = mock_smtp_instance
-    mock_app = MagicMock()
-    with patch("gramps_webapi.api.util.current_app", mock_app):
+    with patch("gramps_webapi.api.util.current_app", MagicMock()):
         send_email("Subject", "Body", ["test@example.com"])
-        mock_app.logger.warning.assert_not_called()
-    mock_smtp.assert_called_once()
-    mock_smtp_instance.starttls.assert_called_once()
-    mock_smtp_ssl.assert_not_called()
-
-
-@patch("gramps_webapi.api.util.smtplib.SMTP_SSL")
-@patch("gramps_webapi.api.util.smtplib.SMTP")
-def test_send_email_legacy_use_tls_false_deprecation_warning(
-    mock_smtp, mock_smtp_ssl, mock_get_config
-):
-    """Test that legacy EMAIL_USE_TLS=false logs deprecation warning."""
-    mock_get_config["EMAIL_USE_TLS"] = False
-    mock_get_config["EMAIL_PORT"] = "587"
-    mock_smtp_instance = MagicMock()
-    mock_smtp.return_value = mock_smtp_instance
-    mock_app = MagicMock()
-    with patch("gramps_webapi.api.util.current_app", mock_app):
-        send_email("Subject", "Body", ["test@example.com"])
-        mock_app.logger.warning.assert_called_once()
-        warning_msg = mock_app.logger.warning.call_args[0][0]
-        assert "deprecated" in warning_msg.lower()
     mock_smtp.assert_called_once()
     mock_smtp_instance.starttls.assert_called_once()
     mock_smtp_ssl.assert_not_called()
