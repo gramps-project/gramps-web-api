@@ -37,6 +37,7 @@ from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib.json_utils import object_to_dict
 from gramps.gen.merge.diff import diff_items
+from werkzeug.exceptions import HTTPException
 
 from gramps_webapi.api.search.indexer import SearchIndexer, SemanticSearchIndexer
 
@@ -125,6 +126,9 @@ def run_task(task: Task, **kwargs) -> Union[AsyncResult, Any]:
         with current_app.app_context():
             try:
                 return task(**kwargs)
+            except HTTPException:
+                # the task aborted with an API error - preserve status & message
+                raise
             except Exception as exc:
                 abort_with_message(500, str(exc))
     task_id = str(uuid.uuid4())
@@ -737,24 +741,10 @@ def process_transactions(
         if num_people_new:
             update_usage_people(tree=tree, user_id=user_id)
         # update search index
-        indexer: SearchIndexer = get_search_indexer(tree)
-        for _trans_dict in trans_dict:
-            handle = _trans_dict["handle"]
-            class_name = _trans_dict["_class"]
-            if _trans_dict["type"] == "delete":
-                indexer.delete_object(handle, class_name)
-            else:
-                indexer.add_or_update_object(handle, db_handle, class_name)
+        _index_objects(get_search_indexer(tree), trans_dict, db_handle)
         # update semantic search index
         if app_has_semantic_search():
-            semantic_indexer: SemanticSearchIndexer = get_semantic_search_indexer(tree)
-            for _trans_dict in trans_dict:
-                handle = _trans_dict["handle"]
-                class_name = _trans_dict["_class"]
-                if _trans_dict["type"] == "delete":
-                    semantic_indexer.delete_object(handle, class_name)
-                else:
-                    semantic_indexer.add_or_update_object(handle, db_handle, class_name)
+            _index_objects(get_semantic_search_indexer(tree), trans_dict, db_handle)
     finally:
         close_db(db_handle)
     return trans_dict
@@ -795,6 +785,39 @@ def old_unchanged(db: DbReadBase, class_name: str, handle: str, old_data: Dict) 
     return True
 
 
+def _index_objects(
+    indexer: SearchIndexer | SemanticSearchIndexer,
+    trans_dict: list[dict],
+    db_handle: DbReadBase,
+) -> None:
+    """Apply every record of a transaction to one search index.
+
+    The whole transaction shares a single task, so an object that cannot be
+    indexed must not abort the loop: nothing retries this task, and every
+    object after the failing one would silently stay out of the index.
+    """
+    for _trans_dict in trans_dict:
+        handle = _trans_dict["handle"]
+        class_name = _trans_dict["_class"]
+        try:
+            # `type` is absent from the entry a merge builds by hand, which
+            # only ever needs re-indexing
+            if _trans_dict.get("type") == "delete":
+                indexer.delete_object(handle, class_name)
+            else:
+                indexer.add_or_update_object(handle, db_handle, class_name)
+        except Exception:
+            # handle and class name are identifiers rather than tree data,
+            # so they are safe to log and are needed to find the object.
+            # warning, not error: skipping the object is intended here
+            logging.getLogger(__name__).warning(
+                "Failed to update search index for %s %s",
+                class_name,
+                handle,
+                exc_info=True,
+            )
+
+
 @shared_task(bind=True)
 def update_search_indices_from_transaction(
     self, trans_dict: list[dict], tree: str, user_id: str
@@ -804,17 +827,9 @@ def update_search_indices_from_transaction(
         tree=tree, view_private=True, readonly=True, user_id=user_id
     )
     try:
-        indexer = get_search_indexer(tree)
-        for _trans_dict in trans_dict:
-            handle = _trans_dict["handle"]
-            class_name = _trans_dict["_class"]
-            indexer.add_or_update_object(handle, db_handle, class_name)
+        _index_objects(get_search_indexer(tree), trans_dict, db_handle)
         if app_has_semantic_search():
-            indexer_semantic = get_semantic_search_indexer(tree)
-            for _trans_dict in trans_dict:
-                handle = _trans_dict["handle"]
-                class_name = _trans_dict["_class"]
-                indexer_semantic.add_or_update_object(handle, db_handle, class_name)
+            _index_objects(get_semantic_search_indexer(tree), trans_dict, db_handle)
     finally:
         close_db(db_handle)
 

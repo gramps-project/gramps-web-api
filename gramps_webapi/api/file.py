@@ -316,11 +316,17 @@ class LocalFileHandler(FileHandler):
 def upload_file_local(
     base_dir: FilenameOrPath, rel_path: FilenameOrPath, stream: BinaryIO
 ) -> None:
-    """Upload a file from a stream, returning the file path."""
-    path = os.path.join(base_dir, rel_path)
-    path_dir = os.path.dirname(path)
+    """Upload a file from a stream to a path inside the base directory.
+
+    Raises a `ValueError` if the path is outside the base directory.
+    """
+    base_path = Path(base_dir).resolve()
+    path = Path(base_path, rel_path).resolve()
+    if base_path not in path.parents:
+        # don't allow writing outside of the base directory!
+        raise ValueError(f"File {path} is not within the base directory.")
     # create folders if necessary
-    os.makedirs(path_dir, exist_ok=True)
+    os.makedirs(path.parent, exist_ok=True)
     fs = FileStorage(stream)
     fs.save(path)
 

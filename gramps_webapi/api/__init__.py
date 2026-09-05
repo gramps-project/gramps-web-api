@@ -56,6 +56,7 @@ from .resources.families import FamiliesResource, FamilyResource
 from .resources.file import MediaFileResource
 from .resources.filters import FilterResource, FiltersResource, FiltersResources
 from .resources.history import (
+    ObjectHistoryResource,
     TransactionHistoryResource,
     TransactionsHistoryResource,
     TransactionUndoResource,
@@ -245,6 +246,12 @@ register_endpt(
     TransactionUndoResource,
     "/transactions/history/<int:transaction_id>/undo",
     "transaction_undo",
+    tags=["Transactions"],
+)
+register_endpt(
+    ObjectHistoryResource,
+    "/transactions/history/objects/<string:obj_class>/<string:obj_handle>",
+    "object_history",
     tags=["Transactions"],
 )
 # Token

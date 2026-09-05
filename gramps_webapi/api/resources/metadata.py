@@ -37,14 +37,15 @@ from webargs import fields
 
 from gramps_webapi.const import TREE_MULTI, VERSION
 
-from ...auth.const import PERM_EDIT_TREE, PERM_VIEW_PRIVATE
+from ...auth.const import PERM_EDIT_SETTINGS, PERM_EDIT_TREE, PERM_VIEW_PRIVATE
 from ...dbmanager import WebDbManager
 from ..auth import has_permissions, require_permissions
 from ..blueprint import api_blueprint
+from ..deprecations import check_deprecations
 from ..search import get_search_indexer, get_semantic_search_indexer
 from ..search import _get_search_index_db_url
 from ..search.metadata import get_stored_model_name
-from ..util import get_db_handle, get_tree_from_jwt_or_fail
+from ..util import get_config, get_db_handle, get_tree_from_jwt_or_fail
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .schemas import MetadataSchema, ResearcherSchema
@@ -227,6 +228,11 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 "chat": has_chat,
             },
         }
+        if has_permissions({PERM_EDIT_SETTINGS}):
+            # re-checked per request since some options can be stored in the database
+            result["deprecations"] = check_deprecations(
+                current_app.config, get_option=get_config
+            )
         if args["surnames"]:
             result["surnames"] = db_handle.get_surname_list()
         data = db_handle.get_summary()

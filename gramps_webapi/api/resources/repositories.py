@@ -20,11 +20,18 @@
 
 """Repository API resource."""
 
+from typing import Dict
+
+from gramps.gen.const import GRAMPS_LOCALE as glocale
+from gramps.gen.lib import Repository
+from gramps.gen.utils.grampslocale import GrampsLocale
+
 from .base import (
     GrampsObjectProtectedResource,
     GrampsObjectResourceHelper,
     GrampsObjectsProtectedResource,
 )
+from .util import get_repository_profile_for_object
 
 
 
@@ -32,6 +39,16 @@ class RepositoryResourceHelper(GrampsObjectResourceHelper):
     """Repository resource helper."""
 
     gramps_class_name = "Repository"
+
+    def object_extend(
+        self, obj: Repository, args: Dict, locale: GrampsLocale = glocale
+    ) -> Repository:
+        """Extend repository attributes as needed."""
+        if "profile" in args:
+            obj.profile = get_repository_profile_for_object(
+                self.db_handle, obj, args["profile"], locale=locale
+            )
+        return super().object_extend(obj, args, locale=locale)
 
 
 class RepositoryResource(GrampsObjectProtectedResource, RepositoryResourceHelper):

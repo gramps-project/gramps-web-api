@@ -53,6 +53,7 @@ from gramps_object_query_language.query import (
     Regex,
     compile_count_query,
     compile_query,
+    default_ref_key,
     resolve_column_path,
 )
 from gramps_object_query_language.query_lang import VALID_LEAF_OPS
@@ -60,7 +61,7 @@ from gramps_webapi.api.resources.object_query import (
     QueryWhereConditionArgs,
     _build_where,
     _check_no_duplicate_keys,
-    _default_key_for,
+    _needs_json_decoding,
     _normalize_json_value,
     _parse_column_ref,
     _parse_select_entry,
@@ -68,7 +69,6 @@ from gramps_webapi.api.resources.object_query import (
     _resolve_dialect,
     _resolve_treeid,
     _resolve_where_conditions,
-    _terminal_is_json_path,
 )
 
 
@@ -182,45 +182,45 @@ def test_parse_column_ref_rejects_count_of_malformed_nested_leaf():
         )
 
 
-# --- _default_key_for -----------------------------------------------------------
+# --- default_ref_key (moved into the library; see gramps_object_query_language) ---
 
 
 def test_default_key_for_plain_string():
-    assert _default_key_for("gramps_id") == "gramps_id"
+    assert default_ref_key("gramps_id") == "gramps_id"
 
 
 def test_default_key_for_json_path_str_segments():
     path = JsonPath(("primary_name", "first_name"))
-    assert _default_key_for(path) == "primary_name.first_name"
+    assert default_ref_key(path) == "primary_name.first_name"
 
 
 def test_default_key_for_json_path_with_int_segment():
     path = JsonPath(("primary_name", "surname_list", 0, "surname"))
-    assert _default_key_for(path) == "primary_name.surname_list[0].surname"
+    assert default_ref_key(path) == "primary_name.surname_list[0].surname"
 
 
 def test_default_key_for_json_path_leading_int_segment():
     path = JsonPath((0, "value"))
-    assert _default_key_for(path) == "[0].value"
+    assert default_ref_key(path) == "[0].value"
 
 
 def test_default_key_for_json_path_single_segment():
-    assert _default_key_for(JsonPath(("gender",))) == "gender"
+    assert default_ref_key(JsonPath(("gender",))) == "gender"
 
 
 def test_default_key_for_related_object():
     ref = resolve_column_path(PERSON, ["birth", "date", "sortval"])
-    assert _default_key_for(ref) == "birth.date.sortval"
+    assert default_ref_key(ref) == "birth.date.sortval"
 
 
 def test_default_key_for_two_hop_related_object():
     ref = resolve_column_path(PERSON, ["birth", "place", "title"])
-    assert _default_key_for(ref) == "birth.place.title"
+    assert default_ref_key(ref) == "birth.place.title"
 
 
 def test_default_key_for_related_object_plain_field():
     ref = resolve_column_path(FAMILY, ["father", "surname"])
-    assert _default_key_for(ref) == "father.surname"
+    assert default_ref_key(ref) == "father.surname"
 
 
 # --- _parse_select_entry -------------------------------------------------------
@@ -313,35 +313,55 @@ def test_check_no_duplicate_keys_rejects_duplicate():
         _check_no_duplicate_keys([(path_a, "same"), (path_b, "same")])
 
 
-# --- _terminal_is_json_path / _normalize_json_value -----------------------------
+# --- _needs_json_decoding / _normalize_json_value --------------------------------
 
 
-def test_terminal_is_json_path_plain_string_false():
-    assert _terminal_is_json_path("surname") is False
+def test_needs_json_decoding_plain_string_false():
+    assert _needs_json_decoding("surname", PERSON) is False
 
 
-def test_terminal_is_json_path_json_path_true():
-    assert _terminal_is_json_path(JsonPath(("primary_name", "first_name"))) is True
+def test_needs_json_decoding_scalar_json_path_false():
+    """Regression: `primary_name.first_name` terminates in a JsonPath, but
+    Gramps' schema says it holds a *string*. Decoding it turned a person
+    genuinely named "123" into the integer 123 in the response.
+    """
+    assert _needs_json_decoding(JsonPath(("primary_name", "first_name")), PERSON) is False
 
 
-def test_terminal_is_json_path_related_object_plain_field_false():
+def test_needs_json_decoding_composite_json_path_true():
+    # A whole Name struct is an object -- SQLite hands that back as JSON text.
+    assert _needs_json_decoding(JsonPath(("primary_name",)), PERSON) is True
+
+
+def test_needs_json_decoding_array_json_path_true():
+    assert _needs_json_decoding(JsonPath(("event_ref_list",)), PERSON) is True
+
+
+def test_needs_json_decoding_related_object_plain_field_false():
     # father.surname ends in a real flat column -- no JSON functions
-    # involved at all, so no normalization needed.
+    # involved at all, so no decoding needed.
     ref = resolve_column_path(FAMILY, ["father", "surname"])
-    assert _terminal_is_json_path(ref) is False
+    assert _needs_json_decoding(ref, FAMILY) is False
 
 
-def test_terminal_is_json_path_related_object_json_path_field_true():
+def test_needs_json_decoding_related_object_composite_field_true():
     ref = resolve_column_path(PERSON, ["birth", "date"])
-    assert _terminal_is_json_path(ref) is True
+    assert _needs_json_decoding(ref, PERSON) is True
 
 
-def test_terminal_is_json_path_chained_related_object():
+def test_needs_json_decoding_related_object_scalar_field_false():
+    # birth.date.sortval is an integer inside the related event's JSON --
+    # typed correctly by SQLite already, so nothing to decode.
+    ref = resolve_column_path(PERSON, ["birth", "date", "sortval"])
+    assert _needs_json_decoding(ref, PERSON) is False
+
+
+def test_needs_json_decoding_chained_related_object():
     # birth.place.title: the chain's own leaf ("title") is a plain column,
     # even though an intermediate hop (birth -> Event) uses a JsonPath
-    # internally for its handle_ref -- only the final `field` matters.
+    # internally for its handle_ref -- only the final value's type matters.
     ref = resolve_column_path(PERSON, ["birth", "place", "title"])
-    assert _terminal_is_json_path(ref) is False
+    assert _needs_json_decoding(ref, PERSON) is False
 
 
 def test_normalize_json_value_parses_json_object_string():
@@ -517,7 +537,9 @@ def test_resolve_after_omits_treeid_clause_by_default():
     _resolve_after(basedb, PERSON, [OrderBy("surname", "asc")], "h1", treeid=None)
     sql, params = basedb.dbapi.calls[0]
     assert "treeid" not in sql
-    assert params == ["h1"]
+    # Compiled by `compile_after_lookup` now, so the trailing value is the
+    # compiled query's own LIMIT, not part of the cursor lookup itself.
+    assert params == ["h1", 1]
 
 
 def test_resolve_after_adds_treeid_clause_when_given():
@@ -529,7 +551,26 @@ def test_resolve_after_adds_treeid_clause_when_given():
     _resolve_after(basedb, PERSON, [OrderBy("surname", "asc")], "h1", treeid=7)
     sql, params = basedb.dbapi.calls[0]
     assert "AND treeid = ?" in sql
-    assert params == ["h1", 7]
+    assert params == ["h1", 7, 1]
+
+
+def test_resolve_after_compiles_a_path_sort_column():
+    """A path sort column can't be read by interpolating a name into a
+    SELECT -- it's a correlated subquery with bound params, which is why
+    this goes through the compiler.
+    """
+    basedb = _FakeAfterBasedb(row=(2439857, "h1"))
+    _resolve_after(
+        basedb,
+        PERSON,
+        [OrderBy("birth.date.sortval", "asc")],
+        "h1",
+        treeid=None,
+        dialect=Dialect.SQLITE,
+    )
+    sql, params = basedb.dbapi.calls[0]
+    assert "FROM event" in sql
+    assert sql.count("?") == len(params)
 
 
 # --- _resolve_where_conditions (where / where_expr mutual exclusivity) ----------

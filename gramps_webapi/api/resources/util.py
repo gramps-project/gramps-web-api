@@ -47,6 +47,7 @@ from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import (
     Citation,
+    Date,
     Event,
     EventRoleType,
     Family,
@@ -54,6 +55,7 @@ from gramps.gen.lib import (
     Person,
     Place,
     PlaceType,
+    Repository,
     Source,
     Span,
 )
@@ -137,10 +139,15 @@ def get_family_by_handle(
 
 def get_source_by_handle(
     db_handle: DbReadBase, handle: Handle, args: Optional[dict] = None
-) -> Source:
+) -> Union[Source, dict]:
     """Get a source and optional extended attributes."""
+    try:
+        obj = db_handle.get_source_from_handle(handle)
+        if obj is None:
+            return {}
+    except HandleError:
+        return {}
     args = args or {}
-    obj = db_handle.get_source_from_handle(handle)
     if "extend" in args:
         obj.extended = get_extended_attributes(db_handle, obj, args)
     return obj
@@ -177,12 +184,12 @@ def get_family_name_localized(
     father = None
     father_handle = family.get_father_handle()
     if father_handle:
-        father = db_handle.get_person_from_handle(father_handle)
+        father = get_person_by_handle(db_handle, father_handle) or None
 
     mother = None
     mother_handle = family.get_mother_handle()
     if mother_handle:
-        mother = db_handle.get_person_from_handle(mother_handle)
+        mother = get_person_by_handle(db_handle, mother_handle) or None
 
     if father and mother:
         fname = default_name_displayer.display(father)
@@ -233,7 +240,10 @@ def get_participant_from_event_localized(
     families = set([x[1] for x in result_list if x[0] == "Family"])
 
     for person_handle in people:
-        person = db_handle.get_person_from_handle(person_handle)
+        try:
+            person = db_handle.get_person_from_handle(person_handle)
+        except HandleError:
+            continue
         if not person:
             continue
         for event_ref in person.get_event_ref_list():
@@ -253,7 +263,12 @@ def get_participant_from_event_localized(
         return locale.translation.gettext("%s, ...") % participant
 
     for family_handle in families:
-        family = db_handle.get_family_from_handle(family_handle)
+        try:
+            family = db_handle.get_family_from_handle(family_handle)
+        except HandleError:
+            continue
+        if not family:
+            continue
         for event_ref in family.get_event_ref_list():
             if event_handle == event_ref.ref and event_ref.get_role().is_family():
                 if participant:
@@ -379,6 +394,37 @@ def get_event_summary_from_object(
     return f"{event_type} - {participant}"
 
 
+def display_date(date: Optional[Date], locale: GrampsLocale = glocale) -> str:
+    """Format a date, tolerating one that Gramps cannot display.
+
+    A date whose `dateval` is too short for its `modifier` makes the date
+    displayer raise IndexError (see `_validate_date`). Such dates are rejected
+    on the way in, but a tree may still hold ones written before that check
+    existed, and one of them must not take down a whole profile response or a
+    search index update.
+    """
+    if date is None:
+        # `probably_alive_range` returns None for a date it cannot infer, and
+        # the date displayer has no answer for that either.
+        return ""
+    try:
+        return locale.date_displayer.display(date)
+    except IndexError:
+        # every way a malformed date breaks the displayer surfaces as an
+        # IndexError -- it indexes tuples by modifier, quality and calendar,
+        # and slices `dateval` for the stop half of a range. Anything else is
+        # a real bug and has to propagate rather than turn into a blank date.
+        #
+        # log the shape of the date but never its values: the log must not
+        # retain family tree data.
+        _LOG.warning(
+            "Cannot display date with modifier %s and %s value(s)",
+            date.modifier,
+            len(date.dateval),
+        )
+        return date.text or ""
+
+
 def get_event_profile_for_object(
     db_handle: DbReadBase,
     event: Event,
@@ -393,7 +439,7 @@ def get_event_profile_for_object(
     """Get event profile given an Event."""
     result = {
         "type": locale.translation.sgettext(event.type.xml_str()),
-        "date": locale.date_displayer.display(event.date),
+        "date": display_date(event.date, locale),
         "place": pd.display_event(db_handle, event),
         "place_name": get_place_name_for_event(db_handle, event),
         "summary": get_event_summary_from_object(db_handle, event, locale=locale),
@@ -581,7 +627,7 @@ def get_place_profile_for_object(
         "alternate_place_names": [
             {
                 "value": place_name.value,
-                "date_str": locale.date_displayer.display(place_name.date),
+                "date_str": display_date(place_name.date, locale),
             }
             for place_name in place.get_alternative_names()
         ],
@@ -639,7 +685,7 @@ def get_place_profile_for_object(
                             locale=locale,
                             parent_places=False,
                         ),
-                        "date_str": locale.date_displayer.display(place_ref.date),
+                        "date_str": display_date(place_ref.date, locale),
                     }
                 )
             except HandleError:
@@ -709,6 +755,10 @@ def get_person_profile_for_object(
             else name_displayer.display(person)
         ),
         "name_suffix": person.primary_name.get_suffix(),
+        "addresses": [
+            {"date_str": locale.date_displayer.display(address.date)}
+            for address in person.address_list
+        ],
     }
     if "all" in args or "span" in args:
         options.append("span")
@@ -917,16 +967,20 @@ def get_citation_profile_for_object(
     locale: GrampsLocale = glocale,
 ) -> Citation:
     """Get citation profile given a Citation."""
-    source = db_handle.get_source_from_handle(citation.source_handle)
+    source = get_source_by_handle(db_handle, citation.source_handle)
     return {
-        "source": {
-            "author": source.author,
-            "title": source.title,
-            "pubinfo": source.pubinfo,
-            "gramps_id": source.gramps_id,
-        },
+        "source": (
+            {
+                "author": source.author,
+                "title": source.title,
+                "pubinfo": source.pubinfo,
+                "gramps_id": source.gramps_id,
+            }
+            if isinstance(source, Source)
+            else {}
+        ),
         "gramps_id": citation.gramps_id,
-        "date": locale.date_displayer.display(citation.date),
+        "date": display_date(citation.date, locale),
         "page": citation.page,
     }
 
@@ -950,7 +1004,7 @@ def get_media_profile_for_object(
     """Get media profile given Media."""
     return {
         "gramps_id": media.gramps_id,
-        "date": locale.date_displayer.display(media.date),
+        "date": display_date(media.date, locale),
     }
 
 
@@ -965,6 +1019,25 @@ def get_media_profile_for_handle(
     except HandleError:
         return {}
     return get_media_profile_for_object(db_handle, obj, args, locale=locale)
+
+
+def get_repository_profile_for_object(
+    db_handle: DbReadBase,
+    repository: Repository,
+    args: list,
+    locale: GrampsLocale = glocale,
+) -> dict[str, Any]:
+    """Get repository profile given a Repository."""
+    return {
+        "handle": repository.handle,
+        "gramps_id": repository.gramps_id,
+        "name": repository.name,
+        "type": locale.translation.sgettext(repository.type.xml_str()),
+        "addresses": [
+            {"date_str": locale.date_displayer.display(address.date)}
+            for address in repository.address_list
+        ],
+    }
 
 
 def catch_handle_error(method, handle):
@@ -1244,6 +1317,16 @@ def add_object(
         raise ValueError("Database does not support writing.")
 
 
+def _get_referenced_person(db_handle: DbWriteBase, handle: Handle) -> Person:
+    """Get a person newly referenced by a family, or fail with 422."""
+    try:
+        return db_handle.get_person_from_handle(handle)
+    except HandleError:
+        abort_with_message(
+            422, f"Family references a person that does not exist: {handle}"
+        )
+
+
 def add_family_update_refs(
     db_handle: DbWriteBase,
     obj: Family,
@@ -1256,18 +1339,80 @@ def add_family_update_refs(
     # add family handle to parents
     for handle in [obj.get_father_handle(), obj.get_mother_handle()]:
         if handle:
-            parent = db_handle.get_person_from_handle(handle)
+            parent = _get_referenced_person(db_handle, handle)
             parent.add_family_handle(obj.handle)
             db_handle.commit_person(parent, trans)
     # for each child, add the family handle to the child
     for ref in obj.get_child_ref_list():
-        child = db_handle.get_person_from_handle(ref.ref)
+        child = _get_referenced_person(db_handle, ref.ref)
         child.add_parent_family_handle(obj.handle)
         db_handle.commit_person(child, trans)
 
 
 # validation errors echo client input back; cap what goes into the response.
 MAX_VALIDATION_ERROR_LENGTH = 200
+
+# The Gramps schema neither requires `ref` nor forbids an empty one, so a
+# reference with no target is stored as `ref = None` and breaks the XML export.
+# See https://github.com/gramps-project/gramps-web-api/issues/479
+REF_CLASSES = frozenset(
+    {"ChildRef", "EventRef", "MediaRef", "PersonRef", "PlaceRef", "RepoRef"}
+)
+
+
+# `Date.set()` requires four values in `dateval` for a simple date and eight
+# for a compound one (range or span), but the Gramps JSON schema puts no length
+# constraint on `dateval` and `data_to_object` bypasses `set()`. A compound date
+# carrying only four values is therefore stored as-is and then raises IndexError
+# in `Date.get_stop_date()` every time it is displayed -- in the search indexer
+# as well as in every `?profile=` response.
+DATEVAL_MIN_LENGTH = {
+    Date.MOD_NONE: 4,
+    Date.MOD_BEFORE: 4,
+    Date.MOD_AFTER: 4,
+    Date.MOD_ABOUT: 4,
+    Date.MOD_FROM: 4,
+    Date.MOD_TO: 4,
+    Date.MOD_RANGE: 8,
+    Date.MOD_SPAN: 8,
+}
+
+# what `complete_gramps_object_dict` fills in when `dateval` is missing
+EMPTY_DATEVAL = list(Date.EMPTY)
+
+
+def _validate_date(value: dict[str, Any], path: str) -> None:
+    """Check that a serialized date holds enough values for its modifier."""
+    # a partial date dict is allowed, so validate what completion will fill in
+    modifier = value.get("modifier", Date.MOD_NONE)
+    minimum = DATEVAL_MIN_LENGTH.get(modifier)
+    if minimum is None:
+        # text-only or an unknown modifier: `dateval` is not read for display
+        return
+    dateval = value.get("dateval", EMPTY_DATEVAL)
+    if not isinstance(dateval, list) or len(dateval) < minimum:
+        raise ValueError(
+            f"{path}: 'Date' with modifier {modifier} requires at least"
+            f" {minimum} values in 'dateval'"
+        )
+
+
+def _validate_embedded(value: Any, path: str = "$") -> None:
+    """Check recursively that embedded ref and date objects are displayable.
+
+    Raises ValueError naming the offending path, like jsonschema does.
+    """
+    if isinstance(value, dict):
+        class_name = value.get("_class")
+        if class_name in REF_CLASSES and not value.get("ref"):
+            raise ValueError(f"{path}: '{class_name}' requires a non-empty 'ref'")
+        if class_name == "Date":
+            _validate_date(value, path)
+        for key, item in value.items():
+            _validate_embedded(item, f"{path}.{key}")
+    elif isinstance(value, list):
+        for i, item in enumerate(value):
+            _validate_embedded(item, f"{path}[{i}]")
 
 
 def validate_object_dict(obj_dict: dict[str, Any]) -> None:
@@ -1323,6 +1468,8 @@ def validate_object_dict(obj_dict: dict[str, Any]) -> None:
         if len(message) > MAX_VALIDATION_ERROR_LENGTH:
             message = message[:MAX_VALIDATION_ERROR_LENGTH] + "..."
         raise ValueError(message) from exc
+
+    _validate_embedded(obj_dict_fixed)
 
 
 def xml_to_locale(gramps_type_name: str, string: str) -> str:
@@ -1566,13 +1713,17 @@ def update_family_update_refs(
 
     # remove the family from children which have been removed
     for ref in orig_set - new_set:
-        person = db_handle.get_person_from_handle(ref)
+        try:
+            person = db_handle.get_person_from_handle(ref)
+        except HandleError:
+            # nothing to update for a reference that is already broken
+            continue
         person.remove_parent_family_handle(obj.handle)
         db_handle.commit_person(person, trans)
 
     # add the family to children which have been added
     for ref in new_set - orig_set:
-        person = db_handle.get_person_from_handle(ref)
+        person = _get_referenced_person(db_handle, ref)
         person.add_parent_family_handle(obj.handle)
         db_handle.commit_person(person, trans)
 
@@ -1582,11 +1733,16 @@ def _fix_parent_handles(
 ) -> None:
     if orig_handle != new_handle:
         if orig_handle:
-            person = db_handle.get_person_from_handle(orig_handle)
-            person.family_list.remove(obj.handle)
-            db_handle.commit_person(person, trans)
+            try:
+                person = db_handle.get_person_from_handle(orig_handle)
+            except HandleError:
+                # nothing to update for a reference that is already broken
+                person = None
+            if person is not None:
+                person.family_list.remove(obj.handle)
+                db_handle.commit_person(person, trans)
         if new_handle:
-            person = db_handle.get_person_from_handle(new_handle)
+            person = _get_referenced_person(db_handle, new_handle)
             person.family_list.append(obj.handle)
             db_handle.commit_person(person, trans)
 

@@ -54,7 +54,17 @@ def delete_person(db_handle: DbWriteBase, handle: str, trans: DbTxn) -> None:
 
 def delete_family(db_handle: DbWriteBase, handle: str, trans: DbTxn) -> None:
     """Delete a family and its references."""
-    return db_handle.remove_family_relationships(handle, trans=trans)
+    # `DbWriteBase.remove_family_relationships`, but tolerant of a backlink
+    # whose object is missing
+    for obj_type, obj_handle in db_handle.find_backlink_handles(handle):
+        get_method = db_handle.method("get_%s_from_handle", obj_type)
+        try:
+            obj = get_method(obj_handle)
+        except HandleError:
+            continue
+        obj.remove_handle_references("Family", [handle])
+        db_handle.method("commit_%s", obj_type)(obj, trans)
+    db_handle.remove_family(handle, trans)
 
 
 def delete_event(db_handle: DbWriteBase, handle: str, trans: DbTxn) -> None:

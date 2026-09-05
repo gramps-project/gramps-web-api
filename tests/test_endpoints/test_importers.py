@@ -232,7 +232,8 @@ class TestImportersExtensionFile(unittest.TestCase):
             data=file_obj,
             headers=headers,
         )
-        assert rv.status_code == 500
+        # the import task aborts with 405 when the people quota is exceeded
+        assert rv.status_code == 405
         # Verify nothing was imported due to quota
         rv = check_success(self, f"{BASE_URL}/people/")
         assert len(rv) == people_before

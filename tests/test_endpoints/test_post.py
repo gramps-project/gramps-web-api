@@ -372,6 +372,21 @@ class TestObjectCreation(unittest.TestCase):
         self.assertListEqual(child["family_list"], [handle_family])
         self.assertListEqual(child["parent_family_list"], [])
 
+    def test_add_family_with_unknown_parent(self):
+        """A family referencing a person that does not exist is a bad request."""
+        handle_family = make_handle()
+        family_json = {
+            "_class": "Family",
+            "handle": handle_family,
+            "father_handle": make_handle(),  # no such person
+        }
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/families/", json=family_json, headers=headers)
+        self.assertEqual(rv.status_code, 422)
+        # and the family was not created
+        rv = self.client.get(f"/api/families/{handle_family}", headers=headers)
+        self.assertEqual(rv.status_code, 404)
+
     def test_objects_errors(self):
         """Test adding multiple objects with and without errors."""
         handle_person = make_handle()

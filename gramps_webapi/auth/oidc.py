@@ -32,7 +32,6 @@ from . import (
     add_user,
     create_oidc_account,
     get_guid,
-    get_guid_by_email,
     get_name,
     get_oidc_account,
     get_user_details,
@@ -249,16 +248,11 @@ def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> int |
     return highest_role
 
 
-def get_usable_email(userinfo: dict, user_id: str | None = None) -> str | None:
+def get_usable_email(userinfo: dict) -> str | None:
     """Return an e-mail address that can safely be stored for this user.
 
-    `users.email` carries a unique constraint, so an address already claimed by
-    a different account cannot be written. Returning None in that case leaves
-    the stored address untouched instead of failing the login, which would
-    otherwise lock the user out permanently with no way to recover from the UI.
-
-    An address the provider explicitly marks as unverified is also discarded;
-    a missing `email_verified` claim is accepted, as many providers omit it.
+    An address the provider explicitly marks as unverified is discarded; a
+    missing `email_verified` claim is accepted, as many providers omit it.
     """
     email = userinfo.get("email") or None
     if not email:
@@ -267,14 +261,6 @@ def get_usable_email(userinfo: dict, user_id: str | None = None) -> str | None:
     if userinfo.get("email_verified") is False:
         logger.warning(
             "OIDC provider reported e-mail address as unverified; not storing it."
-        )
-        return None
-
-    owner_id = get_guid_by_email(email)
-    if owner_id is not None and (user_id is None or str(owner_id) != str(user_id)):
-        logger.warning(
-            "E-mail address from OIDC provider is already used by another "
-            "account; the OIDC user will be stored without an e-mail address."
         )
         return None
 
@@ -349,7 +335,7 @@ def create_or_update_oidc_user(
         modify_user(
             name=existing_username,
             fullname=full_name,
-            email=get_usable_email(userinfo, user_id=existing_user_id),
+            email=get_usable_email(userinfo),
             role=role_from_claims,
             tree=None if current_tree_id else tree_id,
         )

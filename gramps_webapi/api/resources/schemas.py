@@ -316,6 +316,14 @@ class NameSchema(_Base):
 # ===========================================================================
 
 
+class AddressProfileSchema(_Base):
+    """A summary of an address, used within profile responses."""
+
+    date_str = fields.Str(
+        metadata={"description": "Date of the address as a formatted string."},
+    )
+
+
 class EventProfileSchema(_Base):
     """A summary of a Gramps event, used within profile responses."""
 
@@ -350,6 +358,12 @@ class EventProfileSchema(_Base):
 class PersonProfileSchema(_Base):
     """A summary of a person's key biographical information."""
 
+    addresses = fields.List(
+        fields.Nested(AddressProfileSchema),
+        metadata={
+            "description": "Addresses with formatted dates, parallel to address_list."
+        },
+    )
     birth = fields.Nested(
         EventProfileSchema,
         metadata={"description": "Birth event profile (or best available fallback)."},
@@ -538,6 +552,34 @@ class MediaProfileSchema(_Base):
     )
     references = fields.Dict(
         metadata={"description": "References to this media item from other objects."},
+    )
+
+
+class RepositoryProfileSchema(_Base):
+    """A summary of a repository record."""
+
+    addresses = fields.List(
+        fields.Nested(AddressProfileSchema),
+        metadata={
+            "description": "Addresses with formatted dates, parallel to address_list."
+        },
+    )
+    gramps_id = fields.Str(
+        metadata={
+            "description": "Alternate user-managed identifier for the repository."
+        },
+    )
+    handle = fields.Str(
+        metadata={"description": "Unique handle for the repository."},
+    )
+    name = fields.Str(
+        metadata={"description": "Name of the repository."},
+    )
+    references = fields.Dict(
+        metadata={"description": "References to this repository from other objects."},
+    )
+    type = fields.Str(
+        metadata={"description": "Localized type of repository."},
     )
 
 
@@ -892,6 +934,10 @@ class RepositorySchema(_Base):
         },
     )
     private = fields.Bool(metadata={"description": "Private object indicator."})
+    profile = fields.Nested(
+        RepositoryProfileSchema,
+        metadata={"description": "Optional summary of repository information."},
+    )
     tag_list = fields.List(
         fields.Str(),
         metadata={"description": "Handles of tags attached to this repository."},
@@ -1869,6 +1915,38 @@ class UndoTransactionSchema(_Base):
     )
 
 
+class ObjectChangeSchema(_Base):
+    """A single change to one object, as returned by the object history endpoint."""
+
+    id = fields.Int(
+        metadata={"description": "Change ID (unique only within its connection)."},
+    )
+    connection = fields.Raw(
+        metadata={"description": "Internal connection object."},
+    )
+    obj_class = fields.Str(
+        metadata={"description": "Object class name (e.g. 'Person', 'Event')."},
+    )
+    obj_handle = fields.Str(
+        metadata={"description": "Handle of the changed object."},
+    )
+    ref_handle = fields.Str(
+        metadata={"description": "Handle of a referenced object, if this change is a reference update."},
+    )
+    trans_type = fields.Int(
+        metadata={"description": "Change type: 0 (add), 1 (update), or 2 (delete)."},
+    )
+    timestamp = fields.Float(
+        metadata={"description": "Unix timestamp when the change was committed."},
+    )
+    old_data = fields.Raw(
+        metadata={"description": "Object state before the change (only included if requested)."},
+    )
+    new_data = fields.Raw(
+        metadata={"description": "Object state after the change (only included if requested)."},
+    )
+
+
 class FilterRuleDescriptionSchema(_Base):
     """Description of a built-in Gramps filter rule."""
 
@@ -2032,6 +2110,26 @@ class ResearcherSchema(_Base):
     street = fields.Str(metadata={"description": "Street address."})
 
 
+class DeprecationSchema(_Base):
+    """A deprecated configuration option the server currently relies on."""
+
+    option = fields.Str(
+        metadata={"description": "Name of the deprecated configuration option."},
+    )
+    replacement = fields.Str(
+        metadata={"description": "Name of the option to use instead."},
+    )
+    message = fields.Str(
+        metadata={"description": "Human-readable description of the deprecation."},
+    )
+    removed_in = fields.Str(
+        metadata={
+            "description": "Version of Gramps Web API in which the option will stop"
+            " working."
+        },
+    )
+
+
 class MetadataSchema(_Base):
     """Server and database metadata returned by /api/metadata/."""
 
@@ -2040,6 +2138,12 @@ class MetadataSchema(_Base):
     )
     default_person = fields.Str(
         metadata={"description": "Handle of the default person."},
+    )
+    deprecations = fields.List(
+        fields.Nested(DeprecationSchema),
+        metadata={
+            "description": "Deprecated configuration options in use (admins only)."
+        },
     )
     gramps = fields.Dict(
         metadata={"description": "Information about the active Gramps installation."},

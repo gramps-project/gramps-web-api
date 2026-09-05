@@ -26,7 +26,7 @@ from typing import Dict
 from flask import Response
 from flask_jwt_extended import get_jwt_identity
 from gramps.gen.db import REFERENCE_KEY
-from gramps.gen.db.dbconst import TXNADD, TXNDEL, TXNUPD
+from gramps.gen.db.dbconst import KEY_TO_CLASS_MAP, TXNADD, TXNDEL, TXNUPD
 from marshmallow import Schema
 from webargs import fields, validate
 
@@ -48,14 +48,15 @@ from ..util import (
 )
 from ..blueprint import api_blueprint
 from . import ProtectedResource
-from .schemas import UndoTransactionSchema
+from .schemas import ObjectChangeSchema, UndoTransactionSchema
 from .util import etag_unchanged, reverse_transaction
 
 trans_code = {"delete": TXNDEL, "add": TXNADD, "update": TXNUPD}
+OBJECT_CLASSES = sorted(set(KEY_TO_CLASS_MAP.values()))
 
 
 class TransactionsHistoryQueryArgs(Schema):
-    """Query arguments for GET /history/transactions/."""
+    """Query arguments for GET /transactions/history/."""
 
     old = fields.Boolean(
         load_default=False,
@@ -158,8 +159,98 @@ class TransactionsHistoryResource(ProtectedResource):
         return transactions_response(json.dumps(transactions), count=count, etag=etag)
 
 
+class ObjectHistoryQueryArgs(Schema):
+    """Query arguments for GET /transactions/history/objects/<obj_class>/<obj_handle>/."""
+
+    old = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, include the raw object data before the change."
+        },
+    )
+    new = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true, include the raw object data after the change."
+        },
+    )
+    page = fields.Integer(
+        load_default=0,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Page number of the result subset to return. If omitted, all results are returned."
+        },
+    )
+    pagesize = fields.Integer(
+        load_default=20,
+        validate=validate.Range(min=1),
+        metadata={"description": "Number of items per page when pagination is active."},
+    )
+    sort = fields.Str(
+        validate=validate.Length(min=1),
+        metadata={
+            "description": "Sort order for changes. Use 'id' for ascending or '-id' for descending (by timestamp)."
+        },
+    )
+    before = fields.Float(
+        load_default=None,
+        metadata={
+            "description": "Unix timestamp; if provided, return only changes committed before this time."
+        },
+    )
+    after = fields.Float(
+        load_default=None,
+        metadata={
+            "description": "Unix timestamp; if provided, return only changes committed after this time."
+        },
+    )
+
+
+class ObjectHistoryResource(ProtectedResource):
+    """Resource for the change history of a single object."""
+
+    @api_blueprint.response(200, ObjectChangeSchema(many=True))
+    @api_blueprint.arguments(ObjectHistoryQueryArgs, location="query")
+    def get(self, args: Dict, obj_class: str, obj_handle: str) -> Response:
+        """Return the change history of a single object as a flat list of changes."""
+        require_permissions([PERM_VIEW_PRIVATE])
+        if obj_class not in OBJECT_CLASSES:
+            abort_with_message(422, f"Unknown object class: {obj_class}")
+        db_handle = get_db_handle()
+        undodb = db_handle.undodb
+
+        max_ts, count = undodb.get_object_changes_state(
+            obj_class=obj_class,
+            obj_handle=obj_handle,
+            before=args["before"],
+            after=args["after"],
+        )
+        etag = transactions_etag(args, max_ts, count, obj_key=(obj_class, obj_handle))
+        if etag_unchanged(etag):
+            return transactions_response(None, count=count, etag=etag)
+
+        ascending = args.get("sort") != "-id"
+        changes, count = undodb.get_object_changes(
+            obj_class=obj_class,
+            obj_handle=obj_handle,
+            page=args["page"],
+            pagesize=args["pagesize"],
+            old_data=args["old"],
+            new_data=args["new"],
+            ascending=ascending,
+            before=args["before"],
+            after=args["after"],
+            known_count=count,
+        )
+
+        # replace user IDs by user name
+        user_dict = get_user_dict(transaction_user_ids(changes))
+        changes = [fix_transaction_user(change, user_dict) for change in changes]
+        return transactions_response(json.dumps(changes), count=count, etag=etag)
+
+
 class TransactionHistoryQueryArgs(Schema):
-    """Query arguments for GET /history/transactions/<id>/."""
+    """Query arguments for GET /transactions/history/<id>/."""
 
     old = fields.Boolean(
         load_default=False,
@@ -379,14 +470,21 @@ def transaction_user_ids(transactions: list[Dict]) -> set[str]:
     return {transaction["connection"]["user_id"] for transaction in transactions}
 
 
-def transactions_etag(args: Dict, max_id: int | None, count: int) -> str:
+def transactions_etag(
+    args: Dict, max_id: int | None, count: int, obj_key: tuple | None = None
+) -> str:
     """Build a cache validator for a page of the transaction history.
+
+    `obj_key` (obj_class, obj_handle) scopes the ETag to a single object's
+    history so it cannot collide with the ETag of another object's history.
 
     The user names resolved into the response are not covered: a rename becomes
     visible only once the next transaction is written.
     """
     tree_id = get_tree_from_jwt_or_fail()
-    state = json.dumps([tree_id, max_id, count, args], sort_keys=True, default=str)
+    state = json.dumps(
+        [tree_id, obj_key, max_id, count, args], sort_keys=True, default=str
+    )
     return hashlib.sha256(state.encode()).hexdigest()
 
 
