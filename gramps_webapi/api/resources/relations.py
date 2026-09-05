@@ -24,20 +24,25 @@ from typing import Dict
 
 from flask import Response
 from gramps.gen.errors import HandleError
-from gramps.gen.relationship import get_relationship_calculator
 from marshmallow import Schema
 from webargs import fields, validate
 
-from gramps_webapi.api.people_families_cache import CachePeopleFamiliesProxy
-
+from ...auth.const import PERM_VIEW_PRIVATE
+from ..auth import has_permissions
 from ...types import Handle
 from ..cache import request_cache_decorator
 from ..blueprint import api_blueprint
-from ..util import abort_with_message, get_db_handle, get_locale_for_language
+from ..util import (
+    abort_with_message,
+    get_db_handle,
+    get_locale_for_language,
+    get_tree_from_jwt_or_fail,
+)
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .metadata import _get_dbid_from_tree_id
+from .relationship_graph import get_relationship_graph
 from .schemas import RelationshipItemSchema, RelationshipSchema
-from .util import get_one_relationship
 
 
 class RelationQueryArgs(Schema):
@@ -67,33 +72,33 @@ class RelationResource(ProtectedResource, GrampsJSONEncoder):
     @request_cache_decorator
     def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:
         """Get the most direct relationship between two people."""
-        db_handle = CachePeopleFamiliesProxy(get_db_handle())
+        db_handle = get_db_handle()
+        # Existence checks go through the normal (possibly privacy-proxied)
+        # db handle, same as before -- a private person 404s exactly as
+        # today, unrelated to the fast path's own privacy filtering below.
         try:
-            person1 = db_handle.get_person_from_handle(handle1)
+            db_handle.get_person_from_handle(handle1)
         except HandleError:
             abort_with_message(404, f"Person {handle1} not found")
         try:
-            person2 = db_handle.get_person_from_handle(handle2)
+            db_handle.get_person_from_handle(handle2)
         except HandleError:
             abort_with_message(404, f"Person {handle2} not found")
 
-        db_handle.cache_people()
-        db_handle.cache_families()
-
+        tree_id = get_tree_from_jwt_or_fail()
+        dbid = _get_dbid_from_tree_id(tree_id)
         locale = get_locale_for_language(args["locale"], default=True)
-        data = get_one_relationship(
-            db_handle=db_handle,
-            person1=person1,
-            person2=person2,
-            depth=args["depth"],
-            locale=locale,
+        graph = get_relationship_graph(db_handle, dbid, locale=locale)
+        restricted = not has_permissions({PERM_VIEW_PRIVATE})
+        rel_str, dist_orig, dist_other = graph.relationship(
+            handle1, handle2, restricted=restricted, depth=args["depth"]
         )
         return self.response(
             200,
             {
-                "relationship_string": data[0],
-                "distance_common_origin": data[1],
-                "distance_common_other": data[2],
+                "relationship_string": rel_str,
+                "distance_common_origin": dist_orig,
+                "distance_common_other": dist_other,
             },
         )
 
@@ -106,36 +111,22 @@ class RelationsResource(ProtectedResource, GrampsJSONEncoder):
     @request_cache_decorator
     def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:
         """Get all possible relationships between two people."""
-        db_handle = CachePeopleFamiliesProxy(get_db_handle())
-
+        db_handle = get_db_handle()
         try:
-            person1 = db_handle.get_person_from_handle(handle1)
+            db_handle.get_person_from_handle(handle1)
         except HandleError:
             abort_with_message(404, f"Person {handle1} not found")
-
         try:
-            person2 = db_handle.get_person_from_handle(handle2)
+            db_handle.get_person_from_handle(handle2)
         except HandleError:
             abort_with_message(404, f"Person {handle2} not found")
 
-        db_handle.cache_people()
-        db_handle.cache_families()
-
+        tree_id = get_tree_from_jwt_or_fail()
+        dbid = _get_dbid_from_tree_id(tree_id)
         locale = get_locale_for_language(args["locale"], default=True)
-        calc = get_relationship_calculator(reinit=True, clocale=locale)
-        calc.set_depth(args["depth"])
-
-        data = calc.get_all_relationships(db_handle, person1, person2)
-        result = []
-        index = 0
-        while index < len(data[0]):
-            result.append(
-                {
-                    "relationship_string": data[0][index],
-                    "common_ancestors": data[1][index],
-                }
-            )
-            index = index + 1
-        if result == []:
-            result = [{}]
+        graph = get_relationship_graph(db_handle, dbid, locale=locale)
+        restricted = not has_permissions({PERM_VIEW_PRIVATE})
+        result = graph.all_relationships(
+            handle1, handle2, restricted=restricted, depth=args["depth"]
+        )
         return self.response(200, result)
