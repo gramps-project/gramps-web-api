@@ -86,6 +86,37 @@ class TestOpenapiOperationIds(unittest.TestCase):
             "operationIds must be unique across the whole spec",
         )
 
+    def test_object_crud_summaries_are_specific(self):
+        """Object CRUD summaries identify the record type and operation,
+        instead of the generic text duplicated across all 10 object types
+        that issue #943 called out (e.g. "Get all objects." x10).
+        """
+        for gramps_class_name, (url_segment, _, plural) in OBJECT_ROUTES.items():
+            with self.subTest(gramps_class_name=gramps_class_name):
+                self.assertEqual(
+                    self._operation(f"/api/{url_segment}/{{handle}}", "get")["summary"],
+                    f"Get a Gramps {gramps_class_name} record",
+                )
+                self.assertEqual(
+                    self._operation(f"/api/{url_segment}/{{handle}}", "put")["summary"],
+                    f"Update a Gramps {gramps_class_name} record",
+                )
+                self.assertEqual(
+                    self._operation(f"/api/{url_segment}/{{handle}}", "delete")[
+                        "summary"
+                    ],
+                    f"Delete a Gramps {gramps_class_name} record",
+                )
+                collection_name = plural.replace("_", " ")
+                self.assertEqual(
+                    self._operation(f"/api/{url_segment}/", "get")["summary"],
+                    f"List Gramps {collection_name} with filters",
+                )
+                self.assertEqual(
+                    self._operation(f"/api/{url_segment}/", "post")["summary"],
+                    f"Create a Gramps {gramps_class_name} record",
+                )
+
     def test_object_crud_operation_ids_match_expected_names(self):
         """Object CRUD operationIds follow the `{verb}_{route_name}` scheme."""
         for gramps_class_name, (url_segment, singular, plural) in OBJECT_ROUTES.items():

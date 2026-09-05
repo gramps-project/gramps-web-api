@@ -176,6 +176,7 @@ def register_endpt(
     name: str,
     tags: Optional[List[str]] = None,
     request_body: Optional[dict] = None,
+    object_name: Optional[str] = None,
 ):
     """Register an endpoint.
 
@@ -188,13 +189,48 @@ def register_endpt(
     `request_body` documents the JSON payload of a POST/PUT endpoint (e.g.
     via `object_request_body()`); omit it for endpoints that take no body
     or a non-JSON one (such as Media's raw file upload).
+
+    `object_name` names the Gramps object type (e.g. "Person") used to
+    build CRUD summary text ("Get a Gramps Person record", ...). It is
+    derived from `request_body`'s schema automatically when that is given;
+    pass it explicitly for endpoints - like Media's raw file upload - that
+    operate on a typed object but have no JSON request_body to derive it
+    from.
     """
     operation_name = name.replace("-", "_")
+    if object_name is None and request_body is not None:
+        schema = (
+            request_body.get("content", {})
+            .get("application/json", {})
+            .get("schema", {})
+        )
+        if isinstance(schema, dict):
+            schema_ref = schema.get("$ref")
+            if isinstance(schema_ref, str):
+                object_name = schema_ref.rsplit("/", 1)[-1]
     for verb in ("get", "post", "put", "delete", "patch"):
         method = getattr(resource, verb, None)
         if method is None:
             continue
         doc_kwargs: dict = {"operationId": f"{verb}_{operation_name}"}
+        if object_name is not None:
+            collection_name = name.replace("-", " ").replace("_", " ")
+            if verb == "get":
+                summary = (
+                    f"Get a Gramps {object_name} record"
+                    if "<string:handle>" in url
+                    else f"List Gramps {collection_name} with filters"
+                )
+            elif verb == "post":
+                summary = f"Create a Gramps {object_name} record"
+            elif verb == "put":
+                summary = f"Update a Gramps {object_name} record"
+            elif verb == "delete":
+                summary = f"Delete a Gramps {object_name} record"
+            else:
+                summary = None
+            if summary is not None:
+                doc_kwargs["summary"] = summary
         if request_body is not None and verb in ("post", "put"):
             doc_kwargs["requestBody"] = request_body
         # setattr rather than plain assignment: mypy rejects assigning to a
@@ -493,8 +529,15 @@ register_endpt(
     request_body=object_request_body("Media"),
 )
 # MediaObjectsResource's POST takes a raw file upload (multipart), not JSON,
-# so it gets no request_body doc here.
-register_endpt(MediaObjectsResource, "/media/", "media_objects", tags=["Media"])
+# so it gets no request_body doc here; object_name is passed explicitly so
+# its CRUD summaries are still specific instead of the generic default.
+register_endpt(
+    MediaObjectsResource,
+    "/media/",
+    "media_objects",
+    tags=["Media"],
+    object_name="Media",
+)
 register_endpt(MediaQueryResource, "/media/query/", "media-query", tags=["Media"])
 register_endpt(
     MergeMediaResource,
