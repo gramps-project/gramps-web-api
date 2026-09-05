@@ -561,13 +561,27 @@ def _validate_where_tree(conditions: Sequence[dict]) -> None:
     `exists.where`, and `count_of.where` reached through either `column` or
     `value_column` -- every place this schema (or `where_expr`, which
     reaches this same function) can nest a further condition list.
+
+    Type-checks every level: a non-list `conditions` (e.g. a nested `where`
+    that arrived as a string or dict instead of a list) or a non-dict
+    condition aborts with 422 rather than silently skipping validation --
+    both `count_of.where` and `exists.where` are untyped (`wf.Raw()`), so
+    malformed values there would otherwise reach `where_list_to_ast`
+    unchecked and risk a 500 instead of a clean 422.
     """
+    if not isinstance(conditions, (list, tuple)):
+        abort_with_message(422, "a 'where' condition list must be an array")
     for condition in conditions:
+        if not isinstance(condition, dict):
+            abort_with_message(422, "each 'where' condition must be an object")
         if "column" in condition:
             _validate_leaf_condition(condition)
             for column_ref in (condition.get("column"), condition.get("value_column")):
                 if isinstance(column_ref, dict) and "count_of" in column_ref:
-                    _validate_where_tree(column_ref["count_of"].get("where") or [])
+                    count_of = column_ref["count_of"]
+                    if not isinstance(count_of, dict):
+                        abort_with_message(422, "'count_of' must be an object")
+                    _validate_where_tree(count_of.get("where") or [])
         elif "and" in condition:
             _validate_where_tree(condition["and"])
         elif "or" in condition:
@@ -575,7 +589,10 @@ def _validate_where_tree(conditions: Sequence[dict]) -> None:
         elif "not" in condition:
             _validate_where_tree([condition["not"]])
         elif "exists" in condition:
-            _validate_where_tree(condition["exists"].get("where") or [])
+            exists = condition["exists"]
+            if not isinstance(exists, dict):
+                abort_with_message(422, "'exists' must be an object")
+            _validate_where_tree(exists.get("where") or [])
 
 
 def _build_where(conditions: Optional[Sequence[dict]], spec: ObjectTypeSpec):

@@ -1070,6 +1070,66 @@ def test_malformed_in_rejected_when_nested_in_count_of_where():
     assert exc_info.value.code == 422
 
 
+def test_non_list_count_of_where_rejected_with_422():
+    # count_of's `where` is untyped (wf.Raw()), so a caller can send a
+    # non-list value there -- must 422, not be silently skipped and reach
+    # where_list_to_ast (or crash trying to iterate/index into it).
+    conditions = [
+        {
+            "column": {
+                "count_of": {"relationship": "children", "where": "not-a-list"}
+            },
+            "op": "gt",
+            "value": 0,
+        }
+    ]
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, FAMILY)
+    assert exc_info.value.code == 422
+
+
+def test_non_dict_count_of_rejected_with_422():
+    conditions = [
+        {"column": {"count_of": "not-a-dict"}, "op": "gt", "value": 0}
+    ]
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, FAMILY)
+    assert exc_info.value.code == 422
+
+
+def test_non_dict_exists_rejected_with_422():
+    # Bypasses QueryWhereConditionArgs.load() -- its own `exists` field is a
+    # typed Nested(QueryExistsPayloadArgs), so a non-dict there never reaches
+    # _build_where through the schema; this exercises _validate_where_tree's
+    # own defensive check directly, the same way the count_of tests above do.
+    conditions = [{"exists": "not-a-dict"}]
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, NOTE)
+    assert exc_info.value.code == 422
+
+
+def test_non_list_exists_where_rejected_with_422():
+    # Same rationale: QueryExistsPayloadArgs.where is a typed wf.List, so
+    # this bypasses .load() to exercise _validate_where_tree's own check.
+    conditions = [
+        {"exists": {"relationship": "backlinks", "where": "not-a-list"}}
+    ]
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, NOTE)
+    assert exc_info.value.code == 422
+
+
+def test_non_dict_condition_in_and_rejected_with_422():
+    conditions = QueryWhereConditionArgs(many=True).load(
+        [{"and": [{"column": "gender", "op": "eq", "value": "M"}]}]
+    )
+    # Tamper post-load to simulate a non-dict leaf slipping into the tree.
+    conditions[0]["and"].append("not-a-dict")
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, PERSON)
+    assert exc_info.value.code == 422
+
+
 # --- treeid threading through every SQL-emitting path -----------------------
 #
 # `_resolve_treeid` (tested above) is only half the story -- the value it
