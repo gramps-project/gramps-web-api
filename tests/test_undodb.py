@@ -354,6 +354,21 @@ class TestGetObjectChanges(unittest.TestCase):
         assert changes == []
         assert count == 0
 
+    def test_transaction_id_matches_covering_transaction(self):
+        undodb = self.db.get_undodb()
+        changes, _ = undodb.get_object_changes("Person", self.person_handle)
+        transactions, _ = undodb.get_transactions()
+        transactions_by_id = {
+            transaction["id"]: transaction for transaction in transactions
+        }
+        for change in changes:
+            assert change["transaction_id"] is not None
+            transaction = transactions_by_id[change["transaction_id"]]
+            transaction_change_handles = {
+                c["obj_handle"] for c in transaction["changes"]
+            }
+            assert change["obj_handle"] in transaction_change_handles
+
     def test_state(self):
         undodb = self.db.get_undodb()
         max_ts, count = undodb.get_object_changes_state("Person", self.person_handle)
