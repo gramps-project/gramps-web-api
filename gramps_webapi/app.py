@@ -189,7 +189,7 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         app.logger.info(
             "Caches are disabled (DISABLE_CACHES is set). Caches should be enabled in production environment.",
         )
-        null_cache_config = {"CACHE_TYPE": "null"}
+        null_cache_config = {"CACHE_TYPE": "NullCache"}
         request_cache.init_app(app, config=null_cache_config)
         thumbnail_cache.init_app(app, config=null_cache_config)
         persistent_cache.init_app(app, config=null_cache_config)
