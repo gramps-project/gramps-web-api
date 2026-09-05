@@ -32,7 +32,7 @@ from .cache import thumbnail_cache_decorator, tile_cache_decorator
 from .media import get_media_handler
 from .resources.access_tokens import UserAccessTokenResource
 from .resources.anniversaries import AnniversariesIcsResource
-from .resources.base import Resource
+from .resources.base import Resource, object_request_body
 from .resources.bookmarks import (
     BookmarkEditResource,
     BookmarkResource,
@@ -171,9 +171,35 @@ from .util import abort_with_message, get_db_handle, get_tree_from_jwt, parser, 
 
 
 def register_endpt(
-    resource: Type[Resource], url: str, name: str, tags: Optional[List[str]] = None
+    resource: Type[Resource],
+    url: str,
+    name: str,
+    tags: Optional[List[str]] = None,
+    request_body: Optional[dict] = None,
 ):
-    """Register an endpoint."""
+    """Register an endpoint.
+
+    `name` is already unique per call site, so `{verb}_{name}` gives every
+    HTTP method of every resource its own OpenAPI operationId from one
+    place, instead of relying on each resource class to derive one for
+    itself. Without a distinct operationId, tools that generate clients (or
+    MCP servers) from openapi.json cannot tell operations apart.
+
+    `request_body` documents the JSON payload of a POST/PUT endpoint (e.g.
+    via `object_request_body()`); omit it for endpoints that take no body
+    or a non-JSON one (such as Media's raw file upload).
+    """
+    operation_name = name.replace("-", "_")
+    for verb in ("get", "post", "put", "delete", "patch"):
+        method = getattr(resource, verb, None)
+        if method is None:
+            continue
+        doc_kwargs: dict = {"operationId": f"{verb}_{operation_name}"}
+        if request_body is not None and verb in ("post", "put"):
+            doc_kwargs["requestBody"] = request_body
+        # setattr rather than plain assignment: mypy rejects assigning to a
+        # method.
+        setattr(resource, verb, api_blueprint.doc(**doc_kwargs)(method))
     # Register all HTTP methods explicitly so Werkzeug always finds the route
     # and returns 405 (not 404) for methods the view doesn't implement.
     # flask-smorest still only documents methods actually defined on the class.
@@ -263,7 +289,13 @@ register_endpt(
     "person-timeline",
     tags=["Timeline"],
 )
-register_endpt(PersonResource, "/people/<string:handle>", "person", tags=["People"])
+register_endpt(
+    PersonResource,
+    "/people/<string:handle>",
+    "person",
+    tags=["People"],
+    request_body=object_request_body("Person"),
+)
 register_endpt(
     PersonDnaMatchesResource,
     "/people/<string:handle>/dna/matches",
@@ -273,7 +305,13 @@ register_endpt(
 register_endpt(
     PersonYDnaResource, "/people/<string:handle>/ydna", "person-ydna", tags=["DNA"]
 )
-register_endpt(PeopleResource, "/people/", "people", tags=["People"])
+register_endpt(
+    PeopleResource,
+    "/people/",
+    "people",
+    tags=["People"],
+    request_body=object_request_body("Person"),
+)
 register_endpt(PersonQueryResource, "/people/query/", "people-query", tags=["People"])
 register_endpt(
     MergePersonResource,
@@ -288,8 +326,20 @@ register_endpt(
     "family-timeline",
     tags=["Timeline"],
 )
-register_endpt(FamilyResource, "/families/<string:handle>", "family", tags=["Families"])
-register_endpt(FamiliesResource, "/families/", "families", tags=["Families"])
+register_endpt(
+    FamilyResource,
+    "/families/<string:handle>",
+    "family",
+    tags=["Families"],
+    request_body=object_request_body("Family"),
+)
+register_endpt(
+    FamiliesResource,
+    "/families/",
+    "families",
+    tags=["Families"],
+    request_body=object_request_body("Family"),
+)
 register_endpt(
     FamilyQueryResource, "/families/query/", "families-query", tags=["Families"]
 )
@@ -306,8 +356,20 @@ register_endpt(
     "event-span",
     tags=["Events"],
 )
-register_endpt(EventResource, "/events/<string:handle>", "event", tags=["Events"])
-register_endpt(EventsResource, "/events/", "events", tags=["Events"])
+register_endpt(
+    EventResource,
+    "/events/<string:handle>",
+    "event",
+    tags=["Events"],
+    request_body=object_request_body("Event"),
+)
+register_endpt(
+    EventsResource,
+    "/events/",
+    "events",
+    tags=["Events"],
+    request_body=object_request_body("Event"),
+)
 register_endpt(EventQueryResource, "/events/query/", "events-query", tags=["Events"])
 register_endpt(
     MergeEventResource,
@@ -326,8 +388,20 @@ register_endpt(
     tags=["Timeline"],
 )
 # Places
-register_endpt(PlaceResource, "/places/<string:handle>", "place", tags=["Places"])
-register_endpt(PlacesResource, "/places/", "places", tags=["Places"])
+register_endpt(
+    PlaceResource,
+    "/places/<string:handle>",
+    "place",
+    tags=["Places"],
+    request_body=object_request_body("Place"),
+)
+register_endpt(
+    PlacesResource,
+    "/places/",
+    "places",
+    tags=["Places"],
+    request_body=object_request_body("Place"),
+)
 register_endpt(PlaceQueryResource, "/places/query/", "places-query", tags=["Places"])
 register_endpt(
     MergePlaceResource,
@@ -337,9 +411,19 @@ register_endpt(
 )
 # Citations
 register_endpt(
-    CitationResource, "/citations/<string:handle>", "citation", tags=["Citations"]
+    CitationResource,
+    "/citations/<string:handle>",
+    "citation",
+    tags=["Citations"],
+    request_body=object_request_body("Citation"),
 )
-register_endpt(CitationsResource, "/citations/", "citations", tags=["Citations"])
+register_endpt(
+    CitationsResource,
+    "/citations/",
+    "citations",
+    tags=["Citations"],
+    request_body=object_request_body("Citation"),
+)
 register_endpt(
     CitationQueryResource, "/citations/query/", "citations-query", tags=["Citations"]
 )
@@ -350,8 +434,20 @@ register_endpt(
     tags=["Citations"],
 )
 # Sources
-register_endpt(SourceResource, "/sources/<string:handle>", "source", tags=["Sources"])
-register_endpt(SourcesResource, "/sources/", "sources", tags=["Sources"])
+register_endpt(
+    SourceResource,
+    "/sources/<string:handle>",
+    "source",
+    tags=["Sources"],
+    request_body=object_request_body("Source"),
+)
+register_endpt(
+    SourcesResource,
+    "/sources/",
+    "sources",
+    tags=["Sources"],
+    request_body=object_request_body("Source"),
+)
 register_endpt(
     SourceQueryResource, "/sources/query/", "sources-query", tags=["Sources"]
 )
@@ -367,9 +463,14 @@ register_endpt(
     "/repositories/<string:handle>",
     "repository",
     tags=["Repositories"],
+    request_body=object_request_body("Repository"),
 )
 register_endpt(
-    RepositoriesResource, "/repositories/", "repositories", tags=["Repositories"]
+    RepositoriesResource,
+    "/repositories/",
+    "repositories",
+    tags=["Repositories"],
+    request_body=object_request_body("Repository"),
 )
 register_endpt(
     RepositoryQueryResource,
@@ -385,8 +486,14 @@ register_endpt(
 )
 # Media
 register_endpt(
-    MediaObjectResource, "/media/<string:handle>", "media_object", tags=["Media"]
+    MediaObjectResource,
+    "/media/<string:handle>",
+    "media_object",
+    tags=["Media"],
+    request_body=object_request_body("Media"),
 )
+# MediaObjectsResource's POST takes a raw file upload (multipart), not JSON,
+# so it gets no request_body doc here.
 register_endpt(MediaObjectsResource, "/media/", "media_objects", tags=["Media"])
 register_endpt(MediaQueryResource, "/media/query/", "media-query", tags=["Media"])
 register_endpt(
@@ -396,8 +503,20 @@ register_endpt(
     tags=["Media"],
 )
 # Notes
-register_endpt(NoteResource, "/notes/<string:handle>", "note", tags=["Notes"])
-register_endpt(NotesResource, "/notes/", "notes", tags=["Notes"])
+register_endpt(
+    NoteResource,
+    "/notes/<string:handle>",
+    "note",
+    tags=["Notes"],
+    request_body=object_request_body("Note"),
+)
+register_endpt(
+    NotesResource,
+    "/notes/",
+    "notes",
+    tags=["Notes"],
+    request_body=object_request_body("Note"),
+)
 register_endpt(NoteQueryResource, "/notes/query/", "notes-query", tags=["Notes"])
 register_endpt(
     MergeNoteResource,
@@ -406,8 +525,20 @@ register_endpt(
     tags=["Notes"],
 )
 # Tags
-register_endpt(TagResource, "/tags/<string:handle>", "tag", tags=["Tags"])
-register_endpt(TagsResource, "/tags/", "tags", tags=["Tags"])
+register_endpt(
+    TagResource,
+    "/tags/<string:handle>",
+    "tag",
+    tags=["Tags"],
+    request_body=object_request_body("Tag"),
+)
+register_endpt(
+    TagsResource,
+    "/tags/",
+    "tags",
+    tags=["Tags"],
+    request_body=object_request_body("Tag"),
+)
 register_endpt(TagQueryResource, "/tags/query/", "tags-query", tags=["Tags"])
 # Trees
 register_endpt(TreeResource, "/trees/<string:tree_id>", "tree", tags=["Trees"])
@@ -712,6 +843,7 @@ register_endpt(
 # Shared query params: jwt (auth via URL), checksum (frontend service worker
 # cache busting by URL versioning; ignored by the backend).
 @api_blueprint.route("/media/<string:handle>/tile/<int:z>/<int:x>/<int:y>")
+@api_blueprint.doc(operationId="get_media_tile")
 @jwt_required
 @use_args(
     {
@@ -741,6 +873,7 @@ def get_media_map_tile(args, handle: str, z: int, x: int, y: int):
 
 
 @api_blueprint.route("/media/<string:handle>/thumbnail/<int:size>")
+@api_blueprint.doc(operationId="get_media_thumbnail")
 @jwt_required
 @use_args(
     {
@@ -764,6 +897,7 @@ def get_thumbnail(args, handle, size):
 @api_blueprint.route(
     "/media/<string:handle>/cropped/<int:x1>/<int:y1>/<int:x2>/<int:y2>"
 )
+@api_blueprint.doc(operationId="get_media_cropped")
 @jwt_required
 @use_args(
     {
@@ -787,6 +921,7 @@ def get_cropped(args, handle: str, x1: int, y1: int, x2: int, y2: int):
 @api_blueprint.route(
     "/media/<string:handle>/cropped/<int:x1>/<int:y1>/<int:x2>/<int:y2>/thumbnail/<int:size>"
 )
+@api_blueprint.doc(operationId="get_media_cropped_thumbnail")
 @jwt_required
 @use_args(
     {

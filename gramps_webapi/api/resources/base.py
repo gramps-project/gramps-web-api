@@ -289,6 +289,31 @@ class GrampsObjectQueryArgs(Schema):
     )
 
 
+def object_request_body(gramps_class_name: str) -> dict:
+    """Build the requestBody doc for a Gramps object mutation endpoint.
+
+    The payload is the object itself, so it is documented by referencing
+    the object's already-registered component schema rather than an
+    opaque `type: object`. The schema is shared with the response, so it
+    also lists the read-only fields (`backlinks`, `extended`, `profile`)
+    that the server adds on output and ignores on input.
+    """
+    return {
+        "required": True,
+        "content": {
+            "application/json": {
+                "schema": {
+                    "$ref": f"#/components/schemas/{gramps_class_name}",
+                }
+            }
+        },
+        "description": (
+            f"The {gramps_class_name} object to store. The `_class` field is "
+            f"optional; if present it must be `{gramps_class_name}`."
+        ),
+    }
+
+
 class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
     """Resource for a single object."""
 
@@ -433,7 +458,11 @@ class GrampsObjectsQueryArgs(Schema):
     gql = fields.Str(
         validate=validate.Length(min=1),
         metadata={
-            "description": "A Gramps QL query string used to filter the objects (e.g. 'media_list.length >= 10')."
+            "description": (
+                "A Gramps QL (GQL) query string used to filter the objects "
+                "(e.g. 'media_list.length >= 10'). Full syntax reference: "
+                "https://github.com/DavidMStraub/gramps-ql/blob/main/README.md"
+            )
         },
     )
     oql = fields.Str(
