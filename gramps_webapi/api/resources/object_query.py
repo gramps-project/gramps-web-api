@@ -581,7 +581,10 @@ def _validate_where_tree(conditions: Sequence[dict]) -> None:
                     count_of = column_ref["count_of"]
                     if not isinstance(count_of, dict):
                         abort_with_message(422, "'count_of' must be an object")
-                    _validate_where_tree(count_of.get("where") or [])
+                    count_of_where = count_of.get("where")
+                    _validate_where_tree(
+                        [] if count_of_where is None else count_of_where
+                    )
         elif "and" in condition:
             _validate_where_tree(condition["and"])
         elif "or" in condition:
@@ -592,7 +595,8 @@ def _validate_where_tree(conditions: Sequence[dict]) -> None:
             exists = condition["exists"]
             if not isinstance(exists, dict):
                 abort_with_message(422, "'exists' must be an object")
-            _validate_where_tree(exists.get("where") or [])
+            exists_where = exists.get("where")
+            _validate_where_tree([] if exists_where is None else exists_where)
 
 
 def _build_where(conditions: Optional[Sequence[dict]], spec: ObjectTypeSpec):

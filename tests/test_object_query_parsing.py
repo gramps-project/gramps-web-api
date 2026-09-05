@@ -1130,6 +1130,34 @@ def test_non_dict_condition_in_and_rejected_with_422():
     assert exc_info.value.code == 422
 
 
+# `count_of.where`/`exists.where` used to default via `.get("where") or []`,
+# which treats any *falsy* value -- not just a missing/None key -- as if the
+# `where` had been omitted. A caller-supplied "" or {} is falsy but still
+# malformed, and would have silently skipped straight past the non-list
+# check below instead of 422ing. Only a missing/None key should default to
+# [].
+
+
+def test_falsy_non_list_count_of_where_rejected_with_422():
+    conditions = [
+        {
+            "column": {"count_of": {"relationship": "children", "where": ""}},
+            "op": "gt",
+            "value": 0,
+        }
+    ]
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, FAMILY)
+    assert exc_info.value.code == 422
+
+
+def test_falsy_non_list_exists_where_rejected_with_422():
+    conditions = [{"exists": {"relationship": "backlinks", "where": {}}}]
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, NOTE)
+    assert exc_info.value.code == 422
+
+
 # --- treeid threading through every SQL-emitting path -----------------------
 #
 # `_resolve_treeid` (tested above) is only half the story -- the value it
