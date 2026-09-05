@@ -903,9 +903,9 @@ class TestTransactionHistoryResource(unittest.TestCase):
 
         # each change must link to a real transaction, resolvable via
         # /transactions/history/<id>
-        for change in changes:
-            transaction_id = change["transaction_id"]
-            assert transaction_id is not None
+        transaction_ids = {change["transaction_id"] for change in changes}
+        assert None not in transaction_ids
+        for transaction_id in transaction_ids:
             rv = self.client.get(
                 f"/api/transactions/history/{transaction_id}", headers=headers
             )

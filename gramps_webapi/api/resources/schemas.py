@@ -1902,7 +1902,7 @@ class ObjectChangeSchema(_Base):
     transaction_id = fields.Int(
         allow_none=True,
         metadata={
-            "description": "ID of the transaction (see /transactions/history/<id>) covering this change, if any."
+            "description": "ID of the transaction this change was part of, if known."
         },
     )
     obj_class = fields.Str(

@@ -53,6 +53,7 @@ from sqlalchemy import (
     create_engine,
     inspect,
     or_,
+    select,
     text,
 )
 
@@ -193,6 +194,30 @@ class Transaction(Base):
             "timestamp": self.timestamp / 1e9,
             "changes": changes,
         }
+
+
+def _covering_transaction_id():
+    """Correlated subquery selecting the transaction covering a change row.
+
+    A transaction without a change range covers its whole connection, same as
+    in `_get_changes_chunk`. More than one candidate can qualify, so the order
+    decides: ranged transactions sort ahead of whole-connection ones, then
+    lowest id, keeping the result stable across query plans.
+    """
+    return (
+        select(Transaction.id)
+        .where(
+            Transaction.connection_id == Change.connection_id,
+            or_(
+                Transaction.first.is_(None),
+                and_(Transaction.first <= Change.id, Transaction.last >= Change.id),
+            ),
+        )
+        .order_by(Transaction.first.is_(None), Transaction.id)
+        .limit(1)
+        .scalar_subquery()
+        .label("transaction_id")
+    )
 
 
 def _get_changes(
@@ -803,10 +828,8 @@ class DbUndoSQLWeb(DbUndoSQL):
         `known_count` is returned in place of counting the matching changes
         again.
 
-        Each change row also gets a `transaction_id`, resolved separately
-        since it's not exposed by `Change` itself (see
-        `_get_transaction_ids_for_changes`). It's `None` when no covering
-        transaction is found.
+        Each change row also gets the id of the transaction covering it (see
+        `_covering_transaction_id`), which is `None` if there is none.
         """
         with self.session_scope() as session:
             query = self._object_changes_query(
@@ -831,92 +854,19 @@ class DbUndoSQLWeb(DbUndoSQL):
                 deferred.append(defer(Change.old_json))
             if not new_data:
                 deferred.append(defer(Change.new_json))
-            changes = query.options(contains_eager(Change.connection), *deferred).all()
-            transaction_ids = self._get_transaction_ids_for_changes(session, changes)
+            rows = (
+                query.options(contains_eager(Change.connection), *deferred)
+                .add_columns(_covering_transaction_id())
+                .all()
+            )
             return [
                 {
                     **change._to_dict(old_data=old_data, new_data=new_data),
                     "connection": change.connection._to_dict(),
-                    "transaction_id": transaction_ids.get(
-                        (change.connection_id, change.id)
-                    ),
+                    "transaction_id": transaction_id,
                 }
-                for change in changes
+                for change, transaction_id in rows
             ], count
-
-    @staticmethod
-    def _get_transaction_ids_for_changes(
-        session: Session, changes: list[Change]
-    ) -> dict[tuple[int, int], int]:
-        """Map each change's (connection_id, id) to its covering transaction id.
-
-        A transaction without a change range covers its whole connection,
-        same as in `_get_changes_chunk`; a ranged transaction wins over a
-        whole-connection one, and the lowest id wins among candidates that
-        are equally valid.
-
-        The id ranges are matched in SQL rather than by filtering all of the
-        connection's transactions in Python, so the rows loaded scale with
-        the page rather than with the size of the connections it touches.
-        """
-        keys = sorted({(change.connection_id, change.id) for change in changes})
-        result: dict[tuple[int, int], int] = {}
-        for offset in range(0, len(keys), CHANGES_QUERY_CHUNK_SIZE):
-            chunk = keys[offset : offset + CHANGES_QUERY_CHUNK_SIZE]
-            conditions = [
-                and_(
-                    Transaction.connection_id == connection_id,
-                    or_(
-                        Transaction.first.is_(None),
-                        and_(
-                            Transaction.first <= change_id,
-                            Transaction.last >= change_id,
-                        ),
-                    ),
-                )
-                for connection_id, change_id in chunk
-            ]
-            transactions = (
-                session.query(
-                    Transaction.id,
-                    Transaction.connection_id,
-                    Transaction.first,
-                    Transaction.last,
-                )
-                .filter(or_(*conditions))
-                # several range-less transactions can share a connection, so more
-                # than one candidate may be valid; order to keep the resolved id
-                # stable across query plans
-                .order_by(Transaction.id)
-                .all()
-            )
-            by_connection: dict[int, list[tuple[int, int | None, int | None]]] = (
-                defaultdict(list)
-            )
-            for transaction_id, connection_id, first, last in transactions:
-                by_connection[connection_id].append((transaction_id, first, last))
-            for connection_id, change_id in chunk:
-                candidates = by_connection[connection_id]
-                covering = next(
-                    (
-                        transaction_id
-                        for transaction_id, first, last in candidates
-                        if first is not None and first <= change_id <= last
-                    ),
-                    None,
-                )
-                if covering is None:
-                    covering = next(
-                        (
-                            transaction_id
-                            for transaction_id, first, _ in candidates
-                            if first is None
-                        ),
-                        None,
-                    )
-                if covering is not None:
-                    result[(connection_id, change_id)] = covering
-        return result
 
 
 def _add_json_columns(undodb: DbUndoSQL) -> None:
