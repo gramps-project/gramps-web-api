@@ -31,10 +31,13 @@ import pytest
 from gramps.plugins.db.dbapi.sqlite import SQLite
 from werkzeug.exceptions import HTTPException
 
+from marshmallow import ValidationError
+
 from gramps_object_query_language.query import (
     EVENT,
     FAMILY,
     MEDIA,
+    NOTE,
     PERSON,
     And,
     CollectionCount,
@@ -58,6 +61,7 @@ from gramps_object_query_language.query import (
 )
 from gramps_object_query_language.query_lang import VALID_LEAF_OPS
 from gramps_webapi.api.resources.object_query import (
+    QueryExistsPayloadArgs,
     QueryWhereConditionArgs,
     _build_where,
     _check_no_duplicate_keys,
@@ -759,31 +763,100 @@ def test_build_where_nested_or_and_leaf():
     assert isinstance(where.exprs[1], Or)
 
 
-# --- _build_where: end-to-end via where_expr (and/exists/count_of/FlatColumnRef) --
+# --- _build_where: end-to-end via where_expr and via raw `where` JSON ---------
 #
 # These go through the real _resolve_where_conditions -> _build_where pair
-# together, the same as _post_sql, since 'and'/'exists'/'count_of' only ever
-# arise from where_expr (QueryWhereConditionArgs' schema can't produce them
-# for a raw `where` body) -- see where_list_to_ast's docstring for why these
-# are delegated there rather than hand-built here.
+# together, the same as _post_sql. 'and'/'or'/'not'/'exists'/'count_of' used
+# to only be reachable via where_expr -- QueryWhereConditionArgs' schema
+# rejected them for a raw `where` body (a 422, "Unknown field: exists" etc.,
+# for *any* collection, not just a new one -- confirmed live against
+# test_build_where_exists() below before the schema was widened). That gap
+# is exactly how it went unnoticed for as long as it did: every test in this
+# section only ever exercised `_where()`/where_expr, so a regression on the
+# `where` side had nothing here to catch it. Every case below now goes
+# through `_assert_expr_and_where_agree`, which checks both paths produce
+# the *identical* AST, not just "both don't crash" -- see that helper's own
+# docstring.
 
 
 def _where(expr: str, spec=PERSON):
     return _build_where(_resolve_where_conditions({"where_expr": expr}, spec), spec)
 
 
+def _assert_expr_and_where_agree(expr: str, where_json: list, spec=PERSON):
+    """Asserts `where_expr` and the equivalent raw `where` JSON produce the
+    identical `query.py` AST, and returns it (so a caller can still make
+    its own assertions on the shape, same as `_where()`'s callers already
+    do). `where_json` is loaded through `QueryWhereConditionArgs` first
+    (`many=True`, matching how `QueryBodyArgs.where`'s own `wf.List(wf.Nested(
+    QueryWhereConditionArgs))` field loads a request body) rather than
+    handed to `_build_where` as a raw dict -- so this also exercises the
+    schema's own `attribute`/`data_key` mapping for `and`/`or`/`not`, not
+    just `_build_where`'s AST-building logic.
+    """
+    loaded = QueryWhereConditionArgs(many=True).load(where_json)
+    where_from_json = _build_where(loaded, spec)
+    where_from_expr = _where(expr, spec)
+    assert repr(where_from_json) == repr(where_from_expr), (
+        f"where={where_from_json!r} but where_expr={where_from_expr!r}"
+    )
+    return where_from_expr
+
+
 def test_build_where_and_group_nested_under_not():
-    where = _where("not (gender == 1 and gramps_id == 'I1')")
+    where = _assert_expr_and_where_agree(
+        "not (gender == 1 and gramps_id == 'I1')",
+        [{"not": {"and": [
+            {"column": "gender", "op": "eq", "value": 1},
+            {"column": "gramps_id", "op": "eq", "value": "I1"},
+        ]}}],
+    )
     assert isinstance(where, Not)
     assert isinstance(where.expr, And)
     assert all(isinstance(e, Eq) for e in where.expr.exprs)
 
 
+def test_build_where_or_group_via_where_expr_and_json():
+    where = _assert_expr_and_where_agree(
+        "gender == 1 or gender == 2",
+        [{"or": [
+            {"column": "gender", "op": "eq", "value": 1},
+            {"column": "gender", "op": "eq", "value": 2},
+        ]}],
+    )
+    assert isinstance(where, Or)
+    assert len(where.exprs) == 2
+
+
+def test_build_where_not_group_via_where_expr_and_json():
+    where = _assert_expr_and_where_agree(
+        "not (gender == 1)",
+        [{"not": {"column": "gender", "op": "eq", "value": 1}}],
+    )
+    assert isinstance(where, Not)
+    assert isinstance(where.expr, Eq)
+
+
 def test_build_where_exists():
-    where = _where("exists(events, type.value == 12)")
+    where = _assert_expr_and_where_agree(
+        "exists(events, type.value == 12)",
+        [{"exists": {
+            "relationship": "events",
+            "where": [{"column": {"json_path": ["type", "value"]}, "op": "eq", "value": 12}],
+        }}],
+    )
     assert isinstance(where, Exists)
     assert where.collection.name == "events"
     assert where.condition is not None
+
+
+def test_build_where_exists_no_condition():
+    where = _assert_expr_and_where_agree(
+        "exists(events)",
+        [{"exists": {"relationship": "events"}}],
+    )
+    assert isinstance(where, Exists)
+    assert where.condition is None
 
 
 def test_build_where_exists_any_sugar_equivalent():
@@ -793,11 +866,46 @@ def test_build_where_exists_any_sugar_equivalent():
 
 
 def test_build_where_count_of():
-    where = _where("count(events) > 2")
+    where = _assert_expr_and_where_agree(
+        "count(events) > 2",
+        [{"column": {"count_of": {"relationship": "events"}}, "op": "gt", "value": 2}],
+    )
     assert isinstance(where, Gt)
     assert isinstance(where.column, CollectionCount)
     assert where.column.collection.name == "events"
     assert where.value == 2
+
+
+def test_build_where_backlinks_not_exists():
+    where = _assert_expr_and_where_agree(
+        "not exists(backlinks)",
+        [{"not": {"exists": {"relationship": "backlinks"}}}],
+        spec=NOTE,
+    )
+    assert isinstance(where, Not)
+    assert isinstance(where.expr, Exists)
+
+
+def test_build_where_backlinks_class_filter():
+    where = _assert_expr_and_where_agree(
+        'exists(backlinks, _class == "Person")',
+        [{"exists": {
+            "relationship": "backlinks",
+            "where": [{"column": "_class", "op": "eq", "value": "Person"}],
+        }}],
+        spec=NOTE,
+    )
+    assert isinstance(where, Exists)
+    assert where.collection.name == "backlinks"
+
+
+def test_build_where_backlinks_count():
+    where = _assert_expr_and_where_agree(
+        "count(backlinks) == 0",
+        [{"column": {"count_of": {"relationship": "backlinks"}}, "op": "eq", "value": 0}],
+        spec=NOTE,
+    )
+    assert isinstance(where.column, CollectionCount)
 
 
 def test_build_where_value_column_same_table_wrapped_as_flat_column_ref():
@@ -826,6 +934,228 @@ def test_where_op_schema_matches_valid_leaf_ops():
     op_field = QueryWhereConditionArgs().fields["op"]
     allowed = {choice for validator in op_field.validators for choice in validator.choices}
     assert allowed == set(VALID_LEAF_OPS)
+
+
+# --- QueryWhereConditionArgs: schema-level shape validation -------------------
+#
+# A condition node must be exactly one of: a leaf (column+op[+value/
+# value_column]), or one combinator (and/or/not/exists) -- checked in
+# _check_shape, since no single field's own `required`/`validate` can
+# express "required unless X is present" on its own.
+
+
+def test_where_schema_accepts_plain_leaf():
+    loaded = QueryWhereConditionArgs().load({"column": "gender", "op": "eq", "value": 1})
+    assert loaded == {"column": "gender", "op": "eq", "value": 1}
+
+
+def test_where_schema_accepts_and_or_not_exists():
+    assert "and" in QueryWhereConditionArgs().load(
+        {"and": [{"column": "gender", "op": "eq", "value": 1}]}
+    )
+    assert "or" in QueryWhereConditionArgs().load(
+        {"or": [{"column": "gender", "op": "eq", "value": 1}]}
+    )
+    assert "not" in QueryWhereConditionArgs().load(
+        {"not": {"column": "gender", "op": "eq", "value": 1}}
+    )
+    assert "exists" in QueryWhereConditionArgs().load(
+        {"exists": {"relationship": "notes"}}
+    )
+
+
+def test_where_schema_loaded_dict_uses_wire_keys_not_python_attribute_names():
+    # Regression test for the schema's own and_/or_/not_ Python attribute
+    # names (and/or/not are reserved words, can't be literal attribute
+    # names) -- without `attribute="and"` etc. on each field, .load() would
+    # return "and_"/"or_"/"not_" keys, which where_list_to_ast's
+    # _node_from_json (checking `"and" in node`, never `"and_"`) would
+    # silently fail to recognize as a combinator at all.
+    loaded = QueryWhereConditionArgs().load(
+        {"and": [{"column": "gender", "op": "eq", "value": 1}]}
+    )
+    assert set(loaded) == {"and"}
+
+
+def test_where_schema_rejects_empty_condition():
+    with pytest.raises(ValidationError):
+        QueryWhereConditionArgs().load({})
+
+
+def test_where_schema_rejects_leaf_missing_op():
+    with pytest.raises(ValidationError):
+        QueryWhereConditionArgs().load({"column": "gender"})
+
+
+def test_where_schema_rejects_leaf_missing_column():
+    with pytest.raises(ValidationError):
+        QueryWhereConditionArgs().load({"op": "eq", "value": 1})
+
+
+def test_where_schema_rejects_combinator_mixed_with_leaf():
+    with pytest.raises(ValidationError):
+        QueryWhereConditionArgs().load(
+            {
+                "column": "gender",
+                "op": "eq",
+                "value": 1,
+                "not": {"column": "gender", "op": "eq", "value": 0},
+            }
+        )
+
+
+def test_where_schema_rejects_two_combinators():
+    with pytest.raises(ValidationError):
+        QueryWhereConditionArgs().load(
+            {
+                "and": [{"column": "a", "op": "eq", "value": 1}],
+                "or": [{"column": "b", "op": "eq", "value": 1}],
+            }
+        )
+
+
+def test_exists_payload_schema_requires_relationship():
+    with pytest.raises(ValidationError):
+        QueryExistsPayloadArgs().load({})
+
+
+# --- nested-leaf validation: _validate_leaf_condition applied at any depth ---
+#
+# Regression tests for a gap found while widening QueryWhereConditionArgs:
+# _build_where's leaf-validation used to only ever walk the *top-level*
+# `where` list -- a leaf nested inside `count_of`'s own `where` already
+# silently bypassed it (confirmed live: a malformed non-list "in" value
+# there was accepted and iterated character-by-character instead of
+# rejected); widening the schema for and/or/not/exists made this far more
+# reachable (any nested leaf, at any depth), so _validate_where_tree walks
+# the full tree now, not just the top level.
+
+
+def test_malformed_in_rejected_when_nested_in_or():
+    conditions = QueryWhereConditionArgs(many=True).load(
+        [{"or": [{"column": "gender", "op": "in", "value": "not-a-list"}]}]
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, PERSON)
+    assert exc_info.value.code == 422
+
+
+def test_malformed_in_rejected_when_nested_in_exists_where():
+    conditions = QueryWhereConditionArgs(many=True).load(
+        [{"exists": {
+            "relationship": "backlinks",
+            "where": [{"column": "_class", "op": "in", "value": "not-a-list"}],
+        }}]
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, NOTE)
+    assert exc_info.value.code == 422
+
+
+def test_malformed_in_rejected_when_nested_in_count_of_where():
+    conditions = [
+        {
+            "column": {
+                "count_of": {
+                    "relationship": "children",
+                    "where": [{"column": "gender", "op": "in", "value": "not-a-list"}],
+                }
+            },
+            "op": "gt",
+            "value": 0,
+        }
+    ]
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, FAMILY)
+    assert exc_info.value.code == 422
+
+
+def test_non_list_count_of_where_rejected_with_422():
+    # count_of's `where` is untyped (wf.Raw()), so a caller can send a
+    # non-list value there -- must 422, not be silently skipped and reach
+    # where_list_to_ast (or crash trying to iterate/index into it).
+    conditions = [
+        {
+            "column": {
+                "count_of": {"relationship": "children", "where": "not-a-list"}
+            },
+            "op": "gt",
+            "value": 0,
+        }
+    ]
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, FAMILY)
+    assert exc_info.value.code == 422
+
+
+def test_non_dict_count_of_rejected_with_422():
+    conditions = [
+        {"column": {"count_of": "not-a-dict"}, "op": "gt", "value": 0}
+    ]
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, FAMILY)
+    assert exc_info.value.code == 422
+
+
+def test_non_dict_exists_rejected_with_422():
+    # Bypasses QueryWhereConditionArgs.load() -- its own `exists` field is a
+    # typed Nested(QueryExistsPayloadArgs), so a non-dict there never reaches
+    # _build_where through the schema; this exercises _validate_where_tree's
+    # own defensive check directly, the same way the count_of tests above do.
+    conditions = [{"exists": "not-a-dict"}]
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, NOTE)
+    assert exc_info.value.code == 422
+
+
+def test_non_list_exists_where_rejected_with_422():
+    # Same rationale: QueryExistsPayloadArgs.where is a typed wf.List, so
+    # this bypasses .load() to exercise _validate_where_tree's own check.
+    conditions = [
+        {"exists": {"relationship": "backlinks", "where": "not-a-list"}}
+    ]
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, NOTE)
+    assert exc_info.value.code == 422
+
+
+def test_non_dict_condition_in_and_rejected_with_422():
+    conditions = QueryWhereConditionArgs(many=True).load(
+        [{"and": [{"column": "gender", "op": "eq", "value": "M"}]}]
+    )
+    # Tamper post-load to simulate a non-dict leaf slipping into the tree.
+    conditions[0]["and"].append("not-a-dict")
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, PERSON)
+    assert exc_info.value.code == 422
+
+
+# `count_of.where`/`exists.where` used to default via `.get("where") or []`,
+# which treats any *falsy* value -- not just a missing/None key -- as if the
+# `where` had been omitted. A caller-supplied "" or {} is falsy but still
+# malformed, and would have silently skipped straight past the non-list
+# check below instead of 422ing. Only a missing/None key should default to
+# [].
+
+
+def test_falsy_non_list_count_of_where_rejected_with_422():
+    conditions = [
+        {
+            "column": {"count_of": {"relationship": "children", "where": ""}},
+            "op": "gt",
+            "value": 0,
+        }
+    ]
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, FAMILY)
+    assert exc_info.value.code == 422
+
+
+def test_falsy_non_list_exists_where_rejected_with_422():
+    conditions = [{"exists": {"relationship": "backlinks", "where": {}}}]
+    with pytest.raises(HTTPException) as exc_info:
+        _build_where(conditions, NOTE)
+    assert exc_info.value.code == 422
 
 
 # --- treeid threading through every SQL-emitting path -----------------------
