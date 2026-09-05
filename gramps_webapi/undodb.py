@@ -852,7 +852,8 @@ class DbUndoSQLWeb(DbUndoSQL):
 
         A transaction without a change range covers its whole connection,
         same as in `_get_changes_chunk`; a ranged transaction wins over a
-        whole-connection one.
+        whole-connection one, and the lowest id wins among candidates that
+        are equally valid.
 
         The id ranges are matched in SQL rather than by filtering all of the
         connection's transactions in Python, so the rows loaded scale with
@@ -883,6 +884,10 @@ class DbUndoSQLWeb(DbUndoSQL):
                     Transaction.last,
                 )
                 .filter(or_(*conditions))
+                # several range-less transactions can share a connection, so more
+                # than one candidate may be valid; order to keep the resolved id
+                # stable across query plans
+                .order_by(Transaction.id)
                 .all()
             )
             by_connection: dict[int, list[tuple[int, int | None, int | None]]] = (

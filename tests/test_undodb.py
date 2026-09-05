@@ -369,6 +369,34 @@ class TestGetObjectChanges(unittest.TestCase):
             }
             assert change["obj_handle"] in transaction_change_handles
 
+    def test_transaction_id_stable_when_ranges_absent(self):
+        """Range-less transactions all cover the connection; the lowest id wins.
+
+        Without a deterministic order the resolved id would depend on the
+        query plan, and the endpoint's ETag would not notice it changing.
+        """
+        undodb = self.db.get_undodb()
+        with undodb.session_scope() as session:
+            session.execute(text("UPDATE transactions SET first = NULL, last = NULL"))
+            session.execute(
+                text(
+                    "INSERT INTO transactions"
+                    " (id, connection_id, description, first, last, undo, timestamp)"
+                    " SELECT 900 + id, connection_id, 'empty', NULL, NULL, 0, timestamp"
+                    " FROM transactions"
+                )
+            )
+            session.commit()
+            lowest_id = session.execute(
+                text("SELECT MIN(id) FROM transactions")
+            ).scalar()
+
+        changes, _ = undodb.get_object_changes("Person", self.person_handle)
+        assert changes
+        assert [change["transaction_id"] for change in changes] == [lowest_id] * len(
+            changes
+        )
+
     def test_state(self):
         undodb = self.db.get_undodb()
         max_ts, count = undodb.get_object_changes_state("Person", self.person_handle)
