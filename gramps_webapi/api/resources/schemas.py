@@ -1899,6 +1899,12 @@ class ObjectChangeSchema(_Base):
     connection = fields.Raw(
         metadata={"description": "Internal connection object."},
     )
+    transaction_id = fields.Int(
+        allow_none=True,
+        metadata={
+            "description": "ID of the transaction this change was part of, if known."
+        },
+    )
     obj_class = fields.Str(
         metadata={"description": "Object class name (e.g. 'Person', 'Event')."},
     )
