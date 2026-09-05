@@ -153,9 +153,16 @@ class SearchIndexerBase:
             if i % chunk_size == 0 and i != 0:
                 self._add_objects(obj_dicts)
                 obj_dicts = []
-            if progress_cb:
-                progress_cb(current=i, total=total, prev=prev)
-            prev = i
+                # Tied to the same chunk_size cadence as the indexing
+                # flush above, not called every single object: each call
+                # is a Celery update_state() (JSON-encode + a Redis
+                # round trip), and for a tree with hundreds of thousands
+                # of objects, calling this per-object turns a ~1-minute
+                # reindex into one dominated by hundreds of thousands of
+                # Redis writes instead of the indexing work itself.
+                if progress_cb:
+                    progress_cb(current=i, total=total, prev=prev)
+                prev = i
         self._add_objects(obj_dicts)
         if progress_cb:
             progress_cb(current=total - 1, total=total)
@@ -218,6 +225,23 @@ class SearchIndexerBase:
         self, db_handle: DbReadBase, progress_cb: ProgressCallback | None = None
     ):
         """Update the index incrementally."""
+        if self.index.count() == 0:
+            # Empty index -- every object in db_handle is "new", so this
+            # call is really a full reindex (e.g. right after a bulk
+            # import into a previously-empty tree). The path below fetches
+            # each new/changed object individually by handle
+            # (obj_strings_from_handle -> get_<class>_from_handle: one DB
+            # round trip per object, before even counting the extra
+            # per-object lookups object_to_strings() does for
+            # Family/Event parent and participant names). reindex_full()
+            # instead streams every object via the DB's own bulk iterators
+            # (iter_people() etc. -- one query per object type, not one
+            # per object), which is what it's already built for. For a
+            # tree with hundreds of thousands of objects fresh off a bulk
+            # import, that's the difference between roughly ten queries
+            # and potentially millions of individual round trips.
+            self.reindex_full(db_handle, progress_cb=progress_cb)
+            return
         update_info = self._get_update_info(db_handle)
         total = sum(
             len(handles)

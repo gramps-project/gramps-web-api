@@ -289,12 +289,59 @@ def get_participant_from_event_localized(
     return participant
 
 
+def preload_event_backlinks(
+    db_handle: DbReadBase,
+) -> Optional[dict[Handle, list[tuple[str, Handle]]]]:
+    """Bulk-load every Event's (obj_class, obj_handle) backlinks in one
+    query, for get_event_participants_for_handle() to consult via
+    `backlink_index` instead of calling find_backlink_handles() once per
+    event -- see that function's docstring, and search/indexer.py's
+    reindex_full(), the intended caller (many events, each needing its
+    own participant list, in one pass).
+
+    Reaches into db_handle.dbapi directly rather than going through
+    find_backlink_handles() event by event, so only DBAPI-backed
+    backends (sqlite, postgresql, sharedpostgresql -- anything sharing
+    the reference table's (obj_handle, obj_class, ref_handle, ref_class)
+    shape) support this. Returns None for anything else (no `dbapi`
+    attribute), so callers must fall back to the per-event query path on
+    a None result.
+    """
+    dbapi = getattr(db_handle, "dbapi", None)
+    if dbapi is None:
+        return None
+    treeid = getattr(dbapi, "treeid", None)
+    sql = "SELECT ref_handle, obj_class, obj_handle FROM reference WHERE ref_class = ?"
+    params: list = ["Event"]
+    if treeid is not None:
+        sql += " AND treeid = ?"
+        params.append(treeid)
+    index: dict[Handle, list[tuple[str, Handle]]] = {}
+    with dbapi.cursor() as cur:
+        cur.execute(sql, params)
+        while True:
+            rows = cur.fetchmany()
+            if not rows:
+                break
+            for ref_handle, obj_class, obj_handle in rows:
+                index.setdefault(ref_handle, []).append((obj_class, obj_handle))
+    return index
+
+
 def get_event_participants_for_handle(
     db_handle: DbReadBase,
     handle: Handle,
     locale: GrampsLocale = glocale,
+    backlink_index: Optional[dict[Handle, list[tuple[str, Handle]]]] = None,
 ) -> dict[Literal["people", "families"], list[tuple[EventRoleType, Person | Family]]]:
-    """Get event participants given a handle."""
+    """Get event participants given a handle.
+
+    `backlink_index`, if given (see preload_event_backlinks()), is
+    consulted instead of calling db_handle.find_backlink_handles() --
+    useful for a caller that looks up participants for many events in
+    one pass (e.g. a full search reindex), where querying per event
+    would otherwise mean one query per event in the tree.
+    """
     result: dict[
         Literal["people", "families"], list[tuple[EventRoleType, Person | Family]]
     ] = {
@@ -302,9 +349,14 @@ def get_event_participants_for_handle(
         "families": [],
     }
     seen = set()  # to avoid duplicates
-    for class_name, backref_handle in db_handle.find_backlink_handles(
-        handle, include_classes=["Person", "Family"]
-    ):
+    backrefs = (
+        backlink_index.get(handle, [])
+        if backlink_index is not None
+        else db_handle.find_backlink_handles(
+            handle, include_classes=["Person", "Family"]
+        )
+    )
+    for class_name, backref_handle in backrefs:
         if backref_handle in seen:
             continue
         seen.add(backref_handle)
