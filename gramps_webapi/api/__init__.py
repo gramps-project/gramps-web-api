@@ -191,23 +191,11 @@ def register_endpt(
     or a non-JSON one (such as Media's raw file upload).
 
     `object_name` names the Gramps object type (e.g. "Person") used to
-    build CRUD summary text ("Get a Gramps Person record", ...). It is
-    derived from `request_body`'s schema automatically when that is given;
-    pass it explicitly for endpoints - like Media's raw file upload - that
-    operate on a typed object but have no JSON request_body to derive it
-    from.
+    build CRUD summary text ("Get a Gramps Person record", ...). Pass it
+    for endpoints that operate on a single typed object; omit it for
+    endpoints (transactions, tokens, queries, ...) that don't.
     """
     operation_name = name.replace("-", "_")
-    if object_name is None and request_body is not None:
-        schema = (
-            request_body.get("content", {})
-            .get("application/json", {})
-            .get("schema", {})
-        )
-        if isinstance(schema, dict):
-            schema_ref = schema.get("$ref")
-            if isinstance(schema_ref, str):
-                object_name = schema_ref.rsplit("/", 1)[-1]
     for verb in ("get", "post", "put", "delete", "patch"):
         method = getattr(resource, verb, None)
         if method is None:
@@ -331,6 +319,7 @@ register_endpt(
     "person",
     tags=["People"],
     request_body=object_request_body("Person"),
+    object_name="Person",
 )
 register_endpt(
     PersonDnaMatchesResource,
@@ -347,6 +336,7 @@ register_endpt(
     "people",
     tags=["People"],
     request_body=object_request_body("Person"),
+    object_name="Person",
 )
 register_endpt(PersonQueryResource, "/people/query/", "people-query", tags=["People"])
 register_endpt(
@@ -368,6 +358,7 @@ register_endpt(
     "family",
     tags=["Families"],
     request_body=object_request_body("Family"),
+    object_name="Family",
 )
 register_endpt(
     FamiliesResource,
@@ -375,6 +366,7 @@ register_endpt(
     "families",
     tags=["Families"],
     request_body=object_request_body("Family"),
+    object_name="Family",
 )
 register_endpt(
     FamilyQueryResource, "/families/query/", "families-query", tags=["Families"]
@@ -398,6 +390,7 @@ register_endpt(
     "event",
     tags=["Events"],
     request_body=object_request_body("Event"),
+    object_name="Event",
 )
 register_endpt(
     EventsResource,
@@ -405,6 +398,7 @@ register_endpt(
     "events",
     tags=["Events"],
     request_body=object_request_body("Event"),
+    object_name="Event",
 )
 register_endpt(EventQueryResource, "/events/query/", "events-query", tags=["Events"])
 register_endpt(
@@ -430,6 +424,7 @@ register_endpt(
     "place",
     tags=["Places"],
     request_body=object_request_body("Place"),
+    object_name="Place",
 )
 register_endpt(
     PlacesResource,
@@ -437,6 +432,7 @@ register_endpt(
     "places",
     tags=["Places"],
     request_body=object_request_body("Place"),
+    object_name="Place",
 )
 register_endpt(PlaceQueryResource, "/places/query/", "places-query", tags=["Places"])
 register_endpt(
@@ -452,6 +448,7 @@ register_endpt(
     "citation",
     tags=["Citations"],
     request_body=object_request_body("Citation"),
+    object_name="Citation",
 )
 register_endpt(
     CitationsResource,
@@ -459,6 +456,7 @@ register_endpt(
     "citations",
     tags=["Citations"],
     request_body=object_request_body("Citation"),
+    object_name="Citation",
 )
 register_endpt(
     CitationQueryResource, "/citations/query/", "citations-query", tags=["Citations"]
@@ -476,6 +474,7 @@ register_endpt(
     "source",
     tags=["Sources"],
     request_body=object_request_body("Source"),
+    object_name="Source",
 )
 register_endpt(
     SourcesResource,
@@ -483,6 +482,7 @@ register_endpt(
     "sources",
     tags=["Sources"],
     request_body=object_request_body("Source"),
+    object_name="Source",
 )
 register_endpt(
     SourceQueryResource, "/sources/query/", "sources-query", tags=["Sources"]
@@ -500,6 +500,7 @@ register_endpt(
     "repository",
     tags=["Repositories"],
     request_body=object_request_body("Repository"),
+    object_name="Repository",
 )
 register_endpt(
     RepositoriesResource,
@@ -507,6 +508,7 @@ register_endpt(
     "repositories",
     tags=["Repositories"],
     request_body=object_request_body("Repository"),
+    object_name="Repository",
 )
 register_endpt(
     RepositoryQueryResource,
@@ -527,10 +529,10 @@ register_endpt(
     "media_object",
     tags=["Media"],
     request_body=object_request_body("Media"),
+    object_name="Media",
 )
 # MediaObjectsResource's POST takes a raw file upload (multipart), not JSON,
-# so it gets no request_body doc here; object_name is passed explicitly so
-# its CRUD summaries are still specific instead of the generic default.
+# so it gets no request_body doc here.
 register_endpt(
     MediaObjectsResource,
     "/media/",
@@ -552,6 +554,7 @@ register_endpt(
     "note",
     tags=["Notes"],
     request_body=object_request_body("Note"),
+    object_name="Note",
 )
 register_endpt(
     NotesResource,
@@ -559,6 +562,7 @@ register_endpt(
     "notes",
     tags=["Notes"],
     request_body=object_request_body("Note"),
+    object_name="Note",
 )
 register_endpt(NoteQueryResource, "/notes/query/", "notes-query", tags=["Notes"])
 register_endpt(
@@ -574,6 +578,7 @@ register_endpt(
     "tag",
     tags=["Tags"],
     request_body=object_request_body("Tag"),
+    object_name="Tag",
 )
 register_endpt(
     TagsResource,
@@ -581,6 +586,7 @@ register_endpt(
     "tags",
     tags=["Tags"],
     request_body=object_request_body("Tag"),
+    object_name="Tag",
 )
 register_endpt(TagQueryResource, "/tags/query/", "tags-query", tags=["Tags"])
 # Trees
