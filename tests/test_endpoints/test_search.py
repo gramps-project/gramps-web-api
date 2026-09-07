@@ -99,6 +99,72 @@ class TestSearchEngine(unittest.TestCase):
         )
 
 
+class TestSearchReindexIncrementalOnEmptyIndex(unittest.TestCase):
+    """reindex_incremental() on a never-before-indexed tree.
+
+    Unlike TestSearchEngine, this class builds a fresh SearchIndexer
+    whose index is still empty (count() == 0) when reindex_incremental()
+    is called -- the case the automatic post-import reindex actually
+    hits, and the one that routes to reindex_full() internally instead
+    of the per-object diff-and-update path.
+    """
+
+    def setUp(self):
+        """Create a fresh, empty index for each test."""
+        self.index_dir = tempfile.mkdtemp()
+        self.dbmgr = WebDbManager(name="example_gramps", create_if_missing=False)
+        db_url = f"sqlite:///{self.index_dir}/search_index.db"
+        self.search = SearchIndexer(self.dbmgr.dirname, db_url)
+
+    def tearDown(self):
+        """Remove the temporary index directory."""
+        shutil.rmtree(self.index_dir)
+
+    def test_empty_index_is_fully_indexed_and_searchable(self):
+        """reindex_incremental() on an empty index indexes every object."""
+        self.assertEqual(self.search.index.count(), 0)
+        db = self.dbmgr.get_db().db
+        self.search.reindex_incremental(db)
+        db.close()
+        self.assertGreater(self.search.index.count(), 0)
+        total, rv = self.search.search("I0044", page=1, pagesize=10)
+        self.assertEqual(len(rv), 1)
+        # event participants (see get_event_participants_for_handle /
+        # preload_event_backlinks) must be indexed too, not just skipped
+        # because the fast bulk path was taken.
+        total, rv = self.search.search("Lewis von", page=1, pagesize=20)
+        self.assertEqual(
+            {(hit["object_type"], hit["handle"]) for hit in rv},
+            {
+                ("person", "GNUJQCL9MD64AM56OH"),
+                ("family", "9OUJQCBOHW9UEK9CNV"),
+                ("note", "d0436be64ac277b615b79b34e72"),
+                ("event", "a5af0ecb107303354a0"),
+                ("event", "a5af0ecb11f5ac3110e"),
+                ("event", "a5af0ecb12e29af8a5d"),
+                ("event", "a5af0ed5df832ee65c1"),
+            },
+        )
+
+    def test_empty_index_throttles_progress_callback(self):
+        """reindex_incremental() on an empty index reports progress at the
+        reindex_full() chunk cadence, not once per object."""
+        calls = []
+
+        def progress_cb(current, total, prev=None):
+            calls.append(current)
+
+        db = self.dbmgr.get_db().db
+        self.search.reindex_incremental(db, progress_cb=progress_cb)
+        db.close()
+        object_count = self.search.index.count()
+        self.assertGreater(object_count, 0)
+        # Unthrottled (per-object) reporting would call back once per
+        # object; the chunked cadence calls back a small, bounded number
+        # of times regardless of tree size.
+        self.assertLess(len(calls), object_count)
+
+
 class TestSearch(unittest.TestCase):
     """Test cases for the /api/search endpoint for full-text searches."""
 
