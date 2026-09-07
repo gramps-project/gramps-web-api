@@ -36,19 +36,21 @@ from gramps.gen.errors import HandleError
 from PIL import Image
 
 from .api import api_blueprint
+from .api.cache import persistent_cache, request_cache, thumbnail_cache
+from .api.deprecations import DEPRECATED_ENV_OPTIONS, check_deprecations
+from .api.ratelimiter import limiter
 from .api.resources.schemas import (
     CitationSchema,
     EventSchema,
     FamilySchema,
     MediaSchema,
     NoteSchema,
+    PersonSchema,
     PlaceSchema,
     RepositorySchema,
     SourceSchema,
     TagSchema,
 )
-from .api.cache import persistent_cache, request_cache, thumbnail_cache
-from .api.ratelimiter import limiter
 from .api.search.embeddings import create_remote_embedding_function, load_model
 from .api.tasks import run_task, send_telemetry_task
 from .api.telemetry import get_server_uuid, should_send_telemetry
@@ -69,31 +71,10 @@ def deprecated_config_from_env(app):
 
     This function will be removed eventually!
     """
-    options = [
-        "TREE",
-        "SECRET_KEY",
-        "USER_DB_URI",
-        "POSTGRES_USER",
-        "POSTGRES_PASSWORD",
-        "MEDIA_BASE_DIR",
-        "SEARCH_INDEX_DIR",
-        "EMAIL_HOST",
-        "EMAIL_PORT",
-        "EMAIL_HOST_USER",
-        "EMAIL_HOST_PASSWORD",
-        "DEFAULT_FROM_EMAIL",
-        "BASE_URL",
-        "STATIC_PATH",
-    ]
-    for option in options:
+    for option in DEPRECATED_ENV_OPTIONS:
         value = os.getenv(option)
         if value:
             app.config[option] = value
-            warnings.warn(
-                f"Setting the `{option}` config option via the `{option}` environment"
-                " variable is deprecated and will stop working in the future."
-                f" Please use `GRAMPSWEB_{option}` instead."
-            )
     return app
 
 
@@ -143,6 +124,13 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         configure_json_logging(level=app.logger.level)
         # Flask's plain-text handler would duplicate every record on stderr.
         app.logger.removeHandler(default_handler)
+
+    for deprecation in check_deprecations(app.config):
+        app.logger.warning(
+            "%s Support will be removed in Gramps Web API %s.",
+            deprecation["message"],
+            deprecation["removed_in"],
+        )
 
     if init_sentry(app):
         app.logger.info("Sentry error reporting enabled.")
@@ -202,7 +190,7 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         app.logger.info(
             "Caches are disabled (DISABLE_CACHES is set). Caches should be enabled in production environment.",
         )
-        null_cache_config = {"CACHE_TYPE": "null"}
+        null_cache_config = {"CACHE_TYPE": "NullCache"}
         request_cache.init_app(app, config=null_cache_config)
         thumbnail_cache.init_app(app, config=null_cache_config)
         persistent_cache.init_app(app, config=null_cache_config)
@@ -300,19 +288,23 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
 
     # Explicitly register core Gramps object schemas so they appear in the
     # generated OpenAPI spec even though the base-class GET methods use the
-    # generic Schema() response decorator.
+    # generic Schema() response decorator. Verified against the real app:
+    # only Person ends up in components.schemas without this (pulled in
+    # transitively via LivingDates); the other 9 need it registered here.
     for _schema_name, _schema_cls in [
         ("Citation", CitationSchema),
         ("Event", EventSchema),
         ("Family", FamilySchema),
         ("Media", MediaSchema),
         ("Note", NoteSchema),
+        ("Person", PersonSchema),
         ("Place", PlaceSchema),
         ("Repository", RepositorySchema),
         ("Source", SourceSchema),
         ("Tag", TagSchema),
     ]:
-        api.spec.components.schema(_schema_name, schema=_schema_cls())
+        if _schema_name not in api.spec.components.schemas:
+            api.spec.components.schema(_schema_name, schema=_schema_cls())
 
     limiter.init_app(app)
 
@@ -331,7 +323,8 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
 
     @app.errorhandler(HandleError)
     def handle_gramps_handle_error(e):
-        _LOG.exception("Broken handle reference: %s", e)
+        # warning, not error: tree damage, not a server defect
+        _LOG.warning("Broken handle reference: %s", e, exc_info=True)
         payload = {
             "error": {
                 "code": 500,

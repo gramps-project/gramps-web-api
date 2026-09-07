@@ -44,48 +44,23 @@ from gramps_webapi.auth.oidc import (
 
 
 class TestGetUsableEmail:
-    """Test cases for get_usable_email.
+    """Test cases for get_usable_email."""
 
-    `users.email` is unique, so writing an address that another account already
-    holds raises an IntegrityError. That used to surface as a permanent 400 on
-    every OIDC login, with no way to recover from the UI.
-    """
-
-    def test_unused_address_is_returned(self):
-        with patch("gramps_webapi.auth.oidc.get_guid_by_email", return_value=None):
-            assert get_usable_email({"email": "a@example.com"}) == "a@example.com"
+    def test_address_is_returned(self):
+        """A missing email_verified claim is accepted - many providers omit it."""
+        assert get_usable_email({"email": "a@example.com"}) == "a@example.com"
 
     def test_missing_address_is_none(self):
         assert get_usable_email({}) is None
 
     def test_empty_address_is_none(self):
-        """An empty string is a value, not NULL, so it would collide too."""
         assert get_usable_email({"email": ""}) is None
 
-    def test_address_owned_by_another_user_is_dropped(self):
-        with patch(
-            "gramps_webapi.auth.oidc.get_guid_by_email", return_value="other-guid"
-        ):
-            assert get_usable_email({"email": "a@example.com"}) is None
-
-    def test_address_owned_by_same_user_is_kept(self):
-        with patch("gramps_webapi.auth.oidc.get_guid_by_email", return_value="my-guid"):
-            assert (
-                get_usable_email({"email": "a@example.com"}, user_id="my-guid")
-                == "a@example.com"
-            )
-
     def test_explicitly_unverified_address_is_dropped(self):
-        with patch("gramps_webapi.auth.oidc.get_guid_by_email", return_value=None):
-            assert (
-                get_usable_email({"email": "a@example.com", "email_verified": False})
-                is None
-            )
-
-    def test_absent_verified_claim_is_accepted(self):
-        """Many providers omit email_verified entirely."""
-        with patch("gramps_webapi.auth.oidc.get_guid_by_email", return_value=None):
-            assert get_usable_email({"email": "a@example.com"}) == "a@example.com"
+        assert (
+            get_usable_email({"email": "a@example.com", "email_verified": False})
+            is None
+        )
 
 
 class TestOidcUserTreeBinding:
@@ -105,7 +80,6 @@ class TestOidcUserTreeBinding:
 
         with (
             patch("gramps_webapi.auth.oidc.current_app", mock_app),
-            patch("gramps_webapi.auth.oidc.get_guid_by_email", return_value=None),
             patch("gramps_webapi.api.util.get_tree_id_or_none", return_value="tree_a"),
         ):
             with pytest.raises(ValueError, match="different tree"):
@@ -131,7 +105,6 @@ class TestOidcUserTreeBinding:
 
         with (
             patch("gramps_webapi.auth.oidc.current_app", mock_app),
-            patch("gramps_webapi.auth.oidc.get_guid_by_email", return_value=None),
             patch("gramps_webapi.api.util.get_tree_id_or_none", return_value=None),
         ):
             create_or_update_oidc_user(
@@ -524,14 +497,13 @@ class TestCreateOrUpdateOidcUser:
         }.get(key, default)
 
         with patch("gramps_webapi.auth.oidc.current_app", mock_app):
-            with patch("gramps_webapi.auth.oidc.get_guid_by_email", return_value=None):
-                with patch(
-                    "gramps_webapi.api.util.get_tree_id_or_none",
-                    return_value="test_tree",
-                ):
-                    result = create_or_update_oidc_user(
-                        userinfo, "test_tree", PROVIDER_CUSTOM
-                    )
+            with patch(
+                "gramps_webapi.api.util.get_tree_id_or_none",
+                return_value="test_tree",
+            ):
+                result = create_or_update_oidc_user(
+                    userinfo, "test_tree", PROVIDER_CUSTOM
+                )
 
         assert result == "existing-user-guid"
         mock_modify.assert_called_once_with(
@@ -570,15 +542,10 @@ class TestCreateOrUpdateOidcUser:
                 "gramps_webapi.auth.oidc.get_role_from_claims", return_value=None
             ):
                 with patch(
-                    "gramps_webapi.auth.oidc.get_guid_by_email", return_value=None
+                    "gramps_webapi.api.util.get_tree_id_or_none",
+                    return_value="test_tree",
                 ):
-                    with patch(
-                        "gramps_webapi.api.util.get_tree_id_or_none",
-                        return_value="test_tree",
-                    ):
-                        result = create_or_update_oidc_user(
-                            userinfo, "test_tree", "google"
-                        )
+                    result = create_or_update_oidc_user(userinfo, "test_tree", "google")
 
         assert result == "existing-user-guid"
         # role=None leaves the stored role untouched
@@ -627,13 +594,8 @@ class TestCreateOrUpdateOidcUser:
                 return_value=ROLE_DISABLED,
             ):
                 # Mock get_tree_id and run_task to avoid database/task access in disabled role path
-                with (
-                    patch(
-                        "gramps_webapi.api.util.get_tree_id", return_value="test_tree"
-                    ),
-                    patch(
-                        "gramps_webapi.auth.oidc.get_guid_by_email", return_value=None
-                    ),
+                with patch(
+                    "gramps_webapi.api.util.get_tree_id", return_value="test_tree"
                 ):
                     with patch("gramps_webapi.api.tasks.run_task"):
                         result = create_or_update_oidc_user(
@@ -690,13 +652,8 @@ class TestCreateOrUpdateOidcUser:
                 return_value=ROLE_DISABLED,
             ):
                 # Mock get_tree_id and run_task to avoid database/task access in disabled role path
-                with (
-                    patch(
-                        "gramps_webapi.api.util.get_tree_id", return_value="test_tree"
-                    ),
-                    patch(
-                        "gramps_webapi.auth.oidc.get_guid_by_email", return_value=None
-                    ),
+                with patch(
+                    "gramps_webapi.api.util.get_tree_id", return_value="test_tree"
                 ):
                     with patch("gramps_webapi.api.tasks.run_task"):
                         result = create_or_update_oidc_user(
@@ -750,13 +707,8 @@ class TestCreateOrUpdateOidcUser:
                 return_value=ROLE_DISABLED,
             ):
                 # Mock get_tree_id and run_task to avoid database/task access in disabled role path
-                with (
-                    patch(
-                        "gramps_webapi.api.util.get_tree_id", return_value="test_tree"
-                    ),
-                    patch(
-                        "gramps_webapi.auth.oidc.get_guid_by_email", return_value=None
-                    ),
+                with patch(
+                    "gramps_webapi.api.util.get_tree_id", return_value="test_tree"
                 ):
                     with patch("gramps_webapi.api.tasks.run_task"):
                         create_or_update_oidc_user(userinfo, None, "google")

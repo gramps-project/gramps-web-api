@@ -32,7 +32,7 @@ from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .schemas import LivingDatesSchema, LivingSchema
-from .util import get_person_by_handle
+from .util import display_date, get_person_by_handle
 
 
 class LivingQueryArgs(Schema):
@@ -138,8 +138,8 @@ class LivingDatesResource(ProtectedResource, GrampsJSONEncoder):
         )
 
         profile = {
-            "birth": locale.date_displayer.display(data[0]),
-            "death": locale.date_displayer.display(data[1]),
+            "birth": display_date(data[0], locale),
+            "death": display_date(data[1], locale),
             "explain": data[2],
             "other": data[3],
         }

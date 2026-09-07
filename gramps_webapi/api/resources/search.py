@@ -68,6 +68,7 @@ from .util import (
     get_media_profile_for_object,
     get_person_profile_for_object,
     get_place_profile_for_object,
+    get_repository_profile_for_object,
 )
 
 
@@ -204,6 +205,10 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
                 )
             elif class_name == "media":
                 obj.profile = get_media_profile_for_object(
+                    self.db_handle, obj, args["profile"], locale=locale
+                )
+            elif class_name == "repository":
+                obj.profile = get_repository_profile_for_object(
                     self.db_handle, obj, args["profile"], locale=locale
                 )
 

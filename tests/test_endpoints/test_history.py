@@ -757,7 +757,6 @@ class TestTransactionHistoryResource(unittest.TestCase):
         assert rv.status_code == 200
         result = rv.json
 
-
         # Should NOT be able to undo without force due to changes
         assert result["can_undo_without_force"] is False
         assert result["conflicts_count"] > 0
@@ -861,6 +860,138 @@ class TestTransactionHistoryResource(unittest.TestCase):
         rv = self.client.get("/api/transactions/history/", headers=headers)
         assert rv.status_code == 200
         assert rv.json[-1]["description"] == "Undo"
+
+    def test_object_history_invalid_class(self):
+        headers = get_headers(self.client, "editor", "123")
+        rv = self.client.get(
+            "/api/transactions/history/objects/NotAClass/abc",
+            headers=headers,
+        )
+        assert rv.status_code == 422
+
+    def test_object_history_returns_only_this_object(self):
+        headers = get_headers(self.client, "editor", "123")
+
+        # add a person, then update it (2 changes for this object)
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        person = rv.json[0]["new"]
+        person_handle = person["handle"]
+        person["gramps_id"] = "updated"
+        rv = self.client.put(
+            f"/api/people/{person_handle}", json=person, headers=headers
+        )
+        assert rv.status_code == 200
+
+        # add a second, unrelated person -- must not show up in the first one's history
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        other_handle = rv.json[0]["new"]["handle"]
+        assert other_handle != person_handle
+
+        rv = self.client.get(
+            f"/api/transactions/history/objects/Person/{person_handle}",
+            headers=headers,
+        )
+        assert rv.status_code == 200
+        changes = rv.json
+        assert len(changes) == 2
+        assert [change["trans_type"] for change in changes] == [0, 1]
+        assert all(change["obj_handle"] == person_handle for change in changes)
+        assert "old_data" not in changes[0]
+        assert "new_data" not in changes[0]
+
+        rv = self.client.get(
+            f"/api/transactions/history/objects/Person/{other_handle}",
+            headers=headers,
+        )
+        assert rv.status_code == 200
+        changes = rv.json
+        assert len(changes) == 1
+        assert changes[0]["obj_handle"] == other_handle
+
+    def test_object_history_old_new_data(self):
+        headers = get_headers(self.client, "editor", "123")
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        person = rv.json[0]["new"]
+        person_handle = person["handle"]
+
+        rv = self.client.get(
+            f"/api/transactions/history/objects/Person/{person_handle}?old=1&new=1",
+            headers=headers,
+        )
+        assert rv.status_code == 200
+        change = rv.json[0]
+        assert change["old_data"] == {}
+        assert change["new_data"]["handle"] == person_handle
+
+    def test_object_history_unknown_handle(self):
+        headers = get_headers(self.client, "editor", "123")
+        rv = self.client.get(
+            "/api/transactions/history/objects/Person/doesnotexist",
+            headers=headers,
+        )
+        assert rv.status_code == 200
+        assert rv.json == []
+        assert rv.headers["X-Total-Count"] == "0"
+
+    def test_object_history_before_zero_not_treated_as_unset(self):
+        """`before=0`/`after=0` are real cursor values, not 'no filter'."""
+        headers = get_headers(self.client, "editor", "123")
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        person_handle = rv.json[0]["new"]["handle"]
+
+        rv = self.client.get(
+            f"/api/transactions/history/objects/Person/{person_handle}?before=0",
+            headers=headers,
+        )
+        assert rv.status_code == 200
+        assert rv.json == []
+        assert rv.headers["X-Total-Count"] == "0"
+
+        rv = self.client.get(
+            f"/api/transactions/history/objects/Person/{person_handle}?after=0",
+            headers=headers,
+        )
+        assert rv.status_code == 200
+        assert len(rv.json) == 1
+
+    def test_object_history_etag_revalidation(self):
+        headers = get_headers(self.client, "editor", "123")
+        rv = self.client.post("/api/people/", json={}, headers=headers)
+        assert rv.status_code == 201
+        person_handle = rv.json[0]["new"]["handle"]
+
+        url = f"/api/transactions/history/objects/Person/{person_handle}"
+        rv = self.client.get(url, headers=headers)
+        assert rv.status_code == 200
+        etag = rv.headers["ETag"]
+
+        rv = self.client.get(url, headers={**headers, "If-None-Match": etag})
+        assert rv.status_code == 304
+
+        # a new change to this object invalidates the client's copy
+        person = self.client.get(f"/api/people/{person_handle}", headers=headers).json
+        person["gramps_id"] = "changed"
+        rv = self.client.put(
+            f"/api/people/{person_handle}", json=person, headers=headers
+        )
+        assert rv.status_code == 200
+
+        rv = self.client.get(url, headers={**headers, "If-None-Match": etag})
+        assert rv.status_code == 200
+        assert len(rv.json) == 2
+        assert rv.headers["ETag"] != etag
+
+    def test_object_history_guest_forbidden(self):
+        headers = get_headers(self.client, "user", "123")
+        rv = self.client.get(
+            "/api/transactions/history/objects/Person/abc",
+            headers=headers,
+        )
+        assert rv.status_code == 403
 
     def test_undo_message_custom(self):
         """Custom message param is stored in the undo log."""

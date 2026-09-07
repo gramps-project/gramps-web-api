@@ -48,6 +48,7 @@ from .filters import apply_filter
 from .schemas import TimelineEventProfileSchema
 from ...const import NAME_FORMAT_REGEXP
 from .util import (
+    display_date,
     get_person_profile_for_object,
     get_place_profile_for_object,
     get_rating,
@@ -487,7 +488,7 @@ class Timeline:
             date_format = config.get("preferences.date-format")
             self.locale.date_displayer.set_format(date_format)
             profile = {
-                "date": self.locale.date_displayer.display(event.date),
+                "date": display_date(event.date, self.locale),
                 "description": event.description,
                 "gramps_id": event.gramps_id,
                 "handle": event.handle,

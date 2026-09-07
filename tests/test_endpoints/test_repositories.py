@@ -461,6 +461,26 @@ class TestRepositoriesHandle(unittest.TestCase):
         self.assertIn("notes", rv["extended"])
         self.assertIn("tags", rv["extended"])
 
+    def test_get_repositories_handle_parameter_profile_validate_semantics(self):
+        """Test invalid profile parameter and values."""
+        check_invalid_semantics(
+            self, TEST_URL + "b39fe38593f3f8c4f12?profile", check="list"
+        )
+
+    def test_get_repositories_handle_parameter_profile_expected_result(self):
+        """Test profile parameter expected result."""
+        rv = check_success(self, TEST_URL + "b39fe38593f3f8c4f12?profile=self")
+        self.assertEqual(
+            rv["profile"],
+            {
+                "addresses": [{"date_str": ""}],
+                "gramps_id": "R0000",
+                "handle": "b39fe38593f3f8c4f12",
+                "name": "Public Library Great Falls",
+                "type": "Library",
+            },
+        )
+
     def test_get_repositories_handle_parameter_backlinks_validate_semantics(self):
         """Test invalid backlinks parameter and values."""
         check_invalid_semantics(

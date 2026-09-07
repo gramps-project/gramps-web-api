@@ -123,7 +123,10 @@ class MediaFileResource(ProtectedResource):
             check_quota_media(to_add=size)
             # use existing path
             path = obj.get_path()
-            media_handler.upload_file(f, checksum, mime, path=path)
+            try:
+                media_handler.upload_file(f, checksum, mime, path=path)
+            except ValueError:
+                abort_with_message(HTTPStatus.FORBIDDEN, "File access not allowed")
             return Response(status=200)
         if args.get("uploadmissing"):
             abort_with_message(
