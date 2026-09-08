@@ -53,6 +53,7 @@ from sqlalchemy import (
     create_engine,
     inspect,
     or_,
+    select,
     text,
 )
 
@@ -193,6 +194,30 @@ class Transaction(Base):
             "timestamp": self.timestamp / 1e9,
             "changes": changes,
         }
+
+
+def _covering_transaction_id():
+    """Correlated subquery selecting the transaction covering a change row.
+
+    A transaction without a change range covers its whole connection, same as
+    in `_get_changes_chunk`. More than one candidate can qualify, so the order
+    decides: ranged transactions sort ahead of whole-connection ones, then
+    lowest id, keeping the result stable across query plans.
+    """
+    return (
+        select(Transaction.id)
+        .where(
+            Transaction.connection_id == Change.connection_id,
+            or_(
+                Transaction.first.is_(None),
+                and_(Transaction.first <= Change.id, Transaction.last >= Change.id),
+            ),
+        )
+        .order_by(Transaction.first.is_(None), Transaction.id)
+        .limit(1)
+        .scalar_subquery()
+        .label("transaction_id")
+    )
 
 
 def _get_changes(
@@ -802,6 +827,9 @@ class DbUndoSQLWeb(DbUndoSQL):
 
         `known_count` is returned in place of counting the matching changes
         again.
+
+        Each change row also gets the id of the transaction covering it (see
+        `_covering_transaction_id`), which is `None` if there is none.
         """
         with self.session_scope() as session:
             query = self._object_changes_query(
@@ -826,13 +854,18 @@ class DbUndoSQLWeb(DbUndoSQL):
                 deferred.append(defer(Change.old_json))
             if not new_data:
                 deferred.append(defer(Change.new_json))
-            changes = query.options(contains_eager(Change.connection), *deferred).all()
+            rows = (
+                query.options(contains_eager(Change.connection), *deferred)
+                .add_columns(_covering_transaction_id())
+                .all()
+            )
             return [
                 {
                     **change._to_dict(old_data=old_data, new_data=new_data),
                     "connection": change.connection._to_dict(),
+                    "transaction_id": transaction_id,
                 }
-                for change in changes
+                for change, transaction_id in rows
             ], count
 
 

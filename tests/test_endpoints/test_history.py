@@ -901,6 +901,17 @@ class TestTransactionHistoryResource(unittest.TestCase):
         assert "old_data" not in changes[0]
         assert "new_data" not in changes[0]
 
+        # each change must link to a real transaction, resolvable via
+        # /transactions/history/<id>
+        transaction_ids = {change["transaction_id"] for change in changes}
+        assert None not in transaction_ids
+        for transaction_id in transaction_ids:
+            rv = self.client.get(
+                f"/api/transactions/history/{transaction_id}", headers=headers
+            )
+            assert rv.status_code == 200
+            assert any(c["obj_handle"] == person_handle for c in rv.json["changes"])
+
         rv = self.client.get(
             f"/api/transactions/history/objects/Person/{other_handle}",
             headers=headers,
