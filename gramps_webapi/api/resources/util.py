@@ -293,12 +293,18 @@ def get_participant_from_event_localized(
 def preload_event_backlinks(
     db_handle: DbReadBase,
 ) -> Optional[dict[Handle, list[tuple[str, Handle]]]]:
-    """Bulk-load every Event's (obj_class, obj_handle) backlinks in one
-    query, for get_event_participants_for_handle() to consult via
-    `backlink_index` instead of calling find_backlink_handles() once per
-    event -- see that function's docstring, and search/indexer.py's
-    reindex_full(), the intended caller (many events, each needing its
-    own participant list, in one pass).
+    """Bulk-load every Event's Person/Family (obj_class, obj_handle)
+    backlinks in one query, for get_event_participants_for_handle() to
+    consult via `backlink_index` instead of calling find_backlink_handles()
+    once per event -- see that function's docstring, and
+    search/indexer.py's reindex_full(), the intended caller (many events,
+    each needing its own participant list, in one pass).
+
+    Filtered to obj_class Person/Family at the SQL level: those are the
+    only classes get_event_participants_for_handle() ever consults (only
+    Person and Family carry an EventRef), so anything else referencing an
+    Event -- there isn't any today, but nothing enforces that -- would
+    otherwise inflate the in-memory index for rows no caller reads.
 
     Reaches into db_handle.dbapi directly rather than going through
     find_backlink_handles() event by event, so only DBAPI-backed
@@ -328,7 +334,15 @@ def preload_event_backlinks(
         and type(db_handle).__name__ not in SINGLE_TREE_DBAPI_CLASS_NAMES
     ):
         return None
-    sql = "SELECT ref_handle, obj_class, obj_handle FROM reference WHERE ref_class = ?"
+    # obj_class filter matches find_backlink_handles(include_classes=[...])'s
+    # scope in get_event_participants_for_handle(): only Person/Family carry
+    # an EventRef, so only those obj_class rows are ever consulted. A
+    # literal IN-list (not a bound param) since the values are fixed, not
+    # user input -- keeps the param list identical to an unfiltered query.
+    sql = (
+        "SELECT ref_handle, obj_class, obj_handle FROM reference "
+        "WHERE ref_class = ? AND obj_class IN ('Person', 'Family')"
+    )
     params: list = ["Event"]
     if treeid is not None:
         sql += " AND treeid = ?"
