@@ -1060,10 +1060,11 @@ class TestUser(unittest.TestCase):
         # owner2 cannot downgrade themselves
         rv = self.client.put(
             BASE_URL + "/users/-/",
-            headers={"Authorization": "******".format(token_owner2)},
+            headers={"Authorization": f"Bearer {token_owner2}"},
             json={"role": ROLE_MEMBER},
         )
         assert rv.status_code == 405
+        assert "only owner" in rv.json["error"]["message"]
         # role is unchanged
         assert get_user_details("owner2")["role"] == ROLE_OWNER
         # get admin token (belongs to self.tree, which has both "owner" and
@@ -1077,7 +1078,7 @@ class TestUser(unittest.TestCase):
         # admin can downgrade "owner" since "admin" remains as owner or higher
         rv = self.client.put(
             BASE_URL + "/users/owner/",
-            headers={"Authorization": "******".format(token_admin)},
+            headers={"Authorization": f"Bearer {token_admin}"},
             json={"role": ROLE_MEMBER},
         )
         assert rv.status_code == 200
@@ -1086,7 +1087,7 @@ class TestUser(unittest.TestCase):
         # downgrading them should be forbidden
         rv = self.client.put(
             BASE_URL + "/users/admin/",
-            headers={"Authorization": "******".format(token_admin)},
+            headers={"Authorization": f"Bearer {token_admin}"},
             json={"role": ROLE_MEMBER},
         )
         assert rv.status_code == 405
