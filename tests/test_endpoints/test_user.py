@@ -1048,6 +1048,50 @@ class TestUser(unittest.TestCase):
         )
         assert rv.status_code == 200
 
+    def test_downgrade_only_owner_forbidden(self):
+        """The only owner/admin of a tree cannot be downgraded below owner."""
+        # tree2 only has "owner2" with role owner or higher
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "owner2", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_owner2 = rv.json["access_token"]
+        # owner2 cannot downgrade themselves
+        rv = self.client.put(
+            BASE_URL + "/users/-/",
+            headers={"Authorization": "******".format(token_owner2)},
+            json={"role": ROLE_MEMBER},
+        )
+        assert rv.status_code == 405
+        # role is unchanged
+        assert get_user_details("owner2")["role"] == ROLE_OWNER
+        # get admin token (belongs to self.tree, which has both "owner" and
+        # "admin" with role owner or higher)
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "admin", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_admin = rv.json["access_token"]
+        # admin can downgrade "owner" since "admin" remains as owner or higher
+        rv = self.client.put(
+            BASE_URL + "/users/owner/",
+            headers={"Authorization": "******".format(token_admin)},
+            json={"role": ROLE_MEMBER},
+        )
+        assert rv.status_code == 200
+        assert get_user_details("owner")["role"] == ROLE_MEMBER
+        # now "admin" is the only owner-or-higher user left in self.tree;
+        # downgrading them should be forbidden
+        rv = self.client.put(
+            BASE_URL + "/users/admin/",
+            headers={"Authorization": "******".format(token_admin)},
+            json={"role": ROLE_MEMBER},
+        )
+        assert rv.status_code == 405
+        assert get_user_details("admin")["role"] == ROLE_ADMIN
+
     def test_add_users(self):
         rv = self.client.post(
             BASE_URL + "/token/",

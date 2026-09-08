@@ -352,6 +352,21 @@ class UserResource(UserChangeBase):
                 current_tree = None
             if not args.get("tree") and not current_tree:
                 abort_with_message(422, "Tree is required")
+        if "role" in args and args["role"] < ROLE_OWNER:
+            # demoting a user to less than owner: make sure this does not
+            # remove the last owner (or higher) from the tree, which would
+            # lock everyone out of administering it
+            current_details = get_user_details(user_name)
+            if current_details and current_details.get("role", 0) >= ROLE_OWNER:
+                current_tree = current_details.get("tree")
+                if (
+                    get_number_users(tree=current_tree, roles=[ROLE_OWNER, ROLE_ADMIN])
+                    <= 1
+                ):
+                    abort_with_message(
+                        405,
+                        "Cannot downgrade the only owner or higher user of a tree",
+                    )
         try:
             modify_user(
                 name=user_name,
