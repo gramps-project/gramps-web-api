@@ -146,9 +146,13 @@ class TestSearchReindexIncrementalOnEmptyIndex(unittest.TestCase):
             },
         )
 
-    def test_empty_index_throttles_progress_callback(self):
-        """reindex_incremental() on an empty index reports progress at the
-        reindex_full() chunk cadence, not once per object."""
+    def test_empty_index_reports_progress_per_object(self):
+        """reindex_incremental() on an empty index still reports progress
+        for every object indexed via reindex_full()'s own per-object
+        progress_cb() calls -- throttling that reporting down to Celery's
+        actual Redis writes is progress_callback_count()'s job (see
+        tests/test_tasks.py), not something reindex_full() should do to
+        every caller regardless of how it's consumed."""
         calls = []
 
         def progress_cb(current, total, prev=None):
@@ -159,10 +163,9 @@ class TestSearchReindexIncrementalOnEmptyIndex(unittest.TestCase):
         db.close()
         object_count = self.search.index.count()
         self.assertGreater(object_count, 0)
-        # Unthrottled (per-object) reporting would call back once per
-        # object; the chunked cadence calls back a small, bounded number
-        # of times regardless of tree size.
-        self.assertLess(len(calls), object_count)
+        # One call per object, plus reindex_full()'s own final call after
+        # the loop (current=total - 1, matching the last object's index).
+        self.assertEqual(len(calls), object_count + 1)
 
 
 class TestSearch(unittest.TestCase):

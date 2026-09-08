@@ -216,7 +216,11 @@ def iter_obj_strings(
     # preload_event_backlinks()'s docstring. None (its fallback for a
     # backend gramps-web-api doesn't control) just means
     # get_event_participants_for_handle() queries per event as before.
-    backlink_index = preload_event_backlinks(db_handle)
+    # Only worth building for the non-semantic path: obj_strings_from_object()
+    # routes a semantic pass through object_to_strings_semantic(), which
+    # never receives backlink_index, so building it here would pay the
+    # full reference-table scan for a dict nothing consults.
+    backlink_index = None if semantic else preload_event_backlinks(db_handle)
     for class_name in PRIMARY_GRAMPS_OBJECTS:
         plural_name = GRAMPS_OBJECT_PLURAL[class_name]
         iter_method = db_handle.method("iter_%s", plural_name)

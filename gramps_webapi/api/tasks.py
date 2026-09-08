@@ -225,8 +225,30 @@ def _search_reindex_full(
 
 
 def progress_callback_count(self, title: str = "", message: str = "") -> Callable:
+    """Build a progress callback that reports via Celery's `update_state()`.
+
+    Throttled to (at most) one report per integer percentage point, the
+    same way `__main__.py`'s CLI `progress_callback_count_factory` throttles
+    its logging: `pct`/`pct_prev` are derived from `current`/`total` alone,
+    with `prev` defaulting to `current - 1` when a caller doesn't pass one.
+    That makes the throttle self-contained -- a producer that calls back
+    once per object with no `prev` (most of them: check.py, media.py,
+    media_importer.py, delete.py, restore.py, and reindex_incremental's own
+    per-object loop) still collapses to ~100 `update_state()` calls
+    regardless of tree size, each one a JSON-encode plus a Redis round
+    trip. A producer that *does* pass real `prev` values (reindex_full,
+    batched by chunk_size) throttles the same way, just computed from its
+    own strides instead of single-object steps.
+    """
+
     def callback(current: int, total: int, prev: int | None = None) -> None:
         if total == 0 or self.request.id is None:
+            return
+        pct = int(100 * current / total)
+        if prev is None:
+            prev = current - 1
+        pct_prev = int(100 * prev / total)
+        if current != 0 and pct == pct_prev:
             return
         self.update_state(
             state="PROGRESS",

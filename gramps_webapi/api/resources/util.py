@@ -89,23 +89,11 @@ from ..util import (
     get_db_handle,
     get_tree_from_jwt,
 )
+from .db_backend import SINGLE_TREE_DBAPI_CLASS_NAMES
 
 pd = PlaceDisplay()
 _ = glocale.translation.gettext
 _LOG = logging.getLogger(__name__)
-
-# Single-tree-per-database DBAPI backends whose `.dbapi` has no `treeid`
-# because there's only ever one tree in the database -- checked by class
-# *name*, not `isinstance`, since Gramps' plugin loader imports database
-# backend plugins as freestanding modules under a bare name, so a real
-# request's `db_handle` is a different class object than one imported
-# directly here (see object_query.py's `_resolve_dialect` docstring for
-# the full explanation of why `isinstance` is unreliable for this check).
-# Used by preload_event_backlinks() to decide when a missing `treeid`
-# safely means "no tree scoping needed" versus "unknown backend, don't
-# guess" -- mirrors object_query.py's `_resolve_treeid()`, which faces
-# the identical hazard for its own raw SQL against `.dbapi`.
-_SINGLE_TREE_DBAPI_CLASS_NAMES = frozenset({"SQLite", "PostgreSQL"})
 
 
 def get_person_by_handle(db_handle: DbReadBase, handle: Handle) -> Union[Person, dict]:
@@ -323,8 +311,10 @@ def preload_event_backlinks(
     Tree scoping: a `.dbapi.treeid` (SharedPostgreSQL) scopes the query
     explicitly. Its absence is only trusted to mean "no tree scoping
     needed" for the known single-tree-per-database backends in
-    `_SINGLE_TREE_DBAPI_CLASS_NAMES` (SQLite, the single-user PostgreSQL
-    addon) -- anything else falls back to `None` (the safe, per-event
+    `db_backend.SINGLE_TREE_DBAPI_CLASS_NAMES` (SQLite, the single-user
+    PostgreSQL addon; shared with object_query.py's `_resolve_treeid()`,
+    which faces the identical hazard for its own raw SQL against
+    `.dbapi`) -- anything else falls back to `None` (the safe, per-event
     path) rather than guessing, since guessing wrong here means silently
     mixing another tenant's event participants into this tree's index,
     not just an error.
@@ -335,7 +325,7 @@ def preload_event_backlinks(
     treeid = getattr(dbapi, "treeid", None)
     if (
         treeid is None
-        and type(db_handle).__name__ not in _SINGLE_TREE_DBAPI_CLASS_NAMES
+        and type(db_handle).__name__ not in SINGLE_TREE_DBAPI_CLASS_NAMES
     ):
         return None
     sql = "SELECT ref_handle, obj_class, obj_handle FROM reference WHERE ref_class = ?"
