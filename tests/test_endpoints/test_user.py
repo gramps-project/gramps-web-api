@@ -1093,6 +1093,23 @@ class TestUser(unittest.TestCase):
         assert rv.status_code == 405
         assert get_user_details("admin")["role"] == ROLE_ADMIN
 
+    def test_downgrade_only_owner_by_admin_allowed(self):
+        """A site admin may downgrade the only owner of another tree."""
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "admin", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_admin = rv.json["access_token"]
+        # "admin" belongs to self.tree, "owner2" is the only owner of tree2
+        rv = self.client.put(
+            BASE_URL + "/users/owner2/",
+            headers={"Authorization": f"Bearer {token_admin}"},
+            json={"role": ROLE_MEMBER},
+        )
+        assert rv.status_code == 200
+        assert get_user_details("owner2")["role"] == ROLE_MEMBER
+
     def test_delete_only_owner_self_forbidden(self):
         """The only owner of a tree cannot delete themselves."""
         # tree2 only has "owner2" with role owner or higher
