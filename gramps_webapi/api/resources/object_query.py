@@ -38,7 +38,6 @@ import json
 from typing import Any, Optional, Sequence, Tuple
 
 from gramps.gen.proxy.proxybase import ProxyDbBase
-from gramps.plugins.db.dbapi.sqlite import SQLite
 from marshmallow import Schema, ValidationError, validate, validates_schema
 from webargs import fields as wf
 
@@ -85,6 +84,11 @@ from ..auth import require_permissions
 from ..blueprint import api_blueprint
 from ..util import abort_with_message, get_db_handle, get_locale_for_language
 from . import ProtectedResource
+from .db_backend import (
+    SHARED_POSTGRES_CLASS_NAME,
+    SINGLE_TREE_POSTGRES_CLASS_NAME,
+    is_sqlite,
+)
 from .schemas import ObjectQueryResponseSchema
 
 
@@ -733,18 +737,6 @@ _DIALECT_BY_NAME: dict[str, Dialect] = {
 }
 
 
-# Backends known to have no `treeid`/dialect concept of their own, checked
-# by class *name* rather than `isinstance` -- see `_resolve_dialect`'s
-# docstring for why `isinstance` is unreliable for a plugin-loaded class.
-_SQLITE_CLASS_NAME = "SQLite"
-_SINGLE_TREE_POSTGRES_CLASS_NAME = "PostgreSQL"
-_SHARED_POSTGRES_CLASS_NAME = "SharedPostgreSQL"
-
-
-def _is_sqlite(basedb: Any) -> bool:
-    return isinstance(basedb, SQLite) or type(basedb).__name__ == _SQLITE_CLASS_NAME
-
-
 def _resolve_dialect(basedb: Any) -> Dialect:
     """Backend SQL dialect for rendering a `JsonPath` (see `query.py`).
 
@@ -770,12 +762,14 @@ def _resolve_dialect(basedb: Any) -> Dialect:
     new backend needs this module updated before structured query works
     against it, rather than working by accident until it doesn't.
 
-    The `SQLite`/`SharedPostgreSQL` checks are by class *name*, not
-    `isinstance`, deliberately: Gramps' plugin loader imports database
-    backend plugins (including core ones) as freestanding modules under a
-    bare name (`sqlite`, not `gramps.plugins.db.dbapi.sqlite`) rather than
-    via a normal package import, so a real request's `basedb` is a
-    *different* class object than this file's own `from
+    The `SQLite`/`SharedPostgreSQL` checks (`is_sqlite`, in `db_backend.py`,
+    shared with `_resolve_treeid` below and `util.py`'s
+    `preload_event_backlinks`) are by class *name*, not `isinstance`,
+    deliberately: Gramps' plugin loader imports database backend plugins
+    (including core ones) as freestanding modules under a bare name
+    (`sqlite`, not `gramps.plugins.db.dbapi.sqlite`) rather than via a
+    normal package import, so a real request's `basedb` is a *different*
+    class object than `db_backend.py`'s own `from
     gramps.plugins.db.dbapi.sqlite import SQLite` -- same name, same
     behavior, different identity. `isinstance(basedb, SQLite)` silently
     returns `False` for it every time, which was live (not just
@@ -795,10 +789,10 @@ def _resolve_dialect(basedb: Any) -> Dialect:
         dialect = _DIALECT_BY_NAME.get(name)
         if dialect is not None:
             return dialect
-    if _is_sqlite(basedb):
+    if is_sqlite(basedb):
         return Dialect.SQLITE
     class_name = type(basedb).__name__
-    if class_name in (_SINGLE_TREE_POSTGRES_CLASS_NAME, _SHARED_POSTGRES_CLASS_NAME):
+    if class_name in (SINGLE_TREE_POSTGRES_CLASS_NAME, SHARED_POSTGRES_CLASS_NAME):
         return Dialect.POSTGRESQL
     abort_with_message(
         501,
@@ -837,7 +831,7 @@ def _resolve_treeid(basedb: Any) -> Optional[int]:
     if treeid is not None:
         return treeid
     class_name = type(basedb).__name__
-    if _is_sqlite(basedb) or class_name == _SINGLE_TREE_POSTGRES_CLASS_NAME:
+    if is_sqlite(basedb) or class_name == SINGLE_TREE_POSTGRES_CLASS_NAME:
         return None
     abort_with_message(
         501,

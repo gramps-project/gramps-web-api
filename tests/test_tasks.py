@@ -22,7 +22,7 @@
 import logging
 from unittest.mock import MagicMock
 
-from gramps_webapi.api.tasks import _index_objects
+from gramps_webapi.api.tasks import _index_objects, progress_callback_count
 
 TRANS_DICT = [
     {"handle": "aaaa1111", "_class": "Person"},
@@ -87,3 +87,54 @@ def test_index_objects_indexes_every_object():
     assert [call.args[0] for call in indexer.add_or_update_object.call_args_list] == [
         obj["handle"] for obj in TRANS_DICT
     ]
+
+
+def _make_task():
+    task = MagicMock()
+    task.request.id = "task-id"
+    return task
+
+
+def test_progress_callback_count_throttles_per_object_calls():
+    """A producer that calls back once per object with no `prev` (every
+    producer feeding this callback except reindex_full: check_database,
+    the media/media_importer/delete/restore tasks, and reindex_incremental's
+    own per-object loop) must still collapse to about one update_state()
+    call per integer percentage point, not one Redis write per object."""
+    task = _make_task()
+    callback = progress_callback_count(task, title="Reindexing")
+
+    total = 10_000
+    for current in range(total):
+        callback(current=current, total=total)
+
+    assert task.update_state.call_count < 150
+    assert task.update_state.call_count == len(
+        {int(100 * current / total) for current in range(total)}
+    )
+
+
+def test_progress_callback_count_throttles_explicit_prev():
+    """A producer that passes real `prev` values (reindex_full, batched by
+    chunk_size) is throttled from those strides instead."""
+    task = _make_task()
+    callback = progress_callback_count(task)
+
+    callback(current=0, total=1000, prev=None)
+    assert task.update_state.call_count == 1
+    callback(current=5, total=1000, prev=0)  # still inside the 0% bucket
+    assert task.update_state.call_count == 1
+    callback(current=10, total=1000, prev=5)  # crosses into the 1% bucket
+    assert task.update_state.call_count == 2
+
+
+def test_progress_callback_count_noop_without_task_id():
+    """No Celery request in flight (e.g. a task invoked synchronously in
+    tests) means update_state() would have nothing to attach to."""
+    task = _make_task()
+    task.request.id = None
+    callback = progress_callback_count(task)
+
+    callback(current=0, total=100)
+
+    task.update_state.assert_not_called()
