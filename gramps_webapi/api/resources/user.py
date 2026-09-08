@@ -355,12 +355,15 @@ class UserResource(UserChangeBase):
         if "role" in args and args["role"] < ROLE_OWNER:
             # demoting a user to less than owner: make sure this does not
             # remove the last owner (or higher) from the tree, which would
-            # lock everyone out of administering it
+            # lock everyone out of administering it.
+            # note: this check is not atomic with the update below, so a
+            # race between two concurrent requests could in theory still
+            # leave a tree without an owner; considered low risk in practice.
             current_details = get_user_details(user_name)
             if current_details and current_details.get("role", 0) >= ROLE_OWNER:
-                current_tree = current_details.get("tree")
+                target_tree = current_details.get("tree")
                 if (
-                    get_number_users(tree=current_tree, roles=[ROLE_OWNER, ROLE_ADMIN])
+                    get_number_users(tree=target_tree, roles=[ROLE_OWNER, ROLE_ADMIN])
                     <= 1
                 ):
                     abort_with_message(
