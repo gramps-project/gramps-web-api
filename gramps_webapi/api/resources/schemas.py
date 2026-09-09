@@ -1937,7 +1937,9 @@ class ObjectChangeSchema(_Base):
         metadata={"description": "Handle of the changed object."},
     )
     ref_handle = fields.Str(
-        metadata={"description": "Handle of a referenced object, if this change is a reference update."},
+        metadata={
+            "description": "Handle of a referenced object, if this change is a reference update."
+        },
     )
     trans_type = fields.Int(
         metadata={"description": "Change type: 0 (add), 1 (update), or 2 (delete)."},
@@ -1946,10 +1948,14 @@ class ObjectChangeSchema(_Base):
         metadata={"description": "Unix timestamp when the change was committed."},
     )
     old_data = fields.Raw(
-        metadata={"description": "Object state before the change (only included if requested)."},
+        metadata={
+            "description": "Object state before the change (only included if requested)."
+        },
     )
     new_data = fields.Raw(
-        metadata={"description": "Object state after the change (only included if requested)."},
+        metadata={
+            "description": "Object state after the change (only included if requested)."
+        },
     )
 
 
@@ -2136,6 +2142,103 @@ class DeprecationSchema(_Base):
     )
 
 
+class RateLimitSchema(_Base):
+    """A rate limit expressed as a number of requests per time window."""
+
+    amount = fields.Int(
+        metadata={"description": "Number of requests allowed per time window."},
+    )
+    window_seconds = fields.Int(
+        metadata={"description": "Length of the time window in seconds."},
+    )
+
+
+class ThumbnailSupportSchema(_Base):
+    """Availability of thumbnailing for file types needing extra dependencies."""
+
+    pdf = fields.Bool(
+        metadata={
+            "description": "Whether thumbnails can be generated for PDF files"
+            " (requires pdf2image and Poppler)."
+        },
+    )
+    video = fields.Bool(
+        metadata={
+            "description": "Whether thumbnails can be generated for video files"
+            " (requires ffmpeg-python and the ffmpeg binary)."
+        },
+    )
+
+
+class ServerSchema(_Base):
+    """Server capabilities and configuration relevant to clients."""
+
+    multi_tree = fields.Bool(
+        metadata={"description": "Whether the server hosts multiple family trees."},
+    )
+    task_queue = fields.Bool(
+        metadata={
+            "description": "Whether a task queue is available, so that long-running"
+            " operations return a task rather than a result."
+        },
+    )
+    ocr = fields.Bool(
+        metadata={"description": "Whether OCR of images is available."},
+    )
+    ocr_languages = fields.List(
+        fields.Str(),
+        metadata={"description": "Language codes available for OCR."},
+    )
+    semantic_search = fields.Bool(
+        metadata={"description": "Whether semantic search is available."},
+    )
+    chat = fields.Bool(
+        metadata={"description": "Whether the AI chat endpoint is available."},
+    )
+    face_detection = fields.Bool(
+        metadata={
+            "description": "Whether face detection in images is available"
+            " (requires OpenCV and NumPy)."
+        },
+    )
+    thumbnails = fields.Nested(
+        ThumbnailSupportSchema,
+        metadata={
+            "description": "Availability of thumbnailing for file types needing"
+            " extra dependencies."
+        },
+    )
+    email = fields.Bool(
+        metadata={
+            "description": "Whether the server is configured to send e-mails."
+            " If false, flows relying on e-mail (such as enabling new users) will"
+            " not work."
+        },
+    )
+    max_media_archive_upload_bytes = fields.Int(
+        metadata={
+            "description": "Configured maximum size of an uploaded media archive in"
+            " bytes. Absent if no limit is configured. Note that uploads are"
+            " additionally limited by the free disk space available to the server, so"
+            " an upload smaller than this value can still be rejected."
+        },
+    )
+    max_thumbnail_file_bytes = fields.Int(
+        metadata={
+            "description": "Maximum size in bytes of a media file for which"
+            " thumbnails will be generated. Larger files are rejected by the"
+            " thumbnail endpoints."
+        },
+    )
+    rate_limit_media_archive = fields.List(
+        fields.Nested(RateLimitSchema),
+        metadata={
+            "description": "Rate limits, per user, for creating a media archive for"
+            " download. All of the limits apply simultaneously."
+        },
+    )
+
+
 class MetadataSchema(_Base):
     """Server and database metadata returned by /api/metadata/."""
 
@@ -2177,7 +2280,8 @@ class MetadataSchema(_Base):
     search = fields.Dict(
         metadata={"description": "Information about search-related libraries."},
     )
-    server = fields.Dict(
+    server = fields.Nested(
+        ServerSchema,
         metadata={"description": "Information about server capabilities."},
     )
     surnames = fields.List(
