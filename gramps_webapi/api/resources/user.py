@@ -90,6 +90,35 @@ from ..util import (
 from . import LimitedScopeProtectedResource, ProtectedResource, Resource
 
 
+def is_own_user(user_id) -> bool:
+    """Check whether a user GUID is the one the request's token was issued for."""
+    # get_guid returns a UUID, while the JWT identity is its string form
+    return str(user_id) == get_jwt_identity()
+
+
+def abort_if_last_owner(user_name: str, message: str) -> None:
+    """Abort if the user is the last owner (or higher) of their tree.
+
+    Demoting or deleting them would leave the tree without anyone able to
+    administer it, locking everyone out.
+
+    Only meant for users acting on themselves: somebody else removing the
+    last owner of a tree is allowed, since they can appoint a new one.
+
+    Note: this check is not atomic with the modification that follows, so a
+    race between two concurrent requests could in theory still leave a tree
+    without an owner; considered low risk in practice.
+    """
+    details = get_user_details(user_name)
+    if not details or details.get("role", 0) < ROLE_OWNER:
+        # not an owner (or higher), so removing them changes nothing
+        return
+    if get_number_users(tree=details.get("tree"), roles=[ROLE_OWNER, ROLE_ADMIN]) > 1:
+        # somebody else can still administer the tree
+        return
+    abort_with_message(405, message)
+
+
 class UserChangeBase(ProtectedResource):
     """Base class for user change endpoints."""
 
@@ -352,6 +381,17 @@ class UserResource(UserChangeBase):
                 current_tree = None
             if not args.get("tree") and not current_tree:
                 abort_with_message(422, "Tree is required")
+        if (
+            "role" in args
+            and args["role"] < ROLE_OWNER
+            and is_own_user(get_guid(user_name))
+        ):
+            # demoting oneself below owner: refuse if this would leave the
+            # tree without anyone able to administer it
+            abort_if_last_owner(
+                user_name,
+                "Cannot downgrade the only owner or higher user of a tree",
+            )
         try:
             modify_user(
                 name=user_name,
@@ -418,6 +458,13 @@ class UserResource(UserChangeBase):
             require_permissions([PERM_DEL_USER])
         else:
             require_permissions([PERM_DEL_OTHER_TREE_USER])
+        if is_own_user(user_id):
+            # deleting oneself by name (deleting "-" is refused above): refuse
+            # if this would leave the tree without an owner
+            abort_if_last_owner(
+                user_name,
+                "Cannot delete the only owner or higher user of a tree",
+            )
         delete_user(name=user_name)
         return "", 200
 

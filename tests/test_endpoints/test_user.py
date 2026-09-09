@@ -1048,6 +1048,118 @@ class TestUser(unittest.TestCase):
         )
         assert rv.status_code == 200
 
+    def test_downgrade_only_owner_forbidden(self):
+        """The only owner/admin of a tree cannot be downgraded below owner."""
+        # tree2 only has "owner2" with role owner or higher
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "owner2", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_owner2 = rv.json["access_token"]
+        # owner2 cannot downgrade themselves
+        rv = self.client.put(
+            BASE_URL + "/users/-/",
+            headers={"Authorization": f"Bearer {token_owner2}"},
+            json={"role": ROLE_MEMBER},
+        )
+        assert rv.status_code == 405
+        assert "only owner" in rv.json["error"]["message"]
+        # role is unchanged
+        assert get_user_details("owner2")["role"] == ROLE_OWNER
+        # get admin token (belongs to self.tree, which has both "owner" and
+        # "admin" with role owner or higher)
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "admin", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_admin = rv.json["access_token"]
+        # admin can downgrade "owner" since "admin" remains as owner or higher
+        rv = self.client.put(
+            BASE_URL + "/users/owner/",
+            headers={"Authorization": f"Bearer {token_admin}"},
+            json={"role": ROLE_MEMBER},
+        )
+        assert rv.status_code == 200
+        assert get_user_details("owner")["role"] == ROLE_MEMBER
+        # now "admin" is the only owner-or-higher user left in self.tree;
+        # downgrading them should be forbidden
+        rv = self.client.put(
+            BASE_URL + "/users/admin/",
+            headers={"Authorization": f"Bearer {token_admin}"},
+            json={"role": ROLE_MEMBER},
+        )
+        assert rv.status_code == 405
+        assert get_user_details("admin")["role"] == ROLE_ADMIN
+
+    def test_downgrade_only_owner_by_admin_allowed(self):
+        """A site admin may downgrade the only owner of another tree."""
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "admin", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_admin = rv.json["access_token"]
+        # "admin" belongs to self.tree, "owner2" is the only owner of tree2
+        rv = self.client.put(
+            BASE_URL + "/users/owner2/",
+            headers={"Authorization": f"Bearer {token_admin}"},
+            json={"role": ROLE_MEMBER},
+        )
+        assert rv.status_code == 200
+        assert get_user_details("owner2")["role"] == ROLE_MEMBER
+
+    def test_delete_only_owner_self_forbidden(self):
+        """The only owner of a tree cannot delete themselves."""
+        # tree2 only has "owner2" with role owner or higher
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "owner2", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_owner2 = rv.json["access_token"]
+        # deleting oneself by name is refused, since nobody would be left
+        rv = self.client.delete(
+            BASE_URL + "/users/owner2/",
+            headers={"Authorization": f"Bearer {token_owner2}"},
+        )
+        assert rv.status_code == 405
+        assert "only owner" in rv.json["error"]["message"]
+        assert get_user_details("owner2")["role"] == ROLE_OWNER
+
+    def test_delete_only_owner_by_admin_allowed(self):
+        """A site admin may delete the only owner of another tree."""
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "admin", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_admin = rv.json["access_token"]
+        # "admin" belongs to self.tree, "owner2" is the only owner of tree2
+        rv = self.client.delete(
+            BASE_URL + "/users/owner2/",
+            headers={"Authorization": f"Bearer {token_admin}"},
+        )
+        assert rv.status_code == 200
+        assert get_user_details("owner2") is None
+
+    def test_delete_owner_self_allowed_if_others_remain(self):
+        """An owner may delete themselves if another owner-or-higher remains."""
+        # self.tree has both "owner" and "admin" with role owner or higher
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "owner", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_owner = rv.json["access_token"]
+        rv = self.client.delete(
+            BASE_URL + "/users/owner/",
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 200
+        assert get_user_details("owner") is None
+
     def test_add_users(self):
         rv = self.client.post(
             BASE_URL + "/token/",
