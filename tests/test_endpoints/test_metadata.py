@@ -21,7 +21,8 @@
 
 import unittest
 
-from gramps_webapi.auth.const import ROLE_EDITOR
+from gramps_webapi.api.resources.metadata import _parse_rate_limit
+from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_GUEST
 
 from . import BASE_URL, get_test_client
 from .checks import check_conforms_to_openapi_schema, check_requires_token
@@ -52,6 +53,76 @@ class TestMetadata(unittest.TestCase):
         assert "version" in res["search"]["sifts"]
         assert "count" in res["search"]["sifts"]
         assert res["search"]["sifts"]["count"] > 1
+
+    def test_get_metadata_server_capabilities(self):
+        """Test the server block reports capabilities and client-relevant config."""
+        res = check_conforms_to_openapi_schema(self, TEST_URL, "Metadata")
+        server = res["server"]
+        for key in [
+            "multi_tree",
+            "task_queue",
+            "ocr",
+            "semantic_search",
+            "chat",
+            "face_detection",
+            "email",
+        ]:
+            self.assertIsInstance(server[key], bool, key)
+        self.assertIsInstance(server["ocr_languages"], list)
+        self.assertIsInstance(server["thumbnails"]["pdf"], bool)
+        self.assertIsInstance(server["thumbnails"]["video"], bool)
+        self.assertIsInstance(server["max_thumbnail_file_bytes"], int)
+        # the rate limit mini-language is parsed server-side into amount per window
+        self.assertEqual(
+            server["rate_limit_media_archive"],
+            [{"amount": 1, "window_seconds": 86400}],
+        )
+        # no upload limit is configured in the test config, so the key is omitted
+        self.assertNotIn("max_media_archive_upload_bytes", server)
+
+    def test_get_metadata_server_visible_to_guest(self):
+        """Test that the server block is returned for the lowest role, too."""
+        header = fetch_header(self.client, role=ROLE_GUEST)
+        rv = self.client.get(TEST_URL, headers=header)
+        self.assertEqual(rv.status_code, 200)
+        self.assertIn("email", rv.json["server"])
+        self.assertIn("max_thumbnail_file_bytes", rv.json["server"])
+        # deprecations remain restricted to users allowed to edit settings
+        self.assertNotIn("deprecations", rv.json)
+
+
+class TestParseRateLimit(unittest.TestCase):
+    """Test cases for parsing rate limit strings."""
+
+    def test_parse_rate_limit_forms(self):
+        """Test the equivalent forms of the rate limit mini-language."""
+        for limit_string in ["1 per day", "1/day", "1 per 1 day"]:
+            self.assertEqual(
+                _parse_rate_limit(limit_string),
+                [{"amount": 1, "window_seconds": 86400}],
+                limit_string,
+            )
+
+    def test_parse_rate_limit_multiples(self):
+        """Test a window spanning multiple units."""
+        self.assertEqual(
+            _parse_rate_limit("2 per 5 minutes"),
+            [{"amount": 2, "window_seconds": 300}],
+        )
+
+    def test_parse_rate_limit_multiple_limits(self):
+        """Test that several simultaneous limits are all reported."""
+        self.assertEqual(
+            _parse_rate_limit("100/hour;1000/day"),
+            [
+                {"amount": 100, "window_seconds": 3600},
+                {"amount": 1000, "window_seconds": 86400},
+            ],
+        )
+
+    def test_parse_rate_limit_invalid(self):
+        """Test that an unparseable limit does not raise."""
+        self.assertIsNone(_parse_rate_limit("once in a blue moon"))
 
 
 class TestMetadataResearcher(unittest.TestCase):

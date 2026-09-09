@@ -21,9 +21,12 @@
 """Metadata API resource."""
 
 import functools
+import shutil
 from importlib import metadata
+from importlib.util import find_spec
 
 import gramps_ql as gql
+import limits
 import object_ql as oql
 import sifts
 from flask import Response, current_app
@@ -63,6 +66,50 @@ def _get_ocr_info() -> tuple[bool, list[str]]:
         return True, [lang for lang in pytesseract.get_languages() if lang != "osd"]
     except pytesseract.TesseractNotFoundError:
         return False, []
+
+
+@functools.cache
+def _has_module(name: str) -> bool:
+    """Check whether a module is importable, without importing it."""
+    try:
+        return find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+@functools.cache
+def _get_face_detection_available() -> bool:
+    """Detect whether face detection is available (worker-lifetime constant)."""
+    # see `gramps_webapi.api.image.detect_faces`
+    return _has_module("cv2") and _has_module("numpy")
+
+
+@functools.cache
+def _get_thumbnail_support() -> dict[str, bool]:
+    """Detect thumbnailing support for file types needing extra dependencies."""
+    # see `gramps_webapi.api.image.ThumbnailHandler._get_image_pdf` and
+    # `._get_image_video` - both the Python package and the binary are required
+    return {
+        "pdf": _has_module("pdf2image") and shutil.which("pdftoppm") is not None,
+        "video": _has_module("ffmpeg") and shutil.which("ffmpeg") is not None,
+    }
+
+
+@functools.cache
+def _parse_rate_limit(limit_string: str) -> list[dict[str, int]] | None:
+    """Parse a rate limit string into structured limits, or None if invalid.
+
+    A rate limit string is written in the mini-language of the `limits` library,
+    e.g. `1 per day` or `100/hour;1000/day`, which clients cannot be expected to
+    parse, so it is broken down into an amount per time window instead.
+    """
+    try:
+        items = limits.parse_many(limit_string)
+    except ValueError:
+        return None
+    return [
+        {"amount": item.amount, "window_seconds": item.get_expiry()} for item in items
+    ]
 
 
 @functools.cache
@@ -226,8 +273,24 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 "ocr_languages": ocr_languages,
                 "semantic_search": has_semantic_search,
                 "chat": has_chat,
+                "face_detection": _get_face_detection_available(),
+                "thumbnails": _get_thumbnail_support(),
+                # may be stored in the database, so it is looked up rather than
+                # read from the app config
+                "email": bool(get_config("DEFAULT_FROM_EMAIL")),
+                "max_thumbnail_file_bytes": current_app.config[
+                    "MAX_THUMBNAIL_FILE_BYTES"
+                ],
             },
         }
+        max_upload_bytes = current_app.config["MAX_MEDIA_ARCHIVE_UPLOAD_BYTES"]
+        if max_upload_bytes is not None:
+            # omitted rather than null if no limit is configured
+            result["server"]["max_media_archive_upload_bytes"] = max_upload_bytes
+        rate_limit = _parse_rate_limit(current_app.config["RATE_LIMIT_MEDIA_ARCHIVE"])
+        if rate_limit is not None:
+            # omitted if the configured limit string is unparseable
+            result["server"]["rate_limit_media_archive"] = rate_limit
         if has_permissions({PERM_EDIT_SETTINGS}):
             # re-checked per request since some options can be stored in the database
             result["deprecations"] = check_deprecations(
