@@ -13,14 +13,14 @@ removed no earlier than the next major.
 
 | Version | Target | Gramps | Breaking changes |
 |---|---|---|---|
-| 3.21.x | current | 6.0 | none |
-| 3.22.0 | September 2026 | 6.0 | none |
+| 3.22.x | current | 6.0 | none |
+| 3.23.0 | October 2026 | 6.0 | none |
 | 3.x | as needed | 6.0 | none |
 | 4.0.0 | TBD | 6.0, 6.1 or 6.2 (open) | multi-tree by default, removals below |
 
-## Notable in 3.22
+## Notable in 3.23
 
-E-mail addresses no longer have to be unique across accounts; a user database migration drops the constraint ([#961](https://github.com/gramps-project/gramps-web-api/pull/961)).
+TBD
 
 ## Breaking in 4.0
 
