@@ -22,9 +22,9 @@
 import unittest
 
 from gramps_webapi.api.resources.metadata import _parse_rate_limit
-from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_GUEST
+from gramps_webapi.auth.const import ROLE_ADMIN, ROLE_EDITOR, ROLE_GUEST, ROLE_OWNER
 
-from . import BASE_URL, get_test_client
+from . import BASE_URL, get_single_tree_test_client, get_test_client
 from .checks import check_conforms_to_openapi_schema, check_requires_token
 from .util import fetch_header
 
@@ -89,6 +89,47 @@ class TestMetadata(unittest.TestCase):
         self.assertIn("max_thumbnail_file_bytes", rv.json["server"])
         # deprecations remain restricted to users allowed to view settings
         self.assertNotIn("deprecations", rv.json)
+
+
+class TestMetadataDeprecations(unittest.TestCase):
+    """Test cases for who is shown the deprecations in /api/metadata."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+        cls.single_tree_client = get_single_tree_test_client()
+
+    def _get_metadata(self, client, role):
+        """Return the metadata payload for a given client and role."""
+        header = fetch_header(client, role=role)
+        rv = client.get(TEST_URL, headers=header)
+        self.assertEqual(rv.status_code, 200)
+        return rv.json
+
+    def test_admin_sees_deprecations(self):
+        """An admin can view settings, so they are shown the deprecations."""
+        for client in [self.client, self.single_tree_client]:
+            res = self._get_metadata(client, ROLE_ADMIN)
+            self.assertIn("deprecations", res)
+
+    def test_owner_sees_deprecations_in_single_tree(self):
+        """In single-tree mode the owner is the operator and can act on them."""
+        res = self._get_metadata(self.single_tree_client, ROLE_OWNER)
+        self.assertFalse(res["server"]["multi_tree"])
+        self.assertIn("deprecations", res)
+
+    def test_owner_does_not_see_deprecations_in_multi_tree(self):
+        """In multi-tree mode the owner is a tenant who cannot change the server."""
+        res = self._get_metadata(self.client, ROLE_OWNER)
+        self.assertTrue(res["server"]["multi_tree"])
+        self.assertNotIn("deprecations", res)
+
+    def test_editor_never_sees_deprecations(self):
+        """Below owner, the deprecations are hidden regardless of the tree mode."""
+        for client in [self.client, self.single_tree_client]:
+            res = self._get_metadata(client, ROLE_EDITOR)
+            self.assertNotIn("deprecations", res)
 
 
 class TestParseRateLimit(unittest.TestCase):

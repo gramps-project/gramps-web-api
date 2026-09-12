@@ -2252,7 +2252,8 @@ class MetadataSchema(_Base):
         fields.Nested(DeprecationSchema),
         metadata={
             "description": "Deprecated configuration options in use. Only returned"
-            " for users with permission to view settings."
+            " for users with permission to view settings, and for tree owners in"
+            " single-tree deployments."
         },
     )
     gramps = fields.Dict(
