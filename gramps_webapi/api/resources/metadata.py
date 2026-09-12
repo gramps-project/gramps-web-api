@@ -40,7 +40,7 @@ from webargs import fields
 
 from gramps_webapi.const import TREE_MULTI, VERSION
 
-from ...auth.const import PERM_EDIT_SETTINGS, PERM_EDIT_TREE, PERM_VIEW_PRIVATE
+from ...auth.const import PERM_EDIT_TREE, PERM_VIEW_PRIVATE, PERM_VIEW_SETTINGS
 from ...dbmanager import WebDbManager
 from ..auth import has_permissions, require_permissions
 from ..blueprint import api_blueprint
@@ -291,7 +291,13 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
         if rate_limit is not None:
             # omitted if the configured limit string is unparseable
             result["server"]["rate_limit_media_archive"] = rate_limit
-        if has_permissions({PERM_EDIT_SETTINGS}):
+        if has_permissions({PERM_VIEW_SETTINGS}) or (
+            # in a single-tree deployment the owner is the server operator and can
+            # act on the deprecations, while in multi-tree they are a tenant who
+            # cannot change the server configuration
+            not is_multi_tree
+            and has_permissions({PERM_EDIT_TREE})
+        ):
             # re-checked per request since some options can be stored in the database
             result["deprecations"] = check_deprecations(
                 current_app.config, get_option=get_config
