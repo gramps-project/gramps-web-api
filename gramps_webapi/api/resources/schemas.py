@@ -2251,7 +2251,8 @@ class MetadataSchema(_Base):
     deprecations = fields.List(
         fields.Nested(DeprecationSchema),
         metadata={
-            "description": "Deprecated configuration options in use (admins only)."
+            "description": "Deprecated configuration options in use. Only returned"
+            " for users with permission to view settings."
         },
     )
     gramps = fields.Dict(

@@ -87,7 +87,7 @@ class TestMetadata(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         self.assertIn("email", rv.json["server"])
         self.assertIn("max_thumbnail_file_bytes", rv.json["server"])
-        # deprecations remain restricted to users allowed to edit settings
+        # deprecations remain restricted to users allowed to view settings
         self.assertNotIn("deprecations", rv.json)
 
 
