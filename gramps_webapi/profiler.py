@@ -32,6 +32,94 @@ import click
 # Set to 2 minutes to accommodate slow Gramps Web installations.
 REQUEST_TIMEOUT = 120
 
+# Page size for the /query/ endpoints (the server maximum).
+QUERY_PAGE_SIZE = 1000
+
+
+def _json_path(path: List[str], alias: str) -> Dict[str, Any]:
+    """Build a json_path select entry for a /query/ request body."""
+    return {"json_path": path, "as": alias}
+
+
+# Select and sort per object type for the /query/ endpoint profiles, mixing flat
+# columns with json_path lookups into related objects.
+QUERY_VIEWS: Dict[str, Dict[str, Any]] = {
+    "People": {
+        "path": "/api/people/query/",
+        "select": [
+            "gramps_id",
+            "surname",
+            "given_name",
+            _json_path(["birth", "date"], "birth_date"),
+            _json_path(["death", "date"], "death_date"),
+            "change",
+            _json_path(["event_ref_list"], "event_refs"),
+            _json_path(["family_list"], "family_list"),
+        ],
+        "order_by": [
+            {"column": "surname", "direction": "asc"},
+            {"column": "given_name", "direction": "asc"},
+        ],
+    },
+    "Families": {
+        "path": "/api/families/query/",
+        "select": [
+            "gramps_id",
+            _json_path(["father", "primary_name"], "father_name"),
+            _json_path(["mother", "primary_name"], "mother_name"),
+            "change",
+            _json_path(["event_ref_list"], "event_refs"),
+            "father_handle",
+            "mother_handle",
+        ],
+        "order_by": [{"column": "gramps_id", "direction": "asc"}],
+    },
+    "Events": {
+        "path": "/api/events/query/",
+        "select": [
+            "gramps_id",
+            _json_path(["type"], "event_type"),
+            "description",
+            _json_path(["date"], "date"),
+            _json_path(["place", "title"], "place_title"),
+            _json_path(["place", "name"], "place_name"),
+            "place",
+            "change",
+        ],
+        "order_by": [{"column": "gramps_id", "direction": "asc"}],
+    },
+}
+
+
+def _query_body(
+    view: Dict[str, Any],
+    limit: int = QUERY_PAGE_SIZE,
+    count: bool = False,
+    where_expr: Optional[str] = None,
+    order_by: Optional[List[Dict[str, str]]] = None,
+) -> Dict[str, Any]:
+    """Build a /query/ request body."""
+    body: Dict[str, Any] = {
+        "select": ["handle", *view["select"]],
+        "order_by": order_by or view["order_by"],
+        "limit": limit,
+        "count": count,
+    }
+    if where_expr:
+        body["where_expr"] = where_expr
+    return body
+
+
+def count_objects(data: Any) -> Optional[int]:
+    """Count the objects in a response body, if it has a recognisable shape."""
+    if isinstance(data, list):
+        return len(data)
+    if isinstance(data, dict):
+        for key in ("results", "items"):
+            if isinstance(data.get(key), list):
+                return len(data[key])
+    return None
+
 
 def fetch_installation_info(
     client, headers: Dict[str, str], url: Optional[str]
@@ -182,9 +270,42 @@ def get_default_person_gramps_id(
         return None
 
 
+def get_latest_transaction_id(
+    client, headers: Dict[str, str], url: Optional[str]
+) -> Optional[int]:
+    """Fetch the ID of the most recent transaction.
+
+    Returns 0 for an empty history, or None if the request fails.
+    """
+    path = "/api/transactions/history/?after_id=0&page=1&pagesize=1&sort=-id"
+    try:
+        if url:
+            # Remote HTTP
+            import requests
+
+            response = requests.get(
+                f"{url.rstrip('/')}{path}", headers=headers, timeout=30
+            )
+            if response.status_code != 200:
+                return None
+            data = response.json()
+        else:
+            # Local test client
+            rv = client.get(path, headers=headers)
+            if rv.status_code != 200:
+                return None
+            data = rv.json
+
+        return data[0]["id"] if data else 0
+    except Exception:
+        return None
+
+
 def get_default_endpoints(
     default_person_gramps_id: Optional[str] = None,
-) -> List[Dict[str, str]]:
+    default_person_handle: Optional[str] = None,
+    latest_transaction_id: Optional[int] = None,
+) -> List[Dict[str, Any]]:
     """Get the default list of endpoints to profile.
 
     Returns a list of endpoint definitions with 'name', 'method', and 'path'.
@@ -222,13 +343,33 @@ def get_default_endpoints(
             ]
         )
 
+    if default_person_handle:
+        endpoints.append(
+            {
+                "name": "Person (backlinks)",
+                "method": "GET",
+                "path": f"/api/people/{default_person_handle}?extend=all&profile=all&backlinks=1",
+            }
+        )
+
     # Add remaining endpoints
     endpoints.extend(
         [
+            # Default (paged) list views; compare with the query endpoints
             {
                 "name": "People List",
                 "method": "GET",
-                "path": "/api/people/?locale=de&profile=self&keys=gramps_id,profile,change&page=1&pagesize=50",
+                "path": "/api/people/?locale=en&profile=self&keys=gramps_id,profile,change,handle&page=1&pagesize=24&sort=-change",
+            },
+            {
+                "name": "Families List",
+                "method": "GET",
+                "path": "/api/families/?locale=en&profile=self&keys=gramps_id,profile,change,handle&page=1&pagesize=24&sort=-change",
+            },
+            {
+                "name": "Events List",
+                "method": "GET",
+                "path": "/api/events/?locale=en&profile=participants&keys=gramps_id,profile,description,change,handle&page=1&pagesize=24&sort=-change",
             },
             {
                 "name": "Events by Date",
@@ -253,6 +394,64 @@ def get_default_endpoints(
         ]
     )
 
+    if latest_transaction_id is not None:
+        endpoints.append(
+            {
+                # Polling for changes when there are none
+                "name": "History Poll",
+                "method": "GET",
+                "path": f"/api/transactions/history/?after_id={latest_transaction_id}&sort=id&page=1&pagesize=500",
+            }
+        )
+
+    return endpoints
+
+
+def get_query_endpoints() -> List[Dict[str, Any]]:
+    """Get the POST /query/ endpoints to profile.
+
+    Returns endpoint definitions like get_default_endpoints, plus a 'json'
+    request body.
+    """
+    # Full-table loads (first page with total count), a text filter, and a
+    # short "recently changed" list, as used by Gramps Connect.
+    endpoints: List[Dict[str, Any]] = [
+        {
+            "name": f"{name} Query",
+            "method": "POST",
+            "path": view["path"],
+            "json": _query_body(view, count=True),
+        }
+        for name, view in QUERY_VIEWS.items()
+    ]
+    people = QUERY_VIEWS["People"]
+    endpoints.extend(
+        [
+            {
+                "name": "People Query (filter)",
+                "method": "POST",
+                "path": people["path"],
+                "json": _query_body(
+                    people,
+                    count=True,
+                    where_expr=" or ".join(
+                        f"like({field}, '%son%')"
+                        for field in ("given_name", "surname", "gramps_id")
+                    ),
+                ),
+            },
+            {
+                "name": "People Query (recent)",
+                "method": "POST",
+                "path": people["path"],
+                "json": _query_body(
+                    people,
+                    limit=8,
+                    order_by=[{"column": "change", "direction": "desc"}],
+                ),
+            },
+        ]
+    )
     return endpoints
 
 
@@ -263,6 +462,7 @@ def profile_endpoint_with_test_client(
     path: str,
     iterations: int,
     warmup: int,
+    body: Optional[Any] = None,
 ) -> Tuple[List[float], List[int], Optional[int]]:
     """Profile an endpoint using Flask test client.
 
@@ -274,18 +474,12 @@ def profile_endpoint_with_test_client(
 
     # Warmup runs
     for _ in range(warmup):
-        if method == "GET":
-            client.get(path, headers=headers)
-        else:
-            client.post(path, headers=headers)
+        client.open(path, method=method, headers=headers, json=body)
 
     # Actual profiling runs
     for _ in range(iterations):
         start_time = time.perf_counter()
-        if method == "GET":
-            rv = client.get(path, headers=headers)
-        else:
-            rv = client.post(path, headers=headers)
+        rv = client.open(path, method=method, headers=headers, json=body)
         end_time = time.perf_counter()
 
         response_times.append(end_time - start_time)
@@ -294,11 +488,7 @@ def profile_endpoint_with_test_client(
         # Count objects in response (only from first successful request)
         if object_count is None and rv.status_code == 200:
             try:
-                data = rv.json
-                if isinstance(data, list):
-                    object_count = len(data)
-                elif isinstance(data, dict) and "results" in data:
-                    object_count = len(data["results"])
+                object_count = count_objects(rv.json)
             except Exception:
                 # Best-effort object counting only; ignore any errors when
                 # parsing or inspecting the response so profiling can proceed.
@@ -314,6 +504,7 @@ def profile_endpoint_with_http(
     path: str,
     iterations: int,
     warmup: int,
+    body: Optional[Any] = None,
 ) -> Tuple[List[float], List[int], Optional[int]]:
     """Profile an endpoint using HTTP requests.
 
@@ -336,10 +527,9 @@ def profile_endpoint_with_http(
     # Warmup runs
     for _ in range(warmup):
         try:
-            if method == "GET":
-                requests.get(full_url, headers=headers, timeout=REQUEST_TIMEOUT)
-            else:
-                requests.post(full_url, headers=headers, timeout=REQUEST_TIMEOUT)
+            requests.request(
+                method, full_url, headers=headers, json=body, timeout=REQUEST_TIMEOUT
+            )
         except requests.exceptions.Timeout:
             click.echo(
                 f"\nWarning: Warmup request timed out after {REQUEST_TIMEOUT}s. "
@@ -352,14 +542,9 @@ def profile_endpoint_with_http(
     for _ in range(iterations):
         start_time = time.perf_counter()
         try:
-            if method == "GET":
-                response = requests.get(
-                    full_url, headers=headers, timeout=REQUEST_TIMEOUT
-                )
-            else:
-                response = requests.post(
-                    full_url, headers=headers, timeout=REQUEST_TIMEOUT
-                )
+            response = requests.request(
+                method, full_url, headers=headers, json=body, timeout=REQUEST_TIMEOUT
+            )
             end_time = time.perf_counter()
             response_times.append(end_time - start_time)
             status_codes.append(response.status_code)
@@ -367,11 +552,7 @@ def profile_endpoint_with_http(
             # Count objects in response (only from first successful request)
             if object_count is None and response.status_code == 200:
                 try:
-                    data = response.json()
-                    if isinstance(data, list):
-                        object_count = len(data)
-                    elif isinstance(data, dict) and "results" in data:
-                        object_count = len(data["results"])
+                    object_count = count_objects(response.json())
                 except Exception:
                     # Best-effort object counting: ignore JSON/structure issues so profiling can continue.
                     pass
@@ -502,21 +683,21 @@ def calculate_statistics(response_times: List[float], status_codes: List[int]) -
 def print_results_table(results: List[Dict]):
     """Print profiling results in a formatted table."""
     click.echo()
-    click.echo("=" * 105)
+    click.echo("=" * 110)
     click.echo("PROFILING RESULTS")
-    click.echo("=" * 105)
+    click.echo("=" * 110)
     click.echo()
     click.echo(
-        f"{'Endpoint':<25} {'Objects':<9} {'Median (ms)':<12} {'Mean (ms)':<12} {'Std Dev':<10} {'Min (ms)':<10} {'Max (ms)':<10}"
+        f"{'Endpoint':<30} {'Objects':<9} {'Median (ms)':<12} {'Mean (ms)':<12} {'Std Dev':<10} {'Min (ms)':<10} {'Max (ms)':<10}"
     )
-    click.echo("-" * 105)
+    click.echo("-" * 110)
 
     for result in results:
         status_marker = "✓" if result["all_success"] else "✗"
         obj_count = result.get("object_count")
         obj_str = str(obj_count) if obj_count is not None else "-"
         click.echo(
-            f"{status_marker} {result['name']:<23} "
+            f"{status_marker} {result['name']:<28} "
             f"{obj_str:<9} "
             f"{result['median_ms']:<12.2f} {result['mean_ms']:<12.2f} "
             f"{result['stddev_ms']:<10.2f} {result['min_ms']:<10.2f} {result['max_ms']:<10.2f}"
@@ -621,7 +802,14 @@ def run_profiler(
         click.echo()
 
     # Get list of endpoints to profile
-    endpoints = get_default_endpoints(default_person_gramps_id)
+    latest_transaction_id = get_latest_transaction_id(client, headers, url)
+    if latest_transaction_id is None:
+        click.echo("Warning: Could not fetch latest transaction ID")
+        click.echo()
+    endpoints = get_default_endpoints(
+        default_person_gramps_id, default_person_handle, latest_transaction_id
+    )
+    endpoints.extend(get_query_endpoints())
 
     click.echo(
         f"Profiling {len(endpoints)} endpoints with {iterations} iterations each..."
@@ -634,9 +822,16 @@ def run_profiler(
     for endpoint in endpoints:
         click.echo(f"Profiling: {endpoint['name']}...", nl=False)
 
+        body = endpoint.get("json")
         if url:
             response_times, status_codes, object_count = profile_endpoint_with_http(
-                url, headers, endpoint["method"], endpoint["path"], iterations, warmup
+                url,
+                headers,
+                endpoint["method"],
+                endpoint["path"],
+                iterations,
+                warmup,
+                body,
             )
         else:
             response_times, status_codes, object_count = (
@@ -647,6 +842,7 @@ def run_profiler(
                     endpoint["path"],
                     iterations,
                     warmup,
+                    body,
                 )
             )
 
@@ -657,6 +853,7 @@ def run_profiler(
             "name": endpoint["name"],
             "method": endpoint["method"],
             "path": endpoint["path"],
+            "json": body,
             "iterations": iterations,
             "status_codes": status_codes,
             "object_count": object_count,
