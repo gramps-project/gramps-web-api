@@ -34,3 +34,6 @@ Multi-tree mode becomes the default and single-tree mode goes away
 | `EMAIL_USE_TLS` | `EMAIL_USE_SSL` / `EMAIL_USE_STARTTLS` |
 | `GET /api/token/create_owner/` | `POST` on same endpoint |
 | `tree` arg on `GET /api/oidc/login/` | Tree selection after login |
+
+Support for the `PostgreSQL` backend will be dropped in 4.0, because it is not compatible with multi-tree mode. Note that both the `SharedPostgreSQL` and `SQLite` backends will continue to be fully
+supported.
