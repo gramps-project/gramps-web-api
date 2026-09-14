@@ -36,13 +36,8 @@ REQUEST_TIMEOUT = 120
 QUERY_PAGE_SIZE = 1000
 
 
-def _json_path(path: List[str], alias: str) -> Dict[str, Any]:
-    """Build a json_path select entry for a /query/ request body."""
-    return {"json_path": path, "as": alias}
-
-
 # Select and sort per object type for the /query/ endpoint profiles, mixing flat
-# columns with json_path lookups into related objects.
+# columns with dotted paths into nested fields and related objects.
 QUERY_VIEWS: Dict[str, Dict[str, Any]] = {
     "People": {
         "path": "/api/people/query/",
@@ -50,11 +45,11 @@ QUERY_VIEWS: Dict[str, Dict[str, Any]] = {
             "gramps_id",
             "surname",
             "given_name",
-            _json_path(["birth", "date"], "birth_date"),
-            _json_path(["death", "date"], "death_date"),
+            "birth.date as birth_date",
+            "death.date as death_date",
             "change",
-            _json_path(["event_ref_list"], "event_refs"),
-            _json_path(["family_list"], "family_list"),
+            "event_ref_list as event_refs",
+            "family_list",
         ],
         "order_by": [
             {"column": "surname", "direction": "asc"},
@@ -65,10 +60,10 @@ QUERY_VIEWS: Dict[str, Dict[str, Any]] = {
         "path": "/api/families/query/",
         "select": [
             "gramps_id",
-            _json_path(["father", "primary_name"], "father_name"),
-            _json_path(["mother", "primary_name"], "mother_name"),
+            "father.primary_name as father_name",
+            "mother.primary_name as mother_name",
             "change",
-            _json_path(["event_ref_list"], "event_refs"),
+            "event_ref_list as event_refs",
             "father_handle",
             "mother_handle",
         ],
@@ -78,11 +73,11 @@ QUERY_VIEWS: Dict[str, Dict[str, Any]] = {
         "path": "/api/events/query/",
         "select": [
             "gramps_id",
-            _json_path(["type"], "event_type"),
+            "type as event_type",
             "description",
-            _json_path(["date"], "date"),
-            _json_path(["place", "title"], "place_title"),
-            _json_path(["place", "name"], "place_name"),
+            "date",
+            "place.title as place_title",
+            "place.name as place_name",
             "place",
             "change",
         ],
