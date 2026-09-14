@@ -56,7 +56,7 @@ from .delete import delete_object, remove_deleted_from_search_indices
 from .emit import GrampsJSONEncoder
 from .filters import apply_filter
 from .match import match_dates
-from .sort import sort_objects
+from .sort import sort_handles_by_raw_data, sort_objects
 from .util import (
     abort_with_message,
     add_object,
@@ -614,21 +614,63 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                     pass
             return self.response(200, objects, args, total_items=len(objects))
 
+        query_method = self.db_handle.method("get_%s_handles", self.gramps_class_name)
+        assert query_method is not None  # type checker
+        # for all objects except events, repos, and notes, Gramps supports
+        # a database-backed default sort order. Use that if no sort order
+        # requested.
+        sort_by_default = self.gramps_class_name not in ["Event", "Repository", "Note"]
+
+        # if a single page is requested and no filtering is needed, try to sort
+        # the handles without loading all objects to memory
+        if args["page"] > 0 and not (
+            "filter" in args
+            or "rules" in args
+            or "gql" in args
+            or "oql" in args
+            or args["dates"]
+            or (self.gramps_class_name == "Media" and args.get("filemissing"))
+        ):
+            if "sort" in args:
+                # the database-backed default sort order is expensive and
+                # not needed here since the requested sort order replaces it
+                sorted_handles = sort_handles_by_raw_data(
+                    self.db_handle,
+                    self.gramps_class_name,
+                    query_method(),
+                    args["sort"],
+                    locale=locale,
+                )
+            elif sort_by_default:
+                sorted_handles = query_method(sort_handles=True, locale=locale)
+            else:
+                sorted_handles = query_method()
+            if sorted_handles is not None:
+                offset = (args["page"] - 1) * args["pagesize"]
+                page_handles = sorted_handles[offset : offset + args["pagesize"]]
+                return self.response(
+                    200,
+                    [
+                        self.full_object(
+                            self.get_object_from_handle(handle), args, locale=locale
+                        )
+                        for handle in page_handles
+                    ],
+                    args,
+                    total_items=len(sorted_handles),
+                )
+
+        if sort_by_default:
+            handles = query_method(sort_handles=True, locale=locale)
+        else:
+            handles = query_method()
+
         # load all objects to memory
         objects_name = GRAMPS_OBJECT_PLURAL[self.gramps_class_name]
         iter_objects_method = self.db_handle.method("iter_%s", objects_name)
         assert iter_objects_method is not None  # type checker
         objects = list(iter_objects_method())
 
-        # for all objects except events, repos, and notes, Gramps supports
-        # a database-backed default sort order. Use that if no sort order
-        # requested.
-        query_method = self.db_handle.method("get_%s_handles", self.gramps_class_name)
-        assert query_method is not None  # type checker
-        if self.gramps_class_name in ["Event", "Repository", "Note"]:
-            handles = query_method()
-        else:
-            handles = query_method(sort_handles=True, locale=locale)
         handle_index = {handle: index for index, handle in enumerate(handles)}
         # sort objects by the sorted handle order
         objects = sorted(

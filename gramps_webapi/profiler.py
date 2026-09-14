@@ -231,6 +231,12 @@ def get_default_endpoints(
                 "path": "/api/people/?locale=de&profile=self&keys=gramps_id,profile,change&page=1&pagesize=50",
             },
             {
+                # same request as the Gramps Web people view with its default sort
+                "name": "People List (Web)",
+                "method": "GET",
+                "path": "/api/people/?locale=de&profile=self&keys=gramps_id,profile,change,handle&page=1&pagesize=24&sort=-change",
+            },
+            {
                 "name": "Events by Date",
                 "method": "GET",
                 "path": "/api/events/?dates=*/6/*&profile=all&sort=-date&locale=en&pagesize=10&page=1",
