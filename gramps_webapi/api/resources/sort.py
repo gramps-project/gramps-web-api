@@ -22,14 +22,16 @@
 
 """Sorting support."""
 
-from typing import List
+from typing import Any, Callable, Dict, List, Optional
 
 from flask import abort
 from gramps.gen.const import GRAMPS_LOCALE as glocale
+from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP
 from gramps.gen.display.name import NameDisplay
 from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.lib import Date
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
+from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps.gen.soundex import soundex
 from gramps.gen.utils.db import get_birth_or_fallback, get_death_or_fallback
 
@@ -304,3 +306,65 @@ def sort_objects(
             abort(422)
         objects.sort(key=lookup[sort_key], reverse=reverse)
     return objects
+
+
+def get_raw_sort_key_functions(
+    gramps_class_name: str, locale=glocale
+) -> Dict[str, Callable[[Any], Any]]:
+    """Get the sort key functions that only need an object's raw data.
+
+    Each function must return the same key as the corresponding `Sort` method
+    used by `sort_objects`.
+    """
+    if gramps_class_name == "Tag":
+        return {"change": lambda data: data["change"]}
+    return {
+        "gramps_id": lambda data: locale.sort_key(data["gramps_id"]),
+        "change": lambda data: data["change"],
+        "private": lambda data: int(data["private"]),
+    }
+
+
+def sort_handles_by_raw_data(
+    db_handle, gramps_class_name: str, handles: List[str], args, locale=glocale
+) -> Optional[List[str]]:
+    """Sort a given list of handles without instantiating the objects.
+
+    Uses the same sort keys as `sort_objects`, but objects with equal sort keys
+    are ordered by handle rather than keeping their order in `handles`, so the
+    result does not depend on the order of `handles`. Handles without raw data
+    (e.g. objects deleted after `handles` was fetched) are omitted.
+
+    Returns None if any of the sort keys requires the full objects or if the
+    raw data is not JSON data (e.g. for a database with an outdated schema).
+    """
+    key_functions = get_raw_sort_key_functions(gramps_class_name, locale=locale)
+    sort_keys = []
+    for sort_key in args:
+        sort_key = sort_key.strip()
+        reverse = False
+        if sort_key[:1] == "-":
+            reverse = True
+            sort_key = sort_key[1:]
+        if sort_key not in key_functions:
+            return None
+        sort_keys.append((sort_key, reverse))
+    names = list(dict.fromkeys(name for name, _ in sort_keys))
+    # read the raw data from the base database if proxied. This is fine since
+    # `handles` only contains handles of objects included by the proxy and
+    # the sort keys are not changed by the (private) proxy.
+    if isinstance(db_handle, ProxyDbBase):
+        db_handle = db_handle.basedb
+    obj_key = CLASS_TO_KEY_MAP[gramps_class_name]
+    values: Dict[str, Dict[str, Any]] = {name: {} for name in names}
+    raw_handles = set()
+    for handle, data in db_handle._iter_raw_data(obj_key):
+        if not isinstance(data, dict):
+            return None
+        raw_handles.add(handle)
+        for name in names:
+            values[name][handle] = key_functions[name](data)
+    handles = sorted(handle for handle in handles if handle in raw_handles)
+    for sort_key, reverse in sort_keys:
+        handles.sort(key=values[sort_key].__getitem__, reverse=reverse)
+    return handles
