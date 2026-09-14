@@ -508,7 +508,9 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
             abort_with_message(
                 HTTPStatus.FORBIDDEN, "Cannot write to a private proxy database"
             )
-        return ModifiedPrivateProxyDb(g.db)
+        # g.db was opened with view_private=False, so it is a private proxy
+        # database already and must not be wrapped again
+        return g.db
 
     if not readonly and "db_write" not in g:
         # cache the DbState instance for the duration of
