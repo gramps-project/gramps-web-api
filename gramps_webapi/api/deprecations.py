@@ -96,9 +96,12 @@ def check_deprecations(
             _deprecation(
                 "SEARCH_INDEX_DIR",
                 "SEARCH_INDEX_DB_URI",
+                # the configured directory is deliberately not interpolated here:
+                # the message is exposed via the API, so it must not disclose a
+                # server filesystem path
                 "The `SEARCH_INDEX_DIR` config option is deprecated. Please use"
                 " `SEARCH_INDEX_DB_URI` instead, e.g. setting it to"
-                f" `sqlite:///{config['SEARCH_INDEX_DIR']}/search_index.db`.",
+                " `sqlite:///<search index directory>/search_index.db`.",
             )
         )
     if (

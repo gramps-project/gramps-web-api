@@ -36,6 +36,19 @@ def test_customized_search_index_dir_is_flagged():
     ]
 
 
+def test_deprecations_do_not_disclose_config_values():
+    """Deprecations are exposed via the API, so they must only name options."""
+    config = {
+        **DEFAULTS,
+        "SEARCH_INDEX_DIR": "/data/index",
+        "DEFAULT_FROM_EMAIL": "gramps@example.com",
+    }
+    environ = {"POSTGRES_PASSWORD": "s3cret"}
+    for deprecation in check_deprecations(config, environ=environ):
+        for value in ["/data/index", "gramps@example.com", "s3cret"]:
+            assert value not in deprecation["message"], deprecation["option"]
+
+
 def test_email_use_tls_only_flagged_if_email_configured():
     assert check_deprecations(DEFAULTS, environ={}) == []
     config = {**DEFAULTS, "DEFAULT_FROM_EMAIL": "gramps@example.com"}
