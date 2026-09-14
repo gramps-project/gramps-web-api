@@ -648,16 +648,19 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             if sorted_handles is not None:
                 offset = (args["page"] - 1) * args["pagesize"]
                 page_handles = sorted_handles[offset : offset + args["pagesize"]]
+                objects = []
+                for handle in page_handles:
+                    try:
+                        obj = self.get_object_from_handle(handle)
+                    except HandleError:
+                        # object was deleted after the handles were fetched
+                        continue
+                    if obj is None:
+                        # object is no longer included by a proxy database
+                        continue
+                    objects.append(self.full_object(obj, args, locale=locale))
                 return self.response(
-                    200,
-                    [
-                        self.full_object(
-                            self.get_object_from_handle(handle), args, locale=locale
-                        )
-                        for handle in page_handles
-                    ],
-                    args,
-                    total_items=len(sorted_handles),
+                    200, objects, args, total_items=len(sorted_handles)
                 )
 
         if sort_by_default:

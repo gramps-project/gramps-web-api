@@ -26,7 +26,11 @@ are broken by handle rather than by the default sort order.
 """
 
 import unittest
+from unittest.mock import patch
 
+from gramps.gen.errors import HandleError
+
+from gramps_webapi.api.resources.base import GrampsObjectResourceHelper
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 
 from . import BASE_URL, get_test_client
@@ -137,3 +141,23 @@ class TestPagingSort(unittest.TestCase):
             f"{BASE_URL}/tags/?sort=gramps_id&page=1&pagesize=5", headers=header
         )
         self.assertEqual(rv.status_code, 422)
+
+    def test_object_deleted_while_loading_page(self):
+        """Test objects deleted after sorting the handles are skipped."""
+        header = fetch_header(self.client)
+        url = f"{BASE_URL}/people/?keys=handle&sort=-change&page=1&pagesize=5"
+        # different keys, so the request below is not served from the cache
+        rv = self._get(url.replace("keys=handle", "keys=handle,change"), header)
+        handles = [obj["handle"] for obj in rv.json]
+        original = GrampsObjectResourceHelper.get_object_from_handle
+
+        def get_object_from_handle(resource, handle):
+            if handle == handles[0]:
+                raise HandleError(f"Handle {handle} not found")
+            return original(resource, handle)
+
+        with patch.object(
+            GrampsObjectResourceHelper, "get_object_from_handle", get_object_from_handle
+        ):
+            rv = self._get(url, header)
+        self.assertEqual([obj["handle"] for obj in rv.json], handles[1:])

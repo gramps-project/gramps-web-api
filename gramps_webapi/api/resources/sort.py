@@ -332,8 +332,11 @@ def sort_handles_by_raw_data(
 
     Uses the same sort keys as `sort_objects`, but objects with equal sort keys
     are ordered by handle rather than keeping their order in `handles`, so the
-    result does not depend on the order of `handles`. Returns None if any of
-    the sort keys requires the full objects.
+    result does not depend on the order of `handles`. Handles without raw data
+    (e.g. objects deleted after `handles` was fetched) are omitted.
+
+    Returns None if any of the sort keys requires the full objects or if the
+    raw data is not JSON data (e.g. for a database with an outdated schema).
     """
     key_functions = get_raw_sort_key_functions(gramps_class_name, locale=locale)
     sort_keys = []
@@ -354,10 +357,14 @@ def sort_handles_by_raw_data(
         db_handle = db_handle.basedb
     obj_key = CLASS_TO_KEY_MAP[gramps_class_name]
     values: Dict[str, Dict[str, Any]] = {name: {} for name in names}
+    raw_handles = set()
     for handle, data in db_handle._iter_raw_data(obj_key):
+        if not isinstance(data, dict):
+            return None
+        raw_handles.add(handle)
         for name in names:
             values[name][handle] = key_functions[name](data)
-    handles = sorted(handles)
+    handles = sorted(handle for handle in handles if handle in raw_handles)
     for sort_key, reverse in sort_keys:
         handles.sort(key=values[sort_key].__getitem__, reverse=reverse)
     return handles
