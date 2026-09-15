@@ -60,7 +60,7 @@ class TransactionsQueryArgs(Schema):
     background = fields.Boolean(
         load_default=False,
         metadata={
-            "description": "If true, apply the transactions in the background and return HTTP 202. Use this for anything but a few objects."
+        "description": "If true and Celery is configured, apply the transactions in the background and return HTTP 202. Use this for anything but a few objects.",
         },
     )
 
