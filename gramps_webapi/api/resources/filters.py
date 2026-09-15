@@ -263,13 +263,25 @@ def _validate_rule_parms(
     return rule_class, str_values
 
 
-def _validate_filter_parms(filter_parms: dict[str, Any], namespace: str) -> None:
-    """Validate all rules of a (possibly nested) filter spec before evaluating it."""
+def _validate_filter_parms(
+    filter_parms: dict[str, Any], namespace: str, depth: int = 0
+) -> None:
+    """Validate a (possibly nested) filter spec before evaluating it."""
+    if depth >= MAX_FILTER_DEPTH:
+        abort_with_message(400, "Filter nesting depth exceeded")
     for item in filter_parms["rules"]:
         if "name" in item:
             _validate_rule_parms(item, namespace)
-        else:
-            _validate_filter_parms(item, item.get("namespace", namespace))
+            continue
+        sub_namespace = item.get("namespace", namespace)
+        if (
+            sub_namespace != namespace
+            and (namespace, sub_namespace) not in _NAMESPACE_BRIDGES
+        ):
+            abort_with_message(
+                400, f"Unsupported namespace bridge: {namespace} → {sub_namespace}"
+            )
+        _validate_filter_parms(item, sub_namespace, depth + 1)
 
 
 def _build_rule_instance(rule_parms: dict[str, Any], namespace: str) -> Rule:
