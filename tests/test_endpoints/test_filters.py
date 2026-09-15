@@ -316,7 +316,7 @@ class TestFiltersPeopleSingleTree(unittest.TestCase):
         header = fetch_header(self.client)
         payload = {
             "name": "InvalidValuesTestFilter",
-            "rules": [{"name": "HasTag", "values": ["ToDo", "extra"]}],
+            "rules": [{"name": "HasTag", "values": [{"a": 1}]}],
         }
         rv = self.client.post(TEST_URL + "people", json=payload, headers=header)
         self.assertEqual(rv.status_code, 422)
@@ -728,12 +728,12 @@ class TestNestedFilters(unittest.TestCase):
         )
         assert "HasTextMatchingRegexpOf could not be evaluated" in message
 
-    def test_too_many_values_returns_422(self):
-        """A rule with more values than labels is rejected."""
-        message = self._filter_error(
+    def test_extra_values_are_ignored(self):
+        """Values beyond the rule's labels are ignored, as Gramps does."""
+        handles = self._get_handles(
             {"rules": [{"name": "MatchIdOf", "values": [self.special_id, "extra"]}]}
         )
-        assert "MatchIdOf expects at most 1 values" in message
+        assert handles == {self.handle_dna_and_id}
 
     def test_missing_values_returns_422(self):
         """A rule that requires values but has none returns 422 when evaluated."""
@@ -770,11 +770,11 @@ class TestNestedFilters(unittest.TestCase):
             {
                 "rules": [
                     {"name": "MatchIdOf", "values": [self.special_id]},
-                    {"rules": [{"name": "HasBirth", "values": ["", "", "", "x"]}]},
+                    {"rules": [{"name": "HasBirth", "values": [{"a": 1}, "", ""]}]},
                 ]
             }
         )
-        assert "HasBirth expects at most 3 values" in message
+        assert "HasBirth values must be strings, numbers or booleans" in message
 
 
 class TestExcludedRules(unittest.TestCase):
