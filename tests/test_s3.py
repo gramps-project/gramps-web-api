@@ -25,7 +25,7 @@ from unittest.mock import patch
 
 import boto3
 import pytest
-from moto import mock_s3
+from moto import mock_aws
 
 from gramps_webapi.api.media import MediaHandler
 from gramps_webapi.api.s3 import get_object_keys_size
@@ -39,7 +39,7 @@ URL_PREFIX = f"s3://{BUCKET}/mytree"
 
 @pytest.fixture
 def bucket():
-    with mock_s3():
+    with mock_aws():
         res = boto3.resource("s3", region_name="us-east-1")
         res.create_bucket(Bucket=BUCKET)
         yield

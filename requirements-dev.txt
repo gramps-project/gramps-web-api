@@ -6,5 +6,5 @@ mypy
 pydocstyle
 pre-commit
 celery[pytest]
-moto[s3]<5.0.0
+moto[s3]>=5
 PyYAML
