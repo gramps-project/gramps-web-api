@@ -817,22 +817,24 @@ def _index_objects(
     trans_dict: list[dict],
     db_handle: DbReadBase,
 ) -> None:
-    """Apply every record of a transaction to one search index.
+    """Bring every object touched by a transaction up to date in one search index.
+
+    Each object is indexed or removed according to whether it currently exists
+    in the database, not according to the record type: tasks for the same tree
+    can run out of order, and a transaction can delete an object and add it
+    back, so replaying the records would leave the index stale.
 
     The whole transaction shares a single task, so an object that cannot be
     indexed must not abort the loop: nothing retries this task, and every
     object after the failing one would silently stay out of the index.
     """
-    for _trans_dict in trans_dict:
-        handle = _trans_dict["handle"]
-        class_name = _trans_dict["_class"]
+    objects = dict.fromkeys((item["handle"], item["_class"]) for item in trans_dict)
+    for handle, class_name in objects:
         try:
-            # `type` is absent from the entry a merge builds by hand, which
-            # only ever needs re-indexing
-            if _trans_dict.get("type") == "delete":
-                indexer.delete_object(handle, class_name)
-            else:
+            if db_handle.method("has_%s_handle", class_name)(handle):
                 indexer.add_or_update_object(handle, db_handle, class_name)
+            else:
+                indexer.delete_object(handle, class_name)
         except Exception:
             # handle and class name are identifiers rather than tree data,
             # so they are safe to log and are needed to find the object.

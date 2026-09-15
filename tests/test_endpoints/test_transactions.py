@@ -460,6 +460,50 @@ class TestTransactionResource(unittest.TestCase):
         rv = self.client.get(f"/api/notes/{handle}", headers=headers)
         self.assertEqual(rv.status_code, 200)
 
+    def test_foreground_delete_then_add_keeps_object_in_search_index(self):
+        """A raw transaction that deletes an object and adds it back must leave
+        the object indexed, since it still exists in the database."""
+        handle = make_handle()
+        gramps_id = make_handle().replace("-", "")
+        gramps_id_new = make_handle().replace("-", "")
+        obj = {
+            "_class": "Note",
+            "handle": handle,
+            "text": {"_class": "StyledText", "string": "Delete then add test."},
+            "gramps_id": gramps_id,
+        }
+        headers = get_headers(self.client, "editor", "123")
+        trans = [
+            {"type": "add", "_class": "Note", "handle": handle, "old": None, "new": obj}
+        ]
+        rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        obj_new = deepcopy(obj)
+        obj_new["gramps_id"] = gramps_id_new
+        trans = [
+            {
+                "type": "delete",
+                "_class": "Note",
+                "handle": handle,
+                "old": obj,
+                "new": None,
+            },
+            {
+                "type": "add",
+                "_class": "Note",
+                "handle": handle,
+                "old": None,
+                "new": obj_new,
+            },
+        ]
+        # without a task queue, the index update runs inline
+        rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        rv = self.client.get(f"/api/search/?query={gramps_id_new}", headers=headers)
+        self.assertEqual([hit["handle"] for hit in rv.json], [handle])
+        rv = self.client.get(f"/api/search/?query={gramps_id}", headers=headers)
+        self.assertEqual(rv.json, [])
+
     def test_transaction_message_default(self):
         """Default message 'Raw transaction' is stored in the undo log."""
         handle = make_handle()

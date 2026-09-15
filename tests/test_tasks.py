@@ -55,26 +55,38 @@ def test_index_objects_keeps_going_after_a_failure(caplog):
     assert caplog.records[0].exc_info is not None
 
 
-def test_index_objects_applies_deletes_and_updates():
-    """A transaction record says which of the two actions the index needs."""
+def test_index_objects_follows_the_database_not_the_record_type():
+    """Whether an object exists now decides between indexing and removal, so
+    stale or reordered records still leave the index matching the database."""
     indexer = MagicMock()
     db_handle = MagicMock()
+    existing = {("bbbb2222", "event"), ("cccc3333", "family"), ("dddd4444", "note")}
+    db_handle.method.side_effect = lambda fmt, class_name: (
+        lambda handle: (handle, class_name.lower()) in existing
+    )
 
     _index_objects(
         indexer,
         [
-            {"handle": "aaaa1111", "_class": "Person", "type": "delete"},
-            {"handle": "bbbb2222", "_class": "Event", "type": "update"},
+            # deleted, but a later task already saw it as updated
+            {"handle": "aaaa1111", "_class": "Person", "type": "update"},
+            # deleted and added back within the same transaction
+            {"handle": "bbbb2222", "_class": "Event", "type": "delete"},
+            {"handle": "bbbb2222", "_class": "Event", "type": "add"},
             # the entry a merge builds by hand carries no type at all
             {"handle": "cccc3333", "_class": "Family"},
+            # a stale delete record for an object that exists again
+            {"handle": "dddd4444", "_class": "Note", "type": "delete"},
         ],
         db_handle,
     )
 
     indexer.delete_object.assert_called_once_with("aaaa1111", "Person")
+    # each object once, in order of first appearance
     assert [call.args for call in indexer.add_or_update_object.call_args_list] == [
         ("bbbb2222", db_handle, "Event"),
         ("cccc3333", db_handle, "Family"),
+        ("dddd4444", db_handle, "Note"),
     ]
 
 
