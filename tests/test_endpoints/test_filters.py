@@ -311,6 +311,39 @@ class TestFiltersPeopleSingleTree(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 403)
 
+    def test_filter_create_rejects_invalid_rule_values(self):
+        """Test that a custom filter with invalid rule values is not saved."""
+        header = fetch_header(self.client)
+        payload = {
+            "name": "InvalidValuesTestFilter",
+            "rules": [{"name": "HasTag", "values": [{"a": 1}]}],
+        }
+        rv = self.client.post(TEST_URL + "people", json=payload, headers=header)
+        self.assertEqual(rv.status_code, 422)
+        rv = self.client.get(
+            TEST_URL + "people/InvalidValuesTestFilter", headers=header
+        )
+        self.assertEqual(rv.status_code, 404)
+
+    def test_saved_filter_with_unparsable_value_returns_422(self):
+        """Test that applying a saved filter whose rule cannot be evaluated returns 422."""
+        header = fetch_header(self.client)
+        name = "UnparsableValueTestFilter"
+        payload = {
+            "name": name,
+            "rules": [{"name": "HasAddress", "values": ["x", "y"]}],
+        }
+        rv = self.client.post(TEST_URL + "people", json=payload, headers=header)
+        self.assertEqual(rv.status_code, 201)
+        try:
+            rv = self.client.get(BASE_URL + "/people/?filter=" + name, headers=header)
+            self.assertEqual(rv.status_code, 422)
+            self.assertIn(
+                f"Filter {name} could not be evaluated", rv.json["error"]["message"]
+            )
+        finally:
+            self.client.delete(TEST_URL + "people/" + name, headers=header)
+
 
 def make_handle() -> str:
     """Make a new valid handle."""
@@ -571,26 +604,30 @@ class TestNestedFilters(unittest.TestCase):
         # Rule 1: HasAssociationType=DNA  → matches handle_dna and handle_dna_and_id
         # Rule 2: MatchIdOf=special_id    → matches handle_dna_and_id only
         # OR result should include both DNA handles.
-        result = self._get_handles({
-            "function": "or",
-            "rules": [
-                {"name": "HasAssociationType", "values": ["DNA"]},
-                {"name": "MatchIdOf", "values": [self.special_id]},
-            ],
-        })
+        result = self._get_handles(
+            {
+                "function": "or",
+                "rules": [
+                    {"name": "HasAssociationType", "values": ["DNA"]},
+                    {"name": "MatchIdOf", "values": [self.special_id]},
+                ],
+            }
+        )
         assert self.handle_dna in result
         assert self.handle_dna_and_id in result
         assert self.handle_no_dna not in result
 
     def test_and_nested_filter(self):
         """AND composition: HasAssociationType=DNA AND MatchIdOf=special_id."""
-        result = self._get_handles({
-            "function": "and",
-            "rules": [
-                {"name": "HasAssociationType", "values": ["DNA"]},
-                {"name": "MatchIdOf", "values": [self.special_id]},
-            ],
-        })
+        result = self._get_handles(
+            {
+                "function": "and",
+                "rules": [
+                    {"name": "HasAssociationType", "values": ["DNA"]},
+                    {"name": "MatchIdOf", "values": [self.special_id]},
+                ],
+            }
+        )
         # Only handle_dna_and_id satisfies both
         assert self.handle_dna_and_id in result
         assert self.handle_dna not in result
@@ -602,16 +639,18 @@ class TestNestedFilters(unittest.TestCase):
         #   - leaf: MatchIdOf=special_id              → only handle_dna_and_id
         #   - sub-filter OR: HasAssociationType=DNA   → handle_dna and handle_dna_and_id
         # AND of the two → only handle_dna_and_id
-        result = self._get_handles({
-            "function": "and",
-            "rules": [
-                {"name": "MatchIdOf", "values": [self.special_id]},
-                {
-                    "function": "or",
-                    "rules": [{"name": "HasAssociationType", "values": ["DNA"]}],
-                },
-            ],
-        })
+        result = self._get_handles(
+            {
+                "function": "and",
+                "rules": [
+                    {"name": "MatchIdOf", "values": [self.special_id]},
+                    {
+                        "function": "or",
+                        "rules": [{"name": "HasAssociationType", "values": ["DNA"]}],
+                    },
+                ],
+            }
+        )
         assert self.handle_dna_and_id in result
         assert self.handle_dna not in result
         assert self.handle_no_dna not in result
@@ -622,29 +661,151 @@ class TestNestedFilters(unittest.TestCase):
         #   - leaf: HasAssociationType=DNA              → handle_dna, handle_dna_and_id
         #   - sub-filter OR + invert: NOT MatchIdOf     → everyone except handle_dna_and_id
         # AND → handle_dna only
-        result = self._get_handles({
-            "function": "and",
-            "rules": [
-                {"name": "HasAssociationType", "values": ["DNA"]},
-                {
-                    "function": "or",
-                    "invert": True,
-                    "rules": [{"name": "MatchIdOf", "values": [self.special_id]}],
-                },
-            ],
-        })
+        result = self._get_handles(
+            {
+                "function": "and",
+                "rules": [
+                    {"name": "HasAssociationType", "values": ["DNA"]},
+                    {
+                        "function": "or",
+                        "invert": True,
+                        "rules": [{"name": "MatchIdOf", "values": [self.special_id]}],
+                    },
+                ],
+            }
+        )
         assert self.handle_dna in result
         assert self.handle_dna_and_id not in result
 
     def test_invalid_rule_name_returns_404(self):
         """Unknown rule name in a nested filter returns 404."""
-        assert self._filter_status(
-            {"rules": [{"name": "NonExistentRuleXYZ", "values": []}]}
-        ) == 404
+        assert (
+            self._filter_status(
+                {"rules": [{"name": "NonExistentRuleXYZ", "values": []}]}
+            )
+            == 404
+        )
 
     def test_missing_name_and_rules_returns_422(self):
         """A rules item with neither 'name' nor 'rules' fails schema validation."""
         assert self._filter_status({"rules": [{"values": ["something"]}]}) == 422
+
+    def _filter_error(self, filter_dict: dict) -> str:
+        import json as _json
+
+        headers = fetch_header(self.client)
+        rv = self.client.get(
+            "/api/people/",
+            query_string={"rules": _json.dumps(filter_dict, separators=(",", ":"))},
+            headers=headers,
+        )
+        assert rv.status_code == 422
+        return rv.json["error"]["message"]
+
+    def test_too_few_values_returns_422(self):
+        """A rule that needs more values than given returns 422 when evaluated."""
+        message = self._filter_error(
+            {"rules": [{"name": "HasBirth", "values": ["1900"]}]}
+        )
+        assert "HasBirth could not be evaluated" in message
+
+    def test_rule_with_defaults_accepts_missing_values(self):
+        """Rules that define defaults for missing values still work without them."""
+        self._get_handles({"rules": [{"name": "HasNote"}]})
+
+    def test_invalid_regex_returns_422(self):
+        """An invalid regular expression returns 422 naming the rule."""
+        message = self._filter_error(
+            {
+                "rules": [
+                    {
+                        "name": "HasTextMatchingRegexpOf",
+                        "values": ["(", "0"],
+                        "regex": True,
+                    }
+                ]
+            }
+        )
+        assert "HasTextMatchingRegexpOf could not be evaluated" in message
+
+    def test_extra_values_are_ignored(self):
+        """Values beyond the rule's labels are ignored, as Gramps does."""
+        handles = self._get_handles(
+            {"rules": [{"name": "MatchIdOf", "values": [self.special_id, "extra"]}]}
+        )
+        assert handles == {self.handle_dna_and_id}
+
+    def test_non_scalar_extra_value_returns_422(self):
+        """Extra values are type-checked even though they are ignored."""
+        message = self._filter_error(
+            {"rules": [{"name": "MatchIdOf", "values": [self.special_id, {"a": 1}]}]}
+        )
+        assert "strings, numbers or booleans" in message
+
+    def test_missing_values_returns_422(self):
+        """A rule that requires values but has none returns 422 when evaluated."""
+        self._filter_error({"rules": [{"name": "MatchIdOf"}]})
+
+    def test_non_scalar_value_returns_422(self):
+        """A rule value that is not a string, number or boolean is rejected."""
+        message = self._filter_error(
+            {"rules": [{"name": "MatchIdOf", "values": [{"a": 1}]}]}
+        )
+        assert "strings, numbers or booleans" in message
+
+    def test_numeric_value_is_coerced(self):
+        """Numeric rule values are converted to strings."""
+        rule = "IsLessThanNthGenerationAncestorOf"
+        as_int = self._get_handles(
+            {"rules": [{"name": rule, "values": [self.special_id, 2]}]}
+        )
+        as_str = self._get_handles(
+            {"rules": [{"name": rule, "values": [self.special_id, "2"]}]}
+        )
+        assert as_int == as_str == {self.handle_dna_and_id}
+
+    def test_unparsable_value_returns_422(self):
+        """A value the rule cannot parse returns 422 naming the rule."""
+        message = self._filter_error(
+            {"rules": [{"name": "HasAddress", "values": ["x", "y"]}]}
+        )
+        assert "HasAddress could not be evaluated" in message
+
+    def test_invalid_values_in_sub_filter_returns_422(self):
+        """Rule values in nested sub-filters are validated before evaluation."""
+        message = self._filter_error(
+            {
+                "rules": [
+                    {"name": "MatchIdOf", "values": [self.special_id]},
+                    {"rules": [{"name": "HasBirth", "values": [{"a": 1}, "", ""]}]},
+                ]
+            }
+        )
+        assert "HasBirth values must be strings, numbers or booleans" in message
+
+
+class TestExcludedRules(unittest.TestCase):
+    """Rules that cannot work in their namespace are not exposed."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = get_test_client()
+
+    def test_repository_has_attribute_not_listed(self):
+        """Repository.HasAttribute is neither listed nor applicable."""
+        headers = fetch_header(self.client)
+        rv = self.client.get(
+            TEST_URL + "repositories?rules=HasAttribute", headers=headers
+        )
+        assert rv.status_code == 404
+        rv = self.client.get(
+            "/api/repositories/",
+            query_string={
+                "rules": '{"rules":[{"name":"HasAttribute","values":["a","b"]}]}'
+            },
+            headers=headers,
+        )
+        assert rv.status_code == 404
 
 
 class TestCrossNamespaceFilters(unittest.TestCase):
@@ -718,7 +879,11 @@ class TestCrossNamespaceFilters(unittest.TestCase):
                 "_class": "Person",
                 "handle": cls.person_handle,
                 "event_ref_list": [
-                    {"_class": "EventRef", "ref": cls.event_handle, "role": {"_class": "EventRoleType", "string": "Primary"}}
+                    {
+                        "_class": "EventRef",
+                        "ref": cls.event_handle,
+                        "role": {"_class": "EventRoleType", "string": "Primary"},
+                    }
                 ],
             },
             headers=headers,
@@ -732,7 +897,11 @@ class TestCrossNamespaceFilters(unittest.TestCase):
                 "_class": "Person",
                 "handle": cls.person_no_match_handle,
                 "event_ref_list": [
-                    {"_class": "EventRef", "ref": cls.other_event_handle, "role": {"_class": "EventRoleType", "string": "Primary"}}
+                    {
+                        "_class": "EventRef",
+                        "ref": cls.other_event_handle,
+                        "role": {"_class": "EventRoleType", "string": "Primary"},
+                    }
                 ],
             },
             headers=headers,
@@ -746,7 +915,11 @@ class TestCrossNamespaceFilters(unittest.TestCase):
                 "_class": "Family",
                 "handle": cls.family_handle,
                 "event_ref_list": [
-                    {"_class": "EventRef", "ref": cls.event_handle, "role": {"_class": "EventRoleType", "string": "Family"}}
+                    {
+                        "_class": "EventRef",
+                        "ref": cls.event_handle,
+                        "role": {"_class": "EventRoleType", "string": "Family"},
+                    }
                 ],
             },
             headers=headers,
@@ -760,7 +933,11 @@ class TestCrossNamespaceFilters(unittest.TestCase):
                 "_class": "Family",
                 "handle": cls.family_no_match_handle,
                 "event_ref_list": [
-                    {"_class": "EventRef", "ref": cls.other_event_handle, "role": {"_class": "EventRoleType", "string": "Family"}}
+                    {
+                        "_class": "EventRef",
+                        "ref": cls.other_event_handle,
+                        "role": {"_class": "EventRoleType", "string": "Family"},
+                    }
                 ],
             },
             headers=headers,
@@ -785,6 +962,7 @@ class TestCrossNamespaceFilters(unittest.TestCase):
 
     def _query(self, endpoint: str, filter_dict: dict) -> tuple[int, set]:
         import json as _json
+
         headers = fetch_header(self.client)
         rv = self.client.get(
             endpoint,
@@ -792,9 +970,7 @@ class TestCrossNamespaceFilters(unittest.TestCase):
             headers=headers,
         )
         handles = (
-            {obj["handle"] for obj in rv.json}
-            if isinstance(rv.json, list)
-            else set()
+            {obj["handle"] for obj in rv.json} if isinstance(rv.json, list) else set()
         )
         return rv.status_code, handles
 
@@ -803,10 +979,12 @@ class TestCrossNamespaceFilters(unittest.TestCase):
         status, handles = self._query(
             "/api/events/",
             {
-                "rules": [{
-                    "namespace": "Place",
-                    "rules": [{"name": "HasTitle", "values": ["XNS_TestPlace"]}],
-                }]
+                "rules": [
+                    {
+                        "namespace": "Place",
+                        "rules": [{"name": "HasTitle", "values": ["XNS_TestPlace"]}],
+                    }
+                ]
             },
         )
         assert status == 200
@@ -818,13 +996,19 @@ class TestCrossNamespaceFilters(unittest.TestCase):
         status, handles = self._query(
             "/api/people/",
             {
-                "rules": [{
-                    "namespace": "Event",
-                    "rules": [{
-                        "namespace": "Place",
-                        "rules": [{"name": "HasTitle", "values": ["XNS_TestPlace"]}],
-                    }],
-                }]
+                "rules": [
+                    {
+                        "namespace": "Event",
+                        "rules": [
+                            {
+                                "namespace": "Place",
+                                "rules": [
+                                    {"name": "HasTitle", "values": ["XNS_TestPlace"]}
+                                ],
+                            }
+                        ],
+                    }
+                ]
             },
         )
         assert status == 200
@@ -836,13 +1020,19 @@ class TestCrossNamespaceFilters(unittest.TestCase):
         status, handles = self._query(
             "/api/families/",
             {
-                "rules": [{
-                    "namespace": "Event",
-                    "rules": [{
-                        "namespace": "Place",
-                        "rules": [{"name": "HasTitle", "values": ["XNS_TestPlace"]}],
-                    }],
-                }]
+                "rules": [
+                    {
+                        "namespace": "Event",
+                        "rules": [
+                            {
+                                "namespace": "Place",
+                                "rules": [
+                                    {"name": "HasTitle", "values": ["XNS_TestPlace"]}
+                                ],
+                            }
+                        ],
+                    }
+                ]
             },
         )
         assert status == 200

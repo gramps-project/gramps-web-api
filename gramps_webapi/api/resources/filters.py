@@ -22,6 +22,7 @@
 
 import inspect
 import json
+import re
 from collections import defaultdict
 from collections.abc import Callable
 from typing import Any
@@ -29,6 +30,7 @@ from typing import Any
 import gramps.gen.filters as filters
 from flask import Response, abort, current_app
 from gramps.gen.db.base import DbReadBase
+from gramps.gen.errors import FilterError
 from gramps.gen.filters import GenericFilter
 from gramps.gen.filters.rules import Rule
 from gramps.gen.lib import Media, Person
@@ -99,6 +101,23 @@ _ADDITIONAL_RULES: dict[str, list[type[Rule]]] = {
     "Media": [IsReferencedByObjectType],
 }
 
+# Rules shipped by Gramps that fail on every object of their namespace
+_EXCLUDED_RULES: dict[str, set[str]] = {
+    "Repository": {"HasAttribute"},  # Repository has no attribute_list
+}
+
+# Errors raised by Gramps rules when evaluated with invalid values
+# (e.g. unparsable dates or integers, invalid regular expressions)
+_RULE_VALUE_ERRORS = (
+    FilterError,
+    ValueError,
+    TypeError,
+    AttributeError,
+    IndexError,
+    KeyError,
+    re.error,
+)
+
 _RULE_CLASS_CACHE: dict[str, dict[str, type[Rule]]] = {}
 
 # Maps (parent_namespace, sub_namespace) to a function (db, obj) -> [sub_handle, ...]
@@ -130,7 +149,7 @@ def get_rule_map(namespace: str) -> dict[str, type[Rule]]:
         if mod is None:
             _RULE_CLASS_CACHE[namespace] = {}
         else:
-            seen: set[str] = set()
+            seen: set[str] = set(_EXCLUDED_RULES.get(namespace, set()))
             result: dict[str, type[Rule]] = {}
             for _, cls in inspect.getmembers(mod, inspect.isclass):
                 if (
@@ -211,16 +230,61 @@ def get_custom_filters(args: dict[str, Any], namespace: str) -> list[dict[str, A
     return filter_list
 
 
-def _build_rule_instance(rule_parms: dict[str, Any], namespace: str) -> Rule:
-    """Instantiate a single rule from its parameter dict."""
-    rule_class = get_rule_map(namespace).get(rule_parms["name"])
+def _validate_rule_parms(
+    rule_parms: dict[str, Any], namespace: str
+) -> tuple[type[Rule], list[str]]:
+    """Return the rule class and its values as strings, aborting on invalid input.
+
+    Gramps rules expect string values, one per label. The number of values is not
+    enforced, as existing clients rely on both directions. Like Gramps when loading
+    saved filters, extra values are ignored. Missing values are passed through:
+    some rules supply defaults (e.g. HasNote), the others fail during evaluation,
+    which returns 422.
+    """
+    name = rule_parms["name"]
+    rule_class = get_rule_map(namespace).get(name)
     if rule_class is None:
         abort(404)
     assert rule_class is not None
-    return rule_class(
-        rule_parms.get("values", []),
-        use_regex=rule_parms.get("regex", False),
-    )
+    values = rule_parms.get("values", [])
+    str_values = []
+    for value in values:
+        if isinstance(value, bool):
+            str_values.append("1" if value else "0")
+        elif isinstance(value, (str, int, float)):
+            str_values.append(str(value))
+        else:
+            abort_with_message(
+                422, f"Rule {name} values must be strings, numbers or booleans"
+            )
+    return rule_class, str_values[: len(rule_class.labels)]
+
+
+def _validate_filter_parms(
+    filter_parms: dict[str, Any], namespace: str, depth: int = 0
+) -> None:
+    """Validate a (possibly nested) filter spec before evaluating it."""
+    if depth >= MAX_FILTER_DEPTH:
+        abort_with_message(400, "Filter nesting depth exceeded")
+    for item in filter_parms["rules"]:
+        if "name" in item:
+            _validate_rule_parms(item, namespace)
+            continue
+        sub_namespace = item.get("namespace", namespace)
+        if (
+            sub_namespace != namespace
+            and (namespace, sub_namespace) not in _NAMESPACE_BRIDGES
+        ):
+            abort_with_message(
+                400, f"Unsupported namespace bridge: {namespace} → {sub_namespace}"
+            )
+        _validate_filter_parms(item, sub_namespace, depth + 1)
+
+
+def _build_rule_instance(rule_parms: dict[str, Any], namespace: str) -> Rule:
+    """Instantiate a single rule from its parameter dict."""
+    rule_class, values = _validate_rule_parms(rule_parms, namespace)
+    return rule_class(values, use_regex=rule_parms.get("regex", False))
 
 
 def _apply_filter_parms(
@@ -243,7 +307,12 @@ def _apply_filter_parms(
         if "name" in item:
             single = filters.GenericFilterFactory(namespace)()
             single.add_rule(_build_rule_instance(item, namespace))
-            result_sets.append(set(single.apply(db_handle, id_list=handles)))
+            try:
+                result_sets.append(set(single.apply(db_handle, id_list=handles)))
+            except _RULE_VALUE_ERRORS as exc:
+                abort_with_message(
+                    422, f"Rule {item['name']} could not be evaluated: {exc}"
+                )
         elif item.get("namespace", namespace) != namespace:
             sub_namespace = item["namespace"]
             bridge = _NAMESPACE_BRIDGES.get((namespace, sub_namespace))
@@ -316,7 +385,13 @@ def apply_filter(
     if args.get("filter"):
         for filter_class in filters.CustomFilters.get_filters(namespace):
             if args["filter"] == filter_class.get_name():
-                return filter_class.apply(db_handle, id_list=handles)
+                try:
+                    return filter_class.apply(db_handle, id_list=handles)
+                except _RULE_VALUE_ERRORS as exc:
+                    abort_with_message(
+                        422,
+                        f"Filter {args['filter']} could not be evaluated: {exc}",
+                    )
         abort(404)
 
     try:
@@ -325,6 +400,7 @@ def apply_filter(
         abort_with_message(400, "Error decoding JSON")
     except ValidationError:
         abort_with_message(422, "Filter does not adhere to schema")
+    _validate_filter_parms(filter_parms, namespace)
 
     if handles is None:
         query_method = db_handle.method("get_%s_handles", namespace)
