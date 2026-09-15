@@ -148,6 +148,20 @@ class TestImportersExtensionFile(unittest.TestCase):
         assert "error" in rv.json
         assert "empty" in rv.json["error"]["message"]
 
+    def test_importers_unknown_extension_leaves_no_file(self):
+        """Test that an unknown extension is rejected before the body is stored."""
+        headers = fetch_header(self.client, role=ROLE_OWNER)
+        export_dir = self.test_app.config["EXPORT_DIR"]
+        os.makedirs(export_dir, exist_ok=True)
+        files_before = set(os.listdir(export_dir))
+        rv = self.client.post(
+            f"{TEST_URL}missing/file",
+            data=b"some content",
+            headers=headers,
+        )
+        assert rv.status_code == 404
+        assert set(os.listdir(export_dir)) == files_before
+
     def test_importers_truncated_upload(self):
         """Test that a body shorter than its Content-Length is rejected and removed."""
         headers = fetch_header(self.client, role=ROLE_OWNER)
