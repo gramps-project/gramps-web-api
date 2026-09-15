@@ -31,6 +31,7 @@ from celery.result import AsyncResult
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
+from gramps_webapi.api.tasks import update_search_indices_from_transaction
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import (
@@ -429,6 +430,35 @@ class TestTransactionResource(unittest.TestCase):
         self.assertIn("task", rv.json)
         self.assertEqual(rv.json["task"]["id"], "fake-task-id-123")
         self.assertIn("/api/tasks/", rv.json["task"]["href"])
+
+    def test_foreground_dispatches_search_index_update(self):
+        """POST /transactions/ without background must commit synchronously
+        but hand the search index update to the task queue."""
+        handle = make_handle()
+        obj = {
+            "_class": "Note",
+            "handle": handle,
+            "text": {"_class": "StyledText", "string": "Foreground index test."},
+            "gramps_id": "NFG1",
+        }
+        trans = [
+            {"type": "add", "_class": "Note", "handle": handle, "old": None, "new": obj}
+        ]
+        headers = get_headers(self.client, "editor", "123")
+        with (
+            patch("gramps_webapi.api.resources.transactions.run_task") as mock_run_task,
+            patch("gramps_webapi.api.tasks._index_objects") as mock_index_objects,
+        ):
+            rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.json[0]["handle"], handle)
+        mock_index_objects.assert_not_called()
+        mock_run_task.assert_called_once()
+        task, kwargs = mock_run_task.call_args.args[0], mock_run_task.call_args.kwargs
+        self.assertEqual(task.name, update_search_indices_from_transaction.name)
+        self.assertEqual(kwargs["trans_dict"][0]["handle"], handle)
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
 
     def test_transaction_message_default(self):
         """Default message 'Raw transaction' is stored in the undo log."""

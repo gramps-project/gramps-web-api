@@ -704,6 +704,23 @@ def process_transactions(
     message: str = "Raw transaction",
 ):
     """Process a set of database transactions, updating search indices as needed."""
+    trans_dict = apply_transactions(
+        tree=tree, user_id=user_id, payload=payload, force=force, message=message
+    )
+    update_search_indices_from_transaction(
+        trans_dict=trans_dict, tree=tree, user_id=user_id
+    )
+    return trans_dict
+
+
+def apply_transactions(
+    tree: str,
+    user_id: str,
+    payload: list[dict],
+    force: bool,
+    message: str = "Raw transaction",
+) -> list[dict]:
+    """Apply a set of database transactions without updating search indices."""
     num_people_deleted = sum(
         item["type"] == "delete" and item["_class"] == "Person" for item in payload
     )
@@ -755,20 +772,8 @@ def process_transactions(
     finally:
         # close the *writeable* db handle regardless of errors
         close_db(db_handle)
-    # reopen a *readonly* db handle for seach index update
-    db_handle = get_db_outside_request(
-        tree=tree, view_private=True, readonly=True, user_id=user_id
-    )
-    try:
-        if num_people_new:
-            update_usage_people(tree=tree, user_id=user_id)
-        # update search index
-        _index_objects(get_search_indexer(tree), trans_dict, db_handle)
-        # update semantic search index
-        if app_has_semantic_search():
-            _index_objects(get_semantic_search_indexer(tree), trans_dict, db_handle)
-    finally:
-        close_db(db_handle)
+    if num_people_new:
+        update_usage_people(tree=tree, user_id=user_id)
     return trans_dict
 
 
