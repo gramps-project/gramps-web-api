@@ -54,7 +54,11 @@ def get_max_upload_bytes(free_bytes: int) -> int:
 
 
 def write_upload_to_file(file_path: str, max_bytes: int) -> None:
-    """Stream the request body to a file, aborting if it exceeds `max_bytes`."""
+    """Stream the request body to a file, aborting if it exceeds `max_bytes`.
+
+    Also aborts if the body size does not match the declared Content-Length
+    (e.g. a truncated upload). The caller is responsible for removing the file.
+    """
     request_stream = request.stream
     size = 0
     with open(file_path, "w+b") as ftmp:
@@ -67,6 +71,11 @@ def write_upload_to_file(file_path: str, max_bytes: int) -> None:
             if size > max_bytes:
                 abort_with_message(413, "Uploaded archive is too large")
             ftmp.write(chunk)
+    expected = request.content_length
+    if expected is not None and size and size != expected:
+        abort_with_message(
+            400, f"Upload incomplete: received {size} of {expected} bytes"
+        )
 
 
 class MediaUploadZipResource(ProtectedResource):

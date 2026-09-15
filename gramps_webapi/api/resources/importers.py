@@ -100,27 +100,12 @@ class ImporterFileResource(ProtectedResource):
         """Import file."""
         require_permissions([PERM_IMPORT_FILE])
         get_db_handle()  # needed to load plugins
-        request_stream = request.stream
-        # we use EXPORT_DIR as location to store the temporary file
-        export_path = current_app.config["EXPORT_DIR"]
-        os.makedirs(export_path, exist_ok=True)
-        file_name = f"{uuid.uuid4()}.{extension}"
-        file_path = os.path.join(export_path, file_name)
-        with open(file_path, "w+b") as ftmp:
-            chunk_size = 4 * 1024  # reading in 4 KB chunks
-            while True:
-                chunk = request_stream.read(chunk_size)
-                if not chunk:
-                    break
-                ftmp.write(chunk)
-
-        if os.path.getsize(file_path) == 0:
-            abort_with_message(400, "Imported file is empty")
         importers = get_importers(extension.lower())
         if not importers:
             abort_with_message(
                 HTTPStatus.NOT_FOUND, f"Importer for extension {extension} not found"
             )
+        file_path = _stream_upload_to_tempfile(extension)
         tree = get_tree_from_jwt()
         user_id = get_jwt_identity()
         task = run_task(
@@ -140,18 +125,39 @@ class ImporterFileResource(ProtectedResource):
 
 
 def _stream_upload_to_tempfile(extension: str) -> str:
-    """Stream the request body to a temporary file and return its path."""
+    """Stream the request body to a temporary file and return its path.
+
+    Aborts with 400, removing the file, if the body is empty or its size does
+    not match the declared Content-Length (e.g. a truncated upload).
+    """
+    # we use EXPORT_DIR as location to store the temporary file
     export_path = current_app.config["EXPORT_DIR"]
     os.makedirs(export_path, exist_ok=True)
     file_name = f"{uuid.uuid4()}.{extension}"
     file_path = os.path.join(export_path, file_name)
-    with open(file_path, "w+b") as ftmp:
-        chunk_size = 4 * 1024  # reading in 4 KB chunks
-        while True:
-            chunk = request.stream.read(chunk_size)
-            if not chunk:
-                break
-            ftmp.write(chunk)
+    size = 0
+    try:
+        with open(file_path, "w+b") as ftmp:
+            chunk_size = 4 * 1024  # reading in 4 KB chunks
+            while True:
+                chunk = request.stream.read(chunk_size)
+                if not chunk:
+                    break
+                ftmp.write(chunk)
+                size += len(chunk)
+        if size == 0:
+            abort_with_message(400, "Uploaded file is empty")
+        expected = request.content_length
+        if expected is not None and size != expected:
+            abort_with_message(
+                400,
+                f"Upload incomplete: received {size} of {expected} bytes",
+            )
+    except Exception:
+        # don't leave the partial or rejected upload behind
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+        raise
     return file_path
 
 
@@ -188,9 +194,6 @@ class RestoreFileResource(FreshProtectedResource):
                 HTTPStatus.NOT_FOUND, f"Importer for extension {extension} not found"
             )
         file_path = _stream_upload_to_tempfile(extension)
-        if os.path.getsize(file_path) == 0:
-            os.remove(file_path)
-            abort_with_message(400, "Uploaded file is empty")
         tree = get_tree_from_jwt()
         user_id = get_jwt_identity()
         task = run_task(

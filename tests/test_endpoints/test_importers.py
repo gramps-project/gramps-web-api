@@ -148,6 +148,26 @@ class TestImportersExtensionFile(unittest.TestCase):
         assert "error" in rv.json
         assert "empty" in rv.json["error"]["message"]
 
+    def test_importers_truncated_upload(self):
+        """Test that a body shorter than its Content-Length is rejected and removed."""
+        headers = fetch_header(self.client, role=ROLE_OWNER)
+        export_dir = self.test_app.config["EXPORT_DIR"]
+        os.makedirs(export_dir, exist_ok=True)
+        files_before = set(os.listdir(export_dir))
+        rv = self.client.post(
+            f"{TEST_URL}gramps/file",
+            data=b"<?xml",
+            headers=headers,
+            # like gunicorn, which does not raise on a short body
+            environ_overrides={
+                "CONTENT_LENGTH": "1000",
+                "wsgi.input_terminated": True,
+            },
+        )
+        assert rv.status_code == 400
+        assert "received 5 of 1000 bytes" in rv.json["error"]["message"]
+        assert set(os.listdir(export_dir)) == files_before
+
     def test_importers_example_data(self):
         """Test importing example.gramps."""
         db_file = os.path.join(self.dbpath, "sqlite.db")
