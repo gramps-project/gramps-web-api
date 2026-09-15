@@ -24,7 +24,7 @@ from unittest.mock import patch
 
 import boto3
 import pytest
-from moto import mock_s3
+from moto import mock_aws
 
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import add_user, user_db
@@ -66,7 +66,7 @@ class TestS3(unittest.TestCase):
                 tree=tree,
             )
 
-    @mock_s3
+    @mock_aws
     def test_upload_new_media(self):
         """Add new media object."""
         boto3.resource("s3", region_name="us-east-1").create_bucket(
