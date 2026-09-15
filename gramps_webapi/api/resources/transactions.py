@@ -31,7 +31,14 @@ from ...auth.const import PERM_ADD_OBJ, PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ...types import ResponseReturnValue
 from ..auth import require_permissions
 from ..blueprint import api_blueprint
-from ..tasks import AsyncResult, make_task_response, process_transactions, run_task
+from ..tasks import (
+    AsyncResult,
+    apply_transactions,
+    make_task_response,
+    process_transactions,
+    run_task,
+    update_search_indices_from_transaction,
+)
 from ..util import abort_with_message, get_tree_from_jwt_or_fail
 from . import ProtectedResource
 from .schemas import TransactionSchema
@@ -94,11 +101,23 @@ class TransactionsResource(ProtectedResource):
                 return make_task_response(task)
             return task, 200
         try:
-            trans_dict = process_transactions(
-                tree=tree, user_id=user_id, payload=payload, force=args["force"], message=args["message"]
+            trans_dict = apply_transactions(
+                tree=tree,
+                user_id=user_id,
+                payload=payload,
+                force=args["force"],
+                message=args["message"],
             )
         except ValueError as exc:
             abort_with_message(400, str(exc))
+        # index updates can take minutes, so defer them to the task queue (if
+        # configured), as the object endpoints do
+        run_task(
+            update_search_indices_from_transaction,
+            trans_dict=trans_dict,
+            tree=tree,
+            user_id=user_id,
+        )
         res = Response(
             response=json.dumps(trans_dict),
             status=200,
