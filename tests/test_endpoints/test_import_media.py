@@ -180,3 +180,20 @@ class TestImporterMedia(unittest.TestCase):
         )
         assert rv.status_code == 400
         assert [fn for fn in os.listdir(self.export_dir) if fn.endswith(".zip")] == []
+
+    def test_upload_truncated(self):
+        """An upload shorter than its Content-Length does not leave a file behind."""
+        headers = get_headers(self.client, "owner", "owner")
+        rv = self.client.post(
+            "/api/media/archive/upload/zip",
+            headers=headers,
+            data=b"PK\x03\x04",
+            # like gunicorn, which does not raise on a short body
+            environ_overrides={
+                "CONTENT_LENGTH": "1000",
+                "wsgi.input_terminated": True,
+            },
+        )
+        assert rv.status_code == 400
+        assert "received 4 of 1000 bytes" in rv.json["error"]["message"]
+        assert [fn for fn in os.listdir(self.export_dir) if fn.endswith(".zip")] == []
