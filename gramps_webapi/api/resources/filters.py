@@ -246,7 +246,7 @@ def _validate_rule_parms(
     if rule_class is None:
         abort(404)
     assert rule_class is not None
-    values = rule_parms.get("values", [])[: len(rule_class.labels)]
+    values = rule_parms.get("values", [])
     str_values = []
     for value in values:
         if isinstance(value, bool):
@@ -257,7 +257,7 @@ def _validate_rule_parms(
             abort_with_message(
                 422, f"Rule {name} values must be strings, numbers or booleans"
             )
-    return rule_class, str_values
+    return rule_class, str_values[: len(rule_class.labels)]
 
 
 def _validate_filter_parms(

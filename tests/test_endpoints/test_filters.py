@@ -735,6 +735,13 @@ class TestNestedFilters(unittest.TestCase):
         )
         assert handles == {self.handle_dna_and_id}
 
+    def test_non_scalar_extra_value_returns_422(self):
+        """Extra values are type-checked even though they are ignored."""
+        message = self._filter_error(
+            {"rules": [{"name": "MatchIdOf", "values": [self.special_id, {"a": 1}]}]}
+        )
+        assert "strings, numbers or booleans" in message
+
     def test_missing_values_returns_422(self):
         """A rule that requires values but has none returns 422 when evaluated."""
         self._filter_error({"rules": [{"name": "MatchIdOf"}]})
