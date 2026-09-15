@@ -110,7 +110,8 @@ class TransactionsResource(ProtectedResource):
             )
         except ValueError as exc:
             abort_with_message(400, str(exc))
-        # index updates can take minutes, so never block the request on them
+        # index updates can take minutes, so defer them to the task queue (if
+        # configured), as the object endpoints do
         run_task(
             update_search_indices_from_transaction,
             trans_dict=trans_dict,
