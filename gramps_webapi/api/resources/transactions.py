@@ -60,7 +60,7 @@ class TransactionsQueryArgs(Schema):
     background = fields.Boolean(
         load_default=False,
         metadata={
-            "description": "If true, apply the transactions in the background and return HTTP 202."
+            "description": "If true, apply the transactions in the background and return HTTP 202. Use this for anything but a few objects."
         },
     )
 
@@ -71,7 +71,22 @@ class TransactionsResource(ProtectedResource):
     @api_blueprint.response(200, TransactionSchema(many=True))
     @api_blueprint.arguments(TransactionsQueryArgs, location="query")
     def post(self, args) -> ResponseReturnValue:
-        """Post the transaction."""
+        """Replay a raw database transaction.
+
+        Low-level endpoint for replaying transactions that are already
+        internally consistent: those recorded by Gramps itself (e.g. when
+        synchronizing a desktop database) or returned by this API (e.g. to undo
+        a change). Objects are written as given: they are not validated against
+        the schema, references between objects are not maintained (e.g. a
+        family's members are not updated), and derived data such as a person's
+        birth and death indices is not recomputed. A malformed or inconsistent
+        transaction can therefore corrupt the tree.
+
+        To create, modify, or delete individual records, use the object
+        endpoints (e.g. `POST /people/`) instead. Unless `force` is set, the
+        transaction is rejected if any object's `old` state no longer matches
+        the database. Set `background` for anything but a few objects.
+        """
         require_permissions([PERM_ADD_OBJ, PERM_EDIT_OBJ, PERM_DEL_OBJ])
         payload = request.json
         if not payload:
