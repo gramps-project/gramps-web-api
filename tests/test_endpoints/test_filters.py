@@ -316,7 +316,7 @@ class TestFiltersPeopleSingleTree(unittest.TestCase):
         header = fetch_header(self.client)
         payload = {
             "name": "InvalidValuesTestFilter",
-            "rules": [{"name": "HasTag", "values": []}],
+            "rules": [{"name": "HasTag", "values": ["ToDo", "extra"]}],
         }
         rv = self.client.post(TEST_URL + "people", json=payload, headers=header)
         self.assertEqual(rv.status_code, 422)
@@ -324,6 +324,25 @@ class TestFiltersPeopleSingleTree(unittest.TestCase):
             TEST_URL + "people/InvalidValuesTestFilter", headers=header
         )
         self.assertEqual(rv.status_code, 404)
+
+    def test_saved_filter_with_unparsable_value_returns_422(self):
+        """Test that applying a saved filter whose rule cannot be evaluated returns 422."""
+        header = fetch_header(self.client)
+        name = "UnparsableValueTestFilter"
+        payload = {
+            "name": name,
+            "rules": [{"name": "HasAddress", "values": ["x", "y"]}],
+        }
+        rv = self.client.post(TEST_URL + "people", json=payload, headers=header)
+        self.assertEqual(rv.status_code, 201)
+        try:
+            rv = self.client.get(BASE_URL + "/people/?filter=" + name, headers=header)
+            self.assertEqual(rv.status_code, 422)
+            self.assertIn(
+                f"Filter {name} could not be evaluated", rv.json["error"]["message"]
+            )
+        finally:
+            self.client.delete(TEST_URL + "people/" + name, headers=header)
 
 
 def make_handle() -> str:
@@ -684,20 +703,40 @@ class TestNestedFilters(unittest.TestCase):
         return rv.json["error"]["message"]
 
     def test_too_few_values_returns_422(self):
-        """A rule with fewer values than labels is rejected."""
+        """A rule that needs more values than given returns 422 when evaluated."""
         message = self._filter_error(
             {"rules": [{"name": "HasBirth", "values": ["1900"]}]}
         )
-        assert "HasBirth expects 3 values" in message
+        assert "HasBirth could not be evaluated" in message
+
+    def test_rule_with_defaults_accepts_missing_values(self):
+        """Rules that define defaults for missing values still work without them."""
+        self._get_handles({"rules": [{"name": "HasNote"}]})
+
+    def test_invalid_regex_returns_422(self):
+        """An invalid regular expression returns 422 naming the rule."""
+        message = self._filter_error(
+            {
+                "rules": [
+                    {
+                        "name": "HasTextMatchingRegexpOf",
+                        "values": ["(", "0"],
+                        "regex": True,
+                    }
+                ]
+            }
+        )
+        assert "HasTextMatchingRegexpOf could not be evaluated" in message
 
     def test_too_many_values_returns_422(self):
         """A rule with more values than labels is rejected."""
-        self._filter_error(
+        message = self._filter_error(
             {"rules": [{"name": "MatchIdOf", "values": [self.special_id, "extra"]}]}
         )
+        assert "MatchIdOf expects at most 1 values" in message
 
     def test_missing_values_returns_422(self):
-        """A rule that requires values but has none is rejected."""
+        """A rule that requires values but has none returns 422 when evaluated."""
         self._filter_error({"rules": [{"name": "MatchIdOf"}]})
 
     def test_non_scalar_value_returns_422(self):
@@ -726,15 +765,16 @@ class TestNestedFilters(unittest.TestCase):
         assert "HasAddress could not be evaluated" in message
 
     def test_invalid_values_in_sub_filter_returns_422(self):
-        """Rule values in nested sub-filters are validated as well."""
-        self._filter_error(
+        """Rule values in nested sub-filters are validated before evaluation."""
+        message = self._filter_error(
             {
                 "rules": [
                     {"name": "MatchIdOf", "values": [self.special_id]},
-                    {"rules": [{"name": "HasBirth", "values": []}]},
+                    {"rules": [{"name": "HasBirth", "values": ["", "", "", "x"]}]},
                 ]
             }
         )
+        assert "HasBirth expects at most 3 values" in message
 
 
 class TestExcludedRules(unittest.TestCase):

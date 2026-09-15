@@ -235,8 +235,9 @@ def _validate_rule_parms(
 ) -> tuple[type[Rule], list[str]]:
     """Return the rule class and its values as strings, aborting on invalid input.
 
-    Gramps rules index into their values by label position and expect strings,
-    so a wrong number of values or non-scalar values would raise during evaluation.
+    Gramps rules expect string values, at most one per label. Fewer values are
+    passed through unchanged: some rules supply defaults for missing values
+    (e.g. HasNote), the others fail during evaluation, which returns 422.
     """
     name = rule_parms["name"]
     rule_class = get_rule_map(namespace).get(name)
@@ -245,10 +246,11 @@ def _validate_rule_parms(
     assert rule_class is not None
     values = rule_parms.get("values", [])
     labels = rule_class.labels
-    if len(values) != len(labels):
+    if len(values) > len(labels):
         abort_with_message(
             422,
-            f"Rule {name} expects {len(labels)} values {labels}, got {len(values)}",
+            f"Rule {name} expects at most {len(labels)} values {labels}, "
+            f"got {len(values)}",
         )
     str_values = []
     for value in values:
