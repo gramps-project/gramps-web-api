@@ -41,6 +41,7 @@ from .const import (
     PERM_USE_CHAT,
     ROLE_ADMIN,
     ROLE_OWNER,
+    ROLE_UNCONFIRMED,
 )
 from .passwords import hash_password, verify_password
 from .sql_guid import GUID
@@ -216,6 +217,28 @@ def authorized(username: str, password: str) -> bool:
         # users with negative roles cannot login!
         return False
     return verify_password(password=password, salt_hash=user.pwhash)
+
+
+# Auth statuses returned by `get_auth_status`. Only revealed to the caller
+# once the password has been verified, so a wrong-password guess never
+# discloses whether an account exists or is unconfirmed/disabled.
+AUTH_STATUS_OK = "ok"
+AUTH_STATUS_INVALID_CREDENTIALS = "invalid_credentials"
+AUTH_STATUS_ACCOUNT_UNCONFIRMED = "account_unconfirmed"
+AUTH_STATUS_ACCOUNT_DISABLED = "account_disabled"
+
+
+def get_auth_status(username: str, password: str) -> str:
+    """Return the authentication status for a username/password pair."""
+    query = user_db.session.query(User)  # pylint: disable=no-member
+    user = query.filter_by(name=username).scalar()
+    if user is None or not verify_password(password=password, salt_hash=user.pwhash):
+        return AUTH_STATUS_INVALID_CREDENTIALS
+    if user.role == ROLE_UNCONFIRMED:
+        return AUTH_STATUS_ACCOUNT_UNCONFIRMED
+    if user.role < 0:
+        return AUTH_STATUS_ACCOUNT_DISABLED
+    return AUTH_STATUS_OK
 
 
 def get_pwhash(username: str) -> str:
