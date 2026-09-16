@@ -59,7 +59,6 @@ from gramps.gen.plug.report import (
     CATEGORY_TEXT,
     CATEGORY_TREE,
 )
-from gramps.gen.utils.grampslocale import GrampsLocale
 from gramps.gen.utils.resourcepath import ResourcePath
 
 from ..const import MIME_TYPES, REPORT_DEFAULTS, REPORT_FILTERS
@@ -328,7 +327,11 @@ def cl_report_new(
     ):
         clr.option_class.handler.doc.set_css_filename(clr.css_filename)
     my_report = report_class(database, clr.option_class, User())
-    my_report.set_locale(language or GrampsLocale.DEFAULT_TRANSLATION_STR)
+    if language:
+        # Only reached for reports that have no "trans" option. Reports that do
+        # have one have already applied the language in their constructor, and
+        # setting it here would discard the option value chosen by the user.
+        my_report.set_locale(language)
     my_report.doc.init()
     my_report.begin_report()
     my_report.write_report()
@@ -368,6 +371,13 @@ def run_report(
             report_options["of"] = os.path.join(report_path, file_name)
             report_profile = get_report_profile(db_handle, plugin_manager, report_data)
             validate_options(report_profile, report_options, allow_file=allow_file)
+            if language and "trans" in report_profile["options_dict"]:
+                # Apply the language via the report's own localization option,
+                # which is evaluated in the report's constructor. Reports build
+                # locale-dependent objects there, so setting the locale
+                # afterwards is not enough.
+                report_options["trans"] = language
+                language = None
             module = plugin_manager.load_plugin(report_data)
             option_class = getattr(module, report_data.optionclass)
             report_class = getattr(module, report_data.reportclass)

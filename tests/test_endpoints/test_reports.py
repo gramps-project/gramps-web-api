@@ -223,6 +223,16 @@ class TestReportsReportIdFile(unittest.TestCase):
         contents = rv.get_data(as_text=True)
         assert "Ahnentafel Bericht für" in contents
 
+    def test_get_reports_report_localized_content_trans_option(self):
+        """Test that the report's own translation option is respected."""
+        rv = check_success(
+            self,
+            TEST_URL + 'ancestor_report/file?options={"off": "tex", "trans": "de"}',
+            full=True,
+        )
+        contents = rv.get_data(as_text=True)
+        assert "Ahnentafel Bericht für" in contents
+
     def test_get_reports_report_id_file_report_error(self):
         """Test that a ReportError raised by a report plugin gives a 422."""
         header = fetch_header(self.client)
