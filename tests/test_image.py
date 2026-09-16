@@ -19,16 +19,54 @@
 
 """Tests for PILLOW_MAX_IMAGE_PIXELS configuration and image handling"""
 
+import base64
 import io
 import os
 import pytest
 from gramps_webapi.app import create_app
-from gramps_webapi.api.image import ThumbnailHandler
+from gramps_webapi.api.image import ThumbnailHandler, save_image_buffer
 from gramps_webapi.const import MIME_PDF
-from PIL import Image
+from PIL import Image, ImageCms
 from werkzeug.exceptions import HTTPException
 
 from .test_endpoints.test_upload import get_image
+
+# A real-world D65 grayscale ICC profile (GIMP's "GIMP built-in D65
+# Grayscale with sRGB TRC"), used to reproduce https://github.com/gramps-project/gramps-web-api/issues/983
+GRAYSCALE_ICC_PROFILE = base64.b64decode(
+    "AAACIGxjbXMEMAAAbW50ckdSQVlYWVogB+gABAACAAsABQAkYWNzcEFQUEwAAAAAAAAAAAAAAAAA"
+    "AAAAAAAAAAAAAAAAAPbWAAEAAAAA0y1sY21zAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    "AAAAAAAAAAAAAAAAAAAAAAAGZGVzYwAAAMwAAABuY3BydAAAATwAAAA2d3RwdAAAAXQAAAAUa1RS"
+    "QwAAAYgAAAAgZG1uZAAAAagAAAAkZG1kZAAAAcwAAABSbWx1YwAAAAAAAAABAAAADGVuVVMAAABS"
+    "AAAAHABHAEkATQBQACAAYgB1AGkAbAB0AC0AaQBuACAARAA2ADUAIABHAHIAYQB5AHMAYwBhAGwA"
+    "ZQAgAHcAaQB0AGgAIABzAFIARwBCACAAVABSAEMAAG1sdWMAAAAAAAAAAQAAAAxlblVTAAAAGgAA"
+    "ABwAUAB1AGIAbABpAGMAIABEAG8AbQBhAGkAbgAAWFlaIAAAAAAAAPNRAAEAAAABFsxwYXJhAAAA"
+    "AAADAAAAAmZmAADypwAADVkAABPQAAAKW21sdWMAAAAAAAAAAQAAAAxlblVTAAAACAAAABwARwBJ"
+    "AE0AUG1sdWMAAAAAAAAAAQAAAAxlblVTAAAANgAAABwARAA2ADUAIABHAHIAYQB5AHMAYwBhAGwA"
+    "ZQAgAHcAaQB0AGgAIABzAFIARwBCACAAVABSAEMAAA=="
+)
+
+
+def test_avif_grayscale_icc_profile_is_color_managed():
+    """save_image_buffer must not embed a stale grayscale ICC profile in RGB output.
+
+    Regression test for https://github.com/gramps-project/gramps-web-api/issues/983:
+    a plain convert("RGB") keeps the source grayscale ICC profile in
+    image.info, which then gets embedded as-is in the AVIF output, producing
+    a file some decoders (e.g. Chrome) refuse to open.
+    """
+    image = Image.new("L", (10, 10), color=128)
+    image.info["icc_profile"] = GRAYSCALE_ICC_PROFILE
+
+    buffer = save_image_buffer(image, fmt="AVIF")
+    result = Image.open(buffer)
+    result.load()
+
+    assert result.mode == "RGB"
+    icc = result.info.get("icc_profile")
+    assert icc is not None
+    color_space = ImageCms.ImageCmsProfile(io.BytesIO(icc)).profile.xcolor_space
+    assert color_space.strip() == "RGB"
 
 
 def make_two_page_pdf(
