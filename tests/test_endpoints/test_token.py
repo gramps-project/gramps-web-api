@@ -27,8 +27,8 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
-from gramps_webapi.auth import user_db
-from gramps_webapi.auth.const import ROLE_OWNER
+from gramps_webapi.auth import add_user, user_db
+from gramps_webapi.auth.const import ROLE_DISABLED, ROLE_OWNER, ROLE_UNCONFIRMED
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 from gramps_webapi.dbmanager import WebDbManager
 
@@ -67,6 +67,51 @@ class TestToken(unittest.TestCase):
             },
         )
         self.assertEqual(rv.status_code, 403)
+
+    def test_login_unconfirmed_account(self):
+        """Test login response for an unconfirmed account."""
+        with self.client.application.app_context():
+            add_user(
+                name="unconfirmed_user",
+                password="pw",
+                role=ROLE_UNCONFIRMED,
+            )
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "unconfirmed_user", "password": "pw"},
+        )
+        self.assertEqual(rv.status_code, 403)
+        self.assertEqual(rv.json["error"]["message"], "Account not confirmed")
+
+    def test_login_unconfirmed_account_wrong_password(self):
+        """Test login response for an unconfirmed account with wrong password."""
+        with self.client.application.app_context():
+            add_user(
+                name="unconfirmed_user_wrong_pw",
+                password="pw",
+                role=ROLE_UNCONFIRMED,
+            )
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "unconfirmed_user_wrong_pw", "password": "notreal"},
+        )
+        self.assertEqual(rv.status_code, 403)
+        self.assertEqual(rv.json["error"]["message"], "Invalid username or password")
+
+    def test_login_disabled_account(self):
+        """Test login response for a disabled account."""
+        with self.client.application.app_context():
+            add_user(
+                name="disabled_user",
+                password="pw",
+                role=ROLE_DISABLED,
+            )
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "disabled_user", "password": "pw"},
+        )
+        self.assertEqual(rv.status_code, 403)
+        self.assertEqual(rv.json["error"]["message"], "Account disabled")
 
     def test_login_response(self):
         """Test login response."""

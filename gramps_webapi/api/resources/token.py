@@ -31,8 +31,11 @@ from marshmallow import Schema
 from webargs import fields, validate
 
 from ...auth import (
-    authorized,
+    AUTH_STATUS_ACCOUNT_DISABLED,
+    AUTH_STATUS_ACCOUNT_UNCONFIRMED,
+    AUTH_STATUS_OK,
     get_all_user_details,
+    get_auth_status,
     get_guid,
     get_name,
     get_permissions,
@@ -146,7 +149,12 @@ class TokenResource(Resource):
 
         if "username" not in args or "password" not in args:
             abort_with_message(401, "Missing username or password")
-        if not authorized(args.get("username"), args.get("password")):
+        auth_status = get_auth_status(args.get("username"), args.get("password"))
+        if auth_status == AUTH_STATUS_ACCOUNT_UNCONFIRMED:
+            abort_with_message(403, "Account not confirmed")
+        if auth_status == AUTH_STATUS_ACCOUNT_DISABLED:
+            abort_with_message(403, "Account disabled")
+        if auth_status != AUTH_STATUS_OK:
             abort_with_message(403, "Invalid username or password")
         user_id = get_guid(args["username"])
         tree_id, permissions = get_tree_id_and_permissions(
