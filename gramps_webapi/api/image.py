@@ -128,15 +128,27 @@ def save_image_buffer(image: ImageType, fmt="AVIF") -> BinaryIO:
             # ICC profile as-is, which is invalid for RGB output and gets
             # embedded verbatim on save, producing files some decoders
             # (e.g. Chrome for AVIF) refuse to open.
-            source_profile = ImageCms.ImageCmsProfile(
-                io.BytesIO(image.info["icc_profile"])
-            )
-            image = ImageCms.profileToProfile(
-                image,
-                source_profile,
-                ImageCms.createProfile("sRGB"),
-                outputMode="RGB",
-            )
+            try:
+                source_profile = ImageCms.ImageCmsProfile(
+                    io.BytesIO(image.info["icc_profile"])
+                )
+                transformed_image = ImageCms.profileToProfile(
+                    image,
+                    source_profile,
+                    ImageCms.createProfile("sRGB"),
+                    outputMode="RGB",
+                )
+                # `profileToProfile()` only returns `None` when called with
+                # `inPlace=True`, which we don't do here.
+                assert transformed_image is not None
+                image = transformed_image
+            except ImageCms.PyCMSError:
+                # The embedded profile is untrusted (uploaded) data: it can be
+                # malformed enough to open but still fail to build a color
+                # transform. Fall back to an uncolor-managed conversion rather
+                # than crashing.
+                image = image.convert("RGB")
+                image.info.pop("icc_profile", None)
         else:
             image = image.convert("RGB")
             # the profile (if any) belonged to the previous color space
