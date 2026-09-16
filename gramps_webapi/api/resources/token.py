@@ -151,11 +151,15 @@ class TokenResource(Resource):
             abort_with_message(401, "Missing username or password")
         auth_status = get_auth_status(args.get("username"), args.get("password"))
         if auth_status == AUTH_STATUS_ACCOUNT_UNCONFIRMED:
-            abort_with_message(403, "Account not confirmed")
+            abort_with_message(
+                403, "Account not confirmed", error_type="account_unconfirmed"
+            )
         if auth_status == AUTH_STATUS_ACCOUNT_DISABLED:
-            abort_with_message(403, "Account disabled")
+            abort_with_message(403, "Account disabled", error_type="account_disabled")
         if auth_status != AUTH_STATUS_OK:
-            abort_with_message(403, "Invalid username or password")
+            abort_with_message(
+                403, "Invalid username or password", error_type="invalid_credentials"
+            )
         user_id = get_guid(args["username"])
         tree_id, permissions = get_tree_id_and_permissions(
             user_id=user_id, username=args["username"]

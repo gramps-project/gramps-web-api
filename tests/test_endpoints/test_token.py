@@ -56,6 +56,7 @@ class TestToken(unittest.TestCase):
             json={"username": TEST_USERS[ROLE_OWNER]["name"], "password": "notreal"},
         )
         self.assertEqual(rv.status_code, 403)
+        self.assertEqual(rv.json["error"]["type"], "invalid_credentials")
 
     def test_login_wrong_username(self):
         """Test login response for wrong username."""
@@ -67,6 +68,7 @@ class TestToken(unittest.TestCase):
             },
         )
         self.assertEqual(rv.status_code, 403)
+        self.assertEqual(rv.json["error"]["type"], "invalid_credentials")
 
     def test_login_unconfirmed_account(self):
         """Test login response for an unconfirmed account."""
@@ -82,6 +84,7 @@ class TestToken(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 403)
         self.assertEqual(rv.json["error"]["message"], "Account not confirmed")
+        self.assertEqual(rv.json["error"]["type"], "account_unconfirmed")
 
     def test_login_unconfirmed_account_wrong_password(self):
         """Test login response for an unconfirmed account with wrong password."""
@@ -97,6 +100,7 @@ class TestToken(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 403)
         self.assertEqual(rv.json["error"]["message"], "Invalid username or password")
+        self.assertEqual(rv.json["error"]["type"], "invalid_credentials")
 
     def test_login_disabled_account(self):
         """Test login response for a disabled account."""
@@ -112,6 +116,7 @@ class TestToken(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 403)
         self.assertEqual(rv.json["error"]["message"], "Account disabled")
+        self.assertEqual(rv.json["error"]["type"], "account_disabled")
 
     def test_login_response(self):
         """Test login response."""

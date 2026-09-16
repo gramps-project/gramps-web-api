@@ -783,9 +783,14 @@ def check_quota_ai(requested: int, tree: str | None = None) -> None:
         abort_with_message(405, "Not allowed by AI quota")
 
 
-def abort_with_message(status: int, message: str) -> NoReturn:
+def abort_with_message(
+    status: int, message: str, error_type: str | None = None
+) -> NoReturn:
     """Abort with a JSON response."""
-    payload = {"error": {"code": status, "message": message}}
+    error_body: dict[str, Any] = {"code": status, "message": message}
+    if error_type is not None:
+        error_body["type"] = error_type
+    payload = {"error": error_body}
     response = Response(
         response=json.dumps(payload),
         status=status,
