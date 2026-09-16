@@ -19,16 +19,109 @@
 
 """Tests for PILLOW_MAX_IMAGE_PIXELS configuration and image handling"""
 
+import base64
 import io
 import os
+import struct
 import pytest
 from gramps_webapi.app import create_app
-from gramps_webapi.api.image import ThumbnailHandler
+from gramps_webapi.api.image import ThumbnailHandler, save_image_buffer
 from gramps_webapi.const import MIME_PDF
-from PIL import Image
+from PIL import Image, ImageCms
 from werkzeug.exceptions import HTTPException
 
 from .test_endpoints.test_upload import get_image
+
+# A real-world D65 grayscale ICC profile (GIMP's "GIMP built-in D65
+# Grayscale with sRGB TRC"), used to reproduce https://github.com/gramps-project/gramps-web-api/issues/983
+GRAYSCALE_ICC_PROFILE = base64.b64decode(
+    "AAACIGxjbXMEMAAAbW50ckdSQVlYWVogB+gABAACAAsABQAkYWNzcEFQUEwAAAAAAAAAAAAAAAAA"
+    "AAAAAAAAAAAAAAAAAPbWAAEAAAAA0y1sY21zAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    "AAAAAAAAAAAAAAAAAAAAAAAGZGVzYwAAAMwAAABuY3BydAAAATwAAAA2d3RwdAAAAXQAAAAUa1RS"
+    "QwAAAYgAAAAgZG1uZAAAAagAAAAkZG1kZAAAAcwAAABSbWx1YwAAAAAAAAABAAAADGVuVVMAAABS"
+    "AAAAHABHAEkATQBQACAAYgB1AGkAbAB0AC0AaQBuACAARAA2ADUAIABHAHIAYQB5AHMAYwBhAGwA"
+    "ZQAgAHcAaQB0AGgAIABzAFIARwBCACAAVABSAEMAAG1sdWMAAAAAAAAAAQAAAAxlblVTAAAAGgAA"
+    "ABwAUAB1AGIAbABpAGMAIABEAG8AbQBhAGkAbgAAWFlaIAAAAAAAAPNRAAEAAAABFsxwYXJhAAAA"
+    "AAADAAAAAmZmAADypwAADVkAABPQAAAKW21sdWMAAAAAAAAAAQAAAAxlblVTAAAACAAAABwARwBJ"
+    "AE0AUG1sdWMAAAAAAAAAAQAAAAxlblVTAAAANgAAABwARAA2ADUAIABHAHIAYQB5AHMAYwBhAGwA"
+    "ZQAgAHcAaQB0AGgAIABzAFIARwBCACAAVABSAEMAAA=="
+)
+
+
+def test_avif_grayscale_icc_profile_is_color_managed():
+    """save_image_buffer must not embed a stale grayscale ICC profile in RGB output.
+
+    Regression test for https://github.com/gramps-project/gramps-web-api/issues/983:
+    a plain convert("RGB") keeps the source grayscale ICC profile in
+    image.info, which then gets embedded as-is in the AVIF output, producing
+    a file some decoders (e.g. Chrome) refuse to open.
+    """
+    image = Image.new("L", (10, 10), color=128)
+    image.info["icc_profile"] = GRAYSCALE_ICC_PROFILE
+
+    buffer = save_image_buffer(image, fmt="AVIF")
+    result = Image.open(buffer)
+    result.load()
+
+    assert result.mode == "RGB"
+    icc = result.info.get("icc_profile")
+    assert icc is not None
+    color_space = ImageCms.ImageCmsProfile(io.BytesIO(icc)).profile.xcolor_space
+    assert color_space.strip() == "RGB"
+
+
+def make_malformed_icc_profile() -> bytes:
+    """Corrupt the grayscale TRC tag's function type in an otherwise valid profile.
+
+    The result still opens fine via `ImageCms.ImageCmsProfile()` (header and
+    tag table are intact), but fails with `ImageCms.PyCMSError` ("cannot
+    build transform") when actually used in `ImageCms.profileToProfile()`,
+    since littlecms can't build a curve for the unknown function type. This
+    reproduces the shape of malformed-but-openable ICC data that can arrive
+    in an uploaded image.
+    """
+    data = bytearray(GRAYSCALE_ICC_PROFILE)
+    # The 'kTRC' tag is a parametric curve ('para') at offset 392; its
+    # function type (a uint16 right after the 4-byte signature and 4-byte
+    # reserved field) is normally 3. Setting it to an unsupported value
+    # keeps the tag structurally valid but unusable for a color transform.
+    struct.pack_into(">H", data, 392 + 8, 99)
+    return bytes(data)
+
+
+def test_malformed_icc_profile_falls_back_without_raising():
+    """save_image_buffer must not crash on a malformed-but-openable ICC profile.
+
+    Regression test for a bug found in review of the fix for
+    https://github.com/gramps-project/gramps-web-api/issues/983: an uploaded
+    grayscale image can carry ICC profile bytes that open successfully via
+    `ImageCms.ImageCmsProfile()` but still raise `ImageCms.PyCMSError` when
+    used to build a color transform in `ImageCms.profileToProfile()`. That
+    error must be caught and treated like "no usable profile" (plain RGB
+    conversion), not left to propagate as an uncaught 500.
+    """
+    malformed_profile = make_malformed_icc_profile()
+
+    # Confirm this fixture actually reproduces the failure mode we're
+    # guarding against: openable, but not usable for a transform.
+    ImageCms.ImageCmsProfile(io.BytesIO(malformed_profile))
+    with pytest.raises(ImageCms.PyCMSError):
+        ImageCms.profileToProfile(
+            Image.new("L", (10, 10), color=128),
+            ImageCms.ImageCmsProfile(io.BytesIO(malformed_profile)),
+            ImageCms.createProfile("sRGB"),
+            outputMode="RGB",
+        )
+
+    image = Image.new("L", (10, 10), color=128)
+    image.info["icc_profile"] = malformed_profile
+
+    buffer = save_image_buffer(image, fmt="AVIF")
+    result = Image.open(buffer)
+    result.load()
+
+    assert result.mode == "RGB"
+    assert result.info.get("icc_profile") is None
 
 
 def make_two_page_pdf(

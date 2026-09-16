@@ -29,7 +29,7 @@ from importlib.resources import as_file, files
 from pathlib import Path
 from typing import BinaryIO, Callable, Iterator, Union
 
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageCms, ImageOps, UnidentifiedImageError
 from PIL.Image import DecompressionBombError
 from PIL.Image import Image as ImageType
 
@@ -123,7 +123,36 @@ def save_image_buffer(image: ImageType, fmt="AVIF") -> BinaryIO:
     if image.mode == "RGBA" and not supports_alpha:
         image = image.convert("RGB")
     elif image.mode not in ("RGB", "RGBA"):
-        image = image.convert("RGB")
+        if image.mode == "L" and image.info.get("icc_profile"):
+            # `convert("RGB")` changes the pixel mode but keeps the source
+            # ICC profile as-is, which is invalid for RGB output and gets
+            # embedded verbatim on save, producing files some decoders
+            # (e.g. Chrome for AVIF) refuse to open.
+            try:
+                source_profile = ImageCms.ImageCmsProfile(
+                    io.BytesIO(image.info["icc_profile"])
+                )
+                transformed_image = ImageCms.profileToProfile(
+                    image,
+                    source_profile,
+                    ImageCms.createProfile("sRGB"),
+                    outputMode="RGB",
+                )
+                # `profileToProfile()` only returns `None` when called with
+                # `inPlace=True`, which we don't do here.
+                assert transformed_image is not None
+                image = transformed_image
+            except ImageCms.PyCMSError:
+                # The embedded profile is untrusted (uploaded) data: it can be
+                # malformed enough to open but still fail to build a color
+                # transform. Fall back to an uncolor-managed conversion rather
+                # than crashing.
+                image = image.convert("RGB")
+                image.info.pop("icc_profile", None)
+        else:
+            image = image.convert("RGB")
+            # the profile (if any) belonged to the previous color space
+            image.info.pop("icc_profile", None)
     image.save(buffer, format=fmt)
     buffer.seek(0)
     return buffer
