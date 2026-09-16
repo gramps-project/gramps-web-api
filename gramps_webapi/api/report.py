@@ -371,11 +371,16 @@ def run_report(
             report_options["of"] = os.path.join(report_path, file_name)
             report_profile = get_report_profile(db_handle, plugin_manager, report_data)
             validate_options(report_profile, report_options, allow_file=allow_file)
-            if language and "trans" in report_profile["options_dict"]:
+            if (
+                language
+                and "trans" in report_profile["options_dict"]
+                and language in glocale.get_language_dict().values()
+            ):
                 # Apply the language via the report's own localization option,
                 # which is evaluated in the report's constructor. Reports build
                 # locale-dependent objects there, so setting the locale
-                # afterwards is not enough.
+                # afterwards is not enough. Languages the option does not accept
+                # are left to set_locale, which handles e.g. regional variants.
                 report_options["trans"] = language
                 language = None
             module = plugin_manager.load_plugin(report_data)
