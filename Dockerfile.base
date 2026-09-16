@@ -11,7 +11,7 @@ WORKDIR /app
 # Noto fonts (needed to render non-Latin scripts in generated reports -
 # without them, Pango has no glyphs and PDF output is garbled)
 RUN apt-get update && apt-get install -y \
-  fonts-noto-core fonts-noto-cjk \
+  fonts-dejavu-core fonts-noto-core fonts-noto-cjk \
   appstream pkg-config libcairo2-dev \
   gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev \
   graphviz gir1.2-gexiv2-0.10 gir1.2-osmgpsmap-1.0 \
