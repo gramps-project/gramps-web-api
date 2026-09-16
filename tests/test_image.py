@@ -121,6 +121,7 @@ def test_malformed_icc_profile_falls_back_without_raising():
     result.load()
 
     assert result.mode == "RGB"
+    assert result.info.get("icc_profile") is None
 
 
 def make_two_page_pdf(
