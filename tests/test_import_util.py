@@ -20,6 +20,7 @@
 """Tests for import utility functions."""
 
 import gzip
+import re
 import os
 import tempfile
 import unittest
@@ -28,8 +29,11 @@ from unittest.mock import MagicMock, patch
 from werkzeug.exceptions import HTTPException
 
 from gramps_webapi.api.resources.util import (
+    MAX_IMPORT_REPORT_CHARS,
+    dry_run_import,
     remove_mediapath_from_gramps_xml,
     run_import,
+    truncate_import_report,
 )
 from gramps_webapi.app import create_app
 
@@ -318,17 +322,13 @@ class TestGedcom7ErrorHandling(unittest.TestCase):
 
     @patch("gramps_webapi.api.resources.util.detect_gedcom_major_version")
     @patch("gramps_webapi.api.resources.util.gramps_gedcom7")
-    def test_gedcom7_valueerror_returns_422(
-        self, mock_gedcom7, mock_detect_version
-    ):
+    def test_gedcom7_valueerror_returns_422(self, mock_gedcom7, mock_detect_version):
         """Test that ValueError during GEDCOM7 import returns 422."""
         mock_detect_version.return_value = 7
         mock_gedcom7.import_gedcom.side_effect = ValueError("File is not UTF-8 encoded")
 
         # Create temporary file
-        with tempfile.NamedTemporaryFile(
-            mode="wb", suffix=".ged", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".ged", delete=False) as f:
             temp_file = f.name
             f.write(b"dummy content")
 
@@ -367,9 +367,7 @@ class TestGedcom7ErrorHandling(unittest.TestCase):
         mock_gedcom7.import_gedcom.side_effect = RuntimeError("Unexpected error")
 
         # Create temporary file
-        with tempfile.NamedTemporaryFile(
-            mode="wb", suffix=".ged", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".ged", delete=False) as f:
             temp_file = f.name
             f.write(b"dummy content")
 
@@ -411,9 +409,7 @@ class TestGedcom7ErrorHandling(unittest.TestCase):
         mock_remove.side_effect = OSError("Permission denied")
 
         # Create temporary file
-        with tempfile.NamedTemporaryFile(
-            mode="wb", suffix=".ged", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".ged", delete=False) as f:
             temp_file = f.name
             f.write(b"dummy content")
 
@@ -444,17 +440,13 @@ class TestGedcom7ErrorHandling(unittest.TestCase):
 
     @patch("gramps_webapi.api.resources.util.detect_gedcom_major_version")
     @patch("gramps_webapi.api.resources.util.gramps_gedcom7")
-    def test_gedcom7_no_delete_preserves_file(
-        self, mock_gedcom7, mock_detect_version
-    ):
+    def test_gedcom7_no_delete_preserves_file(self, mock_gedcom7, mock_detect_version):
         """Test that file is preserved when delete=False."""
         mock_detect_version.return_value = 7
         mock_gedcom7.import_gedcom.side_effect = ValueError("Invalid file")
 
         # Create temporary file
-        with tempfile.NamedTemporaryFile(
-            mode="wb", suffix=".ged", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".ged", delete=False) as f:
             temp_file = f.name
             f.write(b"dummy content")
 
@@ -475,5 +467,136 @@ class TestGedcom7ErrorHandling(unittest.TestCase):
             self.assertTrue(os.path.exists(temp_file))
         finally:
             # Clean up
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
+
+
+GEDCOM_WITH_PROBLEMS = b"""0 HEAD
+1 SOUR TEST
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME John /Smith/
+1 BIRT
+2 DATE 1 JAN 1900
+2 QUAY 3
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I404@
+0 TRLR
+"""
+
+
+class TestImportReport(unittest.TestCase):
+    """Test cases for capturing the importer's diagnostic messages."""
+
+    @staticmethod
+    def _import(content: bytes) -> list[str]:
+        """Import GEDCOM content into a scratch database, return the messages."""
+        from gramps.gen.db.utils import make_database
+
+        with tempfile.NamedTemporaryFile(suffix=".ged", delete=False) as f:
+            f.write(content)
+            temp_file = f.name
+        db_handle = make_database("sqlite")
+        db_handle.load(":memory:")
+        db_handle.set_feature("skip-import-additions", True)
+        try:
+            with APP.app_context():
+                return run_import(
+                    db_handle=db_handle,
+                    file_name=temp_file,
+                    extension="ged",
+                    delete=False,
+                )
+        finally:
+            db_handle.close()
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
+
+    def test_report_contains_unsupported_tag(self):
+        """The report names a tag the importer could not handle."""
+        messages = self._import(GEDCOM_WITH_PROBLEMS)
+        report = "\n".join(messages)
+        self.assertIn("QUAY", report)
+        self.assertIn("not supported", report)
+
+    def test_report_contains_dangling_reference(self):
+        """The report flags a reference to a record missing from the file."""
+        report = "\n".join(self._import(GEDCOM_WITH_PROBLEMS))
+        self.assertIn("I404", report)
+
+    def test_clean_file_reports_no_errors(self):
+        """A file without problems still yields the importer's summary line."""
+        clean = GEDCOM_WITH_PROBLEMS.replace(b"2 QUAY 3\n", b"").replace(
+            b"0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I404@\n", b""
+        )
+        report = "\n".join(self._import(clean))
+        self.assertIn("No errors detected", report)
+
+
+class TestTruncateImportReport(unittest.TestCase):
+    """Test cases for capping the size of importer diagnostics."""
+
+    def test_short_report_passes_through(self):
+        """A report within budget is returned unchanged."""
+        messages = ["GEDCOM import report: 1 errors detected\nsomething went wrong"]
+        self.assertEqual(truncate_import_report(messages), messages)
+
+    def test_empty_report_passes_through(self):
+        """An empty message list is handled."""
+        self.assertEqual(truncate_import_report([]), [])
+
+    def test_long_report_is_truncated(self):
+        """An oversized report is cut down and the omitted lines counted."""
+        lines = [f"Error on line {i}: something went wrong" for i in range(10000)]
+        result = truncate_import_report(["\n".join(lines)], max_chars=1000)
+        self.assertLess(sum(len(m) for m in result), 1200)
+        self.assertIn("Report truncated", result[-1])
+        # the beginning is kept, so the importer's summary line survives
+        self.assertIn("Error on line 0:", result[0])
+
+    def test_truncation_counts_all_omitted_lines(self):
+        """The omitted count covers every line that was dropped."""
+        lines = [f"line {i}" for i in range(500)]
+        result = truncate_import_report(["\n".join(lines)], max_chars=100)
+        match = re.search(r"(\d+) further lines omitted", result[-1])
+        assert match is not None
+        kept = sum(m.count("\n") + 1 for m in result[:-1])
+        self.assertEqual(int(match.group(1)) + kept, 500)
+
+    def test_truncation_cuts_at_line_boundary(self):
+        """Truncation never leaves a partial line."""
+        lines = [f"line {i}" for i in range(500)]
+        result = truncate_import_report(["\n".join(lines)], max_chars=100)
+        for line in result[0].split("\n"):
+            self.assertRegex(line, r"^line \d+$")
+
+    def test_default_cap_is_applied(self):
+        """The default budget is used when none is given."""
+        huge = "\n".join(f"line {i}" for i in range(MAX_IMPORT_REPORT_CHARS))
+        result = truncate_import_report([huge])
+        self.assertLessEqual(sum(len(m) for m in result), MAX_IMPORT_REPORT_CHARS + 200)
+
+
+class TestDryRunImportReport(unittest.TestCase):
+    """Test cases for diagnostics returned by a dry run."""
+
+    def test_dry_run_returns_counts_and_messages(self):
+        """A dry run reports what a real import would complain about."""
+        with tempfile.NamedTemporaryFile(suffix=".ged", delete=False) as f:
+            f.write(GEDCOM_WITH_PROBLEMS)
+            temp_file = f.name
+        try:
+            with APP.app_context():
+                result = dry_run_import(file_name=temp_file, extension="ged")
+            assert result is not None
+            self.assertEqual(result["people"], 2)
+            report = "\n".join(result["messages"])
+            self.assertIn("QUAY", report)
+            self.assertIn("I404", report)
+        finally:
             if os.path.exists(temp_file):
                 os.unlink(temp_file)
