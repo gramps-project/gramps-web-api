@@ -66,7 +66,6 @@ from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.plug import BasePluginManager
 from gramps.gen.relationship import get_relationship_calculator
 from gramps.gen.soundex import soundex
-from gramps.gen.user import User
 from gramps.gen.utils.db import (
     get_birth_or_fallback,
     get_death_or_fallback,
@@ -84,6 +83,8 @@ from ...const import DISABLED_IMPORTERS, SEX_FEMALE, SEX_MALE, SEX_OTHER, SEX_UN
 from ...types import FilenameOrPath, Handle, TransactionJson
 from ..media import get_media_handler
 from ..util import (
+    ImportUser,
+    InfoCollectorMixin,
     UserTaskProgress,
     abort_with_message,
     get_db_handle,
@@ -329,10 +330,7 @@ def preload_event_backlinks(
     if dbapi is None:
         return None
     treeid = getattr(dbapi, "treeid", None)
-    if (
-        treeid is None
-        and type(db_handle).__name__ not in SINGLE_TREE_DBAPI_CLASS_NAMES
-    ):
+    if treeid is None and type(db_handle).__name__ not in SINGLE_TREE_DBAPI_CLASS_NAMES:
         return None
     # obj_class filter matches find_backlink_handles(include_classes=[...])'s
     # scope in get_event_participants_for_handle(): only Person/Family carry
@@ -2009,14 +2007,65 @@ def remove_mediapath_from_gramps_xml(file_name: FilenameOrPath) -> None:
             f.write(content_modified)
 
 
+MAX_IMPORT_REPORT_CHARS = 100_000
+
+
+def truncate_import_report(
+    messages: list[str], max_chars: int = MAX_IMPORT_REPORT_CHARS
+) -> list[str]:
+    """Truncate importer diagnostics to a size safe to keep in a task result.
+
+    The GEDCOM importer emits its whole report as a single message with one
+    line per problem, so its size is unbounded in the size of a bad input file
+    and would otherwise end up verbatim in the Celery result backend. The
+    report is truncated at a line boundary, keeping the beginning - which
+    carries the importer's summary line - and appending a count of what was
+    dropped.
+    """
+    if sum(len(message) for message in messages) <= max_chars:
+        return messages
+    kept: list[str] = []
+    budget = max_chars
+    omitted = 0
+    for message in messages:
+        if budget <= 0:
+            omitted += message.count("\n") + 1
+            continue
+        if len(message) <= budget:
+            kept.append(message)
+            budget -= len(message)
+            continue
+        lines = message.split("\n")
+        kept_lines: list[str] = []
+        for line in lines:
+            if len(line) + 1 > budget:
+                break
+            kept_lines.append(line)
+            budget -= len(line) + 1
+        omitted += len(lines) - len(kept_lines)
+        if kept_lines:
+            kept.append("\n".join(kept_lines))
+        # everything after the first partial message is dropped
+        budget = 0
+    if omitted:
+        kept.append(f"[Report truncated: {omitted} further lines omitted.]")
+    return kept
+
+
 def run_import(
     db_handle: DbWriteBase,
     file_name: FilenameOrPath,
     extension: str,
     delete: bool = True,
     task: Optional[Task] = None,
-) -> None:
-    """Import a file."""
+) -> list[str]:
+    """Import a file.
+
+    Returns the importer's diagnostic messages, if it emitted any, truncated to
+    `MAX_IMPORT_REPORT_CHARS`. The GEDCOM 5.x importer reports every line it
+    could not parse this way; other importers, including the GEDCOM 7 one,
+    generally return an empty list.
+    """
     if extension.lower() == "ged" and detect_gedcom_major_version(str(file_name)) == 7:
         try:
             gramps_gedcom7.import_gedcom(input_file=file_name, db=db_handle)
@@ -2036,7 +2085,7 @@ def run_import(
                     current_app.logger.warning(
                         f"Failed to delete temporary file {file_name}: {e}"
                     )
-        return
+        return []
     if extension.lower() == "gramps":
         # Remove mediapath tag from Gramps XML files before import
         # This is necessary because the mediapath tag can cause import failures
@@ -2051,23 +2100,30 @@ def run_import(
     for plugin in plugin_manager.get_import_plugins():
         if extension == plugin.get_extension():
             import_function = plugin.get_import_function()
+            user: InfoCollectorMixin
             if task:
                 user = UserTaskProgress(task=task)
             else:
-                user = User()
+                user = ImportUser()
             result = import_function(db_handle, str(file_name), user)
             if delete:
                 os.remove(file_name)
             if not result:
                 abort_with_message(500, "Import failed")
-            return
+            return truncate_import_report(user.info_messages)
+    return []
 
 
 def dry_run_import(
     file_name: FilenameOrPath,
     extension: str,
-) -> Optional[dict[str, int]]:
-    """Import a file into an in-memory database and returns object counts."""
+) -> Optional[dict[str, Any]]:
+    """Import a file into an in-memory database.
+
+    Returns the resulting object counts plus the importer's diagnostic
+    messages under `messages`, so a dry run can show what the real import
+    would complain about before anything is written to the tree.
+    """
     db_handle = make_database("sqlite")
     db_handle.load(":memory:")
     db_handle.set_feature("skip-import-additions", True)
@@ -2082,10 +2138,10 @@ def dry_run_import(
         config.get("preferences.rprefix"),
         config.get("preferences.nprefix"),
     )
-    run_import(
+    messages = run_import(
         db_handle=db_handle, file_name=file_name, extension=extension, delete=False
     )
-    result = {
+    result: dict[str, Any] = {
         "people": db_handle.get_number_of_people(),
         "families": db_handle.get_number_of_families(),
         "sources": db_handle.get_number_of_sources(),
@@ -2096,6 +2152,7 @@ def dry_run_import(
         "repositories": db_handle.get_number_of_repositories(),
         "notes": db_handle.get_number_of_notes(),
         "tags": db_handle.get_number_of_tags(),
+        "messages": messages,
     }
     db_handle.close()
     return result

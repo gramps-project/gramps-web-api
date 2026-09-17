@@ -2106,6 +2106,24 @@ class ObjectCountsSchema(_Base):
     tags = fields.Float(metadata={"description": "Number of tags."})
 
 
+class ImportResultSchema(ObjectCountsSchema):
+    """Result of a file import: object counts plus importer diagnostics."""
+
+    messages = fields.List(
+        fields.Str(),
+        metadata={
+            "description": (
+                "Diagnostic messages emitted by the importer, e.g. the GEDCOM "
+                "import report listing lines that could not be parsed. Empty for "
+                "importers that emit no diagnostics. Also returned for a dry run, "
+                "where it describes what a real import would report. A long "
+                "report is truncated, with a final line stating how much was "
+                "omitted."
+            )
+        },
+    )
+
+
 class ResearcherSchema(_Base):
     """Information about the primary researcher of the genealogical data."""
 
