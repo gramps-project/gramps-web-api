@@ -129,6 +129,15 @@ PERMISSIONS[ROLE_ADMIN] = PERMISSIONS[ROLE_OWNER] | {
     PERM_DISABLE_TREE,
 }
 
+# Users with a non-positive role hold no permissions, but the role must
+# still be a key here: get_permissions() looks up PERMISSIONS[user.role]
+# directly, and the OIDC callback resolves permissions before it checks for
+# a disabled account, so a missing key raises instead of reaching the
+# "Account Under Review" page. Local login is unaffected (it rejects a
+# negative role before any permission lookup).
+PERMISSIONS[ROLE_DISABLED] = set()
+PERMISSIONS[ROLE_UNCONFIRMED] = set()
+
 # keys/values for user claims
 CLAIM_LIMITED_SCOPE = "limited_scope"
 SCOPE_RESET_PW = "reset_password"
