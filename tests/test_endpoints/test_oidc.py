@@ -934,6 +934,80 @@ class TestOIDCSingleTree(unittest.TestCase):
             )
         self.assertEqual(rv.status_code, 422)
 
+    @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
+    @patch(
+        "gramps_webapi.api.resources.oidc.get_available_oidc_providers",
+        return_value=["custom"],
+    )
+    @patch("gramps_webapi.api.resources.oidc.create_or_update_oidc_user")
+    @patch("gramps_webapi.api.resources.oidc.get_name")
+    def test_callback_negative_role_renders_review_page(
+        self,
+        mock_get_name,
+        mock_create_user,
+        mock_providers,
+        mock_oidc_enabled,
+    ):
+        """A disabled or unconfirmed account sees the review page, not a 500.
+
+        New OIDC sign-ups default to ROLE_DISABLED when no group->role
+        mapping is configured, and an account may also be ROLE_UNCONFIRMED.
+        Resolving permissions for either negative role must not raise, so
+        that the callback reaches its "Account Under Review" branch and
+        renders it instead of returning 500.
+        """
+        from gramps_webapi.auth import add_user, delete_user, get_guid, get_tree
+        from gramps_webapi.auth.const import ROLE_DISABLED, ROLE_UNCONFIRMED
+
+        for role in (ROLE_DISABLED, ROLE_UNCONFIRMED):
+            with self.subTest(role=role):
+                username = f"oidc_negative_{role}"
+                with self.client.application.app_context():
+                    # Belong to the same tree as the seeded users, so tree
+                    # resolution succeeds and the login is not refused for
+                    # want of a tree; the account is simply not active.
+                    tree = get_tree(get_guid("owner"))
+                    add_user(
+                        name=username,
+                        password="disabled-pw",
+                        role=role,
+                        tree=tree,
+                    )
+                    account_guid = get_guid(username)
+
+                try:
+                    mock_create_user.return_value = account_guid
+                    mock_get_name.return_value = username
+
+                    mock_oauth = MagicMock()
+                    mock_oidc_client = MagicMock()
+                    mock_oauth.gramps_custom = mock_oidc_client
+                    mock_oidc_client.authorize_access_token.return_value = {
+                        "access_token": "t"
+                    }
+                    mock_oidc_client.userinfo.return_value = {
+                        "sub": f"negative-subject-{role}",
+                        "email": "inactive@example.com",
+                    }
+
+                    # get_tree_id_and_permissions() -> get_permissions()
+                    # runs for real here: that lookup is what used to raise
+                    # KeyError for a negative role.
+                    with patch.dict(
+                        self.client.application.extensions,
+                        {"authlib.integrations.flask_client": mock_oauth},
+                        clear=False,
+                    ):
+                        rv = self.client.get(
+                            BASE_URL + "/oidc/callback/custom?code=auth_code"
+                        )
+
+                    self.assertEqual(rv.status_code, 200)
+                    self.assertIn(b"Account Under Review", rv.data)
+                finally:
+                    with self.client.application.app_context():
+                        delete_user(username)
+
 
 class TestOIDCCodeExchange(unittest.TestCase):
     """Test cases for the single-use exchange code and its redemption."""
