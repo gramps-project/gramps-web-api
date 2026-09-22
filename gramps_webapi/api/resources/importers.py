@@ -44,7 +44,11 @@ from ..util import abort_with_message, get_db_handle, get_tree_from_jwt
 from ...types import ResponseReturnValue
 from . import FreshProtectedResource, ProtectedResource
 from .emit import GrampsJSONEncoder
-from .schemas import ImporterSchema, ObjectCountsSchema, RestoreSummarySchema
+from .schemas import (
+    ImporterSchema,
+    ImportResultSchema,
+    RestoreSummarySchema,
+)
 from .util import get_importers
 
 
@@ -94,7 +98,7 @@ class ImporterFileQueryArgs(Schema):
 class ImporterFileResource(ProtectedResource):
     """Import file resource."""
 
-    @api_blueprint.response(200, ObjectCountsSchema())
+    @api_blueprint.response(200, ImportResultSchema())
     @api_blueprint.arguments(ImporterFileQueryArgs, location="query")
     def post(self, args: dict, extension: str) -> ResponseReturnValue:
         """Import file."""
@@ -121,7 +125,9 @@ class ImporterFileResource(ProtectedResource):
             return make_task_response(task)
         if args.get("dry_run", False):
             return task, 200
-        return Response(status=201)
+        # the import report is only available synchronously; when the import
+        # runs as a background task the client reads it from the task result.
+        return task, 201
 
 
 def _stream_upload_to_tempfile(extension: str) -> str:
