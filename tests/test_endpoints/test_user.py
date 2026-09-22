@@ -22,6 +22,8 @@
 import os
 import re
 import unittest
+import uuid
+from unittest.mock import ANY
 from unittest.mock import patch
 from unittest.mock import MagicMock
 
@@ -360,6 +362,7 @@ class TestUser(unittest.TestCase):
                 "role": ROLE_MEMBER,
                 "full_name": None,
                 "tree": self.tree,
+                "user_id": ANY,
             },
         )
         # user cannot view others
@@ -382,6 +385,7 @@ class TestUser(unittest.TestCase):
                 "role": ROLE_MEMBER,
                 "full_name": None,
                 "tree": self.tree,
+                "user_id": ANY,
             },
         )
         # owner cannot view other tree
@@ -410,6 +414,7 @@ class TestUser(unittest.TestCase):
                 "role": ROLE_MEMBER,
                 "full_name": None,
                 "tree": self.tree2,
+                "user_id": ANY,
             },
         )
 
@@ -502,6 +507,180 @@ class TestUser(unittest.TestCase):
         # user2 belongs to tree2; owner of tree1 must not see them
         assert rv.json == []
 
+    def _get_token(self, username, password="123"):
+        """Return an access token for the given user."""
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": username, "password": password}
+        )
+        assert rv.status_code == 200
+        return rv.json["access_token"]
+
+    def test_show_users_exposes_user_id(self):
+        """The user ID is part of the response, so it can be fed back as a filter."""
+        token_owner = self._get_token("owner")
+        rv = self.client.get(
+            BASE_URL + "/users/",
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 200
+        user_ids = {user["name"]: user["user_id"] for user in rv.json}
+        assert set(user_ids) == {"admin", "user", "owner"}
+        # the ID from the list response round-trips into the user_id filter
+        rv = self.client.get(
+            BASE_URL + f"/users/?user_id={user_ids['user']}",
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 200
+        assert [user["name"] for user in rv.json] == ["user"]
+
+    def test_show_own_user_exposes_user_id(self):
+        """GET /api/users/-/ returns the own user's ID."""
+        token_user = self._get_token("user")
+        rv = self.client.get(
+            BASE_URL + "/users/-/",
+            headers={"Authorization": f"Bearer {token_user}"},
+        )
+        assert rv.status_code == 200
+        assert uuid.UUID(rv.json["user_id"])
+
+    def test_show_users_filter_by_tree_as_admin(self):
+        """A site admin can restrict the user list to a single tree."""
+        token_admin = self._get_token("admin")
+        rv = self.client.get(
+            BASE_URL + f"/users/?tree={self.tree2}",
+            headers={"Authorization": f"Bearer {token_admin}"},
+        )
+        assert rv.status_code == 200
+        self.assertEqual(set(user["name"] for user in rv.json), {"user2", "owner2"})
+        assert all(user["tree"] == self.tree2 for user in rv.json)
+        # without the filter, all trees are returned
+        rv = self.client.get(
+            BASE_URL + "/users/",
+            headers={"Authorization": f"Bearer {token_admin}"},
+        )
+        assert rv.status_code == 200
+        self.assertEqual(
+            set(user["name"] for user in rv.json),
+            {"admin", "user", "user2", "owner", "owner2"},
+        )
+
+    def test_show_users_filter_by_own_tree_as_owner(self):
+        """A tree owner may filter by their own tree, which changes nothing."""
+        token_owner = self._get_token("owner")
+        rv = self.client.get(
+            BASE_URL + f"/users/?tree={self.tree}",
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 200
+        self.assertEqual(
+            set(user["name"] for user in rv.json), {"admin", "user", "owner"}
+        )
+
+    def test_show_users_filter_by_other_tree_as_owner(self):
+        """A tree owner must not be able to list another tree's users."""
+        token_owner = self._get_token("owner")
+        rv = self.client.get(
+            BASE_URL + f"/users/?tree={self.tree2}",
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 403
+
+    def test_show_users_filter_by_unknown_tree(self):
+        """An unknown tree ID is rejected, for admins and non-admins alike."""
+        for username in ["admin", "owner"]:
+            token = self._get_token(username)
+            rv = self.client.get(
+                BASE_URL + "/users/?tree=not_exists",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            assert rv.status_code == 422, username
+
+    def test_show_users_filter_by_role(self):
+        """The user list can be restricted to one or several roles."""
+        token_admin = self._get_token("admin")
+        rv = self.client.get(
+            BASE_URL + f"/users/?role={ROLE_OWNER}",
+            headers={"Authorization": f"Bearer {token_admin}"},
+        )
+        assert rv.status_code == 200
+        self.assertEqual(set(user["name"] for user in rv.json), {"owner", "owner2"})
+        # several roles at once, as for a moderation queue
+        rv = self.client.get(
+            BASE_URL + f"/users/?role={ROLE_MEMBER},{ROLE_ADMIN}",
+            headers={"Authorization": f"Bearer {token_admin}"},
+        )
+        assert rv.status_code == 200
+        self.assertEqual(
+            set(user["name"] for user in rv.json), {"user", "user2", "admin"}
+        )
+        # a role nobody has yields an empty list
+        rv = self.client.get(
+            BASE_URL + f"/users/?role={ROLE_UNCONFIRMED}",
+            headers={"Authorization": f"Bearer {token_admin}"},
+        )
+        assert rv.status_code == 200
+        assert rv.json == []
+
+    def test_show_users_filter_by_role_and_tree(self):
+        """The role and tree filters compose."""
+        token_admin = self._get_token("admin")
+        rv = self.client.get(
+            BASE_URL + f"/users/?tree={self.tree2}&role={ROLE_OWNER}",
+            headers={"Authorization": f"Bearer {token_admin}"},
+        )
+        assert rv.status_code == 200
+        self.assertEqual([user["name"] for user in rv.json], ["owner2"])
+
+    def test_show_users_filter_by_role_respects_tree_scope(self):
+        """A role filter must not let a non-admin see other trees' users."""
+        token_owner = self._get_token("owner")
+        rv = self.client.get(
+            BASE_URL + f"/users/?role={ROLE_OWNER}",
+            headers={"Authorization": f"Bearer {token_owner}"},
+        )
+        assert rv.status_code == 200
+        # owner2 belongs to tree2 and must not appear
+        self.assertEqual([user["name"] for user in rv.json], ["owner"])
+
+    def test_show_users_filter_by_invalid_role(self):
+        """A non-integer role is rejected."""
+        token_admin = self._get_token("admin")
+        rv = self.client.get(
+            BASE_URL + "/users/?role=owner",
+            headers={"Authorization": f"Bearer {token_admin}"},
+        )
+        assert rv.status_code == 422
+
+    def test_show_users_pagination(self):
+        """Users are paged on request and the total count is in the header."""
+        token_admin = self._get_token("admin")
+        # all five users, sorted by name, when no page is requested
+        rv = self.client.get(
+            BASE_URL + "/users/",
+            headers={"Authorization": f"Bearer {token_admin}"},
+        )
+        assert rv.status_code == 200
+        all_names = [user["name"] for user in rv.json]
+        self.assertEqual(all_names, ["admin", "owner", "owner2", "user", "user2"])
+        assert rv.headers["X-Total-Count"] == "5"
+        # paging returns a slice, but the total count stays the same
+        for page, expected in [(1, all_names[:2]), (2, all_names[2:4]), (3, ["user2"])]:
+            rv = self.client.get(
+                BASE_URL + f"/users/?page={page}&pagesize=2",
+                headers={"Authorization": f"Bearer {token_admin}"},
+            )
+            assert rv.status_code == 200
+            self.assertEqual([user["name"] for user in rv.json], expected)
+            assert rv.headers["X-Total-Count"] == "5"
+        # the count reflects the tree filter
+        rv = self.client.get(
+            BASE_URL + f"/users/?tree={self.tree2}&page=1&pagesize=1",
+            headers={"Authorization": f"Bearer {token_admin}"},
+        )
+        assert rv.status_code == 200
+        assert len(rv.json) == 1
+        assert rv.headers["X-Total-Count"] == "2"
+
     def test_edit_user(self):
         rv = self.client.post(
             BASE_URL + "/token/", json={"username": "user", "password": "123"}
@@ -534,6 +713,7 @@ class TestUser(unittest.TestCase):
                 "role": ROLE_MEMBER,
                 "full_name": "My Name",
                 "tree": self.tree,
+                "user_id": ANY,
             },
         )
         # user cannot change others
@@ -563,6 +743,7 @@ class TestUser(unittest.TestCase):
                 "role": ROLE_MEMBER,
                 "full_name": "His Name",
                 "tree": self.tree,
+                "user_id": ANY,
             },
         )
 
@@ -681,6 +862,7 @@ class TestUser(unittest.TestCase):
                 "full_name": "New Name",
                 "name": "new_user",
                 "tree": self.tree,
+                "user_id": ANY,
             },
         )
         # check token for new user
@@ -830,6 +1012,7 @@ class TestUser(unittest.TestCase):
                     "full_name": "New Name",
                     "name": "new_user_2",
                     "tree": self.tree,
+                    "user_id": ANY,
                 },
             )
             # new user cannot get token
@@ -896,6 +1079,7 @@ class TestUser(unittest.TestCase):
                     "full_name": "New Name",
                     "name": "new_user_3",
                     "tree": self.tree,
+                    "user_id": ANY,
                 },
             )
             # try getting list of people with email confirmation token

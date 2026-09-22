@@ -272,13 +272,15 @@ def _get_user_detail(
     return details
 
 
-def get_user_details(username: str) -> Optional[Dict[str, Any]]:
+def get_user_details(
+    username: str, include_guid: bool = False
+) -> Optional[Dict[str, Any]]:
     """Return details about a user."""
     query = user_db.session.query(User)  # pylint: disable=no-member
     user = query.filter_by(name=username).scalar()
     if user is None:
         return None
-    return _get_user_detail(user)
+    return _get_user_detail(user, include_guid=include_guid)
 
 
 def normalize_access_token_scope(scope: str) -> str:
