@@ -657,6 +657,49 @@ def test_preload_event_backlinks_sharedpostgresql_scopes_by_treeid():
     assert params == ["Event", 7]
 
 
+def test_preload_event_backlinks_single_user_postgresql_uses_format_placeholders():
+    """The single-user `PostgreSQL` addon's `dbapi.cursor()` passes SQL
+    straight to psycopg2 untranslated (unlike `dbapi.execute()`), so `?`
+    placeholders raise a syntax error there -- regression test for
+    gramps-project/gramps-web-api#999.
+    """
+    from gramps_webapi.api.resources.util import preload_event_backlinks
+
+    class PostgreSQL:
+        def __init__(self, dbapi):
+            self.dbapi = dbapi
+
+    dbapi = _FakeDbapi(batches=[[("h1", "Person", "p1")], []])
+    result = preload_event_backlinks(PostgreSQL(dbapi))
+
+    assert result == {"h1": [("Person", "p1")]}
+    sql, params = dbapi._cursor.executed
+    assert "?" not in sql
+    assert "%s" in sql
+    assert params == ["Event"]
+
+
+def test_preload_event_backlinks_sharedpostgresql_uses_format_placeholders():
+    """`SharedPostgreSQL`'s own cursor already translates `?` to `%s`
+    internally, but gramps-web-api now does it up front too (harmless and
+    idempotent) rather than relying on addon-specific behavior.
+    """
+    from gramps_webapi.api.resources.util import preload_event_backlinks
+
+    class SharedPostgreSQL:
+        def __init__(self, dbapi):
+            self.dbapi = dbapi
+
+    dbapi = _FakeDbapi(batches=[[("h1", "Person", "p1")], []], treeid=7)
+    result = preload_event_backlinks(SharedPostgreSQL(dbapi))
+
+    assert result == {"h1": [("Person", "p1")]}
+    sql, params = dbapi._cursor.executed
+    assert "?" not in sql
+    assert "%s" in sql
+    assert params == ["Event", 7]
+
+
 def test_preload_event_backlinks_unknown_backend_without_treeid_returns_none():
     """An unrecognized DBAPI-backed backend with no `treeid` must not be
     queried unscoped.

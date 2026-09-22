@@ -57,3 +57,28 @@ SINGLE_TREE_DBAPI_CLASS_NAMES = frozenset(
 def is_sqlite(basedb: Any) -> bool:
     """Whether `basedb` (or its `.dbapi`) is a core SQLite backend."""
     return isinstance(basedb, SQLite) or type(basedb).__name__ == SQLITE_CLASS_NAME
+
+
+def needs_qmark_translation(basedb: Any) -> bool:
+    """Whether raw SQL built with sqlite-style `?` placeholders must be
+    rewritten to `%s` before reaching `basedb.dbapi.cursor()`.
+
+    `SharedPostgreSQL`'s own `Cursor.execute()` already does this
+    translation internally (its `_translate_sql()`), so calling this is
+    harmless but redundant for it. The single-user `PostgreSQL` addon's
+    `Cursor.execute()` -- reached via `dbapi.cursor()`, as opposed to the
+    connection-level `dbapi.execute()`, which *does* translate -- passes
+    SQL straight to psycopg2, which expects `%s`-style placeholders, not
+    `?`, and errors out instead of silently misbehaving
+    (gramps-project/gramps-web-api#999). Any raw-SQL caller using
+    `dbapi.cursor()` directly (`util.py`'s `preload_event_backlinks`)
+    must not rely on the addon's cursor translating for it.
+
+    Detected by class name for the same reason as `is_sqlite()`: Gramps'
+    plugin loader gives these backends a different class identity than an
+    `isinstance` check against an in-process import would match.
+    """
+    return type(basedb).__name__ in (
+        SINGLE_TREE_POSTGRES_CLASS_NAME,
+        SHARED_POSTGRES_CLASS_NAME,
+    )
