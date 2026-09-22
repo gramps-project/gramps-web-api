@@ -51,6 +51,7 @@ dependencies = [
     "gramps-gedcom7",
     "flask-smorest",
     "typing-extensions>=4.13.0",
+    "pywebpush>=2.5.0,<3.0.0",
 ]
 
 [project.optional-dependencies]
