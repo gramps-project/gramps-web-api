@@ -89,7 +89,7 @@ from ..util import (
     get_db_handle,
     get_tree_from_jwt,
 )
-from .db_backend import SINGLE_TREE_DBAPI_CLASS_NAMES
+from .db_backend import SINGLE_TREE_DBAPI_CLASS_NAMES, needs_qmark_translation
 
 pd = PlaceDisplay()
 _ = glocale.translation.gettext
@@ -324,6 +324,13 @@ def preload_event_backlinks(
     path) rather than guessing, since guessing wrong here means silently
     mixing another tenant's event participants into this tree's index,
     not just an error.
+
+    Placeholder style: built with sqlite-style `?` placeholders and
+    translated to `%s` (see `db_backend.needs_qmark_translation`) when the
+    backend needs it -- the single-user `PostgreSQL` addon's
+    `dbapi.cursor()` (unlike its connection-level `dbapi.execute()`)
+    passes SQL straight to psycopg2 untranslated, which raises a syntax
+    error on `?` (gramps-project/gramps-web-api#999).
     """
     dbapi = getattr(db_handle, "dbapi", None)
     if dbapi is None:
@@ -347,6 +354,8 @@ def preload_event_backlinks(
     if treeid is not None:
         sql += " AND treeid = ?"
         params.append(treeid)
+    if needs_qmark_translation(db_handle):
+        sql = sql.replace("?", "%s")
     index: dict[Handle, list[tuple[str, Handle]]] = {}
     with dbapi.cursor() as cur:
         cur.execute(sql, params)
