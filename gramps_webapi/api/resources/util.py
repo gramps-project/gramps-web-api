@@ -27,6 +27,7 @@ import gzip
 import logging
 import os
 import re
+from functools import lru_cache
 from hashlib import sha256
 from http import HTTPStatus
 from typing import Any, Literal, Optional, Union, cast
@@ -329,10 +330,7 @@ def preload_event_backlinks(
     if dbapi is None:
         return None
     treeid = getattr(dbapi, "treeid", None)
-    if (
-        treeid is None
-        and type(db_handle).__name__ not in SINGLE_TREE_DBAPI_CLASS_NAMES
-    ):
+    if treeid is None and type(db_handle).__name__ not in SINGLE_TREE_DBAPI_CLASS_NAMES:
         return None
     # obj_class filter matches find_backlink_handles(include_classes=[...])'s
     # scope in get_event_participants_for_handle(): only Person/Family carry
@@ -1480,6 +1478,90 @@ def _validate_date(value: dict[str, Any], path: str) -> None:
         )
 
 
+def _gramps_class(class_name: str):
+    """Resolve a Gramps object class by name, or None.
+
+    `_class` is client-controlled, so this runs before the caches below: an
+    unknown name must not be memoized, or a client could grow a worker's
+    memory without bound by sending distinct invalid class names.
+    """
+    # `_class` is client-supplied and need not be a string: `getattr` would
+    # raise TypeError, which the endpoints do not catch (a 500 instead of 400)
+    if not isinstance(class_name, str):
+        return None
+    obj_cls = getattr(gramps.gen.lib, class_name, None)
+    # module attributes like `person` or `__path__` resolve but are not classes
+    if obj_cls is None or not hasattr(obj_cls, "get_schema"):
+        return None
+    return obj_cls
+
+
+def _computed_keys(class_name: str) -> frozenset[str]:
+    """Return keys a Gramps class computes as properties but does not store.
+
+    The object endpoints emit these when serializing (e.g. `Date.year`), so a
+    client echoing back an object it read sends them. They cannot be stored --
+    `set_object_state` would keep them in the instance `__dict__` as stray
+    attributes -- so normalization drops them instead.
+    """
+    if _gramps_class(class_name) is None:
+        return frozenset()
+    return _computed_keys_cached(class_name)
+
+
+@lru_cache(maxsize=None)
+def _computed_keys_cached(class_name: str) -> frozenset[str]:
+    """Compute `_computed_keys` for a name already known to be a class."""
+    obj_cls = _gramps_class(class_name)
+    # `__dict__` rather than the MRO on purpose: this mirrors what the encoder
+    # emits (`GrampsJSONEncoder.extract_object` also iterates the object's own
+    # class dict), so exactly the keys a read can produce are dropped. Anything
+    # else stays, to be rejected rather than silently discarded.
+    properties = {
+        key[2 + key.find("__") :] if key.startswith("_") else key
+        for key, value in obj_cls.__dict__.items()
+        if isinstance(value, property)
+    }
+    return frozenset(properties - _class_keys(class_name))
+
+
+def _class_keys(class_name: str) -> frozenset[str]:
+    """Return the keys a Gramps class defines in its dict representation.
+
+    Empty if the name is not a Gramps object class, so callers can skip the
+    check rather than reject.
+    """
+    if _gramps_class(class_name) is None:
+        return frozenset()
+    return _class_keys_cached(class_name)
+
+
+@lru_cache(maxsize=None)
+def _class_keys_cached(class_name: str) -> frozenset[str]:
+    """Compute `_class_keys` for a name already known to be a class."""
+    return frozenset(object_to_dict(_gramps_class(class_name)()))
+
+
+def _validate_keys(value: dict[str, Any], class_name: str, path: str) -> None:
+    """Reject keys that the class does not define.
+
+    The Gramps schemas do not set `additionalProperties`, so jsonschema accepts
+    unknown keys. Gramps deserializes by updating the instance `__dict__`, so
+    such a key would be committed to the database as a stray attribute that no
+    code reads and that breaks consumers iterating over the keys (e.g. the diff
+    used to restore a backup).
+    """
+    known_keys = _class_keys(class_name)
+    if not known_keys:
+        return
+    unknown_keys = sorted(key for key in value if key not in known_keys)
+    if unknown_keys:
+        names = ", ".join(repr(key) for key in unknown_keys)
+        if len(names) > MAX_VALIDATION_ERROR_LENGTH:
+            names = names[:MAX_VALIDATION_ERROR_LENGTH] + "..."
+        raise ValueError(f"{path}: unknown {class_name} keys: {names}")
+
+
 def _validate_embedded(value: Any, path: str = "$") -> None:
     """Check recursively that embedded ref and date objects are displayable.
 
@@ -1487,6 +1569,8 @@ def _validate_embedded(value: Any, path: str = "$") -> None:
     """
     if isinstance(value, dict):
         class_name = value.get("_class")
+        if isinstance(class_name, str):
+            _validate_keys(value, class_name, path)
         if class_name in REF_CLASSES and not value.get("ref"):
             raise ValueError(f"{path}: '{class_name}' requires a non-empty 'ref'")
         if class_name == "Date":
@@ -1501,7 +1585,8 @@ def _validate_embedded(value: Any, path: str = "$") -> None:
 def validate_object_dict(obj_dict: dict[str, Any]) -> None:
     """Validate a dict representation of a Gramps object vs. its schema.
 
-    Raises ValueError if the object does not conform to its schema.
+    Raises ValueError if the object does not conform to its schema, including
+    if it (or an embedded object) has a key the class does not define.
     """
     class_name = obj_dict.get("_class")
     obj_cls = (
@@ -1594,7 +1679,15 @@ def fix_object_dict(object_dict: dict, class_name: Optional[str] = None):
     if not class_name:
         raise ValueError("No class name specified!")
     d_out["_class"] = class_name
+    computed_keys = _computed_keys(class_name)
     for k, v in object_dict.items():
+        # the normalized class name wins: a nested `_class` from the payload
+        # must not override the one derived from the parent key
+        if k == "_class":
+            continue
+        # computed properties are emitted on read but cannot be stored
+        if k in computed_keys:
+            continue
         # convert type back to dict and translate type name
         if k in ["type", "place_type", "media_type", "frel", "mrel"] or (
             k == "name" and class_name == "StyledTextTag"
@@ -1602,17 +1695,17 @@ def fix_object_dict(object_dict: dict, class_name: Optional[str] = None):
             if isinstance(v, str):
                 if class_name == "Family":
                     _class = "FamilyRelType"
-                    obj = gramps.gen.lib.__dict__[_class]()
-                    _set_type_from_string(obj, v)
-                    d_out[k] = object_to_dict(obj)
                 elif class_name == "RepoRef":
                     _class = "SourceMediaType"
-                    obj = gramps.gen.lib.__dict__[_class]()
-                    _set_type_from_string(obj, v)
-                    d_out[k] = object_to_dict(obj)
                 else:
                     _class = f"{class_name}Type"
-                    obj = gramps.gen.lib.__dict__[_class]()
+                type_cls = getattr(gramps.gen.lib, _class, None)
+                if type_cls is None:
+                    # no such Gramps type, e.g. `type` on a Person: keep the
+                    # value so validation rejects the key with a 400
+                    d_out[k] = v
+                else:
+                    obj = type_cls()
                     _set_type_from_string(obj, v)
                     d_out[k] = object_to_dict(obj)
             else:
