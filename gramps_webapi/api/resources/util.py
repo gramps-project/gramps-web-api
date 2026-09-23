@@ -1509,6 +1509,10 @@ def _computed_keys(class_name: str) -> frozenset[str]:
 def _computed_keys_cached(class_name: str) -> frozenset[str]:
     """Compute `_computed_keys` for a name already known to be a class."""
     obj_cls = _gramps_class(class_name)
+    # `__dict__` rather than the MRO on purpose: this mirrors what the encoder
+    # emits (`GrampsJSONEncoder.extract_object` also iterates the object's own
+    # class dict), so exactly the keys a read can produce are dropped. Anything
+    # else stays, to be rejected rather than silently discarded.
     properties = {
         key[2 + key.find("__") :] if key.startswith("_") else key
         for key, value in obj_cls.__dict__.items()
@@ -1551,7 +1555,7 @@ def _validate_keys(value: dict[str, Any], class_name: str, path: str) -> None:
         names = ", ".join(repr(key) for key in unknown_keys)
         if len(names) > MAX_VALIDATION_ERROR_LENGTH:
             names = names[:MAX_VALIDATION_ERROR_LENGTH] + "..."
-        raise ValueError(f"{path}: '{class_name}' has no property {names}")
+        raise ValueError(f"{path}: unknown {class_name} keys: {names}")
 
 
 def _validate_embedded(value: Any, path: str = "$") -> None:
@@ -1673,6 +1677,10 @@ def fix_object_dict(object_dict: dict, class_name: Optional[str] = None):
     d_out["_class"] = class_name
     computed_keys = _computed_keys(class_name)
     for k, v in object_dict.items():
+        # the normalized class name wins: a nested `_class` from the payload
+        # must not override the one derived from the parent key
+        if k == "_class":
+            continue
         # computed properties are emitted on read but cannot be stored
         if k in computed_keys:
             continue
