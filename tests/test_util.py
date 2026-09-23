@@ -381,6 +381,37 @@ def test_validate_object_dict_rejects_unknown_keys(obj_dict, unknown_key):
     assert unknown_key in str(excinfo.value)
 
 
+def test_class_key_caches_ignore_invalid_class_names():
+    """`_class` is client-controlled, so invalid names must not be memoized.
+
+    Otherwise a client could grow a worker's memory without bound by sending
+    distinct invalid class names.
+    """
+    from gramps_webapi.api.resources.util import (
+        _class_keys,
+        _class_keys_cached,
+        _computed_keys,
+        _computed_keys_cached,
+    )
+
+    before = (
+        _class_keys_cached.cache_info().currsize,
+        _computed_keys_cached.cache_info().currsize,
+    )
+    for i in range(100):
+        assert _class_keys(f"Bogus{i}") == frozenset()
+        assert _computed_keys(f"Bogus{i}") == frozenset()
+    after = (
+        _class_keys_cached.cache_info().currsize,
+        _computed_keys_cached.cache_info().currsize,
+    )
+    assert before == after
+
+    # valid names are still cached
+    assert "handle" in _class_keys("Person")
+    assert _class_keys_cached.cache_info().currsize > 0
+
+
 def test_fix_object_dict_drops_computed_properties():
     """`Date.year` is emitted on read but not stored: a round-trip must work.
 

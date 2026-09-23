@@ -1478,7 +1478,20 @@ def _validate_date(value: dict[str, Any], path: str) -> None:
         )
 
 
-@lru_cache(maxsize=None)
+def _gramps_class(class_name: str):
+    """Resolve a Gramps object class by name, or None.
+
+    `_class` is client-controlled, so this runs before the caches below: an
+    unknown name must not be memoized, or a client could grow a worker's
+    memory without bound by sending distinct invalid class names.
+    """
+    obj_cls = getattr(gramps.gen.lib, class_name, None)
+    # module attributes like `person` or `__path__` resolve but are not classes
+    if obj_cls is None or not hasattr(obj_cls, "get_schema"):
+        return None
+    return obj_cls
+
+
 def _computed_keys(class_name: str) -> frozenset[str]:
     """Return keys a Gramps class computes as properties but does not store.
 
@@ -1487,9 +1500,15 @@ def _computed_keys(class_name: str) -> frozenset[str]:
     `set_object_state` would keep them in the instance `__dict__` as stray
     attributes -- so normalization drops them instead.
     """
-    obj_cls = getattr(gramps.gen.lib, class_name, None)
-    if obj_cls is None or not hasattr(obj_cls, "get_schema"):
+    if _gramps_class(class_name) is None:
         return frozenset()
+    return _computed_keys_cached(class_name)
+
+
+@lru_cache(maxsize=None)
+def _computed_keys_cached(class_name: str) -> frozenset[str]:
+    """Compute `_computed_keys` for a name already known to be a class."""
+    obj_cls = _gramps_class(class_name)
     properties = {
         key[2 + key.find("__") :] if key.startswith("_") else key
         for key, value in obj_cls.__dict__.items()
@@ -1498,17 +1517,21 @@ def _computed_keys(class_name: str) -> frozenset[str]:
     return frozenset(properties - _class_keys(class_name))
 
 
-@lru_cache(maxsize=None)
 def _class_keys(class_name: str) -> frozenset[str]:
     """Return the keys a Gramps class defines in its dict representation.
 
     Empty if the name is not a Gramps object class, so callers can skip the
     check rather than reject.
     """
-    obj_cls = getattr(gramps.gen.lib, class_name, None)
-    if obj_cls is None or not hasattr(obj_cls, "get_schema"):
+    if _gramps_class(class_name) is None:
         return frozenset()
-    return frozenset(object_to_dict(obj_cls()))
+    return _class_keys_cached(class_name)
+
+
+@lru_cache(maxsize=None)
+def _class_keys_cached(class_name: str) -> frozenset[str]:
+    """Compute `_class_keys` for a name already known to be a class."""
+    return frozenset(object_to_dict(_gramps_class(class_name)()))
 
 
 def _validate_keys(value: dict[str, Any], class_name: str, path: str) -> None:
