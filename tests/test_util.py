@@ -466,6 +466,22 @@ def test_validate_object_dict_accepts_complete_objects():
         validate_object_dict(obj_dict)
 
 
+@pytest.mark.parametrize("class_name", [42, ["Person"], {"a": 1}, True])
+def test_fix_object_dict_rejects_non_string_class(class_name):
+    """`_class` is client-supplied and need not be a string.
+
+    `getattr` raises TypeError for a non-string name, which the endpoints do
+    not catch -- a 500 instead of the 400 an invalid class must produce.
+    """
+    from flask import Flask
+
+    from gramps_webapi.api.resources.util import fix_object_dict, validate_object_dict
+
+    with Flask(__name__).app_context():
+        with pytest.raises(ValueError):
+            validate_object_dict(fix_object_dict({"_class": class_name, "handle": "h"}))
+
+
 @pytest.mark.parametrize("class_name", ["__path__", "person", "__spec__", 42])
 def test_validate_object_dict_rejects_non_class_attributes(class_name):
     """`_class` is client-controlled on POST /objects/.

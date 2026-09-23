@@ -1485,6 +1485,10 @@ def _gramps_class(class_name: str):
     unknown name must not be memoized, or a client could grow a worker's
     memory without bound by sending distinct invalid class names.
     """
+    # `_class` is client-supplied and need not be a string: `getattr` would
+    # raise TypeError, which the endpoints do not catch (a 500 instead of 400)
+    if not isinstance(class_name, str):
+        return None
     obj_cls = getattr(gramps.gen.lib, class_name, None)
     # module attributes like `person` or `__path__` resolve but are not classes
     if obj_cls is None or not hasattr(obj_cls, "get_schema"):
