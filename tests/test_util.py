@@ -381,6 +381,38 @@ def test_validate_object_dict_rejects_unknown_keys(obj_dict, unknown_key):
     assert unknown_key in str(excinfo.value)
 
 
+def test_fix_object_dict_drops_computed_properties():
+    """`Date.year` is emitted on read but not stored: a round-trip must work.
+
+    The object endpoints serialize class properties too, so a client echoing
+    back an object it read sends `year`, which has no place in the state.
+    """
+    from gramps_webapi.api.resources.util import fix_object_dict
+
+    result = fix_object_dict(
+        {"_class": "Date", "year": 1990, "dateval": [1, 1, 1990, False]}
+    )
+    assert "year" not in result
+    assert result["dateval"] == [1, 1, 1990, False]
+
+
+def test_fix_object_dict_keeps_type_without_gramps_type_class():
+    """A `type` on a class with no `<Class>Type` must not raise KeyError.
+
+    `fix_object_dict` used to look up e.g. `PersonType` unconditionally, so the
+    payload raised KeyError -- a 500 -- instead of being rejected with a 400.
+    """
+    from flask import Flask
+
+    from gramps_webapi.api.resources.util import fix_object_dict, validate_object_dict
+
+    result = fix_object_dict({"_class": "Person", "type": "x"})
+    assert result["type"] == "x"
+    with Flask(__name__).app_context():
+        with pytest.raises(ValueError):
+            validate_object_dict(result)
+
+
 def test_validate_object_dict_accepts_complete_objects():
     """A fully serialized object must pass, including keys absent from schemas.
 

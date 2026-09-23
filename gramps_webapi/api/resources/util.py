@@ -330,10 +330,7 @@ def preload_event_backlinks(
     if dbapi is None:
         return None
     treeid = getattr(dbapi, "treeid", None)
-    if (
-        treeid is None
-        and type(db_handle).__name__ not in SINGLE_TREE_DBAPI_CLASS_NAMES
-    ):
+    if treeid is None and type(db_handle).__name__ not in SINGLE_TREE_DBAPI_CLASS_NAMES:
         return None
     # obj_class filter matches find_backlink_handles(include_classes=[...])'s
     # scope in get_event_participants_for_handle(): only Person/Family carry
@@ -1482,6 +1479,26 @@ def _validate_date(value: dict[str, Any], path: str) -> None:
 
 
 @lru_cache(maxsize=None)
+def _computed_keys(class_name: str) -> frozenset[str]:
+    """Return keys a Gramps class computes as properties but does not store.
+
+    The object endpoints emit these when serializing (e.g. `Date.year`), so a
+    client echoing back an object it read sends them. They cannot be stored --
+    `set_object_state` would keep them in the instance `__dict__` as stray
+    attributes -- so normalization drops them instead.
+    """
+    obj_cls = getattr(gramps.gen.lib, class_name, None)
+    if obj_cls is None or not hasattr(obj_cls, "get_schema"):
+        return frozenset()
+    properties = {
+        key[2 + key.find("__") :] if key.startswith("_") else key
+        for key, value in obj_cls.__dict__.items()
+        if isinstance(value, property)
+    }
+    return frozenset(properties - _class_keys(class_name))
+
+
+@lru_cache(maxsize=None)
 def _class_keys(class_name: str) -> frozenset[str]:
     """Return the keys a Gramps class defines in its dict representation.
 
@@ -1631,7 +1648,11 @@ def fix_object_dict(object_dict: dict, class_name: Optional[str] = None):
     if not class_name:
         raise ValueError("No class name specified!")
     d_out["_class"] = class_name
+    computed_keys = _computed_keys(class_name)
     for k, v in object_dict.items():
+        # computed properties are emitted on read but cannot be stored
+        if k in computed_keys:
+            continue
         # convert type back to dict and translate type name
         if k in ["type", "place_type", "media_type", "frel", "mrel"] or (
             k == "name" and class_name == "StyledTextTag"
@@ -1639,17 +1660,17 @@ def fix_object_dict(object_dict: dict, class_name: Optional[str] = None):
             if isinstance(v, str):
                 if class_name == "Family":
                     _class = "FamilyRelType"
-                    obj = gramps.gen.lib.__dict__[_class]()
-                    _set_type_from_string(obj, v)
-                    d_out[k] = object_to_dict(obj)
                 elif class_name == "RepoRef":
                     _class = "SourceMediaType"
-                    obj = gramps.gen.lib.__dict__[_class]()
-                    _set_type_from_string(obj, v)
-                    d_out[k] = object_to_dict(obj)
                 else:
                     _class = f"{class_name}Type"
-                    obj = gramps.gen.lib.__dict__[_class]()
+                type_cls = getattr(gramps.gen.lib, _class, None)
+                if type_cls is None:
+                    # no such Gramps type, e.g. `type` on a Person: keep the
+                    # value so validation rejects the key with a 400
+                    d_out[k] = v
+                else:
+                    obj = type_cls()
                     _set_type_from_string(obj, v)
                     d_out[k] = object_to_dict(obj)
             else:
