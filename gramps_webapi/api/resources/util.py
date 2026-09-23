@@ -27,6 +27,7 @@ import gzip
 import logging
 import os
 import re
+from functools import lru_cache
 from hashlib import sha256
 from http import HTTPStatus
 from typing import Any, Literal, Optional, Union, cast
@@ -1480,6 +1481,39 @@ def _validate_date(value: dict[str, Any], path: str) -> None:
         )
 
 
+@lru_cache(maxsize=None)
+def _class_keys(class_name: str) -> frozenset[str]:
+    """Return the keys a Gramps class defines in its dict representation.
+
+    Empty if the name is not a Gramps object class, so callers can skip the
+    check rather than reject.
+    """
+    obj_cls = getattr(gramps.gen.lib, class_name, None)
+    if obj_cls is None or not hasattr(obj_cls, "get_schema"):
+        return frozenset()
+    return frozenset(object_to_dict(obj_cls()))
+
+
+def _validate_keys(value: dict[str, Any], class_name: str, path: str) -> None:
+    """Reject keys that the class does not define.
+
+    The Gramps schemas do not set `additionalProperties`, so jsonschema accepts
+    unknown keys. Gramps deserializes by updating the instance `__dict__`, so
+    such a key would be committed to the database as a stray attribute that no
+    code reads and that breaks consumers iterating over the keys (e.g. the diff
+    used to restore a backup).
+    """
+    known_keys = _class_keys(class_name)
+    if not known_keys:
+        return
+    unknown_keys = sorted(key for key in value if key not in known_keys)
+    if unknown_keys:
+        names = ", ".join(repr(key) for key in unknown_keys)
+        if len(names) > MAX_VALIDATION_ERROR_LENGTH:
+            names = names[:MAX_VALIDATION_ERROR_LENGTH] + "..."
+        raise ValueError(f"{path}: '{class_name}' has no property {names}")
+
+
 def _validate_embedded(value: Any, path: str = "$") -> None:
     """Check recursively that embedded ref and date objects are displayable.
 
@@ -1487,6 +1521,8 @@ def _validate_embedded(value: Any, path: str = "$") -> None:
     """
     if isinstance(value, dict):
         class_name = value.get("_class")
+        if isinstance(class_name, str):
+            _validate_keys(value, class_name, path)
         if class_name in REF_CLASSES and not value.get("ref"):
             raise ValueError(f"{path}: '{class_name}' requires a non-empty 'ref'")
         if class_name == "Date":
@@ -1501,7 +1537,8 @@ def _validate_embedded(value: Any, path: str = "$") -> None:
 def validate_object_dict(obj_dict: dict[str, Any]) -> None:
     """Validate a dict representation of a Gramps object vs. its schema.
 
-    Raises ValueError if the object does not conform to its schema.
+    Raises ValueError if the object does not conform to its schema, including
+    if it (or an embedded object) has a key the class does not define.
     """
     class_name = obj_dict.get("_class")
     obj_cls = (

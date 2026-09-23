@@ -355,6 +355,54 @@ def test_validate_object_dict_error_names_the_offending_field():
     assert "citation_list" in str(excinfo.value)
 
 
+@pytest.mark.parametrize(
+    "obj_dict,unknown_key",
+    [
+        # `type` instead of `place_type`: stored as a stray attribute, which
+        # later broke the backup diff -- see the KeyError in `diff_items`
+        ({"_class": "Place", "type": "City"}, "type"),
+        ({"_class": "Person", "primary_name": {"_class": "Name", "foo": 1}}, "foo"),
+    ],
+)
+def test_validate_object_dict_rejects_unknown_keys(obj_dict, unknown_key):
+    """Keys a class does not define must not reach the database.
+
+    The Gramps schemas do not set `additionalProperties`, so jsonschema alone
+    accepts them and Gramps then commits them as stray attributes.
+    """
+    from flask import Flask
+
+    from gramps_webapi.api.resources.util import fix_object_dict, validate_object_dict
+
+    with Flask(__name__).app_context():
+        with pytest.raises(ValueError) as excinfo:
+            validate_object_dict(fix_object_dict(obj_dict))
+
+    assert unknown_key in str(excinfo.value)
+
+
+def test_validate_object_dict_accepts_complete_objects():
+    """A fully serialized object must pass, including keys absent from schemas.
+
+    `Date.format` is a real attribute that the Gramps schema does not list, so
+    a client echoing back an object it read must not be rejected.
+    """
+    from flask import Flask
+
+    from gramps.gen.lib import Event
+    from gramps.gen.lib.json_utils import object_to_dict
+
+    from gramps_webapi.api.resources.util import validate_object_dict
+
+    event = Event()
+    event.set_handle("E1")
+    event.set_gramps_id("E0001")
+    obj_dict = object_to_dict(event)
+    assert "format" in obj_dict["date"]
+    with Flask(__name__).app_context():
+        validate_object_dict(obj_dict)
+
+
 @pytest.mark.parametrize("class_name", ["__path__", "person", "__spec__", 42])
 def test_validate_object_dict_rejects_non_class_attributes(class_name):
     """`_class` is client-controlled on POST /objects/.
