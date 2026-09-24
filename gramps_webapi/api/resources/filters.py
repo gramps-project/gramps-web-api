@@ -142,6 +142,13 @@ _NAMESPACE_BRIDGES: dict[tuple[str, str], Callable] = {
 }
 
 
+def supports_namespace_bridge(namespace: str, sub_namespace: str) -> bool:
+    """Check that a nested filter namespace is supported before evaluation."""
+    return (
+        namespace == sub_namespace or (namespace, sub_namespace) in _NAMESPACE_BRIDGES
+    )
+
+
 def get_rule_map(namespace: str) -> dict[str, type[Rule]]:
     """Return a class-name → class mapping for all available rules in a namespace."""
     if namespace not in _RULE_CLASS_CACHE:
@@ -198,10 +205,13 @@ def get_filter_rules(args: dict[str, Any], namespace: str) -> list[dict[str, Any
     return rule_list
 
 
-def get_custom_filters(args: dict[str, Any], namespace: str) -> list[dict[str, Any]]:
+def get_custom_filters(
+    args: dict[str, Any], namespace: str, *, reload: bool = True
+) -> list[dict[str, Any]]:
     """Return a list of custom filters for a namespace."""
     filter_list = []
-    filters.reload_custom_filters()
+    if reload:
+        filters.reload_custom_filters()
     for filter_class in filters.CustomFilters.get_filters(namespace):
         if (
             "filters" in args

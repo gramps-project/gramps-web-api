@@ -13,7 +13,16 @@ Dependency order (leaf → root) is maintained so that forward-reference lambdas
 are needed only for genuinely circular pairs.
 """
 
-from marshmallow import INCLUDE, Schema, fields, validate
+from marshmallow import (
+    INCLUDE,
+    Schema,
+    ValidationError,
+    fields,
+    post_load,
+    validate,
+    validates_schema,
+)
+from webargs import fields as query_fields
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -25,6 +34,52 @@ class _Base(Schema):
 
     class Meta:
         unknown = INCLUDE
+
+
+class AnniversariesIcsQueryArgs(Schema):
+    """Query parameters shared by filtered anniversary calendar endpoints."""
+
+    token = fields.Str(
+        required=True,
+        validate=validate.Length(min=1),
+        metadata={"description": "Persistent anniversaries_ics access token."},
+    )
+    event_types = query_fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        load_default=lambda: ["Birth", "Marriage", "Death"],
+        validate=validate.Length(min=1),
+        metadata={
+            "description": "Comma-separated event types; exact dates only."
+        },
+    )
+    living_only = fields.Bool(load_default=True)
+    primary_participants_only = fields.Bool(load_default=True)
+    anchor_gramps_id = fields.Str(validate=validate.Length(min=1))
+    relationship_depth = fields.Int(validate=validate.Range(min=1, max=9))
+    generation_depth = fields.Int(
+        validate=validate.Range(min=1, max=9),
+        metadata={"deprecated": True},
+    )
+    person_filter = fields.Str(validate=validate.Length(min=1))
+    person_rules = fields.Str(validate=validate.Length(min=1, max=16384))
+    event_filter = fields.Str(validate=validate.Length(min=1))
+    event_rules = fields.Str(validate=validate.Length(min=1, max=16384))
+    locale = fields.Str(validate=validate.Length(min=1, max=5))
+
+    @validates_schema
+    def validate_depth(self, data, **kwargs):
+        """Keep legacy lineage and family-circle scopes unambiguous."""
+        if "generation_depth" in data and "relationship_depth" in data:
+            raise ValidationError(
+                "Choose generation_depth or relationship_depth, not both"
+            )
+
+    @post_load
+    def default_depth(self, data, **kwargs):
+        """Use the family-circle default unless legacy scope was requested."""
+        if "generation_depth" not in data:
+            data.setdefault("relationship_depth", 2)
+        return data
 
 
 # ===========================================================================

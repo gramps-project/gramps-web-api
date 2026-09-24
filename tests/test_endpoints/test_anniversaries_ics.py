@@ -31,6 +31,7 @@ from . import BASE_URL, get_test_client
 from .util import fetch_header
 
 ICS_URL = BASE_URL + "/anniversaries.ics"
+ANNIVERSARIES_URL = BASE_URL + "/anniversaries/"
 TOKEN_URL = BASE_URL + "/users/-/access-tokens/anniversaries_ics/"
 
 
@@ -71,17 +72,22 @@ class TestAnniversariesIcs(unittest.TestCase):
         self.assertIn("BEGIN:VCALENDAR", text)
         self.assertIn("END:VCALENDAR", text)
         self.assertIn("RRULE:FREQ=YEARLY", text)
+        etag = rv.headers["ETag"]
 
         rv = self.client.delete(TOKEN_URL, headers=header)
         self.assertEqual(rv.status_code, 200)
 
-        rv = self.client.get(f"{ICS_URL}?token={token}")
+        rv = self.client.get(
+            f"{ICS_URL}?token={token}", headers={"If-None-Match": etag}
+        )
         self.assertEqual(rv.status_code, 401)
 
     def test_public_feed_event_type_filter(self):
         """event_types filter limits event types included in ICS."""
         _, token = self._create_token(role=ROLE_OWNER)
-        rv = self.client.get(f"{ICS_URL}?token={token}&event_types=Birth")
+        rv = self.client.get(
+            f"{ICS_URL}?token={token}&event_types=Birth&living_only=false"
+        )
         self.assertEqual(rv.status_code, 200)
         text = rv.data.decode("utf-8")
         self.assertIn("Type: Birth", text)
@@ -113,12 +119,14 @@ class TestAnniversariesIcs(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
 
     def test_public_feed_invalid_anchor(self):
-        """Unknown anchor Gramps ID returns 404."""
+        """An unavailable anchor returns a harmless empty calendar."""
         _, token = self._create_token(role=ROLE_OWNER)
         rv = self.client.get(
             f"{ICS_URL}?token={token}&anchor_gramps_id=NOT_A_REAL_GRMPS_ID"
         )
-        self.assertEqual(rv.status_code, 404)
+        self.assertEqual(rv.status_code, 200)
+        self.assertIn(b"BEGIN:VCALENDAR", rv.data)
+        self.assertNotIn(b"BEGIN:VEVENT", rv.data)
 
     def test_public_feed_disabled_user(self):
         """Disabled users cannot use access tokens."""
@@ -146,3 +154,65 @@ class TestAnniversariesIcs(unittest.TestCase):
         ):
             rv = self.client.get(f"{ICS_URL}?token={token}")
         self.assertEqual(rv.status_code, 503)
+
+
+class TestAnniversariesCalendar(unittest.TestCase):
+    """Tests for the authenticated JSON anniversaries calendar."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = get_test_client()
+
+    def test_calendar_requires_authentication(self):
+        rv = self.client.get(
+            f"{ANNIVERSARIES_URL}?start=2025-01-01&end=2025-01-31"
+        )
+        self.assertEqual(rv.status_code, 401)
+
+    def test_calendar_returns_paginated_occurrences(self):
+        header = fetch_header(self.client, role=ROLE_OWNER)
+        rv = self.client.get(
+            f"{ANNIVERSARIES_URL}?start=2025-01-01&end=2025-12-31"
+            "&event_types=Birth,Marriage,Death&living_only=false&pagesize=5",
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertIn("X-Total-Count", rv.headers)
+        self.assertLessEqual(len(rv.json), 5)
+        if rv.json:
+            occurrence = rv.json[0]
+            self.assertEqual(len(occurrence["occurrence_date"]), 10)
+            self.assertIn("participants", occurrence)
+            self.assertIn("event", occurrence)
+
+    def test_calendar_validates_bounded_date_range(self):
+        header = fetch_header(self.client, role=ROLE_OWNER)
+        rv = self.client.get(
+            f"{ANNIVERSARIES_URL}?start=2025-01-01&end=2031-01-02",
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 422)
+
+    def test_calendar_rejects_reversed_range_before_data_access(self):
+        header = fetch_header(self.client, role=ROLE_OWNER)
+        rv = self.client.get(
+            f"{ANNIVERSARIES_URL}?start=2025-02-01&end=2025-01-31",
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 422)
+
+    def test_calendar_supports_conditional_get(self):
+        header = fetch_header(self.client, role=ROLE_OWNER)
+        url = (
+            f"{ANNIVERSARIES_URL}?start=2025-01-01&end=2025-12-31"
+            "&living_only=false"
+        )
+        rv = self.client.get(url, headers=header)
+        self.assertEqual(rv.status_code, 200)
+        self.assertIn("ETag", rv.headers)
+
+        rv = self.client.get(
+            url,
+            headers={**header, "If-None-Match": rv.headers["ETag"]},
+        )
+        self.assertEqual(rv.status_code, 304)
