@@ -54,10 +54,6 @@ class DefaultConfig(object):
     WEB_PUSH_VAPID_PUBLIC_KEY = ""
     WEB_PUSH_VAPID_PRIVATE_KEY = ""
     WEB_PUSH_VAPID_SUBJECT = ""
-    WEB_PUSH_MAX_SUBSCRIPTIONS_PER_USER = 20
-    WEB_PUSH_MAX_PAYLOAD_BYTES = 3072
-    WEB_PUSH_TTL = 86400
-    WEB_PUSH_TIMEOUT = 10
     BASE_URL = "http://localhost/"
     CORS_EXPOSE_HEADERS = ["X-Total-Count"]
     STATIC_PATH = "static"

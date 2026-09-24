@@ -13,7 +13,12 @@ Dependency order (leaf → root) is maintained so that forward-reference lambdas
 are needed only for genuinely circular pairs.
 """
 
-from marshmallow import INCLUDE, Schema, fields, validate
+import base64
+import binascii
+import ipaddress
+from urllib.parse import urlsplit
+
+from marshmallow import INCLUDE, Schema, ValidationError, fields, validate
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -25,6 +30,104 @@ class _Base(Schema):
 
     class Meta:
         unknown = INCLUDE
+
+
+def validate_push_endpoint(value: str) -> str:
+    """Validate a browser-provided push endpoint without contacting it."""
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.fragment
+    ):
+        raise ValidationError("Invalid Web Push endpoint")
+    hostname = parsed.hostname.casefold()
+    if hostname == "localhost" or hostname.endswith(".localhost"):
+        raise ValidationError("Invalid Web Push endpoint")
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        pass
+    else:
+        if not address.is_global:
+            raise ValidationError("Invalid Web Push endpoint")
+    return value
+
+
+def push_key_validator(expected_bytes: int, prefix: bytes | None = None):
+    """Return a validator for a URL-safe base64 Web Push key."""
+
+    def validate_key(value: str) -> str:
+        try:
+            padding = "=" * (-len(value) % 4)
+            decoded = base64.b64decode(
+                value + padding,
+                altchars=b"-_",
+                validate=True,
+            )
+        except (binascii.Error, ValueError) as exc:
+            raise ValidationError("Invalid Web Push key") from exc
+        if len(decoded) != expected_bytes or (
+            prefix is not None and not decoded.startswith(prefix)
+        ):
+            raise ValidationError("Invalid Web Push key")
+        return value
+
+    return validate_key
+
+
+class PushSubscriptionKeysSchema(Schema):
+    """Encryption keys from ``PushSubscription.toJSON()``."""
+
+    p256dh = fields.Str(
+        required=True,
+        validate=push_key_validator(65, b"\x04"),
+        metadata={"description": "P-256 ECDH public key for payload encryption."},
+    )
+    auth = fields.Str(
+        required=True,
+        validate=push_key_validator(16),
+        metadata={"description": "Authentication secret for payload encryption."},
+    )
+
+
+class PushSubscriptionBodySchema(Schema):
+    """Browser Web Push subscription payload."""
+
+    endpoint = fields.Str(
+        required=True,
+        validate=[validate.Length(min=1, max=4096), validate_push_endpoint],
+        metadata={"description": "HTTPS endpoint assigned by the push service."},
+    )
+    keys = fields.Nested(
+        PushSubscriptionKeysSchema,
+        required=True,
+        metadata={"description": "Encryption keys assigned to this subscription."},
+    )
+
+
+class PushSubscriptionDeleteSchema(Schema):
+    """Payload identifying the current browser subscription to delete."""
+
+    endpoint = fields.Str(
+        required=True,
+        validate=[validate.Length(min=1, max=4096), validate_push_endpoint],
+        metadata={"description": "HTTPS endpoint of the subscription to delete."},
+    )
+
+
+class PushSubscriptionConfigSchema(Schema):
+    """Public Web Push configuration for the current client."""
+
+    public_key = fields.Str(
+        required=True,
+        allow_none=True,
+        metadata={
+            "description": "VAPID public key, or null when Web Push is not configured."
+        },
+    )
 
 
 # ===========================================================================
