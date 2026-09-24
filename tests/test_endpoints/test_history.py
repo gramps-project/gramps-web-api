@@ -524,9 +524,15 @@ class TestTransactionHistoryResource(unittest.TestCase):
         assert len(transactions) == 2
         delete_transaction_id = transactions[1]["id"]  # Second transaction
 
-        # Undo the delete transaction (use force=1 since the object was deleted)
+        # The check reports no conflict, so the undo must succeed without force
+        rv = self.client.get(
+            f"/api/transactions/history/{delete_transaction_id}/undo", headers=headers
+        )
+        assert rv.status_code == 200
+        assert rv.json["can_undo_without_force"] is True
+
         rv = self.client.post(
-            f"/api/transactions/history/{delete_transaction_id}/undo?force=1",
+            f"/api/transactions/history/{delete_transaction_id}/undo",
             headers=headers,
         )
         assert rv.status_code == 200
