@@ -803,9 +803,10 @@ def old_unchanged(db: DbReadBase, class_name: str, handle: str, old_data: Dict) 
     try:
         obj = handle_func(handle)
     except HandleError:
-        if old_data is None:
-            return True
-        return False
+        # The object is absent. That is unchanged only if it was absent before, which the
+        # history reports as an empty dict (undodb Change._obj_to_json), not None — so
+        # undoing a deletion reverses it into an add whose "old" state is {}.
+        return not old_data
     obj_dict = object_to_dict(obj)  # json.loads(to_json(obj))
     if diff_items(class_name, old_data, obj_dict):
         return False
