@@ -31,19 +31,6 @@ def upgrade():
         sa.Column("endpoint_hash", sa.String(length=64), nullable=False),
         sa.Column("p256dh", sa.Text(), nullable=False),
         sa.Column("auth", sa.Text(), nullable=False),
-        sa.Column("expiration_time", sa.BigInteger(), nullable=True),
-        sa.Column(
-            "created_at",
-            sa.DateTime(),
-            nullable=False,
-            server_default=sa.func.now(),
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(),
-            nullable=False,
-            server_default=sa.func.now(),
-        ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
     )
     op.create_index(

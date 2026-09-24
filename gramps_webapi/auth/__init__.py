@@ -48,6 +48,8 @@ from .sql_guid import GUID
 
 user_db = SQLAlchemy()
 
+MAX_PUSH_SUBSCRIPTIONS_PER_USER = 20
+
 
 def add_user(
     name: str,
@@ -378,26 +380,11 @@ def get_user_from_access_token(token: str, scope: str) -> Optional["User"]:
     )
 
 
-def get_user_push_subscription_count(username: str) -> int:
-    """Return the number of Web Push subscriptions owned by a user."""
-    query = user_db.session.query(User)  # pylint: disable=no-member
-    user = query.filter_by(name=username).scalar()
-    if user is None:
-        raise ValueError("User does not exist")
-    return (
-        user_db.session.query(PushSubscription)  # pylint: disable=no-member
-        .filter_by(user_id=user.id)
-        .count()
-    )
-
-
 def upsert_user_push_subscription(
     username: str,
     endpoint: str,
     p256dh: str,
     auth: str,
-    expiration_time: Optional[int] = None,
-    max_subscriptions: int = 20,
 ) -> "PushSubscription":
     """Create or update a Web Push subscription for a user.
 
@@ -413,11 +400,9 @@ def upsert_user_push_subscription(
     endpoint_hash = sha256(endpoint.encode("utf-8")).hexdigest()
     query = user_db.session.query(PushSubscription)  # pylint: disable=no-member
     subscription = query.filter_by(endpoint_hash=endpoint_hash).scalar()
-    if subscription is not None and subscription.endpoint != endpoint:
-        raise ValueError("Push subscription endpoint hash collision")
     if subscription is None or subscription.user_id != user.id:
         count = query.filter_by(user_id=user.id).count()
-        if count >= max_subscriptions:
+        if count >= MAX_PUSH_SUBSCRIPTIONS_PER_USER:
             raise ValueError("Maximum number of push subscriptions reached")
     if subscription is None:
         subscription = PushSubscription(
@@ -431,8 +416,6 @@ def upsert_user_push_subscription(
     subscription.endpoint = endpoint
     subscription.p256dh = p256dh
     subscription.auth = auth
-    subscription.expiration_time = expiration_time
-    subscription.updated_at = datetime.utcnow()
     user_db.session.commit()  # pylint: disable=no-member
     return subscription
 
@@ -449,7 +432,7 @@ def delete_user_push_subscription(username: str, endpoint: str) -> bool:
         .filter_by(user_id=user.id, endpoint_hash=endpoint_hash)
         .scalar()
     )
-    if subscription is None or subscription.endpoint != endpoint:
+    if subscription is None:
         return False
     user_db.session.delete(subscription)  # pylint: disable=no-member
     user_db.session.commit()  # pylint: disable=no-member
@@ -808,13 +791,6 @@ class PushSubscription(user_db.Model):  # type: ignore
     )
     p256dh = mapped_column(sa.Text, nullable=False)
     auth = mapped_column(sa.Text, nullable=False)
-    expiration_time = mapped_column(sa.BigInteger, nullable=True)
-    created_at = mapped_column(
-        sa.DateTime, nullable=False, server_default=sa.func.now()
-    )
-    updated_at = mapped_column(
-        sa.DateTime, nullable=False, server_default=sa.func.now()
-    )
 
     def __repr__(self):
         """Return a representation that does not expose subscription secrets."""

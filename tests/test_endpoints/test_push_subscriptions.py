@@ -12,8 +12,8 @@
 """Tests for current-user Web Push subscription endpoints."""
 
 import base64
-import time
 import unittest
+from unittest.mock import patch
 
 from gramps_webapi.auth import PushSubscription, get_guid, user_db
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
@@ -31,7 +31,6 @@ def subscription_payload(endpoint="https://push.example.test/subscription/1"):
     """Return a valid browser subscription payload."""
     return {
         "endpoint": endpoint,
-        "expirationTime": None,
         "keys": {"p256dh": P256DH, "auth": AUTH},
     }
 
@@ -52,7 +51,6 @@ class TestPushSubscriptions(unittest.TestCase):
             WEB_PUSH_VAPID_PUBLIC_KEY=PUBLIC_KEY,
             WEB_PUSH_VAPID_PRIVATE_KEY="test-private-key",
             WEB_PUSH_VAPID_SUBJECT="mailto:admin@example.test",
-            WEB_PUSH_MAX_SUBSCRIPTIONS_PER_USER=20,
         )
 
     def test_requires_authentication(self):
@@ -66,10 +64,7 @@ class TestPushSubscriptions(unittest.TestCase):
         response = self.client.get(PUSH_URL, headers=header)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.json,
-            {"available": False, "public_key": None, "subscriptions": 0},
-        )
+        self.assertEqual(response.json, {"public_key": None})
         response = self.client.post(
             PUSH_URL, headers=header, json=subscription_payload()
         )
@@ -80,10 +75,15 @@ class TestPushSubscriptions(unittest.TestCase):
             WEB_PUSH_VAPID_PRIVATE_KEY="test-private-key",
         )
         response = self.client.get(PUSH_URL, headers=header)
-        self.assertEqual(
-            response.json,
-            {"available": False, "public_key": None, "subscriptions": 0},
-        )
+        self.assertEqual(response.json, {"public_key": "invalid"})
+
+    def test_returns_only_the_configured_public_key(self):
+        header = fetch_header(self.client, role=ROLE_OWNER)
+
+        response = self.client.get(PUSH_URL, headers=header)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, {"public_key": PUBLIC_KEY})
 
     def test_creates_and_updates_subscription_without_returning_secrets(self):
         header = fetch_header(self.client, role=ROLE_OWNER)
@@ -91,19 +91,15 @@ class TestPushSubscriptions(unittest.TestCase):
 
         response = self.client.post(PUSH_URL, headers=header, json=payload)
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json["subscriptions"], 1)
-        self.assertEqual(response.json["public_key"], PUBLIC_KEY)
-        self.assertNotIn("endpoint", response.json)
-        self.assertNotIn("keys", response.json)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data, b"")
 
         updated = subscription_payload()
         updated["keys"]["auth"] = (
             base64.urlsafe_b64encode(b"\x04" * 16).rstrip(b"=").decode()
         )
         response = self.client.post(PUSH_URL, headers=header, json=updated)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json["subscriptions"], 1)
+        self.assertEqual(response.status_code, 201)
 
         with self.app.app_context():
             row = user_db.session.query(PushSubscription).one()
@@ -120,7 +116,7 @@ class TestPushSubscriptions(unittest.TestCase):
 
         response = self.client.post(PUSH_URL, headers=guest_header, json=payload)
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 201)
         with self.app.app_context():
             row = user_db.session.query(PushSubscription).one()
             self.assertEqual(row.user_id, get_guid("guest"))
@@ -135,22 +131,21 @@ class TestPushSubscriptions(unittest.TestCase):
         response = self.client.delete(
             PUSH_URL, headers=guest_header, json=delete_payload
         )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json["subscriptions"], 0)
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.data, b"")
         with self.app.app_context():
             self.assertEqual(user_db.session.query(PushSubscription).count(), 1)
 
         response = self.client.delete(
             PUSH_URL, headers=owner_header, json=delete_payload
         )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json["subscriptions"], 0)
+        self.assertEqual(response.status_code, 204)
         response = self.client.delete(
             PUSH_URL, headers=owner_header, json=delete_payload
         )
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
 
-    def test_rejects_invalid_or_expired_subscriptions(self):
+    def test_rejects_invalid_subscriptions(self):
         header = fetch_header(self.client, role=ROLE_OWNER)
         for endpoint in (
             "http://push.example.test/push",
@@ -177,21 +172,16 @@ class TestPushSubscriptions(unittest.TestCase):
         response = self.client.post(PUSH_URL, headers=header, json=invalid_public_key)
         self.assertEqual(response.status_code, 422)
 
-        expired = subscription_payload()
-        expired["expirationTime"] = int(time.time() * 1000) - 1
-        response = self.client.post(PUSH_URL, headers=header, json=expired)
-        self.assertEqual(response.status_code, 422)
-
     def test_enforces_per_user_subscription_limit(self):
-        self.app.config["WEB_PUSH_MAX_SUBSCRIPTIONS_PER_USER"] = 1
         header = fetch_header(self.client, role=ROLE_OWNER)
         first = subscription_payload("https://push.example.test/subscription/1")
         second = subscription_payload("https://push.example.test/subscription/2")
-        self.assertEqual(
-            self.client.post(PUSH_URL, headers=header, json=first).status_code,
-            200,
-        )
 
-        response = self.client.post(PUSH_URL, headers=header, json=second)
+        with patch("gramps_webapi.auth.MAX_PUSH_SUBSCRIPTIONS_PER_USER", 1):
+            self.assertEqual(
+                self.client.post(PUSH_URL, headers=header, json=first).status_code,
+                201,
+            )
+            response = self.client.post(PUSH_URL, headers=header, json=second)
 
         self.assertEqual(response.status_code, 409)
