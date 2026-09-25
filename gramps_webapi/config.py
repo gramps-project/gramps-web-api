@@ -53,6 +53,36 @@ class DefaultConfig(object):
     DEFAULT_FROM_EMAIL = ""
     BASE_URL = "http://localhost/"
     CORS_EXPOSE_HEADERS = ["X-Total-Count"]
+    # Preserve Flask-Compress defaults while allowing ICS clients to use gzip.
+    COMPRESS_MIMETYPES = [
+        "text/html",
+        "text/css",
+        "text/plain",
+        "text/xml",
+        "text/x-component",
+        "text/javascript",
+        "application/x-javascript",
+        "application/javascript",
+        "application/json",
+        "application/manifest+json",
+        "application/vnd.api+json",
+        "application/xml",
+        "application/xhtml+xml",
+        "application/rss+xml",
+        "application/atom+xml",
+        "application/vnd.ms-fontobject",
+        "application/x-font-ttf",
+        "application/x-font-opentype",
+        "application/x-font-truetype",
+        "image/svg+xml",
+        "image/x-icon",
+        "image/vnd.microsoft.icon",
+        "font/ttf",
+        "font/eot",
+        "font/otf",
+        "font/opentype",
+        "text/calendar",
+    ]
     STATIC_PATH = "static"
     REQUEST_CACHE_CONFIG = {
         "CACHE_TYPE": "FileSystemCache",
