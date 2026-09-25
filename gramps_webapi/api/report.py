@@ -452,14 +452,18 @@ def validate_options(
         if "gidlist" not in report_options or not report_options["gidlist"]:
             abort(422)
     menu = getattr(report.option_class, "menu", None)
-    menu_option_names = menu.get_all_option_names() if menu else []
+    menu_options = (
+        {name: menu.get_option_by_name(name) for name in menu.get_all_option_names()}
+        if menu
+        else {}
+    )
     for name, value in report_options.items():
         if name not in report.options_dict:
             abort_with_message(422, f"Unknown report option {name}")
         if not isinstance(value, str):
             abort_with_message(422, "Report options must be provided as strings")
-        if name in menu_option_names:
-            _validate_menu_option(db_handle, name, menu.get_option_by_name(name), value)
+        if name in menu_options:
+            _validate_menu_option(db_handle, name, menu_options[name], value)
         else:
             _validate_standard_option(name, report.options_help[name], value)
 
