@@ -48,6 +48,8 @@ from .sql_guid import GUID
 
 user_db = SQLAlchemy()
 
+MAX_PUSH_SUBSCRIPTIONS_PER_USER = 20
+
 
 def add_user(
     name: str,
@@ -150,7 +152,7 @@ def get_tree(guid: str) -> Optional[str]:
 
 
 def delete_user(name: str) -> None:
-    """Delete an existing user and their associated OIDC accounts."""
+    """Delete a user and their OIDC accounts and push subscriptions."""
     query = user_db.session.query(User)  # pylint: disable=no-member
     user = query.filter_by(name=name).scalar()
     if user is None:
@@ -159,6 +161,9 @@ def delete_user(name: str) -> None:
     # Manually delete associated OIDC accounts first.
     # This is needed because SQLite does not enforce foreign key constraints by default.
     user_db.session.query(OIDCAccount).filter_by(
+        user_id=user.id
+    ).delete()  # pylint: disable=no-member
+    user_db.session.query(PushSubscription).filter_by(
         user_id=user.id
     ).delete()  # pylint: disable=no-member
 
@@ -373,6 +378,65 @@ def get_user_from_access_token(token: str, scope: str) -> Optional["User"]:
         )
         .scalar()
     )
+
+
+def upsert_user_push_subscription(
+    username: str,
+    endpoint: str,
+    p256dh: str,
+    auth: str,
+) -> "PushSubscription":
+    """Create or update a Web Push subscription for a user.
+
+    Push endpoints identify browser subscriptions globally. If a browser is
+    reused by another account, ownership is transferred to the current user so
+    the previous account cannot continue sending notifications to that device.
+    """
+    query = user_db.session.query(User)  # pylint: disable=no-member
+    user = query.filter_by(name=username).scalar()
+    if user is None:
+        raise ValueError("User does not exist")
+
+    endpoint_hash = sha256(endpoint.encode("utf-8")).hexdigest()
+    query = user_db.session.query(PushSubscription)  # pylint: disable=no-member
+    subscription = query.filter_by(endpoint_hash=endpoint_hash).scalar()
+    if subscription is None or subscription.user_id != user.id:
+        count = query.filter_by(user_id=user.id).count()
+        if count >= MAX_PUSH_SUBSCRIPTIONS_PER_USER:
+            raise ValueError("Maximum number of push subscriptions reached")
+    if subscription is None:
+        subscription = PushSubscription(
+            user_id=user.id,
+            endpoint=endpoint,
+            endpoint_hash=endpoint_hash,
+        )
+        user_db.session.add(subscription)  # pylint: disable=no-member
+
+    subscription.user_id = user.id
+    subscription.endpoint = endpoint
+    subscription.p256dh = p256dh
+    subscription.auth = auth
+    user_db.session.commit()  # pylint: disable=no-member
+    return subscription
+
+
+def delete_user_push_subscription(username: str, endpoint: str) -> bool:
+    """Delete a user's Web Push subscription by endpoint."""
+    query = user_db.session.query(User)  # pylint: disable=no-member
+    user = query.filter_by(name=username).scalar()
+    if user is None:
+        raise ValueError("User does not exist")
+    endpoint_hash = sha256(endpoint.encode("utf-8")).hexdigest()
+    subscription = (
+        user_db.session.query(PushSubscription)  # pylint: disable=no-member
+        .filter_by(user_id=user.id, endpoint_hash=endpoint_hash)
+        .scalar()
+    )
+    if subscription is None:
+        return False
+    user_db.session.delete(subscription)  # pylint: disable=no-member
+    user_db.session.commit()  # pylint: disable=no-member
+    return True
 
 
 def get_all_user_details(
@@ -711,6 +775,27 @@ class AccessToken(user_db.Model):  # type: ignore
             f"<AccessToken(user_id='{self.user_id}', scope='{self.scope}', "
             f"revoked_at='{self.revoked_at}')>"
         )
+
+
+class PushSubscription(user_db.Model):  # type: ignore
+    """Browser Web Push subscription table class for SQLAlchemy."""
+
+    __tablename__ = "push_subscriptions"
+
+    id = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+    user_id = mapped_column(
+        GUID, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    endpoint = mapped_column(sa.Text, nullable=False)
+    endpoint_hash = mapped_column(
+        sa.String(64), nullable=False, unique=True, index=True
+    )
+    p256dh = mapped_column(sa.Text, nullable=False)
+    auth = mapped_column(sa.Text, nullable=False)
+
+    def __repr__(self):
+        """Return a representation that does not expose subscription secrets."""
+        return f"<PushSubscription(id='{self.id}', user_id='{self.user_id}')>"
 
 
 class Config(user_db.Model):  # type: ignore
