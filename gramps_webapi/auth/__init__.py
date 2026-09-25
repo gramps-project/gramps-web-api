@@ -30,7 +30,7 @@ import sqlalchemy as sa
 from flask import current_app
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError, StatementError
-from sqlalchemy.orm import mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql.functions import coalesce
 
 
@@ -483,7 +483,7 @@ def config_get(key: str) -> Optional[str]:
     return config.value
 
 
-def config_get_all() -> Dict[str, str]:
+def config_get_all() -> Dict[str, str | None]:
     """Get all config items as dictionary."""
     query = user_db.session.query(Config)  # pylint: disable=no-member
     configs = query.all()
@@ -513,7 +513,7 @@ def config_delete(key: str) -> None:
         user_db.session.commit()  # pylint: disable=no-member
 
 
-def get_tree_usage(tree: str) -> Optional[dict[str, int]]:
+def get_tree_usage(tree: str) -> Optional[dict[str, int | None]]:
     """Get tree usage info."""
     query = user_db.session.query(Tree)  # pylint: disable=no-member
     tree_obj: Tree = query.filter_by(id=tree).scalar()
@@ -529,7 +529,7 @@ def get_tree_usage(tree: str) -> Optional[dict[str, int]]:
     }
 
 
-def get_tree_permissions(tree: str) -> Optional[dict[str, int]]:
+def get_tree_permissions(tree: str) -> Optional[dict[str, int | None]]:
     """Get tree permissions."""
     query = user_db.session.query(Tree)  # pylint: disable=no-member
     tree_obj: Tree = query.filter_by(id=tree).scalar()
@@ -667,13 +667,14 @@ class User(user_db.Model):  # type: ignore
 
     __tablename__ = "users"
 
-    id = mapped_column(GUID, primary_key=True)
-    name = mapped_column(sa.String, unique=True, nullable=False)
-    email = mapped_column(sa.String, index=True)
-    fullname = mapped_column(sa.String)
-    pwhash = mapped_column(sa.String, nullable=False)
-    role = mapped_column(sa.Integer, default=0)
-    tree = mapped_column(sa.String, index=True)
+    id: Mapped[uuid.UUID] = mapped_column(GUID, primary_key=True)
+    name: Mapped[str] = mapped_column(sa.String, unique=True, nullable=False)
+    email: Mapped[str | None] = mapped_column(sa.String, index=True)
+    fullname: Mapped[str | None] = mapped_column(sa.String)
+    pwhash: Mapped[str] = mapped_column(sa.String, nullable=False)
+    # nullable in the schema, but always set via the default
+    role: Mapped[int] = mapped_column(sa.Integer, nullable=True, default=0)
+    tree: Mapped[str | None] = mapped_column(sa.String, index=True)
 
     def __repr__(self):
         """Return string representation of instance."""
@@ -685,19 +686,19 @@ class AccessToken(user_db.Model):  # type: ignore
 
     __tablename__ = "access_tokens"
 
-    id = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
-    user_id = mapped_column(
+    id: Mapped[int] = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
         GUID, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    scope = mapped_column(sa.String(64), nullable=False, index=True)
-    token_hash = mapped_column(sa.String(64), nullable=True)
-    created_at = mapped_column(
+    scope: Mapped[str] = mapped_column(sa.String(64), nullable=False, index=True)
+    token_hash: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
         sa.DateTime, nullable=False, server_default=sa.func.now()
     )
-    updated_at = mapped_column(
+    updated_at: Mapped[datetime] = mapped_column(
         sa.DateTime, nullable=False, server_default=sa.func.now()
     )
-    revoked_at = mapped_column(sa.DateTime, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
 
     __table_args__ = (
         sa.UniqueConstraint("user_id", "scope", name="uq_access_tokens_user_scope"),
@@ -717,9 +718,9 @@ class Config(user_db.Model):  # type: ignore
 
     __tablename__ = "configuration"
 
-    id = mapped_column(sa.Integer, primary_key=True)
-    key = mapped_column(sa.String, unique=True, nullable=False)
-    value = mapped_column(sa.String)
+    id: Mapped[int] = mapped_column(sa.Integer, primary_key=True)
+    key: Mapped[str] = mapped_column(sa.String, unique=True, nullable=False)
+    value: Mapped[str | None] = mapped_column(sa.String)
 
     def __repr__(self):
         """Return string representation of instance."""
@@ -731,16 +732,18 @@ class Tree(user_db.Model):  # type: ignore
 
     __tablename__ = "trees"
 
-    id = mapped_column(sa.String, primary_key=True)
-    quota_media = mapped_column(sa.BigInteger)
-    quota_people = mapped_column(sa.Integer)
-    quota_ai = mapped_column(sa.Integer)
-    usage_media = mapped_column(sa.BigInteger)
-    usage_people = mapped_column(sa.Integer)
-    usage_ai = mapped_column(sa.Integer)
-    min_role_ai = mapped_column(sa.Integer)
-    enabled = mapped_column(sa.Integer, default=1, server_default="1")
-    config = mapped_column(sa.JSON, nullable=True)
+    id: Mapped[str] = mapped_column(sa.String, primary_key=True)
+    quota_media: Mapped[int | None] = mapped_column(sa.BigInteger)
+    quota_people: Mapped[int | None] = mapped_column(sa.Integer)
+    quota_ai: Mapped[int | None] = mapped_column(sa.Integer)
+    usage_media: Mapped[int | None] = mapped_column(sa.BigInteger)
+    usage_people: Mapped[int | None] = mapped_column(sa.Integer)
+    usage_ai: Mapped[int | None] = mapped_column(sa.Integer)
+    min_role_ai: Mapped[int | None] = mapped_column(sa.Integer)
+    enabled: Mapped[int | None] = mapped_column(
+        sa.Integer, default=1, server_default="1"
+    )
+    config: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
 
     def __repr__(self):
         """Return string representation of instance."""
@@ -752,14 +755,14 @@ class OIDCAccount(user_db.Model):  # type: ignore
 
     __tablename__ = "oidc_accounts"
 
-    id = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
-    user_id = mapped_column(
+    id: Mapped[int] = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
         GUID, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    provider_id = mapped_column(sa.String(64), nullable=False)
-    subject_id = mapped_column(sa.String(255), nullable=False)
-    email = mapped_column(sa.String(255), nullable=True, index=True)
-    created_at = mapped_column(
+    provider_id: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    subject_id: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    email: Mapped[str | None] = mapped_column(sa.String(255), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
         sa.DateTime, nullable=False, server_default=sa.func.now()
     )
 
@@ -779,11 +782,11 @@ class TaskTree(user_db.Model):  # type: ignore
 
     __tablename__ = "task_tree"
 
-    task_id = mapped_column(sa.String(155), primary_key=True)
-    tree = mapped_column(sa.String, index=True)
-    user_id = mapped_column(sa.String, index=True)
-    name = mapped_column(sa.String, nullable=False)
-    created_at = mapped_column(
+    task_id: Mapped[str] = mapped_column(sa.String(155), primary_key=True)
+    tree: Mapped[str | None] = mapped_column(sa.String, index=True)
+    user_id: Mapped[str | None] = mapped_column(sa.String, index=True)
+    name: Mapped[str] = mapped_column(sa.String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
         sa.DateTime, nullable=False, server_default=sa.func.now()
     )
 
