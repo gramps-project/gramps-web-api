@@ -495,7 +495,9 @@ def _token_limit_key() -> str:
     return hashlib.sha256(request.args.get("token", "").encode()).hexdigest()
 
 
-def _calendar_response(payload: str, etag: str, timestamp: float | None) -> Response:
+def _calendar_response(
+    payload: str, etag: str, timestamp: int | float | None
+) -> Response:
     """Attach refresh and validation headers to both 200 and 304 responses."""
     response = CalendarResponse(payload, mimetype="text/calendar")
     response.headers["Content-Disposition"] = "inline; filename=anniversaries.ics"
@@ -505,7 +507,7 @@ def _calendar_response(payload: str, etag: str, timestamp: float | None) -> Resp
     # Weak validators remain valid across gzip and identity representations.
     response.set_etag(etag, weak=True)
     if timestamp is not None:
-        response.last_modified = timestamp
+        response.last_modified = datetime.fromtimestamp(timestamp, timezone.utc)
     if request.if_none_match.contains_weak(etag):
         response.status_code = 304
         response.set_data(b"")
@@ -657,15 +659,16 @@ def _get_authenticated_calendar_context() -> tuple[str, str, bool]:
 
 def _calendar_cache_dimensions(
     tree_id: str, view_private: bool, args: dict, format_version: int
-) -> tuple[str, float | None, bool, object]:
+) -> tuple[str, int | float | None, bool, GrampsLocale]:
     """Return a stable cache validator and the resolved locale for one request."""
     normalized, definitions, missing_filter = _normalize_filters(args)
     locale = get_locale_for_language(args.get("locale"), default=True)
     normalized["resolved_locale"] = str(locale.language)
+    timestamp = get_db_last_change_timestamp(tree_id)
     dimensions = {
         "format": format_version,
         "tree": tree_id,
-        "timestamp": get_db_last_change_timestamp(tree_id),
+        "timestamp": timestamp,
         "private": view_private,
         "args": normalized,
         "filters": definitions,
@@ -675,13 +678,12 @@ def _calendar_cache_dimensions(
             else None
         ),
     }
-    timestamp = dimensions["timestamp"]
     etag = hashlib.sha256(json.dumps(dimensions, sort_keys=True).encode()).hexdigest()
     return etag, timestamp, missing_filter, locale
 
 
 def _json_calendar_response(
-    body: str, total: int, etag: str, timestamp: float | None
+    body: str, total: int, etag: str, timestamp: int | float | None
 ) -> Response:
     """Build JSON with the same conditional-cache contract as the ICS feed."""
     unchanged = request.if_none_match.contains_weak(etag)
@@ -695,7 +697,7 @@ def _json_calendar_response(
     response.expires = datetime.now(timezone.utc) + timedelta(seconds=ICS_CACHE_TIMEOUT)
     response.set_etag(etag, weak=True)
     if timestamp is not None:
-        response.last_modified = timestamp
+        response.last_modified = datetime.fromtimestamp(timestamp, timezone.utc)
     if not unchanged:
         response.headers["X-Total-Count"] = str(total)
     return response
