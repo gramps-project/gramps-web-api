@@ -181,6 +181,39 @@ class TestReportsReportIdFile(unittest.TestCase):
             self,
             TEST_URL + 'ancestor_report/file?options={"maxgen": "2"}',
         )
+        check_invalid_semantics(
+            self,
+            TEST_URL + 'fan_chart/file?options={"maxgen": "12"}',
+        )
+        check_invalid_semantics(
+            self,
+            TEST_URL + 'fan_chart/file?options={"maxgen": "0"}',
+        )
+        check_success(
+            self,
+            TEST_URL + 'fan_chart/file?options={"maxgen": "11"}',
+        )
+        check_invalid_semantics(
+            self,
+            TEST_URL + 'fan_chart/file?options={"maxgen": "2.5"}',
+        )
+
+    def test_get_reports_report_id_file_parameter_options_validate_semantics_ids(
+        self,
+    ):
+        """Test options parameter Gramps ID validation."""
+        check_invalid_semantics(
+            self,
+            TEST_URL + 'ancestor_report/file?options={"pid": "I9999"}',
+        )
+        check_success(
+            self,
+            TEST_URL + 'ancestor_report/file?options={"pid": "I0044"}',
+        )
+        check_invalid_semantics(
+            self,
+            TEST_URL + 'familylines_graph/file?options={"gidlist": "I0044 I9999"}',
+        )
 
     def test_get_reports_report_id_file_parameter_options_validate_semantics_lists(
         self,

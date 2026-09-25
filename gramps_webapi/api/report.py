@@ -49,6 +49,7 @@ from gramps.gen.plug.menu import (
     Option,
     PersonListOption,
     PersonOption,
+    PlaceListOption,
     StringOption,
     TextOption,
 )
@@ -369,11 +370,32 @@ def run_report(
             os.makedirs(report_path, exist_ok=True)
             file_name = f"{uuid.uuid4()}{file_type}"
             report_options["of"] = os.path.join(report_path, file_name)
-            report_profile = get_report_profile(db_handle, plugin_manager, report_data)
-            validate_options(report_profile, report_options, allow_file=allow_file)
+            module = plugin_manager.load_plugin(report_data)
+            option_class = getattr(module, report_data.optionclass)
+            report_class = getattr(module, report_data.reportclass)
+            try:
+                default_report = ModifiedCommandLineReport(
+                    db_handle,
+                    report_data.name,
+                    report_data.category,
+                    option_class,
+                    {},
+                    include_options_help=False,
+                )
+            except HandleError:
+                # HandleError can happen in particular on an empty database
+                # when there is no person yet
+                abort_with_message(422, "Report cannot be run on this tree")
+            validate_options(
+                db_handle,
+                report_id,
+                default_report,
+                report_options,
+                allow_file=allow_file,
+            )
             if (
                 language
-                and "trans" in report_profile["options_dict"]
+                and "trans" in default_report.options_dict
                 and language in glocale.get_language_dict().values()
             ):
                 # Apply the language via the report's own localization option,
@@ -383,9 +405,6 @@ def run_report(
                 # are left to set_locale, which handles e.g. regional variants.
                 report_options["trans"] = language
                 language = None
-            module = plugin_manager.load_plugin(report_data)
-            option_class = getattr(module, report_data.optionclass)
-            report_class = getattr(module, report_data.reportclass)
             try:
                 cl_report_new(
                     db_handle,
@@ -413,34 +432,88 @@ def run_report(
     abort(404)
 
 
-def validate_options(report: Dict, report_options: Dict, allow_file: bool = False):
-    """Check validity of provided report options."""
-    if report["id"] == "familylines_graph":
+_MARGIN_OPTIONS = {"paperml", "papermr", "papermt", "papermb"}
+
+
+def validate_options(
+    db_handle: DbReadBase,
+    report_id: str,
+    report: ModifiedCommandLineReport,
+    report_options: Dict,
+    allow_file: bool = False,
+):
+    """Check validity of provided report options.
+
+    `report` must have been initialized with default options: the Gramps CLI
+    silently replaces values it cannot parse, so the raw strings have to be
+    checked before they are passed to it.
+    """
+    if report_id == "familylines_graph":
         if "gidlist" not in report_options or not report_options["gidlist"]:
             abort(422)
-    for option in report_options:
-        if option not in report["options_dict"]:
-            abort(422)
-        if isinstance(report["options_help"][option][2], type([])):
-            option_list = []
-            for item in report["options_help"][option][2]:
-                # Some option specs include a comment part after a tab, e.g. to give
-                # the name of a family associated with a family ID. It's the part
-                # before the tab that's a valid value.
-                # Some tab-separated specs also have a colon before the tab.
-                option_list.append(item.split("\t")[0].rstrip(":"))
-            if report_options[option] not in option_list:
-                abort(422)
-            continue
-        if not isinstance(report_options[option], str):
+    menu = getattr(report.option_class, "menu", None)
+    menu_option_names = menu.get_all_option_names() if menu else []
+    for name, value in report_options.items():
+        if name not in report.options_dict:
+            abort_with_message(422, f"Unknown report option {name}")
+        if not isinstance(value, str):
             abort_with_message(422, "Report options must be provided as strings")
-        if "A number" in report["options_help"][option][2]:
-            try:
-                float(report_options[option])
-            except ValueError:
-                abort_with_message(422, "Cannot convert option string to number")
-        if "Size in cm" in report["options_help"][option][2]:
-            try:
-                float(report_options[option])
-            except ValueError:
-                abort_with_message(422, "Cannot convert option string to number")
+        if name in menu_option_names:
+            _validate_menu_option(db_handle, name, menu.get_option_by_name(name), value)
+        else:
+            _validate_standard_option(name, report.options_help[name], value)
+
+
+def _validate_menu_option(db_handle: DbReadBase, name: str, option, value: str):
+    """Check a value against the menu option of a report or docgen."""
+    if isinstance(option, NumberOption):
+        # the CLI converts to the type of the default value
+        number_type = int if isinstance(option.get_value(), int) else float
+        try:
+            number = number_type(value)
+        except ValueError:
+            abort_with_message(422, f"Option {name} must be a number")
+        if not option.get_min() <= number <= option.get_max():
+            abort_with_message(
+                422,
+                f"Option {name} must be between "
+                f"{option.get_min()} and {option.get_max()}",
+            )
+        return
+    if isinstance(option, BooleanOption):
+        valid = value in ("True", "False")
+    elif isinstance(option, EnumeratedListOption):
+        valid = value in [str(item) for item, _descr in option.get_items()]
+    elif isinstance(option, PersonOption):
+        valid = db_handle.has_person_gramps_id(value)
+    elif isinstance(option, FamilyOption):
+        valid = db_handle.has_family_gramps_id(value)
+    elif isinstance(option, NoteOption):
+        valid = db_handle.has_note_gramps_id(value)
+    elif isinstance(option, MediaOption):
+        valid = db_handle.has_media_gramps_id(value)
+    elif isinstance(option, PersonListOption):
+        valid = all(db_handle.has_person_gramps_id(gid) for gid in value.split())
+    elif isinstance(option, PlaceListOption):
+        valid = all(db_handle.has_place_gramps_id(gid) for gid in value.split())
+    else:
+        # free text
+        valid = True
+    if not valid:
+        abort_with_message(422, f"Invalid value for option {name}")
+
+
+def _validate_standard_option(name: str, option_help: list, value: str):
+    """Check a value for one of the options hard-coded into the Gramps CLI.
+
+    These have no menu option, so their help is the only spec available.
+    """
+    if name in _MARGIN_OPTIONS:
+        try:
+            float(value)
+        except ValueError:
+            abort_with_message(422, f"Option {name} must be a number")
+    elif isinstance(option_help[2], list):
+        # entries can have a description after a tab, e.g. "0\tPortrait"
+        if value not in [item.split("\t")[0] for item in option_help[2]]:
+            abort_with_message(422, f"Invalid value for option {name}")
