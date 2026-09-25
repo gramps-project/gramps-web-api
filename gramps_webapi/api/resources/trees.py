@@ -77,7 +77,7 @@ from .schemas import TreeConfigSchema, TreeSchema
 TREE_ID_REGEX = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
-def get_tree_details(tree_id: str) -> Dict[str, str | bool | int]:
+def get_tree_details(tree_id: str) -> Dict[str, str | bool | int | None]:
     """Get details about a tree."""
     try:
         dbmgr = WebDbManager(

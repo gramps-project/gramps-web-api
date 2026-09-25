@@ -390,6 +390,7 @@ def check_quota_media(
         usage_dict = get_tree_usage(tree)
         assert usage_dict is not None, "Unexpected error while looking up usage data."
     usage = usage_dict["usage_media"]
+    assert usage is not None, "Unexpected error while looking up usage data."
     quota = usage_dict.get("quota_media")
     if quota is None:
         return
