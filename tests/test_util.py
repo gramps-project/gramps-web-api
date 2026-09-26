@@ -355,6 +355,133 @@ def test_validate_object_dict_error_names_the_offending_field():
     assert "citation_list" in str(excinfo.value)
 
 
+@pytest.mark.parametrize(
+    "obj_dict,unknown_key",
+    [
+        # `type` instead of `place_type`: stored as a stray attribute, which
+        # later broke the backup diff -- see the KeyError in `diff_items`
+        ({"_class": "Place", "type": "City"}, "type"),
+        ({"_class": "Person", "primary_name": {"_class": "Name", "foo": 1}}, "foo"),
+    ],
+)
+def test_validate_object_dict_rejects_unknown_keys(obj_dict, unknown_key):
+    """Keys a class does not define must not reach the database.
+
+    The Gramps schemas do not set `additionalProperties`, so jsonschema alone
+    accepts them and Gramps then commits them as stray attributes.
+    """
+    from flask import Flask
+
+    from gramps_webapi.api.resources.util import fix_object_dict, validate_object_dict
+
+    with Flask(__name__).app_context():
+        with pytest.raises(ValueError) as excinfo:
+            validate_object_dict(fix_object_dict(obj_dict))
+
+    assert unknown_key in str(excinfo.value)
+
+
+def test_class_key_caches_ignore_invalid_class_names():
+    """`_class` is client-controlled, so invalid names must not be memoized.
+
+    Otherwise a client could grow a worker's memory without bound by sending
+    distinct invalid class names.
+    """
+    from gramps_webapi.api.resources.util import (
+        _class_keys,
+        _class_keys_cached,
+        _computed_keys,
+        _computed_keys_cached,
+    )
+
+    before = (
+        _class_keys_cached.cache_info().currsize,
+        _computed_keys_cached.cache_info().currsize,
+    )
+    for i in range(100):
+        assert _class_keys(f"Bogus{i}") == frozenset()
+        assert _computed_keys(f"Bogus{i}") == frozenset()
+    after = (
+        _class_keys_cached.cache_info().currsize,
+        _computed_keys_cached.cache_info().currsize,
+    )
+    assert before == after
+
+    # valid names are still cached
+    assert "handle" in _class_keys("Person")
+    assert _class_keys_cached.cache_info().currsize > 0
+
+
+def test_fix_object_dict_drops_computed_properties():
+    """`Date.year` is emitted on read but not stored: a round-trip must work.
+
+    The object endpoints serialize class properties too, so a client echoing
+    back an object it read sends `year`, which has no place in the state.
+    """
+    from gramps_webapi.api.resources.util import fix_object_dict
+
+    result = fix_object_dict(
+        {"_class": "Date", "year": 1990, "dateval": [1, 1, 1990, False]}
+    )
+    assert "year" not in result
+    assert result["dateval"] == [1, 1, 1990, False]
+
+
+def test_fix_object_dict_keeps_type_without_gramps_type_class():
+    """A `type` on a class with no `<Class>Type` must not raise KeyError.
+
+    `fix_object_dict` used to look up e.g. `PersonType` unconditionally, so the
+    payload raised KeyError -- a 500 -- instead of being rejected with a 400.
+    """
+    from flask import Flask
+
+    from gramps_webapi.api.resources.util import fix_object_dict, validate_object_dict
+
+    result = fix_object_dict({"_class": "Person", "type": "x"})
+    assert result["type"] == "x"
+    with Flask(__name__).app_context():
+        with pytest.raises(ValueError):
+            validate_object_dict(result)
+
+
+def test_validate_object_dict_accepts_complete_objects():
+    """A fully serialized object must pass, including keys absent from schemas.
+
+    `Date.format` is a real attribute that the Gramps schema does not list, so
+    a client echoing back an object it read must not be rejected.
+    """
+    from flask import Flask
+
+    from gramps.gen.lib import Event
+    from gramps.gen.lib.json_utils import object_to_dict
+
+    from gramps_webapi.api.resources.util import validate_object_dict
+
+    event = Event()
+    event.set_handle("E1")
+    event.set_gramps_id("E0001")
+    obj_dict = object_to_dict(event)
+    assert "format" in obj_dict["date"]
+    with Flask(__name__).app_context():
+        validate_object_dict(obj_dict)
+
+
+@pytest.mark.parametrize("class_name", [42, ["Person"], {"a": 1}, True])
+def test_fix_object_dict_rejects_non_string_class(class_name):
+    """`_class` is client-supplied and need not be a string.
+
+    `getattr` raises TypeError for a non-string name, which the endpoints do
+    not catch -- a 500 instead of the 400 an invalid class must produce.
+    """
+    from flask import Flask
+
+    from gramps_webapi.api.resources.util import fix_object_dict, validate_object_dict
+
+    with Flask(__name__).app_context():
+        with pytest.raises(ValueError):
+            validate_object_dict(fix_object_dict({"_class": class_name, "handle": "h"}))
+
+
 @pytest.mark.parametrize("class_name", ["__path__", "person", "__spec__", 42])
 def test_validate_object_dict_rejects_non_class_attributes(class_name):
     """`_class` is client-controlled on POST /objects/.
