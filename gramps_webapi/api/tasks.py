@@ -803,9 +803,8 @@ def old_unchanged(db: DbReadBase, class_name: str, handle: str, old_data: Dict) 
     try:
         obj = handle_func(handle)
     except HandleError:
-        if old_data is None:
-            return True
-        return False
+        # absent now: unchanged only if it was absent before (old_data is None or {})
+        return not old_data
     obj_dict = object_to_dict(obj)  # json.loads(to_json(obj))
     if diff_items(class_name, old_data, obj_dict):
         return False
