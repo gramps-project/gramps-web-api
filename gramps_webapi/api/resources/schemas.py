@@ -2257,15 +2257,12 @@ class ServerSchema(_Base):
     )
 
 
-class MetadataSchema(_Base):
-    """Server and database metadata returned by /api/metadata/."""
+class MetadataServerSchema(_Base):
+    """Tree-independent metadata returned by /api/metadata/server/.
 
-    database = fields.Dict(
-        metadata={"description": "Information about the active database."},
-    )
-    default_person = fields.Str(
-        metadata={"description": "Handle of the default person."},
-    )
+    These sections are also part of /api/metadata/, with the same shape.
+    """
+
     deprecations = fields.List(
         fields.Nested(DeprecationSchema),
         metadata={
@@ -2288,8 +2285,26 @@ class MetadataSchema(_Base):
             "description": "Information about the Gramps Object Query Language library."
         },
     )
+    yclade = fields.Dict(
+        metadata={"description": "Information about the yclade library."},
+    )
     locale = fields.Dict(
         metadata={"description": "Information about the active locale."},
+    )
+    server = fields.Nested(
+        ServerSchema,
+        metadata={"description": "Information about server capabilities."},
+    )
+
+
+class MetadataSchema(MetadataServerSchema):
+    """Server and database metadata returned by /api/metadata/."""
+
+    database = fields.Dict(
+        metadata={"description": "Information about the active database."},
+    )
+    default_person = fields.Str(
+        metadata={"description": "Handle of the default person."},
     )
     object_counts = fields.Nested(
         ObjectCountsSchema,
@@ -2301,10 +2316,6 @@ class MetadataSchema(_Base):
     )
     search = fields.Dict(
         metadata={"description": "Information about search-related libraries."},
-    )
-    server = fields.Nested(
-        ServerSchema,
-        metadata={"description": "Information about server capabilities."},
     )
     surnames = fields.List(
         fields.Str(),

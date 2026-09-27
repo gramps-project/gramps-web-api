@@ -82,7 +82,11 @@ from .resources.merge import (
     MergeRepositoryResource,
     MergeSourceResource,
 )
-from .resources.metadata import MetadataResearcherResource, MetadataResource
+from .resources.metadata import (
+    MetadataResearcherResource,
+    MetadataResource,
+    MetadataServerResource,
+)
 from .resources.name_formats import NameFormatsResource
 from .resources.name_groups import NameGroupsResource
 from .resources.notes import NoteResource, NotesResource
@@ -780,6 +784,12 @@ register_endpt(
     MetadataResearcherResource,
     "/metadata/researcher/",
     "metadata_researcher",
+    tags=["Metadata"],
+)
+register_endpt(
+    MetadataServerResource,
+    "/metadata/server/",
+    "metadata_server",
     tags=["Metadata"],
 )
 # Anniversaries

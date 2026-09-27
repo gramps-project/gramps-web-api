@@ -30,6 +30,7 @@ from .util import fetch_header
 
 TEST_URL = BASE_URL + "/metadata/"
 TEST_RESEARCHER_URL = BASE_URL + "/metadata/researcher/"
+TEST_SERVER_URL = BASE_URL + "/metadata/server/"
 
 
 class TestMetadata(unittest.TestCase):
@@ -89,6 +90,36 @@ class TestMetadata(unittest.TestCase):
         self.assertIn("max_thumbnail_file_bytes", rv.json["server"])
         # deprecations remain restricted to users allowed to view settings
         self.assertNotIn("deprecations", rv.json)
+
+
+class TestMetadataServer(unittest.TestCase):
+    """Test cases for the /api/metadata/server endpoint."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_get_metadata_server_requires_token(self):
+        """Test authorization required."""
+        check_requires_token(self, TEST_SERVER_URL)
+
+    def test_get_metadata_server_conforms_to_schema(self):
+        """Test conforms to schema."""
+        res = check_conforms_to_openapi_schema(self, TEST_SERVER_URL, "MetadataServer")
+        # no tree-dependent sections
+        for key in ["database", "default_person", "object_counts", "researcher"]:
+            self.assertNotIn(key, res)
+
+    def test_get_metadata_server_matches_metadata(self):
+        """The shared sections are identical to the ones in /metadata/."""
+        header = fetch_header(self.client, role=ROLE_ADMIN)
+        server = self.client.get(TEST_SERVER_URL, headers=header).json
+        full = self.client.get(TEST_URL, headers=header).json
+        self.assertIn("deprecations", server)
+        self.assertIn("version", server["gramps_webapi"])
+        for key, value in server.items():
+            self.assertEqual(full[key], value, key)
 
 
 class TestMetadataDeprecations(unittest.TestCase):
