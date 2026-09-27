@@ -190,6 +190,11 @@ _ADDITIONAL_RULES: dict[str, list[type[Rule]]] = {
     "Note": [_matches_query_rule(NOTE, "Notes")],
 }
 
+# Make our rules findable when reloading saved custom filters
+for _namespace, _rule_classes in _ADDITIONAL_RULES.items():
+    for _rule_class in _rule_classes:
+        setattr(_NAMESPACE_MODULES[_namespace], _rule_class.__name__, _rule_class)
+
 # Rules shipped by Gramps that fail on every object of their namespace
 _EXCLUDED_RULES: dict[str, set[str]] = {
     "Repository": {"HasAttribute"},  # Repository has no attribute_list

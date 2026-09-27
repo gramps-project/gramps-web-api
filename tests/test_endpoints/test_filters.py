@@ -285,6 +285,25 @@ class TestFiltersPeopleSingleTree(unittest.TestCase):
         """Test creation, application, update, and deletion of filter."""
         check_filter_create_update_delete(self, BASE_URL, TEST_URL, "people")
 
+    def test_saved_filter_with_matches_query(self):
+        """Test a saved filter using a Web API rule reloads with the rule."""
+        header = fetch_header(self.client)
+        name = "PeopleMatchesQueryTestFilter"
+        payload = {
+            "name": name,
+            "rules": [{"name": "MatchesQuery", "values": ["gramps_id == 'I0044'"]}],
+        }
+        rv = self.client.post(TEST_URL + "people", json=payload, headers=header)
+        self.assertEqual(rv.status_code, 201)
+        try:
+            rv = check_success(self, TEST_URL + "people/" + name)
+            self.assertEqual(rv["rules"][0]["name"], "MatchesQuery")
+            rv = check_success(self, BASE_URL + "/people/?filter=" + name)
+            self.assertEqual([person["gramps_id"] for person in rv], ["I0044"])
+        finally:
+            rv = self.client.delete(TEST_URL + "people/" + name, headers=header)
+            self.assertEqual(rv.status_code, 200)
+
     def test_filter_write_requires_editor(self):
         """Test that POST, PUT, DELETE all require at least editor role."""
         from gramps_webapi.auth.const import ROLE_MEMBER
