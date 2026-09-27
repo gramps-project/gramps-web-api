@@ -216,4 +216,6 @@ class ReportFileResultResource(ProtectedResource, GrampsJSONEncoder):
             mime_type = mimetypes.types_map[file_type]
         date_str = time.strftime("%Y%m%d%H%M%S", date_lastmod)
         download_name = f"gramps-web-{report_id}-{date_str}{file_type}"
-        return send_file(buffer, mimetype=mime_type, download_name=download_name)
+        return send_file(
+            buffer, mimetype=mime_type, download_name=download_name, as_attachment=True
+        )
