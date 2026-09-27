@@ -26,24 +26,22 @@ from typing import Optional, Tuple
 
 from flask import abort, current_app, jsonify, render_template, request
 from flask_jwt_extended import create_access_token, get_jwt, get_jwt_identity
-from marshmallow import Schema
+from marshmallow import Schema, validate
 from webargs import fields
 
 from ...auth import (
-    User,
     add_user,
     add_users,
     authorized,
     delete_user,
-    get_all_user_details,
     get_guid,
     get_name,
     get_number_users,
     get_pwhash,
     get_user_details,
+    get_user_details_page,
     get_user_oidc_accounts,
     modify_user,
-    user_db,
 )
 from ...auth.oidc_helpers import is_oidc_enabled
 from ...auth.const import (
@@ -88,6 +86,7 @@ from ..util import (
     tree_exists,
 )
 from . import LimitedScopeProtectedResource, ProtectedResource, Resource
+from .schemas import UserSchema
 
 
 def is_own_user(user_id) -> bool:
@@ -155,12 +154,39 @@ class UsersListArgsSchema(Schema):
         load_default=None,
         metadata={"description": "Filter to a single user by their UUID."},
     )
+    tree = fields.Str(
+        load_default=None,
+        metadata={
+            "description": "Filter to the users of a single tree by its tree ID."
+            " Filtering by a tree other than one's own requires site admin"
+            " permissions."
+        },
+    )
+    role = fields.DelimitedList(
+        fields.Int(),
+        metadata={
+            "description": "Filter to users having any of these integer role IDs,"
+            " e.g. `-2,-1` for unconfirmed and disabled accounts."
+        },
+    )
+    page = fields.Integer(
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Page number of the result subset to return."
+            " If omitted, all results are returned."
+        },
+    )
+    pagesize = fields.Integer(
+        load_default=20,
+        validate=validate.Range(min=1),
+        metadata={"description": "Number of users per page when pagination is active."},
+    )
 
 
 class UsersResource(ProtectedResource):
     """Resource for all users."""
 
-    @api_blueprint.response(200, Schema(many=True))
+    @api_blueprint.response(200, UserSchema(many=True))
     @api_blueprint.arguments(UsersListArgsSchema, location="query")
     def get(self, args):
         """Get users' details."""
@@ -168,35 +194,42 @@ class UsersResource(ProtectedResource):
         include_oidc = is_oidc_enabled()
 
         if has_permissions([PERM_VIEW_OTHER_TREE_USER]):
-            # return all users from all trees
-            details = get_all_user_details(
-                tree=None, all_trees=True, include_oidc_accounts=include_oidc
-            )
+            if args["tree"] is not None:
+                # checked only here, so that users without access to other
+                # trees cannot probe which tree IDs exist
+                if not tree_exists(args["tree"]):
+                    abort_with_message(422, "Tree does not exist")
+                # return only the requested tree's users; treeless site admins
+                # belong to no tree, so they are not part of the result
+                scope = {"tree": args["tree"]}
+            else:
+                # return all users from all trees
+                scope = {"tree": None, "all_trees": True}
         else:
             require_permissions([PERM_VIEW_OTHER_USER])
             tree = get_tree_from_jwt()
+            if args["tree"] is not None and args["tree"] != tree:
+                abort_with_message(403, "Not authorized to view other trees' users")
             # return only this tree's users
             # only include treeless users in single-tree setup
             is_single = current_app.config["TREE"] != TREE_MULTI
-            details = get_all_user_details(
-                tree=tree,
-                include_treeless=is_single,
-                include_oidc_accounts=include_oidc,
-            )
+            scope = {"tree": tree, "include_treeless": is_single}
 
-        if args["user_id"] is not None:
-            # Filter in Python against the already permission-scoped list so
-            # tree/permission boundaries are always respected.
-            target = user_db.session.get(User, args["user_id"])
-            if target is None:
-                details = []
-            else:
-                details = [d for d in details if d.get("name") == target.name]
-
-        return (
-            jsonify(details),
-            200,
+        # the filters are applied on top of the permission-scoped query, so
+        # tree/permission boundaries are always respected
+        details, total_count = get_user_details_page(
+            **scope,
+            user_id=args["user_id"],
+            roles=args.get("role"),
+            page=args.get("page"),
+            pagesize=args["pagesize"],
+            include_guid=True,
+            include_oidc_accounts=include_oidc,
         )
+
+        res = jsonify(details)
+        res.headers.add("X-Total-Count", str(total_count))
+        return res, 200
 
     def post(self):
         """Add one or more users."""
@@ -297,11 +330,11 @@ class UserPostBodyArgs(Schema):
 class UserResource(UserChangeBase):
     """Resource for a single user."""
 
-    @api_blueprint.response(200, Schema())
+    @api_blueprint.response(200, UserSchema())
     def get(self, user_name: str):
         """Get a user's details."""
-        if user_name == "-":
-            # own user
+        own_user = user_name == "-"
+        if own_user:
             user_id = get_jwt_identity()
             try:
                 user_name = get_name(user_id)
@@ -309,7 +342,8 @@ class UserResource(UserChangeBase):
                 abort_with_message(401, "User not found for token ID")
         else:
             require_permissions([PERM_VIEW_OTHER_USER])
-        if user_name != "_" and not has_permissions([PERM_VIEW_OTHER_TREE_USER]):
+        # viewing one's own details never crosses a tree boundary
+        if not own_user and not has_permissions([PERM_VIEW_OTHER_TREE_USER]):
             # check if this is our tree
             try:
                 user_id = get_guid(user_name)
@@ -320,7 +354,7 @@ class UserResource(UserChangeBase):
             if source_tree is None or source_tree != destination_tree:
                 # user lives in other tree, not allowed to view
                 abort_with_message(403, "Not authorized to view other users' details")
-        details = get_user_details(user_name)
+        details = get_user_details(user_name, include_guid=True)
         if details is None:
             # user does not exist
             abort_with_message(404, "User does not exist")

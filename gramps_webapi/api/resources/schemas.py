@@ -2883,6 +2883,71 @@ class TreeConfigSchema(_Base):
     """Per-tree configuration blob (free-form JSON object)."""
 
 
+class UserOIDCAccountSchema(_Base):
+    """An OIDC account linked to a user."""
+
+    provider_id = fields.Str(
+        metadata={"description": "ID of the OIDC provider."},
+    )
+    subject_id = fields.Str(
+        metadata={"description": "Subject identifier of the user at the provider."},
+    )
+    email = fields.Str(
+        allow_none=True,
+        metadata={"description": "E-mail address reported by the provider."},
+    )
+    created_at = fields.DateTime(
+        metadata={"description": "Date and time the account was linked."},
+    )
+
+
+class UserSchema(_Base):
+    """Details about a user."""
+
+    name = fields.Str(
+        metadata={"description": "User name."},
+    )
+    user_id = fields.UUID(
+        metadata={"description": "Unique identifier of the user."},
+    )
+    email = fields.Str(
+        allow_none=True,
+        metadata={"description": "E-mail address of the user."},
+    )
+    full_name = fields.Str(
+        allow_none=True,
+        metadata={"description": "Full name of the user."},
+    )
+    role = fields.Int(
+        metadata={
+            "description": "Integer role ID: 5 admin, 4 owner, 3 editor,"
+            " 2 contributor, 1 member, 0 guest, -1 disabled, -2 unconfirmed."
+        },
+    )
+    tree = fields.Str(
+        allow_none=True,
+        metadata={
+            "description": "ID of the tree the user belongs to;"
+            " empty for treeless site admins."
+        },
+    )
+    oidc_accounts = fields.List(
+        fields.Nested(UserOIDCAccountSchema),
+        metadata={
+            "description": "OIDC accounts linked to the user. Only present if"
+            " OIDC is enabled and, for a single user, if the caller may view"
+            " other users."
+        },
+    )
+    account_source = fields.Str(
+        metadata={
+            "description": "Where the account comes from: `Local` or the"
+            " OIDC provider's display name. Only present in the user list"
+            " if OIDC is enabled."
+        },
+    )
+
+
 # ===========================================================================
 # Verify
 # ===========================================================================

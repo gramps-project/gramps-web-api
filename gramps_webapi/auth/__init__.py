@@ -272,13 +272,15 @@ def _get_user_detail(
     return details
 
 
-def get_user_details(username: str) -> Optional[Dict[str, Any]]:
+def get_user_details(
+    username: str, include_guid: bool = False
+) -> Optional[Dict[str, Any]]:
     """Return details about a user."""
     query = user_db.session.query(User)  # pylint: disable=no-member
     user = query.filter_by(name=username).scalar()
     if user is None:
         return None
-    return _get_user_detail(user)
+    return _get_user_detail(user, include_guid=include_guid)
 
 
 def normalize_access_token_scope(scope: str) -> str:
@@ -396,6 +398,56 @@ def get_all_user_details(
     If include_treeless is True, include also users with empty tree ID.
     If include_oidc_accounts is True, include OIDC provider information.
     """
+    users = _get_users_query(
+        tree=tree, all_trees=all_trees, include_treeless=include_treeless
+    ).all()
+    return [
+        _get_user_detail(
+            user, include_guid=include_guid, include_oidc_accounts=include_oidc_accounts
+        )
+        for user in users
+    ]
+
+
+def get_user_details_page(
+    tree: str | None,
+    all_trees: bool = False,
+    include_treeless: bool = False,
+    user_id: uuid.UUID | None = None,
+    roles: Sequence[int] | None = None,
+    page: int | None = None,
+    pagesize: int = 20,
+    include_guid: bool = False,
+    include_oidc_accounts: bool = False,
+) -> tuple[List[Dict[str, Any]], int]:
+    """Return details about the matching users, sorted by name, and their count.
+
+    The tree scope arguments work as in get_all_user_details(). The users can
+    additionally be filtered by ID and by role. If page is given, only that
+    page of the result is returned; the count is always the total count.
+    """
+    query = _get_users_query(
+        tree=tree, all_trees=all_trees, include_treeless=include_treeless
+    )
+    if user_id is not None:
+        query = query.filter(User.id == user_id)
+    if roles is not None:
+        query = query.filter(User.role.in_(roles))
+    total_count = query.count()
+    query = query.order_by(User.name)
+    if page is not None:
+        query = query.offset((page - 1) * pagesize).limit(pagesize)
+    details = [
+        _get_user_detail(
+            user, include_guid=include_guid, include_oidc_accounts=include_oidc_accounts
+        )
+        for user in query.all()
+    ]
+    return details, total_count
+
+
+def _get_users_query(tree: str | None, all_trees: bool, include_treeless: bool):
+    """Return a query for the users in scope, see get_all_user_details()."""
     query = user_db.session.query(User)  # pylint: disable=no-member
     if not all_trees:
         # treat "" and NULL equally, like fill_tree()
@@ -406,13 +458,7 @@ def get_all_user_details(
             query = query.filter(sa.or_(User.tree == tree, is_treeless))
         else:
             query = query.filter(User.tree == tree)
-    users = query.all()
-    return [
-        _get_user_detail(
-            user, include_guid=include_guid, include_oidc_accounts=include_oidc_accounts
-        )
-        for user in users
-    ]
+    return query
 
 
 def get_permissions(username: str, tree: str | None) -> Set[str]:
