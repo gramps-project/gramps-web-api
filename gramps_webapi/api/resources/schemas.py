@@ -1959,6 +1959,71 @@ class ObjectChangeSchema(_Base):
     )
 
 
+class FilterRuleParamOptionSchema(_Base):
+    """One allowed value of a filter rule parameter of type 'select'."""
+
+    value = fields.Str(
+        metadata={"description": "Value to pass in the rule's values."},
+    )
+    label = fields.Str(
+        metadata={"description": "Untranslated display label of the value."},
+    )
+
+
+class FilterRuleParamTypeSchema(_Base):
+    """Type of the value a filter rule parameter expects."""
+
+    type = fields.Str(
+        validate=validate.OneOf(
+            [
+                "text",
+                "boolean",
+                "integer",
+                "date",
+                "datetime",
+                "id",
+                "filter",
+                "tag",
+                "select",
+                "gramps_type",
+            ]
+        ),
+        metadata={
+            "description": "Kind of value: 'text'; 'boolean' ('1' or '0'); "
+            "'integer'; 'date' (a Gramps date string); 'datetime' "
+            "('YYYY-MM-DD HH:MM:SS', time optional); 'id' (Gramps ID of an "
+            "object in 'namespace'); 'filter' (name of a custom filter in "
+            "'namespace'); 'tag' (tag name); 'select' (one of 'options'); "
+            "'gramps_type' (a type from 'default_types' or 'custom_types')."
+        },
+    )
+    namespace = fields.Str(
+        metadata={"description": "Object namespace for types 'id' and 'filter'."},
+    )
+    min = fields.Int(
+        metadata={"description": "Minimum value for type 'integer'."},
+    )
+    max = fields.Int(
+        metadata={"description": "Maximum value for type 'integer', if any."},
+    )
+    options = fields.List(
+        fields.Nested(FilterRuleParamOptionSchema),
+        metadata={"description": "Allowed values for type 'select'."},
+    )
+    default_types = fields.Str(
+        metadata={
+            "description": "For type 'gramps_type': datatype of the "
+            "/types/default/{datatype} endpoint listing the standard values."
+        },
+    )
+    custom_types = fields.Str(
+        metadata={
+            "description": "For type 'gramps_type': datatype of the "
+            "/types/custom/{datatype} endpoint listing the custom values."
+        },
+    )
+
+
 class FilterRuleDescriptionSchema(_Base):
     """Description of a built-in Gramps filter rule."""
 
@@ -1977,6 +2042,10 @@ class FilterRuleDescriptionSchema(_Base):
     )
     rule = fields.Str(
         metadata={"description": "Internal rule class name."},
+    )
+    types = fields.List(
+        fields.Nested(FilterRuleParamTypeSchema),
+        metadata={"description": "Types of the rule's parameters, one per label."},
     )
 
 

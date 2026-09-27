@@ -1243,3 +1243,125 @@ class TestMatchesQuery(unittest.TestCase):
         """A missing expression returns 422."""
         status, _ = self._query("/api/people/", {"rules": [{"name": "MatchesQuery"}]})
         assert status == 422
+
+
+class TestRuleParamTypes(unittest.TestCase):
+    """Rule descriptions include the type of each parameter."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = get_test_client()
+
+    def _types(self, namespace, rule):
+        rv = check_success(self, f"{TEST_URL}{namespace}?rules={rule}")
+        return rv["rules"][0]["types"]
+
+    def test_one_type_per_label(self):
+        """Every rule in every namespace has one type per label."""
+        for namespace in GRAMPS_NAMESPACES:
+            rv = check_success(self, TEST_URL + namespace)
+            for rule in rv["rules"]:
+                assert len(rule["types"]) == len(rule["labels"]), rule["rule"]
+
+    def test_label_table_keys_are_used(self):
+        """Every label in the table occurs in some rule (guards against typos)."""
+        from gramps_webapi.api.resources.filter_param_types import _LABEL_TYPES
+        from gramps_webapi.api.resources.filters import (
+            _NAMESPACE_MODULES,
+            get_rule_list,
+        )
+
+        labels = {
+            label
+            for namespace in _NAMESPACE_MODULES
+            for rule_class in get_rule_list(namespace)
+            for label in rule_class.labels
+        }
+        assert set(_LABEL_TYPES) - labels == set()
+
+    def test_id_of_rule_namespace(self):
+        """'ID:' refers to the rule's own namespace."""
+        assert self._types("people", "IsAncestorOf") == [
+            {"type": "id", "namespace": "Person"},
+            {"type": "boolean"},
+        ]
+        assert self._types("places", "IsEnclosedBy")[0] == {
+            "type": "id",
+            "namespace": "Place",
+        }
+
+    def test_id_of_other_namespace(self):
+        """IDs of other objects carry their namespace."""
+        assert self._types("families", "FatherHasIdOf") == [
+            {"type": "id", "namespace": "Person"}
+        ]
+        assert self._types("citations", "HasSourceIdOf") == [
+            {"type": "id", "namespace": "Source"}
+        ]
+
+    def test_filter(self):
+        """Filter name parameters carry the filter's namespace."""
+        assert self._types("people", "MatchesEventFilter") == [
+            {"type": "filter", "namespace": "Event"}
+        ]
+        assert self._types("events", "MatchesFilter") == [
+            {"type": "filter", "namespace": "Event"}
+        ]
+
+    def test_gramps_types(self):
+        """Gramps type parameters name the /types lists to fetch."""
+        types = self._types("people", "HasEvent")
+        assert types[0] == {
+            "type": "gramps_type",
+            "default_types": "event_types",
+            "custom_types": "event_types",
+        }
+        assert types[1] == {"type": "date"}
+        assert types[2] == {"type": "text"}
+        assert types[5] == {"type": "boolean"}
+        assert self._types("people", "HasAttribute")[0] == {
+            "type": "gramps_type",
+            "default_types": "attribute_types",
+            "custom_types": "person_attribute_types",
+        }
+        assert self._types("repositories", "HasRepo")[1] == {
+            "type": "gramps_type",
+            "default_types": "repository_types",
+            "custom_types": "repository_types",
+        }
+
+    def test_select(self):
+        """Parameters with fixed values list them."""
+        types = self._types("people", "HasNote")
+        assert types[0] == {"type": "integer", "min": 0, "max": 999}
+        assert [o["value"] for o in types[1]["options"]] == [
+            "less than",
+            "equal to",
+            "greater than",
+        ]
+        options = self._types("media", "IsReferencedByObjectType")[0]["options"]
+        assert {"value": "Person", "label": "Person"} in options
+
+    def test_rule_specific_types(self):
+        """Labels whose meaning depends on the rule get the rule's type."""
+        assert self._types("places", "WithinArea") == [
+            {"type": "id", "namespace": "Place"},
+            {"type": "integer", "min": 0},
+            {
+                "type": "select",
+                "options": [
+                    {"value": "0", "label": "kilometers"},
+                    {"value": "1", "label": "miles"},
+                    {"value": "2", "label": "degrees"},
+                ],
+            },
+        ]
+        assert self._types("people", "HasAssociationType") == [{"type": "text"}]
+
+    def test_other_types(self):
+        """Tags and change dates."""
+        assert self._types("people", "HasTag") == [{"type": "tag"}]
+        assert self._types("notes", "ChangedSince") == [
+            {"type": "datetime"},
+            {"type": "datetime"},
+        ]
