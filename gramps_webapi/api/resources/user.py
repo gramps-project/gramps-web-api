@@ -86,6 +86,7 @@ from ..util import (
     tree_exists,
 )
 from . import LimitedScopeProtectedResource, ProtectedResource, Resource
+from .schemas import UserSchema
 
 
 def is_own_user(user_id) -> bool:
@@ -185,7 +186,7 @@ class UsersListArgsSchema(Schema):
 class UsersResource(ProtectedResource):
     """Resource for all users."""
 
-    @api_blueprint.response(200, Schema(many=True))
+    @api_blueprint.response(200, UserSchema(many=True))
     @api_blueprint.arguments(UsersListArgsSchema, location="query")
     def get(self, args):
         """Get users' details."""
@@ -329,7 +330,7 @@ class UserPostBodyArgs(Schema):
 class UserResource(UserChangeBase):
     """Resource for a single user."""
 
-    @api_blueprint.response(200, Schema())
+    @api_blueprint.response(200, UserSchema())
     def get(self, user_name: str):
         """Get a user's details."""
         own_user = user_name == "-"
