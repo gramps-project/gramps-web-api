@@ -79,7 +79,7 @@ from gramps.gen.proxy.private import (
     sanitize_source,
 )
 from gramps.gen.proxy.proxybase import ProxyDbBase
-from gramps.gen.user import UserBase
+from gramps.gen.user import User, UserBase
 from gramps.gen.utils.grampslocale import GrampsLocale
 from marshmallow import RAISE
 from webargs.flaskparser import FlaskParser
@@ -305,7 +305,34 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
                 yield obj
 
 
-class UserTaskProgress(UserBase):
+class InfoCollectorMixin:
+    """Mixin collecting `info` messages instead of discarding them.
+
+    Gramps delivers end-of-run reports - most notably the GEDCOM import report
+    listing every line that could not be parsed - by calling `User.info()`,
+    whose default implementation does nothing. Classes using this mixin keep
+    the messages in `info_messages` so they can be returned to the client.
+    """
+
+    info_messages: list[str]
+
+    def info(self, msg1, infotext, parent=None, monospaced=False) -> None:
+        """Collect information intended for the user."""
+        message = "\n".join(str(part) for part in (msg1, infotext) if part)
+        if message:
+            self.info_messages.append(message)
+
+
+class ImportUser(InfoCollectorMixin, User):
+    """Silent user collecting info messages, for imports without a task."""
+
+    def __init__(self, *args, **kwargs):
+        """Init."""
+        User.__init__(self, *args, **kwargs)
+        self.info_messages = []
+
+
+class UserTaskProgress(InfoCollectorMixin, UserBase):
     """Web API specific implementation of `gramps.gen.user.UserBase`.
 
     Needed for implementing progress displays. This has nothing
@@ -321,6 +348,7 @@ class UserTaskProgress(UserBase):
         self.current_step = 0
         self.progress_title = ""
         self.progress_message = ""
+        self.info_messages = []
 
     def _callback(self, percentage, text=None):
         """Report only the percentage."""
@@ -387,9 +415,6 @@ class UserTaskProgress(UserBase):
     def notify_db_repair(self, error: str) -> None:
         """Notify the user their DB might need repair."""
         self.notify_error(title="Error detected in database.", error=error)
-
-    def info(self, msg1, infotext, parent=None, monospaced=False):
-        """Displays information to the user."""
 
 
 def _sanitize_media_patched(db, media):

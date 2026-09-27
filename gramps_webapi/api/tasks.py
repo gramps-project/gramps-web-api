@@ -368,9 +368,12 @@ def import_file(
     dry_run: bool = False,
 ):
     """Import a file."""
-    object_counts = dry_run_import(file_name=file_name, extension=extension)
-    if object_counts is None:
+    dry_run_result = dry_run_import(file_name=file_name, extension=extension)
+    if dry_run_result is None:
         raise ValueError(f"Failed importing {extension} file")
+    # the dry run's own messages are only reported for a dry run; for a real
+    # import they are replaced below by the ones the actual import emitted
+    object_counts = {k: v for k, v in dry_run_result.items() if k != "messages"}
     if dry_run:
         if delete:
             try:
@@ -379,13 +382,13 @@ def import_file(
                 logging.getLogger(__name__).warning(
                     "Failed to delete temporary file %s: %s", file_name, e
                 )
-        return object_counts
+        return dry_run_result
     check_quota_people(to_add=object_counts["people"], tree=tree, user_id=user_id)
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=False, user_id=user_id
     )
     try:
-        run_import(
+        messages = run_import(
             db_handle=db_handle,
             file_name=file_name,
             extension=extension.lower(),
@@ -412,6 +415,7 @@ def import_file(
                 self, title="Updating semantic search index..."
             ),
         )
+    return {**object_counts, "messages": messages}
 
 
 @shared_task(bind=True)

@@ -363,6 +363,7 @@ class TestImportersGedcom(unittest.TestCase):
 1 SEX F
 1 BIRT
 2 DATE 25 DEC 1960
+2 QUAY 3
 0 @I2@ INDI
 1 NAME Bob /Brown/
 1 SEX M
@@ -380,6 +381,10 @@ class TestImportersGedcom(unittest.TestCase):
             headers=headers,
         )
         assert rv.status_code == 201
+        # response should carry the counts and the import report
+        assert rv.json["people"] == 2
+        report = "\n".join(rv.json["messages"])
+        assert "QUAY" in report
         # database should have 2 more people
         rv = check_success(self, f"{BASE_URL}/people/")
         assert len(rv) == people_before + 2
