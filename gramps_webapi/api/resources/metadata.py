@@ -24,6 +24,7 @@ import functools
 import shutil
 from importlib import metadata
 from importlib.util import find_spec
+from typing import Any
 
 import gramps_ql as gql
 import limits
@@ -163,7 +164,7 @@ def _get_dbid_from_tree_id(tree_id: str) -> str:
     return get_dbid_from_tree_id(tree_id)
 
 
-def _get_server_metadata() -> dict:
+def _get_server_metadata() -> dict[str, Any]:
     """Return the metadata sections that do not depend on a tree.
 
     Shared by /metadata/ and /metadata/server/, so the sections have the same
@@ -172,7 +173,7 @@ def _get_server_metadata() -> dict:
     is_multi_tree = current_app.config["TREE"] == TREE_MULTI
     has_semantic_search = bool(current_app.config["VECTOR_EMBEDDING_MODEL"])
     has_ocr, ocr_languages = _get_ocr_info()
-    result = {
+    result: dict[str, Any] = {
         "gramps": {
             "version": ENV["VERSION"],
         },
