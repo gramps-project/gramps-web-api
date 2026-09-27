@@ -41,7 +41,12 @@ from ..auth import has_permissions
 from ..blueprint import api_blueprint
 from ..report import check_report_id_exists, get_reports, run_report
 from ..tasks import AsyncResult, generate_report, make_task_response, run_task
-from ..util import get_buffer_for_file, get_db_handle, get_tree_from_jwt
+from ..util import (
+    abort_with_message,
+    get_buffer_for_file,
+    get_db_handle,
+    get_tree_from_jwt,
+)
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .schemas import ReportSchema
@@ -135,6 +140,8 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
                 report_options = json.loads(args["options"])
             except json.JSONDecodeError:
                 abort(400)
+            if not isinstance(report_options, dict):
+                abort_with_message(422, "Report options must be a JSON object")
         if "of" in report_options:
             abort(422)
 
@@ -159,6 +166,8 @@ class ReportFileResource(ProtectedResource, GrampsJSONEncoder):
                 report_options = json.loads(args["options"])
             except json.JSONDecodeError:
                 abort(400)
+            if not isinstance(report_options, dict):
+                abort_with_message(422, "Report options must be a JSON object")
         if "of" in report_options:
             abort(422)
         tree = get_tree_from_jwt()
