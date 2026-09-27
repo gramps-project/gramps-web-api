@@ -20,10 +20,12 @@
 
 """Tests for the /api/filters endpoints using example_gramps."""
 
+import json
 import uuid
 import unittest
 
 from jsonschema import validate
+from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 from gramps_webapi.const import GRAMPS_NAMESPACES
 
 from . import BASE_URL, get_single_tree_test_client, get_test_client
@@ -282,6 +284,25 @@ class TestFiltersPeopleSingleTree(unittest.TestCase):
     def test_filter_create_update_delete(self):
         """Test creation, application, update, and deletion of filter."""
         check_filter_create_update_delete(self, BASE_URL, TEST_URL, "people")
+
+    def test_saved_filter_with_matches_query(self):
+        """Test a saved filter using a Web API rule reloads with the rule."""
+        header = fetch_header(self.client)
+        name = "PeopleMatchesQueryTestFilter"
+        payload = {
+            "name": name,
+            "rules": [{"name": "MatchesQuery", "values": ["gramps_id == 'I0044'"]}],
+        }
+        rv = self.client.post(TEST_URL + "people", json=payload, headers=header)
+        self.assertEqual(rv.status_code, 201)
+        try:
+            rv = check_success(self, TEST_URL + "people/" + name)
+            self.assertEqual(rv["rules"][0]["name"], "MatchesQuery")
+            rv = check_success(self, BASE_URL + "/people/?filter=" + name)
+            self.assertEqual([person["gramps_id"] for person in rv], ["I0044"])
+        finally:
+            rv = self.client.delete(TEST_URL + "people/" + name, headers=header)
+            self.assertEqual(rv.status_code, 200)
 
     def test_filter_write_requires_editor(self):
         """Test that POST, PUT, DELETE all require at least editor role."""
@@ -1046,3 +1067,179 @@ class TestCrossNamespaceFilters(unittest.TestCase):
             {"rules": [{"namespace": "Person", "rules": [{"name": "AllPersons"}]}]},
         )
         assert status == 400
+
+
+class TestMatchesQuery(unittest.TestCase):
+    """Test cases for the MatchesQuery (GOQL expression) rule."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = get_test_client()
+        headers = fetch_header(cls.client)
+        suffix = make_handle()[:8]
+        cls.public_id = "GOQL_PUBLIC_" + suffix
+        cls.private_id = "GOQL_PRIVATE_" + suffix
+        cls.description = "GOQL event " + suffix
+        cls.event_handle = make_handle()
+        cls.public_handle = make_handle()
+        cls.private_handle = make_handle()
+        cls.family_handle = make_handle()
+        payloads = [
+            (
+                "/api/events/",
+                {
+                    "_class": "Event",
+                    "handle": cls.event_handle,
+                    "description": cls.description,
+                },
+            ),
+            (
+                "/api/people/",
+                {
+                    "_class": "Person",
+                    "handle": cls.public_handle,
+                    "gramps_id": cls.public_id,
+                    "event_ref_list": [
+                        {
+                            "_class": "EventRef",
+                            "ref": cls.event_handle,
+                            "role": {"_class": "EventRoleType", "string": "Primary"},
+                        }
+                    ],
+                },
+            ),
+            (
+                "/api/people/",
+                {
+                    "_class": "Person",
+                    "handle": cls.private_handle,
+                    "gramps_id": cls.private_id,
+                    "private": True,
+                },
+            ),
+            (
+                "/api/families/",
+                {
+                    "_class": "Family",
+                    "handle": cls.family_handle,
+                    "father_handle": cls.public_handle,
+                },
+            ),
+        ]
+        for endpoint, payload in payloads:
+            rv = cls.client.post(endpoint, json=payload, headers=headers)
+            assert rv.status_code == 201
+
+    @classmethod
+    def tearDownClass(cls):
+        headers = fetch_header(cls.client)
+        for endpoint, handle in [
+            ("/api/families/", cls.family_handle),
+            ("/api/people/", cls.public_handle),
+            ("/api/people/", cls.private_handle),
+            ("/api/events/", cls.event_handle),
+        ]:
+            rv = cls.client.delete(f"{endpoint}{handle}", headers=headers)
+            assert rv.status_code in (200, 204)
+
+    def _query(
+        self, endpoint: str, filter_dict: dict, role: str = ROLE_OWNER
+    ) -> tuple[int, set]:
+        headers = fetch_header(self.client, role=role)
+        rv = self.client.get(
+            endpoint,
+            query_string={"rules": json.dumps(filter_dict, separators=(",", ":"))},
+            headers=headers,
+        )
+        handles = (
+            {obj["handle"] for obj in rv.json} if isinstance(rv.json, list) else set()
+        )
+        return rv.status_code, handles
+
+    def _rule(self, expression: str) -> dict:
+        return {"rules": [{"name": "MatchesQuery", "values": [expression]}]}
+
+    def test_rule_listed_in_every_namespace(self):
+        """MatchesQuery is available in every namespace."""
+        headers = fetch_header(self.client)
+        for namespace in GRAMPS_NAMESPACES:
+            rv = self.client.get(
+                f"{TEST_URL}{namespace}?rules=MatchesQuery", headers=headers
+            )
+            assert rv.status_code == 200, namespace
+            assert rv.json["rules"][0]["rule"] == "MatchesQuery"
+            assert "<GOQL expression>" in rv.json["rules"][0]["name"]
+
+    def test_owner_sees_private_match(self):
+        """An unproxied database matches private objects."""
+        expression = f"gramps_id in ['{self.public_id}', '{self.private_id}']"
+        status, handles = self._query("/api/people/", self._rule(expression))
+        assert status == 200
+        assert handles == {self.public_handle, self.private_handle}
+
+    def test_guest_does_not_see_private_match(self):
+        """A privacy-proxied database only matches objects the proxy returns."""
+        expression = f"gramps_id in ['{self.public_id}', '{self.private_id}']"
+        status, handles = self._query(
+            "/api/people/", self._rule(expression), role=ROLE_GUEST
+        )
+        assert status == 200
+        assert handles == {self.public_handle}
+
+    def test_related_object(self):
+        """Expressions can follow relationships to other object types."""
+        for role in (ROLE_OWNER, ROLE_GUEST):
+            status, handles = self._query(
+                "/api/families/",
+                self._rule(f"father.gramps_id == '{self.public_id}'"),
+                role=role,
+            )
+            assert status == 200
+            assert handles == {self.family_handle}, role
+
+    def test_collection(self):
+        """Expressions can test a collection of related objects."""
+        expression = f"any(e.description == '{self.description}' for e in events)"
+        for role in (ROLE_OWNER, ROLE_GUEST):
+            status, handles = self._query(
+                "/api/people/", self._rule(expression), role=role
+            )
+            assert status == 200
+            assert handles == {self.public_handle}, role
+
+    def test_cross_namespace_sub_filter(self):
+        """The rule works inside a sub-filter of another namespace."""
+        status, handles = self._query(
+            "/api/people/",
+            {
+                "rules": [
+                    {
+                        "namespace": "Event",
+                        **self._rule(f"description == '{self.description}'"),
+                    }
+                ]
+            },
+        )
+        assert status == 200
+        assert handles == {self.public_handle}
+
+    def test_invert(self):
+        """The rule can be inverted."""
+        status, handles = self._query(
+            "/api/people/",
+            {**self._rule(f"gramps_id == '{self.public_id}'"), "invert": True},
+        )
+        assert status == 200
+        assert self.public_handle not in handles
+        assert self.private_handle in handles
+
+    def test_invalid_expression_returns_422(self):
+        """Unparsable expressions and unknown fields return 422."""
+        for expression in ["gramps_id ==", "not_a_field == 1", ""]:
+            status, _ = self._query("/api/people/", self._rule(expression))
+            assert status == 422, expression
+
+    def test_missing_value_returns_422(self):
+        """A missing expression returns 422."""
+        status, _ = self._query("/api/people/", {"rules": [{"name": "MatchesQuery"}]})
+        assert status == 422

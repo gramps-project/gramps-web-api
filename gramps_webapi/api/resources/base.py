@@ -22,7 +22,6 @@
 from typing import TypeVar
 
 import gramps_ql as gql
-import object_ql as oql
 from flask import abort, request
 from flask_jwt_extended import get_jwt_identity
 from gramps.gen.const import GRAMPS_LOCALE as glocale
@@ -465,12 +464,6 @@ class GrampsObjectsQueryArgs(Schema):
             )
         },
     )
-    oql = fields.Str(
-        validate=validate.Length(min=1),
-        metadata={
-            "description": "An Object QL query string used to filter the objects."
-        },
-    )
     gramps_id = fields.Str(
         validate=validate.Length(min=1),
         metadata={
@@ -627,7 +620,6 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             "filter" in args
             or "rules" in args
             or "gql" in args
-            or "oql" in args
             or args["dates"]
             or (self.gramps_class_name == "Media" and args.get("filemissing"))
         ):
@@ -693,16 +685,6 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                     obj
                     for obj in objects
                     if gql.match(query=args["gql"], obj=obj, db=self.db_handle)
-                ]
-            except (ParseBaseException, ValueError, TypeError) as e:
-                abort_with_message(422, str(e))
-
-        if "oql" in args:
-            try:
-                objects = [
-                    obj
-                    for obj in objects
-                    if oql.match(query=args["oql"], obj=obj, db=self.db_handle)
                 ]
             except (ParseBaseException, ValueError, TypeError) as e:
                 abort_with_message(422, str(e))

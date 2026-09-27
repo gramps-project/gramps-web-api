@@ -29,11 +29,30 @@ from typing import Any
 
 import gramps.gen.filters as filters
 from flask import Response, abort, current_app
+from gramps.gen.db import Database
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import FilterError
 from gramps.gen.filters import GenericFilter
 from gramps.gen.filters.rules import Rule
 from gramps.gen.lib import Media, Person
+from gramps.gen.lib.primaryobj import PrimaryObject
+from gramps.gen.proxy.proxybase import ProxyDbBase
+from gramps_object_query_language.evaluator import evaluate_where
+from gramps_object_query_language.query import (
+    CITATION,
+    EVENT,
+    FAMILY,
+    MEDIA,
+    NOTE,
+    PERSON,
+    PLACE,
+    REPOSITORY,
+    SOURCE,
+    ObjectTypeSpec,
+    Query,
+    compile_query,
+)
+from gramps_object_query_language.query_lang import compile_expr_for_spec
 from marshmallow import Schema
 from webargs import ValidationError, fields, validate
 
@@ -45,6 +64,7 @@ from ..util import abort_with_message
 from ..auth import require_permissions
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .object_query import UnknownBackendError, detect_dialect, detect_treeid
 from .schemas import (
     CustomFilterSchema as CustomFilterResponseSchema,
     NamespaceFiltersSchema,
@@ -82,6 +102,68 @@ class IsReferencedByObjectType(Rule):
         return False
 
 
+class MatchesQuery(Rule):
+    """Rule that matches objects against a GOQL expression.
+
+    On an unproxied DB-API database, the matching handles are computed with a
+    single SQL query in `prepare` and exposed as `selected_handles`, which
+    Gramps' filter optimizer uses to skip loading non-matching objects. On a
+    proxied database, or a backend we can't compile SQL for, each object is
+    evaluated in Python against what the proxy returns.
+    """
+
+    labels = ["Expression:"]
+    description = (
+        "Matches objects for which the given Gramps Object Query Language "
+        "(GOQL) expression is true"
+    )
+    category = "General filters"
+    spec: ObjectTypeSpec
+
+    def prepare(self, db: Database, user) -> None:
+        # raises QueryLangError (a ValueError) for invalid expressions
+        self.where = compile_expr_for_spec(self.spec, self.list[0])
+        self.selected_handles: set[Handle] | None = None
+        dbapi = getattr(db, "dbapi", None)
+        if isinstance(db, ProxyDbBase) or dbapi is None:
+            return
+        try:
+            dialect = detect_dialect(db)
+            treeid = detect_treeid(db)
+        except UnknownBackendError:
+            return
+        sql, params = compile_query(
+            self.spec,
+            # limit=None means "no LIMIT" and is supported at runtime, but the
+            # library annotates `limit: int` (as of 0.5.2)
+            Query(
+                select=["handle"], where=self.where, limit=None  # type: ignore[arg-type]
+            ),
+            dialect=dialect,
+            treeid=treeid,
+        )
+        dbapi.execute(sql, params)
+        self.selected_handles = {row[0] for row in dbapi.fetchall()}
+
+    def apply_to_one(self, db: DbReadBase, obj: PrimaryObject) -> bool:
+        if self.selected_handles is not None:
+            return obj.handle in self.selected_handles
+        return evaluate_where(db, obj, self.where, self.spec)
+
+
+def _matches_query_rule(spec: ObjectTypeSpec, objects: str) -> type[Rule]:
+    """Return a MatchesQuery subclass for one namespace.
+
+    All subclasses share the class name, so clients use the rule name
+    `MatchesQuery` in every namespace, as with Gramps' own `HasTag` etc.
+    """
+    return type(
+        "MatchesQuery",
+        (MatchesQuery,),
+        {"spec": spec, "name": f"{objects} matching the <GOQL expression>"},
+    )
+
+
 MAX_FILTER_DEPTH = 5
 
 _NAMESPACE_MODULES = {
@@ -97,9 +179,21 @@ _NAMESPACE_MODULES = {
 }
 
 _ADDITIONAL_RULES: dict[str, list[type[Rule]]] = {
-    "Person": [HasAssociationType],
-    "Media": [IsReferencedByObjectType],
+    "Person": [HasAssociationType, _matches_query_rule(PERSON, "People")],
+    "Family": [_matches_query_rule(FAMILY, "Families")],
+    "Event": [_matches_query_rule(EVENT, "Events")],
+    "Place": [_matches_query_rule(PLACE, "Places")],
+    "Citation": [_matches_query_rule(CITATION, "Citations")],
+    "Source": [_matches_query_rule(SOURCE, "Sources")],
+    "Repository": [_matches_query_rule(REPOSITORY, "Repositories")],
+    "Media": [IsReferencedByObjectType, _matches_query_rule(MEDIA, "Media")],
+    "Note": [_matches_query_rule(NOTE, "Notes")],
 }
+
+# Make our rules findable when reloading saved custom filters
+for _namespace, _rule_classes in _ADDITIONAL_RULES.items():
+    for _rule_class in _rule_classes:
+        setattr(_NAMESPACE_MODULES[_namespace], _rule_class.__name__, _rule_class)
 
 # Rules shipped by Gramps that fail on every object of their namespace
 _EXCLUDED_RULES: dict[str, set[str]] = {

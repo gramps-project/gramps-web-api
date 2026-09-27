@@ -27,7 +27,6 @@ from importlib.util import find_spec
 
 import gramps_ql as gql
 import limits
-import object_ql as oql
 import sifts
 from flask import Response, current_app
 from gramps.gen.const import ENV, GRAMPS_LOCALE
@@ -240,7 +239,9 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 "version": VERSION,
             },
             "gramps_ql": {"version": gql.__version__},
-            "object_ql": {"version": oql.__version__},
+            "gramps_object_query_language": {
+                "version": metadata.version("gramps-object-query-language")
+            },
             "yclade": {"version": _get_yclade_version()},
             "locale": {
                 "lang": GRAMPS_LOCALE.lang,

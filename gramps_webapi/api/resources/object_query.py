@@ -237,7 +237,9 @@ class QueryWhereConditionArgs(Schema):
                 f"at most one of 'and'/'or'/'not'/'exists' is allowed per "
                 f"condition, got: {sorted(combinators)}"
             )
-        is_leaf_ish = any(key in data for key in ("column", "op", "value", "value_column"))
+        is_leaf_ish = any(
+            key in data for key in ("column", "op", "value", "value_column")
+        )
         if combinators and is_leaf_ish:
             raise ValidationError(
                 "a condition can't combine 'and'/'or'/'not'/'exists' with "
@@ -321,7 +323,7 @@ class QueryBodyArgs(Schema):
         required=False,
         allow_none=True,
         metadata={
-            "description": "Alternative to `where`: an \"almost Python\" expression, "
+            "description": 'Alternative to `where`: an "almost Python" expression, '
             "e.g. \"gender == 1 and primary_name.surname_list[0].surname == 'Smith'\". "
             "See `query_lang.py`. Mutually exclusive with `where` -- a request "
             "setting both is rejected."
@@ -539,9 +541,7 @@ def _validate_leaf_condition(condition: dict) -> None:
     has_value = "value" in condition
     has_value_column = "value_column" in condition
     if has_value == has_value_column:
-        abort_with_message(
-            422, "exactly one of 'value'/'value_column' is required"
-        )
+        abort_with_message(422, "exactly one of 'value'/'value_column' is required")
     op = condition["op"]
     if has_value_column and op in ("in", "like", "regex"):
         abort_with_message(422, f"'value_column' is not supported for op {op!r}")
@@ -737,6 +737,44 @@ _DIALECT_BY_NAME: dict[str, Dialect] = {
 }
 
 
+class UnknownBackendError(Exception):
+    """A database backend whose SQL dialect or tree scoping is unknown."""
+
+
+def detect_dialect(basedb: Any) -> Dialect:
+    """Backend SQL dialect, raising `UnknownBackendError` if unrecognized.
+
+    See `_resolve_dialect` for the detection rules; callers choose their own
+    failure policy (a 501 there, per-object evaluation in the GOQL filter rule).
+    """
+    name: Optional[str] = getattr(basedb, "dialect", None)
+    if name:
+        dialect = _DIALECT_BY_NAME.get(name)
+        if dialect is not None:
+            return dialect
+    if is_sqlite(basedb):
+        return Dialect.SQLITE
+    class_name = type(basedb).__name__
+    if class_name in (SINGLE_TREE_POSTGRES_CLASS_NAME, SHARED_POSTGRES_CLASS_NAME):
+        return Dialect.POSTGRESQL
+    raise UnknownBackendError(class_name)
+
+
+def detect_treeid(basedb: Any) -> Optional[int]:
+    """Current tree's ID, raising `UnknownBackendError` if undeterminable.
+
+    See `_resolve_treeid` for why `None` must only ever mean "known
+    single-tree backend", never "detection failed".
+    """
+    treeid = getattr(basedb.dbapi, "treeid", None)
+    if treeid is not None:
+        return treeid
+    class_name = type(basedb).__name__
+    if is_sqlite(basedb) or class_name == SINGLE_TREE_POSTGRES_CLASS_NAME:
+        return None
+    raise UnknownBackendError(class_name)
+
+
 def _resolve_dialect(basedb: Any) -> Dialect:
     """Backend SQL dialect for rendering a `JsonPath` (see `query.py`).
 
@@ -784,20 +822,13 @@ def _resolve_dialect(basedb: Any) -> Dialect:
     it's the correct, more specific check when it *does* match (e.g. a
     `SQLite()` constructed directly in-process, as this file's own tests do).
     """
-    name: Optional[str] = getattr(basedb, "dialect", None)
-    if name:
-        dialect = _DIALECT_BY_NAME.get(name)
-        if dialect is not None:
-            return dialect
-    if is_sqlite(basedb):
-        return Dialect.SQLITE
-    class_name = type(basedb).__name__
-    if class_name in (SINGLE_TREE_POSTGRES_CLASS_NAME, SHARED_POSTGRES_CLASS_NAME):
-        return Dialect.POSTGRESQL
-    abort_with_message(
-        501,
-        f"Structured query does not recognize database backend {class_name!r}",
-    )
+    try:
+        return detect_dialect(basedb)
+    except UnknownBackendError as error:
+        abort_with_message(
+            501,
+            f"Structured query does not recognize database backend {str(error)!r}",
+        )
 
 
 def _resolve_treeid(basedb: Any) -> Optional[int]:
@@ -827,17 +858,14 @@ def _resolve_treeid(basedb: Any) -> Optional[int]:
     query against a genuinely shared backend succeed and return other
     tenants' rows instead of erroring.
     """
-    treeid = getattr(basedb.dbapi, "treeid", None)
-    if treeid is not None:
-        return treeid
-    class_name = type(basedb).__name__
-    if is_sqlite(basedb) or class_name == SINGLE_TREE_POSTGRES_CLASS_NAME:
-        return None
-    abort_with_message(
-        501,
-        f"Structured query cannot determine tree scoping for database "
-        f"backend {class_name!r}",
-    )
+    try:
+        return detect_treeid(basedb)
+    except UnknownBackendError as error:
+        abort_with_message(
+            501,
+            f"Structured query cannot determine tree scoping for database "
+            f"backend {str(error)!r}",
+        )
 
 
 class ObjectQueryResource(ProtectedResource):
@@ -906,7 +934,12 @@ class ObjectQueryResource(ProtectedResource):
         after = None
         if args.get("after"):
             after = _resolve_after(
-                basedb, self.spec, order_by, args["after"], treeid, _resolve_dialect(basedb)
+                basedb,
+                self.spec,
+                order_by,
+                args["after"],
+                treeid,
+                _resolve_dialect(basedb),
             )
 
         # `default=False`, deliberately: falling back to the system locale
@@ -937,7 +970,9 @@ class ObjectQueryResource(ProtectedResource):
             # trimmed back off below and never reaches the response.
             query = Query(
                 select=fetch_refs,
-                where=_build_where(_resolve_where_conditions(args, self.spec), self.spec),
+                where=_build_where(
+                    _resolve_where_conditions(args, self.spec), self.spec
+                ),
                 order_by=order_by,
                 limit=args["limit"] + 1,
                 after=after,
@@ -975,9 +1010,7 @@ class ObjectQueryResource(ProtectedResource):
         }
         items = [
             {
-                key: (
-                    _normalize_json_value(val) if key in decoded_keys else val
-                )
+                key: (_normalize_json_value(val) if key in decoded_keys else val)
                 for key, val in zip(fetch_keys, row)
                 if key in requested_keys
             }
