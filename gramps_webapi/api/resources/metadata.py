@@ -50,7 +50,7 @@ from ..search.metadata import get_stored_model_name
 from ..util import get_config, get_db_handle, get_tree_from_jwt_or_fail
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
-from .schemas import MetadataSchema, ResearcherSchema
+from .schemas import MetadataSchema, MetadataServerSchema, ResearcherSchema
 
 
 @functools.cache
@@ -163,6 +163,73 @@ def _get_dbid_from_tree_id(tree_id: str) -> str:
     return get_dbid_from_tree_id(tree_id)
 
 
+def _get_server_metadata() -> dict:
+    """Return the metadata sections that do not depend on a tree.
+
+    Shared by /metadata/ and /metadata/server/, so the sections have the same
+    shape in both.
+    """
+    is_multi_tree = current_app.config["TREE"] == TREE_MULTI
+    has_semantic_search = bool(current_app.config["VECTOR_EMBEDDING_MODEL"])
+    has_ocr, ocr_languages = _get_ocr_info()
+    result = {
+        "gramps": {
+            "version": ENV["VERSION"],
+        },
+        "gramps_webapi": {
+            "schema": VERSION,
+            "version": VERSION,
+        },
+        "gramps_ql": {"version": gql.__version__},
+        "gramps_object_query_language": {
+            "version": metadata.version("gramps-object-query-language")
+        },
+        "yclade": {"version": _get_yclade_version()},
+        "locale": {
+            "lang": GRAMPS_LOCALE.lang,
+            "language": GRAMPS_LOCALE.language[0],
+            "description": _get_locale_language_name(),
+            "incomplete_translation": bool(
+                GRAMPS_LOCALE.language[0] in INCOMPLETE_TRANSLATIONS
+            ),
+        },
+        "server": {
+            "multi_tree": is_multi_tree,
+            "task_queue": bool(current_app.config["CELERY_CONFIG"]),
+            "ocr": has_ocr,
+            "ocr_languages": ocr_languages,
+            "semantic_search": has_semantic_search,
+            "chat": has_semantic_search and bool(current_app.config["LLM_MODEL"]),
+            "face_detection": _get_face_detection_available(),
+            "thumbnails": _get_thumbnail_support(),
+            # may be stored in the database, so it is looked up rather than
+            # read from the app config
+            "email": bool(get_config("DEFAULT_FROM_EMAIL")),
+            "max_thumbnail_file_bytes": current_app.config["MAX_THUMBNAIL_FILE_BYTES"],
+        },
+    }
+    max_upload_bytes = current_app.config["MAX_MEDIA_ARCHIVE_UPLOAD_BYTES"]
+    if max_upload_bytes is not None:
+        # omitted rather than null if no limit is configured
+        result["server"]["max_media_archive_upload_bytes"] = max_upload_bytes
+    rate_limit = _parse_rate_limit(current_app.config["RATE_LIMIT_MEDIA_ARCHIVE"])
+    if rate_limit is not None:
+        # omitted if the configured limit string is unparseable
+        result["server"]["rate_limit_media_archive"] = rate_limit
+    if has_permissions({PERM_VIEW_SETTINGS}) or (
+        # in a single-tree deployment the owner is the server operator and can
+        # act on the deprecations, while in multi-tree they are a tenant who
+        # cannot change the server configuration
+        not is_multi_tree
+        and has_permissions({PERM_EDIT_TREE})
+    ):
+        # re-checked per request since some options can be stored in the database
+        result["deprecations"] = check_deprecations(
+            current_app.config, get_option=get_config
+        )
+    return result
+
+
 class MetadataQueryArgs(Schema):
     """Query arguments for GET /metadata/."""
 
@@ -190,12 +257,6 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
         db_name = db_handle.get_dbname()
         tree_id = get_tree_from_jwt_or_fail()
         db_type = _get_dbid_from_tree_id(tree_id)
-        is_multi_tree = current_app.config["TREE"] == TREE_MULTI
-        has_task_queue = bool(current_app.config["CELERY_CONFIG"])
-        has_semantic_search = bool(current_app.config["VECTOR_EMBEDDING_MODEL"])
-        has_chat = has_semantic_search and bool(current_app.config["LLM_MODEL"])
-
-        has_ocr, ocr_languages = _get_ocr_info()
         searcher = get_search_indexer(tree_id)
         search_count = searcher.count(
             include_private=has_permissions({PERM_VIEW_PRIVATE})
@@ -225,32 +286,13 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
                 sifts_info["count_semantic"] = None
 
         result = {
+            **_get_server_metadata(),
             "database": {
                 "id": db_handle.get_dbid(),
                 "name": db_name,
                 "type": db_type,
             },
             "default_person": db_handle.get_default_handle(),
-            "gramps": {
-                "version": ENV["VERSION"],
-            },
-            "gramps_webapi": {
-                "schema": VERSION,
-                "version": VERSION,
-            },
-            "gramps_ql": {"version": gql.__version__},
-            "gramps_object_query_language": {
-                "version": metadata.version("gramps-object-query-language")
-            },
-            "yclade": {"version": _get_yclade_version()},
-            "locale": {
-                "lang": GRAMPS_LOCALE.lang,
-                "language": GRAMPS_LOCALE.language[0],
-                "description": _get_locale_language_name(),
-                "incomplete_translation": bool(
-                    GRAMPS_LOCALE.language[0] in INCOMPLETE_TRANSLATIONS
-                ),
-            },
             "object_counts": {
                 "people": db_handle.get_number_of_people(),
                 "families": db_handle.get_number_of_families(),
@@ -267,42 +309,7 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
             "search": {
                 "sifts": sifts_info,
             },
-            "server": {
-                "multi_tree": is_multi_tree,
-                "task_queue": has_task_queue,
-                "ocr": has_ocr,
-                "ocr_languages": ocr_languages,
-                "semantic_search": has_semantic_search,
-                "chat": has_chat,
-                "face_detection": _get_face_detection_available(),
-                "thumbnails": _get_thumbnail_support(),
-                # may be stored in the database, so it is looked up rather than
-                # read from the app config
-                "email": bool(get_config("DEFAULT_FROM_EMAIL")),
-                "max_thumbnail_file_bytes": current_app.config[
-                    "MAX_THUMBNAIL_FILE_BYTES"
-                ],
-            },
         }
-        max_upload_bytes = current_app.config["MAX_MEDIA_ARCHIVE_UPLOAD_BYTES"]
-        if max_upload_bytes is not None:
-            # omitted rather than null if no limit is configured
-            result["server"]["max_media_archive_upload_bytes"] = max_upload_bytes
-        rate_limit = _parse_rate_limit(current_app.config["RATE_LIMIT_MEDIA_ARCHIVE"])
-        if rate_limit is not None:
-            # omitted if the configured limit string is unparseable
-            result["server"]["rate_limit_media_archive"] = rate_limit
-        if has_permissions({PERM_VIEW_SETTINGS}) or (
-            # in a single-tree deployment the owner is the server operator and can
-            # act on the deprecations, while in multi-tree they are a tenant who
-            # cannot change the server configuration
-            not is_multi_tree
-            and has_permissions({PERM_EDIT_TREE})
-        ):
-            # re-checked per request since some options can be stored in the database
-            result["deprecations"] = check_deprecations(
-                current_app.config, get_option=get_config
-            )
         if args["surnames"]:
             result["surnames"] = db_handle.get_surname_list()
         data = db_handle.get_summary()
@@ -319,6 +326,19 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
         if isinstance(db_handle, DbGeneric):
             result["database"]["actual_schema"] = db_handle.get_schema_version()
         return self.response(200, result)
+
+
+class MetadataServerResource(ProtectedResource, GrampsJSONEncoder):
+    """Tree-independent metadata resource."""
+
+    @api_blueprint.response(200, MetadataServerSchema())
+    def get(self) -> Response:
+        """Get application related metadata that does not depend on a tree.
+
+        Unlike /metadata/, this also works for a token without a tree, e.g.
+        for a site admin who is not tied to a tree.
+        """
+        return self.response(200, _get_server_metadata())
 
 
 class MetadataResearcherResource(ProtectedResource, GrampsJSONEncoder):

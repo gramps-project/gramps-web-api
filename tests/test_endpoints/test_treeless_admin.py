@@ -310,6 +310,22 @@ class TestTreelessAdmin(unittest.TestCase):
             rv = self.client.get(BASE_URL + url, headers=headers)
             assert rv.status_code == 403, url
 
+    def test_treeless_admin_can_read_tree_independent_data(self):
+        """Server metadata and translations do not need a tree."""
+        headers = self._headers("admin")
+        rv = self.client.get(BASE_URL + "/metadata/server/", headers=headers)
+        assert rv.status_code == 200
+        assert rv.json["server"]["multi_tree"] is True
+        assert "version" in rv.json["gramps_webapi"]
+        assert "deprecations" in rv.json
+        rv = self.client.get(BASE_URL + "/translations/", headers=headers)
+        assert rv.status_code == 200
+        rv = self.client.post(
+            BASE_URL + "/translations/de", headers=headers, json={"strings": ["Home"]}
+        )
+        assert rv.status_code == 200
+        assert rv.json == [{"original": "Home", "translation": "Startseite"}]
+
     def test_admin_can_assign_own_tree(self):
         """The full bootstrap: create a tree, assign it, log in again."""
         headers = self._headers("admin")
