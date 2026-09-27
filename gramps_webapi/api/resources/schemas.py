@@ -2283,8 +2283,10 @@ class MetadataSchema(_Base):
     gramps_ql = fields.Dict(
         metadata={"description": "Information about the Gramps QL library."},
     )
-    object_ql = fields.Dict(
-        metadata={"description": "Information about the Object QL library."},
+    gramps_object_query_language = fields.Dict(
+        metadata={
+            "description": "Information about the Gramps Object Query Language library."
+        },
     )
     locale = fields.Dict(
         metadata={"description": "Information about the active locale."},
