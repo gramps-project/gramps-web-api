@@ -64,6 +64,7 @@ from ..util import abort_with_message
 from ..auth import require_permissions
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
+from .filter_param_types import get_param_types
 from .object_query import UnknownBackendError, detect_dialect, detect_treeid
 from .schemas import (
     CustomFilterSchema as CustomFilterResponseSchema,
@@ -285,6 +286,7 @@ def get_filter_rules(args: dict[str, Any], namespace: str) -> list[dict[str, Any
                 "labels": rule_class.labels,
                 "name": rule_class.name,
                 "rule": rule_class.__name__,
+                "types": get_param_types(namespace, rule_class),
             }
         )
     if "rules" in args and len(args["rules"]) != len(rule_list):
