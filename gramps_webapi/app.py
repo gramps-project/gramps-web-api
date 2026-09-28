@@ -61,6 +61,7 @@ from .auth.oidc import init_oidc
 from .config import DefaultConfig, DefaultConfigJWT
 from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI, VERSION
 from .dbmanager import WebDbManager
+from .future_gramps import apply_patches as apply_future_gramps_patches
 from .sentry import init_sentry
 from .util import pin_postgres_driver
 from .util.celery import create_celery
@@ -82,6 +83,8 @@ def deprecated_config_from_env(app):
 
 def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = True):
     """Flask application factory."""
+    apply_future_gramps_patches()
+
     app = Flask(__name__)
 
     app.logger.setLevel(logging.INFO)
