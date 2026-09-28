@@ -16,7 +16,14 @@ import unittest
 from unittest.mock import patch
 from uuid import uuid4
 
+from gramps.gen.const import GRAMPS_LOCALE
+from gramps.gen.lib import Date, Event, EventType
+
 from gramps_webapi.api.cache import request_cache
+from gramps_webapi.api.resources.anniversaries import (
+    _build_ics,
+    _escape_ics_text,
+)
 from gramps_webapi.auth import (
     add_user,
     get_user_details,
@@ -142,10 +149,51 @@ class TestAnniversariesIcs(unittest.TestCase):
         self.assertEqual(rv.headers["Content-Encoding"], "gzip")
         self.assertIn(b"BEGIN:VCALENDAR", gzip.decompress(rv.data))
 
+    def test_calendar_serialization_is_utf8_safe(self):
+        """Long Unicode text is folded without splitting encoded characters."""
+        event = Event()
+        event.handle = "event-handle"
+        event.gramps_id = "E0001"
+        event.type = EventType(EventType.BIRTH)
+        event.date = Date(2000, 1, 2)
+        event.change = 1_700_000_000
+        summary = "Naissance - " + "Éléonore, " * 20
+        with patch(
+            "gramps_webapi.api.resources.anniversaries.get_event_summary_from_object",
+            return_value=summary,
+        ):
+            payload = _build_ics(
+                [event], object(), "tree", "My family tree", GRAMPS_LOCALE
+            )
+        lines = payload.removesuffix("\r\n").split("\r\n")
+        self.assertTrue(all(len(line.encode("utf-8")) <= 75 for line in lines))
+        self.assertTrue(any(line.startswith(" ") for line in lines))
+        self.assertIn("X-WR-CALNAME:My family tree - ", payload)
+
+    def test_february_29_repeats_on_last_day_of_february(self):
+        """Leap-day anniversaries recur every year on February's last day."""
+        event = Event()
+        event.handle = "leap-event"
+        event.gramps_id = "E0002"
+        event.type = EventType(EventType.BIRTH)
+        event.date = Date(2000, 2, 29)
+        with patch(
+            "gramps_webapi.api.resources.anniversaries.get_event_summary_from_object",
+            return_value="Birth",
+        ):
+            payload = _build_ics([event], object(), "tree", "Tree")
+        self.assertIn("RRULE:FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1", payload)
+        self.assertIn("DTSTART;VALUE=DATE:20000229", payload)
+
+    def test_ics_text_escaping_normalizes_all_line_endings(self):
+        """CR, LF, commas, semicolons and slashes are escaped once."""
+        escaped = _escape_ics_text("one\r\ntwo\rthree\nfour, five; \\six")
+        self.assertEqual(escaped, "one\\ntwo\\nthree\\nfour\\, five\\; \\\\six")
+
     def test_public_feed_event_type_filter(self):
         """event_types filter limits event types included in ICS."""
         _, token = self._create_token(role=ROLE_OWNER)
-        rv = self.client.get(f"{ICS_URL}?token={token}&event_types=Birth")
+        rv = self.client.get(f"{ICS_URL}?token={token}&event_types=Birth&locale=en")
         self.assertEqual(rv.status_code, 200)
         text = rv.data.decode("utf-8")
         self.assertIn("Type: Birth", text)
