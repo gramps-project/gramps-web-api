@@ -220,7 +220,9 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
             )
 
     # enable gzip compression
-    Compress(app)
+    compress = Compress(app)
+    compress.compress_mimetypes_set.add("text/calendar")
+    app.config["COMPRESS_MIMETYPES"] = sorted(compress.compress_mimetypes_set)
 
     static_path = app.config.get("STATIC_PATH")
 
