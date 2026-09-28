@@ -12,8 +12,10 @@
 """Tests for anniversaries ICS endpoint."""
 
 import gzip
+import json
 import unittest
 from unittest.mock import patch
+from urllib.parse import urlencode
 from uuid import uuid4
 
 from gramps.gen.const import GRAMPS_LOCALE
@@ -21,8 +23,10 @@ from gramps.gen.lib import Date, Event, EventType
 
 from gramps_webapi.api.cache import request_cache
 from gramps_webapi.api.resources.anniversaries import (
+    AnniversaryEvent,
     _build_ics,
     _escape_ics_text,
+    _get_anniversary_date_components,
 )
 from gramps_webapi.auth import (
     add_user,
@@ -157,14 +161,8 @@ class TestAnniversariesIcs(unittest.TestCase):
         event.type = EventType(EventType.BIRTH)
         event.date = Date(2000, 1, 2)
         event.change = 1_700_000_000
-        summary = "Naissance - " + "Éléonore, " * 20
-        with patch(
-            "gramps_webapi.api.resources.anniversaries.get_event_summary_from_object",
-            return_value=summary,
-        ):
-            payload = _build_ics(
-                [event], object(), "tree", "My family tree", GRAMPS_LOCALE
-            )
+        entry = AnniversaryEvent(event, {("person", "I0001"): "Éléonore, " * 20})
+        payload = _build_ics([entry], "tree", "My family tree", GRAMPS_LOCALE)
         lines = payload.removesuffix("\r\n").split("\r\n")
         self.assertTrue(all(len(line.encode("utf-8")) <= 75 for line in lines))
         self.assertTrue(any(line.startswith(" ") for line in lines))
@@ -177,11 +175,7 @@ class TestAnniversariesIcs(unittest.TestCase):
         event.gramps_id = "E0002"
         event.type = EventType(EventType.BIRTH)
         event.date = Date(2000, 2, 29)
-        with patch(
-            "gramps_webapi.api.resources.anniversaries.get_event_summary_from_object",
-            return_value="Birth",
-        ):
-            payload = _build_ics([event], object(), "tree", "Tree")
+        payload = _build_ics([AnniversaryEvent(event)], "tree", "Tree")
         self.assertIn("RRULE:FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1", payload)
         self.assertIn("DTSTART;VALUE=DATE:20000229", payload)
 
@@ -189,6 +183,14 @@ class TestAnniversariesIcs(unittest.TestCase):
         """CR, LF, commas, semicolons and slashes are escaped once."""
         escaped = _escape_ics_text("one\r\ntwo\rthree\nfour, five; \\six")
         self.assertEqual(escaped, "one\\ntwo\\nthree\\nfour\\, five\\; \\\\six")
+
+    def test_only_exact_dates_are_anniversaries(self):
+        """Estimated, calculated and approximate dates are excluded."""
+        event = Event()
+        event.date = Date(2000, 3, 4)
+        self.assertEqual(_get_anniversary_date_components(event), (2000, 3, 4))
+        event.date.set_modifier(Date.MOD_ABOUT)
+        self.assertIsNone(_get_anniversary_date_components(event))
 
     def test_public_feed_event_type_filter(self):
         """event_types filter limits event types included in ICS."""
@@ -209,6 +211,57 @@ class TestAnniversariesIcs(unittest.TestCase):
         rv = self.client.get(f"{ICS_URL}?token={token}&generation_depth=10")
         self.assertEqual(rv.status_code, 422)
 
+    def test_native_event_rules_intersect_with_event_types(self):
+        """Public shorthand and native Event rules are intersected."""
+        _, token = self._create_token()
+        query = urlencode(
+            {
+                "token": token,
+                "event_types": "Birth",
+                "living_only": "false",
+                "locale": "en",
+                "rules": json.dumps(
+                    {"rules": [{"name": "HasType", "values": ["Death"]}]}
+                ),
+            }
+        )
+        rv = self.client.get(f"{ICS_URL}?{query}")
+        self.assertEqual(rv.status_code, 200)
+        self.assertNotIn("BEGIN:VEVENT", rv.data.decode("utf-8"))
+
+    def test_native_person_rules_limit_collected_events(self):
+        """Native Person rules are applied before event collection."""
+        _, token = self._create_token()
+        common = {
+            "token": token,
+            "event_types": "Birth",
+            "living_only": "false",
+            "locale": "en",
+        }
+        all_births = self.client.get(f"{ICS_URL}?{urlencode(common)}")
+        person_query = {
+            **common,
+            "person_rules": json.dumps(
+                {"rules": [{"name": "HasIdOf", "values": ["I0044"]}]}
+            ),
+        }
+        selected = self.client.get(f"{ICS_URL}?{urlencode(person_query)}")
+        self.assertEqual(selected.status_code, 200)
+        self.assertGreater(selected.data.count(b"BEGIN:VEVENT"), 0)
+        self.assertLess(
+            selected.data.count(b"BEGIN:VEVENT"),
+            all_births.data.count(b"BEGIN:VEVENT"),
+        )
+
+    def test_missing_saved_filter_returns_empty_calendar(self):
+        """A deleted saved filter does not permanently break a subscription."""
+        _, token = self._create_token()
+        rv = self.client.get(
+            f"{ICS_URL}?{urlencode({'token': token, 'filter': 'missing-filter'})}"
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertNotIn(b"BEGIN:VEVENT", rv.data)
+
     def test_public_feed_anchor_scope_for_owner_and_guest(self):
         """Anchor scope query works for both owner and guest roles."""
         # Use a known person ID from example_gramps.
@@ -221,12 +274,13 @@ class TestAnniversariesIcs(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
 
     def test_public_feed_invalid_anchor(self):
-        """Unknown anchor Gramps ID returns 404."""
+        """Unknown anchor Gramps ID returns a valid empty calendar."""
         _, token = self._create_token(role=ROLE_OWNER)
         rv = self.client.get(
             f"{ICS_URL}?token={token}&anchor_gramps_id=NOT_A_REAL_GRMPS_ID"
         )
-        self.assertEqual(rv.status_code, 404)
+        self.assertEqual(rv.status_code, 200)
+        self.assertNotIn(b"BEGIN:VEVENT", rv.data)
 
     def test_public_feed_disabled_user(self):
         """Disabled users cannot use access tokens."""
