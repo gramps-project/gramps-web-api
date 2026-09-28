@@ -498,6 +498,29 @@ class PlaceProfileSchema(_Base):
     )
 
 
+class PlaceCoordinatesSchema(_Base):
+    """A place's handle, name, and coordinates."""
+
+    handle = fields.Str(
+        metadata={"description": "Unique identifier of the place."},
+    )
+    name = fields.Str(
+        metadata={"description": "Place name."},
+    )
+    lat = fields.Float(
+        allow_none=True,
+        metadata={
+            "description": "Latitude in decimal degrees, or null if missing or invalid."
+        },
+    )
+    long = fields.Float(
+        allow_none=True,
+        metadata={
+            "description": "Longitude in decimal degrees, or null if missing or invalid."
+        },
+    )
+
+
 class SourceProfileSchema(_Base):
     """A summary of a source record."""
 

@@ -22,17 +22,26 @@
 
 from typing import Dict
 
+from flask import Response, jsonify
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.lib import Place
 from gramps.gen.utils.grampslocale import GrampsLocale
 
+from ..blueprint import api_blueprint
+from ..cache import request_cache_decorator
+from ..util import get_db_handle
+from . import ProtectedResource
 from .base import (
     GrampsObjectProtectedResource,
     GrampsObjectResourceHelper,
     GrampsObjectsProtectedResource,
 )
-from .util import get_extended_attributes, get_place_profile_for_object
-
+from .schemas import PlaceCoordinatesSchema
+from .util import (
+    get_extended_attributes,
+    get_place_coordinates,
+    get_place_profile_for_object,
+)
 
 
 class PlaceResourceHelper(GrampsObjectResourceHelper):
@@ -63,3 +72,25 @@ class PlaceResource(GrampsObjectProtectedResource, PlaceResourceHelper):
 
 class PlacesResource(GrampsObjectsProtectedResource, PlaceResourceHelper):
     """Places resource."""
+
+
+class PlaceCoordinatesResource(ProtectedResource):
+    """Place coordinates resource."""
+
+    @api_blueprint.response(200, PlaceCoordinatesSchema(many=True))
+    @request_cache_decorator
+    def get(self) -> Response:
+        """Get the name and coordinates of all places, in no particular order."""
+        places = []
+        for place in get_db_handle().iter_places():
+            latitude, longitude = get_place_coordinates(place)
+            places.append(
+                {
+                    "handle": place.handle,
+                    "name": place.get_name().value,
+                    "lat": latitude,
+                    "long": longitude,
+                }
+            )
+        # not self.response: GrampsJSONEncoder turns null lat/long into 0
+        return jsonify(places)
