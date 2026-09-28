@@ -11,11 +11,12 @@
 
 """Anniversaries ICS resource."""
 
+import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from flask import Response
+from flask import Response, request
 from gramps.gen.lib import Event
 from gramps.gen.lib.date import gregorian
 from marshmallow import Schema
@@ -28,6 +29,8 @@ from ...auth import (
 )
 from ...auth.const import ACCESS_TOKEN_SCOPE_ANNIVERSARIES_ICS, PERM_VIEW_PRIVATE
 from ..blueprint import api_blueprint
+from ..cache import get_db_last_change_timestamp, request_cache
+from ..ratelimiter import limiter
 from ..util import (
     abort_with_message,
     close_db,
@@ -37,6 +40,61 @@ from ..util import (
 from . import Resource
 from .filters import apply_filter
 from .util import get_backlinks, get_event_summary_from_object
+
+ICS_FORMAT_VERSION = 2
+ICS_CACHE_TIMEOUT = 86400
+
+
+class CalendarResponse(Response):
+    """Use the complete cache validator, including permissions and arguments."""
+
+    def make_conditional(
+        self, request_or_environ, accept_ranges=False, complete_length=None
+    ):
+        # Compression can invoke conditional handling again. A DB timestamp
+        # alone does not identify the representation selected by the query.
+        environ = dict(getattr(request_or_environ, "environ", request_or_environ))
+        environ.pop("HTTP_IF_MODIFIED_SINCE", None)
+        return super().make_conditional(environ, accept_ranges, complete_length)
+
+
+def _token_limit_key() -> str:
+    """Keep token values out of rate-limiter storage."""
+    return hashlib.sha256(request.args.get("token", "").encode()).hexdigest()
+
+
+def _calendar_etag(tree_id: str, view_private: bool, args: dict, timestamp) -> str:
+    """Identify the feed without opening the tree database."""
+    normalized = {key: value for key, value in args.items() if key != "token"}
+    normalized["event_types"] = sorted(
+        {
+            value.strip().casefold()
+            for value in args.get("event_types", [])
+            if value.strip()
+        }
+    )
+    dimensions = (ICS_FORMAT_VERSION, tree_id, timestamp, view_private, normalized)
+    return hashlib.sha256(json.dumps(dimensions, sort_keys=True).encode()).hexdigest()
+
+
+def _calendar_response(
+    payload: str, etag: str, timestamp: int | float | None
+) -> Response:
+    """Return a calendar or its conditional response with refresh headers."""
+    unchanged = request.if_none_match.contains_weak(etag)
+    response = CalendarResponse(
+        "" if unchanged else payload,
+        status=304 if unchanged else 200,
+        mimetype="text/calendar",
+    )
+    response.headers["Content-Disposition"] = "inline; filename=anniversaries.ics"
+    response.cache_control.private = True
+    response.cache_control.max_age = ICS_CACHE_TIMEOUT
+    response.expires = datetime.now(timezone.utc) + timedelta(seconds=ICS_CACHE_TIMEOUT)
+    response.set_etag(etag, weak=True)
+    if timestamp is not None:
+        response.last_modified = datetime.fromtimestamp(timestamp, timezone.utc)
+    return response
 
 
 def _escape_ics_text(value: str) -> str:
@@ -138,7 +196,6 @@ def _resolve_family_handles_for_people(db_handle, people_handles: set[str]) -> s
 
 def _build_ics(events: list[Event], db_handle, tree_id: str) -> str:
     """Build ICS calendar content for a list of events."""
-    dtstamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
@@ -146,12 +203,17 @@ def _build_ics(events: list[Event], db_handle, tree_id: str) -> str:
         "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH",
         "X-WR-CALNAME:Gramps Anniversaries",
+        "REFRESH-INTERVAL;VALUE=DURATION:P1D",
+        "X-PUBLISHED-TTL:P1D",
     ]
     for event in events:
         date_components = _get_anniversary_date_components(event)
         if date_components is None:
             continue
         year, month, day = date_components
+        dtstamp = datetime.fromtimestamp(event.change or 0, timezone.utc).strftime(
+            "%Y%m%dT%H%M%SZ"
+        )
         dtstart = f"{year:04d}{month:02d}{day:02d}"
         summary = _escape_ics_text(get_event_summary_from_object(db_handle, event))
         description = _escape_ics_text(
@@ -208,6 +270,10 @@ class AnniversariesIcsQueryArgs(Schema):
 class AnniversariesIcsResource(Resource):
     """Public anniversaries ICS feed resource."""
 
+    @api_blueprint.response(200, {"type": "string"}, content_type="text/calendar")
+    @api_blueprint.alt_response(304, description="Calendar unchanged", success=True)
+    @limiter.limit("300/minute")
+    @limiter.limit("10/minute", key_func=_token_limit_key)
     @api_blueprint.arguments(AnniversariesIcsQueryArgs, location="query")
     def get(self, args: dict) -> Response:
         """Return anniversaries in ICS format."""
@@ -225,6 +291,15 @@ class AnniversariesIcsResource(Resource):
 
         permissions = get_permissions(username=user.name, tree=tree_id)
         view_private = PERM_VIEW_PRIVATE in permissions
+        timestamp = get_db_last_change_timestamp(tree_id)
+        etag = _calendar_etag(tree_id, view_private, args, timestamp)
+        cache_key = f"anniversaries_ics:{etag}"
+        if timestamp is not None:
+            if request.if_none_match.contains_weak(etag):
+                return _calendar_response("", etag, timestamp)
+            cached = request_cache.get(cache_key)
+            if cached is not None:
+                return _calendar_response(cached, etag, timestamp)
         db_handle = get_db_outside_request(
             tree=tree_id,
             view_private=view_private,
@@ -276,6 +351,8 @@ class AnniversariesIcsResource(Resource):
         finally:
             close_db(db_handle)
 
-        response = Response(payload, status=200, mimetype="text/calendar")
-        response.headers["Content-Disposition"] = "inline; filename=anniversaries.ics"
-        return response
+        if timestamp is not None:
+            request_cache.set(cache_key, payload, timeout=ICS_CACHE_TIMEOUT)
+        else:
+            etag = hashlib.sha256((etag + payload).encode()).hexdigest()
+        return _calendar_response(payload, etag, timestamp)

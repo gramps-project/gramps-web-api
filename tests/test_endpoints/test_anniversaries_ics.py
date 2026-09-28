@@ -11,10 +11,12 @@
 
 """Tests for anniversaries ICS endpoint."""
 
+import gzip
 import unittest
 from unittest.mock import patch
 from uuid import uuid4
 
+from gramps_webapi.api.cache import request_cache
 from gramps_webapi.auth import (
     add_user,
     get_user_details,
@@ -41,6 +43,11 @@ class TestAnniversariesIcs(unittest.TestCase):
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
+
+    def setUp(self):
+        """Avoid sharing cached calendars between test cases."""
+        with self.client.application.app_context():
+            request_cache.clear()
 
     def _create_token(self, role=ROLE_OWNER):
         """Create or rotate token for role and return (header, token)."""
@@ -71,12 +78,69 @@ class TestAnniversariesIcs(unittest.TestCase):
         self.assertIn("BEGIN:VCALENDAR", text)
         self.assertIn("END:VCALENDAR", text)
         self.assertIn("RRULE:FREQ=YEARLY", text)
+        self.assertIn("REFRESH-INTERVAL;VALUE=DURATION:P1D", text)
+        self.assertIn("X-PUBLISHED-TTL:P1D", text)
+        self.assertEqual(rv.headers["Cache-Control"], "private, max-age=86400")
+        self.assertIn("ETag", rv.headers)
+        self.assertIn("Last-Modified", rv.headers)
+        self.assertIn("Expires", rv.headers)
+        etag = rv.headers["ETag"]
 
         rv = self.client.delete(TOKEN_URL, headers=header)
         self.assertEqual(rv.status_code, 200)
 
-        rv = self.client.get(f"{ICS_URL}?token={token}")
+        rv = self.client.get(
+            f"{ICS_URL}?token={token}", headers={"If-None-Match": etag}
+        )
         self.assertEqual(rv.status_code, 401)
+
+    def test_conditional_feed_does_not_open_database(self):
+        """A matching ETag returns 304 after authorization, before DB access."""
+        _, token = self._create_token()
+        url = f"{ICS_URL}?token={token}&event_types=Birth"
+        rv = self.client.get(url)
+        self.assertEqual(rv.status_code, 200)
+
+        with patch(
+            "gramps_webapi.api.resources.anniversaries.get_db_outside_request"
+        ) as get_db:
+            conditional = self.client.get(
+                url, headers={"If-None-Match": rv.headers["ETag"]}
+            )
+        self.assertEqual(conditional.status_code, 304)
+        self.assertEqual(conditional.data, b"")
+        get_db.assert_not_called()
+
+    def test_etag_varies_with_feed_parameters(self):
+        """Different representations never share validators."""
+        _, token = self._create_token()
+        births = self.client.get(f"{ICS_URL}?token={token}&event_types=Birth")
+        deaths = self.client.get(f"{ICS_URL}?token={token}&event_types=Death")
+        self.assertEqual(births.status_code, 200)
+        self.assertEqual(deaths.status_code, 200)
+        self.assertNotEqual(births.headers["ETag"], deaths.headers["ETag"])
+
+    def test_feed_without_database_timestamp_uses_body_etag(self):
+        """Backends without an early timestamp still receive a body validator."""
+        _, token = self._create_token()
+        with patch(
+            "gramps_webapi.api.resources.anniversaries.get_db_last_change_timestamp",
+            return_value=None,
+        ):
+            rv = self.client.get(f"{ICS_URL}?token={token}&event_types=Marriage")
+        self.assertEqual(rv.status_code, 200)
+        self.assertIn("ETag", rv.headers)
+        self.assertNotIn("Last-Modified", rv.headers)
+
+    def test_calendar_response_supports_gzip(self):
+        """Calendar responses use Flask-Compress when requested."""
+        _, token = self._create_token()
+        rv = self.client.get(
+            f"{ICS_URL}?token={token}", headers={"Accept-Encoding": "gzip"}
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.headers["Content-Encoding"], "gzip")
+        self.assertIn(b"BEGIN:VCALENDAR", gzip.decompress(rv.data))
 
     def test_public_feed_event_type_filter(self):
         """event_types filter limits event types included in ICS."""
@@ -101,15 +165,11 @@ class TestAnniversariesIcs(unittest.TestCase):
         """Anchor scope query works for both owner and guest roles."""
         # Use a known person ID from example_gramps.
         _, owner_token = self._create_token(role=ROLE_OWNER)
-        rv = self.client.get(
-            f"{ICS_URL}?token={owner_token}&anchor_gramps_id=I0044"
-        )
+        rv = self.client.get(f"{ICS_URL}?token={owner_token}&anchor_gramps_id=I0044")
         self.assertEqual(rv.status_code, 200)
 
         _, guest_token = self._create_token(role=ROLE_GUEST)
-        rv = self.client.get(
-            f"{ICS_URL}?token={guest_token}&anchor_gramps_id=I0044"
-        )
+        rv = self.client.get(f"{ICS_URL}?token={guest_token}&anchor_gramps_id=I0044")
         self.assertEqual(rv.status_code, 200)
 
     def test_public_feed_invalid_anchor(self):
