@@ -116,7 +116,11 @@ from .resources.oidc import (
     OIDCTokenExchangeResource,
 )
 from .resources.people import PeopleResource, PersonResource
-from .resources.places import PlaceResource, PlacesResource
+from .resources.places import (
+    PlaceCoordinatesResource,
+    PlaceResource,
+    PlacesResource,
+)
 from .resources.relations import RelationResource, RelationsResource
 from .resources.reports import (
     ReportFileResource,
@@ -439,6 +443,12 @@ register_endpt(
     object_name="Place",
 )
 register_endpt(PlaceQueryResource, "/places/query/", "places-query", tags=["Places"])
+register_endpt(
+    PlaceCoordinatesResource,
+    "/places/coordinates/",
+    "places-coordinates",
+    tags=["Places"],
+)
 register_endpt(
     MergePlaceResource,
     "/places/<string:phoenix_handle>/merge/<string:titanic_handle>",

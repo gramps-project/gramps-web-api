@@ -691,6 +691,14 @@ def _format_place_type(
     return locale.translation.sgettext(place_type.xml_str())
 
 
+def get_place_coordinates(place: Place) -> tuple[float | None, float | None]:
+    """Get a place's latitude and longitude as floats, or None if invalid."""
+    latitude, longitude = conv_lat_lon(place.lat, place.long, format="D.D8")
+    if latitude and longitude:
+        return float(latitude), float(longitude)
+    return None, None
+
+
 def get_place_profile_for_object(
     db_handle: DbReadBase,
     place: Place,
@@ -698,7 +706,7 @@ def get_place_profile_for_object(
     parent_places: bool = True,
 ) -> dict[str, Any]:
     """Get place profile given a Place."""
-    latitude, longitude = conv_lat_lon(place.lat, place.long, format="D.D8")
+    latitude, longitude = get_place_coordinates(place)
     profile = {
         "gramps_id": place.gramps_id,
         "type": _format_place_type(place.get_type(), locale=locale),
@@ -713,8 +721,8 @@ def get_place_profile_for_object(
             }
             for place_name in place.get_alternative_names()
         ],
-        "lat": float(latitude) if (latitude and longitude) else None,
-        "long": float(longitude) if (latitude and longitude) else None,
+        "lat": latitude,
+        "long": longitude,
     }
     if parent_places:
         parent_places_handles = []
