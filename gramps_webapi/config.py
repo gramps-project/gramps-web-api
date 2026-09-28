@@ -51,6 +51,9 @@ class DefaultConfig(object):
     EMAIL_USE_SSL = None
     EMAIL_USE_STARTTLS = None
     DEFAULT_FROM_EMAIL = ""
+    WEB_PUSH_VAPID_PUBLIC_KEY = ""
+    WEB_PUSH_VAPID_PRIVATE_KEY = ""
+    WEB_PUSH_VAPID_SUBJECT = ""
     BASE_URL = "http://localhost/"
     CORS_EXPOSE_HEADERS = ["X-Total-Count"]
     STATIC_PATH = "static"

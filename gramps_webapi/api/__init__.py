@@ -117,6 +117,7 @@ from .resources.oidc import (
 )
 from .resources.people import PeopleResource, PersonResource
 from .resources.places import PlaceResource, PlacesResource
+from .resources.push_subscriptions import UserPushSubscriptionsResource
 from .resources.relations import RelationResource, RelationsResource
 from .resources.reports import (
     ReportFileResource,
@@ -802,6 +803,12 @@ register_endpt(
 # User
 register_endpt(UsersResource, "/users/", "users", tags=["Users"])
 register_endpt(UserResource, "/users/<string:user_name>/", "user", tags=["Users"])
+register_endpt(
+    UserPushSubscriptionsResource,
+    "/users/-/push-subscriptions/",
+    "user-push-subscriptions",
+    tags=["Users"],
+)
 register_endpt(
     UserAccessTokenResource,
     "/users/-/access-tokens/<string:scope>/",
