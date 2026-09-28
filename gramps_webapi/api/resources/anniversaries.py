@@ -17,8 +17,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from flask import Response, request
+from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.lib import Event
 from gramps.gen.lib.date import gregorian
+from gramps.gen.utils.grampslocale import GrampsLocale
 from marshmallow import Schema
 from webargs import fields, validate
 
@@ -33,7 +35,9 @@ from ..ratelimiter import limiter
 from ..util import (
     abort_with_message,
     close_db,
+    get_db_manager,
     get_db_outside_request,
+    get_locale_for_language,
     get_tree_id,
 )
 from . import Resource
@@ -63,7 +67,14 @@ def _token_limit_key() -> str:
     return hashlib.sha256(request.args.get("token", "").encode()).hexdigest()
 
 
-def _calendar_etag(tree_id: str, view_private: bool, args: dict, timestamp) -> str:
+def _calendar_etag(
+    tree_id: str,
+    tree_name: str,
+    view_private: bool,
+    args: dict,
+    timestamp,
+    locale: GrampsLocale,
+) -> str:
     """Identify the feed without opening the tree database."""
     normalized = {key: value for key, value in args.items() if key != "token"}
     normalized["event_types"] = sorted(
@@ -73,7 +84,15 @@ def _calendar_etag(tree_id: str, view_private: bool, args: dict, timestamp) -> s
             if value.strip()
         }
     )
-    dimensions = (ICS_FORMAT_VERSION, tree_id, timestamp, view_private, normalized)
+    dimensions = (
+        ICS_FORMAT_VERSION,
+        tree_id,
+        tree_name,
+        timestamp,
+        view_private,
+        str(locale.language),
+        normalized,
+    )
     return hashlib.sha256(json.dumps(dimensions, sort_keys=True).encode()).hexdigest()
 
 
@@ -98,14 +117,31 @@ def _calendar_response(
 
 
 def _escape_ics_text(value: str) -> str:
-    """Escape text fields according to RFC 5545."""
+    """Escape RFC 5545 text, including standalone carriage returns."""
     return (
         value.replace("\\", "\\\\")
         .replace(";", "\\;")
         .replace(",", "\\,")
-        .replace("\r\n", "\\n")
+        .replace("\r\n", "\n")
+        .replace("\r", "\n")
         .replace("\n", "\\n")
     )
+
+
+def _fold_ics_line(line: str) -> str:
+    """Fold at 75 UTF-8 octets without splitting a code point."""
+    parts = []
+    current = ""
+    size = 0
+    for char in line:
+        width = len(char.encode("utf-8"))
+        if size + width > 75:
+            parts.append(current)
+            current, size = " ", 1
+        current += char
+        size += width
+    parts.append(current)
+    return "\r\n".join(parts)
 
 
 def _event_matches_type(event: Event, allowed_types: set[str]) -> bool:
@@ -194,15 +230,23 @@ def _resolve_family_handles_for_people(db_handle, people_handles: set[str]) -> s
     return family_handles
 
 
-def _build_ics(events: list[Event], db_handle, tree_id: str) -> str:
+def _build_ics(
+    events: list[Event],
+    db_handle,
+    tree_id: str,
+    tree_name: str,
+    locale: GrampsLocale = glocale,
+) -> str:
     """Build ICS calendar content for a list of events."""
+    translate = locale.translation.gettext
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
         "PRODID:-//Gramps Web//Anniversaries//EN",
         "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH",
-        "X-WR-CALNAME:Gramps Anniversaries",
+        "X-WR-CALNAME:"
+        + _escape_ics_text(tree_name + " - " + translate("Anniversaries")),
         "REFRESH-INTERVAL;VALUE=DURATION:P1D",
         "X-PUBLISHED-TTL:P1D",
     ]
@@ -215,9 +259,13 @@ def _build_ics(events: list[Event], db_handle, tree_id: str) -> str:
             "%Y%m%dT%H%M%SZ"
         )
         dtstart = f"{year:04d}{month:02d}{day:02d}"
-        summary = _escape_ics_text(get_event_summary_from_object(db_handle, event))
+        event_type = locale.translation.sgettext(event.type.xml_str())
+        summary = _escape_ics_text(
+            get_event_summary_from_object(db_handle, event, locale=locale)
+        )
         description = _escape_ics_text(
-            f"Gramps ID: {event.gramps_id or ''}\nType: {event.get_type().xml_str()}"
+            f"{translate('Gramps ID')}: {event.gramps_id or ''}\n"
+            f"{translate('Type')}: {event_type}"
         )
         uid = _escape_ics_text(f"{event.handle}@{tree_id}.anniversaries.gramps-web")
         lines.extend(
@@ -226,14 +274,18 @@ def _build_ics(events: list[Event], db_handle, tree_id: str) -> str:
                 f"UID:{uid}",
                 f"DTSTAMP:{dtstamp}",
                 f"DTSTART;VALUE=DATE:{dtstart}",
-                "RRULE:FREQ=YEARLY",
+                (
+                    "RRULE:FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1"
+                    if (month, day) == (2, 29)
+                    else "RRULE:FREQ=YEARLY"
+                ),
                 f"SUMMARY:{summary}",
                 f"DESCRIPTION:{description}",
                 "END:VEVENT",
             ]
         )
     lines.append("END:VCALENDAR")
-    return "\r\n".join(lines) + "\r\n"
+    return "\r\n".join(_fold_ics_line(line) for line in lines) + "\r\n"
 
 
 def _event_sort_key(event: Event) -> tuple[int, int, int, str]:
@@ -265,6 +317,13 @@ class AnniversariesIcsQueryArgs(Schema):
         validate=validate.Range(min=1, max=9),
         metadata={"description": "Generation depth around the anchor person."},
     )
+    locale = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={
+            "description": "Language code used for calendar names and event text."
+        },
+    )
 
 
 class AnniversariesIcsResource(Resource):
@@ -287,8 +346,10 @@ class AnniversariesIcsResource(Resource):
 
         permissions = get_permissions(username=user.name, tree=tree_id)
         view_private = PERM_VIEW_PRIVATE in permissions
+        locale = get_locale_for_language(args["locale"], default=True)
+        tree_name = get_db_manager(tree_id).name
         timestamp = get_db_last_change_timestamp(tree_id)
-        etag = _calendar_etag(tree_id, view_private, args, timestamp)
+        etag = _calendar_etag(tree_id, tree_name, view_private, args, timestamp, locale)
         cache_key = f"anniversaries_ics:{etag}"
         if timestamp is not None:
             if request.if_none_match.contains_weak(etag):
@@ -343,7 +404,13 @@ class AnniversariesIcsResource(Resource):
                 events.append(event)
 
             events.sort(key=_event_sort_key)
-            payload = _build_ics(events=events, db_handle=db_handle, tree_id=tree_id)
+            payload = _build_ics(
+                events=events,
+                db_handle=db_handle,
+                tree_id=tree_id,
+                tree_name=tree_name,
+                locale=locale,
+            )
         finally:
             close_db(db_handle)
 
