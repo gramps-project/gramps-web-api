@@ -21,7 +21,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Set
+from typing import Any, Callable, Dict, Iterable, List, Set
 
 import sifts
 from gramps.gen.db.base import DbReadBase
@@ -135,30 +135,44 @@ class SearchIndexerBase:
 
         self.index.delete_all()
         self.index_public.delete_all()
-        obj_dicts = []
+
+        def all_objects():
+            prev: int | None = None
+            for i, obj_dict in enumerate(
+                iter_obj_strings(db_handle, semantic=self.use_semantic_text)
+            ):
+                yield obj_dict
+                if progress_cb:
+                    progress_cb(current=i, total=total, prev=prev)
+                prev = i
+
+        self._add_objects_chunked(all_objects(), self._chunk_size(total))
+        if progress_cb:
+            progress_cb(current=total - 1, total=total)
+
+    def _chunk_size(self, total: int) -> int:
+        """Return the number of objects to add to the index at once."""
         if self.use_semantic_text:
             # semantic search indexing is slow and uses lots of memory, so we use
             # a small chunk size: at most 100. If we have less than 1000 objects,
             # use 1/10th as chunk size.
-            chunk_size = min(100, total // 10 + 1)
-        else:
-            # full-text search indexing is fast, so we use a large chunk size:
-            # at least 100 (but at most 10%).
-            chunk_size = max(100, total // 10)
-        prev: int | None = None
-        for i, obj_dict in enumerate(
-            iter_obj_strings(db_handle, semantic=self.use_semantic_text)
-        ):
-            obj_dicts.append(obj_dict)
-            if i % chunk_size == 0 and i != 0:
-                self._add_objects(obj_dicts)
-                obj_dicts = []
-            if progress_cb:
-                progress_cb(current=i, total=total, prev=prev)
-            prev = i
-        self._add_objects(obj_dicts)
-        if progress_cb:
-            progress_cb(current=total - 1, total=total)
+            return min(100, total // 10 + 1)
+        # full-text search indexing is fast, so we use a large chunk size:
+        # at least 100 (but at most 10%).
+        return max(100, total // 10)
+
+    def _add_objects_chunked(
+        self, obj_dicts: Iterable[Dict[str, Any]], chunk_size: int
+    ) -> None:
+        """Add objects to the index in chunks of at most `chunk_size`."""
+        chunk = []
+        for obj_dict in obj_dicts:
+            chunk.append(obj_dict)
+            if len(chunk) >= chunk_size:
+                self._add_objects(chunk)
+                chunk = []
+        if chunk:
+            self._add_objects(chunk)
 
     def _get_object_timestamps(self):
         """Get a dictionary with the timestamps of all objects in the index."""
@@ -264,28 +278,23 @@ class SearchIndexerBase:
             for _ in handles:
                 i = progress(i)
 
-        # add objects
-        for class_name, handles in update_info["new"].items():
-            obj_dicts = []
-            for handle in handles:
-                obj_strings = obj_strings_from_handle(
-                    db_handle, class_name, handle, semantic=self.use_semantic_text
-                )
-                if obj_strings is not None:
-                    obj_dicts.append(obj_strings)
-                i = progress(i)
-            self._add_objects(obj_dicts)
-        # update objects
-        for class_name, handles in update_info["updated"].items():
-            obj_dicts = []
-            for handle in handles:
-                obj_strings = obj_strings_from_handle(
-                    db_handle, class_name, handle, semantic=self.use_semantic_text
-                )
-                if obj_strings is not None:
-                    obj_dicts.append(obj_strings)
-                i = progress(i)
-            self._add_objects(obj_dicts)
+        # add new and update changed objects
+        def changed_objects():
+            nonlocal i
+            for key in ["new", "updated"]:
+                for class_name, handles in update_info[key].items():
+                    for handle in handles:
+                        obj_strings = obj_strings_from_handle(
+                            db_handle,
+                            class_name,
+                            handle,
+                            semantic=self.use_semantic_text,
+                        )
+                        i = progress(i)
+                        if obj_strings is not None:
+                            yield obj_strings
+
+        self._add_objects_chunked(changed_objects(), self._chunk_size(total))
 
     @staticmethod
     def _format_hit(hit, rank, include_content: bool) -> Dict[str, Any]:
