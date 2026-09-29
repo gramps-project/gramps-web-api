@@ -21,10 +21,15 @@
 
 from __future__ import annotations
 
+import warnings
+
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.capabilities import ProcessHistory
 from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
+from pydantic_ai.models.ollama import OllamaModel
 from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers import infer_provider_class
+from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from .deps import AgentDeps
@@ -125,6 +130,25 @@ FORMATTING
 Use Markdown freely. When tool results contain links like [Name](/person/I0044), include them in your response exactly as they appear — never modify the path and never drop the link. Every person, family, event, place, source, citation, repository, note, and media object should be linked."""
 
 
+def _has_provider_prefix(model_name: str) -> bool:
+    """Whether the model name starts with a provider known to Pydantic AI.
+
+    A colon alone is not enough: Ollama model names like "qwen2.5:7b" use it
+    to separate the model from its tag.
+    """
+    if ":" not in model_name:
+        return False
+    provider_name = model_name.split(":", maxsplit=1)[0]
+    try:
+        with warnings.catch_warnings():
+            # deprecation warnings are emitted again when the model is created
+            warnings.simplefilter("ignore")
+            infer_provider_class(provider_name)
+    except ValueError:
+        return False
+    return True
+
+
 def create_agent(
     model_name: str,
     base_url: str | None = None,
@@ -133,13 +157,14 @@ def create_agent(
     """Create a Pydantic AI agent with the specified model.
 
     Args:
-        model_name: The name of the LLM model to use. If it contains a colon (e.g.,
-            "mistral:mistral-large-latest" or "openai:gpt-4"), it will be treated
-            as a provider-prefixed model name and Pydantic AI will handle provider
-            detection automatically. Otherwise, it will be treated as an OpenAI
-            compatible model name.
-        base_url: Optional base URL for the OpenAI-compatible API (ignored if
-            model_name contains a provider prefix)
+        model_name: The name of the LLM model to use. If it starts with a provider
+            prefix known to Pydantic AI (e.g., "mistral:mistral-large-latest" or
+            "openai:gpt-4"), Pydantic AI will handle provider detection
+            automatically. Otherwise (e.g., "gpt-4" or "qwen2.5:7b"), it will be
+            treated as an OpenAI compatible model name.
+        base_url: Optional base URL for the OpenAI-compatible API. Ignored if
+            model_name contains a provider prefix, except for "ollama:", where
+            it takes precedence over the OLLAMA_BASE_URL environment variable.
         system_prompt_override: Optional override for the system prompt
 
     Returns:
@@ -147,8 +172,13 @@ def create_agent(
     """
     # If model name has a provider prefix (e.g., "mistral:model-name"),
     # let Pydantic AI handle provider detection automatically
-    if ":" in model_name:
-        model: str | OpenAIChatModel = model_name
+    if model_name.startswith("ollama:") and base_url:
+        model: str | OpenAIChatModel = OllamaModel(
+            model_name.removeprefix("ollama:"),
+            provider=OllamaProvider(base_url=base_url),
+        )
+    elif _has_provider_prefix(model_name):
+        model = model_name
     else:
         # Otherwise, use OpenAI-compatible provider with optional base_url
         provider = OpenAIProvider(base_url=base_url)

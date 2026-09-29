@@ -7,6 +7,7 @@ from typing import Any
 
 import httpx
 from flask import current_app
+from openai import OpenAIError
 from pydantic_ai import ModelMessagesTypeAdapter
 from pydantic_ai.exceptions import (
     ModelAPIError,
@@ -14,6 +15,7 @@ from pydantic_ai.exceptions import (
     ModelRetry,
     UnexpectedModelBehavior,
     UsageLimitExceeded,
+    UserError,
 )
 from pydantic_ai.messages import (
     ModelRequest,
@@ -131,13 +133,19 @@ def answer_with_agent(
     max_tokens = config.get("LLM_MAX_TOKENS", 200_000)
 
     if not model_name:
-        raise ValueError("No LLM model specified")
+        logger.error("No LLM model specified")
+        abort_with_message(500, "The AI model is not configured correctly.")
 
-    agent = create_agent(
-        model_name=model_name,
-        base_url=base_url,
-        system_prompt_override=system_prompt_override,
-    )
+    try:
+        agent = create_agent(
+            model_name=model_name,
+            base_url=base_url,
+            system_prompt_override=system_prompt_override,
+        )
+    except (UserError, ValueError, OpenAIError) as e:
+        # e.g. unknown provider prefix or missing provider API key/base URL
+        logger.error("Failed to set up the AI model '%s': %s", model_name, e)
+        abort_with_message(500, "The AI model is not configured correctly.")
 
     deps = AgentDeps(
         tree=tree,
@@ -150,7 +158,9 @@ def answer_with_agent(
     message_history: list[ModelRequest | ModelResponse] = []
     if message_history_raw:
         try:
-            message_history = ModelMessagesTypeAdapter.validate_json(message_history_raw)
+            message_history = ModelMessagesTypeAdapter.validate_json(
+                message_history_raw
+            )
         except Exception as e:  # pylint: disable=broad-except
             raise ValueError(f"Invalid message_history_raw: {e}") from e
     elif history:
@@ -186,12 +196,15 @@ def answer_with_agent(
         return result
     except UsageLimitExceeded as e:
         logger.warning("Agent usage limit exceeded: %s", e)
-        abort_with_message(429, "The AI agent exceeded its usage limits for this request.")
+        abort_with_message(
+            429, "The AI agent exceeded its usage limits for this request."
+        )
     except ModelHTTPError as e:
         logger.error("Model provider returned an error: %s", e)
         if e.status_code == 429:
             abort_with_message(
-                429, "The AI model provider is rate limiting requests. Please try again later."
+                429,
+                "The AI model provider is rate limiting requests. Please try again later.",
             )
         if e.status_code in (502, 503, 504, 529):
             # 529 is Anthropic's "overloaded"
@@ -199,7 +212,9 @@ def answer_with_agent(
         abort_with_message(502, "The AI model provider returned an error.")
     except httpx.TimeoutException as e:
         logger.error("Model provider request timed out: %r", e)
-        abort_with_message(504, "The AI model did not respond in time. Please try again.")
+        abort_with_message(
+            504, "The AI model did not respond in time. Please try again."
+        )
     except (ModelAPIError, httpx.TransportError) as e:
         # connection refused, DNS failure, protocol error, or an SDK-wrapped equivalent
         logger.error("Model provider request failed: %r", e)
