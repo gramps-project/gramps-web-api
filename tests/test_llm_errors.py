@@ -79,12 +79,14 @@ def test_agent_error_status_codes(app, monkeypatch, error, status):
     "model_name,base_url",
     [
         ("", None),
+        ("gpt-4o-mini", None),  # OPENAI_API_KEY not set
         ("mistral:mistral-large-latest", None),  # MISTRAL_API_KEY not set
         ("ollama:qwen2.5:7b", None),  # OLLAMA_BASE_URL not set
     ],
 )
 def test_agent_setup_error_status_code(app, monkeypatch, model_name, base_url):
     """A misconfigured model is a server error, not an invalid message."""
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
     monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
     app.config.update(LLM_MODEL=model_name, LLM_BASE_URL=base_url)

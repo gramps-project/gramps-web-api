@@ -7,6 +7,7 @@ from typing import Any
 
 import httpx
 from flask import current_app
+from openai import OpenAIError
 from pydantic_ai import ModelMessagesTypeAdapter
 from pydantic_ai.exceptions import (
     ModelAPIError,
@@ -141,7 +142,7 @@ def answer_with_agent(
             base_url=base_url,
             system_prompt_override=system_prompt_override,
         )
-    except (UserError, ValueError) as e:
+    except (UserError, ValueError, OpenAIError) as e:
         # e.g. unknown provider prefix or missing provider API key/base URL
         logger.error("Failed to set up the AI model '%s': %s", model_name, e)
         abort_with_message(500, "The AI model is not configured correctly.")
