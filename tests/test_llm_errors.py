@@ -22,7 +22,11 @@
 import httpx
 import pytest
 from flask import Flask
-from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UnexpectedModelBehavior
+from pydantic_ai.exceptions import (
+    ModelAPIError,
+    ModelHTTPError,
+    UnexpectedModelBehavior,
+)
 from werkzeug.exceptions import HTTPException
 
 from gramps_webapi.api.llm import answer_with_agent
@@ -69,3 +73,29 @@ def test_agent_error_status_codes(app, monkeypatch, error, status):
             )
 
     assert excinfo.value.code == status
+
+
+@pytest.mark.parametrize(
+    "model_name,base_url",
+    [
+        ("", None),
+        ("mistral:mistral-large-latest", None),  # MISTRAL_API_KEY not set
+        ("ollama:qwen2.5:7b", None),  # OLLAMA_BASE_URL not set
+    ],
+)
+def test_agent_setup_error_status_code(app, monkeypatch, model_name, base_url):
+    """A misconfigured model is a server error, not an invalid message."""
+    monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
+    monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
+    app.config.update(LLM_MODEL=model_name, LLM_BASE_URL=base_url)
+
+    with app.app_context():
+        with pytest.raises(HTTPException) as excinfo:
+            answer_with_agent(
+                prompt="Who was my grandmother?",
+                tree="tree",
+                include_private=False,
+                user_id="user",
+            )
+
+    assert excinfo.value.code == 500
