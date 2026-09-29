@@ -390,6 +390,10 @@ class SearchIndexer(SearchIndexerBase):
         )
 
 
+class StaleSemanticIndexError(ValueError):
+    """The semantic index was built with a different embedding model."""
+
+
 class SemanticSearchIndexer(SearchIndexerBase):
     """Semantic (vector embedding) search indexer."""
 
@@ -410,7 +414,7 @@ class SemanticSearchIndexer(SearchIndexerBase):
         if db_url and model_name and not skip_model_check:
             stored = get_stored_model_name(db_url, tree)
             if stored is not None and stored != model_name:
-                raise ValueError(
+                raise StaleSemanticIndexError(
                     f"Embedding model mismatch for tree '{tree}': "
                     f"the search index was built with '{stored}' but the "
                     f"configured model is '{model_name}'. "

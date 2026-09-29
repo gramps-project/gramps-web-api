@@ -41,12 +41,16 @@ from gramps_webapi.types import ResponseReturnValue
 from ...auth.const import PERM_DEL_OBJ, PERM_EDIT_OBJ
 from ..auth import require_permissions
 from ..blueprint import api_blueprint
-from ..search import SearchIndexer, get_search_indexer, get_semantic_search_indexer
+from ..search import (
+    SearchIndexer,
+    get_current_semantic_search_indexer,
+    get_search_indexer,
+)
 from ..tasks import run_task, update_search_indices_from_transaction
 from ..util import get_db_handle, get_tree_from_jwt_or_fail
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
-from .util import abort_with_message, app_has_semantic_search
+from .util import abort_with_message
 
 
 def _update_search_index(
@@ -56,10 +60,9 @@ def _update_search_index(
     tree = get_tree_from_jwt_or_fail()
     indexer: SearchIndexer = get_search_indexer(tree)
     indexer.delete_object(handle=titanic_handle, class_name=class_name)
-    if app_has_semantic_search():
-        get_semantic_search_indexer(tree).delete_object(
-            handle=titanic_handle, class_name=class_name
-        )
+    indexer_semantic = get_current_semantic_search_indexer(tree)
+    if indexer_semantic is not None:
+        indexer_semantic.delete_object(handle=titanic_handle, class_name=class_name)
     run_task(
         update_search_indices_from_transaction,
         trans_dict=[{"handle": phoenix_handle, "_class": class_name}],
