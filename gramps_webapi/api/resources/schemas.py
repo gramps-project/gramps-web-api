@@ -2009,6 +2009,7 @@ class FilterRuleParamTypeSchema(_Base):
                 "tag",
                 "select",
                 "gramps_type",
+                "goql",
             ]
         ),
         metadata={
@@ -2017,7 +2018,8 @@ class FilterRuleParamTypeSchema(_Base):
             "('YYYY-MM-DD HH:MM:SS', time optional); 'id' (Gramps ID of an "
             "object in 'namespace'); 'filter' (name of a custom filter in "
             "'namespace'); 'tag' (tag name); 'select' (one of 'options'); "
-            "'gramps_type' (a type from 'default_types' or 'custom_types')."
+            "'gramps_type' (a type from 'default_types' or 'custom_types'); "
+            "'goql' (a GOQL expression for the rule's namespace)."
         },
     )
     namespace = fields.Str(

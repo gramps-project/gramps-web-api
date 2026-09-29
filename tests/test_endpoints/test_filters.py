@@ -1358,6 +1358,11 @@ class TestRuleParamTypes(unittest.TestCase):
         ]
         assert self._types("people", "HasAssociationType") == [{"type": "text"}]
 
+    def test_goql(self):
+        """The MatchesQuery expression is a GOQL query in every namespace."""
+        assert self._types("people", "MatchesQuery") == [{"type": "goql"}]
+        assert self._types("events", "MatchesQuery") == [{"type": "goql"}]
+
     def test_other_types(self):
         """Tags and change dates."""
         assert self._types("people", "HasTag") == [{"type": "tag"}]

@@ -40,6 +40,7 @@ BOOLEAN: dict[str, Any] = {"type": "boolean"}
 DATE: dict[str, Any] = {"type": "date"}
 DATETIME: dict[str, Any] = {"type": "datetime"}
 TAG: dict[str, Any] = {"type": "tag"}
+GOQL: dict[str, Any] = {"type": "goql"}
 
 
 def _id(namespace: str) -> dict[str, Any]:
@@ -149,6 +150,8 @@ _LABEL_TYPES: dict[str, dict[str, Any]] = {
     "Source attribute:": _gramps_type(
         "source_attribute_types", "source_attribute_types"
     ),
+    # Our MatchesQuery rule (no Gramps rule uses this label)
+    "Expression:": GOQL,
 }
 
 _LABEL_TYPES_ANY_LANGUAGE: dict[str, dict[str, Any]] = {
