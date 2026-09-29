@@ -55,6 +55,7 @@ class SearchIndexerBase:
             raise ValueError("Invalid tree ID")
         self.tree = tree
         self.use_semantic_text = use_semantic_text
+        self.embedding_function = embedding_function
         # index for all objects
         self.index = sifts.Collection(
             db_url=db_url or "",
@@ -115,17 +116,31 @@ class SearchIndexerBase:
         data = [
             self._get_object_data(obj_dict, public_only=False) for obj_dict in obj_dicts
         ]
-        contents = [dat["contents"] for dat in data]
-        ids = [dat["id"] for dat in data]
-        metadatas = [dat["metadata"] for dat in data]
-        self.index.add(contents=contents, ids=ids, metadatas=metadatas)
-        data = [
+        data_public = [
             self._get_object_data(obj_dict, public_only=True) for obj_dict in obj_dicts
         ]
         contents = [dat["contents"] for dat in data]
-        ids = [dat["id"] for dat in data]
-        metadatas = [dat["metadata"] for dat in data]
-        self.index_public.add(contents=contents, ids=ids, metadatas=metadatas)
+        contents_public = [dat["contents"] for dat in data_public]
+        embeddings = embeddings_public = None
+        if self.embedding_function and obj_dicts:
+            # the public text is often identical to the full one,
+            # so embed every distinct text only once
+            unique = list(dict.fromkeys(contents + contents_public))
+            vectors = dict(zip(unique, self.embedding_function(unique)))
+            embeddings = [vectors[content] for content in contents]
+            embeddings_public = [vectors[content] for content in contents_public]
+        self.index.add(
+            contents=contents,
+            ids=[dat["id"] for dat in data],
+            metadatas=[dat["metadata"] for dat in data],
+            embeddings=embeddings,
+        )
+        self.index_public.add(
+            contents=contents_public,
+            ids=[dat["id"] for dat in data_public],
+            metadatas=[dat["metadata"] for dat in data_public],
+            embeddings=embeddings_public,
+        )
 
     def reindex_full(
         self, db_handle: DbReadBase, progress_cb: ProgressCallback | None = None
