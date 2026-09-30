@@ -43,7 +43,13 @@ from gramps.gen.dbstate import DbState
 from gramps.gen.user import User
 from gramps.gen.utils.resourcepath import ResourcePath
 
+from gramps_webapi.config import DefaultConfig
 from gramps_webapi.dbmanager import WebDbManager
+
+# Keep the search index in the temporary Gramps home rather than in the
+# working directory, where it would persist and keep growing across test runs.
+# Set on the default config so it applies to every create_app() call.
+DefaultConfig.SEARCH_INDEX_DB_URI = f"sqlite:///{TEST_GRAMPSHOME}/search_index.db"
 
 
 class ExampleDbBase:
