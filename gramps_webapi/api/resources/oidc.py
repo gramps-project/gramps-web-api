@@ -36,6 +36,7 @@ from webargs import fields
 
 from ...auth import get_name, get_user_details
 from ...auth.oidc import (
+    configure_pkce,
     create_or_update_oidc_user,
     get_available_oidc_providers,
     get_provider_config,
@@ -233,6 +234,7 @@ class OIDCLoginResource(Resource):
         base_url = get_config("BASE_URL")
         redirect_uri = f"{base_url.rstrip('/')}/api/oidc/callback/{provider_id}"
 
+        configure_pkce(oidc_client, _config)
         authorization_url = oidc_client.authorize_redirect(redirect_uri)
         return authorization_url
 

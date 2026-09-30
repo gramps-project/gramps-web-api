@@ -867,3 +867,41 @@ class TestInitOidc:
 
         # Should register all three providers
         assert mock_oauth.register.call_count == 3
+
+
+def _pkce_client(discovery=None, error=None):
+    client = MagicMock()
+    client.client_kwargs = {"scope": "openid"}
+    if error:
+        client.load_server_metadata.side_effect = error
+    else:
+        client.load_server_metadata.return_value = discovery or {}
+    return client
+
+
+@pytest.mark.parametrize(
+    "pkce,discovery,error,expected",
+    [
+        (True, {}, None, True),  # opted in, discovery irrelevant
+        ("true", {}, None, True),  # env-style string
+        (True, None, RuntimeError("down"), True),
+        (True, {"code_challenge_methods_supported": ["plain"]}, None, True),
+        (None, {"code_challenge_methods_supported": ["S256"]}, None, True),
+        ("", {"code_challenge_methods_supported": ["S256"]}, None, True),
+        (None, {"code_challenge_methods_supported": ["plain"]}, None, False),
+        (None, {}, None, False),
+        (None, None, RuntimeError("down"), False),
+        # explicitly opted out: discovery is ignored
+        (False, {"code_challenge_methods_supported": ["S256"]}, None, False),
+        ("false", {"code_challenge_methods_supported": ["S256"]}, None, False),
+    ],
+)
+def test_configure_pkce(pkce, discovery, error, expected):
+    from gramps_webapi.auth.oidc import configure_pkce
+
+    client = _pkce_client(discovery, error)
+    assert configure_pkce(client, {"pkce": pkce}) is expected
+    if expected:
+        assert client.client_kwargs["code_challenge_method"] == "S256"
+    else:
+        assert "code_challenge_method" not in client.client_kwargs
