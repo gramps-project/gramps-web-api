@@ -11,13 +11,22 @@
 
 """Anniversaries ICS resource."""
 
+import hashlib
 import json
-from datetime import datetime, timezone
-from typing import Optional
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from typing import Any, Callable, cast
 
-from flask import Response
-from gramps.gen.lib import Event
+from flask import Response, request
+from gramps.gen.const import GRAMPS_LOCALE as glocale
+from gramps.gen.db.base import DbReadBase
+from gramps.gen.display.name import displayer as name_displayer
+from gramps.gen.errors import HandleError
+from gramps.gen.lib import Date, Event, EventType, Family, Person
 from gramps.gen.lib.date import gregorian
+from gramps.gen.proxy.cache import CacheProxyDb
+from gramps.gen.utils.alive import probably_alive
+from gramps.gen.utils.grampslocale import GrampsLocale
 from marshmallow import Schema
 from webargs import fields, validate
 
@@ -27,79 +36,169 @@ from ...auth import (
     is_tree_disabled,
 )
 from ...auth.const import ACCESS_TOKEN_SCOPE_ANNIVERSARIES_ICS, PERM_VIEW_PRIVATE
+from ...const import GRAMPS_NAMESPACES
+from ...types import Handle
 from ..blueprint import api_blueprint
+from ..cache import get_db_last_change_timestamp, request_cache
+from ..ratelimiter import limiter
 from ..util import (
     abort_with_message,
     close_db,
+    get_db_manager,
     get_db_outside_request,
+    get_locale_for_language,
     get_tree_id,
 )
 from . import Resource
-from .filters import apply_filter
-from .util import get_backlinks, get_event_summary_from_object
+from .filters import apply_filter, get_custom_filters
+from .util import get_family_name_localized
+
+ICS_FORMAT_VERSION = 2
+ICS_CACHE_TIMEOUT = 86400
+
+
+@dataclass
+class AnniversaryEvent:
+    """An event and the visible participants found while collecting it."""
+
+    event: Event
+    participants: dict[tuple[str, str], str] = field(default_factory=dict)
+
+
+class CalendarResponse(Response):
+    """Use the complete cache validator, including permissions and arguments."""
+
+    def make_conditional(
+        self, request_or_environ, accept_ranges=False, complete_length=None
+    ):
+        # Compression can invoke conditional handling again. A DB timestamp
+        # alone does not identify the representation selected by the query.
+        environ = dict(getattr(request_or_environ, "environ", request_or_environ))
+        environ.pop("HTTP_IF_MODIFIED_SINCE", None)
+        return super().make_conditional(environ, accept_ranges, complete_length)
+
+
+def _token_limit_key() -> str:
+    """Keep token values out of rate-limiter storage."""
+    return hashlib.sha256(request.args.get("token", "").encode()).hexdigest()
+
+
+def _calendar_etag(
+    tree_id: str,
+    tree_name: str,
+    view_private: bool,
+    args: dict,
+    timestamp,
+    locale: GrampsLocale,
+    filter_definitions: list[dict],
+) -> str:
+    """Identify the feed without opening the tree database."""
+    normalized = {key: value for key, value in args.items() if key != "token"}
+    normalized["event_types"] = sorted(
+        {
+            value.strip().casefold()
+            for value in args.get("event_types", [])
+            if value.strip()
+        }
+    )
+    dimensions = (
+        ICS_FORMAT_VERSION,
+        tree_id,
+        tree_name,
+        timestamp,
+        view_private,
+        str(locale.language),
+        normalized,
+        filter_definitions,
+        (
+            datetime.now(timezone.utc).date().isoformat()
+            if args["living_only"]
+            else None
+        ),
+    )
+    return hashlib.sha256(json.dumps(dimensions, sort_keys=True).encode()).hexdigest()
+
+
+def _calendar_response(
+    payload: str, etag: str, timestamp: int | float | None
+) -> Response:
+    """Return a calendar or its conditional response with refresh headers."""
+    unchanged = request.if_none_match.contains_weak(etag)
+    response = CalendarResponse(
+        "" if unchanged else payload,
+        status=304 if unchanged else 200,
+        mimetype="text/calendar",
+    )
+    response.headers["Content-Disposition"] = "inline; filename=anniversaries.ics"
+    response.cache_control.private = True
+    response.cache_control.max_age = ICS_CACHE_TIMEOUT
+    response.expires = datetime.now(timezone.utc) + timedelta(seconds=ICS_CACHE_TIMEOUT)
+    response.set_etag(etag, weak=True)
+    if timestamp is not None:
+        response.last_modified = datetime.fromtimestamp(timestamp, timezone.utc)
+    return response
 
 
 def _escape_ics_text(value: str) -> str:
-    """Escape text fields according to RFC 5545."""
+    """Escape RFC 5545 text, including standalone carriage returns."""
     return (
         value.replace("\\", "\\\\")
         .replace(";", "\\;")
         .replace(",", "\\,")
-        .replace("\r\n", "\\n")
+        .replace("\r\n", "\n")
+        .replace("\r", "\n")
         .replace("\n", "\\n")
     )
 
 
-def _event_matches_type(event: Event, allowed_types: set[str]) -> bool:
-    """Check if an event type matches one of the requested filters."""
-    if not allowed_types:
-        return True
-    event_values = {
-        str(event.get_type()).casefold().strip(),
-        event.get_type().xml_str().casefold().strip(),
-    }
-    return not event_values.isdisjoint(allowed_types)
+def _fold_ics_line(line: str) -> str:
+    """Fold at 75 UTF-8 octets without splitting a code point."""
+    parts = []
+    current = ""
+    size = 0
+    for char in line:
+        width = len(char.encode("utf-8"))
+        if size + width > 75:
+            parts.append(current)
+            current, size = " ", 1
+        current += char
+        size += width
+    parts.append(current)
+    return "\r\n".join(parts)
 
 
-def _get_anniversary_date_components(event: Event) -> Optional[tuple[int, int, int]]:
-    """Get Gregorian (year, month, day) tuple for an event date."""
-    if event.date is None or not event.date.is_valid():
+def _get_anniversary_date_components(event: Event) -> tuple[int, int, int] | None:
+    """Return fully specified exact Gregorian dates only."""
+    if event.date is None or not event.date.is_regular():
         return None
-    gdate = gregorian(event.date)
-    month = gdate.get_month()
-    day = gdate.get_day()
-    if month < 1 or day < 1:
+    event_date = gregorian(event.date)
+    year, month, day = (
+        event_date.get_year(),
+        event_date.get_month(),
+        event_date.get_day(),
+    )
+    try:
+        datetime(year, month, day)
+    except ValueError:
         return None
-    year = gdate.get_year()
-    if year < 1:
-        year = 1970
-    if year > 9999:
-        year = 9999
     return year, month, day
 
 
-def _is_event_in_anchor_scope(
-    db_handle,
-    event: Event,
-    allowed_people: set[str],
-    allowed_families: set[str],
-) -> bool:
-    """Check if an event is linked to people/families in anchor scope."""
-    backlinks = get_backlinks(db_handle, event.handle)
-    people = set(backlinks.get("person", []))
-    if not people.isdisjoint(allowed_people):
-        return True
-    families = set(backlinks.get("family", []))
-    return not families.isdisjoint(allowed_families)
+def _get_record(getter: Callable, handle: str):
+    """Ignore dangling references and records hidden by the privacy proxy."""
+    try:
+        return getter(handle)
+    except HandleError:
+        return None
 
 
 def _resolve_anchor_people_handles(
     db_handle, anchor_gramps_id: str, generation_depth: int
-) -> set[str]:
-    """Resolve people handles to include for an anchor+generation filter."""
+) -> set[Handle]:
+    """Resolve the legacy direct-line scope through Gramps filter rules."""
     anchor = db_handle.get_person_from_gramps_id(anchor_gramps_id)
     if anchor is None:
-        abort_with_message(404, "Anchor person not found")
+        return set()
     rules = {
         "function": "or",
         "rules": [
@@ -113,7 +212,7 @@ def _resolve_anchor_people_handles(
             },
         ],
     }
-    handles = db_handle.get_person_handles(sort_handles=True)
+    handles = cast(list[Handle], list(db_handle.get_person_handles(sort_handles=False)))
     return set(
         apply_filter(
             db_handle,
@@ -124,38 +223,207 @@ def _resolve_anchor_people_handles(
     )
 
 
-def _resolve_family_handles_for_people(db_handle, people_handles: set[str]) -> set[str]:
-    """Resolve families attached to in-scope people handles."""
-    family_handles = set()
-    for handle in people_handles:
-        person = db_handle.get_person_from_handle(handle)
+def _filter_dependencies(args: dict) -> tuple[list[dict[str, Any]], bool]:
+    """Return native saved-filter definitions that influence this feed."""
+    if not any(key.endswith(("filter", "rules")) for key in args):
+        return [], False
+    definitions: list[dict[str, Any]] = [
+        {
+            "namespace": namespace,
+            "filters": get_custom_filters({}, namespace),
+        }
+        for namespace in sorted(set(GRAMPS_NAMESPACES.values()))
+    ]
+    missing = False
+    for namespace, key in (("Person", "person_filter"), ("Event", "filter")):
+        selected = args.get(key)
+        if selected and not any(
+            item["name"] == selected
+            for group in definitions
+            if group["namespace"] == namespace
+            for item in group["filters"]
+        ):
+            missing = True
+    return definitions, missing
+
+
+def _apply_selected_filters(
+    db_handle: DbReadBase,
+    args: dict,
+    namespace: str,
+    handles: list[Handle],
+) -> list[Handle]:
+    """Intersect the named and dynamic native filters for one namespace."""
+    prefix = "person_" if namespace == "Person" else ""
+    for parameter in ("filter", "rules"):
+        value = args.get(prefix + parameter)
+        if value:
+            handles = apply_filter(db_handle, {parameter: value}, namespace, handles)
+    return handles
+
+
+def _apply_event_type_filter(
+    db_handle: DbReadBase, event_types: list[str], handles: list[Handle]
+) -> list[Handle]:
+    """Use Gramps' HasType rule for the public event_types shorthand."""
+    rules = {
+        "function": "or",
+        "rules": [
+            {"name": "HasType", "values": [event_type]} for event_type in event_types
+        ],
+    }
+    return apply_filter(db_handle, {"rules": json.dumps(rules)}, "Event", handles)
+
+
+def _collect_anniversaries(
+    db_handle: DbReadBase, args: dict, locale: GrampsLocale
+) -> list[AnniversaryEvent]:
+    """Walk selected subjects and their event references once."""
+    db_handle = cast(DbReadBase, CacheProxyDb(db_handle))
+    if args.get("anchor_gramps_id"):
+        person_handles = sorted(
+            _resolve_anchor_people_handles(
+                db_handle, args["anchor_gramps_id"], args["generation_depth"]
+            )
+        )
+    else:
+        person_handles = cast(
+            list[Handle], list(db_handle.get_person_handles(sort_handles=False))
+        )
+    person_handles = _apply_selected_filters(db_handle, args, "Person", person_handles)
+
+    entries: dict[str, AnniversaryEvent] = {}
+    events: dict[str, Event | None] = {}
+    living: dict[str, bool] = {}
+    people: list[Person] = []
+    family_handles: set[str] = set()
+    today_datetime = datetime.now(timezone.utc)
+    today = Date(today_datetime.year, today_datetime.month, today_datetime.day)
+
+    def is_living(person: Person) -> bool:
+        if person.handle not in living:
+            living[person.handle] = probably_alive(person, db_handle, today)
+        return living[person.handle]
+
+    def event_for(handle: str) -> Event | None:
+        if handle not in events:
+            events[handle] = _get_record(db_handle.get_event_from_handle, handle)
+        return events[handle]
+
+    def add_reference(
+        subject: Person | Family,
+        event: Event,
+        participant: str,
+    ) -> None:
+        object_type = "person" if isinstance(subject, Person) else "family"
+        entries.setdefault(event.handle, AnniversaryEvent(event)).participants[
+            (object_type, subject.gramps_id)
+        ] = participant
+
+    for handle in person_handles:
+        person = _get_record(db_handle.get_person_from_handle, handle)
         if person is None:
             continue
+        people.append(person)
         family_handles.update(person.family_list)
-        family_handles.update(person.parent_family_list)
-    return family_handles
+
+    for family_handle in sorted(family_handles):
+        family = _get_record(db_handle.get_family_from_handle, family_handle)
+        if family is None:
+            continue
+        spouses = [
+            _get_record(db_handle.get_person_from_handle, parent_handle)
+            for parent_handle in (family.father_handle, family.mother_handle)
+            if parent_handle
+        ]
+        spouses_alive = len(spouses) == 2 and all(
+            spouse is not None and is_living(spouse) for spouse in spouses
+        )
+        participant = None
+        for reference in family.get_event_ref_list():
+            role = reference.get_role()
+            if args["primary_participants_only"] and not (
+                role.is_primary() or role.is_family()
+            ):
+                continue
+            event = event_for(reference.ref)
+            if event is None or _get_anniversary_date_components(event) is None:
+                continue
+            if (
+                args["living_only"]
+                and event.type != EventType.DEATH
+                and not spouses_alive
+            ):
+                continue
+            if participant is None:
+                participant = get_family_name_localized(family, db_handle, locale)
+            add_reference(family, event, participant)
+
+    for person in people:
+        participant = None
+        person_alive = is_living(person)
+        for reference in person.get_event_ref_list():
+            role = reference.get_role()
+            if args["primary_participants_only"] and not role.is_primary():
+                continue
+            event = event_for(reference.ref)
+            if event is None or _get_anniversary_date_components(event) is None:
+                continue
+            if args["living_only"] and event.type != EventType.DEATH:
+                if event.type == EventType.MARRIAGE or not person_alive:
+                    continue
+            if participant is None:
+                participant = name_displayer.display(person)
+            add_reference(person, event, participant)
+
+    event_handles = _apply_event_type_filter(
+        db_handle, args["event_types"], [Handle(handle) for handle in sorted(entries)]
+    )
+    event_handles = _apply_selected_filters(db_handle, args, "Event", event_handles)
+    return sorted(
+        (entries[handle] for handle in event_handles),
+        key=lambda entry: (
+            *(_get_anniversary_date_components(entry.event) or (0, 0, 0))[1:],
+            entry.event.handle,
+        ),
+    )
 
 
-def _build_ics(events: list[Event], db_handle, tree_id: str) -> str:
+def _build_ics(
+    entries: list[AnniversaryEvent],
+    tree_id: str,
+    tree_name: str,
+    locale: GrampsLocale = glocale,
+) -> str:
     """Build ICS calendar content for a list of events."""
-    dtstamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    translate = locale.translation.gettext
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
         "PRODID:-//Gramps Web//Anniversaries//EN",
         "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH",
-        "X-WR-CALNAME:Gramps Anniversaries",
+        "X-WR-CALNAME:"
+        + _escape_ics_text(tree_name + " - " + translate("Anniversaries")),
+        "REFRESH-INTERVAL;VALUE=DURATION:P1D",
+        "X-PUBLISHED-TTL:P1D",
     ]
-    for event in events:
+    for entry in entries:
+        event = entry.event
         date_components = _get_anniversary_date_components(event)
         if date_components is None:
             continue
         year, month, day = date_components
+        dtstamp = datetime.fromtimestamp(event.change or 0, timezone.utc).strftime(
+            "%Y%m%dT%H%M%SZ"
+        )
         dtstart = f"{year:04d}{month:02d}{day:02d}"
-        summary = _escape_ics_text(get_event_summary_from_object(db_handle, event))
+        event_type = locale.translation.sgettext(event.type.xml_str())
+        participants = ", ".join(sorted(entry.participants.values()))
+        summary = f"{event_type} - {participants}" if participants else event_type
         description = _escape_ics_text(
-            f"Gramps ID: {event.gramps_id or ''}\nType: {event.get_type().xml_str()}"
+            f"{translate('Gramps ID')}: {event.gramps_id or ''}\n"
+            f"{translate('Type')}: {event_type}"
         )
         uid = _escape_ics_text(f"{event.handle}@{tree_id}.anniversaries.gramps-web")
         lines.extend(
@@ -164,23 +432,18 @@ def _build_ics(events: list[Event], db_handle, tree_id: str) -> str:
                 f"UID:{uid}",
                 f"DTSTAMP:{dtstamp}",
                 f"DTSTART;VALUE=DATE:{dtstart}",
-                "RRULE:FREQ=YEARLY",
-                f"SUMMARY:{summary}",
+                (
+                    "RRULE:FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1"
+                    if (month, day) == (2, 29)
+                    else "RRULE:FREQ=YEARLY"
+                ),
+                f"SUMMARY:{_escape_ics_text(summary)}",
                 f"DESCRIPTION:{description}",
                 "END:VEVENT",
             ]
         )
     lines.append("END:VCALENDAR")
-    return "\r\n".join(lines) + "\r\n"
-
-
-def _event_sort_key(event: Event) -> tuple[int, int, int, str]:
-    """Return stable sort key for anniversary events."""
-    date_components = _get_anniversary_date_components(event)
-    if date_components is None:
-        return (12, 31, 9999, event.handle)
-    year, month, day = date_components
-    return (month, day, year, event.handle)
+    return "\r\n".join(_fold_ics_line(line) for line in lines) + "\r\n"
 
 
 class AnniversariesIcsQueryArgs(Schema):
@@ -193,7 +456,17 @@ class AnniversariesIcsQueryArgs(Schema):
     )
     event_types = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
+        load_default=lambda: ["Birth", "Marriage", "Death"],
+        validate=validate.Length(min=1),
         metadata={"description": "Comma-delimited event type names to include."},
+    )
+    living_only = fields.Bool(
+        load_default=True,
+        metadata={"description": "Limit personal events to living participants."},
+    )
+    primary_participants_only = fields.Bool(
+        load_default=True,
+        metadata={"description": "Exclude secondary participant roles."},
     )
     anchor_gramps_id = fields.Str(
         metadata={"description": "Anchor person Gramps ID for family-scope filtering."},
@@ -203,11 +476,38 @@ class AnniversariesIcsQueryArgs(Schema):
         validate=validate.Range(min=1, max=9),
         metadata={"description": "Generation depth around the anchor person."},
     )
+    filter = fields.Str(
+        validate=validate.Length(min=1),
+        metadata={"description": "Saved Gramps Event filter name."},
+    )
+    rules = fields.Str(
+        validate=validate.Length(min=1, max=16384),
+        metadata={"description": "Gramps Event filter rules as JSON."},
+    )
+    person_filter = fields.Str(
+        validate=validate.Length(min=1),
+        metadata={"description": "Saved Gramps Person filter name."},
+    )
+    person_rules = fields.Str(
+        validate=validate.Length(min=1, max=16384),
+        metadata={"description": "Gramps Person filter rules as JSON."},
+    )
+    locale = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={
+            "description": "Language code used for calendar names and event text."
+        },
+    )
 
 
 class AnniversariesIcsResource(Resource):
     """Public anniversaries ICS feed resource."""
 
+    @api_blueprint.response(200, {"type": "string"}, content_type="text/calendar")
+    @api_blueprint.alt_response(304, description="Calendar unchanged", success=True)
+    @limiter.limit("300/minute")
+    @limiter.limit("10/minute", key_func=_token_limit_key)
     @api_blueprint.arguments(AnniversariesIcsQueryArgs, location="query")
     def get(self, args: dict) -> Response:
         """Return anniversaries in ICS format."""
@@ -225,6 +525,26 @@ class AnniversariesIcsResource(Resource):
 
         permissions = get_permissions(username=user.name, tree=tree_id)
         view_private = PERM_VIEW_PRIVATE in permissions
+        locale = get_locale_for_language(args["locale"], default=True)
+        tree_name = get_db_manager(tree_id).name
+        timestamp = get_db_last_change_timestamp(tree_id)
+        filter_definitions, missing_filter = _filter_dependencies(args)
+        etag = _calendar_etag(
+            tree_id,
+            tree_name,
+            view_private,
+            args,
+            timestamp,
+            locale,
+            filter_definitions,
+        )
+        cache_key = f"anniversaries_ics:{etag}"
+        if timestamp is not None:
+            if request.if_none_match.contains_weak(etag):
+                return _calendar_response("", etag, timestamp)
+            cached = request_cache.get(cache_key)
+            if cached is not None:
+                return _calendar_response(cached, etag, timestamp)
         db_handle = get_db_outside_request(
             tree=tree_id,
             view_private=view_private,
@@ -232,50 +552,22 @@ class AnniversariesIcsResource(Resource):
             user_id=str(user.id),
         )
         try:
-            iter_event_handles = db_handle.method("iter_event_handles")
-            get_event_from_handle = db_handle.method("get_event_from_handle")
-            if iter_event_handles is None:
-                raise RuntimeError("Method iter_event_handles not found")
-            if get_event_from_handle is None:
-                raise RuntimeError("Method get_event_from_handle not found")
-
-            allowed_types = {
-                event_type.casefold().strip()
-                for event_type in args.get("event_types", [])
-                if event_type and event_type.strip()
-            }
-
-            anchor_gramps_id = args.get("anchor_gramps_id")
-            allowed_people = set()
-            allowed_families = set()
-            if anchor_gramps_id:
-                allowed_people = _resolve_anchor_people_handles(
-                    db_handle, anchor_gramps_id, args["generation_depth"]
-                )
-                allowed_families = _resolve_family_handles_for_people(
-                    db_handle, allowed_people
-                )
-
-            events = []
-            for handle in iter_event_handles():
-                event = get_event_from_handle(handle)
-                if event is None:
-                    continue
-                if not _event_matches_type(event, allowed_types):
-                    continue
-                if _get_anniversary_date_components(event) is None:
-                    continue
-                if anchor_gramps_id and not _is_event_in_anchor_scope(
-                    db_handle, event, allowed_people, allowed_families
-                ):
-                    continue
-                events.append(event)
-
-            events.sort(key=_event_sort_key)
-            payload = _build_ics(events=events, db_handle=db_handle, tree_id=tree_id)
+            events = (
+                []
+                if missing_filter
+                else _collect_anniversaries(db_handle, args, locale)
+            )
+            payload = _build_ics(
+                entries=events,
+                tree_id=tree_id,
+                tree_name=tree_name,
+                locale=locale,
+            )
         finally:
             close_db(db_handle)
 
-        response = Response(payload, status=200, mimetype="text/calendar")
-        response.headers["Content-Disposition"] = "inline; filename=anniversaries.ics"
-        return response
+        if timestamp is not None:
+            request_cache.set(cache_key, payload, timeout=ICS_CACHE_TIMEOUT)
+        else:
+            etag = hashlib.sha256((etag + payload).encode()).hexdigest()
+        return _calendar_response(payload, etag, timestamp)
