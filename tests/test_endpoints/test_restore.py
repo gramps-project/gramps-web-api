@@ -26,19 +26,26 @@ from unittest.mock import patch
 
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
+from gramps.gen.utils.resourcepath import ResourcePath
 
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EMPTY_GRAMPS_AUTH_CONFIG
 
-from .. import ExampleDbInMemory
 from . import BASE_URL, TEST_USERS
 from .checks import check_success
 from .util import fetch_header
 
 RESTORE_URL = BASE_URL + "/importers/gramps/file/restore"
 IMPORT_URL = BASE_URL + "/importers/gramps/file"
+
+# Restoring imports and deletes the whole tree, so use the small sample tree
+# shipped with Gramps rather than the large example tree.
+SMALL_TREE_PATH = os.path.join(
+    ResourcePath().doc_dir, "example", "gramps", "data.gramps"
+)
+SMALL_TREE_PEOPLE = 60
 
 
 class TestRestoreFile(unittest.TestCase):
@@ -63,8 +70,11 @@ class TestRestoreFile(unittest.TestCase):
                     password=TEST_USERS[role]["password"],
                     role=role,
                 )
-        cls.example_db = ExampleDbInMemory()
-        with open(cls.example_db.path, "rb") as f:
+        # some distributions ship the file gzipped; the importer reads both
+        path = SMALL_TREE_PATH
+        if not os.path.isfile(path):
+            path += ".gz"
+        with open(path, "rb") as f:
             cls.backup_bytes = f.read()
 
     @classmethod
@@ -119,35 +129,39 @@ class TestRestoreFile(unittest.TestCase):
         rv = self._post_backup(IMPORT_URL)
         self.assertEqual(rv.status_code, 201)
         people_good = len(check_success(self, f"{BASE_URL}/people/"))
-        self.assertEqual(people_good, 2157)
+        self.assertEqual(people_good, SMALL_TREE_PEOPLE)
 
         # Simulate the incident: import again, duplicating every object.
         rv = self._post_backup(IMPORT_URL)
         self.assertEqual(rv.status_code, 201)
-        self.assertEqual(len(check_success(self, f"{BASE_URL}/people/")), 2 * 2157)
+        self.assertEqual(
+            len(check_success(self, f"{BASE_URL}/people/")), 2 * SMALL_TREE_PEOPLE
+        )
 
         # Dry run: preview the delta without touching the tree.
         rv = self._post_backup(RESTORE_URL + "?dry_run=true")
         self.assertEqual(rv.status_code, 200)
         summary = rv.json
         self.assertEqual(summary["to_add"]["people"], 0)
-        self.assertEqual(summary["to_delete"]["people"], 2157)
+        self.assertEqual(summary["to_delete"]["people"], SMALL_TREE_PEOPLE)
         # The original import's handles match the backup's exactly, so those
-        # 2157 count as unchanged; the duplicate copy has fresh handles absent
+        # people count as unchanged; the duplicate copy has fresh handles absent
         # from the backup, so it's entirely in to_delete instead.
-        self.assertEqual(summary["unchanged"]["people"], 2157)
+        self.assertEqual(summary["unchanged"]["people"], SMALL_TREE_PEOPLE)
         # Nothing was modified by the dry run.
-        self.assertEqual(len(check_success(self, f"{BASE_URL}/people/")), 2 * 2157)
+        self.assertEqual(
+            len(check_success(self, f"{BASE_URL}/people/")), 2 * SMALL_TREE_PEOPLE
+        )
 
         # Apply the restore: the tree is reset to the backup state.
         rv = self._post_backup(RESTORE_URL)
         self.assertEqual(rv.status_code, 200)
-        self.assertEqual(rv.json["to_delete"]["people"], 2157)
+        self.assertEqual(rv.json["to_delete"]["people"], SMALL_TREE_PEOPLE)
         self.assertEqual(len(check_success(self, f"{BASE_URL}/people/")), people_good)
         # Search index reflects the restored state.
         headers = fetch_header(self.client, role=ROLE_OWNER)
         rv = self.client.get(
-            f"{BASE_URL}/search/?query=Andrew&pagesize=5", headers=headers
+            f"{BASE_URL}/search/?query=Smith&pagesize=5", headers=headers
         )
         self.assertEqual(len(rv.json), 5)
 
@@ -156,9 +170,11 @@ class TestRestoreFile(unittest.TestCase):
         self._empty_tree()
         rv = self._post_backup(RESTORE_URL + "?dry_run=true")
         self.assertEqual(rv.status_code, 200)
-        self.assertEqual(rv.json["to_add"]["people"], 2157)
+        self.assertEqual(rv.json["to_add"]["people"], SMALL_TREE_PEOPLE)
         self.assertEqual(rv.json["to_delete"]["people"], 0)
         self.assertEqual(rv.json["unchanged"]["people"], 0)
         rv = self._post_backup(RESTORE_URL)
         self.assertEqual(rv.status_code, 200)
-        self.assertEqual(len(check_success(self, f"{BASE_URL}/people/")), 2157)
+        self.assertEqual(
+            len(check_success(self, f"{BASE_URL}/people/")), SMALL_TREE_PEOPLE
+        )
