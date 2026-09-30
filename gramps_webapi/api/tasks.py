@@ -61,12 +61,15 @@ from .resources.restore import (
 )
 from .resources.util import (
     abort_with_message,
-    app_has_semantic_search,
     dry_run_import,
     run_import,
     transaction_to_json,
 )
-from .search import get_search_indexer, get_semantic_search_indexer
+from .search import (
+    get_current_semantic_search_indexer,
+    get_search_indexer,
+    get_semantic_search_indexer,
+)
 from .telemetry import (
     get_telemetry_payload,
     send_telemetry,
@@ -316,6 +319,16 @@ def _search_reindex_incremental(
         )
     else:
         indexer = get_search_indexer(tree)
+    _reindex_incremental(indexer, tree=tree, user_id=user_id, progress_cb=progress_cb)
+
+
+def _reindex_incremental(
+    indexer: SearchIndexer | SemanticSearchIndexer,
+    tree: str,
+    user_id: str,
+    progress_cb: Optional[Callable] = None,
+) -> None:
+    """Run an incremental reindex with the given indexer."""
     db = get_db_outside_request(
         tree=tree, view_private=True, readonly=True, user_id=user_id
     )
@@ -406,11 +419,12 @@ def import_file(
             self, title="Updating full-text search index..."
         ),
     )
-    if current_app.config.get("VECTOR_EMBEDDING_MODEL"):
-        _search_reindex_incremental(
+    indexer_semantic = get_current_semantic_search_indexer(tree)
+    if indexer_semantic is not None:
+        _reindex_incremental(
+            indexer_semantic,
             tree=tree,
             user_id=user_id,
-            semantic=True,
             progress_cb=progress_callback_count(
                 self, title="Updating semantic search index..."
             ),
@@ -472,11 +486,12 @@ def restore_backup(
             self, title="Updating full-text search index..."
         ),
     )
-    if current_app.config.get("VECTOR_EMBEDDING_MODEL"):
-        _search_reindex_incremental(
+    indexer_semantic = get_current_semantic_search_indexer(tree)
+    if indexer_semantic is not None:
+        _reindex_incremental(
+            indexer_semantic,
             tree=tree,
             user_id=user_id,
-            semantic=True,
             progress_cb=progress_callback_count(
                 self, title="Updating semantic search index..."
             ),
@@ -687,11 +702,12 @@ def delete_objects(
             self, title="Updating full-text search index..."
         ),
     )
-    if current_app.config.get("VECTOR_EMBEDDING_MODEL"):
-        _search_reindex_incremental(
+    indexer_semantic = get_current_semantic_search_indexer(tree)
+    if indexer_semantic is not None:
+        _reindex_incremental(
+            indexer_semantic,
             tree=tree,
             user_id=user_id,
-            semantic=True,
             progress_cb=progress_callback_count(
                 self, title="Updating semantic search index..."
             ),
@@ -860,8 +876,9 @@ def update_search_indices_from_transaction(
     )
     try:
         _index_objects(get_search_indexer(tree), trans_dict, db_handle)
-        if app_has_semantic_search():
-            _index_objects(get_semantic_search_indexer(tree), trans_dict, db_handle)
+        indexer_semantic = get_current_semantic_search_indexer(tree)
+        if indexer_semantic is not None:
+            _index_objects(indexer_semantic, trans_dict, db_handle)
     finally:
         close_db(db_handle)
 

@@ -350,15 +350,16 @@ class UserTaskProgress(InfoCollectorMixin, UserBase):
         self.progress_message = ""
         self.info_messages = []
 
+    def _update_state(self, meta: dict) -> None:
+        """Report progress, unless the task was called directly (no Celery)."""
+        if self.task is None or self.task.request.id is None:
+            return
+        self.task.update_state(state="PROGRESS", meta=meta)
+
     def _callback(self, percentage, text=None):
         """Report only the percentage."""
         if percentage >= 0 and percentage < 100:
-            self.task.update_state(
-                state="PROGRESS",
-                meta={
-                    "progress": percentage / 100,
-                },
-            )
+            self._update_state({"progress": percentage / 100})
 
     def _report_progress(self) -> None:
         """Report the progress in the task result."""
@@ -368,15 +369,14 @@ class UserTaskProgress(InfoCollectorMixin, UserBase):
             progress = self.current_step / self.steps
             if progress < 0 or progress >= 1:
                 progress = -1
-        self.task.update_state(
-            state="PROGRESS",
-            meta={
+        self._update_state(
+            {
                 "current": self.current_step,
                 "total": self.steps,
                 "progress": progress,
                 "title": self.progress_title,
                 "message": self.progress_message,
-            },
+            }
         )
 
     def begin_progress(self, title: str, message: str, steps: int) -> None:

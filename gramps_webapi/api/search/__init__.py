@@ -19,12 +19,18 @@
 
 """Full-text search utilities."""
 
+import logging
 from pathlib import Path
 from urllib.parse import urlparse
 
 from flask import current_app
 
-from .indexer import SearchIndexer, SemanticSearchIndexer, SearchIndexerBase
+from .indexer import (
+    SearchIndexer,
+    SemanticSearchIndexer,
+    SearchIndexerBase,
+    StaleSemanticIndexError,
+)
 
 
 def _get_search_index_db_url() -> str:
@@ -64,9 +70,9 @@ def get_semantic_search_indexer(
 ) -> SemanticSearchIndexer:
     """Get the semantic search indexer for the tree.
 
-    Raises ValueError if the stored model name doesn't match the configured
-    model, unless ``skip_model_check=True`` (used when doing a full reindex
-    which will rebuild the index from scratch).
+    Raises StaleSemanticIndexError if the stored model name doesn't match the
+    configured model, unless ``skip_model_check=True`` (used when doing a full
+    reindex which will rebuild the index from scratch).
     """
     db_url = _get_search_index_db_url()
     embedding_function = current_app.config.get("_EMBEDDING_FUNCTION")
@@ -80,3 +86,19 @@ def get_semantic_search_indexer(
         model_name=model_name,
         skip_model_check=skip_model_check,
     )
+
+
+def get_current_semantic_search_indexer(tree: str) -> SemanticSearchIndexer | None:
+    """Get the semantic search indexer for keeping the index up to date.
+
+    Returns None if semantic search is not enabled, or if the index was built
+    with a different model: then it is useless until the next full reindex,
+    and updating it must not make the change that triggered the update fail.
+    """
+    if not current_app.config.get("VECTOR_EMBEDDING_MODEL"):
+        return None
+    try:
+        return get_semantic_search_indexer(tree)
+    except StaleSemanticIndexError as exc:
+        logging.getLogger(__name__).warning("Not updating semantic index: %s", exc)
+        return None
