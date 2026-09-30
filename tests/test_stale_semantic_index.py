@@ -38,6 +38,23 @@ from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
+RESTORE_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE database PUBLIC "-//Gramps//DTD Gramps XML 1.7.2//EN"
+"http://gramps-project.org/xml/1.7.2/grampsxml.dtd">
+<database xmlns="http://gramps-project.org/xml/1.7.2/">
+  <header><created date="2026-01-01" version="6.0"/></header>
+  <people>
+    <person handle="_restoredperson" change="0" id="I9001">
+      <gender>U</gender>
+      <name type="Birth Name">
+        <first>Restorefindable</first>
+        <surname>Stale</surname>
+      </name>
+    </person>
+  </people>
+</database>
+"""
+
 
 class FakeModel:
     """Stand-in for a sentence transformer model."""
@@ -130,6 +147,43 @@ class TestStaleSemanticIndex(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 200)
         self.assertEqual(len(rv.json), 1)
+
+    def count_full_text_hits(self, query: str) -> int:
+        rv = self.client.get(f"/api/search/?query={query}", headers=self.headers)
+        self.assertEqual(rv.status_code, 200)
+        return len(rv.json)
+
+    def assert_stored_model_unchanged(self):
+        self.assertEqual(get_stored_model_name(self.db_url, self.tree), "old-model")
+
+    def test_import_succeeds(self):
+        gedcom = (
+            "0 HEAD\n1 CHAR UTF-8\n0 @I1@ INDI\n1 NAME Importfindable /Stale/\n0 TRLR\n"
+        )
+        rv = self.client.post(
+            "/api/importers/ged/file", data=gedcom.encode(), headers=self.headers
+        )
+        self.assertEqual(rv.status_code, 201)
+        self.assertEqual(self.count_full_text_hits("Importfindable"), 1)
+        self.assert_stored_model_unchanged()
+
+    def test_restore_succeeds(self):
+        rv = self.client.post(
+            "/api/importers/gramps/file/restore",
+            data=RESTORE_XML.encode(),
+            headers=self.headers,
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(self.count_full_text_hits("Restorefindable"), 1)
+        self.assert_stored_model_unchanged()
+
+    def test_bulk_delete_succeeds(self):
+        self.add_person("Bulkdeleted")
+        self.assertEqual(self.count_full_text_hits("Bulkdeleted"), 1)
+        rv = self.client.post("/api/objects/delete/", headers=self.headers)
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(self.count_full_text_hits("Bulkdeleted"), 0)
+        self.assert_stored_model_unchanged()
 
     def test_semantic_search_still_reports_stale_index(self):
         rv = self.client.get(
