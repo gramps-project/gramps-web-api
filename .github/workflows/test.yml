@@ -5,8 +5,29 @@ on:
   pull_request:
 
 jobs:
+  typecheck:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+      - name: Install Ubuntu dependencies
+        run: sudo apt update && sudo apt-get -y install gettext appstream pkg-config libcairo2-dev gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev libopencv-dev gir1.2-pango-1.0
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          # CPU-only build: the default one pulls in ~3 GB of CUDA libraries
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install opencv-python
+          pip install -r requirements-dev.txt
+          pip install .[ai]
+      - name: Run type checker
+        run: mypy --install-types --non-interactive --ignore-missing-imports --exclude build .
+
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: true
       matrix:
@@ -33,10 +54,12 @@ jobs:
           restore-keys: |
             hf-models-
       - name: Install Ubuntu dependencies
-        run: sudo apt update && sudo apt-get -y install gettext appstream pkg-config libcairo2-dev gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev libopencv-dev tesseract-ocr tesseract-ocr-all gir1.2-pango-1.0 poppler-utils
+        run: sudo apt update && sudo apt-get -y install gettext appstream pkg-config libcairo2-dev gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev libopencv-dev tesseract-ocr gir1.2-pango-1.0 poppler-utils
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip wheel setuptools
+          # CPU-only build: the default one pulls in ~3 GB of CUDA libraries
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install opencv-python
           pip install -r requirements-dev.txt
           pip install .[ai]
@@ -59,15 +82,13 @@ jobs:
             alembic heads
             exit 1
           fi
-      - name: Run type checker
-        run: mypy --install-types --non-interactive --ignore-missing-imports --exclude build .
       - name: Test with pytest
         env:
           HF_HUB_OFFLINE: 1
         run: pytest -x
 
   test-base-image:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     container: ghcr.io/gramps-project/gramps-web-base:latest
     steps:
       - uses: actions/checkout@v5
