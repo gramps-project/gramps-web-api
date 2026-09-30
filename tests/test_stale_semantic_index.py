@@ -93,6 +93,8 @@ class TestStaleSemanticIndex(unittest.TestCase):
                 config={
                     "TESTING": True,
                     "VECTOR_EMBEDDING_MODEL": "new-model",
+                    # run tasks synchronously even if another app configured Celery
+                    "CELERY_CONFIG": {},
                     "SEARCH_INDEX_DB_URI": f"sqlite:///{cls.index_dir.name}/index.db",
                 },
                 config_from_env=False,
