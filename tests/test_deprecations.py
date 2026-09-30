@@ -6,6 +6,9 @@ from gramps_webapi.config import DefaultConfig
 DEFAULTS = {
     key: getattr(DefaultConfig, key) for key in dir(DefaultConfig) if key.isupper()
 }
+# the test package points this default at a temporary file (see tests/__init__.py),
+# restore the production default so it doesn't mask a custom SEARCH_INDEX_DIR
+DEFAULTS["SEARCH_INDEX_DB_URI"] = ""
 
 
 def test_default_config_is_not_deprecated():
