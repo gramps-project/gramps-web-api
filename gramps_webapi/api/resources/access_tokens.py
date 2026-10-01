@@ -16,7 +16,9 @@ from marshmallow import Schema
 from webargs import fields
 
 from ...auth import (
+    User,
     get_name,
+    get_user_from_access_token,
     has_user_access_token,
     normalize_access_token_scope,
     revoke_user_access_token,
@@ -27,6 +29,21 @@ from ..auth import require_permissions
 from ..blueprint import api_blueprint
 from ..util import abort_with_message, get_tree_from_jwt_or_fail
 from . import ProtectedResource
+
+
+def get_active_user_from_access_token(token: str, scope: str) -> User:
+    """Return the user owning a persistent access token, or abort.
+
+    Aborts with 401 if the token is unknown or revoked, and with 403 if the
+    account is disabled or unconfirmed. Checking the tree is left to the
+    caller, since what a missing or disabled tree means depends on the scope.
+    """
+    user = get_user_from_access_token(token, scope)
+    if user is None:
+        abort_with_message(401, "Invalid access token")
+    if user.role is None or user.role < 0:
+        abort_with_message(403, "User account is disabled")
+    return user
 
 
 class AccessTokenStatusSchema(Schema):

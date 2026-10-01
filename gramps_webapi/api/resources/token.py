@@ -43,6 +43,7 @@ from ...auth import (
 )
 from ...auth.oidc_helpers import is_oidc_enabled
 from ...auth.const import (
+    ACCESS_TOKEN_SCOPE_SYNC,
     CLAIM_LIMITED_SCOPE,
     PERM_VIEW_OTHER_TREE,
     SCOPE_CREATE_ADMIN,
@@ -53,6 +54,7 @@ from ..blueprint import api_blueprint
 from ..ratelimiter import limiter
 from ..util import abort_with_message, get_tree_id_or_none, tree_exists
 from . import RefreshProtectedResource, Resource
+from .access_tokens import get_active_user_from_access_token
 
 
 def get_tree_id_and_permissions(
@@ -100,6 +102,29 @@ def get_tokens(
         "access_token": access_token,
         "refresh_token": refresh_token,
     }
+
+
+def issue_access_token(user_id: str):
+    """Create a non-fresh access token, without a refresh token, for a user.
+
+    The tree, the permissions and whether the tree is disabled are looked up
+    again on every call, so a token issued here always reflects the user's
+    current state.
+    """
+    try:
+        username = get_name(user_id)
+    except ValueError:
+        abort_with_message(401, "User not found for token ID")
+    tree_id, permissions = get_tree_id_and_permissions(
+        user_id=user_id, username=username
+    )
+    return get_tokens(
+        user_id=user_id,
+        permissions=permissions,
+        tree_id=tree_id,
+        include_refresh=False,
+        fresh=False,
+    )
 
 
 class TokenLoginSchema(Schema):
@@ -189,21 +214,36 @@ class TokenRefreshResource(RefreshProtectedResource):
     @api_blueprint.response(200, TokenSchema)
     def post(self):
         """Fetch a new token."""
-        user_id = get_jwt_identity()
-        try:
-            username = get_name(user_id)
-        except ValueError:
-            abort_with_message(401, "User not found for token ID")
-        tree_id, permissions = get_tree_id_and_permissions(
-            user_id=user_id, username=username
-        )
-        return get_tokens(
-            user_id=user_id,
-            permissions=permissions,
-            tree_id=tree_id,
-            include_refresh=False,
-            fresh=False,
-        )
+        return issue_access_token(get_jwt_identity())
+
+
+class TokenSyncSchema(Schema):
+    """Request body for POST /token/sync/."""
+
+    token = fields.Str(
+        required=True,
+        validate=validate.Length(min=1),
+        load_only=True,
+        metadata={"description": "A persistent access token with the sync scope."},
+    )
+
+
+class TokenSyncResource(Resource):
+    """Resource for exchanging a persistent sync token for an access token."""
+
+    @limiter.limit("1/second")
+    @api_blueprint.response(200, TokenSchema)
+    @api_blueprint.arguments(TokenSyncSchema, location="json")
+    def post(self, args):
+        """Exchange a persistent sync token for a short-lived access token.
+
+        Only an access token is returned, never a refresh token: clients
+        exchange the sync token again when the access token expires. This
+        works even when local authentication is disabled, since only an
+        authenticated user can create a sync token.
+        """
+        user = get_active_user_from_access_token(args["token"], ACCESS_TOKEN_SCOPE_SYNC)
+        return issue_access_token(str(user.id))
 
 
 class TokenCreateOwnerPostSchema(Schema):

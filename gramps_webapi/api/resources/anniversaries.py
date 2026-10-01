@@ -23,7 +23,6 @@ from webargs import fields, validate
 
 from ...auth import (
     get_permissions,
-    get_user_from_access_token,
     is_tree_disabled,
 )
 from ...auth.const import ACCESS_TOKEN_SCOPE_ANNIVERSARIES_ICS, PERM_VIEW_PRIVATE
@@ -35,6 +34,7 @@ from ..util import (
     get_tree_id,
 )
 from . import Resource
+from .access_tokens import get_active_user_from_access_token
 from .filters import apply_filter
 from .util import get_backlinks, get_event_summary_from_object
 
@@ -211,13 +211,9 @@ class AnniversariesIcsResource(Resource):
     @api_blueprint.arguments(AnniversariesIcsQueryArgs, location="query")
     def get(self, args: dict) -> Response:
         """Return anniversaries in ICS format."""
-        user = get_user_from_access_token(
+        user = get_active_user_from_access_token(
             args["token"], ACCESS_TOKEN_SCOPE_ANNIVERSARIES_ICS
         )
-        if user is None:
-            abort_with_message(401, "Invalid access token")
-        if user.role is None or user.role < 0:
-            abort_with_message(403, "User account is disabled")
 
         tree_id = get_tree_id(str(user.id))
         if is_tree_disabled(tree=tree_id):
