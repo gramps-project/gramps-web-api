@@ -14,10 +14,11 @@
 import hashlib
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Callable, cast
 
 from flask import Response, request
+from flask_jwt_extended import get_jwt_identity
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.display.name import displayer as name_displayer
@@ -31,7 +32,9 @@ from marshmallow import Schema
 from webargs import fields, validate
 
 from ...auth import (
+    get_name,
     get_permissions,
+    get_user_details,
     get_user_from_access_token,
     is_tree_disabled,
 )
@@ -47,13 +50,15 @@ from ..util import (
     get_db_manager,
     get_db_outside_request,
     get_locale_for_language,
+    get_tree_from_jwt_or_fail,
     get_tree_id,
 )
-from . import Resource
+from . import ProtectedResource, Resource
 from .filters import apply_filter, get_custom_filters
 from .util import get_family_name_localized
 
 ICS_FORMAT_VERSION = 2
+JSON_FORMAT_VERSION = 1
 ICS_CACHE_TIMEOUT = 86400
 
 
@@ -91,9 +96,14 @@ def _calendar_etag(
     timestamp,
     locale: GrampsLocale,
     filter_definitions: list[dict],
+    format_version: int = ICS_FORMAT_VERSION,
 ) -> str:
-    """Identify the feed without opening the tree database."""
-    normalized = {key: value for key, value in args.items() if key != "token"}
+    """Identify one calendar representation without opening the tree database."""
+    normalized = {
+        key: value.isoformat() if isinstance(value, date) else value
+        for key, value in args.items()
+        if key != "token"
+    }
     normalized["event_types"] = sorted(
         {
             value.strip().casefold()
@@ -102,7 +112,7 @@ def _calendar_etag(
         }
     )
     dimensions = (
-        ICS_FORMAT_VERSION,
+        format_version,
         tree_id,
         tree_name,
         timestamp,
@@ -182,6 +192,33 @@ def _get_anniversary_date_components(event: Event) -> tuple[int, int, int] | Non
     except ValueError:
         return None
     return year, month, day
+
+
+def _occurrence_dates(start: date, end: date, month: int, day: int) -> list[date]:
+    """Expand one anniversary to all matching dates in an inclusive range."""
+    occurrences = []
+    for year in range(start.year, end.year + 1):
+        occurrence_day = day
+        if month == 2 and day == 29 and not _is_leap_year(year):
+            occurrence_day = 28
+        occurrence = date(year, month, occurrence_day)
+        if start <= occurrence <= end:
+            occurrences.append(occurrence)
+    return occurrences
+
+
+def _is_leap_year(year: int) -> bool:
+    """Return whether a Gregorian year contains February 29."""
+    return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
+
+
+def _latest_calendar_end(start: date) -> date:
+    """Return the inclusive upper bound five calendar years after start."""
+    year = min(start.year + 5, date.max.year)
+    try:
+        return start.replace(year=year)
+    except ValueError:
+        return start.replace(year=year, day=28)
 
 
 def _get_record(getter: Callable, handle: str):
@@ -571,3 +608,232 @@ class AnniversariesIcsResource(Resource):
         else:
             etag = hashlib.sha256((etag + payload).encode()).hexdigest()
         return _calendar_response(payload, etag, timestamp)
+
+
+class AnniversaryOccurrenceSchema(Schema):
+    """A visible anniversary occurrence in an authenticated date range."""
+
+    anniversary = fields.Int(required=True)
+    event = fields.Dict(required=True)
+    event_date = fields.Str(required=True)
+    historical_date = fields.Date(required=True)
+    occurrence_date = fields.Date(required=True)
+    participants = fields.List(fields.Dict(), required=True)
+    summary = fields.Str(required=True)
+    type = fields.Str(required=True)
+
+
+class AnniversariesQueryArgs(Schema):
+    """Query arguments for GET /anniversaries/."""
+
+    start = fields.Date(required=True, format="%Y-%m-%d")
+    end = fields.Date(required=True, format="%Y-%m-%d")
+    event_types = fields.DelimitedList(
+        fields.Str(validate=validate.Length(min=1)),
+        load_default=lambda: ["Birth", "Marriage", "Death"],
+        validate=validate.Length(min=1),
+        metadata={"description": "Comma-delimited event type names to include."},
+    )
+    living_only = fields.Bool(
+        load_default=True,
+        metadata={"description": "Limit personal events to living participants."},
+    )
+    primary_participants_only = fields.Bool(
+        load_default=True,
+        metadata={"description": "Exclude secondary participant roles."},
+    )
+    anchor_gramps_id = fields.Str(
+        metadata={"description": "Anchor person Gramps ID for family-scope filtering."},
+    )
+    generation_depth = fields.Integer(
+        load_default=4,
+        validate=validate.Range(min=1, max=9),
+        metadata={"description": "Generation depth around the anchor person."},
+    )
+    filter = fields.Str(
+        validate=validate.Length(min=1),
+        metadata={"description": "Saved Gramps Event filter name."},
+    )
+    rules = fields.Str(
+        validate=validate.Length(min=1, max=16384),
+        metadata={"description": "Gramps Event filter rules as JSON."},
+    )
+    person_filter = fields.Str(
+        validate=validate.Length(min=1),
+        metadata={"description": "Saved Gramps Person filter name."},
+    )
+    person_rules = fields.Str(
+        validate=validate.Length(min=1, max=16384),
+        metadata={"description": "Gramps Person filter rules as JSON."},
+    )
+    locale = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={"description": "Language code used for localized event text."},
+    )
+    page = fields.Integer(load_default=1, validate=validate.Range(min=1))
+    pagesize = fields.Integer(load_default=100, validate=validate.Range(min=1, max=500))
+
+
+def _get_authenticated_calendar_context() -> tuple[str, str, bool]:
+    """Validate the JWT user and tree before looking up cached content."""
+    user_id = str(get_jwt_identity())
+    try:
+        username = get_name(user_id)
+    except ValueError:
+        abort_with_message(401, "User not found for token ID")
+        raise  # mypy: unreachable
+    user = get_user_details(username)
+    if user is None:
+        abort_with_message(401, "User not found for token ID")
+        raise  # mypy: unreachable
+    if user["role"] is None or user["role"] < 0:
+        abort_with_message(403, "User account is disabled")
+
+    tree_id = get_tree_from_jwt_or_fail()
+    if get_tree_id(user_id) != tree_id:
+        abort_with_message(403, "JWT tree does not match the user account")
+    if is_tree_disabled(tree=tree_id):
+        abort_with_message(503, "This tree is temporarily disabled")
+    return tree_id, user_id, PERM_VIEW_PRIVATE in get_permissions(username, tree_id)
+
+
+def _json_calendar_response(
+    body: str, total: int, etag: str, timestamp: int | float | None
+) -> Response:
+    """Return JSON with private conditional-cache headers and total count."""
+    unchanged = request.if_none_match.contains_weak(etag)
+    response = CalendarResponse(
+        "" if unchanged else body,
+        status=304 if unchanged else 200,
+        mimetype="application/json",
+    )
+    response.cache_control.private = True
+    response.cache_control.max_age = ICS_CACHE_TIMEOUT
+    response.expires = datetime.now(timezone.utc) + timedelta(seconds=ICS_CACHE_TIMEOUT)
+    response.set_etag(etag, weak=True)
+    if timestamp is not None:
+        response.last_modified = datetime.fromtimestamp(timestamp, timezone.utc)
+    if not unchanged:
+        response.headers["X-Total-Count"] = str(total)
+    return response
+
+
+class AnniversariesResource(ProtectedResource):
+    """Authenticated JSON occurrences for the Anniversaries page."""
+
+    @api_blueprint.response(200, AnniversaryOccurrenceSchema(many=True))
+    @api_blueprint.alt_response(304, description="Calendar unchanged", success=True)
+    @api_blueprint.arguments(AnniversariesQueryArgs, location="query")
+    def get(self, args: dict) -> Response:
+        """Return page-sized annual occurrences in an inclusive date range."""
+        if args["end"] < args["start"]:
+            abort_with_message(422, "End date must not precede start date")
+        if args["end"] > _latest_calendar_end(args["start"]):
+            abort_with_message(422, "Date range must not exceed five years")
+
+        tree_id, user_id, view_private = _get_authenticated_calendar_context()
+        locale = get_locale_for_language(args["locale"], default=True)
+        tree_name = get_db_manager(tree_id).name
+        timestamp = get_db_last_change_timestamp(tree_id)
+        filter_definitions, missing_filter = _filter_dependencies(args)
+        etag = _calendar_etag(
+            tree_id,
+            tree_name,
+            view_private,
+            args,
+            timestamp,
+            locale,
+            filter_definitions,
+            format_version=JSON_FORMAT_VERSION,
+        )
+        cache_key = f"anniversaries_json:{etag}"
+        if timestamp is not None:
+            if request.if_none_match.contains_weak(etag):
+                return _json_calendar_response("", 0, etag, timestamp)
+            cached = request_cache.get(cache_key)
+            if cached is not None:
+                return _json_calendar_response(
+                    cached["body"], cached["total"], etag, timestamp
+                )
+
+        db_handle = get_db_outside_request(
+            tree=tree_id,
+            view_private=view_private,
+            readonly=True,
+            user_id=user_id,
+        )
+        try:
+            entries = (
+                []
+                if missing_filter
+                else _collect_anniversaries(db_handle, args, locale)
+            )
+            occurrences = []
+            for entry in entries:
+                components = _get_anniversary_date_components(entry.event)
+                if components is None:
+                    continue
+                event_year, month, day = components
+                event_type = locale.translation.sgettext(entry.event.type.xml_str())
+                participants = [
+                    {
+                        "object_type": object_type,
+                        "gramps_id": gramps_id,
+                        "name": name,
+                    }
+                    for (object_type, gramps_id), name in sorted(
+                        entry.participants.items()
+                    )
+                ]
+                participant_names = ", ".join(sorted(entry.participants.values()))
+                summary = (
+                    f"{event_type} - {participant_names}"
+                    if participant_names
+                    else event_type
+                )
+                historical_date = date(event_year, month, day).isoformat()
+                for occurrence in _occurrence_dates(
+                    args["start"], args["end"], month, day
+                ):
+                    occurrences.append(
+                        {
+                            "anniversary": occurrence.year - event_year,
+                            "event": {
+                                "gramps_id": entry.event.gramps_id,
+                                "handle": entry.event.handle,
+                            },
+                            "event_date": locale.date_displayer.display(
+                                entry.event.date
+                            ),
+                            "historical_date": historical_date,
+                            "occurrence_date": occurrence.isoformat(),
+                            "participants": participants,
+                            "summary": summary,
+                            "type": event_type,
+                        }
+                    )
+        finally:
+            close_db(db_handle)
+
+        occurrences.sort(
+            key=lambda occurrence: (
+                occurrence["occurrence_date"],
+                occurrence["event"]["handle"],
+            )
+        )
+        total = len(occurrences)
+        offset = (args["page"] - 1) * args["pagesize"]
+        body = json.dumps(
+            occurrences[offset : offset + args["pagesize"]],
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        if timestamp is not None:
+            request_cache.set(
+                cache_key, {"body": body, "total": total}, timeout=ICS_CACHE_TIMEOUT
+            )
+        else:
+            etag = hashlib.sha256((etag + body).encode()).hexdigest()
+        return _json_calendar_response(body, total, etag, timestamp)
