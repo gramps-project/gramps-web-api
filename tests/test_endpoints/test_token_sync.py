@@ -26,19 +26,23 @@ from gramps_webapi.auth import (
 )
 from gramps_webapi.auth.const import (
     ACCESS_TOKEN_SCOPE_ANNIVERSARIES_ICS,
+    ACCESS_TOKEN_SCOPE_PERMISSIONS,
     ACCESS_TOKEN_SCOPE_SYNC,
     PERM_EDIT_OBJ,
+    PERM_EDIT_OWN_USER,
     ROLE_DISABLED,
     ROLE_EDITOR,
     ROLE_GUEST,
     ROLE_OWNER,
 )
 
-from . import BASE_URL, get_test_client
+from . import BASE_URL, TEST_USERS, get_test_client
 from .util import fetch_header
 
 SYNC_URL = BASE_URL + "/token/sync/"
 TOKEN_URL = BASE_URL + "/users/-/access-tokens/sync/"
+MEDIA_HANDLE = "b39fe1cfc1305ac4a21"
+SYNC_PERMISSIONS = ACCESS_TOKEN_SCOPE_PERMISSIONS[ACCESS_TOKEN_SCOPE_SYNC]
 
 
 class TestTokenSync(unittest.TestCase):
@@ -68,6 +72,14 @@ class TestTokenSync(unittest.TestCase):
         with self.client.application.app_context():
             return decode_token(access_token)
 
+    def _sync_header(self, role=ROLE_OWNER):
+        """Return (access token, header) for a JWT exchanged from a sync token."""
+        _, token = self._create_token(role=role)
+        rv = self.client.post(SYNC_URL, json={"token": token})
+        self.assertEqual(rv.status_code, 200)
+        access = rv.json["access_token"]
+        return access, {"Authorization": f"Bearer {access}"}
+
     def test_requires_token(self):
         """A missing, empty or unknown token is rejected."""
         rv = self.client.post(SYNC_URL, json={})
@@ -88,10 +100,13 @@ class TestTokenSync(unittest.TestCase):
         self.assertEqual(claims["type"], "access")
         with self.client.application.app_context():
             user = get_user_details("owner", include_guid=True)
-            expected = get_permissions(username="owner", tree=user["tree"])
+            full = get_permissions(username="owner", tree=user["tree"])
         self.assertEqual(claims["sub"], str(user["user_id"]))
         self.assertEqual(claims["tree"], user["tree"])
-        self.assertEqual(set(claims["permissions"]), expected)
+        # narrowed to the sync allowlist, which an owner has in full
+        self.assertEqual(set(claims["permissions"]), full & SYNC_PERMISSIONS)
+        self.assertEqual(set(claims["permissions"]), set(SYNC_PERMISSIONS))
+        self.assertNotIn(PERM_EDIT_OWN_USER, claims["permissions"])
         rv = self.client.get(
             BASE_URL + "/people/",
             headers={"Authorization": f"Bearer {rv.json['access_token']}"},
@@ -179,3 +194,58 @@ class TestTokenSync(unittest.TestCase):
             self.assertEqual(rv.status_code, 403)
             rv = self.client.post(SYNC_URL, json={"token": token})
             self.assertEqual(rv.status_code, 200)
+
+    def test_sync_jwt_cannot_edit_own_user(self):
+        """A sync-issued JWT can't change the account, e.g. its e-mail."""
+        _, header = self._sync_header(role=ROLE_OWNER)
+        rv = self.client.put(
+            BASE_URL + "/users/-/",
+            json={"email": "attacker@example.com"},
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 403)
+        with self.client.application.app_context():
+            self.assertNotEqual(
+                get_user_details("owner")["email"], "attacker@example.com"
+            )
+
+    def test_sync_jwt_cannot_manage_access_tokens(self):
+        """A sync-issued JWT can't read, create or revoke persistent tokens."""
+        _, header = self._sync_header(role=ROLE_OWNER)
+        for scope in (ACCESS_TOKEN_SCOPE_SYNC, ACCESS_TOKEN_SCOPE_ANNIVERSARIES_ICS):
+            url = BASE_URL + f"/users/-/access-tokens/{scope}/"
+            self.assertEqual(self.client.get(url, headers=header).status_code, 403)
+            self.assertEqual(self.client.post(url, headers=header).status_code, 403)
+            self.assertEqual(self.client.delete(url, headers=header).status_code, 403)
+
+    def test_sync_jwt_reads_and_writes_tree_data(self):
+        """A sync-issued JWT can read, add, delete, and fetch media via ?jwt=."""
+        access, header = self._sync_header(role=ROLE_OWNER)
+        rv = self.client.get(BASE_URL + "/people/?pagesize=1", headers=header)
+        self.assertEqual(rv.status_code, 200)
+        rv = self.client.post(
+            BASE_URL + "/notes/",
+            json={"_class": "Note", "text": {"_class": "StyledText", "string": "x"}},
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 201)
+        handle = rv.json[0]["handle"]
+        rv = self.client.delete(BASE_URL + f"/notes/{handle}", headers=header)
+        self.assertEqual(rv.status_code, 200)
+        rv = self.client.get(BASE_URL + f"/media/{MEDIA_HANDLE}/file?jwt={access}")
+        self.assertEqual(rv.status_code, 200)
+
+    def test_refresh_keeps_full_permissions(self):
+        """Only sync-issued JWTs are narrowed, not refreshed ones."""
+        user = TEST_USERS[ROLE_OWNER]
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": user["name"], "password": user["password"]},
+        )
+        rv = self.client.post(
+            BASE_URL + "/token/refresh/",
+            headers={"Authorization": f"Bearer {rv.json['refresh_token']}"},
+        )
+        self.assertEqual(rv.status_code, 200)
+        claims = self._claims(rv.json["access_token"])
+        self.assertIn(PERM_EDIT_OWN_USER, claims["permissions"])

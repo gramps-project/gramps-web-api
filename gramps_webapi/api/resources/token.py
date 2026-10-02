@@ -43,6 +43,7 @@ from ...auth import (
 )
 from ...auth.oidc_helpers import is_oidc_enabled
 from ...auth.const import (
+    ACCESS_TOKEN_SCOPE_PERMISSIONS,
     ACCESS_TOKEN_SCOPE_SYNC,
     CLAIM_LIMITED_SCOPE,
     PERM_VIEW_OTHER_TREE,
@@ -104,12 +105,16 @@ def get_tokens(
     }
 
 
-def issue_access_token(user_id: str):
+def issue_access_token(user_id: str, scope: str | None = None) -> dict[str, str]:
     """Create a non-fresh access token, without a refresh token, for a user.
 
     The tree, the permissions and whether the tree is disabled are looked up
     again on every call, so a token issued here always reflects the user's
     current state.
+
+    With a persistent access token ``scope``, the permissions are narrowed to
+    the scope's allowlist in ``ACCESS_TOKEN_SCOPE_PERMISSIONS``; without one
+    (token refresh), the user keeps all of their permissions.
     """
     try:
         username = get_name(user_id)
@@ -118,6 +123,8 @@ def issue_access_token(user_id: str):
     tree_id, permissions = get_tree_id_and_permissions(
         user_id=user_id, username=username
     )
+    if scope is not None:
+        permissions = permissions & ACCESS_TOKEN_SCOPE_PERMISSIONS[scope]
     return get_tokens(
         user_id=user_id,
         permissions=permissions,
@@ -243,7 +250,7 @@ class TokenSyncResource(Resource):
         authenticated user can create a sync token.
         """
         user = get_active_user_from_access_token(args["token"], ACCESS_TOKEN_SCOPE_SYNC)
-        return issue_access_token(str(user.id))
+        return issue_access_token(str(user.id), scope=ACCESS_TOKEN_SCOPE_SYNC)
 
 
 class TokenCreateOwnerPostSchema(Schema):
