@@ -147,6 +147,17 @@ SCOPE_CREATE_OWNER = "create_owner"
 
 # persistent access token scopes
 ACCESS_TOKEN_SCOPE_ANNIVERSARIES_ICS = "anniversaries_ics"
+ACCESS_TOKEN_SCOPE_SYNC = "sync"
 ACCESS_TOKEN_SCOPES = {
     ACCESS_TOKEN_SCOPE_ANNIVERSARIES_ICS,
+    ACCESS_TOKEN_SCOPE_SYNC,
+}
+# Permissions a JWT issued from a persistent access token may carry, by scope.
+# This is an allowlist: the user's permissions are intersected with it, so a
+# permission added later is not granted unless it is listed here. Scopes that
+# never issue a JWT (like the ICS feed) have no entry.
+ACCESS_TOKEN_SCOPE_PERMISSIONS = {
+    ACCESS_TOKEN_SCOPE_SYNC: frozenset(
+        {PERM_VIEW_PRIVATE, PERM_ADD_OBJ, PERM_EDIT_OBJ, PERM_DEL_OBJ}
+    ),
 }

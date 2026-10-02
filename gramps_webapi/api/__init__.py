@@ -143,6 +143,7 @@ from .resources.token import (
     TokenCreateOwnerResource,
     TokenRefreshResource,
     TokenResource,
+    TokenSyncResource,
 )
 from .resources.transactions import TransactionsResource
 from .resources.translations import TranslationResource, TranslationsResource
@@ -289,6 +290,7 @@ register_endpt(
 # Token
 register_endpt(TokenResource, "/token/", "token", tags=["Token"])
 register_endpt(TokenRefreshResource, "/token/refresh/", "token_refresh", tags=["Token"])
+register_endpt(TokenSyncResource, "/token/sync/", "token_sync", tags=["Token"])
 register_endpt(
     TokenCreateOwnerResource,
     "/token/create_owner/",
