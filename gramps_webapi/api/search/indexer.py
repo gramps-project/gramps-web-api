@@ -116,8 +116,18 @@ class SearchIndexerBase:
         data = [
             self._get_object_data(obj_dict, public_only=False) for obj_dict in obj_dicts
         ]
+        # private objects must not be in the public index at all
         data_public = [
-            self._get_object_data(obj_dict, public_only=True) for obj_dict in obj_dicts
+            self._get_object_data(obj_dict, public_only=True)
+            for obj_dict in obj_dicts
+            if not obj_dict.get("private")
+        ]
+        ids_private = [
+            self._object_id_public(
+                handle=obj_dict["handle"], class_name=obj_dict["class_name"]
+            )
+            for obj_dict in obj_dicts
+            if obj_dict.get("private")
         ]
         contents = [dat["contents"] for dat in data]
         contents_public = [dat["contents"] for dat in data_public]
@@ -135,12 +145,16 @@ class SearchIndexerBase:
             metadatas=[dat["metadata"] for dat in data],
             embeddings=embeddings,
         )
-        self.index_public.add(
-            contents=contents_public,
-            ids=[dat["id"] for dat in data_public],
-            metadatas=[dat["metadata"] for dat in data_public],
-            embeddings=embeddings_public,
-        )
+        if data_public:
+            self.index_public.add(
+                contents=contents_public,
+                ids=[dat["id"] for dat in data_public],
+                metadatas=[dat["metadata"] for dat in data_public],
+                embeddings=embeddings_public,
+            )
+        if ids_private:
+            # remove objects that have been made private since the last update
+            self.index_public.delete(ids_private)
 
     def reindex_full(
         self, db_handle: DbReadBase, progress_cb: ProgressCallback | None = None
