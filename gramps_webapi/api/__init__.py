@@ -30,7 +30,11 @@ from .auth import jwt_required
 from .blueprint import api_blueprint
 from .cache import thumbnail_cache_decorator, tile_cache_decorator
 from .media import get_media_handler
-from .resources.access_tokens import UserAccessTokenResource
+from .resources.access_tokens import (
+    UserAccessTokenItemResource,
+    UserAccessTokenListResource,
+    UserAccessTokenResource,
+)
 from .resources.anniversaries import AnniversariesIcsResource
 from .resources.base import Resource, object_request_body
 from .resources.bookmarks import (
@@ -818,6 +822,18 @@ register_endpt(
     UserAccessTokenResource,
     "/users/-/access-tokens/<string:scope>/",
     "user_access_token",
+    tags=["Users"],
+)
+register_endpt(
+    UserAccessTokenListResource,
+    "/users/-/access-tokens/<string:scope>/tokens/",
+    "user_access_token_list",
+    tags=["Users"],
+)
+register_endpt(
+    UserAccessTokenItemResource,
+    "/users/-/access-tokens/<string:scope>/tokens/<int:token_id>/",
+    "user_access_token_item",
     tags=["Users"],
 )
 register_endpt(

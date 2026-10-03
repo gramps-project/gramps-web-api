@@ -21,6 +21,7 @@ from gramps_webapi.auth import (
     add_user,
     get_permissions,
     get_user_details,
+    create_user_access_token,
     modify_user,
     rotate_user_access_token,
 )
@@ -40,7 +41,7 @@ from . import BASE_URL, TEST_USERS, get_test_client
 from .util import fetch_header
 
 SYNC_URL = BASE_URL + "/token/sync/"
-TOKEN_URL = BASE_URL + "/users/-/access-tokens/sync/"
+TOKENS_URL = BASE_URL + f"/users/-/access-tokens/{ACCESS_TOKEN_SCOPE_SYNC}/tokens/"
 MEDIA_HANDLE = "b39fe1cfc1305ac4a21"
 SYNC_PERMISSIONS = ACCESS_TOKEN_SCOPE_PERMISSIONS[ACCESS_TOKEN_SCOPE_SYNC]
 
@@ -54,11 +55,13 @@ class TestTokenSync(unittest.TestCase):
         cls.client = get_test_client()
 
     def _create_token(self, role=ROLE_OWNER):
-        """Create or rotate a sync token for role and return (header, token)."""
+        """Create a sync token for role and return (header, token, token ID)."""
         header = fetch_header(self.client, role=role)
-        rv = self.client.post(TOKEN_URL, headers=header)
-        self.assertEqual(rv.status_code, 200)
-        return header, rv.json["token"]
+        rv = self.client.post(
+            TOKENS_URL, headers=header, json={"label": f"device-{uuid4().hex[:8]}"}
+        )
+        self.assertEqual(rv.status_code, 201)
+        return header, rv.json["token"], rv.json["id"]
 
     def _add_user(self, role):
         """Add a user in the owner's tree and return its name."""
@@ -74,7 +77,7 @@ class TestTokenSync(unittest.TestCase):
 
     def _sync_header(self, role=ROLE_OWNER):
         """Return (access token, header) for a JWT exchanged from a sync token."""
-        _, token = self._create_token(role=role)
+        _, token, _ = self._create_token(role=role)
         rv = self.client.post(SYNC_URL, json={"token": token})
         self.assertEqual(rv.status_code, 200)
         access = rv.json["access_token"]
@@ -91,7 +94,7 @@ class TestTokenSync(unittest.TestCase):
 
     def test_exchange_returns_non_fresh_access_token_only(self):
         """The exchange returns a usable access token and no refresh token."""
-        _, token = self._create_token(role=ROLE_OWNER)
+        _, token, _ = self._create_token(role=ROLE_OWNER)
         rv = self.client.post(SYNC_URL, json={"token": token})
         self.assertEqual(rv.status_code, 200)
         self.assertEqual(set(rv.json), {"access_token"})
@@ -113,19 +116,42 @@ class TestTokenSync(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 200)
 
-    def test_revoked_and_rotated_tokens_are_rejected(self):
-        """Revoking or rotating the sync token invalidates the old value."""
-        header, token_1 = self._create_token(role=ROLE_GUEST)
-        rv = self.client.post(TOKEN_URL, headers=header)
-        token_2 = rv.json["token"]
+    def test_devices_have_independent_tokens(self):
+        """Each device's token works, and revoking one leaves the others."""
+        header, token_1, id_1 = self._create_token(role=ROLE_GUEST)
+        _, token_2, _ = self._create_token(role=ROLE_GUEST)
+        rv = self.client.post(SYNC_URL, json={"token": token_1})
+        self.assertEqual(rv.status_code, 200)
+        rv = self.client.post(SYNC_URL, json={"token": token_2})
+        self.assertEqual(rv.status_code, 200)
+        rv = self.client.delete(f"{TOKENS_URL}{id_1}/", headers=header)
+        self.assertEqual(rv.status_code, 204)
         rv = self.client.post(SYNC_URL, json={"token": token_1})
         self.assertEqual(rv.status_code, 401)
         rv = self.client.post(SYNC_URL, json={"token": token_2})
         self.assertEqual(rv.status_code, 200)
-        rv = self.client.delete(TOKEN_URL, headers=header)
+
+    def test_exchange_records_last_use(self):
+        """Only a successful exchange sets last_used_at, and only for its token."""
+        header, token, token_id = self._create_token(role=ROLE_OWNER)
+        _, _, other_id = self._create_token(role=ROLE_OWNER)
+
+        def last_used():
+            rv = self.client.get(TOKENS_URL, headers=header)
+            return {item["id"]: item["last_used_at"] for item in rv.json}
+
+        self.assertIsNone(last_used()[token_id])
+        with patch(
+            "gramps_webapi.api.resources.token.is_tree_disabled",
+            return_value=True,
+        ):
+            rv = self.client.post(SYNC_URL, json={"token": token})
+        self.assertEqual(rv.status_code, 503)
+        self.assertIsNone(last_used()[token_id])
+        rv = self.client.post(SYNC_URL, json={"token": token})
         self.assertEqual(rv.status_code, 200)
-        rv = self.client.post(SYNC_URL, json={"token": token_2})
-        self.assertEqual(rv.status_code, 401)
+        self.assertIsNotNone(last_used()[token_id])
+        self.assertIsNone(last_used()[other_id])
 
     def test_other_scope_cannot_be_exchanged(self):
         """A token of another scope does not work as a sync token."""
@@ -141,13 +167,15 @@ class TestTokenSync(unittest.TestCase):
         """Disabled users cannot exchange their sync token."""
         username = self._add_user(ROLE_DISABLED)
         with self.client.application.app_context():
-            token = rotate_user_access_token(username, ACCESS_TOKEN_SCOPE_SYNC)
+            _, token = create_user_access_token(
+                username, ACCESS_TOKEN_SCOPE_SYNC, "device"
+            )
         rv = self.client.post(SYNC_URL, json={"token": token})
         self.assertEqual(rv.status_code, 403)
 
     def test_disabled_tree(self):
         """If the tree is disabled, the exchange returns 503."""
-        _, token = self._create_token(role=ROLE_OWNER)
+        _, token, _ = self._create_token(role=ROLE_OWNER)
         with patch(
             "gramps_webapi.api.resources.token.is_tree_disabled",
             return_value=True,
@@ -159,7 +187,9 @@ class TestTokenSync(unittest.TestCase):
         """A role change takes effect at the next exchange."""
         username = self._add_user(ROLE_EDITOR)
         with self.client.application.app_context():
-            token = rotate_user_access_token(username, ACCESS_TOKEN_SCOPE_SYNC)
+            _, token = create_user_access_token(
+                username, ACCESS_TOKEN_SCOPE_SYNC, "device"
+            )
         rv = self.client.post(SYNC_URL, json={"token": token})
         self.assertEqual(rv.status_code, 200)
         self.assertIn(
@@ -179,7 +209,7 @@ class TestTokenSync(unittest.TestCase):
 
     def test_works_when_local_auth_is_disabled(self):
         """Password login is refused, but the sync token still works."""
-        _, token = self._create_token(role=ROLE_OWNER)
+        _, token, _ = self._create_token(role=ROLE_OWNER)
         config = self.client.application.config
         with (
             patch(
@@ -212,11 +242,18 @@ class TestTokenSync(unittest.TestCase):
     def test_sync_jwt_cannot_manage_access_tokens(self):
         """A sync-issued JWT can't read, create or revoke persistent tokens."""
         _, header = self._sync_header(role=ROLE_OWNER)
-        for scope in (ACCESS_TOKEN_SCOPE_SYNC, ACCESS_TOKEN_SCOPE_ANNIVERSARIES_ICS):
-            url = BASE_URL + f"/users/-/access-tokens/{scope}/"
-            self.assertEqual(self.client.get(url, headers=header).status_code, 403)
-            self.assertEqual(self.client.post(url, headers=header).status_code, 403)
-            self.assertEqual(self.client.delete(url, headers=header).status_code, 403)
+        _, _, token_id = self._create_token(role=ROLE_OWNER)
+        url = (
+            BASE_URL + f"/users/-/access-tokens/{ACCESS_TOKEN_SCOPE_ANNIVERSARIES_ICS}/"
+        )
+        self.assertEqual(self.client.get(url, headers=header).status_code, 403)
+        self.assertEqual(self.client.post(url, headers=header).status_code, 403)
+        self.assertEqual(self.client.delete(url, headers=header).status_code, 403)
+        self.assertEqual(self.client.get(TOKENS_URL, headers=header).status_code, 403)
+        rv = self.client.post(TOKENS_URL, headers=header, json={"label": "x"})
+        self.assertEqual(rv.status_code, 403)
+        rv = self.client.delete(f"{TOKENS_URL}{token_id}/", headers=header)
+        self.assertEqual(rv.status_code, 403)
 
     def test_sync_jwt_reads_and_writes_tree_data(self):
         """A sync-issued JWT can read, add, delete, and fetch media via ?jwt=."""

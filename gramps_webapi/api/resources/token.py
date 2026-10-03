@@ -40,6 +40,7 @@ from ...auth import (
     get_name,
     get_permissions,
     is_tree_disabled,
+    mark_access_token_used,
 )
 from ...auth.oidc_helpers import is_oidc_enabled
 from ...auth.const import (
@@ -250,7 +251,9 @@ class TokenSyncResource(Resource):
         authenticated user can create a sync token.
         """
         user = get_active_user_from_access_token(args["token"], ACCESS_TOKEN_SCOPE_SYNC)
-        return issue_access_token(str(user.id), scope=ACCESS_TOKEN_SCOPE_SYNC)
+        tokens = issue_access_token(str(user.id), scope=ACCESS_TOKEN_SCOPE_SYNC)
+        mark_access_token_used(args["token"], ACCESS_TOKEN_SCOPE_SYNC)
+        return tokens
 
 
 class TokenCreateOwnerPostSchema(Schema):
