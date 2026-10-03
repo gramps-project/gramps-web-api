@@ -27,8 +27,9 @@ import mimetypes
 import os
 import uuid
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 
+import gramps_gedcom7
 from celery import Task
 from flask import abort, current_app
 from gramps.gen import filters
@@ -56,6 +57,16 @@ LIVING_FILTERS = {
     "LastNameOnly": LivingProxyDb.MODE_INCLUDE_LAST_NAME_ONLY,
     "ReplaceCompleteName": LivingProxyDb.MODE_REPLACE_COMPLETE_NAME,
     "ExcludeAll": LivingProxyDb.MODE_EXCLUDE_ALL,
+}
+
+# GEDCOM 7 is exported by the gramps-gedcom7 library rather than a plugin. Its
+# files end in .ged like GEDCOM 5.5.1, so it needs its own key in the API.
+GEDCOM7_EXTENSION = "ged7"
+GEDCOM7_EXPORTER = {
+    "name": "GEDCOM 7",
+    "description": "GEDCOM 7 is used to transfer data between genealogy programs.",
+    "extension": GEDCOM7_EXTENSION,
+    "module": "gramps_gedcom7",
 }
 
 # mimetypes.init()
@@ -206,6 +217,8 @@ def get_exporters(extension: str | None = None):
             "module": plugin.get_module_name(),
         }
         exporters.append(exporter)
+    if extension is None or extension == GEDCOM7_EXTENSION:
+        exporters.append(GEDCOM7_EXPORTER)
     return exporters
 
 
@@ -272,6 +285,8 @@ def run_export(
     if not export_path:
         raise abort_with_message(500, "EXPORT_DIR not set in configuration")
     os.makedirs(export_path, exist_ok=True)
+    if extension == GEDCOM7_EXTENSION:
+        return run_gedcom7_export(db_handle, export_path, options, task=task)
     file_name = f"{uuid.uuid4()}.{extension}"
     file_path = os.path.join(export_path, file_name)
     _resources = ResourcePath()
@@ -299,3 +314,43 @@ def run_export(
                 abort_with_message(500, "Export function failed")
             return file_name, "." + extension
     abort_with_message(404, "Exporter not found")  # exporter not found
+
+
+def run_gedcom7_export(
+    db_handle: DbReadBase, export_path: str, options, task: Optional[Task] = None
+):
+    """Export the database as a GEDCOM 7 file."""
+    file_name = f"{uuid.uuid4()}.ged"
+    file_path = os.path.join(export_path, file_name)
+    filters.reload_custom_filters()
+    progress: Callable[[int, int], None] | None = None
+    if task:
+        user = UserTaskProgress(task=task)
+
+        # called once per record, so only report whole percentage steps
+        def report_progress(done: int, total: int) -> None:
+            if done == 1:
+                user.begin_progress(_("Export"), "", 100)
+            while user.current_step < 100 * done // total:
+                user.step_progress()
+
+        progress = report_progress
+    try:
+        gramps_gedcom7.export_gedcom(
+            options.get_filtered_database(db_handle), file_path, progress=progress
+        )
+    except gramps_gedcom7.MissingObjectsError as e:
+        abort_with_message(
+            422,
+            f"The family tree cannot be exported: {e}. Running the check & "
+            "repair tool on the tree should fix this.",
+        )
+    except gramps_gedcom7.ExportValidationError as e:
+        if e.from_data:
+            abort_with_message(422, f"The family tree cannot be exported: {e}")
+        current_app.logger.exception("GEDCOM 7 export produced an invalid file")
+        abort_with_message(500, f"Export failed: {e}")
+    except Exception as e:
+        current_app.logger.exception("GEDCOM 7 export failed")
+        abort_with_message(500, f"Export failed: {e}")
+    return file_name, ".ged"
