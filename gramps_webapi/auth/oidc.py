@@ -150,6 +150,7 @@ def get_provider_config(provider_id: str, app=None) -> dict | None:
                 "OIDC_USERNAME_CLAIM", "preferred_username"
             ),
             "openid_config_url": app.config.get("OIDC_OPENID_CONFIG_URL"),
+            "pkce": app.config.get("OIDC_PKCE"),
         }
 
     if provider_id not in BUILTIN_PROVIDERS:
@@ -168,10 +169,49 @@ def get_provider_config(provider_id: str, app=None) -> dict | None:
         {
             "client_id": client_id,
             "client_secret": client_secret,
+            "pkce": app.config.get(f"OIDC_{provider_upper}_PKCE"),
         }
     )
 
     return config
+
+
+def configure_pkce(client, provider_config: dict) -> bool:
+    """Enable PKCE (S256) on an authlib client if appropriate.
+
+    PKCE is used if the provider is explicitly opted in (`OIDC_PKCE` /
+    `OIDC_<PROVIDER>_PKCE` true), or if its discovery document advertises S256
+    in `code_challenge_methods_supported` and PKCE is not explicitly opted out
+    (setting false). Otherwise it stays disabled.
+
+    Discovery is consulted here rather than at registration because the
+    provider may be unreachable at startup. Authlib stores the code verifier
+    in the session at login and sends it on the token exchange by itself, so
+    only the login step needs this.
+
+    Returns True if PKCE is enabled for the client.
+    """
+    # An option that is not configured is absent (None) or, like other optional
+    # settings here, empty, e.g. a blank environment variable, which Flask's
+    # from_prefixed_env leaves as "". Either way discovery decides. Otherwise
+    # from_prefixed_env has turned "true"/"false" into a bool.
+    preference = provider_config.get("pkce")
+    if preference is not None and preference != "":
+        enabled = bool(preference)
+    else:
+        enabled = False
+        try:
+            metadata = client.load_server_metadata()
+            methods = metadata.get("code_challenge_methods_supported") or []
+            enabled = "S256" in methods
+        except Exception as e:  # pylint: disable=broad-except
+            logger.warning("Could not check the provider for PKCE support: %s", e)
+
+    if enabled:
+        client.client_kwargs["code_challenge_method"] = "S256"
+    else:
+        client.client_kwargs.pop("code_challenge_method", None)
+    return enabled
 
 
 def get_role_from_claims(user_claims: dict, role_claim: str = "groups") -> int | None:
