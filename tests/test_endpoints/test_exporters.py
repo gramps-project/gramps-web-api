@@ -24,7 +24,7 @@ from mimetypes import types_map
 from unittest.mock import patch
 
 from gedcom7.validator import Error
-from gramps_gedcom7 import ExportValidationError, MissingObjectsError
+from gramps_gedcom7 import ExportValidationError, MissingObjectsError, Report
 from gramps_gedcom7.export.errors import MissingReference, ValidationProblem
 from gramps_gedcom7.report import GrampsObject
 
@@ -568,3 +568,13 @@ class TestExportersExtensionFilePost(unittest.TestCase):
         res = self.client.get(res.json["url"], headers=header)
         assert res.status_code == 200
         assert b"2 VERS 7.0" in res.data
+
+    def test_export_gedcom7_messages(self):
+        """Test the GEDCOM 7 export passes on what it left out."""
+        header = fetch_header(self.client)
+        report = Report()
+        report.add("Person I0042", "attribute Caste not written")
+        with patch("gramps_gedcom7.export_gedcom", return_value=report):
+            res = self.client.post(f"{TEST_URL}ged7/file", headers=header)
+        assert res.status_code == 201
+        assert res.json["messages"] == ["Person I0042: attribute Caste not written"]

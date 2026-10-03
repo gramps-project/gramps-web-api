@@ -47,6 +47,7 @@ from gramps.gen.user import User
 from gramps.gen.utils.resourcepath import ResourcePath
 
 from ..const import DISABLED_EXPORTERS
+from .resources.util import truncate_import_report
 from .util import UserTaskProgress, abort_with_message, get_locale_for_language
 
 _ = glocale.translation.gettext
@@ -278,15 +279,26 @@ def prepare_options(db_handle: DbReadBase, args: Dict):
 
 
 def run_export(
-    db_handle: DbReadBase, extension: str, options, task: Optional[Task] = None
-):
-    """Generate the export."""
+    db_handle: DbReadBase,
+    extension: str,
+    options,
+    task: Optional[Task] = None,
+    progress: Callable[[int, int], None] | None = None,
+) -> tuple[str, str, list[str]]:
+    """Generate the export.
+
+    Plugin exporters report progress through `task`, the GEDCOM 7 exporter
+    through `progress`, called with the records done and the total.
+
+    Returns the file name, its extension, and the exporter's messages about
+    what it left out, if it reports any. Only the GEDCOM 7 exporter does.
+    """
     export_path = current_app.config.get("EXPORT_DIR")
     if not export_path:
         raise abort_with_message(500, "EXPORT_DIR not set in configuration")
     os.makedirs(export_path, exist_ok=True)
     if extension == GEDCOM7_EXTENSION:
-        return run_gedcom7_export(db_handle, export_path, options, task=task)
+        return run_gedcom7_export(db_handle, export_path, options, progress=progress)
     file_name = f"{uuid.uuid4()}.{extension}"
     file_path = os.path.join(export_path, file_name)
     _resources = ResourcePath()
@@ -312,31 +324,22 @@ def run_export(
                 )
             if not result:
                 abort_with_message(500, "Export function failed")
-            return file_name, "." + extension
+            return file_name, "." + extension, []
     abort_with_message(404, "Exporter not found")  # exporter not found
 
 
 def run_gedcom7_export(
-    db_handle: DbReadBase, export_path: str, options, task: Optional[Task] = None
-):
+    db_handle: DbReadBase,
+    export_path: str,
+    options,
+    progress: Callable[[int, int], None] | None = None,
+) -> tuple[str, str, list[str]]:
     """Export the database as a GEDCOM 7 file."""
     file_name = f"{uuid.uuid4()}.ged"
     file_path = os.path.join(export_path, file_name)
     filters.reload_custom_filters()
-    progress: Callable[[int, int], None] | None = None
-    if task:
-        user = UserTaskProgress(task=task)
-
-        # called once per record, so only report whole percentage steps
-        def report_progress(done: int, total: int) -> None:
-            if done == 1:
-                user.begin_progress(_("Export"), "", 100)
-            while user.current_step < 100 * done // total:
-                user.step_progress()
-
-        progress = report_progress
     try:
-        gramps_gedcom7.export_gedcom(
+        report = gramps_gedcom7.export_gedcom(
             options.get_filtered_database(db_handle), file_path, progress=progress
         )
     except gramps_gedcom7.MissingObjectsError as e:
@@ -353,4 +356,4 @@ def run_gedcom7_export(
     except Exception as e:
         current_app.logger.exception("GEDCOM 7 export failed")
         abort_with_message(500, f"Export failed: {e}")
-    return file_name, ".ged"
+    return file_name, ".ged", truncate_import_report(report.messages())

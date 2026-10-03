@@ -240,7 +240,8 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
         if not exporters:
             abort(404)
         options = prepare_options(db_handle, args)
-        file_name, file_type = run_export(db_handle, extension, options)
+        # a file response has no room for the exporter's messages
+        file_name, file_type, _ = run_export(db_handle, extension, options)
         export_path = current_app.config.get("EXPORT_DIR")
         assert export_path is not None, "EXPORT_DIR not set"  # mypy
         os.makedirs(export_path, exist_ok=True)
