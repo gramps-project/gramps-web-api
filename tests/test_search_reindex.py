@@ -64,7 +64,7 @@ def test_reindex_incremental_is_chunked(db_url):
 
     new = {"Person": {f"p{i}" for i in range(150)}}
     updated = {"Note": {"existing"} | {f"n{i}" for i in range(100)}}
-    update_info = {"deleted": {}, "new": new, "updated": updated}
+    update_info = {"deleted": {}, "new": new, "updated": updated, "private": {}}
     total = 251
     chunk_size = indexer._chunk_size(total)
 

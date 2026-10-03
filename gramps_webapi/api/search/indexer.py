@@ -217,7 +217,7 @@ class SearchIndexerBase:
 
     def _get_update_info(self, db_handle: DbReadBase) -> Dict[str, Dict[str, Set[str]]]:
         """Get a dictionary with info about changed objects in the db."""
-        db_timestamps = get_object_timestamps(db_handle)
+        db_timestamps, db_private = get_object_timestamps(db_handle)
         ix_timestamps = self._get_object_timestamps()
         deleted = {}
         updated = {}
@@ -238,7 +238,12 @@ class SearchIndexerBase:
             changed_handles = set(handle for handle, _ in changed_timestamps)
             # updated: changed and present in the index
             updated[class_name] = changed_handles & ix_handles
-        return {"deleted": deleted, "updated": updated, "new": new}
+        return {
+            "deleted": deleted,
+            "updated": updated,
+            "new": new,
+            "private": db_private,
+        }
 
     def delete_object(self, handle: str, class_name: str) -> None:
         """Delete an object from the index."""
@@ -281,8 +286,8 @@ class SearchIndexerBase:
         update_info = self._get_update_info(db_handle)
         total = sum(
             len(handles)
-            for class_dict in update_info.values()
-            for handles in class_dict.values()
+            for key in ["deleted", "updated", "new"]
+            for handles in update_info[key].values()
         )
         i = 0
 
@@ -306,6 +311,17 @@ class SearchIndexerBase:
             self.index_public.delete(obj_ids)
             for _ in handles:
                 i = progress(i)
+
+        # remove private objects from the public index; needed for indexes
+        # built before private objects were excluded from it
+        for class_name, handles in update_info["private"].items():
+            if handles:
+                self.index_public.delete(
+                    [
+                        self._object_id_public(handle=handle, class_name=class_name)
+                        for handle in handles
+                    ]
+                )
 
         # add new and update changed objects
         def changed_objects():

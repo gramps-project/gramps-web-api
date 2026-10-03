@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from unittest.mock import patch
 
 import pytest
 
@@ -67,6 +68,27 @@ def test_object_made_private_is_removed_from_public_index(db_url):
     assert indexer.count(include_private=False) == 0
     total, _ = indexer.search("some", page=1, pagesize=10, include_private=False)
     assert total == 0
+
+
+def test_reindex_incremental_removes_stale_private_object(db_url):
+    indexer = SearchIndexer(tree="mytree", db_url=db_url)
+    indexer._add_objects([obj_dict("h1", "some text", "some text")])
+    # simulate an index built before private objects were excluded
+    # from the public index: object is private, but unchanged since
+    db_info = ({"Note": {("h1", 0)}}, {"Note": {"h1"}})
+    with (
+        patch(
+            "gramps_webapi.api.search.indexer.get_object_timestamps",
+            return_value=db_info,
+        ),
+        patch(
+            "gramps_webapi.api.search.indexer.obj_strings_from_handle"
+        ) as obj_strings,
+    ):
+        indexer.reindex_incremental(db_handle=None)
+    obj_strings.assert_not_called()
+    assert indexer.count(include_private=True) == 1
+    assert indexer.count(include_private=False) == 0
 
 
 def test_identical_public_text_is_embedded_once(db_url):
