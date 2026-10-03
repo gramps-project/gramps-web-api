@@ -415,6 +415,8 @@ def create_user_access_token(
     existing = list_user_access_tokens(username, scope)
     if any(other.label == label for other in existing):
         raise AccessTokenConflictError("An access token with this label exists")
+    # Best effort: concurrent requests can exceed the limit slightly. It only
+    # keeps the table from growing without bound, so this isn't worth a lock.
     if len(existing) >= ACCESS_TOKEN_MAX_PER_SCOPE:
         raise AccessTokenConflictError("Maximum number of access tokens reached")
     user_id = get_guid(username)
@@ -868,6 +870,9 @@ class AccessToken(user_db.Model):  # type: ignore
             "user_id", "scope", "label", name="uq_access_tokens_user_scope_label"
         ),
         sa.Index("ix_access_tokens_token_hash", "token_hash", unique=True),
+        # Token IDs are used to revoke tokens, so they must never be reused,
+        # which SQLite does for the highest ID without AUTOINCREMENT.
+        {"sqlite_autoincrement": True},
     )
 
     def __repr__(self):

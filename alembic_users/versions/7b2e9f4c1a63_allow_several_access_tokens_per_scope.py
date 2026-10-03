@@ -46,7 +46,12 @@ def upgrade():
     columns = {column["name"] for column in inspector.get_columns(TABLE)}
     old_name = _unique_constraint_name(inspector, OLD_COLUMNS, OLD_CONSTRAINT)
     has_new = _unique_constraint_name(inspector, NEW_COLUMNS, NEW_CONSTRAINT)
-    with op.batch_alter_table(TABLE, naming_convention=NAMING_CONVENTION) as batch_op:
+    # on SQLite, batch mode recreates the table, now with AUTOINCREMENT
+    with op.batch_alter_table(
+        TABLE,
+        naming_convention=NAMING_CONVENTION,
+        table_kwargs={"sqlite_autoincrement": True},
+    ) as batch_op:
         if "label" not in columns:
             batch_op.add_column(
                 sa.Column(

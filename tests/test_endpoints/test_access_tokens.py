@@ -208,6 +208,19 @@ class TestMultipleAccessTokens(unittest.TestCase):
         # the label is free again
         self.assertEqual(self._create(header, "Laptop").status_code, 201)
 
+    def test_stale_delete_does_not_revoke_replacement(self):
+        """Token IDs aren't reused, so repeating a DELETE can't hit a new token."""
+        header = self._new_user_header()
+        old_id = self._create(header, "Laptop").json["id"]
+        rv = self.client.delete(f"{TOKENS_URL}{old_id}/", headers=header)
+        self.assertEqual(rv.status_code, 204)
+        new_id = self._create(header, "Laptop").json["id"]
+        self.assertNotEqual(new_id, old_id)
+        rv = self.client.delete(f"{TOKENS_URL}{old_id}/", headers=header)
+        self.assertEqual(rv.status_code, 404)
+        rv = self.client.get(TOKENS_URL, headers=header)
+        self.assertEqual([item["id"] for item in rv.json], [new_id])
+
     def test_label_validation(self):
         """The label is required, non-blank, bounded, and unique per user."""
         header = self._new_user_header()
