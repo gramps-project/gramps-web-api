@@ -36,7 +36,10 @@ from sqlalchemy.sql.functions import coalesce
 
 from ..const import DB_CONFIG_ALLOWED_KEYS
 from .const import (
+    ACCESS_TOKEN_LABEL_MAX_LENGTH,
+    ACCESS_TOKEN_MAX_PER_SCOPE,
     ACCESS_TOKEN_SCOPES,
+    ACCESS_TOKEN_SCOPES_MULTIPLE,
     PERMISSIONS,
     PERM_USE_CHAT,
     ROLE_ADMIN,
@@ -291,6 +294,22 @@ def normalize_access_token_scope(scope: str) -> str:
     return normalized_scope
 
 
+def _normalize_single_token_scope(scope: str) -> str:
+    """Normalize a scope that has a single token per user, or raise."""
+    scope = normalize_access_token_scope(scope)
+    if scope in ACCESS_TOKEN_SCOPES_MULTIPLE:
+        raise ValueError("Access token scope allows several tokens per user")
+    return scope
+
+
+def _normalize_multiple_token_scope(scope: str) -> str:
+    """Normalize a scope that allows several tokens per user, or raise."""
+    scope = normalize_access_token_scope(scope)
+    if scope not in ACCESS_TOKEN_SCOPES_MULTIPLE:
+        raise ValueError("Access token scope allows a single token per user")
+    return scope
+
+
 def _hash_access_token(token: str) -> str:
     """Return deterministic SHA-256 hash for a persistent access token."""
     return sha256(token.encode("utf-8")).hexdigest()
@@ -298,7 +317,7 @@ def _hash_access_token(token: str) -> str:
 
 def has_user_access_token(username: str, scope: str) -> bool:
     """Return whether an active persistent access token exists for user+scope."""
-    scope = normalize_access_token_scope(scope)
+    scope = _normalize_single_token_scope(scope)
     query = user_db.session.query(User)  # pylint: disable=no-member
     user = query.filter_by(name=username).scalar()
     if user is None:
@@ -315,7 +334,7 @@ def has_user_access_token(username: str, scope: str) -> bool:
 
 def rotate_user_access_token(username: str, scope: str) -> str:
     """Generate and persist a new token value for user+scope."""
-    scope = normalize_access_token_scope(scope)
+    scope = _normalize_single_token_scope(scope)
     query = user_db.session.query(User)  # pylint: disable=no-member
     user = query.filter_by(name=username).scalar()
     if user is None:
@@ -343,7 +362,7 @@ def rotate_user_access_token(username: str, scope: str) -> str:
 
 def revoke_user_access_token(username: str, scope: str) -> None:
     """Revoke token value for user+scope."""
-    scope = normalize_access_token_scope(scope)
+    scope = _normalize_single_token_scope(scope)
     query = user_db.session.query(User)  # pylint: disable=no-member
     user = query.filter_by(name=username).scalar()
     if user is None:
@@ -355,6 +374,98 @@ def revoke_user_access_token(username: str, scope: str) -> None:
     access_token.token_hash = None
     access_token.revoked_at = datetime.utcnow()
     access_token.updated_at = datetime.utcnow()
+    user_db.session.commit()  # pylint: disable=no-member
+
+
+class AccessTokenConflictError(ValueError):
+    """Raised when a token can't be created due to the user's existing tokens."""
+
+
+def list_user_access_tokens(username: str, scope: str) -> list["AccessToken"]:
+    """Return a user's tokens for a scope with several tokens, oldest first."""
+    scope = _normalize_multiple_token_scope(scope)
+    query = user_db.session.query(User)  # pylint: disable=no-member
+    user = query.filter_by(name=username).scalar()
+    if user is None:
+        raise ValueError("User does not exist")
+    query = user_db.session.query(AccessToken)  # pylint: disable=no-member
+    return (
+        query.filter(
+            AccessToken.user_id == user.id,
+            AccessToken.scope == scope,
+            AccessToken.token_hash.isnot(None),
+        )
+        .order_by(AccessToken.id)
+        .all()
+    )
+
+
+def create_user_access_token(
+    username: str, scope: str, label: str
+) -> tuple["AccessToken", str]:
+    """Create a labelled token for a scope with several tokens per user.
+
+    Return the new row and the token value, which is not stored and can't be
+    retrieved later. Raise ``AccessTokenConflictError`` if the user already
+    has a token with that label, or the maximum number of tokens.
+    """
+    scope = _normalize_multiple_token_scope(scope)
+    if not label:
+        raise ValueError("Access token label must not be empty")
+    existing = list_user_access_tokens(username, scope)
+    if any(other.label == label for other in existing):
+        raise AccessTokenConflictError("An access token with this label exists")
+    # Best effort: concurrent requests can exceed the limit slightly. It only
+    # keeps the table from growing without bound, so this isn't worth a lock.
+    if len(existing) >= ACCESS_TOKEN_MAX_PER_SCOPE:
+        raise AccessTokenConflictError("Maximum number of access tokens reached")
+    user_id = get_guid(username)
+    for _ in range(5):
+        token = secrets.token_urlsafe(32)
+        access_token = AccessToken(
+            user_id=user_id,
+            scope=scope,
+            label=label,
+            token_hash=_hash_access_token(token),
+        )
+        user_db.session.add(access_token)  # pylint: disable=no-member
+        try:
+            user_db.session.commit()  # pylint: disable=no-member
+            return access_token, token
+        except IntegrityError:
+            user_db.session.rollback()  # pylint: disable=no-member
+            # Retry if the token collided, but not if a concurrent request
+            # created a token with the same label.
+            if any(
+                other.label == label
+                for other in list_user_access_tokens(username, scope)
+            ):
+                raise AccessTokenConflictError(
+                    "An access token with this label exists"
+                ) from None
+    raise ValueError("Could not generate a unique access token")
+
+
+def delete_user_access_token(username: str, scope: str, token_id: int) -> bool:
+    """Delete a token of a scope with several tokens per user.
+
+    Return whether the user had a token with that ID in that scope.
+    """
+    scope = _normalize_multiple_token_scope(scope)
+    user_id = get_guid(username)
+    query = user_db.session.query(AccessToken)  # pylint: disable=no-member
+    deleted = query.filter_by(id=token_id, user_id=user_id, scope=scope).delete()
+    user_db.session.commit()  # pylint: disable=no-member
+    return deleted > 0
+
+
+def mark_access_token_used(token: str, scope: str) -> None:
+    """Record that a persistent access token was just used."""
+    scope = normalize_access_token_scope(scope)
+    query = user_db.session.query(AccessToken)  # pylint: disable=no-member
+    query.filter_by(token_hash=_hash_access_token(token), scope=scope).update(
+        {AccessToken.last_used_at: datetime.utcnow()}
+    )
     user_db.session.commit()  # pylint: disable=no-member
 
 
@@ -745,10 +856,23 @@ class AccessToken(user_db.Model):  # type: ignore
         sa.DateTime, nullable=False, server_default=sa.func.now()
     )
     revoked_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    # empty for scopes with a single token per user
+    label: Mapped[str] = mapped_column(
+        sa.String(ACCESS_TOKEN_LABEL_MAX_LENGTH),
+        nullable=False,
+        default="",
+        server_default="",
+    )
+    last_used_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
 
     __table_args__ = (
-        sa.UniqueConstraint("user_id", "scope", name="uq_access_tokens_user_scope"),
+        sa.UniqueConstraint(
+            "user_id", "scope", "label", name="uq_access_tokens_user_scope_label"
+        ),
         sa.Index("ix_access_tokens_token_hash", "token_hash", unique=True),
+        # Token IDs are used to revoke tokens, so they must never be reused,
+        # which SQLite does for the highest ID without AUTOINCREMENT.
+        {"sqlite_autoincrement": True},
     )
 
     def __repr__(self):
