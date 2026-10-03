@@ -191,10 +191,12 @@ def configure_pkce(client, provider_config: dict) -> bool:
 
     Returns True if PKCE is enabled for the client.
     """
-    # An option that is not configured is absent (None). From the environment,
-    # Flask's from_prefixed_env turns "true"/"false" into a bool.
+    # An option that is not configured is absent (None) or, like other optional
+    # settings here, empty, e.g. a blank environment variable, which Flask's
+    # from_prefixed_env leaves as "". Either way discovery decides. Otherwise
+    # from_prefixed_env has turned "true"/"false" into a bool.
     preference = provider_config.get("pkce")
-    if preference is not None:
+    if preference is not None and preference != "":
         enabled = bool(preference)
     else:
         enabled = False

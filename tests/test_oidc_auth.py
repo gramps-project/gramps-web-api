@@ -889,6 +889,9 @@ def _pkce_client(discovery=None, error=None):
         (None, {"code_challenge_methods_supported": ["plain"]}, None, False),
         (None, {}, None, False),
         (None, None, RuntimeError("down"), False),
+        # set but empty, e.g. a blank environment variable: same as unset
+        ("", {"code_challenge_methods_supported": ["S256"]}, None, True),
+        ("", {}, None, False),
         # explicitly opted out: discovery is ignored
         (False, {"code_challenge_methods_supported": ["S256"]}, None, False),
     ],
