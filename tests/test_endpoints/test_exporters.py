@@ -24,6 +24,7 @@ from mimetypes import types_map
 from unittest.mock import patch
 
 from gedcom7.validator import Error
+from jsonschema import validate
 from gramps_gedcom7 import ExportValidationError, MissingObjectsError, Report
 from gramps_gedcom7.export.errors import MissingReference, ValidationProblem
 from gramps_gedcom7.report import GrampsObject
@@ -35,6 +36,7 @@ from .checks import (
     check_requires_token,
     check_resource_missing,
     check_success,
+    get_openapi_schema_validator,
 )
 from .util import fetch_header
 
@@ -578,3 +580,5 @@ class TestExportersExtensionFilePost(unittest.TestCase):
             res = self.client.post(f"{TEST_URL}ged7/file", headers=header)
         assert res.status_code == 201
         assert res.json["messages"] == ["Person I0042: attribute Caste not written"]
+        schema, resolver = get_openapi_schema_validator(self.client, "ExportResult")
+        validate(instance=res.json, schema=schema, resolver=resolver)

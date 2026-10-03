@@ -2218,6 +2218,31 @@ class ImportResultSchema(ObjectCountsSchema):
     )
 
 
+class ExportResultSchema(_Base):
+    """Result of a file export: where to fetch the file, plus exporter diagnostics."""
+
+    file_name = fields.Str(
+        metadata={"description": "Name of the exported file on the server."},
+    )
+    file_type = fields.Str(
+        metadata={"description": "Extension of the exported file, e.g. `.ged`."},
+    )
+    url = fields.Str(
+        metadata={"description": "URL to download the exported file from."},
+    )
+    messages = fields.List(
+        fields.Str(),
+        metadata={
+            "description": (
+                "What the exporter left out, one line each, e.g. attributes the "
+                "GEDCOM 7 export has no place for. Empty for exporters that "
+                "report nothing, which is all but GEDCOM 7. A long report is "
+                "truncated, with a final line stating how much was omitted."
+            )
+        },
+    )
+
+
 class ResearcherSchema(_Base):
     """Information about the primary researcher of the genealogical data."""
 
