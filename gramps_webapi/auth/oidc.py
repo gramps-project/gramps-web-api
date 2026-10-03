@@ -176,21 +176,6 @@ def get_provider_config(provider_id: str, app=None) -> dict | None:
     return config
 
 
-def _parse_optional_bool(value: Any) -> bool | None:
-    """Interpret a config value that may be a bool or an environment string.
-
-    Returns None if the value is unset (None or an empty string).
-    """
-    if value is None:
-        return None
-    if isinstance(value, str):
-        value = value.strip().lower()
-        if not value:
-            return None
-        return value in ("1", "true", "yes", "on")
-    return bool(value)
-
-
 def configure_pkce(client, provider_config: dict) -> bool:
     """Enable PKCE (S256) on an authlib client if appropriate.
 
@@ -206,9 +191,11 @@ def configure_pkce(client, provider_config: dict) -> bool:
 
     Returns True if PKCE is enabled for the client.
     """
-    preference = _parse_optional_bool(provider_config.get("pkce"))
+    # An option that is not configured is absent (None). From the environment,
+    # Flask's from_prefixed_env turns "true"/"false" into a bool.
+    preference = provider_config.get("pkce")
     if preference is not None:
-        enabled = preference
+        enabled = bool(preference)
     else:
         enabled = False
         try:

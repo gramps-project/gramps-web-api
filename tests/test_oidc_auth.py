@@ -883,17 +883,14 @@ def _pkce_client(discovery=None, error=None):
     "pkce,discovery,error,expected",
     [
         (True, {}, None, True),  # opted in, discovery irrelevant
-        ("true", {}, None, True),  # env-style string
         (True, None, RuntimeError("down"), True),
         (True, {"code_challenge_methods_supported": ["plain"]}, None, True),
         (None, {"code_challenge_methods_supported": ["S256"]}, None, True),
-        ("", {"code_challenge_methods_supported": ["S256"]}, None, True),
         (None, {"code_challenge_methods_supported": ["plain"]}, None, False),
         (None, {}, None, False),
         (None, None, RuntimeError("down"), False),
         # explicitly opted out: discovery is ignored
         (False, {"code_challenge_methods_supported": ["S256"]}, None, False),
-        ("false", {"code_challenge_methods_supported": ["S256"]}, None, False),
     ],
 )
 def test_configure_pkce(pkce, discovery, error, expected):
