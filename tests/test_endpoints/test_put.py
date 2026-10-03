@@ -313,6 +313,51 @@ class TestObjectUpdate(unittest.TestCase):
         rv = self.client.get(f"/api/search/?query={text}", headers=headers)
         self.assertEqual(len(rv.json), 0)
 
+    def test_search_private_note(self):
+        """Test that private notes are not found by guests, not even counted."""
+        handle = make_handle()
+        handle_private = make_handle()
+        text = str(uuid.uuid4()).replace("-", "")
+        text_private = str(uuid.uuid4()).replace("-", "")
+        headers = get_headers(self.client, "admin", "123")
+        headers_guest = get_headers(self.client, "user", "123")
+        obj = {
+            "_class": "Note",
+            "handle": handle,
+            "text": {"_class": "StyledText", "string": f"Note: {text}."},
+        }
+        obj_private = {
+            "_class": "Note",
+            "handle": handle_private,
+            "private": True,
+            "text": {"_class": "StyledText", "string": f"Note: {text_private}."},
+        }
+        rv = self.client.post("/api/notes/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.post("/api/notes/", json=obj_private, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        # the owner finds the private note
+        rv = self.client.get(f"/api/search/?query={text_private}", headers=headers)
+        self.assertEqual(len(rv.json), 1)
+        self.assertEqual(rv.headers["X-Total-Count"], "1")
+        # the guest doesn't, and it doesn't count either
+        rv = self.client.get(
+            f"/api/search/?query={text_private}", headers=headers_guest
+        )
+        self.assertEqual(len(rv.json), 0)
+        self.assertEqual(rv.headers["X-Total-Count"], "0")
+        # the guest finds the public note ...
+        rv = self.client.get(f"/api/search/?query={text}", headers=headers_guest)
+        self.assertEqual(len(rv.json), 1)
+        self.assertEqual(rv.headers["X-Total-Count"], "1")
+        # ... until it is made private
+        obj["private"] = True
+        rv = self.client.put(f"/api/notes/{handle}", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        rv = self.client.get(f"/api/search/?query={text}", headers=headers_guest)
+        self.assertEqual(len(rv.json), 0)
+        self.assertEqual(rv.headers["X-Total-Count"], "0")
+
     def test_get_put(self):
         """Test putting an object obtained via get."""
         handle = make_handle()
