@@ -502,15 +502,19 @@ def restore_backup(
 @shared_task(bind=True)
 def export_db(
     self, tree: str, user_id: str, extension: str, options: Dict, view_private: bool
-) -> Dict[str, str]:
+) -> dict[str, str | list[str]]:
     """Export a database."""
     db_handle = get_db_outside_request(
         tree=tree, view_private=view_private, readonly=True, user_id=user_id
     )
     try:
         prepared_options = prepare_options(db_handle, options)
-        file_name, file_type = run_export(
-            db_handle, extension, prepared_options, task=self
+        file_name, file_type, messages = run_export(
+            db_handle,
+            extension,
+            prepared_options,
+            task=self,
+            progress=progress_callback_count(self, title="Exporting..."),
         )
     finally:
         close_db(db_handle)
@@ -520,6 +524,7 @@ def export_db(
         "file_name": file_name,
         "file_type": file_type,
         "url": f"/api/exporters/{extension}/file/processed/{file_name}",
+        "messages": messages,
     }
 
 

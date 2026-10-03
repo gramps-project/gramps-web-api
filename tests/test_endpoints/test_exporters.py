@@ -21,6 +21,13 @@
 
 import unittest
 from mimetypes import types_map
+from unittest.mock import patch
+
+from gedcom7.validator import Error
+from jsonschema import validate
+from gramps_gedcom7 import ExportValidationError, MissingObjectsError, Report
+from gramps_gedcom7.export.errors import MissingReference, ValidationProblem
+from gramps_gedcom7.report import GrampsObject
 
 from . import BASE_URL, get_single_tree_test_client, get_test_client
 from .checks import (
@@ -29,6 +36,7 @@ from .checks import (
     check_requires_token,
     check_resource_missing,
     check_success,
+    get_openapi_schema_validator,
 )
 from .util import fetch_header
 
@@ -494,6 +502,51 @@ class TestExportersExtensionFile(unittest.TestCase):
     # Note we do not test include_media and include_witness options as they are
     # present to support the third party gedcom2 export plugin
 
+    def test_get_exporters_extension_file_gedcom7(self):
+        """Test the GEDCOM 7 export."""
+        rv = check_success(self, TEST_URL + "ged7/file", full=True)
+        self.assertEqual(rv.mimetype, types_map[".ged"])
+        self.assertIn(b"0 HEAD", rv.data)
+        self.assertIn(b"2 VERS 7.0", rv.data)
+        self.assertIn(b"123-456-7890", rv.data)
+
+    def test_get_exporters_extension_file_gedcom7_private(self):
+        """Test the GEDCOM 7 export applies the privacy filter."""
+        rv = check_success(self, TEST_URL + "ged7/file?private=1", full=True)
+        self.assertNotIn(b"123-456-7890", rv.data)
+
+    def _get_gedcom7_failing_with(self, error):
+        header = fetch_header(self.client)
+        with patch("gramps_gedcom7.export_gedcom", side_effect=error):
+            return self.client.get(TEST_URL + "ged7/file", headers=header)
+
+    def test_get_exporters_extension_file_gedcom7_missing_objects(self):
+        """Test a reference to a missing object is reported by name."""
+        referrer = GrampsObject(kind="Person", gramps_id="I0042", handle="abc")
+        rv = self._get_gedcom7_failing_with(
+            MissingObjectsError([MissingReference(referrer, "event", "def")])
+        )
+        self.assertEqual(rv.status_code, 422)
+        self.assertIn("Person I0042 references a missing event", rv.text)
+
+    def test_get_exporters_extension_file_gedcom7_invalid_data(self):
+        """Test a validation error caused by the data is a client error."""
+        error = Error(category="invalid-date", message="bad date", path="INDI.BIRT")
+        referrer = GrampsObject(kind="Event", gramps_id="E0001", handle="abc")
+        rv = self._get_gedcom7_failing_with(
+            ExportValidationError([error], [ValidationProblem(error, referrer)])
+        )
+        self.assertEqual(rv.status_code, 422)
+        self.assertIn("Event E0001: bad date", rv.text)
+
+    def test_get_exporters_extension_file_gedcom7_exporter_bug(self):
+        """Test a validation error not caused by the data is a server error."""
+        error = Error(category="cardinality", message="too many", path="INDI.SEX")
+        rv = self._get_gedcom7_failing_with(
+            ExportValidationError([error], [ValidationProblem(error, None)])
+        )
+        self.assertEqual(rv.status_code, 500)
+
 
 class TestExportersExtensionFilePost(unittest.TestCase):
     """Test cases for the /api/exporters/{extension}/file POST endpoint."""
@@ -508,3 +561,24 @@ class TestExportersExtensionFilePost(unittest.TestCase):
         header = fetch_header(self.client)
         res = self.client.post(f"{TEST_URL}gramps/file", headers=header)
         assert res.status_code == 201
+
+    def test_export_gedcom7(self):
+        """Test the GEDCOM 7 export."""
+        header = fetch_header(self.client)
+        res = self.client.post(f"{TEST_URL}ged7/file", headers=header)
+        assert res.status_code == 201
+        res = self.client.get(res.json["url"], headers=header)
+        assert res.status_code == 200
+        assert b"2 VERS 7.0" in res.data
+
+    def test_export_gedcom7_messages(self):
+        """Test the GEDCOM 7 export passes on what it left out."""
+        header = fetch_header(self.client)
+        report = Report()
+        report.add("Person I0042", "attribute Caste not written")
+        with patch("gramps_gedcom7.export_gedcom", return_value=report):
+            res = self.client.post(f"{TEST_URL}ged7/file", headers=header)
+        assert res.status_code == 201
+        assert res.json["messages"] == ["Person I0042: attribute Caste not written"]
+        schema, resolver = get_openapi_schema_validator(self.client, "ExportResult")
+        validate(instance=res.json, schema=schema, resolver=resolver)

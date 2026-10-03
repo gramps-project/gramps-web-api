@@ -31,7 +31,7 @@ import time
 from typing import Dict
 
 import gramps.gen.mime  # noqa: F401  (registers .gramps/.gpkg/.ged in mimetypes)
-from flask import Response, abort, current_app, jsonify, send_file
+from flask import Response, abort, current_app, send_file
 from flask_jwt_extended import get_jwt_identity
 from marshmallow import Schema
 from webargs import fields, validate
@@ -49,7 +49,7 @@ from ..util import (
 )
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
-from .schemas import ExporterSchema
+from .schemas import ExporterSchema, ExportResultSchema
 from gramps_webapi.types import ResponseReturnValue
 
 
@@ -209,6 +209,7 @@ class ExporterFileQueryArgs(Schema):
 class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
     """Export file resource."""
 
+    @api_blueprint.response(201, ExportResultSchema())
     @api_blueprint.arguments(ExporterFileQueryArgs, location="query")
     def post(self, args: Dict, extension: str) -> ResponseReturnValue:
         """Create the export."""
@@ -230,7 +231,7 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
         )
         if isinstance(task, AsyncResult):
             return make_task_response(task)
-        return jsonify(task), 201
+        return task, 201
 
     @api_blueprint.arguments(ExporterFileQueryArgs, location="query")
     def get(self, args: Dict, extension: str) -> ResponseReturnValue:
@@ -240,7 +241,8 @@ class ExporterFileResource(ProtectedResource, GrampsJSONEncoder):
         if not exporters:
             abort(404)
         options = prepare_options(db_handle, args)
-        file_name, file_type = run_export(db_handle, extension, options)
+        # a file response has no room for the exporter's messages
+        file_name, file_type, _ = run_export(db_handle, extension, options)
         export_path = current_app.config.get("EXPORT_DIR")
         assert export_path is not None, "EXPORT_DIR not set"  # mypy
         os.makedirs(export_path, exist_ok=True)
