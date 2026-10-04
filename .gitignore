@@ -7,6 +7,8 @@ Pipfile.lock
 .venv
 *.ipynb
 
+/docs/
+
 # this is used for dev container data
 data/
 # but this is needed
