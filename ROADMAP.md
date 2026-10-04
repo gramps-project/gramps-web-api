@@ -13,12 +13,12 @@ removed no earlier than the next major.
 
 | Version | Target | Gramps | Breaking changes |
 |---|---|---|---|
-| 3.22.x | current | 6.0 | none |
-| 3.23.0 | October 2026 | 6.0 | none |
+| 3.23.x | current | 6.0 | none |
+| 3.24.0 | October/November 2026 | 6.0 | none |
 | 3.x | as needed | 6.0 | none |
 | 4.0.0 | TBD | 6.0, 6.1 or 6.2 (open) | multi-tree by default, removals below |
 
-## Notable in 3.23
+## Notable in 3.24
 
 TBD
 
