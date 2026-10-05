@@ -1,21 +1,56 @@
 # Contributing to Gramps Web API
 
-Welcome, and thank you for your interest in contributing to Gramps Web API! Your efforts help make this project better for everyone.
+Thank you for your interest in contributing! Gramps Web API is maintained by very few people in their spare time, so a little structure goes a long way. Everything below exists to make your contribution easier to act on.
 
-## How to Contribute
+## Where does it go?
 
-### Reporting Issues
-- Found a bug or have a feature request? [Open an issue](https://github.com/gramps-project/gramps-web-api/issues) to let us know!
-- Provide as much detail as possible, including steps to reproduce the issue or a clear description of the feature idea.
+| Your situation                                              | Where                                                                     |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Trouble installing, deploying or configuring Gramps Web API | [Gramps forum](https://gramps.discourse.group/c/gramps-web/28)            |
+| A question, or you're not sure it's a bug                   | [Gramps forum](https://gramps.discourse.group/c/gramps-web/28)            |
+| Something server-side (API, search, import/export)          | [issue here](https://github.com/gramps-project/gramps-web-api/issues)     |
+| A bug or idea in a frontend, e.g. Gramps Web                | that frontend's repository, e.g. [gramps-web](https://github.com/gramps-project/gramps-web/issues) |
+| The Gramps Web Sync addon for Gramps desktop                | [gramps-web-sync](https://github.com/DavidMStraub/gramps-web-sync/issues) |
 
-### Proposing Features
-- **Before implementing a new feature or making non-trivial changes**, please open an issue to discuss your proposal. This helps avoid duplicate work and ensures alignment with project goals. PRs with non-trivial changes made without prior discussion may be rejected.
+For setup problems the forum will usually get you an answer faster, since many more configurations are running out there than we could ever test.
 
-### Development Guidelines
-- Follow the [developer documentation](https://www.grampsweb.org/development/dev/) for setup, coding standards, and API details.
-- Ensure your changes include appropriate tests and documentation updates where applicable.
+## Issues
 
-#### Testing Remote Embeddings (Optional)
+Describe the problem: what happened, what you expected, and how to reproduce it. That is the part only you can provide.
+
+If you have an idea about the cause or the fix, put it in the optional section at the end and keep it brief. Leaving it empty is completely fine. A clearly described problem is already the most useful thing you can send us.
+
+Please keep issues as short as they can be while still complete. A short issue is quicker to act on.
+
+## Pull requests
+
+**For features and larger changes, please open an issue first and wait for a reply.**
+
+Small, self-contained fixes, such as a bug fix with a test, a documentation fix or a typo, are welcome as a pull request directly. No separate issue needed.
+
+There is a good reason for this. Reviewing a pull request costs a maintainer many times what reading an issue costs. An issue lets us reply with "yes, go ahead", "let's solve it differently", or "someone is already on it" while your evening is still free. An issue and a pull request opened five minutes apart leave no room for that conversation.
+
+So please send issues freely. Contributions are genuinely welcome, and this is mostly about the order they arrive in.
+
+In the pull request itself, link the issue if there is one, and describe the change and how you tested it. The problem description belongs in the issue, so there is no need to repeat it here.
+
+## Using AI assistants
+
+Using an AI assistant to help write code, issues or pull requests is fine. Two things we ask:
+
+**Read it before you post it.** You are the author, and you'll be the one answering follow-up questions about it.
+
+**Post as yourself.** An assistant should never write as though it were a human contributor.
+
+And please keep the human parts human. A greeting, a thank you, a sentence about what you were actually trying to do when you hit the bug: that is very often the part that tells us what the real problem was.
+
+If you point an agent at this repository, [AGENTS.md](AGENTS.md) holds the project conventions and a short version of the rules above.
+
+## Development
+
+Setup, coding standards and API details are in the [developer documentation](https://www.grampsweb.org/development/dev/). Please include tests and documentation updates where applicable.
+
+### Testing remote embeddings (optional)
 
 The devcontainer includes an optional [Ollama](https://ollama.com/) service for testing the remote embedding API without external dependencies.
 
@@ -38,12 +73,6 @@ The devcontainer includes an optional [Ollama](https://ollama.com/) service for 
 
 4. Restart the devcontainer to pick up the new environment variables.
 
-### Code of Conduct
-- Please read and adhere to our [Code of Conduct](CODE_OF_CONDUCT.md) to ensure a welcoming and inclusive environment for all contributors.
+## Code of conduct
 
-
-### Communication
-- For general discussions or questions, join our [Discourse forum](https://gramps.discourse.group/).
-- Engage respectfully and collaboratively with the community.
-
-We look forward to your contributions!
+Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md).
