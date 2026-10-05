@@ -419,10 +419,11 @@ def increment_usage_media(
     if not tree:
         tree = get_tree_from_jwt_or_fail()
     usage_dict = get_tree_usage(tree)
-    if not usage_dict or usage_dict.get("usage_media") is None:
+    current_usage = usage_dict.get("usage_media") if usage_dict else None
+    if current_usage is None:
         # no cached value yet - fall back to a full recomputation once
         return update_usage_media(tree=tree, user_id=user_id)
-    new_usage = max(0, usage_dict["usage_media"] + delta)
+    new_usage = max(0, current_usage + delta)
     set_tree_usage(tree, usage_media=new_usage)
     return new_usage
 
