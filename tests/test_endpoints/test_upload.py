@@ -255,3 +255,70 @@ class TestUploadWithQuota(unittest.TestCase):
             "/api/media/", data=img.read(), headers=headers, content_type="image/jpeg"
         )
         assert rv.status_code == 405
+
+
+class TestUploadUsageScaling(unittest.TestCase):
+    """Check that adding media updates the usage incrementally, not by rescanning."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.name = "Test Web API"
+        cls.dbman = CLIDbManager(DbState())
+        dirpath, _ = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        tree = os.path.basename(dirpath)
+        with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
+            cls.app = create_app(config_from_env=False)
+        cls.app.config["TESTING"] = True
+        cls.media_base_dir = tempfile.mkdtemp()
+        cls.app.config["MEDIA_BASE_DIR"] = cls.media_base_dir
+        cls.client = cls.app.test_client()
+        with cls.app.app_context():
+            user_db.create_all()
+            add_user(name="admin", password="123", role=ROLE_ADMIN, tree=tree)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.dbman.remove_database(cls.name)
+        shutil.rmtree(cls.media_base_dir)
+
+    def test_upload_does_not_rescan_all_media_each_time(self):
+        """Adding several media objects must not recompute usage from scratch each time."""
+        from gramps_webapi.api.media import MediaHandlerLocal
+
+        headers = get_headers(self.client, "admin", "123")
+        with patch.object(
+            MediaHandlerLocal, "get_media_size", autospec=True, return_value=0
+        ) as mock_get_media_size:
+            for i in range(5):
+                img, checksum, size = get_image(i)
+                rv = self.client.post(
+                    "/api/media/",
+                    data=img.read(),
+                    headers=headers,
+                    content_type="image/jpeg",
+                )
+                self.assertEqual(rv.status_code, 201)
+            # a full rescan is only acceptable once, to warm up the cache
+            # when no usage value has been recorded yet - not on every upload
+            self.assertEqual(mock_get_media_size.call_count, 1)
+
+    def test_upload_duplicate_content_does_not_double_count_usage(self):
+        """Uploading the same file content twice must not double-count usage."""
+        headers = get_headers(self.client, "admin", "123")
+        img, checksum, size = get_image(10)
+        img_bytes = img.read()
+        rv = self.client.post(
+            "/api/media/", data=img_bytes, headers=headers, content_type="image/jpeg"
+        )
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.get("/api/trees/-", headers=headers)
+        usage_after_first = rv.json["usage_media"]
+        # upload the exact same content again as a second, distinct Media object
+        rv = self.client.post(
+            "/api/media/", data=img_bytes, headers=headers, content_type="image/jpeg"
+        )
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.get("/api/trees/-", headers=headers)
+        # storage is content-addressed, so the second object reuses the same
+        # file on disk - usage must not grow
+        self.assertEqual(rv.json["usage_media"], usage_after_first)

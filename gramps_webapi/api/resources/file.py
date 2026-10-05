@@ -36,7 +36,7 @@ from ...auth.const import PERM_EDIT_OBJ
 from ..auth import require_permissions
 from ..blueprint import api_blueprint
 from ..file import process_file
-from ..media import check_quota_media, get_media_handler, update_usage_media
+from ..media import check_quota_media, get_media_handler, increment_usage_media
 from ..util import abort_with_message, get_db_handle, get_tree_from_jwt
 from . import ProtectedResource
 from .util import transaction_to_json, update_object
@@ -120,13 +120,14 @@ class MediaFileResource(ProtectedResource):
                 )
             # we're uploading a missing file!
             # new size will add to the quota
-            check_quota_media(to_add=size)
+            check_quota_media(to_add=size, tree=tree)
             # use existing path
             path = obj.get_path()
             try:
                 media_handler.upload_file(f, checksum, mime, path=path)
             except ValueError:
                 abort_with_message(HTTPStatus.FORBIDDEN, "File access not allowed")
+            increment_usage_media(size, tree=tree)
             return Response(status=200)
         if args.get("uploadmissing"):
             abort_with_message(
@@ -139,7 +140,7 @@ class MediaFileResource(ProtectedResource):
             size_old = 0
         size_delta = size - size_old
         if size_delta > 0:
-            check_quota_media(to_add=size_delta)
+            check_quota_media(to_add=size_delta, tree=tree)
         media_handler.upload_file(f, checksum, mime)
         obj.set_checksum(checksum)
         path = media_handler.get_default_filename(checksum, mime)
@@ -152,7 +153,7 @@ class MediaFileResource(ProtectedResource):
             except (AttributeError, ValueError) as exc:
                 abort_with_message(400, "Error while updating object")
             trans_dict = transaction_to_json(trans)
-        update_usage_media()
+        increment_usage_media(size_delta, tree=tree)
         return Response(
             response=json.dumps(trans_dict), status=200, mimetype="application/json"
         )

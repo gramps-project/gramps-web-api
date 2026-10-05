@@ -88,6 +88,15 @@ class MediaHandlerBase:
         """Given a list of media objects, return the ones with existing files."""
         raise NotImplementedError
 
+    def file_exists_for_checksum(self, checksum: str, mime: str) -> bool:
+        """Return whether a file is already stored for this checksum/MIME type.
+
+        Used to tell whether uploading a new object with this checksum would
+        add new bytes to storage, or just reuse a file that another media
+        object already points to (storage is content-addressed by checksum).
+        """
+        raise NotImplementedError
+
     def get_media_size(self, db_handle: Optional[DbReadBase] = None) -> int:
         """Return the total disk space used by all existing media objects."""
         raise NotImplementedError
@@ -139,6 +148,11 @@ class MediaHandlerLocal(MediaHandlerBase):
             for obj in objects
             if self.get_file_handler(obj.handle, db_handle=db_handle).file_exists()
         ]
+
+    def file_exists_for_checksum(self, checksum: str, mime: str) -> bool:
+        """Return whether a file is already stored for this checksum/MIME type."""
+        path = self.get_default_filename(checksum, mime)
+        return os.path.isfile(os.path.join(self.base_dir, path))
 
     def get_media_size(self, db_handle: Optional[DbReadBase] = None) -> int:
         """Return the total disk space used by all existing media objects.
@@ -275,6 +289,20 @@ class MediaHandlerS3(MediaHandlerBase):
         remote_keys = self.get_remote_keys()
         return [obj for obj in objects if obj.checksum in remote_keys]
 
+    def file_exists_for_checksum(self, checksum: str, mime: str) -> bool:
+        """Return whether a file is already stored for this checksum/MIME type."""
+        from botocore.exceptions import ClientError
+
+        from .s3 import get_client, get_object_name
+
+        client = get_client(self.endpoint_url)
+        object_name = get_object_name(checksum, prefix=self.prefix)
+        try:
+            client.head_object(Bucket=self.bucket_name, Key=object_name)
+            return True
+        except ClientError:
+            return False
+
     def get_media_size(self, db_handle: Optional[DbReadBase] = None) -> int:
         """Return the total disk space used by all existing media objects."""
         from .s3 import get_object_keys_size
@@ -376,6 +404,27 @@ def update_usage_media(
         close_db(db_handle)
     set_tree_usage(tree, usage_media=usage_media)
     return usage_media
+
+
+def increment_usage_media(
+    delta: int, tree: Optional[str] = None, user_id: Optional[str] = None
+) -> int:
+    """Adjust the cached media usage by `delta` bytes and return the new value.
+
+    Used after uploading or replacing a single file, where the size change is
+    already known. This avoids recomputing the usage from scratch, which
+    requires iterating over every media object in the tree and calling
+    `stat()` on each corresponding file - an O(n) cost on every upload.
+    """
+    if not tree:
+        tree = get_tree_from_jwt_or_fail()
+    usage_dict = get_tree_usage(tree)
+    if not usage_dict or usage_dict.get("usage_media") is None:
+        # no cached value yet - fall back to a full recomputation once
+        return update_usage_media(tree=tree, user_id=user_id)
+    new_usage = max(0, usage_dict["usage_media"] + delta)
+    set_tree_usage(tree, usage_media=new_usage)
+    return new_usage
 
 
 def check_quota_media(
