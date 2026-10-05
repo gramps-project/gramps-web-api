@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import time
 import zipfile
@@ -37,6 +38,7 @@ from gramps.gen.utils.file import expand_media_path
 from ..auth import get_tree_usage, set_tree_usage
 from ..types import FilenameOrPath
 from ..util import get_extension
+from .cache import persistent_cache
 from .file import FileHandler, LocalFileHandler, upload_file_local
 from .util import (
     abort_with_message,
@@ -49,6 +51,8 @@ from .util import (
 
 if TYPE_CHECKING:
     from .s3 import ObjectStorageFileHandler
+
+_LOG = logging.getLogger(__name__)
 
 PREFIX_S3 = "s3://"
 
@@ -117,6 +121,18 @@ def delete_expired_local_archives(retention: float) -> None:
                 path.unlink()
         except FileNotFoundError:
             pass  # removed by a concurrent export
+
+
+# Incremental usage updates (see `increment_usage_media`) can drift from the
+# true value over time - e.g. deleting media never decrements the cached
+# usage, and files added or removed outside the API (direct filesystem
+# access, an interrupted import) are never accounted for incrementally. We
+# don't try to catch every possible source of drift individually; instead we
+# bound how long it can persist by forcing a full, authoritative
+# recomputation at most this often. This trades perfect real-time accuracy
+# for a known worst-case staleness, while keeping the common case (adding one
+# file) cheap.
+MEDIA_USAGE_MAX_STALENESS_SECONDS = 60 * 60  # 1 hour
 
 
 class MediaHandlerBase:
@@ -555,6 +571,33 @@ def get_media_handler(
     return MediaHandler(base_dir)
 
 
+def _media_usage_sync_cache_key(tree: str) -> str:
+    """Return the cache key tracking when media usage was last fully recomputed."""
+    return f"{tree}:media_usage_synced"
+
+
+def _media_usage_is_stale(tree: str) -> bool:
+    """Whether media usage hasn't been fully recomputed recently enough.
+
+    If the cache is unavailable, we can't tell how old the value is, so we
+    conservatively treat it as stale.
+    """
+    try:
+        last_synced = persistent_cache.get(_media_usage_sync_cache_key(tree)) or 0.0
+    except Exception as exc:
+        _LOG.warning("Could not read media usage sync timestamp from cache: %s", exc)
+        return True
+    return time.time() - last_synced > MEDIA_USAGE_MAX_STALENESS_SECONDS
+
+
+def mark_media_usage_synced(tree: str) -> None:
+    """Record that media usage was just fully recomputed."""
+    try:
+        persistent_cache.set(_media_usage_sync_cache_key(tree), time.time())
+    except Exception as exc:
+        _LOG.warning("Could not write media usage sync timestamp to cache: %s", exc)
+
+
 def update_usage_media(
     tree: Optional[str] = None, user_id: Optional[str] = None
 ) -> int:
@@ -573,6 +616,7 @@ def update_usage_media(
     finally:
         close_db(db_handle)
     set_tree_usage(tree, usage_media=usage_media)
+    mark_media_usage_synced(tree)
     return usage_media
 
 
@@ -584,10 +628,14 @@ def increment_usage_media(
     Used after uploading or replacing a single file, where the size change is
     already known. This avoids recomputing the usage from scratch, which
     requires iterating over every media object in the tree and calling
-    `stat()` on each corresponding file - an O(n) cost on every upload.
+    `stat()` on each corresponding file - an O(n) cost on every upload. To
+    bound the drift this can introduce (see `MEDIA_USAGE_MAX_STALENESS_SECONDS`),
+    a full recomputation is still done occasionally.
     """
     if not tree:
         tree = get_tree_from_jwt_or_fail()
+    if _media_usage_is_stale(tree):
+        return update_usage_media(tree=tree, user_id=user_id)
     usage_dict = get_tree_usage(tree)
     current_usage = usage_dict.get("usage_media") if usage_dict else None
     if current_usage is None:
@@ -605,7 +653,11 @@ def check_quota_media(
     if not tree:
         tree = get_tree_from_jwt_or_fail()
     usage_dict = get_tree_usage(tree)
-    if not usage_dict or usage_dict.get("usage_media") is None:
+    if (
+        not usage_dict
+        or usage_dict.get("usage_media") is None
+        or _media_usage_is_stale(tree)
+    ):
         update_usage_media(tree=tree, user_id=user_id)
         usage_dict = get_tree_usage(tree)
         assert usage_dict is not None, "Unexpected error while looking up usage data."
