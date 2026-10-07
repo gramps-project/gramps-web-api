@@ -23,6 +23,8 @@
 import unittest
 from urllib.parse import quote
 
+from gramps.gen.utils.grampslocale import GrampsLocale
+
 from . import BASE_URL, get_object_count, get_test_client
 from .checks import (
     check_boolean_parameter,
@@ -1568,6 +1570,31 @@ class TestPeopleHandleTimeline(unittest.TestCase):
             for event in rv:
                 if "(" in event["label"]:
                     self.assertIn(relation, event["label"].lower())
+
+    def test_get_people_handle_timeline_parameter_relatives_with_locale(self):
+        """Test relatives filter and relationship strings with a locale."""
+        translate = GrampsLocale(lang="de").translation.sgettext
+        rv = check_success(
+            self,
+            TEST_URL + "1QTJQCP5QMT2X7YJDK/timeline?relatives=wife,husband&locale=de",
+        )
+        relationships = {
+            event["person"]["relationship"]
+            for event in rv
+            if event["person"].get("relationship") not in [None, "", "self"]
+        }
+        self.assertTrue(relationships)
+        self.assertTrue(
+            relationships <= {translate("wife"), translate("husband")},
+            relationships,
+        )
+
+    def test_get_people_handle_timeline_parameter_ancestors_with_locale(self):
+        """Test ancestors recursion does not depend on the locale."""
+        url = TEST_URL + "GNUJQCL9MD64AM56OH/timeline?ancestors=3"
+        rv_en = check_success(self, url)
+        rv_de = check_success(self, url + "&locale=de")
+        self.assertEqual(len(rv_en), len(rv_de))
 
     def test_get_people_handle_timeline_parameter_relative_events_validate_semantics(
         self,
