@@ -337,11 +337,15 @@ class Timeline:
         """Add events for a relative of the anchor person."""
         person = self.db_handle.get_person_from_handle(handle)
         # English string for filtering and recursion, localized one for display
-        calculator = get_relationship_calculator(reinit=True, clocale=default_locale)
-        calculator.set_depth(self.depth)
-        relationship_en = calculator.get_one_relationship(
-            self.db_handle, self.anchor_person, person, olocale=default_locale
-        )
+        relationship_en = ""
+        if self.relative_filters or ancestors > 1:
+            calculator = get_relationship_calculator(
+                reinit=True, clocale=default_locale
+            )
+            calculator.set_depth(self.depth)
+            relationship_en = calculator.get_one_relationship(
+                self.db_handle, self.anchor_person, person, olocale=default_locale
+            )
         calculator = get_relationship_calculator(reinit=True, clocale=self.locale)
         calculator.set_depth(self.depth)
         relationship = calculator.get_one_relationship(
