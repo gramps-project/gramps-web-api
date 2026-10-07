@@ -13,7 +13,7 @@ from gramps.gen.lib import Media
 from ..auth import set_tree_usage
 from ..types import FilenameOrPath
 from .file import get_checksum
-from .media import check_quota_media, get_media_handler, mark_media_usage_synced
+from .media import check_quota_media, get_media_handler
 from .resources.util import update_object
 
 MissingFiles = Dict[str, List[Dict[str, str]]]
@@ -215,7 +215,6 @@ class MediaImporter:
         """Update the media usage."""
         usage_media = self.media_handler.get_media_size(db_handle=self.db_handle)
         set_tree_usage(self.tree, usage_media=usage_media)
-        mark_media_usage_synced(self.tree)
 
     def __call__(
         self, fix_missing_checksums: bool = True, progress_cb: Optional[Callable] = None

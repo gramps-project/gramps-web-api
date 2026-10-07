@@ -257,8 +257,8 @@ class TestUploadWithQuota(unittest.TestCase):
         assert rv.status_code == 405
 
 
-class TestUploadUsageScaling(unittest.TestCase):
-    """Check that adding media updates the usage incrementally, not by rescanning."""
+class TestUploadUsageBackgroundUpdate(unittest.TestCase):
+    """Check that the (expensive) usage recompute doesn't block the request."""
 
     @classmethod
     def setUpClass(cls):
@@ -266,21 +266,8 @@ class TestUploadUsageScaling(unittest.TestCase):
         cls.dbman = CLIDbManager(DbState())
         dirpath, _ = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
         cls.tree = os.path.basename(dirpath)
-        # isolated persistent cache dir, so the media-usage-sync timestamp
-        # doesn't depend on (or pollute) a shared on-disk cache
-        cls.persistent_cache_dir = tempfile.mkdtemp()
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
-            cls.app = create_app(
-                config={
-                    "PERSISTENT_CACHE_CONFIG": {
-                        "CACHE_TYPE": "FileSystemCache",
-                        "CACHE_DIR": cls.persistent_cache_dir,
-                        "CACHE_THRESHOLD": 0,
-                        "CACHE_DEFAULT_TIMEOUT": 0,
-                    }
-                },
-                config_from_env=False,
-            )
+            cls.app = create_app(config_from_env=False)
         cls.app.config["TESTING"] = True
         cls.media_base_dir = tempfile.mkdtemp()
         cls.app.config["MEDIA_BASE_DIR"] = cls.media_base_dir
@@ -293,29 +280,89 @@ class TestUploadUsageScaling(unittest.TestCase):
     def tearDownClass(cls):
         cls.dbman.remove_database(cls.name)
         shutil.rmtree(cls.media_base_dir)
-        shutil.rmtree(cls.persistent_cache_dir)
 
-    def test_upload_does_not_rescan_all_media_each_time(self):
-        """Adding several media objects must not recompute usage from scratch each time."""
-        from gramps_webapi.api.media import MediaHandlerLocal
+    def test_upload_dispatches_usage_update_as_task(self):
+        """Adding a media object must hand the usage recompute to the task queue."""
+        from gramps_webapi.api.tasks import update_media_usage_task
 
         headers = get_headers(self.client, "admin", "123")
-        with patch.object(
-            MediaHandlerLocal, "get_media_size", autospec=True, return_value=0
-        ) as mock_get_media_size:
-            for i in range(5):
-                img, checksum, size = get_image(i)
-                rv = self.client.post(
-                    "/api/media/",
-                    data=img.read(),
-                    headers=headers,
-                    content_type="image/jpeg",
-                )
-                self.assertEqual(rv.status_code, 201)
-            # a full rescan is only acceptable once, to warm up the cache
-            # when no usage value has been recorded yet (it may also be zero
-            # if a previous test already warmed it up) - not once per upload
-            self.assertLessEqual(mock_get_media_size.call_count, 1)
+        img, checksum, size = get_image(0)
+        with patch(
+            "gramps_webapi.api.resources.media.run_task"
+        ) as mock_run_task:
+            rv = self.client.post(
+                "/api/media/", data=img.read(), headers=headers, content_type="image/jpeg"
+            )
+        self.assertEqual(rv.status_code, 201)
+        mock_run_task.assert_called_once()
+        task = mock_run_task.call_args.args[0]
+        self.assertEqual(task.name, update_media_usage_task.name)
+
+    def test_update_file_dispatches_usage_update_as_task(self):
+        """Replacing a media file must hand the usage recompute to the task queue."""
+        from gramps_webapi.api.tasks import update_media_usage_task
+
+        headers = get_headers(self.client, "admin", "123")
+        img, checksum, size = get_image(1)
+        rv = self.client.post(
+            "/api/media/", data=img.read(), headers=headers, content_type="image/jpeg"
+        )
+        self.assertEqual(rv.status_code, 201)
+        handle = rv.json[0]["new"]["handle"]
+        new_img, new_checksum, new_size = get_image(2)
+        with patch("gramps_webapi.api.resources.file.run_task") as mock_run_task:
+            rv = self.client.put(
+                f"/api/media/{handle}/file",
+                data=new_img.read(),
+                headers={**headers, "If-Match": checksum},
+                content_type="image/jpeg",
+            )
+        self.assertEqual(rv.status_code, 200)
+        mock_run_task.assert_called_once()
+        task = mock_run_task.call_args.args[0]
+        self.assertEqual(task.name, update_media_usage_task.name)
+
+    def test_delete_media_dispatches_usage_update_as_task(self):
+        """Deleting a media object must hand the usage recompute to the task queue."""
+        from gramps_webapi.api.tasks import update_media_usage_task
+
+        headers = get_headers(self.client, "admin", "123")
+        img, checksum, size = get_image(3)
+        rv = self.client.post(
+            "/api/media/", data=img.read(), headers=headers, content_type="image/jpeg"
+        )
+        self.assertEqual(rv.status_code, 201)
+        handle = rv.json[0]["new"]["handle"]
+        with patch("gramps_webapi.api.resources.base.run_task") as mock_run_task:
+            rv = self.client.delete(f"/api/media/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        tasks = [call.args[0] for call in mock_run_task.call_args_list]
+        self.assertIn(update_media_usage_task.name, [task.name for task in tasks])
+
+    def test_delete_media_by_handle_updates_usage(self):
+        """Bulk-deleting media by handle must also bring usage back down.
+
+        This covers DeleteObjectsByHandleResource, which previously only
+        resynced usage for the "people" namespace, leaving usage_media stale
+        after a bulk media delete.
+        """
+        headers = get_headers(self.client, "admin", "123")
+        img, checksum, size = get_image(12)
+        rv = self.client.post(
+            "/api/media/", data=img.read(), headers=headers, content_type="image/jpeg"
+        )
+        self.assertEqual(rv.status_code, 201)
+        handle = rv.json[0]["new"]["handle"]
+        rv = self.client.get("/api/trees/-", headers=headers)
+        self.assertEqual(rv.json["usage_media"], size)
+        rv = self.client.post(
+            "/api/objects/delete-by-handle/",
+            json={"namespace": "media", "handles": [handle]},
+            headers=headers,
+        )
+        self.assertEqual(rv.status_code, 200)
+        rv = self.client.get("/api/trees/-", headers=headers)
+        self.assertEqual(rv.json["usage_media"], 0)
 
     def test_upload_duplicate_content_does_not_double_count_usage(self):
         """Uploading the same file content twice must not double-count usage."""
@@ -338,48 +385,23 @@ class TestUploadUsageScaling(unittest.TestCase):
         # file on disk - usage must not grow
         self.assertEqual(rv.json["usage_media"], usage_after_first)
 
-    def test_stale_usage_is_corrected_after_sync_window(self):
-        """Drift in the cached usage must be bounded, not permanent."""
-        from gramps_webapi.auth import set_tree_usage
+    def test_delete_media_updates_usage(self):
+        """Deleting the last media object must bring usage back down to zero.
 
+        Without the task queue mocked out, run_task() executes inline (no
+        CELERY_CONFIG is set in this test app), so the recompute happens
+        synchronously here and can be asserted on directly.
+        """
         headers = get_headers(self.client, "admin", "123")
-        img, checksum, size = get_image(20)
+        img, checksum, size = get_image(11)
         rv = self.client.post(
             "/api/media/", data=img.read(), headers=headers, content_type="image/jpeg"
         )
         self.assertEqual(rv.status_code, 201)
-
-        # simulate drift: something (a deletion, an interrupted upload, a
-        # file added outside the API) left the cached usage wrong, without
-        # going through increment_usage_media/update_usage_media
-        with self.app.app_context():
-            set_tree_usage(self.tree, usage_media=10**9)
-
-        img2, checksum2, size2 = get_image(21)
-        # within the sync window, the wrong cached value is trusted and only
-        # adjusted by the known delta of the new upload
-        rv = self.client.post(
-            "/api/media/", data=img2.read(), headers=headers, content_type="image/jpeg"
-        )
-        self.assertEqual(rv.status_code, 201)
+        handle = rv.json[0]["new"]["handle"]
         rv = self.client.get("/api/trees/-", headers=headers)
-        self.assertEqual(rv.json["usage_media"], 10**9 + size2)
-
-        # inject more (uncorrected) drift, then simulate the sync window
-        # having elapsed - the next upload must self-heal by recomputing
-        # usage from scratch instead of trusting the stale cached value
-        with self.app.app_context():
-            set_tree_usage(self.tree, usage_media=10**9)
-        img3, checksum3, size3 = get_image(22)
-        with patch("gramps_webapi.api.media.MEDIA_USAGE_MAX_STALENESS_SECONDS", 0):
-            rv = self.client.post(
-                "/api/media/",
-                data=img3.read(),
-                headers=headers,
-                content_type="image/jpeg",
-            )
-        self.assertEqual(rv.status_code, 201)
+        self.assertEqual(rv.json["usage_media"], size)
+        rv = self.client.delete(f"/api/media/{handle}", headers=headers)
+        self.assertEqual(rv.status_code, 200)
         rv = self.client.get("/api/trees/-", headers=headers)
-        # the real total: the two previous files plus this one - not
-        # 10**9 + size3, which is what a pure delta update would have given
-        self.assertEqual(rv.json["usage_media"], size + size2 + size3)
+        self.assertEqual(rv.json["usage_media"], 0)

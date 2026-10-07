@@ -48,6 +48,7 @@ from ..tasks import (
     delete_objects,
     make_task_response,
     run_task,
+    update_media_usage_task,
     update_search_indices_from_transaction,
 )
 from ..util import (
@@ -189,9 +190,11 @@ class DeleteObjectsByHandleResource(ProtectedResource):
             namespace=args["namespace"],
             handles=args["handles"],
         )
+        tree = get_tree_from_jwt_or_fail()
         if args["namespace"] == GRAMPS_OBJECT_PLURAL["Person"]:
             update_usage_people()
-        tree = get_tree_from_jwt_or_fail()
+        elif args["namespace"] == GRAMPS_OBJECT_PLURAL["Media"]:
+            run_task(update_media_usage_task, tree=tree, user_id=get_jwt_identity())
         trans_dict_to_reindex = remove_deleted_from_search_indices(tree, trans_dict)
         # additions/updates require (re)computing embeddings: do it in the background
         if trans_dict_to_reindex:

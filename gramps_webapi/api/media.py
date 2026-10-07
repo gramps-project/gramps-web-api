@@ -21,9 +21,7 @@
 
 from __future__ import annotations
 
-import logging
 import os
-import time
 import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING, BinaryIO, Callable, List, Optional, Set
@@ -37,7 +35,6 @@ from gramps.gen.utils.file import expand_media_path
 from ..auth import get_tree_usage, set_tree_usage
 from ..types import FilenameOrPath
 from ..util import get_extension
-from .cache import persistent_cache
 from .file import FileHandler, LocalFileHandler, upload_file_local
 from .util import (
     abort_with_message,
@@ -51,20 +48,7 @@ from .util import (
 if TYPE_CHECKING:
     from .s3 import ObjectStorageFileHandler
 
-_LOG = logging.getLogger(__name__)
-
 PREFIX_S3 = "s3://"
-
-# Incremental usage updates (see `increment_usage_media`) can drift from the
-# true value over time - e.g. deleting media never decrements the cached
-# usage, and files added or removed outside the API (direct filesystem
-# access, an interrupted import) are never accounted for incrementally. We
-# don't try to catch every possible source of drift individually; instead we
-# bound how long it can persist by forcing a full, authoritative
-# recomputation at most this often. This trades perfect real-time accuracy
-# for a known worst-case staleness, while keeping the common case (adding one
-# file) cheap.
-MEDIA_USAGE_MAX_STALENESS_SECONDS = 60 * 60  # 1 hour
 
 
 class MediaHandlerBase:
@@ -102,15 +86,6 @@ class MediaHandlerBase:
         self, objects: List[Media], db_handle: DbReadBase
     ) -> List[Media]:
         """Given a list of media objects, return the ones with existing files."""
-        raise NotImplementedError
-
-    def file_exists_for_checksum(self, checksum: str, mime: str) -> bool:
-        """Return whether a file is already stored for this checksum/MIME type.
-
-        Used to tell whether uploading a new object with this checksum would
-        add new bytes to storage, or just reuse a file that another media
-        object already points to (storage is content-addressed by checksum).
-        """
         raise NotImplementedError
 
     def get_media_size(self, db_handle: Optional[DbReadBase] = None) -> int:
@@ -164,11 +139,6 @@ class MediaHandlerLocal(MediaHandlerBase):
             for obj in objects
             if self.get_file_handler(obj.handle, db_handle=db_handle).file_exists()
         ]
-
-    def file_exists_for_checksum(self, checksum: str, mime: str) -> bool:
-        """Return whether a file is already stored for this checksum/MIME type."""
-        path = self.get_default_filename(checksum, mime)
-        return os.path.isfile(os.path.join(self.base_dir, path))
 
     def get_media_size(self, db_handle: Optional[DbReadBase] = None) -> int:
         """Return the total disk space used by all existing media objects.
@@ -305,20 +275,6 @@ class MediaHandlerS3(MediaHandlerBase):
         remote_keys = self.get_remote_keys()
         return [obj for obj in objects if obj.checksum in remote_keys]
 
-    def file_exists_for_checksum(self, checksum: str, mime: str) -> bool:
-        """Return whether a file is already stored for this checksum/MIME type."""
-        from botocore.exceptions import ClientError
-
-        from .s3 import get_client, get_object_name
-
-        client = get_client(self.endpoint_url)
-        object_name = get_object_name(checksum, prefix=self.prefix)
-        try:
-            client.head_object(Bucket=self.bucket_name, Key=object_name)
-            return True
-        except ClientError:
-            return False
-
     def get_media_size(self, db_handle: Optional[DbReadBase] = None) -> int:
         """Return the total disk space used by all existing media objects."""
         from .s3 import get_object_keys_size
@@ -401,33 +357,6 @@ def get_media_handler(
     return MediaHandler(base_dir)
 
 
-def _media_usage_sync_cache_key(tree: str) -> str:
-    """Return the cache key tracking when media usage was last fully recomputed."""
-    return f"{tree}:media_usage_synced"
-
-
-def _media_usage_is_stale(tree: str) -> bool:
-    """Whether media usage hasn't been fully recomputed recently enough.
-
-    If the cache is unavailable, we can't tell how old the value is, so we
-    conservatively treat it as stale.
-    """
-    try:
-        last_synced = persistent_cache.get(_media_usage_sync_cache_key(tree)) or 0.0
-    except Exception as exc:
-        _LOG.warning("Could not read media usage sync timestamp from cache: %s", exc)
-        return True
-    return time.time() - last_synced > MEDIA_USAGE_MAX_STALENESS_SECONDS
-
-
-def mark_media_usage_synced(tree: str) -> None:
-    """Record that media usage was just fully recomputed."""
-    try:
-        persistent_cache.set(_media_usage_sync_cache_key(tree), time.time())
-    except Exception as exc:
-        _LOG.warning("Could not write media usage sync timestamp to cache: %s", exc)
-
-
 def update_usage_media(
     tree: Optional[str] = None, user_id: Optional[str] = None
 ) -> int:
@@ -446,34 +375,7 @@ def update_usage_media(
     finally:
         close_db(db_handle)
     set_tree_usage(tree, usage_media=usage_media)
-    mark_media_usage_synced(tree)
     return usage_media
-
-
-def increment_usage_media(
-    delta: int, tree: Optional[str] = None, user_id: Optional[str] = None
-) -> int:
-    """Adjust the cached media usage by `delta` bytes and return the new value.
-
-    Used after uploading or replacing a single file, where the size change is
-    already known. This avoids recomputing the usage from scratch, which
-    requires iterating over every media object in the tree and calling
-    `stat()` on each corresponding file - an O(n) cost on every upload. To
-    bound the drift this can introduce (see `MEDIA_USAGE_MAX_STALENESS_SECONDS`),
-    a full recomputation is still done occasionally.
-    """
-    if not tree:
-        tree = get_tree_from_jwt_or_fail()
-    if _media_usage_is_stale(tree):
-        return update_usage_media(tree=tree, user_id=user_id)
-    usage_dict = get_tree_usage(tree)
-    current_usage = usage_dict.get("usage_media") if usage_dict else None
-    if current_usage is None:
-        # no cached value yet - fall back to a full recomputation once
-        return update_usage_media(tree=tree, user_id=user_id)
-    new_usage = max(0, current_usage + delta)
-    set_tree_usage(tree, usage_media=new_usage)
-    return new_usage
 
 
 def check_quota_media(
@@ -483,11 +385,7 @@ def check_quota_media(
     if not tree:
         tree = get_tree_from_jwt_or_fail()
     usage_dict = get_tree_usage(tree)
-    if (
-        not usage_dict
-        or usage_dict.get("usage_media") is None
-        or _media_usage_is_stale(tree)
-    ):
+    if not usage_dict or usage_dict.get("usage_media") is None:
         update_usage_media(tree=tree, user_id=user_id)
         usage_dict = get_tree_usage(tree)
         assert usage_dict is not None, "Unexpected error while looking up usage data."

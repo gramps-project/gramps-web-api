@@ -26,6 +26,7 @@ from http import HTTPStatus
 from typing import Dict
 
 from flask import Response, abort, request
+from flask_jwt_extended import get_jwt_identity
 from gramps.gen.db import DbTxn
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Media
@@ -36,7 +37,8 @@ from ...auth.const import PERM_EDIT_OBJ
 from ..auth import require_permissions
 from ..blueprint import api_blueprint
 from ..file import process_file
-from ..media import check_quota_media, get_media_handler, increment_usage_media
+from ..media import check_quota_media, get_media_handler
+from ..tasks import run_task, update_media_usage_task
 from ..util import abort_with_message, get_db_handle, get_tree_from_jwt
 from . import ProtectedResource
 from .util import transaction_to_json, update_object
@@ -127,7 +129,7 @@ class MediaFileResource(ProtectedResource):
                 media_handler.upload_file(f, checksum, mime, path=path)
             except ValueError:
                 abort_with_message(HTTPStatus.FORBIDDEN, "File access not allowed")
-            increment_usage_media(size, tree=tree)
+            run_task(update_media_usage_task, tree=tree, user_id=get_jwt_identity())
             return Response(status=200)
         if args.get("uploadmissing"):
             abort_with_message(
@@ -153,7 +155,7 @@ class MediaFileResource(ProtectedResource):
             except (AttributeError, ValueError) as exc:
                 abort_with_message(400, "Error while updating object")
             trans_dict = transaction_to_json(trans)
-        increment_usage_media(size_delta, tree=tree)
+        run_task(update_media_usage_task, tree=tree, user_id=get_jwt_identity())
         return Response(
             response=json.dumps(trans_dict), status=200, mimetype="application/json"
         )

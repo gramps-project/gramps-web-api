@@ -61,7 +61,7 @@ from .check import check_database
 from .emails import email_confirm_email, email_new_user, email_reset_pw
 from ..verify_lib import run_verify
 from .export import prepare_options, run_export
-from .media import get_media_handler
+from .media import get_media_handler, update_usage_media
 from .media_importer import MediaImporter
 from .report import run_report
 from .resources.delete import delete_all_objects
@@ -730,6 +730,7 @@ def delete_objects(
         close_db(db_handle)
 
     update_usage_people(tree=tree, user_id=user_id)
+    update_usage_media(tree=tree, user_id=user_id)
     _search_reindex_incremental(
         tree=tree,
         user_id=user_id,
@@ -898,6 +899,16 @@ def _index_objects(
                 handle,
                 exc_info=True,
             )
+
+
+@shared_task()
+def update_media_usage_task(tree: str, user_id: str) -> None:
+    """Recompute and store the media usage for a tree.
+
+    Recomputing scans every media object's file, so this is run as a task
+    rather than inline in the request, the same way search index updates are.
+    """
+    update_usage_media(tree=tree, user_id=user_id)
 
 
 @shared_task(bind=True)
