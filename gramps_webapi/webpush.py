@@ -11,22 +11,82 @@
 
 """Reusable Web Push delivery helpers."""
 
+import base64
 import json
+from functools import lru_cache
 from typing import Any, Mapping
+from urllib.parse import urlsplit
 
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from flask import current_app
+from marshmallow import ValidationError, validate
+from py_vapid import Vapid
 from pywebpush import WebPushException, webpush
 
 from .auth import PushSubscription, user_db
 
+WEB_PUSH_TIMEOUT_SECONDS = 10
+VAPID_KEY_CONTEXT = b"gramps-web-api:webpush:vapid:v1"
 
-def _web_push_config():
-    public_key = current_app.config.get("WEB_PUSH_VAPID_PUBLIC_KEY", "")
-    private_key = current_app.config.get("WEB_PUSH_VAPID_PRIVATE_KEY", "")
-    subject = current_app.config.get("WEB_PUSH_VAPID_SUBJECT", "")
-    if not public_key or not private_key or not subject:
+
+@lru_cache(maxsize=1)
+def _derive_vapid_key(secret_key: bytes) -> tuple[Vapid, str]:
+    """Derive a stable, separate signing key; secret rotation requires resubscription."""
+    curve = ec.SECP256R1()
+    counter = 0
+    while True:
+        material = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=None,
+            info=VAPID_KEY_CONTEXT + counter.to_bytes(4, "big"),
+        ).derive(secret_key)
+        private_value = int.from_bytes(material, "big")
+        if 0 < private_value < curve.group_order:
+            break
+        counter += 1
+    private_key = ec.derive_private_key(private_value, curve)
+    public_key = (
+        base64.urlsafe_b64encode(
+            private_key.public_key().public_bytes(
+                serialization.Encoding.X962,
+                serialization.PublicFormat.UncompressedPoint,
+            )
+        )
+        .rstrip(b"=")
+        .decode("ascii")
+    )
+    # The contact URI is validated below. py-vapid's stricter regex rejects
+    # otherwise valid HTTPS origins with a port.
+    return Vapid(private_key, conf={"no-strict": True}), public_key
+
+
+def get_web_push_config() -> tuple[Vapid, str, str] | None:
+    """Return VAPID credentials from the existing secret and HTTPS base URL."""
+    secret_key = current_app.config.get("SECRET_KEY")
+    base_url = current_app.config.get("BASE_URL")
+    if not secret_key or not isinstance(secret_key, (str, bytes)):
         return None
-    return private_key, subject
+    if not isinstance(base_url, str) or any(char.isspace() for char in base_url):
+        return None
+    try:
+        validate.URL(schemes={"https"}, require_tld=False)(base_url)
+        url = urlsplit(base_url)
+        if (
+            url.scheme != "https"
+            or not url.hostname
+            or url.username is not None
+            or url.password is not None
+        ):
+            return None
+        url.port  # Validate a configured port before exposing the key.
+    except (ValueError, ValidationError):
+        return None
+    secret = secret_key.encode("utf-8") if isinstance(secret_key, str) else secret_key
+    vapid, public_key = _derive_vapid_key(secret)
+    return vapid, public_key, f"https://{url.netloc}"
 
 
 def send_web_push(
@@ -38,11 +98,11 @@ def send_web_push(
     Endpoints rejected with HTTP 404 or 410 are removed. Transient failures
     are retained for a later retry.
     """
-    config = _web_push_config()
+    config = get_web_push_config()
     if config is None:
         current_app.logger.warning("Web Push delivery skipped: VAPID is not configured")
         return
-    private_key, subject = config
+    vapid, _, subject = config
     data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
     subscriptions = (
@@ -62,8 +122,9 @@ def send_web_push(
                     },
                 },
                 data=data,
-                vapid_private_key=private_key,
+                vapid_private_key=vapid,
                 vapid_claims={"sub": subject},
+                timeout=WEB_PUSH_TIMEOUT_SECONDS,
             )
         except WebPushException as exc:
             if exc.status_code in (404, 410):
