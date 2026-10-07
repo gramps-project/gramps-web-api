@@ -262,17 +262,13 @@ def _apply_selected_filters(
     return handles
 
 
-def _apply_event_type_filter(
-    db_handle: DbReadBase, event_types: list[str], handles: list[Handle]
-) -> list[Handle]:
-    """Use Gramps' HasType rule for the public event_types shorthand."""
-    rules = {
-        "function": "or",
-        "rules": [
-            {"name": "HasType", "values": [event_type]} for event_type in event_types
-        ],
-    }
-    return apply_filter(db_handle, {"rules": json.dumps(rules)}, "Event", handles)
+def _event_matches_type(
+    event: Event, allowed_types: set[str], locale: GrampsLocale
+) -> bool:
+    """Match XML, Gramps, and requested-locale event type names."""
+    xml_type = event.type.xml_str()
+    names = (xml_type, str(event.type), locale.translation.sgettext(xml_type))
+    return any(name.strip().casefold() in allowed_types for name in names)
 
 
 def _collect_anniversaries(
@@ -376,9 +372,14 @@ def _collect_anniversaries(
                 participant = name_displayer.display(person)
             add_reference(person, event, participant)
 
-    event_handles = _apply_event_type_filter(
-        db_handle, args["event_types"], [Handle(handle) for handle in sorted(entries)]
-    )
+    allowed_types = {
+        value.strip().casefold() for value in args["event_types"] if value.strip()
+    }
+    event_handles = [
+        Handle(handle)
+        for handle in sorted(entries)
+        if _event_matches_type(entries[handle].event, allowed_types, locale)
+    ]
     event_handles = _apply_selected_filters(db_handle, args, "Event", event_handles)
     return sorted(
         (entries[handle] for handle in event_handles),
@@ -458,11 +459,22 @@ class AnniversariesIcsQueryArgs(Schema):
         fields.Str(validate=validate.Length(min=1)),
         load_default=lambda: ["Birth", "Marriage", "Death"],
         validate=validate.Length(min=1),
-        metadata={"description": "Comma-delimited event type names to include."},
+        metadata={
+            "description": (
+                "Comma-delimited event type names, matched case-insensitively "
+                "against Gramps names and translations for the requested locale."
+            )
+        },
     )
     living_only = fields.Bool(
         load_default=True,
-        metadata={"description": "Limit personal events to living participants."},
+        metadata={
+            "description": (
+                "Exclude non-death personal events for people who are not living "
+                "and non-death family events unless both spouses are living. "
+                "This option does not exclude death events."
+            )
+        },
     )
     primary_participants_only = fields.Bool(
         load_default=True,

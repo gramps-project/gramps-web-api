@@ -14,17 +14,26 @@
 import gzip
 import json
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from urllib.parse import urlencode
 from uuid import uuid4
 
 from gramps.gen.const import GRAMPS_LOCALE
-from gramps.gen.lib import Date, Event, EventType
+from gramps.gen.lib import (
+    Date,
+    Event,
+    EventRef,
+    EventRoleType,
+    EventType,
+    Family,
+    Person,
+)
 
 from gramps_webapi.api.cache import request_cache
 from gramps_webapi.api.resources.anniversaries import (
     AnniversaryEvent,
     _build_ics,
+    _collect_anniversaries,
     _escape_ics_text,
     _get_anniversary_date_components,
 )
@@ -202,6 +211,153 @@ class TestAnniversariesIcs(unittest.TestCase):
         self.assertIn("\\nType: Birth", text)
         self.assertNotIn("\\\\nType: Birth", text)
         self.assertNotIn("Type: Death", text)
+
+    def test_event_types_match_case_and_requested_locale_with_shared_cache_key(self):
+        """Case variants share content and translated names select the same events."""
+        header, token = self._create_token()
+        self.addCleanup(self.client.delete, TOKEN_URL, headers=header)
+        for first, second in (("birth", "Birth"), ("Birth", "birth")):
+            with self.subTest(first=first):
+                with self.client.application.app_context():
+                    request_cache.clear()
+                responses = [
+                    self.client.get(
+                        f"{ICS_URL}?{urlencode({'token': token, 'event_types': value, 'locale': 'en'})}"
+                    )
+                    for value in (first, second)
+                ]
+                self.assertTrue(all(rv.status_code == 200 for rv in responses))
+                self.assertIn(b"BEGIN:VEVENT", responses[0].data)
+                self.assertEqual(responses[0].data, responses[1].data)
+                self.assertEqual(
+                    responses[0].headers["ETag"], responses[1].headers["ETag"]
+                )
+
+        german_locale = Mock(wraps=GRAMPS_LOCALE)
+        german_locale.language = ["de"]
+        german_locale.translation = Mock(wraps=GRAMPS_LOCALE.translation)
+        german_locale.translation.sgettext.side_effect = lambda value: (
+            "Geburt" if value == "Birth" else GRAMPS_LOCALE.translation.sgettext(value)
+        )
+        with patch(
+            "gramps_webapi.api.resources.anniversaries.get_locale_for_language",
+            return_value=german_locale,
+        ):
+            german = [
+                self.client.get(
+                    f"{ICS_URL}?{urlencode({'token': token, 'event_types': value, 'locale': 'de'})}"
+                )
+                for value in ("Birth", "Geburt", "geburt")
+            ]
+        self.assertTrue(all(rv.status_code == 200 for rv in german))
+        self.assertIn(b"BEGIN:VEVENT", german[0].data)
+        self.assertEqual(german[0].data, german[1].data)
+        self.assertEqual(german[1].data, german[2].data)
+        self.assertEqual(german[1].headers["ETag"], german[2].headers["ETag"])
+
+    def _collect_with_options(self, living_only, primary_participants_only):
+        """Collect deterministic person and family references with real Gramps roles."""
+        people = {}
+        for handle in ("alive", "partner", "deceased"):
+            person = Person()
+            person.handle = handle
+            person.gramps_id = handle
+            people[handle] = person
+
+        events = {}
+
+        def add_event(subject, handle, event_type, role=EventRoleType.PRIMARY):
+            event = Event()
+            event.handle = handle
+            event.gramps_id = handle
+            event.type = EventType(event_type)
+            event.date = Date(2000, 1, 2)
+            events[handle] = event
+            reference = EventRef()
+            reference.set_reference_handle(handle)
+            reference.set_role(role)
+            subject.add_event_ref(reference)
+
+        add_event(people["alive"], "alive-birth", EventType.BIRTH)
+        add_event(people["deceased"], "deceased-birth", EventType.BIRTH)
+        add_event(people["deceased"], "deceased-death", EventType.DEATH)
+        add_event(
+            people["alive"], "witness-birth", EventType.BIRTH, EventRoleType.WITNESS
+        )
+
+        families = {}
+        for handle, spouse in (
+            ("living-family", "partner"),
+            ("mixed-family", "deceased"),
+        ):
+            family = Family()
+            family.handle = handle
+            family.gramps_id = handle
+            family.set_father_handle("alive")
+            family.set_mother_handle(spouse)
+            people["alive"].add_family_handle(handle)
+            people[spouse].add_family_handle(handle)
+            families[handle] = family
+            add_event(
+                family, handle + "-marriage", EventType.MARRIAGE, EventRoleType.FAMILY
+            )
+        add_event(
+            families["living-family"],
+            "witness-marriage",
+            EventType.MARRIAGE,
+            EventRoleType.WITNESS,
+        )
+
+        db_handle = Mock()
+        db_handle.get_person_handles.return_value = list(people)
+        db_handle.get_person_from_handle.side_effect = people.get
+        db_handle.get_family_from_handle.side_effect = families.get
+        db_handle.get_event_from_handle.side_effect = events.get
+        args = {
+            "event_types": ["Birth", "Marriage", "Death"],
+            "living_only": living_only,
+            "primary_participants_only": primary_participants_only,
+        }
+        with (
+            patch(
+                "gramps_webapi.api.resources.anniversaries.CacheProxyDb",
+                side_effect=lambda db: db,
+            ),
+            patch(
+                "gramps_webapi.api.resources.anniversaries.probably_alive",
+                side_effect=lambda person, db, today: person.handle != "deceased",
+            ),
+            patch(
+                "gramps_webapi.api.resources.anniversaries.get_family_name_localized",
+                return_value="Family",
+            ),
+        ):
+            return {
+                entry.event.handle
+                for entry in _collect_anniversaries(db_handle, args, GRAMPS_LOCALE)
+            }
+
+    def test_living_only_filters_births_and_marriages_but_keeps_deaths(self):
+        """Dead people's births and mixed-family marriages are optional."""
+        living = self._collect_with_options(True, True)
+        all_people = self._collect_with_options(False, True)
+        self.assertEqual(
+            living,
+            {"alive-birth", "deceased-death", "living-family-marriage"},
+        )
+        self.assertEqual(
+            all_people,
+            living | {"deceased-birth", "mixed-family-marriage"},
+        )
+
+    def test_primary_participants_only_excludes_secondary_roles(self):
+        """Witness references appear only when secondary participants are allowed."""
+        primary = self._collect_with_options(False, True)
+        secondary = self._collect_with_options(False, False)
+        self.assertEqual(
+            secondary,
+            primary | {"witness-birth", "witness-marriage"},
+        )
 
     def test_public_feed_generation_depth_validation(self):
         """generation_depth is bounded between 1 and 9."""
