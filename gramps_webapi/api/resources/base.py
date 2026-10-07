@@ -41,7 +41,11 @@ from ...const import GRAMPS_OBJECT_PLURAL, NAME_FORMAT_REGEXP
 from ..auth import require_permissions
 from ..blueprint import api_blueprint
 from ..cache import request_cache_decorator
-from ..tasks import run_task, update_search_indices_from_transaction
+from ..tasks import (
+    run_task,
+    update_media_usage_task,
+    update_search_indices_from_transaction,
+)
 from ..util import (
     check_quota_people,
     get_db_handle,
@@ -342,11 +346,13 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         trans_dict = delete_object(
             self.db_handle_writable, handle, self.gramps_class_name
         )
+        tree = get_tree_from_jwt_or_fail()
         # update usage
         if self.gramps_class_name == "Person":
             update_usage_people()
+        elif self.gramps_class_name == "Media":
+            run_task(update_media_usage_task, tree=tree, user_id=get_jwt_identity())
         # update search indices
-        tree = get_tree_from_jwt_or_fail()
         trans_dict_to_reindex = remove_deleted_from_search_indices(tree, trans_dict)
         if trans_dict_to_reindex:
             run_task(

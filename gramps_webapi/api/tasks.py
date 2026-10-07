@@ -76,6 +76,7 @@ from .media import (
     delete_expired_local_archives,
     get_local_archive_dir,
     get_media_handler,
+    update_usage_media,
 )
 from .media_importer import MediaImporter
 from .report import run_report
@@ -890,6 +891,7 @@ def delete_objects(
         close_db(db_handle)
 
     update_usage_people(tree=tree, user_id=user_id)
+    update_usage_media(tree=tree, user_id=user_id)
     _search_reindex_incremental(
         tree=tree,
         user_id=user_id,
@@ -1058,6 +1060,16 @@ def _index_objects(
                 handle,
                 exc_info=True,
             )
+
+
+@shared_task()
+def update_media_usage_task(tree: str, user_id: str) -> None:
+    """Recompute and store the media usage for a tree.
+
+    Recomputing scans every media object's file, so this is run as a task
+    rather than inline in the request, the same way search index updates are.
+    """
+    update_usage_media(tree=tree, user_id=user_id)
 
 
 @shared_task(bind=True)
