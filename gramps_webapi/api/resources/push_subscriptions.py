@@ -11,15 +11,15 @@
 
 """Resources for managing the current user's Web Push subscriptions."""
 
-from flask import Response, current_app
+from flask import Response
 from flask_jwt_extended import get_jwt_identity
 
 from ...auth import (
     delete_user_push_subscription,
-    get_name,
     upsert_user_push_subscription,
 )
 from ...auth.const import PERM_EDIT_OWN_USER
+from ...webpush import get_web_push_config
 from ..auth import require_permissions
 from ..blueprint import api_blueprint
 from ..util import abort_with_message
@@ -34,39 +34,23 @@ from .schemas import (
 class UserPushSubscriptionsResource(ProtectedResource):
     """Manage browser subscriptions owned by the current user."""
 
-    def _get_user_name(self) -> str:
-        user_id = get_jwt_identity()
-        try:
-            return get_name(user_id)
-        except ValueError:
-            abort_with_message(401, "User not found for token ID")
-            raise  # unreachable
-
-    def _public_key(self):
-        public_key = current_app.config.get("WEB_PUSH_VAPID_PUBLIC_KEY", "")
-        private_key = current_app.config.get("WEB_PUSH_VAPID_PRIVATE_KEY", "")
-        subject = current_app.config.get("WEB_PUSH_VAPID_SUBJECT", "")
-        if not public_key or not private_key or not subject:
-            return None
-        return public_key
-
     @api_blueprint.response(200, PushSubscriptionConfigSchema())
     def get(self):
         """Get the VAPID public key without exposing subscription endpoints."""
         require_permissions([PERM_EDIT_OWN_USER])
-        return {"public_key": self._public_key()}, 200
+        config = get_web_push_config()
+        return {"public_key": config[1] if config is not None else None}, 200
 
     @api_blueprint.response(201)
     @api_blueprint.arguments(PushSubscriptionBodySchema, location="json")
     def post(self, args):
         """Create or update the current browser's Web Push subscription."""
         require_permissions([PERM_EDIT_OWN_USER])
-        if self._public_key() is None:
+        if get_web_push_config() is None:
             abort_with_message(503, "Web Push is not configured")
-        user_name = self._get_user_name()
         try:
             upsert_user_push_subscription(
-                username=user_name,
+                user_id=get_jwt_identity(),
                 endpoint=args["endpoint"],
                 p256dh=args["keys"]["p256dh"],
                 auth=args["keys"]["auth"],
@@ -80,5 +64,5 @@ class UserPushSubscriptionsResource(ProtectedResource):
     def delete(self, args):
         """Delete the current browser's Web Push subscription."""
         require_permissions([PERM_EDIT_OWN_USER])
-        delete_user_push_subscription(self._get_user_name(), args["endpoint"])
+        delete_user_push_subscription(get_jwt_identity(), args["endpoint"])
         return "", 204

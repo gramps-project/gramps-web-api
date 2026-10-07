@@ -22,8 +22,8 @@
 
 import secrets
 import uuid
-from hashlib import sha256
 from datetime import datetime
+from hashlib import sha256
 from typing import Any, Dict, List, Optional, Sequence, Set, Union
 
 import sqlalchemy as sa
@@ -33,15 +33,14 @@ from sqlalchemy.exc import IntegrityError, StatementError
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql.functions import coalesce
 
-
 from ..const import DB_CONFIG_ALLOWED_KEYS
 from .const import (
     ACCESS_TOKEN_LABEL_MAX_LENGTH,
     ACCESS_TOKEN_MAX_PER_SCOPE,
     ACCESS_TOKEN_SCOPES,
     ACCESS_TOKEN_SCOPES_MULTIPLE,
-    PERMISSIONS,
     PERM_USE_CHAT,
+    PERMISSIONS,
     ROLE_ADMIN,
     ROLE_OWNER,
     ROLE_UNCONFIRMED,
@@ -315,9 +314,9 @@ def _normalize_multiple_token_scope(scope: str) -> str:
     return scope
 
 
-def _hash_access_token(token: str) -> str:
-    """Return deterministic SHA-256 hash for a persistent access token."""
-    return sha256(token.encode("utf-8")).hexdigest()
+def _hash_string(value: str) -> str:
+    """Return the deterministic SHA-256 hash of a UTF-8 string."""
+    return sha256(value.encode("utf-8")).hexdigest()
 
 
 def has_user_access_token(username: str, scope: str) -> bool:
@@ -348,7 +347,7 @@ def rotate_user_access_token(username: str, scope: str) -> str:
     access_token = query.filter_by(user_id=user.id, scope=scope).scalar()
     for _ in range(5):
         token = secrets.token_urlsafe(32)
-        token_hash = _hash_access_token(token)
+        token_hash = _hash_string(token)
         if access_token is None:
             access_token = AccessToken(user_id=user.id, scope=scope)
             user_db.session.add(access_token)  # pylint: disable=no-member
@@ -431,7 +430,7 @@ def create_user_access_token(
             user_id=user_id,
             scope=scope,
             label=label,
-            token_hash=_hash_access_token(token),
+            token_hash=_hash_string(token),
         )
         user_db.session.add(access_token)  # pylint: disable=no-member
         try:
@@ -468,7 +467,7 @@ def mark_access_token_used(token: str, scope: str) -> None:
     """Record that a persistent access token was just used."""
     scope = normalize_access_token_scope(scope)
     query = user_db.session.query(AccessToken)  # pylint: disable=no-member
-    query.filter_by(token_hash=_hash_access_token(token), scope=scope).update(
+    query.filter_by(token_hash=_hash_string(token), scope=scope).update(
         {AccessToken.last_used_at: datetime.utcnow()}
     )
     user_db.session.commit()  # pylint: disable=no-member
@@ -479,7 +478,7 @@ def get_user_from_access_token(token: str, scope: str) -> Optional["User"]:
     if not token:
         return None
     scope = normalize_access_token_scope(scope)
-    token_hash = _hash_access_token(token)
+    token_hash = _hash_string(token)
     query = user_db.session.query(User)  # pylint: disable=no-member
     return (
         query.join(AccessToken, AccessToken.user_id == User.id)
@@ -494,7 +493,7 @@ def get_user_from_access_token(token: str, scope: str) -> Optional["User"]:
 
 
 def upsert_user_push_subscription(
-    username: str,
+    user_id: Union[str, uuid.UUID],
     endpoint: str,
     p256dh: str,
     auth: str,
@@ -505,27 +504,23 @@ def upsert_user_push_subscription(
     reused by another account, ownership is transferred to the current user so
     the previous account cannot continue sending notifications to that device.
     """
-    query = user_db.session.query(User)  # pylint: disable=no-member
-    user = query.filter_by(name=username).scalar()
-    if user is None:
-        raise ValueError("User does not exist")
-
-    endpoint_hash = sha256(endpoint.encode("utf-8")).hexdigest()
+    user_id = uuid.UUID(str(user_id))
+    endpoint_hash = _hash_string(endpoint)
     query = user_db.session.query(PushSubscription)  # pylint: disable=no-member
     subscription = query.filter_by(endpoint_hash=endpoint_hash).scalar()
-    if subscription is None or subscription.user_id != user.id:
-        count = query.filter_by(user_id=user.id).count()
+    if subscription is None or subscription.user_id != user_id:
+        count = query.filter_by(user_id=user_id).count()
         if count >= MAX_PUSH_SUBSCRIPTIONS_PER_USER:
             raise ValueError("Maximum number of push subscriptions reached")
     if subscription is None:
         subscription = PushSubscription(
-            user_id=user.id,
+            user_id=user_id,
             endpoint=endpoint,
             endpoint_hash=endpoint_hash,
         )
         user_db.session.add(subscription)  # pylint: disable=no-member
 
-    subscription.user_id = user.id
+    subscription.user_id = user_id
     subscription.endpoint = endpoint
     subscription.p256dh = p256dh
     subscription.auth = auth
@@ -533,16 +528,15 @@ def upsert_user_push_subscription(
     return subscription
 
 
-def delete_user_push_subscription(username: str, endpoint: str) -> bool:
+def delete_user_push_subscription(
+    user_id: Union[str, uuid.UUID], endpoint: str
+) -> bool:
     """Delete a user's Web Push subscription by endpoint."""
-    query = user_db.session.query(User)  # pylint: disable=no-member
-    user = query.filter_by(name=username).scalar()
-    if user is None:
-        raise ValueError("User does not exist")
-    endpoint_hash = sha256(endpoint.encode("utf-8")).hexdigest()
+    user_id = uuid.UUID(str(user_id))
+    endpoint_hash = _hash_string(endpoint)
     subscription = (
         user_db.session.query(PushSubscription)  # pylint: disable=no-member
-        .filter_by(user_id=user.id, endpoint_hash=endpoint_hash)
+        .filter_by(user_id=user_id, endpoint_hash=endpoint_hash)
         .scalar()
     )
     if subscription is None:

@@ -1,7 +1,7 @@
 """add Web Push subscriptions table
 
 Revision ID: 4b7f9d2e6c01
-Revises: d4e9a1c7b3f2
+Revises: 7b2e9f4c1a63
 Create Date: 2026-09-22 00:00:00.000000
 
 """
@@ -14,7 +14,7 @@ from gramps_webapi.auth.sql_guid import GUID
 
 # revision identifiers, used by Alembic.
 revision = "4b7f9d2e6c01"
-down_revision = "d4e9a1c7b3f2"
+down_revision = "7b2e9f4c1a63"
 branch_labels = None
 depends_on = None
 

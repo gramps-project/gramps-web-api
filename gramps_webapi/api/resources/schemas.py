@@ -113,8 +113,7 @@ class PushSubscriptionDeleteSchema(Schema):
 
     endpoint = fields.Str(
         required=True,
-        validate=[validate.Length(min=1, max=4096), validate_push_endpoint],
-        metadata={"description": "HTTPS endpoint of the subscription to delete."},
+        metadata={"description": "Endpoint of the subscription to delete."},
     )
 
 
