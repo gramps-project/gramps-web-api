@@ -17,4 +17,12 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 
-from ._version import __version__
+import os
+
+# Gramps sets its locale from the environment when first imported. The API
+# translates into the language requested by the client, so the server locale
+# is always English. LANGUAGE takes precedence over LANG and LC_* for
+# translations and dates; the collation (LC_COLLATE) is left alone.
+os.environ["LANGUAGE"] = "en"
+
+from ._version import __version__  # noqa: E402

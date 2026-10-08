@@ -1658,20 +1658,20 @@ def xml_to_locale(gramps_type_name: str, string: str) -> str:
 
 
 def _set_type_from_string(type_obj, string_value: str) -> None:
-    """Set a GrampsType from either an XML (English) or localized string.
+    """Set a GrampsType from either its XML string or its display string.
 
-    The frontend may send either English XML strings (e.g. "Birth") or
-    localized strings (e.g. "Geburt" in German), depending on the
-    ``valueNonLocal`` property of ``GrampsjsFormSelectType``.
+    Clients send the XML string (e.g. "Bas Mitzvah"), but some send the
+    display string, which differs for a few types (e.g. "Bat Mitzvah").
+    Display strings are in the server locale, which is always English.
 
-    This function first tries ``set_from_xml_str()`` which handles English
-    XML strings via ``_E2IMAP``. If the string is not recognized (i.e. falls
-    back to Custom), it tries ``set()`` which handles localized strings via
+    This function first tries ``set_from_xml_str()`` which handles XML
+    strings via ``_E2IMAP``. If the string is not recognized (i.e. falls
+    back to Custom), it tries ``set()`` which handles display strings via
     ``_S2IMAP``.
     """
     type_obj.set_from_xml_str(string_value)
     if type_obj.is_custom() and string_value not in type_obj._E2IMAP:
-        # set_from_xml_str didn't recognize it — try localized string
+        # set_from_xml_str didn't recognize it — try display string
         type_obj.set(string_value)
 
 

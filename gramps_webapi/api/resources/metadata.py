@@ -314,15 +314,12 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
         if args["surnames"]:
             result["surnames"] = db_handle.get_surname_list()
         data = db_handle.get_summary()
-        db_version_key = GRAMPS_LOCALE.translation.sgettext("Database version")
-        db_module_key = GRAMPS_LOCALE.translation.sgettext("Database module version")
-        db_schema_key = GRAMPS_LOCALE.translation.sgettext("Schema version")
         for item in data:
-            if item == db_version_key:
+            if item == "Database version":
                 result["database"]["version"] = data[item]
-            elif item == db_module_key:
+            elif item == "Database module version":
                 result["database"]["module"] = data[item]
-            elif item == db_schema_key:
+            elif item == "Schema version":
                 result["database"]["schema"] = data[item]
         if isinstance(db_handle, DbGeneric):
             result["database"]["actual_schema"] = db_handle.get_schema_version()
