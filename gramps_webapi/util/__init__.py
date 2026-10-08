@@ -43,3 +43,16 @@ def get_type(ext: str) -> Optional[str]:
     # last resort
     typ, enc = mimetypes.guess_type(ext, strict=False)
     return typ
+
+
+def pin_postgres_driver(url: str) -> str:
+    """Use psycopg2 for a PostgreSQL URL that names no driver.
+
+    SQLAlchemy 2.1 made psycopg (3) the default PostgreSQL driver, but Gramps
+    Web uses psycopg2 everywhere else (sifts, the PostgreSQL addons). A URL
+    with an explicit driver, e.g. ``postgresql+psycopg://``, is left alone.
+    """
+    prefix = "postgresql://"
+    if url.startswith(prefix):
+        return "postgresql+psycopg2://" + url[len(prefix) :]
+    return url

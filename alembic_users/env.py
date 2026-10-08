@@ -11,6 +11,7 @@ from flask import Flask
 
 from gramps_webapi.const import ENV_CONFIG_FILE
 from gramps_webapi.auth import User
+from gramps_webapi.util import pin_postgres_driver
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -44,7 +45,7 @@ def get_url():
     if not url:
         raise ValueError("No user DB URI found")
 
-    return url
+    return pin_postgres_driver(url)
 
 
 def run_migrations_offline():

@@ -30,6 +30,8 @@ from typing import Optional
 
 from sqlalchemy import create_engine, text
 
+from ...util import pin_postgres_driver
+
 
 def _is_postgres(db_url: str) -> bool:
     return db_url.startswith("postgresql") or db_url.startswith("postgres")
@@ -37,7 +39,7 @@ def _is_postgres(db_url: str) -> bool:
 
 def _get_engine(db_url: str):
     """Return a SQLAlchemy engine for the given URL."""
-    return create_engine(db_url)
+    return create_engine(pin_postgres_driver(db_url))
 
 
 def ensure_metadata_table(db_url: str) -> None:

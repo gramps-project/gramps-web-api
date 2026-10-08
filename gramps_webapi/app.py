@@ -61,6 +61,7 @@ from .config import DefaultConfig, DefaultConfigJWT
 from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI, VERSION
 from .dbmanager import WebDbManager
 from .sentry import init_sentry
+from .util import pin_postgres_driver
 from .util.celery import create_celery
 
 _LOG = logging.getLogger(__name__)
@@ -169,7 +170,9 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
     # instantiate JWT manager
     JWTManager(app)
 
-    app.config["SQLALCHEMY_DATABASE_URI"] = app.config["USER_DB_URI"]
+    app.config["SQLALCHEMY_DATABASE_URI"] = pin_postgres_driver(
+        app.config["USER_DB_URI"]
+    )
     user_db.init_app(app)
 
     # initialize OIDC if enabled
