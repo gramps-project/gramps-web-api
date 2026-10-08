@@ -18,6 +18,7 @@
 #
 
 """Timeline API resources."""
+
 from typing import Dict, List, Optional, Set, Tuple, Union
 
 from flask import abort
@@ -335,15 +336,25 @@ class Timeline:
     def add_relative(self, handle: Handle, ancestors: int = 1, offspring: int = 1):
         """Add events for a relative of the anchor person."""
         person = self.db_handle.get_person_from_handle(handle)
+        # English string for filtering and recursion, localized one for display
+        relationship_en = ""
+        if self.relative_filters or ancestors > 1:
+            calculator = get_relationship_calculator(
+                reinit=True, clocale=default_locale
+            )
+            calculator.set_depth(self.depth)
+            relationship_en = calculator.get_one_relationship(
+                self.db_handle, self.anchor_person, person, olocale=default_locale
+            )
         calculator = get_relationship_calculator(reinit=True, clocale=self.locale)
         calculator.set_depth(self.depth)
         relationship = calculator.get_one_relationship(
-            self.db_handle, self.anchor_person, person
+            self.db_handle, self.anchor_person, person, olocale=self.locale
         )
         if self.relative_filters:
             found = False
             for relative in self.relative_filters:
-                if relative in relationship:
+                if relative in relationship_en:
                     found = True
                     break
             if not found:
@@ -381,7 +392,7 @@ class Timeline:
                     self.add_relative(child_ref.ref, offspring=offspring - 1)
 
         if ancestors > 1:
-            if "father" in relationship or "mother" in relationship:
+            if "father" in relationship_en or "mother" in relationship_en:
                 for family_handle in person.parent_family_list:
                     self.add_family(
                         family_handle, include_children=False, ancestors=ancestors - 1
