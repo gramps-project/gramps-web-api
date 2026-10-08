@@ -1989,7 +1989,9 @@ class FilterRuleParamOptionSchema(_Base):
         metadata={"description": "Value to pass in the rule's values."},
     )
     label = fields.Str(
-        metadata={"description": "Untranslated display label of the value."},
+        metadata={
+            "description": "Display label of the value, in the requested locale."
+        },
     )
 
 
@@ -2034,6 +2036,13 @@ class FilterRuleParamTypeSchema(_Base):
     options = fields.List(
         fields.Nested(FilterRuleParamOptionSchema),
         metadata={"description": "Allowed values for type 'select'."},
+    )
+    custom = fields.Bool(
+        metadata={
+            "description": "True if the rule defines its own input for this "
+            "parameter in the Gramps filter editor and the format of its value "
+            "is unknown. Absent otherwise."
+        },
     )
     default_types = fields.Str(
         metadata={
