@@ -27,9 +27,13 @@ _SCRIPT = """
 import gramps_webapi
 from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.datehandler import parser
+from gramps.gen.lib import Date
 print(GRAMPS_LOCALE.language[0])
 print(GRAMPS_LOCALE.translation.gettext("Birth"))
-print(type(parser).__name__)
+date = parser.parse("1 March 2000")
+print(*date.get_ymd(), sep="-")
+date = parser.parse("between 1900 and 1910")
+print(date.get_modifier() == Date.MOD_RANGE, date.get_year())
 """
 
 
@@ -44,4 +48,4 @@ def test_server_locale_is_english_with_german_environment():
         text=True,
         check=True,
     )
-    assert result.stdout.split() == ["en", "Birth", "DateParser"]
+    assert result.stdout.split() == ["en", "Birth", "2000-3-1", "True", "1900"]
