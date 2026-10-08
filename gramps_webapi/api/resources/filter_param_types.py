@@ -30,10 +30,7 @@ depends on the rule.
 
 from typing import Any
 
-from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.filters.rules import Rule
-
-_ = glocale.translation.gettext
 
 TEXT: dict[str, Any] = {"type": "text"}
 BOOLEAN: dict[str, Any] = {"type": "boolean"}
@@ -81,8 +78,8 @@ _COMPARISON = _select(
     ]
 )
 
-# Keys are untranslated labels. Gramps rules use both translated and
-# untranslated labels, so lookups try both.
+# Keys are labels as Gramps rules declare them. The server locale is
+# always English, so they match.
 _LABEL_TYPES: dict[str, dict[str, Any]] = {
     # From the Gramps filter editor
     "Reference count:": _integer(0, 999),
@@ -154,11 +151,6 @@ _LABEL_TYPES: dict[str, dict[str, Any]] = {
     "Expression:": GOQL,
 }
 
-_LABEL_TYPES_ANY_LANGUAGE: dict[str, dict[str, Any]] = {
-    **{_(label): param_type for label, param_type in _LABEL_TYPES.items()},
-    **_LABEL_TYPES,
-}
-
 # Labels whose type depends on the rule: (namespace, rule) -> {index: type}
 _RULE_TYPES: dict[tuple[str, str], dict[int, dict[str, Any]]] = {
     ("Citation", "HasSourceIdOf"): {0: _id("Source")},
@@ -186,11 +178,11 @@ _RULE_TYPES: dict[tuple[str, str], dict[int, dict[str, Any]]] = {
 
 def _label_type(label: str, namespace: str) -> dict[str, Any]:
     """Return the type of a parameter from its label alone."""
-    if label in (_("ID:"), "ID:"):
+    if label == "ID:":
         return _id(namespace)
-    if label in (_("Filter name:"), "Filter name:"):
+    if label == "Filter name:":
         return _filter(namespace)
-    return _LABEL_TYPES_ANY_LANGUAGE.get(label, TEXT)
+    return _LABEL_TYPES.get(label, TEXT)
 
 
 def get_param_types(namespace: str, rule_class: type[Rule]) -> list[dict[str, Any]]:
