@@ -1847,6 +1847,26 @@ class OIDCTokenExchangeSchema(_Base):
     )
 
 
+class OIDCLinkSchema(_Base):
+    """Body of a POST to /oidc/link/."""
+
+    provider = fields.Str(
+        required=True,
+        metadata={"description": "ID of the OIDC provider to link, e.g. 'custom'."},
+    )
+
+
+class OIDCLinkTicketSchema(_Base):
+    """Ticket returned by /oidc/link/."""
+
+    ticket = fields.Str(
+        metadata={
+            "description": "Short-lived, single-use ticket to pass as `link` to"
+            " /oidc/login/, from the same browser."
+        },
+    )
+
+
 class OIDCTokensSchema(_Base):
     """Tokens returned by the /oidc/tokens/ code exchange endpoint."""
 

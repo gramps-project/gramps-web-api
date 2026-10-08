@@ -30,11 +30,19 @@ from flask import (
     render_template,
     session,
 )
+from flask_jwt_extended import get_jwt_identity
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from marshmallow import EXCLUDE, Schema
+from sqlalchemy.exc import IntegrityError
 from webargs import fields
 
-from ...auth import get_name, get_user_details
+from ...auth import (
+    create_oidc_account,
+    get_name,
+    get_oidc_account,
+    get_user_details,
+    user_db,
+)
 from ...auth.oidc import (
     configure_pkce,
     create_or_update_oidc_user,
@@ -47,9 +55,11 @@ from ..blueprint import api_blueprint
 from ..cache import persistent_cache
 from ..ratelimiter import limiter
 from ..util import abort_with_message, get_config, tree_exists
-from . import Resource
+from . import FreshProtectedResource, Resource
 from .schemas import (
     OIDCConfigSchema,
+    OIDCLinkSchema,
+    OIDCLinkTicketSchema,
     OIDCLogoutSchema,
     OIDCTokenExchangeSchema,
     OIDCTokensSchema,
@@ -73,6 +83,21 @@ OIDC_CODE_TIMEOUT = 120
 # reported as expired rather than as a missing entry, and so that a redeemed one
 # is still known to have been redeemed.
 OIDC_CODE_CACHE_TIMEOUT = OIDC_CODE_TIMEOUT + 60
+
+# Session key holding a pending link: the user and provider the next callback
+# adds the identity for, instead of logging in.
+SESSION_LINK_KEY = "oidc_link"
+
+# Session key holding the nonce that binds a link ticket to the browser that
+# requested it, so that a ticket sent to someone else cannot be completed with
+# their identity.
+SESSION_LINK_NONCE_KEY = "oidc_link_nonce"
+
+# Prefix for the cache entry marking a link ticket as used.
+OIDC_LINK_PREFIX = "oidc_link_ticket:"
+
+# Seconds a link ticket stays valid.
+OIDC_LINK_TICKET_TIMEOUT = 120
 
 
 def _get_oidc_client(provider_id: str | None) -> tuple[object, dict]:
@@ -192,6 +217,120 @@ def _redeem_exchange_code(code: str) -> dict:
     return entry
 
 
+def _link_serializer() -> URLSafeTimedSerializer:
+    """Serializer signing link tickets."""
+    return URLSafeTimedSerializer(
+        current_app.config["SECRET_KEY"], salt="oidc-link-ticket"
+    )
+
+
+def _redeem_link_ticket(ticket: str, provider_id: str) -> dict:
+    """Check a link ticket and return the pending link it stands for.
+
+    The ticket must be unexpired and unused, name the provider being logged in
+    to, and come from the browser that requested it.
+    """
+    try:
+        data = _link_serializer().loads(ticket, max_age=OIDC_LINK_TICKET_TIMEOUT)
+    except SignatureExpired:
+        abort_with_message(400, "The link ticket has expired, please try again")
+    except BadSignature:
+        abort_with_message(400, "Invalid link ticket")
+
+    if data.get("provider") != provider_id:
+        abort_with_message(400, "The link ticket is for a different provider")
+
+    nonce = session.pop(SESSION_LINK_NONCE_KEY, None)
+    if not nonce or not secrets.compare_digest(nonce, data.get("nonce", "")):
+        abort_with_message(
+            403, "Linking must be completed in the browser where it was started"
+        )
+
+    if not persistent_cache.add(
+        f"{OIDC_LINK_PREFIX}{data['id']}", "1", timeout=OIDC_LINK_TICKET_TIMEOUT + 60
+    ):
+        abort_with_message(400, "The link ticket has already been used")
+
+    return {"user_id": data["user_id"], "provider": provider_id}
+
+
+def _complete_url(**fragment: str) -> str:
+    """Return the frontend's OIDC completion URL with a result in the fragment."""
+    frontend_url = get_config("FRONTEND_URL") or get_config("BASE_URL")
+    return f"{frontend_url.rstrip('/')}/oidc/complete#{urlencode(fragment)}"
+
+
+def _complete_link(link: dict, provider_id: str, userinfo: dict):
+    """Add the provider identity to the user of a pending link.
+
+    The callback is a browser redirect, so the result is reported in the
+    fragment of the frontend's completion page rather than as an HTTP error.
+    No tokens are issued, and the user's role, name and email are left alone.
+    """
+    user_id = link["user_id"]
+    subject_id = userinfo.get("sub")
+    if link["provider"] != provider_id or not subject_id:
+        return redirect(_complete_url(error="link_failed"))
+
+    try:
+        user_details = get_user_details(get_name(user_id))
+    except ValueError:
+        user_details = None
+    if not user_details or user_details["role"] < 0:
+        return redirect(_complete_url(error="link_failed"))
+
+    owner_id = get_oidc_account(provider_id, subject_id)
+    if owner_id is not None:
+        if str(owner_id) != str(user_id):
+            logger.info(
+                "Refused to link %s identity already used by another account",
+                provider_id,
+            )
+            return redirect(_complete_url(error="identity_in_use"))
+        return redirect(_complete_url(linked=provider_id))
+
+    try:
+        create_oidc_account(user_id, provider_id, subject_id, userinfo.get("email"))
+    except IntegrityError:
+        # Linked to another account between the check and the insert.
+        user_db.session.rollback()  # pylint: disable=no-member
+        return redirect(_complete_url(error="identity_in_use"))
+    logger.info("Linked a %s identity to an existing account", provider_id)
+    return redirect(_complete_url(linked=provider_id))
+
+
+class OIDCLinkResource(FreshProtectedResource):
+    """Resource for starting to link an OIDC identity to the current user.
+
+    Endpoint: /api/oidc/link/
+    """
+
+    @api_blueprint.response(200, OIDCLinkTicketSchema())
+    @api_blueprint.arguments(OIDCLinkSchema, location="json")
+    @limiter.limit("5/minute")
+    def post(self, args):
+        """Return a ticket for linking a provider identity to the current user.
+
+        Requires a fresh login. The client then navigates to
+        /oidc/login/?provider=...&link=<ticket> in the same browser; the
+        callback reports the result in the fragment of the frontend's
+        /oidc/complete page, as `linked=<provider>` or `error=<reason>`.
+        """
+        provider_id = args["provider"]
+        _get_oidc_client(provider_id)
+        nonce = secrets.token_urlsafe(16)
+        session[SESSION_LINK_NONCE_KEY] = nonce
+        ticket = _link_serializer().dumps(
+            {
+                "id": secrets.token_urlsafe(16),
+                "user_id": str(get_jwt_identity()),
+                "provider": provider_id,
+                "nonce": nonce,
+            }
+        )
+        return {"ticket": ticket}
+
+
 class OIDCLoginQueryArgs(Schema):
     """Query arguments for GET /oidc/login."""
 
@@ -205,6 +344,16 @@ class OIDCLoginQueryArgs(Schema):
             "description": (
                 "ID of the tree to associate with the OIDC login. Required for"
                 " multi-tree installations, optional in single-tree ones."
+                " Ignored when linking."
+            )
+        },
+    )
+    link = fields.Str(
+        required=False,
+        metadata={
+            "description": (
+                "Ticket from /oidc/link/. If given, the identity is linked to"
+                " the ticket's user instead of logging in."
             )
         },
     )
@@ -223,11 +372,19 @@ class OIDCLoginResource(Resource):
         provider_id = args.get("provider")
         oidc_client, _config = _get_oidc_client(provider_id)
 
-        # Validate the tree up front so a misconfigured request fails here with
-        # a useful message instead of after a round trip to the provider, and
-        # stash it in the session for the callback to pick up. It cannot be
-        # passed on the redirect URI, which has to match the registered one.
-        session[SESSION_TREE_KEY] = _validate_tree_id(args.get("tree"))
+        if args.get("link"):
+            session[SESSION_LINK_KEY] = _redeem_link_ticket(args["link"], provider_id)
+            session.pop(SESSION_TREE_KEY, None)
+        else:
+            # A link started earlier in this browser and never completed must
+            # not turn this login into a link.
+            session.pop(SESSION_LINK_KEY, None)
+            # Validate the tree up front so a misconfigured request fails here
+            # with a useful message instead of after a round trip to the
+            # provider, and stash it in the session for the callback to pick
+            # up. It cannot be passed on the redirect URI, which has to match
+            # the registered one.
+            session[SESSION_TREE_KEY] = _validate_tree_id(args.get("tree"))
 
         # Build redirect URI with provider in path (Microsoft-compatible)
         # Using path parameter instead of query parameter for broader compatibility
@@ -302,6 +459,7 @@ class OIDCCallbackResource(Resource):
         # Support both path parameter (new, Microsoft-compatible) and query parameter (legacy)
         provider_id = provider_id or args.get("provider")
         oidc_client, provider_config = _get_oidc_client(provider_id)
+        link = session.pop(SESSION_LINK_KEY, None)
 
         try:
             # Some providers issue tokens whose `iss` claim does not match the
@@ -334,7 +492,12 @@ class OIDCCallbackResource(Resource):
 
         except Exception:  # pylint: disable=broad-except
             logger.exception("OIDC callback error for provider '%s'", provider_id)
+            if link:
+                return redirect(_complete_url(error="link_failed"))
             abort_with_message(401, f"OIDC authentication failed for {provider_id}")
+
+        if link:
+            return _complete_link(link, provider_id, userinfo)
 
         # The tree is put into the session by /oidc/login/. The query parameter
         # is only a fallback for logins started before this was introduced.
