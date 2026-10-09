@@ -38,7 +38,10 @@ def _is_postgres(db_url: str) -> bool:
 
 
 def _get_engine(db_url: str):
-    """Return a SQLAlchemy engine for the given URL."""
+    """Return a SQLAlchemy engine for the given URL.
+
+    SEARCH_INDEX_DB_URI stays as configured, since sifts reads it directly.
+    """
     return create_engine(pin_postgres_driver(db_url))
 
 

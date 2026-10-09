@@ -45,6 +45,7 @@ def get_url():
     if not url:
         raise ValueError("No user DB URI found")
 
+    # this reads the config itself, without create_app
     return pin_postgres_driver(url)
 
 

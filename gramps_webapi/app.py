@@ -109,6 +109,9 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         if not app.config.get(option):
             raise ValueError(f"{option} must be specified")
 
+    # pin the driver once, so every user of the config gets psycopg2
+    app.config["USER_DB_URI"] = pin_postgres_driver(app.config["USER_DB_URI"])
+
     # environment variable to set the Gramps database path.
     # Needed for backwards compatibility from Gramps 6.0 onwards
     if db_path := os.getenv("GRAMPS_DATABASE_PATH"):
@@ -170,9 +173,7 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
     # instantiate JWT manager
     JWTManager(app)
 
-    app.config["SQLALCHEMY_DATABASE_URI"] = pin_postgres_driver(
-        app.config["USER_DB_URI"]
-    )
+    app.config["SQLALCHEMY_DATABASE_URI"] = app.config["USER_DB_URI"]
     user_db.init_app(app)
 
     # initialize OIDC if enabled

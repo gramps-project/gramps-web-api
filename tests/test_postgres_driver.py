@@ -20,6 +20,7 @@
 """Tests for pinning the PostgreSQL driver to psycopg2."""
 
 import pytest
+from sqlalchemy.engine import make_url
 
 from gramps_webapi.api.search.metadata import _get_engine
 from gramps_webapi.app import create_app
@@ -38,14 +39,26 @@ from gramps_webapi.util import pin_postgres_driver
             "postgresql://u:p@/users?host=/var/run/postgresql",
             "postgresql+psycopg2://u:p@/users?host=/var/run/postgresql",
         ),
-        ("postgresql+psycopg2://u:p@db/users", "postgresql+psycopg2://u:p@db/users"),
-        ("postgresql+psycopg://u:p@db/users", "postgresql+psycopg://u:p@db/users"),
-        ("sqlite://", "sqlite://"),
-        ("sqlite:////app/users/users.sqlite", "sqlite:////app/users/users.sqlite"),
+        ("PostgreSQL://u:p@db/users", "postgresql+psycopg2://u:p@db/users"),
+        (" postgresql://u:p@db/users\n", "postgresql+psycopg2://u:p@db/users"),
     ],
 )
-def test_pin_postgres_driver(url, expected):
-    assert pin_postgres_driver(url) == expected
+def test_driverless_url_is_pinned(url, expected):
+    assert make_url(pin_postgres_driver(url)) == make_url(expected)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "postgresql+psycopg2://u:p@db/users",
+        "postgresql+psycopg://u:p@db/users",
+        "sqlite://",
+        "sqlite:////app/users/users.sqlite",
+        "not a url",
+    ],
+)
+def test_other_url_is_left_alone(url):
+    assert pin_postgres_driver(url) == url
 
 
 def test_user_db_uses_psycopg2():
@@ -57,11 +70,9 @@ def test_user_db_uses_psycopg2():
         },
         config_from_env=False,
     )
-    assert (
-        app.config["SQLALCHEMY_DATABASE_URI"]
-        == "postgresql+psycopg2://u:p@localhost/users"
-    )
-    assert app.config["USER_DB_URI"] == "postgresql://u:p@localhost/users"
+    pinned = "postgresql+psycopg2://u:p@localhost/users"
+    assert app.config["USER_DB_URI"] == pinned
+    assert app.config["SQLALCHEMY_DATABASE_URI"] == pinned
 
 
 def test_search_metadata_uses_psycopg2():
