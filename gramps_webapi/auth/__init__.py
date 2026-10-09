@@ -506,31 +506,38 @@ def upsert_user_push_subscription(
     """
     user_id = uuid.UUID(str(user_id))
     endpoint_hash = _hash_string(endpoint)
-    query = user_db.session.query(PushSubscription)  # pylint: disable=no-member
-    subscription = query.filter_by(endpoint_hash=endpoint_hash).scalar()
-    if subscription is None or subscription.user_id != user_id:
-        count = query.filter_by(user_id=user_id).count()
-        if count >= MAX_PUSH_SUBSCRIPTIONS_PER_USER:
-            oldest = (
-                query.filter_by(user_id=user_id)
-                .order_by(PushSubscription.id.asc())
-                .first()
+    for attempt in range(2):
+        query = user_db.session.query(PushSubscription)  # pylint: disable=no-member
+        subscription = query.filter_by(endpoint_hash=endpoint_hash).scalar()
+        if subscription is None or subscription.user_id != user_id:
+            count = query.filter_by(user_id=user_id).count()
+            if count >= MAX_PUSH_SUBSCRIPTIONS_PER_USER:
+                oldest = (
+                    query.filter_by(user_id=user_id)
+                    .order_by(PushSubscription.id.asc())
+                    .first()
+                )
+                if oldest is not None:
+                    user_db.session.delete(oldest)  # pylint: disable=no-member
+        if subscription is None:
+            subscription = PushSubscription(
+                user_id=user_id,
+                endpoint=endpoint,
+                endpoint_hash=endpoint_hash,
             )
-            if oldest is not None:
-                user_db.session.delete(oldest)  # pylint: disable=no-member
-    if subscription is None:
-        subscription = PushSubscription(
-            user_id=user_id,
-            endpoint=endpoint,
-            endpoint_hash=endpoint_hash,
-        )
-        user_db.session.add(subscription)  # pylint: disable=no-member
+            user_db.session.add(subscription)  # pylint: disable=no-member
 
-    subscription.user_id = user_id
-    subscription.endpoint = endpoint
-    subscription.p256dh = p256dh
-    subscription.auth = auth
-    user_db.session.commit()  # pylint: disable=no-member
+        subscription.user_id = user_id
+        subscription.endpoint = endpoint
+        subscription.p256dh = p256dh
+        subscription.auth = auth
+        try:
+            user_db.session.commit()  # pylint: disable=no-member
+            return
+        except IntegrityError:
+            user_db.session.rollback()  # pylint: disable=no-member
+            if attempt == 1:
+                raise
 
 
 def delete_user_push_subscription(

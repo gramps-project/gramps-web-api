@@ -13,9 +13,17 @@
 
 import base64
 import unittest
+from hashlib import sha256
 from unittest.mock import patch
 
-from gramps_webapi.auth import PushSubscription, get_guid, user_db
+from sqlalchemy.exc import IntegrityError
+
+from gramps_webapi.auth import (
+    PushSubscription,
+    get_guid,
+    upsert_user_push_subscription,
+    user_db,
+)
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 from gramps_webapi.webpush import get_web_push_config
 
@@ -164,6 +172,7 @@ class TestPushSubscriptions(unittest.TestCase):
             "https://evilfcm.googleapis.com/push",
             "https://push.services.mozilla.com/push",
             "https://updates.push.services.mozilla.com.evil.test/push",
+            "https://[",
         ):
             response = self.client.post(
                 PUSH_URL,
@@ -279,3 +288,46 @@ class TestPushSubscriptions(unittest.TestCase):
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0].user_id, get_guid("guest"))
             self.assertEqual(rows[0].endpoint, owner_endpoint["endpoint"])
+
+    def test_retries_when_concurrent_insert_wins_endpoint_unique_constraint(self):
+        endpoint = "https://fcm.googleapis.com/subscription/concurrent"
+        payload = subscription_payload(endpoint)
+        commit_calls = 0
+
+        with self.app.app_context():
+            owner_id = get_guid("owner")
+            real_commit = user_db.session.commit
+
+            def commit_with_concurrent_insert():
+                nonlocal commit_calls
+                commit_calls += 1
+                if commit_calls == 1:
+                    user_db.session.rollback()
+                    user_db.session.add(
+                        PushSubscription(
+                            user_id=owner_id,
+                            endpoint=endpoint,
+                            endpoint_hash=sha256(endpoint.encode("utf-8")).hexdigest(),
+                            p256dh=P256DH,
+                            auth=AUTH,
+                        )
+                    )
+                    real_commit()
+                    raise IntegrityError("INSERT", {}, Exception("duplicate endpoint"))
+                real_commit()
+
+            with patch(
+                "gramps_webapi.auth.user_db.session.commit",
+                side_effect=commit_with_concurrent_insert,
+            ):
+                upsert_user_push_subscription(
+                    owner_id,
+                    endpoint,
+                    payload["keys"]["p256dh"],
+                    AUTH,
+                )
+            row = user_db.session.query(PushSubscription).one()
+            self.assertEqual(row.endpoint, endpoint)
+            self.assertEqual(row.user_id, owner_id)
+            self.assertEqual(row.auth, AUTH)
+        self.assertEqual(commit_calls, 2)
