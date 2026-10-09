@@ -497,7 +497,7 @@ def upsert_user_push_subscription(
     endpoint: str,
     p256dh: str,
     auth: str,
-) -> "PushSubscription":
+) -> None:
     """Create or update a Web Push subscription for a user.
 
     Push endpoints identify browser subscriptions globally. If a browser is
@@ -511,7 +511,13 @@ def upsert_user_push_subscription(
     if subscription is None or subscription.user_id != user_id:
         count = query.filter_by(user_id=user_id).count()
         if count >= MAX_PUSH_SUBSCRIPTIONS_PER_USER:
-            raise ValueError("Maximum number of push subscriptions reached")
+            oldest = (
+                query.filter_by(user_id=user_id)
+                .order_by(PushSubscription.id.asc())
+                .first()
+            )
+            if oldest is not None:
+                user_db.session.delete(oldest)  # pylint: disable=no-member
     if subscription is None:
         subscription = PushSubscription(
             user_id=user_id,
@@ -525,7 +531,6 @@ def upsert_user_push_subscription(
     subscription.p256dh = p256dh
     subscription.auth = auth
     user_db.session.commit()  # pylint: disable=no-member
-    return subscription
 
 
 def delete_user_push_subscription(

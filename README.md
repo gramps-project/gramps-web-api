@@ -15,3 +15,9 @@ Gramps Web API is the backend of [Gramps Web](https://www.grampsweb.org/), a gen
 ## Related projects
 
 - Gramps Web frontend repository: https://github.com/gramps-project/gramps-web
+
+## Web Push
+
+Web Push requires `GRAMPSWEB_BASE_URL` to be set to the public HTTPS URL of the
+Gramps Web API. The default `http://localhost/` URL disables Web Push, and the
+API returns `public_key: null` until an HTTPS URL is configured.

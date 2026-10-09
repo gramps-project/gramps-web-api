@@ -15,7 +15,6 @@ are needed only for genuinely circular pairs.
 
 import base64
 import binascii
-import ipaddress
 from urllib.parse import urlsplit
 
 from marshmallow import INCLUDE, Schema, ValidationError, fields, validate
@@ -44,15 +43,15 @@ def validate_push_endpoint(value: str) -> str:
     ):
         raise ValidationError("Invalid Web Push endpoint")
     hostname = parsed.hostname.casefold()
-    if hostname == "localhost" or hostname.endswith(".localhost"):
+    if hostname != "fcm.googleapis.com" and not any(
+        hostname.endswith(suffix)
+        for suffix in (
+            ".push.services.mozilla.com",
+            ".push.apple.com",
+            ".notify.windows.com",
+        )
+    ):
         raise ValidationError("Invalid Web Push endpoint")
-    try:
-        address = ipaddress.ip_address(hostname)
-    except ValueError:
-        pass
-    else:
-        if not address.is_global:
-            raise ValidationError("Invalid Web Push endpoint")
     return value
 
 
@@ -76,57 +75,6 @@ def push_key_validator(expected_bytes: int, prefix: bytes | None = None):
         return value
 
     return validate_key
-
-
-class PushSubscriptionKeysSchema(Schema):
-    """Encryption keys from ``PushSubscription.toJSON()``."""
-
-    p256dh = fields.Str(
-        required=True,
-        validate=push_key_validator(65, b"\x04"),
-        metadata={"description": "P-256 ECDH public key for payload encryption."},
-    )
-    auth = fields.Str(
-        required=True,
-        validate=push_key_validator(16),
-        metadata={"description": "Authentication secret for payload encryption."},
-    )
-
-
-class PushSubscriptionBodySchema(Schema):
-    """Browser Web Push subscription payload."""
-
-    endpoint = fields.Str(
-        required=True,
-        validate=[validate.Length(min=1, max=4096), validate_push_endpoint],
-        metadata={"description": "HTTPS endpoint assigned by the push service."},
-    )
-    keys = fields.Nested(
-        PushSubscriptionKeysSchema,
-        required=True,
-        metadata={"description": "Encryption keys assigned to this subscription."},
-    )
-
-
-class PushSubscriptionDeleteSchema(Schema):
-    """Payload identifying the current browser subscription to delete."""
-
-    endpoint = fields.Str(
-        required=True,
-        metadata={"description": "Endpoint of the subscription to delete."},
-    )
-
-
-class PushSubscriptionConfigSchema(Schema):
-    """Public Web Push configuration for the current client."""
-
-    public_key = fields.Str(
-        required=True,
-        allow_none=True,
-        metadata={
-            "description": "VAPID public key, or null when Web Push is not configured."
-        },
-    )
 
 
 # ===========================================================================
@@ -1872,6 +1820,57 @@ class PersonExtendedSchema(_Base):
 # ===========================================================================
 # 8. Misc response schemas
 # ===========================================================================
+
+
+class PushSubscriptionKeysSchema(Schema):
+    """Encryption keys from ``PushSubscription.toJSON()``."""
+
+    p256dh = fields.Str(
+        required=True,
+        validate=push_key_validator(65, b"\x04"),
+        metadata={"description": "P-256 ECDH public key for payload encryption."},
+    )
+    auth = fields.Str(
+        required=True,
+        validate=push_key_validator(16),
+        metadata={"description": "Authentication secret for payload encryption."},
+    )
+
+
+class PushSubscriptionBodySchema(Schema):
+    """Browser Web Push subscription payload."""
+
+    endpoint = fields.Str(
+        required=True,
+        validate=[validate.Length(min=1, max=4096), validate_push_endpoint],
+        metadata={"description": "HTTPS endpoint assigned by the push service."},
+    )
+    keys = fields.Nested(
+        PushSubscriptionKeysSchema,
+        required=True,
+        metadata={"description": "Encryption keys assigned to this subscription."},
+    )
+
+
+class PushSubscriptionDeleteSchema(Schema):
+    """Payload identifying the current browser subscription to delete."""
+
+    endpoint = fields.Str(
+        required=True,
+        metadata={"description": "Endpoint of the subscription to delete."},
+    )
+
+
+class PushSubscriptionConfigSchema(Schema):
+    """Public Web Push configuration for the current client."""
+
+    public_key = fields.Str(
+        required=True,
+        allow_none=True,
+        metadata={
+            "description": "VAPID public key, or null when Web Push is not configured."
+        },
+    )
 
 
 class JWTAccessTokensSchema(_Base):
