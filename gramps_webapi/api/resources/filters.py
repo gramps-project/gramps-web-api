@@ -618,8 +618,8 @@ class CustomFilterCreateSchema(FilterSchema):
 
 _LOCALE_DESCRIPTION = (
     "Language code of the locale to use for the names, descriptions, "
-    "categories, labels and option labels of rules. Must be a valid code from "
-    "the available translations. Defaults to English."
+    "categories, labels and option labels of rules. Unknown or omitted codes "
+    "fall back to English."
 )
 
 
