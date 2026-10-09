@@ -41,6 +41,7 @@ from werkzeug.exceptions import HTTPException
 
 from gramps_webapi.api.search.indexer import SearchIndexer, SemanticSearchIndexer
 
+from .cache import persistent_cache
 from ..auth import TaskTree, get_owner_emails
 from ..auth import user_db
 from ..undodb import migrate as migrate_undodb
@@ -901,14 +902,40 @@ def _index_objects(
             )
 
 
+# Safety valve releasing an orphaned lock (e.g. worker killed mid-rescan),
+# not a bound on rescan duration - a single rescan may legitimately run
+# longer on a very large media library.
+MEDIA_USAGE_LOCK_TIMEOUT = 300
+
+
 @shared_task()
 def update_media_usage_task(tree: str, user_id: str) -> None:
     """Recompute and store the media usage for a tree.
 
     Recomputing scans every media object's file, so this is run as a task
     rather than inline in the request, the same way search index updates are.
+
+    Dispatches for the same tree coalesce: if a rescan is already running,
+    this call just flags the tree as dirty and returns rather than running
+    a second full rescan concurrently. The in-progress rescan checks that
+    flag after it finishes and re-runs once more if it was set, so the
+    state this call would have captured isn't lost. This bounds a burst of
+    N uploads/deletes for one tree to at most two full rescans instead of N.
     """
-    update_usage_media(tree=tree, user_id=user_id)
+    lock_key = f"media_usage_recompute_lock:{tree}"
+    dirty_key = f"media_usage_recompute_dirty:{tree}"
+    if not persistent_cache.add(lock_key, True, timeout=MEDIA_USAGE_LOCK_TIMEOUT):
+        persistent_cache.set(dirty_key, True, timeout=MEDIA_USAGE_LOCK_TIMEOUT)
+        return
+    try:
+        while True:
+            persistent_cache.delete(dirty_key)
+            update_usage_media(tree=tree, user_id=user_id)
+            if not persistent_cache.get(dirty_key):
+                break
+    finally:
+        persistent_cache.delete(dirty_key)
+        persistent_cache.delete(lock_key)
 
 
 @shared_task(bind=True)
