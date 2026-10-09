@@ -329,10 +329,6 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
         self.assertEqual(rv.json["items"], [{"handle": ONLY_B_PERSON}])
         self.assertEqual(rv.headers["X-Total-Count"], "1")
 
-    # SharedPostgreSQL stores `birth_ref_index` as BIGINT, and the compiled
-    # SQL uses it as a jsonb array index (`jsonb -> bigint`), which
-    # PostgreSQL rejects. Needs fixing in gramps-object-query-language.
-    @unittest.expectedFailure
     def test_query_path_join(self):
         """A path column joins person -> event -> place; each hop must stay
         in the caller's tree, or the shared handles produce extra rows."""
@@ -350,7 +346,9 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
                 [{"handle": SHARED_PERSON, "birth.place.title": f"{label}ville"}],
             )
 
-    @unittest.expectedFailure  # same as test_query_path_join
+    # gramps-object-query-language orders NULL as the smallest value, but
+    # emits no NULLS FIRST/LAST, so PostgreSQL sorts NULL first in `desc`.
+    @unittest.expectedFailure
     def test_query_order_by_path(self):
         rv = self._query(
             "owner_b",
