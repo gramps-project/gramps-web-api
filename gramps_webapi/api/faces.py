@@ -48,7 +48,7 @@ FACE_DETECTION_VERSION = 3
 # tight face box YuNet returns (roughly forehead to chin). The face box is
 # therefore enlarged around its centre into a head shot.
 # Head shot width and height as multiples of the face box width and height.
-HEAD_SHOT_WIDTH_FACTOR = 1.55
+HEAD_SHOT_WIDTH_FACTOR = 1.5
 HEAD_SHOT_HEIGHT_FACTOR = 1.4
 # Vertical shift of the head shot centre relative to the face box centre, as a
 # fraction of the face box height; negative values move it up to include hair.
