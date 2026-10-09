@@ -79,6 +79,10 @@ class DefaultConfig(object):
     IGNORE_DB_LOCK = False
     TREE_ID = ""
     CELERY_CONFIG: Dict[str, str] = {}
+    # seconds without heartbeat after which a running task counts as lost
+    TASK_HEARTBEAT_TIMEOUT = 300
+    # seconds after which a task still waiting in the queue counts as lost
+    TASK_QUEUE_TIMEOUT = 6 * 3600
     MEDIA_BASE_DIR = ""
     MEDIA_PREFIX_TREE = False
     REPORT_DIR = str(Path.cwd() / "report_cache")

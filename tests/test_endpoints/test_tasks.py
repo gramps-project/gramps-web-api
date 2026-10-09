@@ -19,6 +19,7 @@
 
 """Tests for the /api/tasks endpoint."""
 
+import json
 import os
 import unittest
 import uuid
@@ -37,6 +38,7 @@ from gramps_webapi.auth.const import (
     ROLE_OWNER,
 )
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
+from gramps_webapi.util.task_state import acquire
 
 
 @pytest.mark.usefixtures("celery_session_app")
@@ -96,13 +98,12 @@ def _make_app(name):
 
 
 class TestTaskRecord(unittest.TestCase):
-    """Unit tests for _record_task and _purge_expired_task_rows."""
+    """Unit tests for recording tasks and _purge_expired_task_rows."""
 
     @classmethod
     def setUpClass(cls):
-        from gramps_webapi.api.tasks import _purge_expired_task_rows, _record_task
+        from gramps_webapi.api.tasks import _purge_expired_task_rows
 
-        cls._record_task = staticmethod(_record_task)
         cls._purge = staticmethod(_purge_expired_task_rows)
         cls.app, cls.dbman, cls.tree = _make_app("TestTaskRecord")
         with cls.app.app_context():
@@ -112,31 +113,29 @@ class TestTaskRecord(unittest.TestCase):
     def tearDownClass(cls):
         cls.dbman.remove_database("TestTaskRecord")
 
-    def _make_mock_task(self, name="gramps_webapi.api.tasks.import_file"):
-        t = Mock()
-        t.name = name
-        return t
-
-    def test_record_task_inserts_row(self):
+    def test_acquire_inserts_row(self):
         task_id = str(uuid.uuid4())
         with self.app.app_context():
-            self._record_task(
+            acquire(
                 task_id,
-                self._make_mock_task(),
-                {"tree": self.tree, "user_id": "test-user-uuid"},
+                "gramps_webapi.api.tasks.import_file",
+                self.tree,
+                "test-user-uuid",
+                None,
             )
             row = user_db.session.get(TaskTree, task_id)
         assert row is not None
         assert row.tree == self.tree
         assert row.user_id == "test-user-uuid"
         assert row.name == "gramps_webapi.api.tasks.import_file"
+        assert row.status == "queued"
         assert row.created_at is not None
 
-    def test_record_task_missing_tree_and_user(self):
+    def test_acquire_missing_tree_and_user(self):
         """Tasks dispatched without tree/user_id (e.g. email tasks) store NULL."""
         task_id = str(uuid.uuid4())
         with self.app.app_context():
-            self._record_task(task_id, self._make_mock_task("send_email"), {})
+            acquire(task_id, "send_email", None, None, None)
             row = user_db.session.get(TaskTree, task_id)
         assert row is not None
         assert row.tree is None
@@ -157,6 +156,25 @@ class TestTaskRecord(unittest.TestCase):
             user_db.session.commit()
             self._purge()
             assert user_db.session.get(TaskTree, task_id) is None
+
+    def test_purge_keeps_rows_holding_a_lock(self):
+        """An active task's lock is released by the reaper, never by the purge."""
+        task_id = str(uuid.uuid4())
+        old_ts = datetime.utcnow() - timedelta(hours=25)
+        with self.app.app_context():
+            row = TaskTree(
+                task_id=task_id,
+                tree=self.tree,
+                user_id=None,
+                name="old_task",
+                created_at=old_ts,
+                status="running",
+                lock_key="write",
+            )
+            user_db.session.add(row)
+            user_db.session.commit()
+            self._purge()
+            assert user_db.session.get(TaskTree, task_id) is not None
 
     def test_purge_keeps_recent_rows(self):
         task_id = str(uuid.uuid4())
@@ -213,13 +231,14 @@ class TestTaskEndpoints(unittest.TestCase):
     def _auth(self, role_name):
         return {"Authorization": f"Bearer {self._token(role_name)}"}
 
-    def _insert_row(self, task_id, name="test_task", user_id=None, tree=None):
+    def _insert_row(self, task_id, name="test_task", user_id=None, tree=None, **cols):
         with self.app.app_context():
             row = TaskTree(
                 task_id=task_id,
                 tree=tree if tree is not None else self.tree,
                 user_id=user_id,
                 name=name,
+                **cols,
             )
             user_db.session.add(row)
             user_db.session.commit()
@@ -410,6 +429,47 @@ class TestTaskEndpoints(unittest.TestCase):
             == '{"error":{"code":405,"message":"Not allowed by people quota"}}'
         )
         assert rv.json["info"] == rv.json["result"]
+
+    def _get_tracked(self, **cols):
+        task_id = str(uuid.uuid4())
+        self._insert_row(task_id, user_id=self.owner_id, **cols)
+        rv = self.client.get(f"/api/tasks/{task_id}", headers=self._auth("owner"))
+        assert rv.status_code == 200
+        return rv.json
+
+    def test_get_tracked_task_queued(self):
+        task = self._get_tracked(status="queued")
+        assert task["status"] == "queued"
+        assert task["state"] == "PENDING"
+
+    def test_get_tracked_task_running_with_progress(self):
+        task = self._get_tracked(
+            status="running",
+            heartbeat_at=datetime.utcnow(),
+            result='{"progress": 0.5, "title": "Importing"}',
+        )
+        assert task["status"] == "running"
+        assert task["state"] == "PROGRESS"
+        assert task["result_object"] == {"progress": 0.5, "title": "Importing"}
+
+    def test_get_tracked_task_succeeded(self):
+        task = self._get_tracked(status="succeeded", result='{"people": 3}')
+        assert task["state"] == "SUCCESS"
+        assert task["result_object"] == {"people": 3}
+
+    def test_get_tracked_task_failed_with_abort(self):
+        payload = {"error": {"code": 405, "message": "Not allowed by people quota"}}
+        task = self._get_tracked(status="failed", result=json.dumps(payload))
+        assert task["state"] == "FAILURE"
+        assert task["result_object"] == payload
+
+    def test_get_stale_task_is_reported_lost(self):
+        stale = datetime.utcnow() - timedelta(hours=1)
+        task = self._get_tracked(
+            status="running", lock_key="write", started_at=stale, heartbeat_at=stale
+        )
+        assert task["status"] == "lost"
+        assert task["state"] == "FAILURE"
 
     def test_list_excludes_expired_tasks(self):
         """Tasks older than the result TTL are excluded from the list."""
