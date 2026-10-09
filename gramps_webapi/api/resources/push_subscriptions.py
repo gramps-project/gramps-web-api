@@ -48,15 +48,12 @@ class UserPushSubscriptionsResource(ProtectedResource):
         require_permissions([PERM_EDIT_OWN_USER])
         if get_web_push_config() is None:
             abort_with_message(503, "Web Push is not configured")
-        try:
-            upsert_user_push_subscription(
-                user_id=get_jwt_identity(),
-                endpoint=args["endpoint"],
-                p256dh=args["keys"]["p256dh"],
-                auth=args["keys"]["auth"],
-            )
-        except ValueError as exc:
-            abort_with_message(409, str(exc))
+        upsert_user_push_subscription(
+            user_id=get_jwt_identity(),
+            endpoint=args["endpoint"],
+            p256dh=args["keys"]["p256dh"],
+            auth=args["keys"]["auth"],
+        )
         return Response(status=201)
 
     @api_blueprint.response(204)

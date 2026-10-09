@@ -60,7 +60,7 @@ class TestWebPushDelivery(unittest.TestCase):
         with self.app.app_context():
             upsert_user_push_subscription(
                 user_id=self.user_id,
-                endpoint="https://push.example.test/subscription/1",
+                endpoint="https://fcm.googleapis.com/subscription/1",
                 p256dh=P256DH,
                 auth=AUTH,
             )
@@ -86,16 +86,21 @@ class TestWebPushDelivery(unittest.TestCase):
         self.assertEqual(kwargs["timeout"], 10)
 
     @patch("gramps_webapi.webpush.webpush")
-    def test_removes_subscription_rejected_as_gone(self, mock_webpush):
-        self._add_subscription()
-        response = SimpleNamespace(status_code=410, text="Gone")
-        mock_webpush.side_effect = WebPushException("gone", response=response)
+    def test_removes_subscriptions_rejected_as_invalid_or_gone(self, mock_webpush):
+        for status_code in (401, 403, 404, 410):
+            with self.subTest(status_code=status_code):
+                self._add_subscription()
+                response = SimpleNamespace(status_code=status_code, text="Rejected")
+                mock_webpush.side_effect = WebPushException(
+                    "rejected", response=response
+                )
 
-        with self.app.app_context():
-            send_web_push(self.user_id, {"title": "Gone"})
-            count = user_db.session.query(PushSubscription).count()
+                with self.app.app_context():
+                    send_web_push(self.user_id, {"title": "Rejected"})
+                    count = user_db.session.query(PushSubscription).count()
 
-        self.assertEqual(count, 0)
+                self.assertEqual(count, 0)
+                mock_webpush.reset_mock()
 
     @patch("gramps_webapi.webpush.webpush")
     def test_keeps_subscription_after_transient_failure(self, mock_webpush):
@@ -122,7 +127,7 @@ class TestWebPushDelivery(unittest.TestCase):
         with self.app.app_context():
             upsert_user_push_subscription(
                 user_id=self.user_id,
-                endpoint="https://push.example.test/subscription/2",
+                endpoint="https://fcm.googleapis.com/subscription/2",
                 p256dh=P256DH,
                 auth=AUTH,
             )
@@ -153,10 +158,10 @@ class TestWebPushConfig(unittest.TestCase):
         self.assertEqual(len(encoded), 65)
         self.assertEqual(public.public_numbers(), vapid.public_key.public_numbers())
         self.assertEqual(subject, "https://gramps.example.test:8443")
-        signed = vapid.sign({"sub": subject, "aud": "https://push.example.test"})
+        signed = vapid.sign({"sub": subject, "aud": "https://fcm.googleapis.com"})
         token = signed["Authorization"].split("t=", 1)[1].split(",", 1)[0]
         claims = jwt.decode(
-            token, public, algorithms=["ES256"], audience="https://push.example.test"
+            token, public, algorithms=["ES256"], audience="https://fcm.googleapis.com"
         )
         self.assertEqual(claims["sub"], subject)
         receiver = (
@@ -171,7 +176,7 @@ class TestWebPushConfig(unittest.TestCase):
         session.post.return_value.status_code = 201
         response = webpush(
             subscription_info={
-                "endpoint": "https://push.example.test/subscription/1",
+                "endpoint": "https://fcm.googleapis.com/subscription/1",
                 "keys": {
                     "p256dh": base64.urlsafe_b64encode(receiver)
                     .rstrip(b"=")
@@ -202,22 +207,6 @@ class TestWebPushConfig(unittest.TestCase):
         self.assertEqual(self._config()[1], original)
         self.app.config["SECRET_KEY"] = "test-only-replacement-secret"
         self.assertNotEqual(self._config()[1], original)
-
-    def test_derivation_rejects_invalid_scalars(self):
-        _derive_vapid_key.cache_clear()
-        self.addCleanup(_derive_vapid_key.cache_clear)
-        order = ec.SECP256R1().group_order
-        kdf = Mock()
-        kdf.derive.side_effect = [
-            bytes(32),
-            order.to_bytes(32, "big"),
-            (1).to_bytes(32, "big"),
-        ]
-        with patch("gramps_webapi.webpush.HKDF", return_value=kdf):
-            vapid, public_key = _derive_vapid_key(b"test-only-secret-for-rejection")
-        self.assertEqual(vapid.private_key.private_numbers().private_value, 1)
-        self.assertEqual(kdf.derive.call_count, 3)
-        self.assertTrue(public_key)
 
     def test_unavailable_without_secret(self):
         self.app.config["SECRET_KEY"] = None

@@ -21,7 +21,6 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from flask import current_app
-from marshmallow import ValidationError, validate
 from py_vapid import Vapid
 from pywebpush import WebPushException, webpush
 
@@ -35,18 +34,13 @@ VAPID_KEY_CONTEXT = b"gramps-web-api:webpush:vapid:v1"
 def _derive_vapid_key(secret_key: bytes) -> tuple[Vapid, str]:
     """Derive a stable, separate signing key; secret rotation requires resubscription."""
     curve = ec.SECP256R1()
-    counter = 0
-    while True:
-        material = HKDF(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=None,
-            info=VAPID_KEY_CONTEXT + counter.to_bytes(4, "big"),
-        ).derive(secret_key)
-        private_value = int.from_bytes(material, "big")
-        if 0 < private_value < curve.group_order:
-            break
-        counter += 1
+    material = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=VAPID_KEY_CONTEXT,
+    ).derive(secret_key)
+    private_value = int.from_bytes(material, "big") % (curve.group_order - 1) + 1
     private_key = ec.derive_private_key(private_value, curve)
     public_key = (
         base64.urlsafe_b64encode(
@@ -69,20 +63,13 @@ def get_web_push_config() -> tuple[Vapid, str, str] | None:
     base_url = current_app.config.get("BASE_URL")
     if not secret_key or not isinstance(secret_key, (str, bytes)):
         return None
-    if not isinstance(base_url, str) or any(char.isspace() for char in base_url):
+    if not isinstance(base_url, str):
         return None
     try:
-        validate.URL(schemes={"https"}, require_tld=False)(base_url)
         url = urlsplit(base_url)
-        if (
-            url.scheme != "https"
-            or not url.hostname
-            or url.username is not None
-            or url.password is not None
-        ):
-            return None
-        url.port  # Validate a configured port before exposing the key.
-    except (ValueError, ValidationError):
+    except ValueError:
+        return None
+    if url.scheme != "https" or not url.hostname:
         return None
     secret = secret_key.encode("utf-8") if isinstance(secret_key, str) else secret_key
     vapid, public_key = _derive_vapid_key(secret)
@@ -95,8 +82,8 @@ def send_web_push(
 ) -> None:
     """Send a JSON notification to every subscription owned by a user.
 
-    Endpoints rejected with HTTP 404 or 410 are removed. Transient failures
-    are retained for a later retry.
+    Endpoints rejected with HTTP 401, 403, 404, or 410 are removed. Transient
+    failures are retained for a later retry.
     """
     config = get_web_push_config()
     if config is None:
@@ -127,14 +114,14 @@ def send_web_push(
                 timeout=WEB_PUSH_TIMEOUT_SECONDS,
             )
         except WebPushException as exc:
-            if exc.status_code in (404, 410):
+            if exc.status_code in (401, 403, 404, 410):
                 user_db.session.delete(subscription)  # pylint: disable=no-member
                 removed += 1
             else:
                 current_app.logger.warning(
                     "Web Push delivery failed with status %s", exc.status_code
                 )
-        except Exception as exc:  # pragma: no cover - provider/library boundary
+        except Exception as exc:
             current_app.logger.warning(
                 "Web Push delivery failed: %s", type(exc).__name__
             )

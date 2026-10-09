@@ -27,7 +27,7 @@ P256DH = base64.urlsafe_b64encode(b"\x04" + b"\x02" * 64).rstrip(b"=").decode()
 AUTH = base64.urlsafe_b64encode(b"\x03" * 16).rstrip(b"=").decode()
 
 
-def subscription_payload(endpoint="https://push.example.test/subscription/1"):
+def subscription_payload(endpoint="https://fcm.googleapis.com/subscription/1"):
     """Return a valid browser subscription payload."""
     return {
         "endpoint": endpoint,
@@ -60,10 +60,8 @@ class TestPushSubscriptions(unittest.TestCase):
             None,
             "http://localhost/",
             "https://",
-            "https://bad\\host/",
-            "https://gramps.example.test:invalid/",
-            "https://user:password@gramps.example.test/",
-            "https://gramps.example.test\n/",
+            "not a URL",
+            "https://[",
         ):
             with self.subTest(base_url=base_url):
                 self.app.config["BASE_URL"] = base_url
@@ -158,10 +156,14 @@ class TestPushSubscriptions(unittest.TestCase):
     def test_rejects_invalid_subscriptions(self):
         header = fetch_header(self.client, role=ROLE_OWNER)
         for endpoint in (
-            "http://push.example.test/push",
+            "http://fcm.googleapis.com/push",
             "https://127.0.0.1/push",
             "https://localhost/push",
-            "https://user:password@push.example.test/push",
+            "https://user:password@fcm.googleapis.com/push",
+            "https://fcm.googleapis.com.evil.example/push",
+            "https://evilfcm.googleapis.com/push",
+            "https://push.services.mozilla.com/push",
+            "https://updates.push.services.mozilla.com.evil.test/push",
         ):
             response = self.client.post(
                 PUSH_URL,
@@ -182,20 +184,98 @@ class TestPushSubscriptions(unittest.TestCase):
         response = self.client.post(PUSH_URL, headers=header, json=invalid_public_key)
         self.assertEqual(response.status_code, 422)
 
+    def test_accepts_supported_push_service_hosts(self):
+        header = fetch_header(self.client, role=ROLE_OWNER)
+        endpoints = (
+            "https://fcm.googleapis.com/subscription/1",
+            "https://updates.push.services.mozilla.com/wpush/v2/1",
+            "https://web.push.apple.com/subscription/1",
+            "https://wus2.notify.windows.com/subscription/1",
+        )
+
+        for endpoint in endpoints:
+            with self.subTest(endpoint=endpoint):
+                response = self.client.post(
+                    PUSH_URL,
+                    headers=header,
+                    json=subscription_payload(endpoint),
+                )
+                self.assertEqual(response.status_code, 201)
+
     def test_enforces_per_user_subscription_limit(self):
         header = fetch_header(self.client, role=ROLE_OWNER)
-        first = subscription_payload("https://push.example.test/subscription/1")
-        second = subscription_payload("https://push.example.test/subscription/2")
+        first = subscription_payload("https://fcm.googleapis.com/subscription/1")
+        second = subscription_payload("https://fcm.googleapis.com/subscription/2")
+        third = subscription_payload("https://fcm.googleapis.com/subscription/3")
+
+        with patch("gramps_webapi.auth.MAX_PUSH_SUBSCRIPTIONS_PER_USER", 2):
+            self.assertEqual(
+                self.client.post(PUSH_URL, headers=header, json=first).status_code,
+                201,
+            )
+            self.assertEqual(
+                self.client.post(PUSH_URL, headers=header, json=second).status_code,
+                201,
+            )
+            with self.app.app_context():
+                first_id = (
+                    user_db.session.query(PushSubscription)
+                    .filter_by(endpoint=first["endpoint"])
+                    .one()
+                    .id
+                )
+            self.assertEqual(
+                self.client.post(PUSH_URL, headers=header, json=first).status_code,
+                201,
+            )
+            with self.app.app_context():
+                self.assertEqual(user_db.session.query(PushSubscription).count(), 2)
+                self.assertEqual(
+                    user_db.session.query(PushSubscription)
+                    .filter_by(endpoint=first["endpoint"])
+                    .one()
+                    .id,
+                    first_id,
+                )
+            response = self.client.post(PUSH_URL, headers=header, json=third)
+
+        self.assertEqual(response.status_code, 201)
+        with self.app.app_context():
+            endpoints = {
+                row.endpoint for row in user_db.session.query(PushSubscription).all()
+            }
+            self.assertEqual(endpoints, {second["endpoint"], third["endpoint"]})
+
+    def test_transfer_at_limit_evicts_oldest_subscription_from_new_owner(self):
+        owner_header = fetch_header(self.client, role=ROLE_OWNER)
+        guest_header = fetch_header(self.client, role=ROLE_GUEST)
+        owner_endpoint = subscription_payload(
+            "https://fcm.googleapis.com/subscription/owner"
+        )
+        guest_endpoint = subscription_payload(
+            "https://fcm.googleapis.com/subscription/guest"
+        )
 
         with patch("gramps_webapi.auth.MAX_PUSH_SUBSCRIPTIONS_PER_USER", 1):
             self.assertEqual(
-                self.client.post(PUSH_URL, headers=header, json=first).status_code,
+                self.client.post(
+                    PUSH_URL, headers=owner_header, json=owner_endpoint
+                ).status_code,
                 201,
             )
             self.assertEqual(
-                self.client.post(PUSH_URL, headers=header, json=first).status_code,
+                self.client.post(
+                    PUSH_URL, headers=guest_header, json=guest_endpoint
+                ).status_code,
                 201,
             )
-            response = self.client.post(PUSH_URL, headers=header, json=second)
+            response = self.client.post(
+                PUSH_URL, headers=guest_header, json=owner_endpoint
+            )
 
-        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.status_code, 201)
+        with self.app.app_context():
+            rows = user_db.session.query(PushSubscription).all()
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0].user_id, get_guid("guest"))
+            self.assertEqual(rows[0].endpoint, owner_endpoint["endpoint"])
