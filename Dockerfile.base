@@ -91,7 +91,8 @@ RUN pip install --no-cache-dir PyICU
 
 # Install PyTorch and opencv
 RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch
-RUN pip install --no-cache-dir opencv-contrib-python
+# keep in sync with the "face" extra in pyproject.toml
+RUN pip install --no-cache-dir 'opencv-python-headless>=4.8,<6'
 
 # Install AI dependencies
 RUN pip install --no-cache-dir \

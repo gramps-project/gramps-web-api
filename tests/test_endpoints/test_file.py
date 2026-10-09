@@ -117,7 +117,9 @@ class TestThumbnail(unittest.TestCase):
         """
         header = fetch_header(self.client)
         with self.assertNoLogs("flask_caching", level="ERROR"):
-            rv = self.client.get(f"{TEST_URL}does_not_exist/thumbnail/20", headers=header)
+            rv = self.client.get(
+                f"{TEST_URL}does_not_exist/thumbnail/20", headers=header
+            )
         assert rv.status_code == 404
 
     def test_get_thumbnail_large_requires_token(self):
@@ -320,7 +322,9 @@ class TestMapTile(unittest.TestCase):
         self.assertEqual(rv.status_code, 401)
         # With auth the endpoint must be reachable (404 expected — no map:bounds on this object)
         header = fetch_header(self.client)
-        rv = self.client.get(TEST_URL + "b39fe1cfc1305ac4a21/tile/5/16/11", headers=header)
+        rv = self.client.get(
+            TEST_URL + "b39fe1cfc1305ac4a21/tile/5/16/11", headers=header
+        )
         self.assertNotEqual(rv.status_code, 500)
 
     def test_get_map_tile_unknown_handle(self):
@@ -422,9 +426,8 @@ class TestFaceDetection(unittest.TestCase):
         faces = rv.json
         assert len(faces) == 1
         x1, y1, x2, y2 = faces[0]
-        assert 20 < x1 < 70
-        assert 50 < x2 < 80
-        assert 0 < y1 < 20
-        assert 20 < y2 < 60
-        assert x2 > x1
-        assert y2 > y1
+        # head shot around the face at roughly (42, 15, 67, 57)
+        assert 20 < x1 < 42
+        assert 67 < x2 < 90
+        assert 0 <= y1 < 15
+        assert 57 < y2 < 90

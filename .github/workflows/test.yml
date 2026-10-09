@@ -20,9 +20,8 @@ jobs:
           python -m pip install --upgrade pip wheel setuptools
           # CPU-only build: the default one pulls in ~3 GB of CUDA libraries
           pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install opencv-python
           pip install -r requirements-dev.txt
-          pip install .[ai]
+          pip install .[ai,face]
       - name: Run type checker
         run: mypy --install-types --non-interactive --ignore-missing-imports --exclude build .
 
@@ -60,9 +59,8 @@ jobs:
           python -m pip install --upgrade pip wheel setuptools
           # CPU-only build: the default one pulls in ~3 GB of CUDA libraries
           pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install opencv-python
           pip install -r requirements-dev.txt
-          pip install .[ai]
+          pip install .[ai,face]
           pip list
       - name: Pre-download Hugging Face model
         env:
