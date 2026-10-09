@@ -33,7 +33,10 @@ class _Base(Schema):
 
 def validate_push_endpoint(value: str) -> str:
     """Validate a browser-provided push endpoint without contacting it."""
-    parsed = urlsplit(value)
+    try:
+        parsed = urlsplit(value)
+    except ValueError as exc:
+        raise ValidationError("Invalid Web Push endpoint") from exc
     if (
         parsed.scheme != "https"
         or not parsed.hostname

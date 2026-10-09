@@ -31,6 +31,7 @@ from gramps_webapi.auth import (
     user_db,
 )
 from gramps_webapi.webpush import (
+    WEB_PUSH_TTL_SECONDS,
     _derive_vapid_key,
     get_web_push_config,
     send_web_push,
@@ -82,7 +83,7 @@ class TestWebPushDelivery(unittest.TestCase):
             vapid, _, subject = get_web_push_config()
         self.assertIs(kwargs["vapid_private_key"], vapid)
         self.assertEqual(kwargs["vapid_claims"], {"sub": subject})
-        self.assertNotIn("ttl", kwargs)
+        self.assertEqual(kwargs["ttl"], WEB_PUSH_TTL_SECONDS)
         self.assertEqual(kwargs["timeout"], 10)
 
     @patch("gramps_webapi.webpush.webpush")
@@ -187,6 +188,7 @@ class TestWebPushConfig(unittest.TestCase):
             data=json.dumps({"title": "Gramps Web"}),
             vapid_private_key=vapid,
             vapid_claims={"sub": subject},
+            ttl=WEB_PUSH_TTL_SECONDS,
             requests_session=session,
         )
         self.assertIs(response, session.post.return_value)
@@ -195,6 +197,10 @@ class TestWebPushConfig(unittest.TestCase):
         )
         self.assertIn(
             "vapid", session.post.call_args.kwargs["headers"]["authorization"]
+        )
+        self.assertEqual(
+            session.post.call_args.kwargs["headers"]["ttl"],
+            str(WEB_PUSH_TTL_SECONDS),
         )
         _derive_vapid_key.cache_clear()
         self.assertEqual(self._config()[1], public_key)

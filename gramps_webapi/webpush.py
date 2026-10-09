@@ -27,6 +27,7 @@ from pywebpush import WebPushException, webpush
 from .auth import PushSubscription, user_db
 
 WEB_PUSH_TIMEOUT_SECONDS = 10
+WEB_PUSH_TTL_SECONDS = 24 * 60 * 60
 VAPID_KEY_CONTEXT = b"gramps-web-api:webpush:vapid:v1"
 
 
@@ -111,6 +112,7 @@ def send_web_push(
                 data=data,
                 vapid_private_key=vapid,
                 vapid_claims={"sub": subject},
+                ttl=WEB_PUSH_TTL_SECONDS,
                 timeout=WEB_PUSH_TIMEOUT_SECONDS,
             )
         except WebPushException as exc:
