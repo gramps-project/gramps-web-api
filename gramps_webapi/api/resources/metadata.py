@@ -80,7 +80,7 @@ def _has_module(name: str) -> bool:
 @functools.cache
 def _get_face_detection_available() -> bool:
     """Detect whether face detection is available (worker-lifetime constant)."""
-    # see `gramps_webapi.api.image.detect_faces`
+    # see `gramps_webapi.api.faces.detect_faces`
     return _has_module("cv2") and _has_module("numpy")
 
 

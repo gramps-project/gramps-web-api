@@ -37,10 +37,10 @@ from gramps_webapi.const import MIME_AVIF, MIME_PNG
 
 from ..types import FilenameOrPath
 from .cache import get_cached_native_max_zoom, set_cached_native_max_zoom
+from .faces import detect_faces, head_shot_region
 from .image import (
     LocalFileThumbnailHandler,
     abort_on_image_errors,
-    detect_faces,
     get_map_tile,
     get_native_max_zoom,
     open_image,
@@ -61,7 +61,10 @@ def _get_map_bounds(media) -> list | None:
                 (lat_min, lon_min), (lat_max, lon_max) = bounds
                 if lat_min >= lat_max or lon_min >= lon_max:
                     return None
-                return [[float(lat_min), float(lon_min)], [float(lat_max), float(lon_max)]]
+                return [
+                    [float(lat_min), float(lon_min)],
+                    [float(lat_max), float(lon_max)],
+                ]
             except (TypeError, ValueError):
                 return None
     return None
@@ -133,11 +136,12 @@ class FileHandler:
             abort_with_message(413, "File too large for thumbnailing")
 
     def get_face_regions(self, etag: Optional[str] = None):
-        """Return regions containing faces."""
+        """Return head shot regions around detected faces."""
         if self.mime.startswith("image"):
+            self._abort_if_too_large()
             fobj = self.get_file_object()
             try:
-                regions = detect_faces(fobj)
+                regions = [head_shot_region(face) for face in detect_faces(fobj)]
             except ImportError:
                 # numpy or opencv missing
                 abort_with_message(501, "OpenCV is not installed")
@@ -302,13 +306,17 @@ class LocalFileHandler(FileHandler):
             abort_with_message(404, "No map bounds for media object")
         native_max_zoom = get_cached_native_max_zoom(self.checksum, bounds)
         if native_max_zoom is not None and z > native_max_zoom:
-            abort_with_message(404, "Zoom level exceeds native resolution of source image")
+            abort_with_message(
+                404, "Zoom level exceeds native resolution of source image"
+            )
         with abort_on_image_errors(), Image.open(self.path_abs) as img:
             if native_max_zoom is None:
                 native_max_zoom = get_native_max_zoom(img.width, img.height, bounds)
                 set_cached_native_max_zoom(self.checksum, bounds, native_max_zoom)
             if z > native_max_zoom:
-                abort_with_message(404, "Zoom level exceeds native resolution of source image")
+                abort_with_message(
+                    404, "Zoom level exceeds native resolution of source image"
+                )
             buffer = get_map_tile(img, bounds, z, x, y)
         return send_file(buffer, mimetype=MIME_PNG)
 

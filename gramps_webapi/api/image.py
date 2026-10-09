@@ -25,7 +25,6 @@ import os
 import shutil
 import tempfile
 from contextlib import contextmanager
-from importlib.resources import as_file, files
 from pathlib import Path
 from typing import BinaryIO, Callable, Iterator, Union
 
@@ -335,14 +334,20 @@ def _tile_bounds_lonlat(z: int, x: int, y: int) -> tuple:
     return lon_min, lat_min, lon_max, lat_max
 
 
-def _lat_to_tile_pixel_y(lat: float, z: int, y_tile: int, tile_size: int = 256) -> float:
+def _lat_to_tile_pixel_y(
+    lat: float, z: int, y_tile: int, tile_size: int = 256
+) -> float:
     """Convert latitude to pixel y within a slippy map tile (Web Mercator)."""
     lat_rad = math.radians(lat)
-    y_merc = (1.0 - math.log(math.tan(lat_rad) + 1.0 / math.cos(lat_rad)) / math.pi) / 2.0
+    y_merc = (
+        1.0 - math.log(math.tan(lat_rad) + 1.0 / math.cos(lat_rad)) / math.pi
+    ) / 2.0
     return y_merc * (2**z) * tile_size - y_tile * tile_size
 
 
-def get_native_max_zoom(img_width: int, img_height: int, bounds: list, tile_size: int = 256) -> int:
+def get_native_max_zoom(
+    img_width: int, img_height: int, bounds: list, tile_size: int = 256
+) -> int:
     """Return the highest zoom level at which the image is at or above native resolution.
 
     bounds: [[lat_min, lon_min], [lat_max, lon_max]]
@@ -378,7 +383,9 @@ def get_native_max_zoom(img_width: int, img_height: int, bounds: list, tile_size
 
 def transparent_png_tile(tile_size: int = 256) -> BinaryIO:
     """Return a buffer containing a fully transparent RGBA PNG tile."""
-    return save_image_buffer(Image.new("RGBA", (tile_size, tile_size), (0, 0, 0, 0)), fmt="PNG")
+    return save_image_buffer(
+        Image.new("RGBA", (tile_size, tile_size), (0, 0, 0, 0)), fmt="PNG"
+    )
 
 
 def get_map_tile(
@@ -402,7 +409,9 @@ def get_map_tile(
     img_lat_max, img_lon_max = bounds[1]
     img_width, img_height = image.size
 
-    tile_lon_min, tile_lat_min, tile_lon_max, tile_lat_max = _tile_bounds_lonlat(z, x, y)
+    tile_lon_min, tile_lat_min, tile_lon_max, tile_lat_max = _tile_bounds_lonlat(
+        z, x, y
+    )
 
     ov_lon_min = max(img_lon_min, tile_lon_min)
     ov_lon_max = min(img_lon_max, tile_lon_max)
@@ -444,48 +453,3 @@ def get_map_tile(
     tile_img.paste(crop, (dst_x1, dst_y1), crop)
 
     return save_image_buffer(tile_img, fmt="PNG")
-
-
-def detect_faces(stream: BinaryIO) -> list[tuple[float, float, float, float]]:
-    """Detect faces in an image (stream) using YuNet."""
-    # Read the image from the input stream
-    import cv2
-    import numpy as np
-
-    file_bytes = np.asarray(bytearray(stream.read()), dtype=np.uint8)
-    cv_image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-    if cv_image is None:
-        abort_with_message(422, "File is not a valid image file")
-
-    # Load the YuNet model
-    ref = files("gramps_webapi") / "data/face_detection_yunet_2023mar.onnx"
-    with as_file(ref) as model_path:
-        face_detector = cv2.FaceDetectorYN.create(
-            str(model_path), "", (320, 320), score_threshold=0.5
-        )
-
-    # Set input image size for YuNet
-    height, width, _ = cv_image.shape
-    face_detector.setInputSize((width, height))
-
-    # Detect faces
-    faces = face_detector.detect(cv_image)
-
-    # Check if any faces are detected
-    if faces[1] is None:
-        return []
-
-    # Extract and normalize face bounding boxes
-    detected_faces = []
-    for face in faces[1]:
-        x, y, w, h = map(float, np.asarray(face)[:4])
-        detected_faces.append(
-            (
-                100 * x / width,
-                100 * y / height,
-                100 * (x + w) / width,
-                100 * (y + h) / height,
-            )
-        )
-
-    return detected_faces

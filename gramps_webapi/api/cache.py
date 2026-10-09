@@ -13,6 +13,7 @@ from flask_caching import Cache
 from gramps.gen.errors import HandleError
 
 from gramps_webapi.api.auth import has_permissions
+from gramps_webapi.api.faces import FACE_DETECTION_VERSION
 from gramps_webapi.api.util import (
     get_db_handle,
     get_db_manager,
@@ -51,7 +52,9 @@ def _hash_request_args() -> str:
     # Exclude jwt (auth token) and checksum (frontend cache-busting hint;
     # the authoritative checksum is read from the DB in make_cache_key_thumbnails).
     excluded = {"jwt", "checksum"}
-    query_args = list((k, v) for (k, v) in request.args.items(multi=True) if k not in excluded)
+    query_args = list(
+        (k, v) for (k, v) in request.args.items(multi=True) if k not in excluded
+    )
     args_as_sorted_tuple = tuple(sorted(query_args))
     args_as_bytes = str(args_as_sorted_tuple).encode()
     arg_hash = hashlib.md5(args_as_bytes)
@@ -193,6 +196,29 @@ tile_cache_decorator = thumbnail_cache.cached(
 )
 
 
+def make_cache_key_face_detection(*args, **kwargs):
+    """Make a cache key for face detection results."""
+    # The result only depends on the file, so key on its checksum rather than
+    # on the tree's last change, and on the detection version so that cached
+    # results are invalidated when the detection changes.
+    arg_hash = _hash_request_args()
+    tree = get_tree_from_jwt()
+    checksum = g.cached_media.checksum
+    dbmgr = get_db_manager(tree)
+    return (
+        checksum
+        + request.path
+        + arg_hash
+        + dbmgr.dirname
+        + f":faces-v{FACE_DETECTION_VERSION}"
+    )
+
+
+face_detection_cache_decorator = thumbnail_cache.cached(
+    make_cache_key=make_cache_key_face_detection, unless=skip_cache_missing_media
+)
+
+
 def _native_max_zoom_cache_key(checksum: str, bounds: list) -> str:
     """Make a cache key for the native max zoom of a georeferenced media file."""
     bounds_hash = hashlib.md5(json.dumps(bounds).encode()).hexdigest()
@@ -204,6 +230,8 @@ def get_cached_native_max_zoom(checksum: str, bounds: list) -> int | None:
     return persistent_cache.get(_native_max_zoom_cache_key(checksum, bounds))
 
 
-def set_cached_native_max_zoom(checksum: str, bounds: list, native_max_zoom: int) -> None:
+def set_cached_native_max_zoom(
+    checksum: str, bounds: list, native_max_zoom: int
+) -> None:
     """Cache the native max zoom for a georeferenced media file."""
     persistent_cache.set(_native_max_zoom_cache_key(checksum, bounds), native_max_zoom)
