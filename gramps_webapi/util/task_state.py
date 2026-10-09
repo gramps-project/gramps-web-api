@@ -59,8 +59,13 @@ LOCK_SEARCH_INDEX = "search-index"
 LOCK_SEMANTIC_INDEX = "semantic-index"
 LOCK_SEARCH_INDEX_INCREMENTAL = "search-index-incremental"
 LOCK_SEMANTIC_INDEX_INCREMENTAL = "semantic-index-incremental"
+LOCK_MEDIA_USAGE = "media-usage"
 COALESCING_LOCKS = frozenset(
-    {LOCK_SEARCH_INDEX_INCREMENTAL, LOCK_SEMANTIC_INDEX_INCREMENTAL}
+    {
+        LOCK_SEARCH_INDEX_INCREMENTAL,
+        LOCK_SEMANTIC_INDEX_INCREMENTAL,
+        LOCK_MEDIA_USAGE,
+    }
 )
 
 QUEUED = "queued"
