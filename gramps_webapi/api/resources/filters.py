@@ -60,11 +60,15 @@ from ...auth.const import PERM_EDIT_CUSTOM_FILTER
 from ...const import GRAMPS_NAMESPACES, TREE_MULTI
 from ...types import Handle
 from ..blueprint import api_blueprint
-from ..util import abort_with_message
+from ..util import abort_with_message, get_locale_for_language
 from ..auth import require_permissions
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
-from .filter_param_types import get_param_types
+from .filter_param_types import (
+    get_label_text,
+    get_param_types,
+    translate_param_type,
+)
 from .object_query import UnknownBackendError, detect_dialect, detect_treeid
 from .schemas import (
     CustomFilterSchema as CustomFilterResponseSchema,
@@ -270,7 +274,19 @@ def get_rule_list(namespace: str) -> list[type[Rule]]:
 
 
 def get_filter_rules(args: dict[str, Any], namespace: str) -> list[dict[str, Any]]:
-    """Return a list of available filter rules for a namespace."""
+    """Return a list of available filter rules for a namespace.
+
+    Rule strings are English, since the server locale is. They are translated
+    into the requested locale with the Gramps translations. Strings that
+    Gramps doesn't translate (those of our own rules and of addon rules) stay
+    as they are.
+    """
+    translation = get_locale_for_language(args.get("locale"), default=True).translation
+
+    def translate(text: str) -> str:
+        # gettext("") returns the catalog header
+        return translation.gettext(text) if text else text
+
     rule_list = []
     for rule_class in get_rule_list(namespace):
         if (
@@ -281,12 +297,17 @@ def get_filter_rules(args: dict[str, Any], namespace: str) -> list[dict[str, Any
             continue
         rule_list.append(
             {
-                "category": rule_class.category,
-                "description": rule_class.description,
-                "labels": rule_class.labels,
-                "name": rule_class.name,
+                "category": translate(rule_class.category),
+                "description": translate(rule_class.description),
+                "labels": [
+                    translate(get_label_text(label)) for label in rule_class.labels
+                ],
+                "name": translate(rule_class.name),
                 "rule": rule_class.__name__,
-                "types": get_param_types(namespace, rule_class),
+                "types": [
+                    translate_param_type(param_type, translate)
+                    for param_type in get_param_types(namespace, rule_class)
+                ],
             }
         )
     if "rules" in args and len(args["rules"]) != len(rule_list):
@@ -595,11 +616,28 @@ class CustomFilterCreateSchema(FilterSchema):
     )
 
 
+_LOCALE_DESCRIPTION = (
+    "Language code of the locale to use for the names, descriptions, "
+    "categories, labels and option labels of rules. Unknown or omitted codes "
+    "fall back to English."
+)
+
+
+class FiltersAllQueryArgs(Schema):
+    """Query arguments for GET /filters/."""
+
+    locale = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={"description": _LOCALE_DESCRIPTION},
+    )
+
+
 class FiltersResources(ProtectedResource, GrampsJSONEncoder):
     """Filters resources."""
 
     @api_blueprint.response(200, NamespaceFiltersSchema())
-    @api_blueprint.arguments(Schema(), location="query")
+    @api_blueprint.arguments(FiltersAllQueryArgs, location="query")
     def get(self, args: dict[str, Any]) -> Response:
         """Get available custom filters and rules."""
         results = {}
@@ -622,6 +660,11 @@ class FiltersQueryArgs(Schema):
     rules = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
         metadata={"description": "Comma-delimited list of rule class names to return."},
+    )
+    locale = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={"description": _LOCALE_DESCRIPTION},
     )
 
 

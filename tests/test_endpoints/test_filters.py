@@ -23,8 +23,13 @@
 import json
 import uuid
 import unittest
+from unittest.mock import patch
 
+from gramps.gen.filters.rules import Rule
+from gramps.gen.utils.grampslocale import GrampsLocale
 from jsonschema import validate
+
+from gramps_webapi.api.resources.filters import get_rule_map
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 from gramps_webapi.const import GRAMPS_NAMESPACES
 
@@ -1370,3 +1375,142 @@ class TestRuleParamTypes(unittest.TestCase):
             {"type": "datetime"},
             {"type": "datetime"},
         ]
+
+
+class TestRuleTranslation(unittest.TestCase):
+    """Rule descriptions are translated into the requested locale."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = get_test_client()
+        cls.translate = GrampsLocale(lang="de").translation.gettext
+
+    def _rule(self, namespace, rule, query=""):
+        rv = check_success(self, f"{TEST_URL}{namespace}?rules={rule}{query}")
+        return rv["rules"][0]
+
+    def test_without_locale_unchanged(self):
+        """Without locale, rules are described by their class attributes."""
+        for namespace in GRAMPS_NAMESPACES:
+            rv = check_success(self, TEST_URL + namespace)
+            rule_map = get_rule_map(GRAMPS_NAMESPACES[namespace])
+            for rule in rv["rules"]:
+                rule_class = rule_map[rule["rule"]]
+                assert rule["name"] == rule_class.name
+                assert rule["description"] == rule_class.description
+                assert rule["category"] == rule_class.category
+                assert rule["labels"] == rule_class.labels
+
+    def test_with_locale(self):
+        """Name, description, category and labels are translated."""
+        rule = self._rule("people", "HasBirth", "&locale=de")
+        expected = {
+            "name": "People with the <birth data>",
+            "description": "Matches people with birth data of a particular value",
+            "category": "Event filters",
+        }
+        for key, english in expected.items():
+            assert self.translate(english) != english
+            assert rule[key] == self.translate(english)
+        assert rule["labels"] == [
+            self.translate(label) for label in ["Date:", "Place:", "Description:"]
+        ]
+
+    def test_select_labels(self):
+        """Labels of select options are translated, values are not."""
+        types = self._rule("people", "HasNote", "&locale=de")["types"]
+        assert types[1]["options"] == [
+            {"value": value, "label": self.translate(value)}
+            for value in ["less than", "equal to", "greater than"]
+        ]
+        assert self.translate("less than") != "less than"
+        types = self._rule("places", "WithinArea", "&locale=de")["types"]
+        assert types[2]["options"][0] == {
+            "value": "0",
+            "label": self.translate("kilometers"),
+        }
+
+    def test_own_rule(self):
+        """Our own rules translate the strings Gramps has translations for."""
+        rule = self._rule("people", "HasAssociationType", "&locale=de")
+        assert rule["labels"] == [self.translate("Type:")]
+        assert rule["category"] == self.translate("General filters")
+        assert rule["name"] == "People with association of type <type>"
+
+    def test_all_namespaces(self):
+        """The endpoint for all namespaces takes a locale, too."""
+        rv = check_success(self, f"{TEST_URL}?locale=de")
+        rule = next(r for r in rv["people"]["rules"] if r["rule"] == "HasBirth")
+        assert rule["category"] == self.translate("Event filters")
+
+    def test_unknown_locale(self):
+        """An unknown language code falls back to English."""
+        rule = self._rule("people", "HasBirth", "&locale=xx")
+        assert rule["category"] == "Event filters"
+
+
+class MyInteger:
+    """Stands in for the filter editor widget of the same name."""
+
+
+class MyLesserEqualGreater:
+    """Stands in for the filter editor widget of the same name."""
+
+
+class AgeOption(MyInteger):
+    """Widget derived from a known editor widget."""
+
+
+class ComparisonOption(MyLesserEqualGreater):
+    """Widget derived from a known editor widget."""
+
+
+class UnknownOption:
+    """Widget with an unknown value format."""
+
+
+class HasWidgetLabels(Rule):
+    """Rule declaring labels as (text, widget_class) pairs."""
+
+    labels = [
+        ("", ComparisonOption),
+        ("Age:", AgeOption),
+        ("Widget value:", UnknownOption),
+    ]
+    name = "People with widget labels"
+    description = "Matches people"
+    category = "General filters"
+
+
+class TestWidgetLabels(unittest.TestCase):
+    """Labels declared as (text, widget_class) pairs."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = get_test_client()
+
+    def _rule(self, query=""):
+        with patch.dict(get_rule_map("Person"), {"HasWidgetLabels": HasWidgetLabels}):
+            rv = check_success(self, f"{TEST_URL}people?rules=HasWidgetLabels{query}")
+        return rv["rules"][0]
+
+    def test_labels_are_text(self):
+        """Labels are the text of the pair."""
+        assert self._rule()["labels"] == ["", "Age:", "Widget value:"]
+
+    def test_types_from_widget(self):
+        """Types come from the editor widget the widget derives from."""
+        types = self._rule()["types"]
+        assert [o["value"] for o in types[0]["options"]] == [
+            "less than",
+            "equal to",
+            "greater than",
+        ]
+        assert types[1] == {"type": "integer", "min": 0}
+        assert types[2] == {"type": "text", "custom": True}
+
+    def test_with_locale(self):
+        """Label texts are translated; an empty label stays empty."""
+        translate = GrampsLocale(lang="de").translation.gettext
+        rule = self._rule("&locale=de")
+        assert rule["labels"] == ["", translate("Age:"), "Widget value:"]
