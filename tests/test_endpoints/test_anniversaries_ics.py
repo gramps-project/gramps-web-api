@@ -28,13 +28,14 @@ from gramps.gen.lib import (
     Family,
     Person,
 )
-
 from gramps_webapi.api.cache import request_cache
 from gramps_webapi.api.resources.anniversaries import (
     AnniversaryEvent,
     _build_ics,
+    _calendar_etag,
     _collect_anniversaries,
     _escape_ics_text,
+    _filter_dependencies,
     _get_anniversary_date_components,
 )
 from gramps_webapi.auth import (
@@ -102,7 +103,7 @@ class TestAnniversariesIcs(unittest.TestCase):
         self.assertIn("X-PUBLISHED-TTL:P1D", text)
         self.assertEqual(rv.headers["Cache-Control"], "private, max-age=86400")
         self.assertIn("ETag", rv.headers)
-        self.assertIn("Last-Modified", rv.headers)
+        self.assertNotIn("Last-Modified", rv.headers)
         self.assertIn("Expires", rv.headers)
         etag = rv.headers["ETag"]
 
@@ -130,6 +131,12 @@ class TestAnniversariesIcs(unittest.TestCase):
         self.assertEqual(conditional.status_code, 304)
         self.assertEqual(conditional.data, b"")
         get_db.assert_not_called()
+
+        date_only = self.client.get(
+            url, headers={"If-Modified-Since": "Wed, 21 Oct 2015 07:28:00 GMT"}
+        )
+        self.assertEqual(date_only.status_code, 200)
+        self.assertNotIn("Last-Modified", date_only.headers)
 
     def test_etag_varies_with_feed_parameters(self):
         """Different representations never share validators."""
@@ -170,7 +177,9 @@ class TestAnniversariesIcs(unittest.TestCase):
         event.type = EventType(EventType.BIRTH)
         event.date = Date(2000, 1, 2)
         event.change = 1_700_000_000
-        entry = AnniversaryEvent(event, {("person", "I0001"): "Éléonore, " * 20})
+        entry = AnniversaryEvent(
+            event, (2000, 1, 2), {("person", "I0001"): "Éléonore, " * 20}
+        )
         payload = _build_ics([entry], "tree", "My family tree", GRAMPS_LOCALE)
         lines = payload.removesuffix("\r\n").split("\r\n")
         self.assertTrue(all(len(line.encode("utf-8")) <= 75 for line in lines))
@@ -184,7 +193,7 @@ class TestAnniversariesIcs(unittest.TestCase):
         event.gramps_id = "E0002"
         event.type = EventType(EventType.BIRTH)
         event.date = Date(2000, 2, 29)
-        payload = _build_ics([AnniversaryEvent(event)], "tree", "Tree")
+        payload = _build_ics([AnniversaryEvent(event, (2000, 2, 29))], "tree", "Tree")
         self.assertIn("RRULE:FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1", payload)
         self.assertIn("DTSTART;VALUE=DATE:20000229", payload)
 
@@ -200,6 +209,43 @@ class TestAnniversariesIcs(unittest.TestCase):
         self.assertEqual(_get_anniversary_date_components(event), (2000, 3, 4))
         event.date.set_modifier(Date.MOD_ABOUT)
         self.assertIsNone(_get_anniversary_date_components(event))
+        event.date = Date(0, 3, 4)
+        self.assertIsNone(_get_anniversary_date_components(event))
+
+    def test_filter_dependencies_reload_saved_filters_once_for_all_namespaces(self):
+        """Saved filter definitions are snapshotted with a single disk reload."""
+        with (
+            patch(
+                "gramps_webapi.api.resources.anniversaries.gramps_filters.reload_custom_filters"
+            ) as reload_filters,
+            patch(
+                "gramps_webapi.api.resources.anniversaries.get_custom_filters",
+                return_value=[],
+            ) as get_custom_filters,
+        ):
+            definitions, missing = _filter_dependencies({"person_rules": "{}"})
+
+        self.assertFalse(missing)
+        self.assertEqual(len(definitions), 9)
+        reload_filters.assert_called_once_with()
+        self.assertEqual(get_custom_filters.call_count, 9)
+        self.assertTrue(
+            all(
+                call.kwargs["reload"] is False
+                for call in get_custom_filters.call_args_list
+            )
+        )
+
+    def test_saved_filter_changes_invalidate_calendar_etag(self):
+        """The saved-filter snapshot remains part of the feed cache key."""
+        args = {"event_types": ["Birth"], "living_only": True}
+        base = ("tree", "Family tree", False, args, 1, GRAMPS_LOCALE)
+        first = [{"namespace": "Person", "filters": [{"name": "Adults"}]}]
+        second = [{"namespace": "Person", "filters": [{"name": "Living adults"}]}]
+        self.assertNotEqual(
+            _calendar_etag(*base, first),
+            _calendar_etag(*base, second),
+        )
 
     def test_public_feed_event_type_filter(self):
         """event_types filter limits event types included in ICS."""
@@ -255,7 +301,13 @@ class TestAnniversariesIcs(unittest.TestCase):
         self.assertEqual(german[1].data, german[2].data)
         self.assertEqual(german[1].headers["ETag"], german[2].headers["ETag"])
 
-    def _collect_with_options(self, living_only, primary_participants_only):
+    def _collect_with_options(
+        self,
+        living_only,
+        primary_participants_only,
+        event_types=None,
+        diagnostics=False,
+    ):
         """Collect deterministic person and family references with real Gramps roles."""
         people = {}
         for handle in ("alive", "partner", "deceased"):
@@ -307,6 +359,21 @@ class TestAnniversariesIcs(unittest.TestCase):
             EventType.MARRIAGE,
             EventRoleType.WITNESS,
         )
+        # The same event may be referenced by both spouses and the family.
+        add_event(people["alive"], "living-family-marriage", EventType.MARRIAGE)
+
+        single_parent_family = Family()
+        single_parent_family.handle = "single-parent-family"
+        single_parent_family.gramps_id = "single-parent-family"
+        single_parent_family.set_father_handle("alive")
+        people["alive"].add_family_handle("single-parent-family")
+        families[single_parent_family.handle] = single_parent_family
+        add_event(
+            single_parent_family,
+            "single-parent-marriage",
+            EventType.MARRIAGE,
+            EventRoleType.FAMILY,
+        )
 
         db_handle = Mock()
         db_handle.get_person_handles.return_value = list(people)
@@ -314,28 +381,40 @@ class TestAnniversariesIcs(unittest.TestCase):
         db_handle.get_family_from_handle.side_effect = families.get
         db_handle.get_event_from_handle.side_effect = events.get
         args = {
-            "event_types": ["Birth", "Marriage", "Death"],
+            "event_types": event_types or ["Birth", "Marriage", "Death"],
             "living_only": living_only,
             "primary_participants_only": primary_participants_only,
         }
         with (
             patch(
-                "gramps_webapi.api.resources.anniversaries.CacheProxyDb",
-                side_effect=lambda db: db,
-            ),
-            patch(
                 "gramps_webapi.api.resources.anniversaries.probably_alive",
                 side_effect=lambda person, db, today: person.handle != "deceased",
-            ),
+            ) as probably_alive_mock,
+            patch(
+                "gramps_webapi.api.resources.anniversaries._get_anniversary_date_components",
+                wraps=_get_anniversary_date_components,
+            ) as date_components_mock,
             patch(
                 "gramps_webapi.api.resources.anniversaries.get_family_name_localized",
                 return_value="Family",
             ),
         ):
-            return {
+            handles = {
                 entry.event.handle
                 for entry in _collect_anniversaries(db_handle, args, GRAMPS_LOCALE)
             }
+        if not diagnostics:
+            return handles
+        return {
+            "handles": handles,
+            "alive_calls": probably_alive_mock.call_count,
+            "date_handles": [
+                call.args[0].handle for call in date_components_mock.call_args_list
+            ],
+            "event_handles": [
+                call.args[0] for call in db_handle.get_event_from_handle.call_args_list
+            ],
+        }
 
     def test_living_only_filters_births_and_marriages_but_keeps_deaths(self):
         """Dead people's births and mixed-family marriages are optional."""
@@ -347,7 +426,12 @@ class TestAnniversariesIcs(unittest.TestCase):
         )
         self.assertEqual(
             all_people,
-            living | {"deceased-birth", "mixed-family-marriage"},
+            living
+            | {
+                "deceased-birth",
+                "mixed-family-marriage",
+                "single-parent-marriage",
+            },
         )
 
     def test_primary_participants_only_excludes_secondary_roles(self):
@@ -358,6 +442,27 @@ class TestAnniversariesIcs(unittest.TestCase):
             secondary,
             primary | {"witness-birth", "witness-marriage"},
         )
+
+    def test_living_checks_are_skipped_when_not_needed(self):
+        """No alive calculation is needed when disabled or only deaths are selected."""
+        for living_only, event_types in (
+            (False, ["Birth", "Marriage", "Death"]),
+            (True, ["Death"]),
+            (True, ["Place"]),
+        ):
+            with self.subTest(living_only=living_only, event_types=event_types):
+                result = self._collect_with_options(
+                    living_only, True, event_types=event_types, diagnostics=True
+                )
+                self.assertEqual(result["alive_calls"], 0)
+                if event_types == ["Death"]:
+                    self.assertEqual(result["handles"], {"deceased-death"})
+
+    def test_shared_event_date_is_converted_once_during_collection(self):
+        """A family event referenced by a person reuses its computed date."""
+        result = self._collect_with_options(False, True, diagnostics=True)
+        self.assertEqual(result["date_handles"].count("living-family-marriage"), 1)
+        self.assertEqual(result["event_handles"].count("living-family-marriage"), 1)
 
     def test_public_feed_generation_depth_validation(self):
         """generation_depth is bounded between 1 and 9."""

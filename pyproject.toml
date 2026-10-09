@@ -21,7 +21,7 @@ dependencies = [
     "Click>=7.0",
     "Flask>=2.1.0",
     "Flask-Caching>=2.0.0",
-    "Flask-Compress",
+    "Flask-Compress>=1.17",
     "Flask-Cors",
     "Flask-JWT-Extended>=4.2.1,!=4.4.0,!=4.4.1",
     "Flask-Limiter>=2.9.0",

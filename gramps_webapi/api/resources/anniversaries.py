@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, cast
 
 from flask import Response, request
+from gramps.gen import filters as gramps_filters
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.display.name import displayer as name_displayer
@@ -62,20 +63,8 @@ class AnniversaryEvent:
     """An event and the visible participants found while collecting it."""
 
     event: Event
+    date_components: tuple[int, int, int]
     participants: dict[tuple[str, str], str] = field(default_factory=dict)
-
-
-class CalendarResponse(Response):
-    """Use the complete cache validator, including permissions and arguments."""
-
-    def make_conditional(
-        self, request_or_environ, accept_ranges=False, complete_length=None
-    ):
-        # Compression can invoke conditional handling again. A DB timestamp
-        # alone does not identify the representation selected by the query.
-        environ = dict(getattr(request_or_environ, "environ", request_or_environ))
-        environ.pop("HTTP_IF_MODIFIED_SINCE", None)
-        return super().make_conditional(environ, accept_ranges, complete_length)
 
 
 def _token_limit_key() -> str:
@@ -119,12 +108,10 @@ def _calendar_etag(
     return hashlib.sha256(json.dumps(dimensions, sort_keys=True).encode()).hexdigest()
 
 
-def _calendar_response(
-    payload: str, etag: str, timestamp: int | float | None
-) -> Response:
+def _calendar_response(payload: str, etag: str) -> Response:
     """Return a calendar or its conditional response with refresh headers."""
     unchanged = request.if_none_match.contains_weak(etag)
-    response = CalendarResponse(
+    response = Response(
         "" if unchanged else payload,
         status=304 if unchanged else 200,
         mimetype="text/calendar",
@@ -134,8 +121,6 @@ def _calendar_response(
     response.cache_control.max_age = ICS_CACHE_TIMEOUT
     response.expires = datetime.now(timezone.utc) + timedelta(seconds=ICS_CACHE_TIMEOUT)
     response.set_etag(etag, weak=True)
-    if timestamp is not None:
-        response.last_modified = datetime.fromtimestamp(timestamp, timezone.utc)
     return response
 
 
@@ -227,10 +212,11 @@ def _filter_dependencies(args: dict) -> tuple[list[dict[str, Any]], bool]:
     """Return native saved-filter definitions that influence this feed."""
     if not any(key.endswith(("filter", "rules")) for key in args):
         return [], False
+    gramps_filters.reload_custom_filters()
     definitions: list[dict[str, Any]] = [
         {
             "namespace": namespace,
-            "filters": get_custom_filters({}, namespace),
+            "filters": get_custom_filters({}, namespace, reload=False),
         }
         for namespace in sorted(set(GRAMPS_NAMESPACES.values()))
     ]
@@ -289,7 +275,7 @@ def _collect_anniversaries(
     person_handles = _apply_selected_filters(db_handle, args, "Person", person_handles)
 
     entries: dict[str, AnniversaryEvent] = {}
-    events: dict[str, Event | None] = {}
+    date_components: dict[str, tuple[int, int, int] | None] = {}
     living: dict[str, bool] = {}
     people: list[Person] = []
     family_handles: set[str] = set()
@@ -301,20 +287,25 @@ def _collect_anniversaries(
             living[person.handle] = probably_alive(person, db_handle, today)
         return living[person.handle]
 
-    def event_for(handle: str) -> Event | None:
-        if handle not in events:
-            events[handle] = _get_record(db_handle.get_event_from_handle, handle)
-        return events[handle]
+    def anniversary_date(event: Event) -> tuple[int, int, int] | None:
+        if event.handle not in date_components:
+            date_components[event.handle] = _get_anniversary_date_components(event)
+        return date_components[event.handle]
 
     def add_reference(
         subject: Person | Family,
         event: Event,
+        components: tuple[int, int, int],
         participant: str,
     ) -> None:
         object_type = "person" if isinstance(subject, Person) else "family"
-        entries.setdefault(event.handle, AnniversaryEvent(event)).participants[
-            (object_type, subject.gramps_id)
-        ] = participant
+        entries.setdefault(
+            event.handle, AnniversaryEvent(event, components)
+        ).participants[(object_type, subject.gramps_id)] = participant
+
+    allowed_types = {
+        value.strip().casefold() for value in args["event_types"] if value.strip()
+    }
 
     for handle in person_handles:
         person = _get_record(db_handle.get_person_from_handle, handle)
@@ -327,14 +318,7 @@ def _collect_anniversaries(
         family = _get_record(db_handle.get_family_from_handle, family_handle)
         if family is None:
             continue
-        spouses = [
-            _get_record(db_handle.get_person_from_handle, parent_handle)
-            for parent_handle in (family.father_handle, family.mother_handle)
-            if parent_handle
-        ]
-        spouses_alive = len(spouses) == 2 and all(
-            spouse is not None and is_living(spouse) for spouse in spouses
-        )
+        spouses_alive = None
         participant = None
         for reference in family.get_event_ref_list():
             role = reference.get_role()
@@ -342,39 +326,53 @@ def _collect_anniversaries(
                 role.is_primary() or role.is_family()
             ):
                 continue
-            event = event_for(reference.ref)
-            if event is None or _get_anniversary_date_components(event) is None:
+            event = _get_record(db_handle.get_event_from_handle, reference.ref)
+            if event is None or not _event_matches_type(event, allowed_types, locale):
                 continue
-            if (
-                args["living_only"]
-                and event.type != EventType.DEATH
-                and not spouses_alive
-            ):
+            components = anniversary_date(event)
+            if components is None:
                 continue
+            if args["living_only"] and event.type != EventType.DEATH:
+                if spouses_alive is None:
+                    spouses = [
+                        (
+                            _get_record(db_handle.get_person_from_handle, parent_handle)
+                            if parent_handle
+                            else None
+                        )
+                        for parent_handle in (
+                            family.father_handle,
+                            family.mother_handle,
+                        )
+                    ]
+                    spouses_alive = len(spouses) == 2 and all(
+                        spouse is not None and is_living(spouse) for spouse in spouses
+                    )
+                if not spouses_alive:
+                    continue
             if participant is None:
                 participant = get_family_name_localized(family, db_handle, locale)
-            add_reference(family, event, participant)
+            add_reference(family, event, components, participant)
 
     for person in people:
         participant = None
-        person_alive = is_living(person)
         for reference in person.get_event_ref_list():
             role = reference.get_role()
             if args["primary_participants_only"] and not role.is_primary():
                 continue
-            event = event_for(reference.ref)
-            if event is None or _get_anniversary_date_components(event) is None:
+            event = _get_record(db_handle.get_event_from_handle, reference.ref)
+            if event is None or not _event_matches_type(event, allowed_types, locale):
+                continue
+            components = anniversary_date(event)
+            if components is None:
                 continue
             if args["living_only"] and event.type != EventType.DEATH:
-                if event.type == EventType.MARRIAGE or not person_alive:
+                if event.type == EventType.MARRIAGE or not is_living(person):
                     continue
             if participant is None:
                 participant = name_displayer.display(person)
-            add_reference(person, event, participant)
+            add_reference(person, event, components, participant)
 
-    allowed_types = {
-        value.strip().casefold() for value in args["event_types"] if value.strip()
-    }
     event_handles = [
         Handle(handle)
         for handle in sorted(entries)
@@ -384,7 +382,7 @@ def _collect_anniversaries(
     return sorted(
         (entries[handle] for handle in event_handles),
         key=lambda entry: (
-            *(_get_anniversary_date_components(entry.event) or (0, 0, 0))[1:],
+            *entry.date_components[1:],
             entry.event.handle,
         ),
     )
@@ -411,10 +409,7 @@ def _build_ics(
     ]
     for entry in entries:
         event = entry.event
-        date_components = _get_anniversary_date_components(event)
-        if date_components is None:
-            continue
-        year, month, day = date_components
+        year, month, day = entry.date_components
         dtstamp = datetime.fromtimestamp(event.change or 0, timezone.utc).strftime(
             "%Y%m%dT%H%M%SZ"
         )
@@ -448,7 +443,10 @@ def _build_ics(
 
 
 class AnniversariesIcsQueryArgs(Schema):
-    """Query arguments for GET /anniversaries.ics."""
+    """Query arguments for GET /anniversaries.ics.
+
+    Only exact dates with a day, month, and year are included.
+    """
 
     token = fields.Str(
         required=True,
@@ -470,9 +468,10 @@ class AnniversariesIcsQueryArgs(Schema):
         load_default=True,
         metadata={
             "description": (
-                "Exclude non-death personal events for people who are not living "
-                "and non-death family events unless both spouses are living. "
-                "This option does not exclude death events."
+                "Include non-death personal events only for living people; "
+                "personal marriage events are excluded. Include non-death family "
+                "events only when both spouses are known and living. Death events "
+                "are not excluded."
             )
         },
     )
@@ -522,7 +521,7 @@ class AnniversariesIcsResource(Resource):
     @limiter.limit("10/minute", key_func=_token_limit_key)
     @api_blueprint.arguments(AnniversariesIcsQueryArgs, location="query")
     def get(self, args: dict) -> Response:
-        """Return anniversaries in ICS format."""
+        """Return exact anniversaries with a complete historical year in ICS format."""
         user = get_active_user_from_access_token(
             args["token"], ACCESS_TOKEN_SCOPE_ANNIVERSARIES_ICS
         )
@@ -549,10 +548,10 @@ class AnniversariesIcsResource(Resource):
         cache_key = f"anniversaries_ics:{etag}"
         if timestamp is not None:
             if request.if_none_match.contains_weak(etag):
-                return _calendar_response("", etag, timestamp)
+                return _calendar_response("", etag)
             cached = request_cache.get(cache_key)
             if cached is not None:
-                return _calendar_response(cached, etag, timestamp)
+                return _calendar_response(cached, etag)
         db_handle = get_db_outside_request(
             tree=tree_id,
             view_private=view_private,
@@ -578,4 +577,4 @@ class AnniversariesIcsResource(Resource):
             request_cache.set(cache_key, payload, timeout=ICS_CACHE_TIMEOUT)
         else:
             etag = hashlib.sha256((etag + payload).encode()).hexdigest()
-        return _calendar_response(payload, etag, timestamp)
+        return _calendar_response(payload, etag)
