@@ -19,6 +19,7 @@
 
 """Background task resources."""
 
+import json
 from http import HTTPStatus
 from typing import Any, Dict, NamedTuple, Optional
 
@@ -31,6 +32,14 @@ from webargs import fields
 
 from ...auth import TaskTree, User, user_db
 from ...auth.const import PERM_VIEW_OTHER_USER
+from ...util.task_state import (
+    ACTIVE,
+    QUEUED,
+    RUNNING,
+    SUCCEEDED,
+    UNKNOWN,
+    reap,
+)
 from ..auth import has_permissions
 from ..blueprint import api_blueprint
 from ..tasks import get_task_result_cutoff
@@ -65,6 +74,14 @@ class TaskStatusSchema(Schema):
         dump_default=None,
         metadata={"description": "Celery task function name, e.g. 'import_file'."},
     )
+    status = fields.Str(
+        dump_default=None,
+        metadata={
+            "description": "Lifecycle status: 'queued', 'running', 'succeeded',"
+            " 'failed', 'lost' (abandoned after it stopped responding), or"
+            " 'unknown' for tasks recorded before the status was tracked."
+        },
+    )
     created_at = fields.DateTime(
         dump_default=None,
         metadata={"description": "UTC timestamp when the task was dispatched."},
@@ -87,6 +104,14 @@ class TaskListItemSchema(Schema):
     )
     name = fields.Str(
         metadata={"description": "Celery task function name, e.g. 'import_file'."},
+    )
+    status = fields.Str(
+        dump_default=None,
+        metadata={
+            "description": "Lifecycle status: 'queued', 'running', 'succeeded',"
+            " 'failed', 'lost' (abandoned after it stopped responding), or"
+            " 'unknown' for tasks recorded before the status was tracked."
+        },
     )
     created_at = fields.DateTime(
         metadata={"description": "UTC timestamp when the task was dispatched."},
@@ -115,8 +140,8 @@ class TaskListArgsSchema(Schema):
     include_state = fields.Bool(
         load_default=False,
         metadata={
-            "description": "Fetch live state from Celery backend for each task."
-            " Adds one backend call per task."
+            "description": "Include the task state in Celery's spelling"
+            " (see 'status' for the lifecycle status)."
         },
     )
     limit = fields.Int(
@@ -175,23 +200,40 @@ def _task_meta(task: AsyncResult) -> TaskMeta:
     return TaskMeta(state, result if payload is None else payload)
 
 
+def _row_meta(row: TaskTree | None, task_id: str) -> TaskMeta:
+    """Return state and result of a task from its row, in Celery's spelling.
+
+    Tasks without a tracked row (dispatched before the lifecycle was tracked
+    in the user database) are still looked up in the result backend.
+    """
+    if row is None or row.status == UNKNOWN:
+        return _task_meta(AsyncResult(task_id))
+    result = None if row.result is None else json.loads(row.result)
+    if row.status == QUEUED:
+        return TaskMeta("PENDING", None)
+    if row.status == RUNNING:
+        return TaskMeta("STARTED" if result is None else "PROGRESS", result)
+    if row.status == SUCCEEDED:
+        return TaskMeta("SUCCESS", result)
+    return TaskMeta("FAILURE", result)
+
+
 class TaskResource(ProtectedResource):
     """Resource for a single task."""
 
     @api_blueprint.response(200, TaskStatusSchema)
     def get(self, task_id: str):
         """Get info about a task."""
-        task = AsyncResult(task_id)
-        if task is None:
-            abort(HTTPStatus.NOT_FOUND)
-
         row = user_db.session.get(TaskTree, task_id)
         if row is not None:
             tree = get_tree_from_jwt_or_fail()
             if row.tree != tree:
                 abort(HTTPStatus.FORBIDDEN)
+            if row.status in ACTIVE:
+                reap(row.tree)
+                user_db.session.refresh(row)
 
-        meta = _task_meta(task)
+        meta = _row_meta(row, task_id)
         result = {
             "state": meta.state,
             "result_object": _serializable_task_result(meta.result),
@@ -202,6 +244,7 @@ class TaskResource(ProtectedResource):
         if row is not None:
             result["task_id"] = row.task_id
             result["name"] = row.name
+            result["status"] = row.status
             result["created_at"] = row.created_at
             result["user_id"] = row.user_id
             if row.user_id:
@@ -224,6 +267,7 @@ class TaskListResource(ProtectedResource):
         ViewOtherUser permission (Owner+) can see all tasks for the tree.
         """
         tree = get_tree_from_jwt_or_fail()
+        reap(tree)
         cutoff = get_task_result_cutoff()
         query = user_db.session.query(TaskTree).filter(
             TaskTree.tree == tree,
@@ -251,8 +295,9 @@ class TaskListResource(ProtectedResource):
                 "created_at": row.created_at,
                 "user_id": row.user_id,
                 "user_name": user_name_map.get(row.user_id) if row.user_id else None,
+                "status": row.status,
                 "state": (
-                    (_task_meta(AsyncResult(row.task_id)).state or "PENDING")
+                    (_row_meta(row, row.task_id).state or "PENDING")
                     if args["include_state"]
                     else None
                 ),

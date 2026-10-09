@@ -95,6 +95,7 @@ from ..const import (
     TREE_MULTI,
 )
 from ..dbmanager import WebDbManager
+from ..util.task_state import progress_reporter
 from .auth import has_permissions
 
 
@@ -344,6 +345,7 @@ class UserTaskProgress(InfoCollectorMixin, UserBase):
             self, callback=self._callback, error=None, uistate=None, dbstate=None
         )
         self.task = task
+        self._report = progress_reporter()
         self.steps = 0
         self.current_step = 0
         self.progress_title = ""
@@ -351,10 +353,8 @@ class UserTaskProgress(InfoCollectorMixin, UserBase):
         self.info_messages = []
 
     def _update_state(self, meta: dict) -> None:
-        """Report progress, unless the task was called directly (no Celery)."""
-        if self.task is None or self.task.request.id is None:
-            return
-        self.task.update_state(state="PROGRESS", meta=meta)
+        """Report progress, unless running outside a tracked task."""
+        self._report(meta)
 
     def _callback(self, percentage, text=None):
         """Report only the percentage."""
@@ -810,12 +810,16 @@ def check_quota_ai(requested: int, tree: str | None = None) -> None:
 
 
 def abort_with_message(
-    status: int, message: str, error_type: str | None = None
+    status: int,
+    message: str,
+    error_type: str | None = None,
+    extra: dict[str, Any] | None = None,
 ) -> NoReturn:
-    """Abort with a JSON response."""
+    """Abort with a JSON response, adding ``extra`` to the error body."""
     error_body: dict[str, Any] = {"code": status, "message": message}
     if error_type is not None:
         error_body["type"] = error_type
+    error_body.update(extra or {})
     payload = {"error": error_body}
     response = Response(
         response=json.dumps(payload),
