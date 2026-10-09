@@ -137,12 +137,13 @@ def check_deprecations(
         deprecations.append(
             _deprecation(
                 option,
-                f"GRAMPSWEB_{option}",
+                # the option keeps its name, only where it is set changes
+                "",
                 f"Storing the `{option}` config option in the database, e.g. via"
                 " the first-run wizard, is deprecated, and stored values will no"
-                f" longer be read. Please set `GRAMPSWEB_{option}` in the"
-                " environment to the stored value; this warning disappears once"
-                " the two match.",
+                f" longer be read. Please set `{option}` in the server"
+                " configuration to the stored value; this warning disappears"
+                " once the two match.",
             )
         )
     return deprecations

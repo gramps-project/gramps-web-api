@@ -94,5 +94,5 @@ def test_options_stored_in_db_are_flagged():
         DEFAULTS, environ={}, db_options=["EMAIL_HOST", "BASE_URL"]
     )
     assert [d["option"] for d in deprecations] == ["BASE_URL", "EMAIL_HOST"]
-    assert deprecations[0]["replacement"] == "GRAMPSWEB_BASE_URL"
-    assert "`GRAMPSWEB_BASE_URL`" in deprecations[0]["message"]
+    assert deprecations[0]["replacement"] == ""
+    assert "set `BASE_URL` in the server configuration" in deprecations[0]["message"]
