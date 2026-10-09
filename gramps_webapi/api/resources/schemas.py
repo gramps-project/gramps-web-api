@@ -2216,6 +2216,18 @@ class ImportResultSchema(ObjectCountsSchema):
             )
         },
     )
+    index_tasks = fields.List(
+        fields.Nested(lambda: TaskReferenceSchema()),
+        metadata={
+            "description": (
+                "Background tasks updating the search indices after the import. "
+                "The import is complete when this result is returned; search "
+                "results may be incomplete until these tasks have finished. "
+                "Empty when the server runs without a task queue, in which case "
+                "the indices were already updated. Absent for a dry run."
+            )
+        },
+    )
 
 
 class ExportResultSchema(_Base):
@@ -2593,6 +2605,18 @@ class RestoreSummarySchema(_Base):
             "description": (
                 "Number of objects, by type, present in both the tree and the "
                 "backup with identical content, which would be left as is."
+            )
+        },
+    )
+    index_tasks = fields.List(
+        fields.Nested(lambda: TaskReferenceSchema()),
+        metadata={
+            "description": (
+                "Background tasks updating the search indices after the restore. "
+                "The restore is complete when this result is returned; search "
+                "results may be incomplete until these tasks have finished. "
+                "Empty when the server runs without a task queue, in which case "
+                "the indices were already updated. Absent for a dry run."
             )
         },
     )

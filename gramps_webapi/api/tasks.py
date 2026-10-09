@@ -148,10 +148,14 @@ def run_task(task: Task, **kwargs) -> Union[AsyncResult, Any]:
     return task.apply_async(kwargs=kwargs, task_id=task_id)
 
 
+def task_reference(task: AsyncResult) -> dict[str, str]:
+    """Return the location of the task status endpoint and the task ID."""
+    return {"href": f"/api/tasks/{task.id}", "id": task.id}
+
+
 def make_task_response(task: AsyncResult):
     """Make a 202 response with the location of the task status endpoint."""
-    url = f"/api/tasks/{task.id}"
-    payload = {"task": {"href": url, "id": task.id}}
+    payload = {"task": task_reference(task)}
     response = jsonify(payload)
     response.status_code = HTTPStatus.ACCEPTED
     return response
@@ -370,6 +374,23 @@ def search_reindex_incremental_semantic(self, tree: str, user_id: str) -> None:
     )
 
 
+def update_search_indices_after_import(tree: str, user_id: str) -> list[dict[str, str]]:
+    """Bring the search indices up to date after an import or restore.
+
+    With a task queue, the reindex runs as separate tasks so that the import
+    result is available as soon as the data is committed and a failing reindex
+    cannot make the import look failed. Returns references to those tasks;
+    without a task queue, the reindex runs inline and nothing is returned.
+    """
+    tasks: list[Task] = [search_reindex_incremental]
+    if get_current_semantic_search_indexer(tree) is not None:
+        tasks.append(search_reindex_incremental_semantic)
+    results = [run_task(task, tree=tree, user_id=user_id) for task in tasks]
+    return [
+        task_reference(result) for result in results if isinstance(result, AsyncResult)
+    ]
+
+
 @shared_task(bind=True)
 def import_file(
     self,
@@ -411,25 +432,8 @@ def import_file(
     finally:
         close_db(db_handle)
     update_usage_people(tree=tree, user_id=user_id)
-    _search_reindex_incremental(
-        tree=tree,
-        user_id=user_id,
-        semantic=False,
-        progress_cb=progress_callback_count(
-            self, title="Updating full-text search index..."
-        ),
-    )
-    indexer_semantic = get_current_semantic_search_indexer(tree)
-    if indexer_semantic is not None:
-        _reindex_incremental(
-            indexer_semantic,
-            tree=tree,
-            user_id=user_id,
-            progress_cb=progress_callback_count(
-                self, title="Updating semantic search index..."
-            ),
-        )
-    return {**object_counts, "messages": messages}
+    index_tasks = update_search_indices_after_import(tree=tree, user_id=user_id)
+    return {**object_counts, "messages": messages, "index_tasks": index_tasks}
 
 
 @shared_task(bind=True)
@@ -478,25 +482,8 @@ def restore_backup(
             pass
 
     update_usage_people(tree=tree, user_id=user_id)
-    _search_reindex_incremental(
-        tree=tree,
-        user_id=user_id,
-        semantic=False,
-        progress_cb=progress_callback_count(
-            self, title="Updating full-text search index..."
-        ),
-    )
-    indexer_semantic = get_current_semantic_search_indexer(tree)
-    if indexer_semantic is not None:
-        _reindex_incremental(
-            indexer_semantic,
-            tree=tree,
-            user_id=user_id,
-            progress_cb=progress_callback_count(
-                self, title="Updating semantic search index..."
-            ),
-        )
-    return summary
+    index_tasks = update_search_indices_after_import(tree=tree, user_id=user_id)
+    return {**summary, "index_tasks": index_tasks}
 
 
 @shared_task(bind=True)
