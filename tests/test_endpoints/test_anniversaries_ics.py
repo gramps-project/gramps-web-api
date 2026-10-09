@@ -28,13 +28,17 @@ from gramps.gen.lib import (
     Family,
     Person,
 )
+from marshmallow import ValidationError
+
 from gramps_webapi.api.cache import request_cache
 from gramps_webapi.api.resources.anniversaries import (
+    AnniversariesIcsQueryArgs,
     AnniversaryEvent,
     _build_ics,
     _calendar_etag,
     _collect_anniversaries,
     _escape_ics_text,
+    _event_matches_type,
     _filter_dependencies,
     _get_anniversary_date_components,
 )
@@ -211,6 +215,19 @@ class TestAnniversariesIcs(unittest.TestCase):
         self.assertIsNone(_get_anniversary_date_components(event))
         event.date = Date(0, 3, 4)
         self.assertIsNone(_get_anniversary_date_components(event))
+
+    def test_event_types_all_accepts_custom_events_and_must_be_singular(self):
+        """The explicit all selector matches custom types and cannot be combined."""
+        parsed = AnniversariesIcsQueryArgs().load(
+            {"token": "unused", "event_types": "ALL"}
+        )
+        self.assertEqual(parsed["event_types"], ["ALL"])
+        custom_event = Event()
+        self.assertTrue(_event_matches_type(custom_event, {"all"}, GRAMPS_LOCALE))
+        with self.assertRaises(ValidationError):
+            AnniversariesIcsQueryArgs().load(
+                {"token": "unused", "event_types": "all,Birth"}
+            )
 
     def test_filter_dependencies_reload_saved_filters_once_for_all_namespaces(self):
         """Saved filter definitions are snapshotted with a single disk reload."""
@@ -489,6 +506,40 @@ class TestAnniversariesIcs(unittest.TestCase):
         rv = self.client.get(f"{ICS_URL}?{query}")
         self.assertEqual(rv.status_code, 200)
         self.assertNotIn("BEGIN:VEVENT", rv.data.decode("utf-8"))
+
+    def test_event_types_all_still_intersects_with_native_event_rules(self):
+        """The all selector does not bypass saved/dynamic Event filters."""
+        _, token = self._create_token()
+        query = urlencode(
+            {
+                "token": token,
+                "event_types": "all",
+                "living_only": "false",
+                "locale": "en",
+                "rules": json.dumps(
+                    {"rules": [{"name": "HasType", "values": ["Death"]}]}
+                ),
+            }
+        )
+        rv = self.client.get(f"{ICS_URL}?{query}")
+        self.assertEqual(rv.status_code, 200)
+        self.assertIn("BEGIN:VEVENT", rv.data.decode("utf-8"))
+        self.assertNotIn("Type: Birth", rv.data.decode("utf-8"))
+
+    def test_event_types_all_is_case_insensitive_and_includes_default_events(self):
+        """All types is a stable, superset selection and has a normalized ETag."""
+        _, token = self._create_token()
+        default = self.client.get(f"{ICS_URL}?token={token}")
+        all_lower = self.client.get(f"{ICS_URL}?token={token}&event_types=all")
+        all_upper = self.client.get(f"{ICS_URL}?token={token}&event_types=ALL")
+        self.assertEqual(default.status_code, 200)
+        self.assertEqual(all_lower.status_code, 200)
+        self.assertGreaterEqual(
+            all_lower.data.count(b"BEGIN:VEVENT"),
+            default.data.count(b"BEGIN:VEVENT"),
+        )
+        self.assertEqual(all_lower.headers["ETag"], all_upper.headers["ETag"])
+        self.assertEqual(all_lower.data, all_upper.data)
 
     def test_native_person_rules_limit_collected_events(self):
         """Native Person rules are applied before event collection."""

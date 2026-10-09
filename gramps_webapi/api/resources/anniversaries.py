@@ -28,7 +28,7 @@ from gramps.gen.lib.date import gregorian
 from gramps.gen.proxy.cache import CacheProxyDb
 from gramps.gen.utils.alive import probably_alive
 from gramps.gen.utils.grampslocale import GrampsLocale
-from marshmallow import Schema
+from marshmallow import Schema, ValidationError
 from webargs import fields, validate
 
 from ...auth import (
@@ -252,6 +252,8 @@ def _event_matches_type(
     event: Event, allowed_types: set[str], locale: GrampsLocale
 ) -> bool:
     """Match XML, Gramps, and requested-locale event type names."""
+    if "all" in allowed_types:
+        return True
     xml_type = event.type.xml_str()
     names = (xml_type, str(event.type), locale.translation.sgettext(xml_type))
     return any(name.strip().casefold() in allowed_types for name in names)
@@ -388,6 +390,16 @@ def _collect_anniversaries(
     )
 
 
+def _validate_event_types(event_types: list[str]) -> list[str]:
+    """Require the all-types selector to be used by itself."""
+    normalized = {event_type.strip().casefold() for event_type in event_types}
+    if "all" in normalized and normalized != {"all"}:
+        raise ValidationError(
+            "The 'all' event type cannot be combined with other types"
+        )
+    return event_types
+
+
 def _build_ics(
     entries: list[AnniversaryEvent],
     tree_id: str,
@@ -456,11 +468,12 @@ class AnniversariesIcsQueryArgs(Schema):
     event_types = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
         load_default=lambda: ["Birth", "Marriage", "Death"],
-        validate=validate.Length(min=1),
+        validate=[validate.Length(min=1), _validate_event_types],
         metadata={
             "description": (
                 "Comma-delimited event type names, matched case-insensitively "
-                "against Gramps names and translations for the requested locale."
+                "against Gramps names and translations for the requested locale. "
+                "Use 'all' by itself to include every event type."
             )
         },
     )
