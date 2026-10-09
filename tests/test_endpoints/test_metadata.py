@@ -156,6 +156,27 @@ class TestMetadataDeprecations(unittest.TestCase):
         self.assertTrue(res["server"]["multi_tree"])
         self.assertNotIn("deprecations", res)
 
+    def _stored_options(self):
+        res = self._get_metadata(self.client, ROLE_ADMIN)
+        self.assertNotIn("s3cret", str(res["deprecations"]))
+        return [d["option"] for d in res["deprecations"]]
+
+    def test_option_stored_in_db_is_shown_until_the_config_matches(self):
+        """Listed without its value, until the app config has the same one."""
+        header = fetch_header(self.client, role=ROLE_ADMIN)
+        url = BASE_URL + "/config/EMAIL_HOST_PASSWORD/"
+        config = self.client.application.config
+        default = config["EMAIL_HOST_PASSWORD"]
+        rv = self.client.put(url, headers=header, json={"value": "s3cret"})
+        self.assertEqual(rv.status_code, 200)
+        try:
+            self.assertIn("EMAIL_HOST_PASSWORD", self._stored_options())
+            config["EMAIL_HOST_PASSWORD"] = "s3cret"
+            self.assertNotIn("EMAIL_HOST_PASSWORD", self._stored_options())
+        finally:
+            config["EMAIL_HOST_PASSWORD"] = default
+            self.assertEqual(self.client.delete(url, headers=header).status_code, 200)
+
     def test_editor_never_sees_deprecations(self):
         """Below owner, the deprecations are hidden regardless of the tree mode."""
         for client in [self.client, self.single_tree_client]:

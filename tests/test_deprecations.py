@@ -86,3 +86,13 @@ def test_email_use_tls_flagged_if_sender_stored_in_db():
     stored = {"DEFAULT_FROM_EMAIL": "gramps@example.com"}
     deprecations = check_deprecations(DEFAULTS, environ={}, get_option=stored.get)
     assert [d["option"] for d in deprecations] == ["EMAIL_USE_TLS"]
+
+
+def test_options_stored_in_db_are_flagged():
+    """Removed in 4.0, so each stored option has to move to the environment."""
+    deprecations = check_deprecations(
+        DEFAULTS, environ={}, db_options=["EMAIL_HOST", "BASE_URL"]
+    )
+    assert [d["option"] for d in deprecations] == ["BASE_URL", "EMAIL_HOST"]
+    assert deprecations[0]["replacement"] == "GRAMPSWEB_BASE_URL"
+    assert "`GRAMPSWEB_BASE_URL`" in deprecations[0]["message"]
