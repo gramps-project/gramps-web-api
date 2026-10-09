@@ -54,8 +54,21 @@ from .access_tokens import get_active_user_from_access_token
 from .filters import apply_filter, get_custom_filters
 from .util import get_family_name_localized
 
-ICS_FORMAT_VERSION = 2
+# Bump this when the ICS representation changes so old server cache entries expire.
+ICS_FORMAT_VERSION = 3
 ICS_CACHE_TIMEOUT = 86400
+# RFC 5545 requires a full DATE; leap year 2000 also represents yearless Feb 29.
+ICS_PLACEHOLDER_YEAR = 2000
+# Representative source-calendar years near Gregorian 2000 for yearless conversion.
+ICS_SOURCE_REFERENCE_YEARS = {
+    Date.CAL_GREGORIAN: 2000,
+    Date.CAL_JULIAN: 2000,
+    Date.CAL_HEBREW: 5760,
+    Date.CAL_PERSIAN: 1378,
+    Date.CAL_FRENCH: 208,
+    Date.CAL_ISLAMIC: 1420,
+    Date.CAL_SWEDISH: 2000,
+}
 
 
 @dataclass
@@ -153,17 +166,32 @@ def _fold_ics_line(line: str) -> str:
 
 
 def _get_anniversary_date_components(event: Event) -> tuple[int, int, int] | None:
-    """Return fully specified exact Gregorian dates only."""
-    if event.date is None or not event.date.is_regular():
+    """Return exact Gregorian components; year 0 represents an unknown year."""
+    if event.date is None:
         return None
-    event_date = gregorian(event.date)
+
+    source_date = event.date
+    year_is_unknown = source_date.get_year() == 0
+    if year_is_unknown:
+        source_date = Date(source_date)
+        reference_year = ICS_SOURCE_REFERENCE_YEARS.get(source_date.get_calendar())
+        if reference_year is None:
+            return None
+        source_date.set_year(reference_year)
+    if not source_date.is_regular():
+        return None
+
+    event_date = gregorian(source_date)
     year, month, day = (
         event_date.get_year(),
         event_date.get_month(),
         event_date.get_day(),
     )
+    if year_is_unknown:
+        year = 0
     try:
-        datetime(year, month, day)
+        # Validate month/day using the ICS placeholder when Gramps has no year.
+        datetime(year or ICS_PLACEHOLDER_YEAR, month, day)
     except ValueError:
         return None
     return year, month, day
@@ -422,17 +450,27 @@ def _build_ics(
     for entry in entries:
         event = entry.event
         year, month, day = entry.date_components
+        year_is_unknown = year == 0
+        ics_year = ICS_PLACEHOLDER_YEAR if year_is_unknown else year
         dtstamp = datetime.fromtimestamp(event.change or 0, timezone.utc).strftime(
             "%Y%m%dT%H%M%SZ"
         )
-        dtstart = f"{year:04d}{month:02d}{day:02d}"
+        dtstart = f"{ics_year:04d}{month:02d}{day:02d}"
         event_type = locale.translation.sgettext(event.type.xml_str())
         participants = ", ".join(sorted(entry.participants.values()))
         summary = f"{event_type} - {participants}" if participants else event_type
-        description = _escape_ics_text(
-            f"{translate('Gramps ID')}: {event.gramps_id or ''}\n"
-            f"{translate('Type')}: {event_type}"
-        )
+        description_lines = [
+            f"{translate('Gramps ID')}: {event.gramps_id or ''}",
+            f"{translate('Type')}: {event_type}",
+        ]
+        if year_is_unknown:
+            description_lines.append(
+                translate(
+                    "The year is not recorded; 2000 is only a technical "
+                    "placeholder for the yearly recurrence."
+                )
+            )
+        description = _escape_ics_text("\n".join(description_lines))
         uid = _escape_ics_text(f"{event.handle}@{tree_id}.anniversaries.gramps-web")
         lines.extend(
             [
@@ -457,7 +495,8 @@ def _build_ics(
 class AnniversariesIcsQueryArgs(Schema):
     """Query arguments for GET /anniversaries.ics.
 
-    Only exact dates with a day, month, and year are included.
+    Exact dates with a known day and month are included. A missing year uses
+    2000 as a technical DTSTART placeholder for the yearly recurrence.
     """
 
     token = fields.Str(
@@ -534,7 +573,7 @@ class AnniversariesIcsResource(Resource):
     @limiter.limit("10/minute", key_func=_token_limit_key)
     @api_blueprint.arguments(AnniversariesIcsQueryArgs, location="query")
     def get(self, args: dict) -> Response:
-        """Return exact anniversaries with a complete historical year in ICS format."""
+        """Return exact anniversaries; missing years use 2000 as an ICS placeholder."""
         user = get_active_user_from_access_token(
             args["token"], ACCESS_TOKEN_SCOPE_ANNIVERSARIES_ICS
         )

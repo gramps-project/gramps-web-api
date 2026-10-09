@@ -201,19 +201,55 @@ class TestAnniversariesIcs(unittest.TestCase):
         self.assertIn("RRULE:FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1", payload)
         self.assertIn("DTSTART;VALUE=DATE:20000229", payload)
 
+    def test_yearless_dates_use_a_labeled_ics_placeholder_year(self):
+        """Yearless exact dates recur without presenting the placeholder as real."""
+        event = Event()
+        event.handle = "yearless-event"
+        event.gramps_id = "E0003"
+        event.type = EventType(EventType.BIRTH)
+        event.date = Date(0, 3, 4)
+        components = _get_anniversary_date_components(event)
+        self.assertEqual(components, (0, 3, 4))
+
+        payload = _build_ics([AnniversaryEvent(event, components)], "tree", "Tree")
+        self.assertIn("DTSTART;VALUE=DATE:20000304", payload)
+        self.assertIn("RRULE:FREQ=YEARLY", payload)
+        self.assertIn(
+            "2000 is only a technical placeholder", payload.replace("\r\n ", "")
+        )
+
+        event.date.set_calendar(Date.CAL_JULIAN)
+        julian_components = _get_anniversary_date_components(event)
+        self.assertEqual(julian_components, (0, 3, 17))
+        julian_payload = _build_ics(
+            [AnniversaryEvent(event, julian_components)], "tree", "Tree"
+        )
+        self.assertIn("DTSTART;VALUE=DATE:20000317", julian_payload)
+
+        event.date = Date(0, 2, 29)
+        leap_components = _get_anniversary_date_components(event)
+        self.assertEqual(leap_components, (0, 2, 29))
+        leap_payload = _build_ics(
+            [AnniversaryEvent(event, leap_components)], "tree", "Tree"
+        )
+        self.assertIn("DTSTART;VALUE=DATE:20000229", leap_payload)
+        self.assertIn("RRULE:FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1", leap_payload)
+
     def test_ics_text_escaping_normalizes_all_line_endings(self):
         """CR, LF, commas, semicolons and slashes are escaped once."""
         escaped = _escape_ics_text("one\r\ntwo\rthree\nfour, five; \\six")
         self.assertEqual(escaped, "one\\ntwo\\nthree\\nfour\\, five\\; \\\\six")
 
-    def test_only_exact_dates_are_anniversaries(self):
-        """Estimated, calculated and approximate dates are excluded."""
+    def test_exact_dates_allow_missing_year_but_exclude_approximate_dates(self):
+        """Missing years are valid; estimated and approximate dates are not."""
         event = Event()
         event.date = Date(2000, 3, 4)
         self.assertEqual(_get_anniversary_date_components(event), (2000, 3, 4))
         event.date.set_modifier(Date.MOD_ABOUT)
         self.assertIsNone(_get_anniversary_date_components(event))
         event.date = Date(0, 3, 4)
+        self.assertEqual(_get_anniversary_date_components(event), (0, 3, 4))
+        event.date.set_modifier(Date.MOD_ABOUT)
         self.assertIsNone(_get_anniversary_date_components(event))
 
     def test_event_types_all_accepts_custom_events_and_must_be_singular(self):
