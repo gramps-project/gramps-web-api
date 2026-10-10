@@ -31,6 +31,7 @@ from gramps.gen.lib import Media
 from gramps.gen.utils.grampslocale import GrampsLocale
 
 from ...auth.const import PERM_ADD_OBJ
+from ...util import get_extension
 from ..auth import require_permissions
 from ..file import process_file
 from ..media import check_quota_media, get_media_handler, update_usage_media
@@ -46,7 +47,6 @@ from .util import (
     get_media_profile_for_object,
     transaction_to_json,
 )
-
 
 
 class MediaObjectResourceHelper(GrampsObjectResourceHelper):
@@ -80,6 +80,10 @@ class MediaObjectsResource(GrampsObjectsProtectedResource, MediaObjectResourceHe
         mime = request.content_type
         if not mime:
             abort_with_message(HTTPStatus.NOT_ACCEPTABLE, "Media type not recognized")
+        if not get_extension(mime):
+            abort_with_message(
+                HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "Media type not supported"
+            )
         checksum, size, f = process_file(request.stream)
         check_quota_media(to_add=size)
         tree = get_tree_from_jwt()

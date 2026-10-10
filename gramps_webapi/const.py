@@ -149,6 +149,10 @@ MIME_TYPES = {
     ".tex": "application/x-tex",
     ".txt": "text/plain",
     ".html": "text/html",
+    ".geojson": "application/geo+json",
+    ".kml": "application/vnd.google-earth.kml+xml",
+    ".kmz": "application/vnd.google-earth.kmz",
+    ".gpx": "application/gpx+xml",
 }
 
 # These determine the supported report categories and default formats
