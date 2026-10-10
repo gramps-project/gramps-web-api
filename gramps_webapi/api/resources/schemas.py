@@ -3049,6 +3049,9 @@ class TreeConfigSchema(_Base):
 class UserOIDCAccountSchema(_Base):
     """An OIDC account linked to a user."""
 
+    id = fields.Int(
+        metadata={"description": "ID of the link, used to unlink the account."},
+    )
     provider_id = fields.Str(
         metadata={"description": "ID of the OIDC provider."},
     )
@@ -3061,6 +3064,18 @@ class UserOIDCAccountSchema(_Base):
     )
     created_at = fields.DateTime(
         metadata={"description": "Date and time the account was linked."},
+    )
+
+
+class UserOIDCUnlinkSchema(_Base):
+    """Request body for unlinking one's own OIDC account."""
+
+    password = fields.Str(
+        load_default=None,
+        metadata={
+            "description": "The user's current password. Required to unlink their"
+            " last OIDC account."
+        },
     )
 
 

@@ -160,6 +160,7 @@ from .resources.trees import (
     TreesResource,
     UpgradeTreeSchemaResource,
 )
+from .resources.oidc_accounts import UserOIDCAccountResource, UserOIDCAccountsResource
 from .resources.types import (
     CustomTypeResource,
     CustomTypesResource,
@@ -867,6 +868,18 @@ register_endpt(
     UserTriggerResetPasswordResource,
     "/users/<string:user_name>/password/reset/trigger/",
     "trigger_reset_password",
+    tags=["Users"],
+)
+register_endpt(
+    UserOIDCAccountsResource,
+    "/users/-/oidc-accounts/",
+    "user_oidc_accounts",
+    tags=["Users"],
+)
+register_endpt(
+    UserOIDCAccountResource,
+    "/users/-/oidc-accounts/<int:account_id>/",
+    "user_oidc_account",
     tags=["Users"],
 )
 # Search
