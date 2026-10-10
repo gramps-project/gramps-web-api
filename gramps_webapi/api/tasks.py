@@ -44,11 +44,25 @@ from gramps_webapi.api.search.indexer import SearchIndexer, SemanticSearchIndexe
 from ..auth import TaskTree, get_owner_emails
 from ..auth import user_db
 from ..undodb import migrate as migrate_undodb
+from ..util.task_state import (
+    LOCK_MEDIA_USAGE,
+    LOCK_SEARCH_INDEX,
+    LOCK_SEARCH_INDEX_INCREMENTAL,
+    LOCK_SEMANTIC_INDEX,
+    LOCK_SEMANTIC_INDEX_INCREMENTAL,
+    LOCK_WRITE,
+    TaskLocked,
+    acquire,
+    ensure_lock_held,
+    mark_failed,
+    progress_reporter,
+    run_tracked,
+)
 from .check import check_database
 from .emails import email_confirm_email, email_new_user, email_reset_pw
 from ..verify_lib import run_verify
 from .export import prepare_options, run_export
-from .media import get_media_handler
+from .media import get_media_handler, update_usage_media
 from .media_importer import MediaImporter
 from .report import run_report
 from .resources.delete import delete_all_objects
@@ -89,19 +103,6 @@ from .util import (
 )
 
 
-def _record_task(task_id: str, task: Task, kwargs: dict) -> None:
-    """Write one audit row to task_tree before the task is dispatched."""
-    row = TaskTree(
-        task_id=task_id,
-        tree=kwargs.get("tree"),
-        user_id=kwargs.get("user_id"),
-        name=task.name,
-        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
-    )
-    user_db.session.add(row)
-    user_db.session.commit()
-
-
 def get_task_result_cutoff() -> datetime:
     """Return the earliest ``created_at`` that is still within the Celery result TTL."""
     from celery import current_app as celery_app
@@ -115,37 +116,91 @@ def get_task_result_cutoff() -> datetime:
 
 
 def _purge_expired_task_rows() -> None:
-    """Delete task_tree rows older than the Celery result TTL."""
+    """Delete task_tree rows older than the Celery result TTL.
+
+    Rows still holding a lock are kept: they are released by the reaper.
+    """
     cutoff = get_task_result_cutoff()
-    user_db.session.query(TaskTree).filter(TaskTree.created_at < cutoff).delete(
-        synchronize_session=False
-    )
+    user_db.session.query(TaskTree).filter(
+        TaskTree.created_at < cutoff, TaskTree.lock_key.is_(None)
+    ).delete(synchronize_session=False)
     user_db.session.commit()
 
 
+def _acquire(
+    task_id: str, task: Task, lock_key: str | None, kwargs: dict
+) -> str | None:
+    """Record the task, aborting with 409 if its lock is held by another task.
+
+    Returns the ID of the active task a coalesced dispatch was folded into.
+    """
+    tree = kwargs.get("tree")
+    try:
+        _purge_expired_task_rows()
+        return acquire(task_id, task.name, tree, kwargs.get("user_id"), lock_key)
+    except TaskLocked as exc:
+        abort_with_message(
+            HTTPStatus.CONFLICT,
+            "Another task is already running on this tree",
+            error_type="task_locked",
+            extra={"task": task_reference(AsyncResult(exc.holder_id))},
+        )
+    except sa.exc.SQLAlchemyError:
+        user_db.session.rollback()
+        if lock_key is not None:
+            # without its row, the lock can't be enforced
+            logging.getLogger(__name__).error(
+                "Could not acquire lock %s on tree %s", lock_key, tree, exc_info=True
+            )
+            abort_with_message(
+                HTTPStatus.SERVICE_UNAVAILABLE, "Task tracking is unavailable"
+            )
+        logging.getLogger(__name__).warning(
+            "task_tree DB operation failed for task %s; dispatching anyway",
+            task_id,
+            exc_info=True,
+        )
+        return None
+
+
 def run_task(task: Task, **kwargs) -> Union[AsyncResult, Any]:
-    """Send a task to the task queue or run immediately if no queue set up."""
+    """Send a task to the task queue or run immediately if no queue set up.
+
+    A task declared with a ``lock_key`` is exclusive per tree and key (see
+    util/task_state.py): a second dispatch aborts with 409 or, for a
+    coalescing key, is folded into the active task. The result then refers to
+    the active task, or is None when running without a queue. Dry runs don't
+    change the tree, so they never lock.
+    """
+    lock_key = None if kwargs.get("dry_run") else getattr(task, "lock_key", None)
     if not current_app.config["CELERY_CONFIG"]:
+        task_id = None
+        if lock_key is not None:
+            task_id = str(uuid.uuid4())
+            if _acquire(task_id, task, lock_key, kwargs) is not None:
+                return None
         with current_app.app_context():
             try:
-                return task(**kwargs)
+                return run_tracked(task_id, lambda: task(**kwargs))
             except HTTPException:
                 # the task aborted with an API error - preserve status & message
                 raise
             except Exception as exc:
                 abort_with_message(500, str(exc))
     task_id = str(uuid.uuid4())
+    holder_id = _acquire(task_id, task, lock_key, kwargs)
+    if holder_id is not None:
+        return AsyncResult(holder_id)
     try:
-        _purge_expired_task_rows()
-        _record_task(task_id, task, kwargs)
-    except sa.exc.SQLAlchemyError:
-        user_db.session.rollback()
-        logging.getLogger(__name__).warning(
-            "task_tree DB operation failed for task %s; dispatching anyway",
-            task_id,
-            exc_info=True,
-        )
-    return task.apply_async(kwargs=kwargs, task_id=task_id)
+        return task.apply_async(kwargs=kwargs, task_id=task_id)
+    except Exception as exc:
+        try:
+            mark_failed(task_id, str(exc))
+        except sa.exc.SQLAlchemyError:
+            logging.getLogger(__name__).warning(
+                "Failed to mark task %s as failed", task_id, exc_info=True
+            )
+        raise
 
 
 def task_reference(task: AsyncResult) -> dict[str, str]:
@@ -231,8 +286,8 @@ def _search_reindex_full(
         close_db(db)
 
 
-def progress_callback_count(self, title: str = "", message: str = "") -> Callable:
-    """Build a progress callback that reports via Celery's `update_state()`.
+def progress_callback_count(title: str = "", message: str = "") -> Callable:
+    """Build a progress callback that stores progress in the task's row.
 
     Throttled to (at most) one report per integer percentage point, the
     same way `__main__.py`'s CLI `progress_callback_count_factory` throttles
@@ -241,15 +296,15 @@ def progress_callback_count(self, title: str = "", message: str = "") -> Callabl
     That makes the throttle self-contained -- a producer that calls back
     once per object with no `prev` (most of them: check.py, media.py,
     media_importer.py, delete.py, restore.py, and reindex_incremental's own
-    per-object loop) still collapses to ~100 `update_state()` calls
-    regardless of tree size, each one a JSON-encode plus a Redis round
-    trip. A producer that *does* pass real `prev` values (reindex_full,
+    per-object loop) still collapses to ~100 database writes regardless of
+    tree size. A producer that *does* pass real `prev` values (reindex_full,
     batched by chunk_size) throttles the same way, just computed from its
     own strides instead of single-object steps.
     """
+    report = progress_reporter()
 
     def callback(current: int, total: int, prev: int | None = None) -> None:
-        if total == 0 or self.request.id is None:
+        if total == 0:
             return
         pct = int(100 * current / total)
         if prev is None:
@@ -257,33 +312,25 @@ def progress_callback_count(self, title: str = "", message: str = "") -> Callabl
         pct_prev = int(100 * prev / total)
         if current != 0 and pct == pct_prev:
             return
-        self.update_state(
-            state="PROGRESS",
-            meta={
+        report(
+            {
                 "current": current,
                 "total": total,
                 "progress": clip_progress(current / total),
                 "title": title,
                 "message": message,
-            },
+            }
         )
 
     return callback
 
 
-def set_progress_title(self, title: str = "", message: str = "") -> None:
+def set_progress_title(title: str = "", message: str = "") -> None:
     """Set a title/message indicating progress."""
-    if self.request.id is not None:
-        self.update_state(
-            state="PROGRESS",
-            meta={
-                "title": title,
-                "message": message,
-            },
-        )
+    progress_reporter()({"title": title, "message": message})
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, lock_key=LOCK_SEARCH_INDEX)
 def search_reindex_full(self, tree: str, user_id: str, semantic: bool = False) -> None:
     """Rebuild the full-text search index (or the semantic index if ``semantic=True``).
 
@@ -296,20 +343,18 @@ def search_reindex_full(self, tree: str, user_id: str, semantic: bool = False) -
         tree=tree,
         user_id=user_id,
         semantic=semantic,
-        progress_cb=progress_callback_count(self, title="Updating search index..."),
+        progress_cb=progress_callback_count(title="Updating search index..."),
     )
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, lock_key=LOCK_SEMANTIC_INDEX)
 def search_reindex_full_semantic(self, tree: str, user_id: str) -> None:
     """Rebuild the semantic search index."""
     return _search_reindex_full(
         tree=tree,
         user_id=user_id,
         semantic=True,
-        progress_cb=progress_callback_count(
-            self, title="Updating semantic search index..."
-        ),
+        progress_cb=progress_callback_count(title="Updating semantic search index..."),
     )
 
 
@@ -342,7 +387,7 @@ def _reindex_incremental(
         close_db(db)
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, lock_key=LOCK_SEARCH_INDEX_INCREMENTAL)
 def search_reindex_incremental(
     self, tree: str, user_id: str, semantic: bool = False
 ) -> None:
@@ -357,20 +402,18 @@ def search_reindex_incremental(
         tree=tree,
         user_id=user_id,
         semantic=semantic,
-        progress_cb=progress_callback_count(self, title="Updating search index..."),
+        progress_cb=progress_callback_count(title="Updating search index..."),
     )
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, lock_key=LOCK_SEMANTIC_INDEX_INCREMENTAL)
 def search_reindex_incremental_semantic(self, tree: str, user_id: str) -> None:
     """Run an incremental reindex of the semantic search index."""
     return _search_reindex_incremental(
         tree=tree,
         user_id=user_id,
         semantic=True,
-        progress_cb=progress_callback_count(
-            self, title="Updating semantic search index..."
-        ),
+        progress_cb=progress_callback_count(title="Updating semantic search index..."),
     )
 
 
@@ -391,7 +434,7 @@ def update_search_indices_after_import(tree: str, user_id: str) -> list[dict[str
     ]
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, lock_key=LOCK_WRITE)
 def import_file(
     self,
     tree: str,
@@ -418,6 +461,7 @@ def import_file(
                 )
         return dry_run_result
     check_quota_people(to_add=object_counts["people"], tree=tree, user_id=user_id)
+    ensure_lock_held()
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=False, user_id=user_id
     )
@@ -436,7 +480,7 @@ def import_file(
     return {**object_counts, "messages": messages, "index_tasks": index_tasks}
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, lock_key=LOCK_WRITE)
 def restore_backup(
     self,
     tree: str,
@@ -455,7 +499,7 @@ def restore_backup(
         tree=tree, view_private=True, readonly=dry_run, user_id=user_id
     )
     try:
-        set_progress_title(self, title="Computing differences...")
+        set_progress_title(title="Computing differences...")
         backup_db = load_backup_db(file_name=file_name, extension=extension.lower())
         try:
             changeset = compute_reset_changeset(db_handle, backup_db)
@@ -469,10 +513,11 @@ def restore_backup(
             tree=tree,
             user_id=user_id,
         )
+        ensure_lock_held()
         apply_reset_changeset(
             db_handle,
             changeset,
-            progress_cb=progress_callback_count(self, title="Restoring from backup..."),
+            progress_cb=progress_callback_count(title="Restoring from backup..."),
         )
     finally:
         close_db(db_handle)
@@ -501,7 +546,7 @@ def export_db(
             extension,
             prepared_options,
             task=self,
-            progress=progress_callback_count(self, title="Exporting..."),
+            progress=progress_callback_count(title="Exporting..."),
         )
     finally:
         close_db(db_handle)
@@ -563,7 +608,7 @@ def export_media(
             db_handle=db_handle,
             zip_filename=zip_filename,
             include_private=view_private,
-            progress_cb=progress_callback_count(self),
+            progress_cb=progress_callback_count(),
         )
     finally:
         close_db(db_handle)
@@ -576,7 +621,7 @@ def export_media(
     }
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, lock_key=LOCK_WRITE)
 def import_media_archive(
     self, tree: str, user_id: str, file_name: str, delete: bool = True
 ):
@@ -592,7 +637,7 @@ def import_media_archive(
             file_name=file_name,
             delete=delete,
         )
-        result = importer(progress_cb=progress_callback_count(self))
+        result = importer(progress_cb=progress_callback_count())
     finally:
         close_db(db_handle)
     return result
@@ -620,14 +665,14 @@ def media_ocr(
         close_db(db_handle)
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, lock_key=LOCK_WRITE)
 def check_repair_database(self, tree: str, user_id: str):
     """Check and repair a Gramps database (tree)"""
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=False, user_id=user_id
     )
     try:
-        return check_database(db_handle, progress_cb=progress_callback_count(self))
+        return check_database(db_handle, progress_cb=progress_callback_count())
     finally:
         close_db(db_handle)
 
@@ -653,12 +698,12 @@ def verify_database(
         close_db(db_handle)
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, lock_key=LOCK_WRITE)
 def upgrade_database_schema(self, tree: str, user_id: str):
     """Upgrade the schema of the Gramps database and the associated undo database."""
-    set_progress_title(self, title="Upgrading Gramps database schema...")
+    set_progress_title(title="Upgrading Gramps database schema...")
     upgrade_gramps_database(tree=tree, user_id=user_id, task=self)
-    set_progress_title(self, title="Upgrading undo database schema...")
+    set_progress_title(title="Upgrading undo database schema...")
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=False, user_id=user_id
     )
@@ -668,7 +713,7 @@ def upgrade_database_schema(self, tree: str, user_id: str):
         close_db(db_handle)
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, lock_key=LOCK_WRITE)
 def delete_objects(
     self, tree: str, user_id: str, namespaces: Optional[List[str]] = None
 ):
@@ -680,19 +725,18 @@ def delete_objects(
         delete_all_objects(
             db_handle=db_handle,
             namespaces=namespaces,
-            progress_cb=progress_callback_count(self),
+            progress_cb=progress_callback_count(),
         )
     finally:
         close_db(db_handle)
 
     update_usage_people(tree=tree, user_id=user_id)
+    update_usage_media(tree=tree, user_id=user_id)
     _search_reindex_incremental(
         tree=tree,
         user_id=user_id,
         semantic=False,
-        progress_cb=progress_callback_count(
-            self, title="Updating full-text search index..."
-        ),
+        progress_cb=progress_callback_count(title="Updating full-text search index..."),
     )
     indexer_semantic = get_current_semantic_search_indexer(tree)
     if indexer_semantic is not None:
@@ -701,7 +745,7 @@ def delete_objects(
             tree=tree,
             user_id=user_id,
             progress_cb=progress_callback_count(
-                self, title="Updating semantic search index..."
+                title="Updating semantic search index..."
             ),
         )
 
@@ -858,6 +902,22 @@ def _index_objects(
             )
 
 
+@shared_task(lock_key=LOCK_MEDIA_USAGE)
+def update_media_usage_task(tree: str, user_id: str) -> None:
+    """Recompute and store the media usage for a tree.
+
+    Recomputing scans every media object's file, so this is run as a task
+    rather than inline in the request, the same way search index updates are.
+
+    Declared with a coalescing lock key (see util/task_state.py): a dispatch
+    arriving while a rescan is already running for this tree is folded into
+    it rather than queuing a second one, and the running rescan re-runs once
+    more before releasing the lock. This bounds a burst of N uploads/deletes
+    for one tree to at most two full rescans instead of N.
+    """
+    update_usage_media(tree=tree, user_id=user_id)
+
+
 @shared_task(bind=True)
 def update_search_indices_from_transaction(
     self, trans_dict: list[dict], tree: str, user_id: str
@@ -915,27 +975,16 @@ def process_chat(
     )
     from pydantic_ai import ModelMessagesTypeAdapter
 
-    # Capture the task ID in the main worker thread before run_sync hands off
-    # tool calls to a thread-pool executor. Celery stores self.request in a
-    # thread-local, so self.request.id is None inside executor threads.
-    task_id = self.request.id
+    # Create the reporter in the main worker thread: run_sync hands off tool
+    # calls to a thread-pool executor, which has no task context.
+    report = progress_reporter()
     step = 0
-    if task_id is not None:
-        self.update_state(
-            task_id=task_id,
-            state="PROGRESS",
-            meta={"step": 0, "tool": "", "message": "Processing your query..."},
-        )
+    report({"step": 0, "tool": "", "message": "Processing your query..."})
 
     def progress_callback(tool_name: str, message: str) -> None:
         nonlocal step
         step += 1
-        if task_id is not None:
-            self.update_state(
-                task_id=task_id,
-                state="PROGRESS",
-                meta={"step": step, "tool": tool_name, "message": message},
-            )
+        report({"step": step, "tool": tool_name, "message": message})
 
     result = answer_with_agent(
         prompt=query,

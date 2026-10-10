@@ -948,7 +948,13 @@ class OIDCAccount(user_db.Model):  # type: ignore
 
 
 class TaskTree(user_db.Model):  # type: ignore
-    """Audit table linking Celery task IDs to the tree and user that triggered them."""
+    """Lifecycle of a background task: the source of truth for its state.
+
+    See gramps_webapi/util/task_state.py. ``lock_key`` is set only while the task is
+    active, so the unique constraint on (tree, lock_key) allows one active
+    task per tree and key, while finished tasks and unlocked tasks (NULL key)
+    never conflict.
+    """
 
     __tablename__ = "task_tree"
 
@@ -958,6 +964,24 @@ class TaskTree(user_db.Model):  # type: ignore
     name: Mapped[str] = mapped_column(sa.String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime, nullable=False, server_default=sa.func.now()
+    )
+    # queued / running / succeeded / failed / lost; unknown for rows
+    # recorded before the lifecycle was tracked here
+    status: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, server_default="unknown"
+    )
+    lock_key: Mapped[str | None] = mapped_column(sa.String(64))
+    rerun: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.false()
+    )
+    started_at: Mapped[datetime | None] = mapped_column(sa.DateTime)
+    finished_at: Mapped[datetime | None] = mapped_column(sa.DateTime)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(sa.DateTime)
+    # JSON: progress while running, return value or error payload when done
+    result: Mapped[str | None] = mapped_column(sa.Text)
+
+    __table_args__ = (
+        sa.UniqueConstraint("tree", "lock_key", name="uq_task_tree_tree_lock_key"),
     )
 
     def __repr__(self):
