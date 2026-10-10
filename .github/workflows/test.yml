@@ -88,6 +88,19 @@ jobs:
   test-base-image:
     runs-on: ubuntu-26.04
     container: ghcr.io/gramps-project/gramps-web-base:latest
+    services:
+      # used by tests/test_shared_postgresql.py
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: gramps
+          POSTGRES_PASSWORD: gramps
+          POSTGRES_DB: gramps
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v5
       - name: Cache Hugging Face models
@@ -107,4 +120,6 @@ jobs:
       - name: Test with pytest
         env:
           HF_HUB_OFFLINE: 1
-        run: pytest -x
+          GRAMPSWEB_TEST_POSTGRES_URL: postgresql://gramps:gramps@postgres:5432/gramps
+        # the base image ships the SharedPostgreSQL addon
+        run: GRAMPSWEB_TEST_ADDONS_DIR=/root/gramps/gramps$GRAMPS_VERSION/plugins pytest -x
