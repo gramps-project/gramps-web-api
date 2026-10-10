@@ -458,7 +458,7 @@ class TestPeopleQuery(unittest.TestCase):
             header,
             {
                 "select": ["handle"],
-                "where": [{"column": "gramps_id", "op": "eq", "value": "I0000"}],
+                "where": [{"column": "gramps_id", "op": "eq", "value": "I00000"}],
                 "limit": 50,
                 "count": True,
             },

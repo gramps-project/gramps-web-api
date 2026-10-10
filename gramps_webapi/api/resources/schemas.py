@@ -1394,6 +1394,12 @@ class PersonSchema(_Base):
         fields.Str(),
         metadata={"description": "Handles of families this person is a parent of."},
     )
+    familysearch_sync = fields.Dict(
+        metadata={
+            "description": "FamilySearch synchronization state, written by the"
+            " Gramps desktop FamilySearch integration. Not used by the web API."
+        },
+    )
     gender = fields.Int(
         metadata={"description": "Gender code (0=female, 1=male, 2=unknown, 3=other)."},
     )

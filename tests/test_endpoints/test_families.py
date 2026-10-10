@@ -91,7 +91,7 @@ class TestFamilies(unittest.TestCase):
 
     def test_get_families_parameter_gramps_id_expected_result(self):
         """Test gramps_id parameter returns expected result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=F0045")
+        rv = check_success(self, TEST_URL + "?gramps_id=F00045")
         self.assertEqual(len(rv), 1)
         self.assertEqual(rv[0]["handle"], "3HUJQCK4DH582YUTZG")
 
@@ -317,7 +317,7 @@ class TestFamilies(unittest.TestCase):
         """Test extend child_ref_list result."""
         check_single_extend_parameter(
             self,
-            TEST_URL + "?gramps_id=F0045",
+            TEST_URL + "?gramps_id=F00045",
             "child_ref_list",
             "children",
             join="&",
@@ -327,14 +327,14 @@ class TestFamilies(unittest.TestCase):
     def test_get_families_parameter_extend_expected_result_citation_list(self):
         """Test extend citation_list result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=F0045", "citation_list", "citations", join="&"
+            self, TEST_URL + "?gramps_id=F00045", "citation_list", "citations", join="&"
         )
 
     def test_get_families_parameter_extend_expected_result_event_ref_list(self):
         """Test extend event_ref_list result."""
         check_single_extend_parameter(
             self,
-            TEST_URL + "?gramps_id=F0045",
+            TEST_URL + "?gramps_id=F00045",
             "event_ref_list",
             "events",
             join="&",
@@ -344,14 +344,14 @@ class TestFamilies(unittest.TestCase):
     def test_get_families_parameter_extend_expected_result_father(self):
         """Test extend father result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=F0045", "father_handle", "father", join="&"
+            self, TEST_URL + "?gramps_id=F00045", "father_handle", "father", join="&"
         )
 
     def test_get_families_parameter_extend_expected_result_media_list(self):
         """Test extend media_list result."""
         check_single_extend_parameter(
             self,
-            TEST_URL + "?gramps_id=F0045",
+            TEST_URL + "?gramps_id=F00045",
             "media_list",
             "media",
             join="&",
@@ -361,24 +361,26 @@ class TestFamilies(unittest.TestCase):
     def test_get_families_parameter_extend_expected_result_mother(self):
         """Test extend mother result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=F0045", "mother_handle", "mother", join="&"
+            self, TEST_URL + "?gramps_id=F00045", "mother_handle", "mother", join="&"
         )
 
     def test_get_families_parameter_extend_expected_result_notes(self):
         """Test extend notes result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=F0045", "note_list", "notes", join="&"
+            self, TEST_URL + "?gramps_id=F00045", "note_list", "notes", join="&"
         )
 
     def test_get_families_parameter_extend_expected_result_tag_list(self):
         """Test extend tag_list result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=F0045", "tag_list", "tags", join="&"
+            self, TEST_URL + "?gramps_id=F00045", "tag_list", "tags", join="&"
         )
 
     def test_get_families_parameter_extend_expected_result_all(self):
         """Test extend all result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=F0045&extend=all&keys=extended")
+        rv = check_success(
+            self, TEST_URL + "?gramps_id=F00045&extend=all&keys=extended"
+        )
         self.assertEqual(len(rv[0]["extended"]), 8)
         for key in [
             "children",
@@ -397,7 +399,7 @@ class TestFamilies(unittest.TestCase):
         rv = check_success(
             self,
             TEST_URL
-            + "?gramps_id=F0045&extend=note_list,tag_list&keys=note_list,tag_list,extended",
+            + "?gramps_id=F00045&extend=note_list,tag_list&keys=note_list,tag_list,extended",
         )
         self.assertEqual(len(rv[0]["extended"]), 2)
         self.assertIn("notes", rv[0]["extended"])
@@ -429,7 +431,7 @@ class TestFamilies(unittest.TestCase):
                             "summary": "Birth - , صالح",
                         },
                         "death": {},
-                        "gramps_id": "I2115",
+                        "gramps_id": "I02115",
                         "handle": "cc82060516c6c141500",
                         "name_display": ", صالح",
                         "name_given": "صالح",
@@ -463,7 +465,7 @@ class TestFamilies(unittest.TestCase):
                         "type": "Death",
                         "summary": "Death - , أحمد",
                     },
-                    "gramps_id": "I2111",
+                    "gramps_id": "I02111",
                     "handle": "cc82060504445ab6deb",
                     "name_display": ", أحمد",
                     "name_given": "أحمد",
@@ -471,7 +473,7 @@ class TestFamilies(unittest.TestCase):
                     "name_suffix": "",
                     "sex": "M",
                 },
-                "gramps_id": "F0745",
+                "gramps_id": "F00745",
                 "handle": "cc82060505948b9e57f",
                 "marriage": {},
                 "mother": {
@@ -486,7 +488,7 @@ class TestFamilies(unittest.TestCase):
                         "type": "Death",
                         "summary": "Death - الفضل, العباسة",
                     },
-                    "gramps_id": "I2112",
+                    "gramps_id": "I02112",
                     "handle": "cc8206050980ea622d0",
                     "name_display": "الفضل, العباسة",
                     "name_given": "العباسة",
@@ -512,7 +514,7 @@ class TestFamilies(unittest.TestCase):
                                 "type": "Death",
                                 "summary": "Death - , أحمد",
                             },
-                            "gramps_id": "I2111",
+                            "gramps_id": "I02111",
                             "handle": "cc82060504445ab6deb",
                             "name_display": ", أحمد",
                             "name_given": "أحمد",
@@ -530,7 +532,7 @@ class TestFamilies(unittest.TestCase):
                                 "type": "Death",
                                 "summary": "Death - الفضل, العباسة",
                             },
-                            "gramps_id": "I2112",
+                            "gramps_id": "I02112",
                             "handle": "cc8206050980ea622d0",
                             "name_display": "الفضل, العباسة",
                             "name_given": "العباسة",
@@ -548,7 +550,7 @@ class TestFamilies(unittest.TestCase):
                                 "summary": "Birth - , صالح",
                             },
                             "death": {},
-                            "gramps_id": "I2115",
+                            "gramps_id": "I02115",
                             "handle": "cc82060516c6c141500",
                             "name_display": ", صالح",
                             "name_given": "صالح",
@@ -614,7 +616,7 @@ class TestFamiliesHandle(unittest.TestCase):
     def test_get_families_handle_expected_result(self):
         """Test response for a specific family."""
         rv = check_success(self, TEST_URL + "7MTJQCHRUUYSUA8ABB")
-        self.assertEqual(rv["gramps_id"], "F0033")
+        self.assertEqual(rv["gramps_id"], "F00033")
         self.assertEqual(rv["father_handle"], "KLTJQC70XVZJSPQ43U")
         self.assertEqual(rv["mother_handle"], "JFWJQCRREDFKZLDKVD")
 
@@ -807,7 +809,7 @@ class TestFamiliesHandle(unittest.TestCase):
                             "summary": "Birth - Garner, Stephen Gerard",
                         },
                         "death": {},
-                        "gramps_id": "I0124",
+                        "gramps_id": "I00124",
                         "handle": "1GWJQCGOOZ8FJW3YK9",
                         "name_display": "Garner, Stephen Gerard",
                         "name_given": "Stephen Gerard",
@@ -828,7 +830,7 @@ class TestFamiliesHandle(unittest.TestCase):
                             "summary": "Birth - Garner, Daniel Patrick",
                         },
                         "death": {},
-                        "gramps_id": "I0125",
+                        "gramps_id": "I00125",
                         "handle": "IGWJQCSVT8NXTFXOFJ",
                         "name_display": "Garner, Daniel Patrick",
                         "name_given": "Daniel Patrick",
@@ -864,7 +866,7 @@ class TestFamiliesHandle(unittest.TestCase):
                         "summary": "Birth - Garner, Gerard Stephen",
                     },
                     "death": {},
-                    "gramps_id": "I0017",
+                    "gramps_id": "I00017",
                     "handle": "KLTJQC70XVZJSPQ43U",
                     "name_display": "Garner, Gerard Stephen",
                     "name_given": "Gerard Stephen",
@@ -872,7 +874,7 @@ class TestFamiliesHandle(unittest.TestCase):
                     "name_suffix": "",
                     "sex": "M",
                 },
-                "gramps_id": "F0033",
+                "gramps_id": "F00033",
                 "handle": "7MTJQCHRUUYSUA8ABB",
                 "marriage": {
                     "citations": 0,
@@ -897,7 +899,7 @@ class TestFamiliesHandle(unittest.TestCase):
                         "summary": "Birth - George, Elizabeth",
                     },
                     "death": {},
-                    "gramps_id": "I0123",
+                    "gramps_id": "I00123",
                     "handle": "JFWJQCRREDFKZLDKVD",
                     "name_display": "George, Elizabeth",
                     "name_given": "Elizabeth",
@@ -917,7 +919,7 @@ class TestFamiliesHandle(unittest.TestCase):
                                 "summary": "Birth - Garner, Stephen Gerard",
                             },
                             "death": {},
-                            "gramps_id": "I0124",
+                            "gramps_id": "I00124",
                             "handle": "1GWJQCGOOZ8FJW3YK9",
                             "name_display": "Garner, Stephen Gerard",
                             "name_given": "Stephen Gerard",
@@ -935,7 +937,7 @@ class TestFamiliesHandle(unittest.TestCase):
                                 "summary": "Birth - Garner, Daniel Patrick",
                             },
                             "death": {},
-                            "gramps_id": "I0125",
+                            "gramps_id": "I00125",
                             "handle": "IGWJQCSVT8NXTFXOFJ",
                             "name_display": "Garner, Daniel Patrick",
                             "name_given": "Daniel Patrick",
@@ -953,7 +955,7 @@ class TestFamiliesHandle(unittest.TestCase):
                                 "summary": "Birth - George, Elizabeth",
                             },
                             "death": {},
-                            "gramps_id": "I0123",
+                            "gramps_id": "I00123",
                             "handle": "JFWJQCRREDFKZLDKVD",
                             "name_display": "George, Elizabeth",
                             "name_given": "Elizabeth",
@@ -971,7 +973,7 @@ class TestFamiliesHandle(unittest.TestCase):
                                 "summary": "Birth - Garner, Gerard Stephen",
                             },
                             "death": {},
-                            "gramps_id": "I0017",
+                            "gramps_id": "I00017",
                             "handle": "KLTJQC70XVZJSPQ43U",
                             "name_display": "Garner, Gerard Stephen",
                             "name_given": "Gerard Stephen",
@@ -1077,13 +1079,13 @@ class TestFamiliesHandleTimeline(unittest.TestCase):
     def test_get_families_handle_timeline_expected_result(self):
         """Test response for specific person."""
         rv = check_success(self, TEST_URL + "9OUJQCBOHW9UEK9CNV/timeline")
-        self.assertEqual(rv[0]["gramps_id"], "E1679")
+        self.assertEqual(rv[0]["gramps_id"], "E01679")
         self.assertEqual(rv[0]["label"], "Birth")
-        self.assertEqual(rv[1]["gramps_id"], "E1656")
+        self.assertEqual(rv[1]["gramps_id"], "E01656")
         self.assertEqual(rv[1]["label"], "Birth")
-        self.assertEqual(rv[13]["gramps_id"], "E1657")
+        self.assertEqual(rv[13]["gramps_id"], "E01657")
         self.assertEqual(rv[13]["label"], "Death")
-        self.assertEqual(rv[32]["gramps_id"], "E1704")
+        self.assertEqual(rv[32]["gramps_id"], "E01704")
         self.assertEqual(rv[32]["label"], "Burial")
 
     def test_get_families_handle_timeline_validate_semantics(self):

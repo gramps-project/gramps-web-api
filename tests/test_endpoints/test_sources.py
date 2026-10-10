@@ -69,11 +69,11 @@ class TestSources(unittest.TestCase):
         """Test some expected results returned."""
         rv = check_success(self, TEST_URL)
         # check first expected record
-        self.assertEqual(rv[0]["gramps_id"], "S0001")
+        self.assertEqual(rv[0]["gramps_id"], "S00001")
         self.assertEqual(rv[0]["handle"], "c140d4ef77841431905")
         self.assertEqual(rv[0]["title"], "All possible citations")
         # check last expected record
-        self.assertEqual(rv[-1]["gramps_id"], "S0002")
+        self.assertEqual(rv[-1]["gramps_id"], "S00002")
         self.assertEqual(rv[-1]["handle"], "VUBKMQTA2XZG1V6QP8")
         self.assertEqual(rv[-1]["title"], "World of the Wierd")
 
@@ -91,7 +91,7 @@ class TestSources(unittest.TestCase):
 
     def test_get_sources_parameter_gramps_id_expected_result(self):
         """Test gramps_id parameter returns expected result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=S0000")
+        rv = check_success(self, TEST_URL + "?gramps_id=S00000")
         self.assertEqual(len(rv), 1)
         self.assertEqual(rv[0]["handle"], "b39fe3f390e30bd2b99")
         self.assertEqual(
@@ -183,14 +183,14 @@ class TestSources(unittest.TestCase):
     def test_get_sources_parameter_sort_gramps_id_ascending_expected_result(self):
         """Test sort parameter gramps_id ascending result."""
         rv = check_sort_parameter(self, TEST_URL, "gramps_id")
-        self.assertEqual(rv[0]["gramps_id"], "S0000")
-        self.assertEqual(rv[-1]["gramps_id"], "S0003")
+        self.assertEqual(rv[0]["gramps_id"], "S00000")
+        self.assertEqual(rv[-1]["gramps_id"], "S00003")
 
     def test_get_sources_parameter_sort_gramps_id_descending_expected_result(self):
         """Test sort parameter gramps_id descending result."""
         rv = check_sort_parameter(self, TEST_URL, "gramps_id", direction="-")
-        self.assertEqual(rv[0]["gramps_id"], "S0003")
-        self.assertEqual(rv[-1]["gramps_id"], "S0000")
+        self.assertEqual(rv[0]["gramps_id"], "S00003")
+        self.assertEqual(rv[-1]["gramps_id"], "S00000")
 
     def test_get_sources_parameter_sort_private_ascending_expected_result(self):
         """Test sort parameter private ascending result."""
@@ -305,7 +305,7 @@ class TestSources(unittest.TestCase):
         """Test extend media_list result."""
         check_single_extend_parameter(
             self,
-            TEST_URL + "?gramps_id=S0000",
+            TEST_URL + "?gramps_id=S00000",
             "media_list",
             "media",
             join="&",
@@ -315,14 +315,14 @@ class TestSources(unittest.TestCase):
     def test_get_sources_parameter_extend_expected_result_notes(self):
         """Test extend notes result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=S0000", "note_list", "notes", join="&"
+            self, TEST_URL + "?gramps_id=S00000", "note_list", "notes", join="&"
         )
 
     def test_get_sources_parameter_extend_expected_result_reporef_list(self):
         """Test extend reporef_list result."""
         check_single_extend_parameter(
             self,
-            TEST_URL + "?gramps_id=S0000",
+            TEST_URL + "?gramps_id=S00000",
             "reporef_list",
             "repositories",
             join="&",
@@ -332,12 +332,14 @@ class TestSources(unittest.TestCase):
     def test_get_sources_parameter_extend_expected_result_tag_list(self):
         """Test extend tag_list result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=S0000", "tag_list", "tags", join="&"
+            self, TEST_URL + "?gramps_id=S00000", "tag_list", "tags", join="&"
         )
 
     def test_get_sources_parameter_extend_expected_result_all(self):
         """Test extend all result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=S0000&extend=all&keys=extended")
+        rv = check_success(
+            self, TEST_URL + "?gramps_id=S00000&extend=all&keys=extended"
+        )
         self.assertEqual(len(rv[0]["extended"]), 4)
         for key in ["media", "notes", "repositories", "tags"]:
             self.assertIn(key, rv[0]["extended"])
@@ -347,7 +349,7 @@ class TestSources(unittest.TestCase):
         rv = check_success(
             self,
             TEST_URL
-            + "?gramps_id=S0000&extend=note_list,tag_list&keys=note_list,tag_list,extended",
+            + "?gramps_id=S00000&extend=note_list,tag_list&keys=note_list,tag_list,extended",
         )
         self.assertEqual(len(rv[0]["extended"]), 2)
         self.assertIn("notes", rv[0]["extended"])
@@ -360,7 +362,7 @@ class TestSources(unittest.TestCase):
     def test_get_sources_parameter_backlinks_expected_result(self):
         """Test backlinks expected result."""
         rv = check_success(
-            self, TEST_URL + "?gramps_id=S0000&keys=backlinks&backlinks=1"
+            self, TEST_URL + "?gramps_id=S00000&keys=backlinks&backlinks=1"
         )
         self.assertIn("c140d2362f25a92643b", rv[0]["backlinks"]["citation"])
 
@@ -392,7 +394,7 @@ class TestSourcesHandle(unittest.TestCase):
     def test_get_sources_handle_expected_result(self):
         """Test response for specific source."""
         rv = check_success(self, "/api/sources/X5TJQC9JXU4RKT6VAX")
-        self.assertEqual(rv["gramps_id"], "S0003")
+        self.assertEqual(rv["gramps_id"], "S00003")
         self.assertEqual(rv["title"], "Import from test2.ged")
 
     def test_get_sources_handle_validate_semantics(self):

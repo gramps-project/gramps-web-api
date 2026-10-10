@@ -22,7 +22,6 @@
 
 from __future__ import annotations
 
-import copy
 import gzip
 import logging
 import os
@@ -1613,24 +1612,6 @@ def validate_object_dict(obj_dict: dict[str, Any]) -> None:
 
     obj_dict_fixed = {k: v for k, v in obj_dict.items() if k != "complete"}
 
-    # Gramps 5.2 added Person.OTHER = 3, but the JSON schema still caps gender
-    # at 2. Patch the schema to allow the actual maximum value.
-    # This patch can be removed once https://github.com/gramps-project/gramps/pull/2213
-    # is merged and a new Gramps version is released.
-    other = getattr(obj_cls, "OTHER", None)
-    if (
-        other is not None
-        and obj_dict_fixed.get("gender") == other
-        and schema.get("properties", {}).get("gender", {}).get("maximum") is not None
-        and other > schema["properties"]["gender"]["maximum"]
-    ):
-        # `get_schema()` may return an object shared across calls (e.g. a
-        # cached class-level schema); never mutate it in place, since that
-        # would leak this one-off patch into every other caller. Copy it
-        # first, since we only need a locally patched view for validation.
-        schema = copy.deepcopy(schema)
-        schema["properties"]["gender"]["maximum"] = other
-
     try:
         jsonschema.validate(obj_dict_fixed, schema)
     except jsonschema.exceptions.ValidationError as exc:
@@ -1794,6 +1775,8 @@ def _get_class_name(super_name, key_name) -> str:
         return "PlaceName"
     if key_name in ["primary_name", "alternate_names"]:
         return "Name"
+    if key_name == "familysearch_sync":
+        return "FamilySearchSync"
     if key_name == "attribute_list" and (
         super_name == "Citation" or super_name == "Source"
     ):

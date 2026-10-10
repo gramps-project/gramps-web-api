@@ -102,13 +102,13 @@ class TestAnniversariesIcs(unittest.TestCase):
         # Use a known person ID from example_gramps.
         _, owner_token = self._create_token(role=ROLE_OWNER)
         rv = self.client.get(
-            f"{ICS_URL}?token={owner_token}&anchor_gramps_id=I0044"
+            f"{ICS_URL}?token={owner_token}&anchor_gramps_id=I00044"
         )
         self.assertEqual(rv.status_code, 200)
 
         _, guest_token = self._create_token(role=ROLE_GUEST)
         rv = self.client.get(
-            f"{ICS_URL}?token={guest_token}&anchor_gramps_id=I0044"
+            f"{ICS_URL}?token={guest_token}&anchor_gramps_id=I00044"
         )
         self.assertEqual(rv.status_code, 200)
 

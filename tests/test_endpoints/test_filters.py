@@ -296,7 +296,7 @@ class TestFiltersPeopleSingleTree(unittest.TestCase):
         name = "PeopleMatchesQueryTestFilter"
         payload = {
             "name": name,
-            "rules": [{"name": "MatchesQuery", "values": ["gramps_id == 'I0044'"]}],
+            "rules": [{"name": "MatchesQuery", "values": ["gramps_id == 'I00044'"]}],
         }
         rv = self.client.post(TEST_URL + "people", json=payload, headers=header)
         self.assertEqual(rv.status_code, 201)
@@ -304,7 +304,7 @@ class TestFiltersPeopleSingleTree(unittest.TestCase):
             rv = check_success(self, TEST_URL + "people/" + name)
             self.assertEqual(rv["rules"][0]["name"], "MatchesQuery")
             rv = check_success(self, BASE_URL + "/people/?filter=" + name)
-            self.assertEqual([person["gramps_id"] for person in rv], ["I0044"])
+            self.assertEqual([person["gramps_id"] for person in rv], ["I00044"])
         finally:
             rv = self.client.delete(TEST_URL + "people/" + name, headers=header)
             self.assertEqual(rv.status_code, 200)

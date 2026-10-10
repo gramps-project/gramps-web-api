@@ -61,9 +61,9 @@ class TestTimelinesPeople(unittest.TestCase):
         """Test some expected results returned."""
         rv = check_success(self, TEST_URL + "people/")
         # check first expected record
-        self.assertEqual(rv[0]["gramps_id"], "E2957")
+        self.assertEqual(rv[0]["gramps_id"], "E02957")
         # check last expected record
-        self.assertEqual(rv[-1]["gramps_id"], "E3431")
+        self.assertEqual(rv[-1]["gramps_id"], "E03431")
 
     def test_get_timelines_people_validate_semantics(self):
         """Test invalid parameters and values."""
@@ -182,7 +182,7 @@ class TestTimelinesPeople(unittest.TestCase):
     def test_get_timelines_people_parameter_anchor_expected_result(self):
         """Test anchor parameter expected result."""
         rv = check_success(self, TEST_URL + "people/?anchor=GNUJQCL9MD64AM56OH")
-        self.assertEqual(rv[0]["gramps_id"], "E1656")
+        self.assertEqual(rv[0]["gramps_id"], "E01656")
         self.assertEqual(rv[1]["label"], "Marriage")
         self.assertEqual(rv[10]["label"], "Birth (Stepsister)")
 
@@ -322,9 +322,9 @@ class TestTimelinesFamilies(unittest.TestCase):
         """Test some expected results returned."""
         rv = check_success(self, TEST_URL + "families/")
         # check first expected record
-        self.assertEqual(rv[0]["gramps_id"], "E2957")
+        self.assertEqual(rv[0]["gramps_id"], "E02957")
         # check last expected record
-        self.assertEqual(rv[-1]["gramps_id"], "E3431")
+        self.assertEqual(rv[-1]["gramps_id"], "E03431")
 
     def test_get_timelines_families_validate_semantics(self):
         """Test invalid parameters and values."""

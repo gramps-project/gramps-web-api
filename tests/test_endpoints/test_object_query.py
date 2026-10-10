@@ -166,7 +166,8 @@ class TestObjectQueryMedia(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 200)
         descs = [item["desc"] or "" for item in rv.json["items"]]
-        self.assertEqual(descs, sorted(descs))
+        # text columns sort case-insensitively (NOCASE collation)
+        self.assertEqual(descs, sorted(descs, key=str.lower))
 
     def test_where_desc_column(self):
         header = fetch_header(self.client)

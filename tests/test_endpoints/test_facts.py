@@ -114,7 +114,7 @@ class TestFacts(unittest.TestCase):
     def test_get_records_parameter_person_validate_semantics(self):
         """Test invalid person parameter and values."""
         check_invalid_semantics(self, TEST_URL + "?person=Descendants")
-        check_invalid_semantics(self, TEST_URL + "?gramps_id=I0044")
+        check_invalid_semantics(self, TEST_URL + "?gramps_id=I00044")
         check_invalid_semantics(self, TEST_URL + "?handle=GNUJQCL9MD64AM56OH")
 
     def test_get_records_parameter_person_descendant_with_gramps_id(
@@ -123,7 +123,7 @@ class TestFacts(unittest.TestCase):
         """Test person parameter descendant filter with gramps id."""
         check_success(
             self,
-            TEST_URL + "?person=Descendants&gramps_id=I0044",
+            TEST_URL + "?person=Descendants&gramps_id=I00044",
         )
 
     def test_get_records_parameter_person_descendant_with_handle(self):
@@ -137,14 +137,14 @@ class TestFacts(unittest.TestCase):
         """Test person parameter descendant families filter."""
         check_success(
             self,
-            TEST_URL + "?person=DescendantFamilies&gramps_id=I0044",
+            TEST_URL + "?person=DescendantFamilies&gramps_id=I00044",
         )
 
     def test_get_records_parameter_person_ancestor_families(self):
         """Test person parameter ancestors filter."""
         check_success(
             self,
-            TEST_URL + "?person=Ancestors&gramps_id=I0044",
+            TEST_URL + "?person=Ancestors&gramps_id=I00044",
         )
 
     def test_get_records_parameter_person_common_ancestor_families(
@@ -153,7 +153,7 @@ class TestFacts(unittest.TestCase):
         """Test person parameter common ancestors filter."""
         check_success(
             self,
-            TEST_URL + "?person=CommonAncestor&gramps_id=I0044",
+            TEST_URL + "?person=CommonAncestor&gramps_id=I00044",
         )
 
     def test_get_records_parameter_person_custom_filter(self):
@@ -171,7 +171,7 @@ class TestFacts(unittest.TestCase):
         rv = check_success(self, BASE_URL + "/filters/people/RecordsPersonCustomFilter")
         rv = check_success(
             self,
-            TEST_URL + "?person=RecordsPersonCustomFilter&gramps_id=I0044",
+            TEST_URL + "?person=RecordsPersonCustomFilter&gramps_id=I00044",
             full=True,
         )
         self.assertNotIn(b"02NKQC5GOZFLSUSMW3", rv.data)
@@ -185,5 +185,5 @@ class TestFacts(unittest.TestCase):
         """Test person parameter missing custom filter."""
         check_invalid_semantics(
             self,
-            TEST_URL + "?person=SomeFakeCustomFilter&gramps_id=I0044",
+            TEST_URL + "?person=SomeFakeCustomFilter&gramps_id=I00044",
         )

@@ -68,11 +68,11 @@ class TestCitations(unittest.TestCase):
         """Test some expected results returned."""
         rv = check_success(self, TEST_URL)
         # check first expected record
-        self.assertEqual(rv[0]["gramps_id"], "C0000")
+        self.assertEqual(rv[0]["gramps_id"], "C00000")
         self.assertEqual(rv[0]["handle"], "c140d2362f25a92643b")
         self.assertEqual(rv[0]["source_handle"], "b39fe3f390e30bd2b99")
         # check last expected record
-        self.assertEqual(rv[-1]["gramps_id"], "C2324")
+        self.assertEqual(rv[-1]["gramps_id"], "C02324")
         self.assertEqual(rv[-1]["handle"], "c140d28761775ca12ba")
         self.assertEqual(rv[-1]["source_handle"], "VUBKMQTA2XZG1V6QP8")
 
@@ -90,7 +90,7 @@ class TestCitations(unittest.TestCase):
 
     def test_get_citations_parameter_gramps_id_expected_result(self):
         """Test gramps_id parameter returns expected result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=C2849")
+        rv = check_success(self, TEST_URL + "?gramps_id=C02849")
         self.assertEqual(len(rv), 1)
         self.assertEqual(rv[0]["handle"], "c140dde678c5c4f4537")
         self.assertEqual(rv[0]["source_handle"], "c140d4ef77841431905")
@@ -180,14 +180,14 @@ class TestCitations(unittest.TestCase):
     def test_get_citations_parameter_sort_gramps_id_ascending_expected_result(self):
         """Test sort parameter gramps_id ascending result."""
         rv = check_sort_parameter(self, TEST_URL, "gramps_id")
-        self.assertEqual(rv[0]["gramps_id"], "C0000")
-        self.assertEqual(rv[-1]["gramps_id"], "C2853")
+        self.assertEqual(rv[0]["gramps_id"], "C00000")
+        self.assertEqual(rv[-1]["gramps_id"], "C02853")
 
     def test_get_citations_parameter_sort_gramps_id_descending_expected_result(self):
         """Test sort parameter gramps_id descending result."""
         rv = check_sort_parameter(self, TEST_URL, "gramps_id", direction="-")
-        self.assertEqual(rv[0]["gramps_id"], "C2853")
-        self.assertEqual(rv[-1]["gramps_id"], "C0000")
+        self.assertEqual(rv[0]["gramps_id"], "C02853")
+        self.assertEqual(rv[-1]["gramps_id"], "C00000")
 
     def test_get_citations_parameter_sort_private_ascending_expected_result(self):
         """Test sort parameter private ascending result."""
@@ -274,7 +274,7 @@ class TestCitations(unittest.TestCase):
         """Test extend media_list result."""
         check_single_extend_parameter(
             self,
-            TEST_URL + "?gramps_id=C2849",
+            TEST_URL + "?gramps_id=C02849",
             "media_list",
             "media",
             join="&",
@@ -284,24 +284,26 @@ class TestCitations(unittest.TestCase):
     def test_get_citations_parameter_extend_expected_result_notes(self):
         """Test extend notes result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=C2849", "note_list", "notes", join="&"
+            self, TEST_URL + "?gramps_id=C02849", "note_list", "notes", join="&"
         )
 
     def test_get_citations_parameter_extend_expected_result_source_handle(self):
         """Test extend source_handle result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=C2849", "source_handle", "source", join="&"
+            self, TEST_URL + "?gramps_id=C02849", "source_handle", "source", join="&"
         )
 
     def test_get_citations_parameter_extend_expected_result_tag_list(self):
         """Test extend tag_list result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=C2849", "tag_list", "tags", join="&"
+            self, TEST_URL + "?gramps_id=C02849", "tag_list", "tags", join="&"
         )
 
     def test_get_citations_parameter_extend_expected_result_all(self):
         """Test extend all result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=C2849&extend=all&keys=extended")
+        rv = check_success(
+            self, TEST_URL + "?gramps_id=C02849&extend=all&keys=extended"
+        )
         self.assertEqual(len(rv[0]["extended"]), 4)
         for key in ["media", "notes", "source", "tags"]:
             self.assertIn(key, rv[0]["extended"])
@@ -311,7 +313,7 @@ class TestCitations(unittest.TestCase):
         rv = check_success(
             self,
             TEST_URL
-            + "?gramps_id=C2849&extend=note_list,tag_list&keys=note_list,tag_list,extended",
+            + "?gramps_id=C02849&extend=note_list,tag_list&keys=note_list,tag_list,extended",
         )
         self.assertEqual(len(rv[0]["extended"]), 2)
         self.assertIn("notes", rv[0]["extended"])
@@ -376,7 +378,7 @@ class TestCitationsHandle(unittest.TestCase):
     def test_get_citations_handle_expected_result(self):
         """Test response for a specific event."""
         rv = check_success(self, TEST_URL + "c140db880395cadf318")
-        self.assertEqual(rv["gramps_id"], "C2844")
+        self.assertEqual(rv["gramps_id"], "C02844")
         self.assertEqual(rv["source_handle"], "c140d4ef77841431905")
 
     def test_get_citations_handle_validate_semantics(self):

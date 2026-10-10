@@ -69,11 +69,11 @@ class TestRepositories(unittest.TestCase):
         """Test some expected results returned."""
         rv = check_success(self, TEST_URL)
         # check first expected record
-        self.assertEqual(rv[0]["gramps_id"], "R0002")
+        self.assertEqual(rv[0]["gramps_id"], "R00002")
         self.assertEqual(rv[0]["handle"], "a701e99f93e5434f6f3")
         self.assertEqual(rv[0]["type"], "Library")
         # check last expected record
-        self.assertEqual(rv[-1]["gramps_id"], "R0000")
+        self.assertEqual(rv[-1]["gramps_id"], "R00000")
         self.assertEqual(rv[-1]["handle"], "b39fe38593f3f8c4f12")
         self.assertEqual(rv[-1]["type"], "Library")
 
@@ -91,7 +91,7 @@ class TestRepositories(unittest.TestCase):
 
     def test_get_repositories_parameter_gramps_id_expected_result(self):
         """Test gramps_id parameter returns expected result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=R0003")
+        rv = check_success(self, TEST_URL + "?gramps_id=R00003")
         self.assertEqual(len(rv), 1)
         self.assertEqual(rv[0]["handle"], "a701ead12841521cd4d")
 
@@ -158,14 +158,14 @@ class TestRepositories(unittest.TestCase):
     def test_get_repositories_parameter_sort_gramps_id_ascending_expected_result(self):
         """Test sort parameter gramps_id ascending result."""
         rv = check_sort_parameter(self, TEST_URL, "gramps_id")
-        self.assertEqual(rv[0]["gramps_id"], "R0000")
-        self.assertEqual(rv[-1]["gramps_id"], "R0003")
+        self.assertEqual(rv[0]["gramps_id"], "R00000")
+        self.assertEqual(rv[-1]["gramps_id"], "R00003")
 
     def test_get_repositories_parameter_sort_gramps_id_descending_expected_result(self):
         """Test sort parameter gramps_id descending result."""
         rv = check_sort_parameter(self, TEST_URL, "gramps_id", direction="-")
-        self.assertEqual(rv[0]["gramps_id"], "R0003")
-        self.assertEqual(rv[-1]["gramps_id"], "R0000")
+        self.assertEqual(rv[0]["gramps_id"], "R00003")
+        self.assertEqual(rv[-1]["gramps_id"], "R00000")
 
     def test_get_repositories_parameter_sort_name_ascending_expected_result(self):
         """Test sort parameter name ascending result."""
@@ -296,18 +296,20 @@ class TestRepositories(unittest.TestCase):
     def test_get_repositories_parameter_extend_expected_result_notes(self):
         """Test extend notes result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=R0003", "note_list", "notes", join="&"
+            self, TEST_URL + "?gramps_id=R00003", "note_list", "notes", join="&"
         )
 
     def test_get_repositories_parameter_extend_expected_result_tag_list(self):
         """Test extend tag_list result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=R0003", "tag_list", "tags", join="&"
+            self, TEST_URL + "?gramps_id=R00003", "tag_list", "tags", join="&"
         )
 
     def test_get_repositories_parameter_extend_expected_result_all(self):
         """Test extend all result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=R0003&extend=all&keys=extended")
+        rv = check_success(
+            self, TEST_URL + "?gramps_id=R00003&extend=all&keys=extended"
+        )
         self.assertEqual(len(rv[0]["extended"]), 2)
         for key in ["notes", "tags"]:
             self.assertIn(key, rv[0]["extended"])
@@ -317,7 +319,7 @@ class TestRepositories(unittest.TestCase):
         rv = check_success(
             self,
             TEST_URL
-            + "?gramps_id=R0003&extend=note_list,tag_list&keys=note_list,tag_list,extended",
+            + "?gramps_id=R00003&extend=note_list,tag_list&keys=note_list,tag_list,extended",
         )
         self.assertEqual(len(rv[0]["extended"]), 2)
         self.assertIn("notes", rv[0]["extended"])
@@ -360,7 +362,7 @@ class TestRepositoriesHandle(unittest.TestCase):
     def test_get_repositories_handle_expected_result(self):
         """Test response for a specific event."""
         rv = check_success(self, TEST_URL + "b39fe38593f3f8c4f12")
-        self.assertEqual(rv["gramps_id"], "R0000")
+        self.assertEqual(rv["gramps_id"], "R00000")
         self.assertEqual(rv["type"], "Library")
 
     def test_get_repositories_handle_validate_semantics(self):
@@ -474,7 +476,7 @@ class TestRepositoriesHandle(unittest.TestCase):
             rv["profile"],
             {
                 "addresses": [{"date_str": ""}],
-                "gramps_id": "R0000",
+                "gramps_id": "R00000",
                 "handle": "b39fe38593f3f8c4f12",
                 "name": "Public Library Great Falls",
                 "type": "Library",

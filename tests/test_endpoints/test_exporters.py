@@ -232,7 +232,7 @@ class TestExportersExtensionFile(unittest.TestCase):
     def test_get_exporters_extension_file_parameter_person_validate_semantics(self):
         """Test invalid person parameter and values."""
         check_invalid_semantics(self, TEST_URL + "gramps/file?person=Descendants")
-        check_invalid_semantics(self, TEST_URL + "gramps/file?gramps_id=I0044")
+        check_invalid_semantics(self, TEST_URL + "gramps/file?gramps_id=I00044")
         check_invalid_semantics(
             self, TEST_URL + "gramps/file?handle=GNUJQCL9MD64AM56OH"
         )
@@ -243,7 +243,7 @@ class TestExportersExtensionFile(unittest.TestCase):
         """Test person parameter descendant filter with gramps id."""
         check_success(
             self,
-            TEST_URL + "gramps/file?person=Descendants&gramps_id=I0044",
+            TEST_URL + "gramps/file?person=Descendants&gramps_id=I00044",
         )
 
     def test_get_exporters_extension_file_parameter_person_descendant_with_handle(self):
@@ -257,14 +257,14 @@ class TestExportersExtensionFile(unittest.TestCase):
         """Test person parameter descendant families filter."""
         check_success(
             self,
-            TEST_URL + "gramps/file?person=DescendantFamilies&gramps_id=I0044",
+            TEST_URL + "gramps/file?person=DescendantFamilies&gramps_id=I00044",
         )
 
     def test_get_exporters_extension_file_parameter_person_ancestor_families(self):
         """Test person parameter ancestors filter."""
         check_success(
             self,
-            TEST_URL + "gramps/file?person=Ancestors&gramps_id=I0044",
+            TEST_URL + "gramps/file?person=Ancestors&gramps_id=I00044",
         )
 
     def test_get_exporters_extension_file_parameter_person_common_ancestor_families(
@@ -273,7 +273,7 @@ class TestExportersExtensionFile(unittest.TestCase):
         """Test person parameter common ancestors filter."""
         check_success(
             self,
-            TEST_URL + "gramps/file?person=CommonAncestor&gramps_id=I0044",
+            TEST_URL + "gramps/file?person=CommonAncestor&gramps_id=I00044",
         )
 
     def test_get_exporters_extension_file_parameter_person_custom_filter(self):
@@ -293,7 +293,7 @@ class TestExportersExtensionFile(unittest.TestCase):
             self,
             TEST_URL
             + "gramps/file?compress=0&person=PersonExportCustomFilter"
-            + "&gramps_id=I0044",
+            + "&gramps_id=I00044",
             full=True,
         )
         self.assertNotIn(b"02NKQC5GOZFLSUSMW3", rv.data)
@@ -307,7 +307,7 @@ class TestExportersExtensionFile(unittest.TestCase):
         """Test person parameter missing custom filter."""
         check_invalid_semantics(
             self,
-            TEST_URL + "gramps/file?person=SomeFakeCustomFilter&gramps_id=I0044",
+            TEST_URL + "gramps/file?person=SomeFakeCustomFilter&gramps_id=I00044",
         )
 
     def test_get_exporters_extension_file_parameter_event_custom_filter(self):
@@ -403,10 +403,10 @@ class TestExportersExtensionFile(unittest.TestCase):
     def test_get_exporters_extension_file_csv_expected_result(self):
         """Test csv parameter file options defaults all enabled."""
         rv = check_success(self, TEST_URL + "csv/file", full=True)
-        self.assertIn(b'[P0000],"OH, USA",OH,State,,,,[P0957],', rv.data)
-        self.assertIn(b"[I2005],Allen,Joseph,,,,,,male,1692-05-17,,,,,,,,,,,", rv.data)
-        self.assertIn(b"[F0001],[I0005],[I0006],1974-08-10,[P1385],,", rv.data)
-        self.assertIn(b"[F0001],[I0004]", rv.data)
+        self.assertIn(b'[P00000],"OH, USA",OH,State,,,,[P00957],', rv.data)
+        self.assertIn(b"[I02005],Allen,Joseph,,,,,,male,1692-05-17,,,,,,,,,,,", rv.data)
+        self.assertIn(b"[F00001],[I00005],[I00006],1974-08-10,[P01385],,", rv.data)
+        self.assertIn(b"[F00001],[I00004]", rv.data)
 
     def test_get_exporters_extension_file_csv_parameter_include_places_validate_semantics(
         self,
@@ -421,14 +421,14 @@ class TestExportersExtensionFile(unittest.TestCase):
     ):
         """Test csv parameter file options with places disabled."""
         rv = check_success(self, TEST_URL + "csv/file?include_places=0", full=True)
-        self.assertNotIn(b'[P0000],"OH, USA",OH,State,,,,[P0957],', rv.data)
-        self.assertIn(b"[I2005],Allen,Joseph,,,,,,male,1692-05-17,,,,,,,,,,,", rv.data)
-        self.assertNotIn(b"[F0001],[I0005],[I0006],1974-08-10,[P1385],,", rv.data)
+        self.assertNotIn(b'[P00000],"OH, USA",OH,State,,,,[P00957],', rv.data)
+        self.assertIn(b"[I02005],Allen,Joseph,,,,,,male,1692-05-17,,,,,,,,,,,", rv.data)
+        self.assertNotIn(b"[F00001],[I00005],[I00006],1974-08-10,[P01385],,", rv.data)
         self.assertIn(
-            b'[F0001],[I0005],[I0006],1974-08-10,"Worthington, MN, USA",,',
+            b'[F00001],[I00005],[I00006],1974-08-10,"Worthington, MN, USA",,',
             rv.data,
         )
-        self.assertIn(b"[F0001],[I0004]", rv.data)
+        self.assertIn(b"[F00001],[I00004]", rv.data)
 
     def test_get_exporters_extension_file_csv_parameter_include_children_validate_semantics(
         self,
@@ -443,10 +443,10 @@ class TestExportersExtensionFile(unittest.TestCase):
     ):
         """Test csv parameter file options with children disabled."""
         rv = check_success(self, TEST_URL + "csv/file?include_children=0", full=True)
-        self.assertIn(b'[P0000],"OH, USA",OH,State,,,,[P0957],', rv.data)
-        self.assertIn(b"[I2005],Allen,Joseph,,,,,,male,1692-05-17,,,,,,,,,,,", rv.data)
-        self.assertIn(b"[F0001],[I0005],[I0006],1974-08-10,[P1385],,", rv.data)
-        self.assertNotIn(b"[F0001],[I0004]", rv.data)
+        self.assertIn(b'[P00000],"OH, USA",OH,State,,,,[P00957],', rv.data)
+        self.assertIn(b"[I02005],Allen,Joseph,,,,,,male,1692-05-17,,,,,,,,,,,", rv.data)
+        self.assertIn(b"[F00001],[I00005],[I00006],1974-08-10,[P01385],,", rv.data)
+        self.assertNotIn(b"[F00001],[I00004]", rv.data)
 
     def test_get_exporters_extension_file_csv_parameter_include_marriages_validate_sematics(
         self,
@@ -461,10 +461,10 @@ class TestExportersExtensionFile(unittest.TestCase):
     ):
         """Test csv parameter file options with marriages disabled."""
         rv = check_success(self, TEST_URL + "csv/file?include_marriages=0", full=True)
-        self.assertIn(b'[P0000],"OH, USA",OH,State,,,,[P0957],', rv.data)
-        self.assertIn(b"[I2005],Allen,Joseph,,,,,,male,1692-05-17,,,,,,,,,,,", rv.data)
-        self.assertNotIn(b"[F0001],[I0005],[I0006],1974-08-10,[P1385],,", rv.data)
-        self.assertIn(b"[F0001],[I0004]", rv.data)
+        self.assertIn(b'[P00000],"OH, USA",OH,State,,,,[P00957],', rv.data)
+        self.assertIn(b"[I02005],Allen,Joseph,,,,,,male,1692-05-17,,,,,,,,,,,", rv.data)
+        self.assertNotIn(b"[F00001],[I00005],[I00006],1974-08-10,[P01385],,", rv.data)
+        self.assertIn(b"[F00001],[I00004]", rv.data)
 
     def test_get_exporters_extension_file_csv_parameter_include_individuals_validate_semantics(
         self,
@@ -479,12 +479,12 @@ class TestExportersExtensionFile(unittest.TestCase):
     ):
         """Test csv parameter file options with individuals disabled."""
         rv = check_success(self, TEST_URL + "csv/file?include_individuals=0", full=True)
-        self.assertIn(b'[P0000],"OH, USA",OH,State,,,,[P0957],', rv.data)
+        self.assertIn(b'[P00000],"OH, USA",OH,State,,,,[P00957],', rv.data)
         self.assertNotIn(
-            b"[I2005],Allen,Joseph,,,,,,male,1692-05-17,,,,,,,,,,,", rv.data
+            b"[I02005],Allen,Joseph,,,,,,male,1692-05-17,,,,,,,,,,,", rv.data
         )
-        self.assertIn(b"[F0001],[I0005],[I0006],1974-08-10,[P1385],,", rv.data)
-        self.assertIn(b"[F0001],[I0004]", rv.data)
+        self.assertIn(b"[F00001],[I00005],[I00006],1974-08-10,[P01385],,", rv.data)
+        self.assertIn(b"[F00001],[I00004]", rv.data)
 
     def test_get_exporters_extension_file_one_of_each(self):
         """Test one of each available exporter."""

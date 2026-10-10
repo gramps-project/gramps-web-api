@@ -237,8 +237,13 @@ def check_sort_parameter(
     direction="+",
     join="?",
     role=ROLE_OWNER,
+    compare_key=lambda value: value,
 ):
-    """Test that sort parameter produces expected result."""
+    """Test that sort parameter produces expected result.
+
+    `compare_key` maps values before comparing them, e.g. `str.lower` for
+    sorts that use the case-insensitive locale collation.
+    """
     header = fetch_header(test.client, role=role)
     item_key = sort_key
     if value_key is not None:
@@ -253,11 +258,15 @@ def check_sort_parameter(
         index = 1
         if direction == "+":
             for item in rv.json[:-1]:
-                test.assertLessEqual(item[item_key], rv.json[index][item_key])
+                test.assertLessEqual(
+                    compare_key(item[item_key]), compare_key(rv.json[index][item_key])
+                )
                 index = index + 1
         else:
             for item in rv.json[:-1]:
-                test.assertGreaterEqual(item[item_key], rv.json[index][item_key])
+                test.assertGreaterEqual(
+                    compare_key(item[item_key]), compare_key(rv.json[index][item_key])
+                )
                 index = index + 1
     return rv.json
 

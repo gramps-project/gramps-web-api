@@ -69,11 +69,11 @@ class TestEvents(unittest.TestCase):
         """Test some expected results returned."""
         rv = check_success(self, TEST_URL)
         # check first expected record
-        self.assertEqual(rv[0]["gramps_id"], "E0000")
+        self.assertEqual(rv[0]["gramps_id"], "E00000")
         self.assertEqual(rv[0]["description"], "Birth of Warner, Sarah Suzanne")
         self.assertEqual(rv[0]["place"], "08TJQCCFIX31BXPNXN")
         # check last expected record
-        self.assertEqual(rv[-1]["gramps_id"], "E3431")
+        self.assertEqual(rv[-1]["gramps_id"], "E03431")
         self.assertEqual(rv[-1]["description"], "")
         self.assertEqual(rv[-1]["place"], "")
 
@@ -91,7 +91,7 @@ class TestEvents(unittest.TestCase):
 
     def test_get_events_parameter_gramps_id_expected_result(self):
         """Test gramps_id parameter returns expected result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=E0523")
+        rv = check_success(self, TEST_URL + "?gramps_id=E00523")
         self.assertEqual(len(rv), 1)
         self.assertEqual(rv[0]["handle"], "a5af0ebb51337f15e61")
 
@@ -170,14 +170,14 @@ class TestEvents(unittest.TestCase):
     def test_get_events_parameter_sort_gramps_id_ascending_expected_result(self):
         """Test sort parameter gramps_id ascending result."""
         rv = check_sort_parameter(self, TEST_URL, "gramps_id")
-        self.assertEqual(rv[0]["gramps_id"], "E0000")
-        self.assertEqual(rv[-1]["gramps_id"], "E3431")
+        self.assertEqual(rv[0]["gramps_id"], "E00000")
+        self.assertEqual(rv[-1]["gramps_id"], "E03431")
 
     def test_get_events_parameter_sort_gramps_id_descending_expected_result(self):
         """Test sort parameter gramps_id descending result."""
         rv = check_sort_parameter(self, TEST_URL, "gramps_id", direction="-")
-        self.assertEqual(rv[0]["gramps_id"], "E3431")
-        self.assertEqual(rv[-1]["gramps_id"], "E0000")
+        self.assertEqual(rv[0]["gramps_id"], "E03431")
+        self.assertEqual(rv[-1]["gramps_id"], "E00000")
 
     def test_get_events_parameter_sort_place_ascending_expected_result(self):
         """Test sort parameter place ascending result."""
@@ -313,14 +313,14 @@ class TestEvents(unittest.TestCase):
     def test_get_events_parameter_extend_expected_result_citation_list(self):
         """Test extend citation_list result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=E0341", "citation_list", "citations", join="&"
+            self, TEST_URL + "?gramps_id=E00341", "citation_list", "citations", join="&"
         )
 
     def test_get_events_parameter_extend_expected_result_media_list(self):
         """Test extend media_list result."""
         check_single_extend_parameter(
             self,
-            TEST_URL + "?gramps_id=E0341",
+            TEST_URL + "?gramps_id=E00341",
             "media_list",
             "media",
             join="&",
@@ -330,24 +330,26 @@ class TestEvents(unittest.TestCase):
     def test_get_events_parameter_extend_expected_result_notes(self):
         """Test extend notes result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=E0341", "note_list", "notes", join="&"
+            self, TEST_URL + "?gramps_id=E00341", "note_list", "notes", join="&"
         )
 
     def test_get_events_parameter_extend_expected_result_place(self):
         """Test extend place result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=E0341", "place", "place", join="&"
+            self, TEST_URL + "?gramps_id=E00341", "place", "place", join="&"
         )
 
     def test_get_events_parameter_extend_expected_result_tag_list(self):
         """Test extend tag_list result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=E0341", "tag_list", "tags", join="&"
+            self, TEST_URL + "?gramps_id=E00341", "tag_list", "tags", join="&"
         )
 
     def test_get_events_parameter_extend_expected_result_all(self):
         """Test extend all result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=E0341&extend=all&keys=extended")
+        rv = check_success(
+            self, TEST_URL + "?gramps_id=E00341&extend=all&keys=extended"
+        )
         self.assertEqual(len(rv[0]["extended"]), 5)
         for key in ["citations", "media", "notes", "place", "tags"]:
             self.assertIn(key, rv[0]["extended"])
@@ -357,7 +359,7 @@ class TestEvents(unittest.TestCase):
         rv = check_success(
             self,
             TEST_URL
-            + "?gramps_id=E0341&extend=note_list,tag_list&keys=note_list,tag_list,extended",
+            + "?gramps_id=E00341&extend=note_list,tag_list&keys=note_list,tag_list,extended",
         )
         self.assertEqual(len(rv[0]["extended"]), 2)
         self.assertIn("notes", rv[0]["extended"])
@@ -396,7 +398,7 @@ class TestEvents(unittest.TestCase):
                                     "summary": "Birth - Warner, Sarah Suzanne",
                                 },
                                 "death": {},
-                                "gramps_id": "I0001",
+                                "gramps_id": "I00001",
                                 "handle": "66TJQC6CC7ZWL9YZ64",
                                 "name_display": "Warner, Sarah Suzanne",
                                 "name_given": "Sarah Suzanne",
@@ -420,7 +422,7 @@ class TestEvents(unittest.TestCase):
                                 "summary": "Birth - Warner, Sarah Suzanne",
                             },
                             "death": {},
-                            "gramps_id": "I0001",
+                            "gramps_id": "I00001",
                             "handle": "66TJQC6CC7ZWL9YZ64",
                             "name_display": "Warner, Sarah Suzanne",
                             "name_given": "Sarah Suzanne",
@@ -533,7 +535,7 @@ class TestEventsHandle(unittest.TestCase):
     def test_get_events_handle_expected_result(self):
         """Test response for a specific event."""
         rv = check_success(self, TEST_URL + "a5af0eb6dd140de132c")
-        self.assertEqual(rv["gramps_id"], "E0043")
+        self.assertEqual(rv["gramps_id"], "E00043")
         self.assertEqual(rv["place"], "P4EKQC5TG9HPIOXHN2")
 
     def test_get_events_handle_validate_semantics(self):
@@ -691,7 +693,7 @@ class TestEventsHandle(unittest.TestCase):
                                     "type": "Death",
                                     "summary": "Death - Knudsen, Ralph",
                                 },
-                                "gramps_id": "I1020",
+                                "gramps_id": "I01020",
                                 "handle": "H4EKQCFV3436HSKY2D",
                                 "name_display": "Knudsen, Ralph",
                                 "name_given": "Ralph",
@@ -721,7 +723,7 @@ class TestEventsHandle(unittest.TestCase):
                                 "type": "Death",
                                 "summary": "Death - Knudsen, Ralph",
                             },
-                            "gramps_id": "I1020",
+                            "gramps_id": "I01020",
                             "handle": "H4EKQCFV3436HSKY2D",
                             "name_display": "Knudsen, Ralph",
                             "name_given": "Ralph",
@@ -767,7 +769,7 @@ class TestEventsHandle(unittest.TestCase):
                                     "type": "Tod",
                                     "summary": "Tod - Knudsen, Ralph",
                                 },
-                                "gramps_id": "I1020",
+                                "gramps_id": "I01020",
                                 "handle": "H4EKQCFV3436HSKY2D",
                                 "name_display": "Knudsen, Ralph",
                                 "name_given": "Ralph",
@@ -797,7 +799,7 @@ class TestEventsHandle(unittest.TestCase):
                                 "type": "Tod",
                                 "summary": "Tod - Knudsen, Ralph",
                             },
-                            "gramps_id": "I1020",
+                            "gramps_id": "I01020",
                             "handle": "H4EKQCFV3436HSKY2D",
                             "name_display": "Knudsen, Ralph",
                             "name_given": "Ralph",
@@ -846,7 +848,7 @@ class TestEventsHandle(unittest.TestCase):
                                     "type": "Death",
                                     "summary": "Death - Knudsen, Ralph",
                                 },
-                                "gramps_id": "I1020",
+                                "gramps_id": "I01020",
                                 "handle": "H4EKQCFV3436HSKY2D",
                                 "name_display": "Ralph KNUDSEN",
                                 "name_given": "Ralph",
@@ -876,7 +878,7 @@ class TestEventsHandle(unittest.TestCase):
                                 "type": "Death",
                                 "summary": "Death - Knudsen, Ralph",
                             },
-                            "gramps_id": "I1020",
+                            "gramps_id": "I01020",
                             "handle": "H4EKQCFV3436HSKY2D",
                             "name_display": "Ralph KNUDSEN",
                             "name_given": "Ralph",

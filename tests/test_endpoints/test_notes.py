@@ -72,7 +72,7 @@ class TestNotes(unittest.TestCase):
         """Test some expected results returned."""
         rv = check_success(self, TEST_URL)
         # check first expected record
-        self.assertEqual(rv[0]["gramps_id"], "N0001")
+        self.assertEqual(rv[0]["gramps_id"], "N00001")
         self.assertEqual(rv[0]["handle"], "ac380498bac48eedee8")
         self.assertEqual(rv[0]["type"], "Name Note")
         # check last expected record
@@ -160,12 +160,12 @@ class TestNotes(unittest.TestCase):
         """Test sort parameter gramps_id ascending result."""
         rv = check_success(self, TEST_URL + "?keys=gramps_id&sort=+gramps_id")
         self.assertEqual(rv[0]["gramps_id"], "_custom1")
-        self.assertEqual(rv[-1]["gramps_id"], "N0015")
+        self.assertEqual(rv[-1]["gramps_id"], "N00015")
 
     def test_get_notes_parameter_sort_gramps_id_descending_expected_result(self):
         """Test sort parameter gramps_id descending result."""
         rv = check_success(self, TEST_URL + "?keys=gramps_id&sort=-gramps_id")
-        self.assertEqual(rv[0]["gramps_id"], "N0015")
+        self.assertEqual(rv[0]["gramps_id"], "N00015")
         self.assertEqual(rv[-1]["gramps_id"], "_custom1")
 
     def test_get_notes_parameter_sort_private_ascending_expected_result(self):
@@ -296,12 +296,14 @@ class TestNotes(unittest.TestCase):
     def test_get_notes_parameter_extend_expected_result_tag_list(self):
         """Test extend tag_list result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=N0011", "tag_list", "tags", join="&"
+            self, TEST_URL + "?gramps_id=N00011", "tag_list", "tags", join="&"
         )
 
     def test_get_notes_parameter_extend_expected_result_all(self):
         """Test extend all result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=N0011&extend=all&keys=extended")
+        rv = check_success(
+            self, TEST_URL + "?gramps_id=N00011&extend=all&keys=extended"
+        )
         self.assertEqual(len(rv[0]["extended"]), 1)
         for key in ["tags"]:
             self.assertIn(key, rv[0]["extended"])
@@ -344,7 +346,7 @@ class TestNotesHandle(unittest.TestCase):
     def test_get_notes_handle_expected_result(self):
         """Test response for a specific event."""
         rv = check_success(self, TEST_URL + "ac3804aac6b762b75a5")
-        self.assertEqual(rv["gramps_id"], "N0008")
+        self.assertEqual(rv["gramps_id"], "N00008")
 
     def test_get_notes_handle_validate_semantics(self):
         """Test invalid parameters and values."""
@@ -476,6 +478,6 @@ class TestNotesHandle(unittest.TestCase):
         html = rv["formatted"]["html"]
         self.assertIsInstance(html, str)
         self.assertIn(
-            '<a href="__I0044__GNUJQCL9MD64AM56OH__person__">Lewis Anderson Garner</a>',
+            '<a href="__I00044__GNUJQCL9MD64AM56OH__person__">Lewis Anderson Garner</a>',
             html,
         )

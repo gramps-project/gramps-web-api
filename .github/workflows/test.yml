@@ -117,9 +117,19 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           python3 -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/paraphrase-albert-small-v2')"
+      # TODO: remove once the base image is rebuilt with GRAMPS_VERSION=61 and
+      # use the addons it ships in /root/gramps/gramps$GRAMPS_VERSION/plugins
+      - name: Download Gramps 6.1 addons
+        run: |
+          mkdir -p /tmp/gramps61-plugins
+          wget -q https://github.com/gramps-project/addons/archive/refs/heads/master.zip
+          for addon in PostgreSQL SharedPostgreSQL FilterRules JSON; do
+            unzip -p master.zip addons-master/gramps61/download/$addon.addon.tgz | \
+              tar -xz -C /tmp/gramps61-plugins
+          done
+          rm master.zip
       - name: Test with pytest
         env:
           HF_HUB_OFFLINE: 1
           GRAMPSWEB_TEST_POSTGRES_URL: postgresql://gramps:gramps@postgres:5432/gramps
-        # the base image ships the SharedPostgreSQL addon
-        run: GRAMPSWEB_TEST_ADDONS_DIR=/root/gramps/gramps$GRAMPS_VERSION/plugins pytest -x
+        run: GRAMPSWEB_TEST_ADDONS_DIR=/tmp/gramps61-plugins pytest -x

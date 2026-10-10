@@ -33,6 +33,16 @@ from .util import fetch_header
 TEST_URL = BASE_URL + "/media/"
 
 
+def get_image_media(test):
+    """Return the example tree's media objects that are images.
+
+    The example tree also has KML files, which have no thumbnails.
+    """
+    return [
+        obj for obj in check_success(test, TEST_URL) if obj["mime"].startswith("image/")
+    ]
+
+
 class TestFile(unittest.TestCase):
     """Test cases for the /api/media/{}/file endpoint."""
 
@@ -48,7 +58,7 @@ class TestFile(unittest.TestCase):
     def test_get_file_endpoint(self):
         """Test reponse for files."""
         media_objects = check_success(self, TEST_URL)
-        assert len(media_objects) == 7
+        assert len(media_objects) == 16
         for obj in media_objects:
             rv = check_success(
                 self, "{}{}/file".format(TEST_URL, obj["handle"]), full=True
@@ -70,7 +80,7 @@ class TestThumbnail(unittest.TestCase):
 
     def test_get_thumbnail_small(self):
         """Test reponse for thumbnails."""
-        media_objects = check_success(self, TEST_URL)
+        media_objects = get_image_media(self)
         for obj in media_objects:
             rv = check_success(
                 self, "{}{}/thumbnail/20".format(TEST_URL, obj["handle"]), full=True
@@ -83,7 +93,7 @@ class TestThumbnail(unittest.TestCase):
 
     def test_get_thumbnail_square(self):
         """Test reponse for square thumbnails."""
-        media_objects = check_success(self, TEST_URL)
+        media_objects = get_image_media(self)
         for obj in media_objects:
             rv = check_success(
                 self,
@@ -97,7 +107,7 @@ class TestThumbnail(unittest.TestCase):
 
     def test_get_thumbnail_with_checksum(self):
         """Test that the checksum query param is accepted and does not alter the response."""
-        media_objects = check_success(self, TEST_URL)
+        media_objects = get_image_media(self)
         for obj in media_objects:
             rv = check_success(
                 self, "{}{}/thumbnail/20".format(TEST_URL, obj["handle"]), full=True
@@ -128,7 +138,7 @@ class TestThumbnail(unittest.TestCase):
 
     def test_get_thumbnail_large(self):
         """Test reponse for thumbnails (large)."""
-        media_objects = check_success(self, TEST_URL)
+        media_objects = get_image_media(self)
         for obj in media_objects:
             # large thumb: return original image size
             rv = check_success(
@@ -168,7 +178,7 @@ class TestCropped(unittest.TestCase):
 
     def test_get_cropped(self):
         """Test reponse for cropped image."""
-        media_objects = check_success(self, TEST_URL)
+        media_objects = get_image_media(self)
         for obj in media_objects:
             rv = check_success(
                 self, "{}{}/file".format(TEST_URL, obj["handle"]), full=True
@@ -188,7 +198,7 @@ class TestCropped(unittest.TestCase):
 
     def test_get_cropped_with_checksum(self):
         """Test that the checksum query param is accepted and does not alter the response."""
-        media_objects = check_success(self, TEST_URL)
+        media_objects = get_image_media(self)
         for obj in media_objects:
             rv = check_success(
                 self,
@@ -221,7 +231,7 @@ class TestCroppedThumbnail(unittest.TestCase):
 
     def test_get_cropped_thumbnail_small(self):
         """Test reponse for thumbnails."""
-        media_objects = check_success(self, TEST_URL)
+        media_objects = get_image_media(self)
         for obj in media_objects:
             rv = check_success(
                 self,
@@ -236,7 +246,7 @@ class TestCroppedThumbnail(unittest.TestCase):
 
     def test_get_cropped_thumbnail_square(self):
         """Test reponse for square thumbnails."""
-        media_objects = check_success(self, TEST_URL)
+        media_objects = get_image_media(self)
         for obj in media_objects:
             rv = check_success(
                 self,
@@ -252,7 +262,7 @@ class TestCroppedThumbnail(unittest.TestCase):
 
     def test_get_cropped_thumbnail_with_checksum(self):
         """Test that the checksum query param is accepted and does not alter the response."""
-        media_objects = check_success(self, TEST_URL)
+        media_objects = get_image_media(self)
         for obj in media_objects:
             rv = check_success(
                 self,
@@ -276,7 +286,7 @@ class TestCroppedThumbnail(unittest.TestCase):
 
     def test_get_cropped_thumbnail_large(self):
         """Test reponse for thumbnails (large)."""
-        media_objects = check_success(self, TEST_URL)
+        media_objects = get_image_media(self)
         for obj in media_objects:
             # large thumb: return original image size
             rv = check_success(
@@ -342,7 +352,7 @@ class TestMapTile(unittest.TestCase):
 
     def test_get_map_tile_no_bounds_returns_404(self):
         """Media without map:bounds attribute returns 404."""
-        media_objects = check_success(self, TEST_URL)
+        media_objects = get_image_media(self)
         header = fetch_header(self.client)
         for obj in media_objects:
             rv = self.client.get(

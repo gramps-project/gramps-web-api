@@ -209,15 +209,15 @@ class TestReportsReportIdFile(unittest.TestCase):
         """Test options parameter Gramps ID validation."""
         check_invalid_semantics(
             self,
-            TEST_URL + 'ancestor_report/file?options={"pid": "I9999"}',
+            TEST_URL + 'ancestor_report/file?options={"pid": "I09999"}',
         )
         check_success(
             self,
-            TEST_URL + 'ancestor_report/file?options={"pid": "I0044"}',
+            TEST_URL + 'ancestor_report/file?options={"pid": "I00044"}',
         )
         check_invalid_semantics(
             self,
-            TEST_URL + 'place_report/file?options={"places": "P0863 P9999"}',
+            TEST_URL + 'place_report/file?options={"places": "P00863 P09999"}',
         )
 
     def test_get_reports_report_id_file_parameter_options_validate_semantics_lists(
@@ -300,8 +300,8 @@ class TestReportsReportIdFile(unittest.TestCase):
         """Test one of each available report."""
         # note some reports have unidentified mandatory options with no defaults
         test_options = {
-            "familylines_graph": '?options={"gidlist": "I0044"}',
-            "place_report": '?options={"places": "P0863"}',
+            "familylines_graph": '?options={"gidlist": "I00044"}',
+            "place_report": '?options={"places": "P00863"}',
         }
         rv_set = check_success(self, TEST_URL)
         bad_reports = []
@@ -319,8 +319,8 @@ class TestReportsReportIdFile(unittest.TestCase):
         """Test one of each available report using POST."""
         # note some reports have unidentified mandatory options with no defaults
         test_options = {
-            "familylines_graph": '?options={"gidlist": "I0044"}',
-            "place_report": '?options={"places": "P0863"}',
+            "familylines_graph": '?options={"gidlist": "I00044"}',
+            "place_report": '?options={"places": "P00863"}',
         }
         rv_set = check_success(self, TEST_URL)
         bad_reports = []

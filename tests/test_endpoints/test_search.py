@@ -64,22 +64,22 @@ class TestSearchEngine(unittest.TestCase):
 
     def test_reindexing(self):
         """Test if reindexing again leads to doubled rv."""
-        total, rv = self.search.search("I0044", page=1, pagesize=10)
+        total, rv = self.search.search("I00044", page=1, pagesize=10)
         self.assertEqual(len(rv), 1)
         db = self.__class__.dbmgr.get_db().db
         self.__class__.search.reindex_full(db)
         db.close()
-        total, rv = self.search.search("I0044", page=1, pagesize=10)
+        total, rv = self.search.search("I00044", page=1, pagesize=10)
         self.assertEqual(len(rv), 1)
 
     def test_reindexing_incremental(self):
         """Test if reindexing again leads to doubled rv."""
-        total, rv = self.search.search("I0044", page=1, pagesize=10)
+        total, rv = self.search.search("I00044", page=1, pagesize=10)
         self.assertEqual(len(rv), 1)
         db = self.__class__.dbmgr.get_db().db
         self.__class__.search.reindex_incremental(db)
         db.close()
-        total, rv = self.search.search("I0044", page=1, pagesize=10)
+        total, rv = self.search.search("I00044", page=1, pagesize=10)
         self.assertEqual(len(rv), 1)
 
     def test_search_method(self):
@@ -127,7 +127,7 @@ class TestSearchReindexIncrementalOnEmptyIndex(unittest.TestCase):
         self.search.reindex_incremental(db)
         db.close()
         self.assertGreater(self.search.index.count(), 0)
-        total, rv = self.search.search("I0044", page=1, pagesize=10)
+        total, rv = self.search.search("I00044", page=1, pagesize=10)
         self.assertEqual(len(rv), 1)
         # event participants (see get_event_participants_for_handle /
         # preload_event_backlinks) must be indexed too, not just skipped
@@ -209,14 +209,14 @@ class TestSearch(unittest.TestCase):
 
     def test_get_search_expected_result_specific_object(self):
         """Test expected result querying for a specific object by Gramps id."""
-        rv = check_success(self, TEST_URL + "?query=I0044")
+        rv = check_success(self, TEST_URL + "?query=I00044")
         self.assertEqual(len(rv), 1)
         self.assertIn("object", rv[0])
-        self.assertEqual(rv[0]["object"]["gramps_id"], "I0044")
+        self.assertEqual(rv[0]["object"]["gramps_id"], "I00044")
 
     def test_get_search_expected_result_or(self):
         """Test expected result querying for a specific object by Gramps id."""
-        rv = check_success(self, TEST_URL + f"?query={quote('I0044 OR I0043')}")
+        rv = check_success(self, TEST_URL + f"?query={quote('I00044 OR I00043')}")
         self.assertEqual(len(rv), 2)
 
     def test_get_search_expected_result_unicode(self):
@@ -225,11 +225,11 @@ class TestSearch(unittest.TestCase):
         rv = check_success(self, TEST_URL + f"?query={quote('Zhai Teng')}&type=person")
         self.assertEqual(len(rv), 1)
         self.assertIn("object", rv[0])
-        self.assertEqual(rv[0]["object"]["gramps_id"], "I0761")
+        self.assertEqual(rv[0]["object"]["gramps_id"], "I00761")
         rv = check_success(self, TEST_URL + f"?query={quote('斎藤')}&type=person")
         self.assertEqual(len(rv), 1)
         self.assertIn("object", rv[0])
-        self.assertEqual(rv[0]["object"]["gramps_id"], "I0761")
+        self.assertEqual(rv[0]["object"]["gramps_id"], "I00761")
 
     def test_get_search_expected_result_unicode_2(self):
         """Test expected result querying for a Unicode decoded string."""
@@ -237,11 +237,11 @@ class TestSearch(unittest.TestCase):
         rv = check_success(self, TEST_URL + f"?query={quote('Shestakov')}&type=person")
         self.assertEqual(len(rv), 1)
         self.assertIn("object", rv[0])
-        self.assertEqual(rv[0]["object"]["gramps_id"], "I0972")
+        self.assertEqual(rv[0]["object"]["gramps_id"], "I00972")
         rv = check_success(self, TEST_URL + f"?query={quote('Шестаков')}&type=person")
         self.assertEqual(len(rv), 1)
         self.assertIn("object", rv[0])
-        self.assertEqual(rv[0]["object"]["gramps_id"], "I0972")
+        self.assertEqual(rv[0]["object"]["gramps_id"], "I00972")
 
     def test_get_search_expected_result_no_hits(self):
         """Test expected result when no hits."""
@@ -350,7 +350,7 @@ class TestSearch(unittest.TestCase):
             TEST_URL + f"?query={quote('123 456 7890')}", headers=header
         )
         self.assertEqual(len(rv.json), 1)
-        self.assertEqual(rv.json[0]["object"]["gramps_id"], "I0044")
+        self.assertEqual(rv.json[0]["object"]["gramps_id"], "I00044")
 
     def test_get_search_explicit_fields_owner(self):
         """Search for an explicit type as owner."""
@@ -360,7 +360,7 @@ class TestSearch(unittest.TestCase):
             headers=header,
         )
         self.assertEqual(len(rv.json), 1)
-        self.assertEqual(rv.json[0]["object"]["gramps_id"], "R0003")
+        self.assertEqual(rv.json[0]["object"]["gramps_id"], "R00003")
 
     def test_get_search_explicit_fields_guest(self):
         """Search for a an explicit type as guest."""
@@ -370,7 +370,7 @@ class TestSearch(unittest.TestCase):
             headers=header,
         )
         self.assertEqual(len(rv.json), 1)
-        self.assertEqual(rv.json[0]["object"]["gramps_id"], "R0003")
+        self.assertEqual(rv.json[0]["object"]["gramps_id"], "R00003")
 
     def test_get_search_oldest(self):
         """Search for the oldest person record."""
@@ -380,7 +380,7 @@ class TestSearch(unittest.TestCase):
             headers=header,
         )
         self.assertEqual(len(rv.json), 1)
-        self.assertEqual(rv.json[0]["object"]["gramps_id"], "I0044")
+        self.assertEqual(rv.json[0]["object"]["gramps_id"], "I00044")
 
     # def test_get_search_newest(self):
     #     """Search for the newest person record."""
@@ -393,4 +393,4 @@ class TestSearch(unittest.TestCase):
     #         headers=header,
     #     )
     #     self.assertEqual(len(rv.json), 1)
-    #     self.assertEqual(rv.json[0]["object"]["gramps_id"], "I0363")
+    #     self.assertEqual(rv.json[0]["object"]["gramps_id"], "I00363")

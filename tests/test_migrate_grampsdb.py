@@ -75,7 +75,7 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
         # os.remove(cls.user_db.name)
         pass
 
-    def test_migrate_to_v21(self):
+    def test_migrate_from_v20(self):
         db_handle = self.db_manager.get_db(readonly=False).db
 
         # manually add the old blob_data column and delete the new json_data column
@@ -143,7 +143,7 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
             "/api/metadata/", headers={"Authorization": f"Bearer {token}"}
         )
         assert rv.status_code == 200
-        assert rv.json["database"]["schema"] == "21.0.0"
+        assert rv.json["database"]["schema"] == "22.0.0"
         assert rv.json["database"]["actual_schema"] == 20
 
         # we can get (read-only) people just fine
@@ -184,15 +184,15 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
         assert result.exit_code == 0
 
         # schema should be up to date now
-        assert db_handle.get_schema_version() == 21
+        assert db_handle.get_schema_version() == 22
 
         # also here
         rv = self.client.get(
             "/api/metadata/", headers={"Authorization": f"Bearer {token}"}
         )
         assert rv.status_code == 200
-        assert rv.json["database"]["schema"] == "21.0.0"
-        assert rv.json["database"]["actual_schema"] == 21
+        assert rv.json["database"]["schema"] == "22.0.0"
+        assert rv.json["database"]["actual_schema"] == 22
 
         # can list places now
         rv = self.client.get(
@@ -309,7 +309,7 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
             "/api/metadata/", headers={"Authorization": f"Bearer {token}"}
         )
         assert rv.status_code == 200
-        assert rv.json["database"]["schema"] == "21.0.0"
+        assert rv.json["database"]["schema"] == "22.0.0"
         assert rv.json["database"]["actual_schema"] == 20
 
         # we can get (read-only) people just fine
@@ -344,15 +344,15 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
         assert rv.status_code == 201
 
         # schema should be up to date now
-        assert db_handle.get_schema_version() == 21
+        assert db_handle.get_schema_version() == 22
 
         # also here
         rv = self.client.get(
             "/api/metadata/", headers={"Authorization": f"Bearer {token}"}
         )
         assert rv.status_code == 200
-        assert rv.json["database"]["schema"] == "21.0.0"
-        assert rv.json["database"]["actual_schema"] == 21
+        assert rv.json["database"]["schema"] == "22.0.0"
+        assert rv.json["database"]["actual_schema"] == 22
 
         # can list places now
         rv = self.client.get(

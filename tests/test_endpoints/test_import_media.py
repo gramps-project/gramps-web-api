@@ -113,7 +113,7 @@ class TestImporterMedia(unittest.TestCase):
         assert rv.json["usage_media"] == 1000 + 2000 + 3000
         # delete f1 & f2
         for obj in media_objects:
-            if obj["gramps_id"] in ["O0000", "O0001"]:
+            if obj["gramps_id"] in ["O00000", "O00001"]:
                 checksum = obj["checksum"]
                 path = os.path.join(self.media_dir, f"{checksum}.jpg")
                 os.remove(path)

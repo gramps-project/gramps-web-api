@@ -68,11 +68,11 @@ class TestMedia(unittest.TestCase):
         """Test some expected results returned."""
         rv = check_success(self, TEST_URL)
         # check first expected record
-        self.assertEqual(rv[0]["gramps_id"], "O0000")
+        self.assertEqual(rv[0]["gramps_id"], "O00000")
         self.assertEqual(rv[0]["handle"], "b39fe1cfc1305ac4a21")
         # check last expected record
-        self.assertEqual(rv[-1]["gramps_id"], "O0009")
-        self.assertEqual(rv[-1]["handle"], "78V2GQX2FKNSYQ3OHE")
+        self.assertEqual(rv[-1]["gramps_id"], "O00012")
+        self.assertEqual(rv[-1]["handle"], "102a1dfc8e7439df9fa1903537eb")
 
     def test_get_media_validate_semantics(self):
         """Test invalid parameters and values."""
@@ -88,7 +88,7 @@ class TestMedia(unittest.TestCase):
 
     def test_get_media_parameter_gramps_id_expected_result(self):
         """Test gramps_id parameter returns expected result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=O0006")
+        rv = check_success(self, TEST_URL + "?gramps_id=O00006")
         self.assertEqual(len(rv), 1)
         self.assertEqual(rv[0]["handle"], "F0QIGQFT275JFJ75E8")
         self.assertEqual(rv[0]["path"], "Alimehemet.jpg")
@@ -165,19 +165,19 @@ class TestMedia(unittest.TestCase):
         """Test sort parameter date descending result."""
         rv = check_success(self, TEST_URL + "?keys=handle&sort=-date")
         self.assertEqual(rv[0]["handle"], "238CGQ939HG18SS5MG")
-        self.assertEqual(rv[-1]["handle"], "78V2GQX2FKNSYQ3OHE")
+        self.assertEqual(rv[-1]["handle"], "102a1dfc8e7439df9fa1903537eb")
 
     def test_get_media_parameter_sort_gramps_id_ascending_expected_result(self):
         """Test sort parameter gramps_id ascending result."""
         rv = check_sort_parameter(self, TEST_URL, "gramps_id")
-        self.assertEqual(rv[0]["gramps_id"], "O0000")
-        self.assertEqual(rv[-1]["gramps_id"], "O0011")
+        self.assertEqual(rv[0]["gramps_id"], "O00000")
+        self.assertEqual(rv[-1]["gramps_id"], "O00015")
 
     def test_get_media_parameter_sort_gramps_id_descending_expected_result(self):
         """Test sort parameter gramps_id descending result."""
         rv = check_sort_parameter(self, TEST_URL, "gramps_id", direction="-")
-        self.assertEqual(rv[0]["gramps_id"], "O0011")
-        self.assertEqual(rv[-1]["gramps_id"], "O0000")
+        self.assertEqual(rv[0]["gramps_id"], "O00015")
+        self.assertEqual(rv[-1]["gramps_id"], "O00000")
 
     def test_get_media_parameter_sort_mime_ascending_expected_result(self):
         """Test sort parameter mime ascending result."""
@@ -205,11 +205,20 @@ class TestMedia(unittest.TestCase):
 
     def test_get_media_parameter_sort_title_ascending_expected_result(self):
         """Test sort parameter title ascending result."""
-        check_sort_parameter(self, TEST_URL, "title", value_key="desc")
+        check_sort_parameter(
+            self, TEST_URL, "title", value_key="desc", compare_key=str.lower
+        )
 
     def test_get_media_parameter_sort_title_descending_expected_result(self):
         """Test sort parameter title descending result."""
-        check_sort_parameter(self, TEST_URL, "title", value_key="desc", direction="-")
+        check_sort_parameter(
+            self,
+            TEST_URL,
+            "title",
+            value_key="desc",
+            direction="-",
+            compare_key=str.lower,
+        )
 
     def test_get_media_parameter_filter_validate_semantics(self):
         """Test invalid rules parameter and values."""
@@ -265,7 +274,7 @@ class TestMedia(unittest.TestCase):
         rv = check_success(
             self,
             TEST_URL
-            + '?keys=handle&rules={"function":"or","rules":[{"name":"HasTag","values":["ToDo"]},{"name":"HasIdOf","values":["O0007"]}]}',
+            + '?keys=handle&rules={"function":"or","rules":[{"name":"HasTag","values":["ToDo"]},{"name":"HasIdOf","values":["O00007"]}]}',
         )
         self.assertEqual(rv[0]["handle"], "238CGQ939HG18SS5MG")
         self.assertEqual(rv[1]["handle"], "F8JYGQFL2PKLSYH79X")
@@ -275,7 +284,7 @@ class TestMedia(unittest.TestCase):
         rv = check_success(
             self,
             TEST_URL
-            + '?keys=handle&rules={"function":"one","rules":[{"name":"HasTag","values":["ToDo"]},{"name":"HasIdOf","values":["O0007"]}]}',
+            + '?keys=handle&rules={"function":"one","rules":[{"name":"HasTag","values":["ToDo"]},{"name":"HasIdOf","values":["O00007"]}]}',
         )
         self.assertEqual(len(rv), 2)
 
@@ -286,7 +295,7 @@ class TestMedia(unittest.TestCase):
             TEST_URL
             + '?keys=handle&rules={"invert":true,"rules":[{"name":"MediaPrivate"}]}',
         )
-        self.assertEqual(len(rv), 7)
+        self.assertEqual(len(rv), 16)
 
     def test_get_media_parameter_extend_validate_semantics(self):
         """Test invalid extend parameter and values."""
@@ -295,24 +304,26 @@ class TestMedia(unittest.TestCase):
     def test_get_media_parameter_extend_expected_result_citation_list(self):
         """Test extend citation_list result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=O0006", "citation_list", "citations", join="&"
+            self, TEST_URL + "?gramps_id=O00006", "citation_list", "citations", join="&"
         )
 
     def test_get_media_parameter_extend_expected_result_note_list(self):
         """Test extend notes result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=O0006", "note_list", "notes", join="&"
+            self, TEST_URL + "?gramps_id=O00006", "note_list", "notes", join="&"
         )
 
     def test_get_media_parameter_extend_expected_result_tag_list(self):
         """Test extend tag_list result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=O0006", "tag_list", "tags", join="&"
+            self, TEST_URL + "?gramps_id=O00006", "tag_list", "tags", join="&"
         )
 
     def test_get_media_parameter_extend_expected_result_all(self):
         """Test extend all result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=O0006&extend=all&keys=extended")
+        rv = check_success(
+            self, TEST_URL + "?gramps_id=O00006&extend=all&keys=extended"
+        )
         self.assertEqual(len(rv[0]["extended"]), 3)
         for key in ["citations", "notes", "tags"]:
             self.assertIn(key, rv[0]["extended"])
@@ -322,7 +333,7 @@ class TestMedia(unittest.TestCase):
         rv = check_success(
             self,
             TEST_URL
-            + "?gramps_id=O0006&extend=note_list,tag_list&keys=note_list,tag_list,extended",
+            + "?gramps_id=O00006&extend=note_list,tag_list&keys=note_list,tag_list,extended",
         )
         self.assertEqual(len(rv[0]["extended"]), 2)
         self.assertIn("notes", rv[0]["extended"])
@@ -335,7 +346,7 @@ class TestMedia(unittest.TestCase):
     def test_get_media_parameter_backlinks_expected_result(self):
         """Test backlinks expected result."""
         rv = check_success(
-            self, TEST_URL + "?gramps_id=O0006&keys=backlinks&backlinks=1"
+            self, TEST_URL + "?gramps_id=O00006&keys=backlinks&backlinks=1"
         )
         self.assertIn("9OUJQCBOHW9UEK9CNV", rv[0]["backlinks"]["family"])
 
@@ -389,7 +400,7 @@ class TestMediaHandle(unittest.TestCase):
     def test_get_media_handle_expected_result(self):
         """Test response for a specific event."""
         rv = check_success(self, TEST_URL + "B1AUFQV7H8R9NR4SZM")
-        self.assertEqual(rv["gramps_id"], "O0008")
+        self.assertEqual(rv["gramps_id"], "O00008")
 
     def test_get_media_handle_validate_semantics(self):
         """Test invalid parameters and values."""

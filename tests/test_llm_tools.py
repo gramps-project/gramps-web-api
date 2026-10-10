@@ -298,13 +298,13 @@ class TestFilterPeopleTool(unittest.TestCase):
 
     def test_filter_ancestors(self):
         """Test filtering by ancestors."""
-        result = self._filter_people(ancestor_of="I0552", ancestor_generations=5)
+        result = self._filter_people(ancestor_of="I00552", ancestor_generations=5)
 
         self.assertNotIn("Error", result)
 
     def test_filter_descendants(self):
         """Test filtering by descendants."""
-        result = self._filter_people(descendant_of="I0552", descendant_generations=5)
+        result = self._filter_people(descendant_of="I00552", descendant_generations=5)
 
         self.assertNotIn("Error", result)
 
@@ -328,14 +328,14 @@ class TestFilterPeopleTool(unittest.TestCase):
 
     def test_filter_common_ancestor(self):
         """Test filtering by common ancestor."""
-        result = self._filter_people(has_common_ancestor_with="I0552")
+        result = self._filter_people(has_common_ancestor_with="I00552")
 
         self.assertNotIn("Error", result)
 
     def test_filter_male_ancestors_alive_in_1880(self):
         """Test complex query: male ancestors alive in 1880."""
         result = self._filter_people(
-            ancestor_of="I0552",
+            ancestor_of="I00552",
             ancestor_generations=5,
             is_male=True,
             probably_alive_on_date="1880-01-01",
@@ -346,7 +346,7 @@ class TestFilterPeopleTool(unittest.TestCase):
     def test_filter_degrees_of_separation(self):
         """Test filtering by degrees of separation."""
         result = self._filter_people(
-            degrees_of_separation_from="I0552", degrees_of_separation=2
+            degrees_of_separation_from="I00552", degrees_of_separation=2
         )
 
         # Filter may not be available if FilterRules addon is not installed
@@ -354,13 +354,13 @@ class TestFilterPeopleTool(unittest.TestCase):
             self.assertIn("FilterRules addon", result)
         else:
             self.assertNotIn("Error", result)
-            # Should return people within 2 degrees of separation from I0552
+            # Should return people within 2 degrees of separation from I00552
             self.assertGreater(len(result), 0, "Should find relatives within 2 degrees")
 
     def test_filter_degrees_of_separation_with_gender(self):
         """Test degrees of separation combined with gender filter."""
         result = self._filter_people(
-            degrees_of_separation_from="I0044", degrees_of_separation=3, is_male=True
+            degrees_of_separation_from="I00044", degrees_of_separation=3, is_male=True
         )
 
         # Filter may not be available if FilterRules addon is not installed
@@ -382,9 +382,9 @@ class TestFilterPeopleTool(unittest.TestCase):
 
     def test_filter_with_relationship_display(self):
         """Test filtering with show_relation_with to display relationships."""
-        # Find ancestors of Lewis Anderson Garner (I0044) and show their relationship to him
+        # Find ancestors of Lewis Anderson Garner (I00044) and show their relationship to him
         result = self._filter_people(
-            ancestor_of="I0044", ancestor_generations=2, show_relation_with="I0044"
+            ancestor_of="I00044", ancestor_generations=2, show_relation_with="I00044"
         )
 
         self.assertNotIn("Error", result)
@@ -401,7 +401,7 @@ class TestFilterPeopleTool(unittest.TestCase):
         """Test show_relation_with with invalid anchor person ID."""
         # Should handle gracefully even if anchor person doesn't exist
         result = self._filter_people(
-            ancestor_of="I0044", ancestor_generations=2, show_relation_with="INVALID"
+            ancestor_of="I00044", ancestor_generations=2, show_relation_with="INVALID"
         )
 
         # Should still return results, just without relationship prefixes
@@ -491,14 +491,14 @@ class TestFilterEventsTool(unittest.TestCase):
 
     def test_filter_by_participant(self):
         """Test filtering by participant ID."""
-        result = self._filter_events(participant_id="I0552")
+        result = self._filter_events(participant_id="I00552")
 
         self.assertNotIn("Error", result)
-        # Should find events for person I0552
+        # Should find events for person I00552
 
     def test_filter_by_participant_with_event_type(self):
         """Test filtering by participant combined with event type."""
-        result = self._filter_events(participant_id="I1370", event_type="Birth")
+        result = self._filter_events(participant_id="I01370", event_type="Birth")
 
         self.assertNotIn("Error", result)
 
@@ -776,10 +776,10 @@ class TestFilterPeopleRealWorldQueries(unittest.TestCase):
         self.assertGreater(len(result), 200)
 
     def test_male_ancestors(self):
-        """Test: 'male ancestors of person I0044'"""
-        result = self._filter_people(ancestor_of="I0044", is_male=True)
+        """Test: 'male ancestors of person I00044'"""
+        result = self._filter_people(ancestor_of="I00044", is_male=True)
         self.assertNotIn("Error", result)
-        # I0044 should have some male ancestors
+        # I00044 should have some male ancestors
         if "No people found" not in result:
             self.assertGreater(len(result), 100)
 
@@ -919,14 +919,14 @@ class TestFilterEventsParticipantRole(unittest.TestCase):
             return filter_events(self.ctx, **kwargs)
 
     def test_participant_id_returns_results(self):
-        # I1370 has at least one event in the example DB.
-        result = self._filter_events(participant_id="I1370")
+        # I01370 has at least one event in the example DB.
+        result = self._filter_events(participant_id="I01370")
         self.assertNotIn("Error", result)
         self.assertNotIn("No events found", result)
 
     def test_filter_events_no_participant_role_param(self):
         # participant_role parameter has been removed; calling without it must work
-        result = self._filter_events(event_type="Birth", participant_id="I0552")
+        result = self._filter_events(event_type="Birth", participant_id="I00552")
         self.assertNotIn("Error", result)
 
 
@@ -947,20 +947,20 @@ class TestGetPerson(unittest.TestCase):
             return get_person(self.ctx, gramps_id)
 
     def test_known_person_returns_content(self):
-        result = self._get_person("I0044")
+        result = self._get_person("I00044")
         self.assertNotIn("Error", result)
         self.assertNotIn("No person found", result)
         self.assertGreater(len(result), 50)
 
     def test_result_contains_person_link(self):
-        result = self._get_person("I0044")
+        result = self._get_person("I00044")
         self.assertNotIn("No person found", result)
         self.assertIn("/person/", result)
 
     def test_result_contains_gramps_id(self):
-        result = self._get_person("I0044")
+        result = self._get_person("I00044")
         self.assertNotIn("No person found", result)
-        self.assertIn("I0044", result)
+        self.assertIn("I00044", result)
 
     def test_unknown_id_returns_not_found(self):
         result = self._get_person("INVALID_XYZ_999")

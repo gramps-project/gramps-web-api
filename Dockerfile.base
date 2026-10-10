@@ -1,7 +1,7 @@
 FROM debian:trixie
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV GRAMPS_VERSION=60
+ENV GRAMPS_VERSION=61
 
 WORKDIR /app
 

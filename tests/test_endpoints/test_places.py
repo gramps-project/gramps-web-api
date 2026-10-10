@@ -68,10 +68,10 @@ class TestPlaces(unittest.TestCase):
         """Test some expected results returned."""
         rv = check_success(self, TEST_URL)
         # check first expected record
-        self.assertEqual(rv[0]["gramps_id"], "P0441")
+        self.assertEqual(rv[0]["gramps_id"], "P00441")
         self.assertEqual(rv[0]["handle"], "dd445e5bfcc17bd1838")
         # check last expected record
-        self.assertEqual(rv[-1]["gramps_id"], "P0438")
+        self.assertEqual(rv[-1]["gramps_id"], "P00438")
         self.assertEqual(rv[-1]["handle"], "d583a5b8b586fb992c8")
 
     def test_get_places_validate_semantics(self):
@@ -88,7 +88,7 @@ class TestPlaces(unittest.TestCase):
 
     def test_get_places_parameter_gramps_id_expected_result(self):
         """Test gramps_id parameter returns expected result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=P1108")
+        rv = check_success(self, TEST_URL + "?gramps_id=P01108")
         self.assertEqual(len(rv), 1)
         self.assertEqual(rv[0]["handle"], "B9VKQCD14KD2OH3QZY")
 
@@ -153,14 +153,14 @@ class TestPlaces(unittest.TestCase):
     def test_get_places_parameter_sort_gramps_id_ascending_expected_result(self):
         """Test sort parameter gramps_id ascending result."""
         rv = check_sort_parameter(self, TEST_URL, "gramps_id")
-        self.assertEqual(rv[0]["gramps_id"], "P0000")
-        self.assertEqual(rv[-1]["gramps_id"], "P1703")
+        self.assertEqual(rv[0]["gramps_id"], "P00000")
+        self.assertEqual(rv[-1]["gramps_id"], "P01703")
 
     def test_get_places_parameter_sort_gramps_id_descending_expected_result(self):
         """Test sort parameter gramps_id descending result."""
         rv = check_sort_parameter(self, TEST_URL, "gramps_id", direction="-")
-        self.assertEqual(rv[0]["gramps_id"], "P1703")
-        self.assertEqual(rv[-1]["gramps_id"], "P0000")
+        self.assertEqual(rv[0]["gramps_id"], "P01703")
+        self.assertEqual(rv[-1]["gramps_id"], "P00000")
 
     def test_get_places_parameter_sort_latitude_ascending_expected_result(self):
         """Test sort parameter latitude ascending result."""
@@ -309,14 +309,14 @@ class TestPlaces(unittest.TestCase):
     def test_get_places_parameter_extend_expected_result_citation_list(self):
         """Test extend citation_list result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=P1108", "citation_list", "citations", join="&"
+            self, TEST_URL + "?gramps_id=P01108", "citation_list", "citations", join="&"
         )
 
     def test_get_places_parameter_extend_expected_result_media_list(self):
         """Test extend media_list result."""
         check_single_extend_parameter(
             self,
-            TEST_URL + "?gramps_id=P1108",
+            TEST_URL + "?gramps_id=P01108",
             "media_list",
             "media",
             join="&",
@@ -326,20 +326,20 @@ class TestPlaces(unittest.TestCase):
     def test_get_places_parameter_extend_expected_result_note_list(self):
         """Test extend notes result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=P1108", "note_list", "notes", join="&"
+            self, TEST_URL + "?gramps_id=P01108", "note_list", "notes", join="&"
         )
 
     def test_get_places_parameter_extend_expected_result_tag_list(self):
         """Test extend tag_list result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=P1108", "tag_list", "tags", join="&"
+            self, TEST_URL + "?gramps_id=P01108", "tag_list", "tags", join="&"
         )
 
     def test_get_places_parameter_extend_expected_result_placeref_list(self):
         """Test extend placeref_list result."""
         check_single_extend_parameter(
             self,
-            TEST_URL + "?gramps_id=P1108",
+            TEST_URL + "?gramps_id=P01108",
             "placeref_list",
             "places",
             join="&",
@@ -348,7 +348,9 @@ class TestPlaces(unittest.TestCase):
 
     def test_get_places_parameter_extend_expected_result_all(self):
         """Test extend all result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=P1108&extend=all&keys=extended")
+        rv = check_success(
+            self, TEST_URL + "?gramps_id=P01108&extend=all&keys=extended"
+        )
         self.assertEqual(len(rv[0]["extended"]), 5)
         for key in ["citations", "media", "notes", "places", "tags"]:
             self.assertIn(key, rv[0]["extended"])
@@ -358,7 +360,7 @@ class TestPlaces(unittest.TestCase):
         rv = check_success(
             self,
             TEST_URL
-            + "?gramps_id=P1108&extend=note_list,tag_list&keys=note_list,tag_list,extended",
+            + "?gramps_id=P01108&extend=note_list,tag_list&keys=note_list,tag_list,extended",
         )
         self.assertEqual(len(rv[0]["extended"]), 2)
         self.assertIn("notes", rv[0]["extended"])
@@ -371,7 +373,7 @@ class TestPlaces(unittest.TestCase):
     def test_get_places_parameter_backlinks_expected_result(self):
         """Test backlinks expected result."""
         rv = check_success(
-            self, TEST_URL + "?gramps_id=P1108&keys=backlinks&backlinks=1"
+            self, TEST_URL + "?gramps_id=P01108&keys=backlinks&backlinks=1"
         )
         for key in ["a5af0ec23c136ad6742", "a5af0ec27662bcd851c"]:
             self.assertIn(key, rv[0]["backlinks"]["event"])
@@ -379,7 +381,7 @@ class TestPlaces(unittest.TestCase):
     def test_get_places_parameter_place_hierarchy_false(self):
         """Test place_hierarchy=0 omits parent_places from profile."""
         rv = check_success(
-            self, TEST_URL + "?gramps_id=P0860&profile=self&place_hierarchy=0"
+            self, TEST_URL + "?gramps_id=P00860&profile=self&place_hierarchy=0"
         )
         self.assertNotIn("parent_places", rv[0]["profile"])
         self.assertNotIn("direct_parent_places", rv[0]["profile"])
@@ -415,7 +417,7 @@ class TestPlacesHandle(unittest.TestCase):
     def test_get_places_handle_expected_result(self):
         """Test response for a specific event."""
         rv = check_success(self, TEST_URL + "YNUJQC8YM5EGRG868J")
-        self.assertEqual(rv["gramps_id"], "P1678")
+        self.assertEqual(rv["gramps_id"], "P01678")
 
     def test_get_places_handle_validate_semantics(self):
         """Test invalid parameters and values."""
@@ -537,7 +539,7 @@ class TestPlacesHandle(unittest.TestCase):
             {
                 "alternate_names": [],
                 "alternate_place_names": [],
-                "gramps_id": "P0860",
+                "gramps_id": "P00860",
                 "lat": 33.6259414,
                 "long": -97.1333453,
                 "name": "Gainesville",
@@ -545,7 +547,7 @@ class TestPlacesHandle(unittest.TestCase):
                     {
                         "alternate_names": [],
                         "alternate_place_names": [],
-                        "gramps_id": "P0194",
+                        "gramps_id": "P00194",
                         "lat": 0,
                         "long": 0,
                         "name": "Llano",
@@ -554,7 +556,7 @@ class TestPlacesHandle(unittest.TestCase):
                     {
                         "alternate_names": [],
                         "alternate_place_names": [],
-                        "gramps_id": "P0010",
+                        "gramps_id": "P00010",
                         "lat": 0,
                         "long": 0,
                         "name": "TX",
@@ -563,7 +565,7 @@ class TestPlacesHandle(unittest.TestCase):
                     {
                         "alternate_names": [],
                         "alternate_place_names": [],
-                        "gramps_id": "P0957",
+                        "gramps_id": "P00957",
                         "lat": 0,
                         "long": 0,
                         "name": "USA",
@@ -575,7 +577,7 @@ class TestPlacesHandle(unittest.TestCase):
                         "place": {
                             "alternate_names": [],
                             "alternate_place_names": [],
-                            "gramps_id": "P0194",
+                            "gramps_id": "P00194",
                             "lat": 0,
                             "long": 0,
                             "name": "Llano",
@@ -605,7 +607,7 @@ class TestPlacesHandle(unittest.TestCase):
                     },
                     {"date_str": "between 1914 and 1924", "value": "Petrograd"},
                 ],
-                "gramps_id": "P0443",
+                "gramps_id": "P00443",
                 "lat": 0,
                 "long": 0,
                 "name": "Saint Petersburg",
@@ -613,7 +615,7 @@ class TestPlacesHandle(unittest.TestCase):
                     {
                         "alternate_names": [],
                         "alternate_place_names": [],
-                        "gramps_id": "P0442",
+                        "gramps_id": "P00442",
                         "lat": 0,
                         "long": 0,
                         "name": "Russia",
@@ -625,7 +627,7 @@ class TestPlacesHandle(unittest.TestCase):
                         "place": {
                             "alternate_names": [],
                             "alternate_place_names": [],
-                            "gramps_id": "P0442",
+                            "gramps_id": "P00442",
                             "lat": 0,
                             "long": 0,
                             "name": "Russia",
@@ -646,7 +648,7 @@ class TestPlacesHandle(unittest.TestCase):
         )
         self.assertNotIn("parent_places", rv["profile"])
         self.assertNotIn("direct_parent_places", rv["profile"])
-        self.assertEqual(rv["profile"]["gramps_id"], "P0860")
+        self.assertEqual(rv["profile"]["gramps_id"], "P00860")
 
     def test_get_places_handle_parameter_backlinks_validate_semantics(self):
         """Test invalid backlinks parameter and values."""

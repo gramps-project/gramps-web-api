@@ -73,11 +73,11 @@ class TestPeople(unittest.TestCase):
         """Test some expected results returned."""
         rv = check_success(self, TEST_URL)
         # check first expected record
-        self.assertEqual(rv[0]["gramps_id"], "I2110")
+        self.assertEqual(rv[0]["gramps_id"], "I02110")
         self.assertEqual(rv[0]["primary_name"]["first_name"], "محمد")
         self.assertEqual(rv[0]["primary_name"]["surname_list"][0]["surname"], "")
         # check last expected record
-        self.assertEqual(rv[-1]["gramps_id"], "I0247")
+        self.assertEqual(rv[-1]["gramps_id"], "I00247")
         self.assertEqual(rv[-1]["primary_name"]["first_name"], "Allen")
         self.assertEqual(rv[-1]["primary_name"]["surname_list"][0]["surname"], "鈴木")
 
@@ -95,7 +95,7 @@ class TestPeople(unittest.TestCase):
 
     def test_get_people_parameter_gramps_id_expected_result(self):
         """Test gramps_id parameter returns expected result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=I0044")
+        rv = check_success(self, TEST_URL + "?gramps_id=I00044")
         self.assertEqual(len(rv), 1)
         self.assertEqual(rv[0]["handle"], "GNUJQCL9MD64AM56OH")
 
@@ -233,14 +233,14 @@ class TestPeople(unittest.TestCase):
     def test_get_people_parameter_sort_gramps_id_ascending_expected_result(self):
         """Test sort parameter gramps_id ascending result."""
         rv = check_sort_parameter(self, TEST_URL, "gramps_id")
-        self.assertEqual(rv[0]["gramps_id"], "I0000")
-        self.assertEqual(rv[-1]["gramps_id"], "I2156")
+        self.assertEqual(rv[0]["gramps_id"], "I00000")
+        self.assertEqual(rv[-1]["gramps_id"], "I02156")
 
     def test_get_people_parameter_sort_gramps_id_descending_expected_result(self):
         """Test sort parameter gramps_id descending result."""
         rv = check_sort_parameter(self, TEST_URL, "gramps_id", direction="-")
-        self.assertEqual(rv[0]["gramps_id"], "I2156")
-        self.assertEqual(rv[-1]["gramps_id"], "I0000")
+        self.assertEqual(rv[0]["gramps_id"], "I02156")
+        self.assertEqual(rv[-1]["gramps_id"], "I00000")
 
     def test_get_people_parameter_sort_name_ascending_expected_result(self):
         """Test sort parameter name ascending result."""
@@ -402,16 +402,16 @@ class TestPeople(unittest.TestCase):
         """Test invalid rules syntax."""
         rv = check_success(
             self,
-            TEST_URL + "?gql=" + quote("gramps_id=I0044"),
+            TEST_URL + "?gql=" + quote("gramps_id=I00044"),
         )
         assert len(rv) == 1
-        assert rv[0]["gramps_id"] == "I0044"
+        assert rv[0]["gramps_id"] == "I00044"
 
     def test_get_people_parameter_gql_like(self):
         """Test invalid rules syntax."""
         rv = check_success(
             self,
-            TEST_URL + "?gql=" + quote("gramps_id ~ I004"),
+            TEST_URL + "?gql=" + quote("gramps_id ~ I0004"),
         )
         assert len(rv) == 10
 
@@ -419,14 +419,14 @@ class TestPeople(unittest.TestCase):
         """Test invalid rules syntax."""
         rv = check_success(
             self,
-            TEST_URL + "?gql=" + quote("(gramps_id ~ I004 or gramps_id ~ I003)"),
+            TEST_URL + "?gql=" + quote("(gramps_id ~ I0004 or gramps_id ~ I0003)"),
         )
         assert len(rv) == 20
 
     def test_get_people_parameter_oql_removed(self):
         """Test the removed oql parameter is rejected."""
         check_invalid_semantics(
-            self, TEST_URL + "?oql=" + quote("person.gramps_id == 'I0044'")
+            self, TEST_URL + "?oql=" + quote("person.gramps_id == 'I00044'")
         )
 
     def test_get_people_parameter_extend_validate_semantics(self):
@@ -436,14 +436,14 @@ class TestPeople(unittest.TestCase):
     def test_get_people_parameter_extend_expected_result_citation_list(self):
         """Test extend citation_list result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=I0044", "citation_list", "citations", join="&"
+            self, TEST_URL + "?gramps_id=I00044", "citation_list", "citations", join="&"
         )
 
     def test_get_people_parameter_extend_expected_result_event_ref_list(self):
         """Test extend event_ref_list result."""
         check_single_extend_parameter(
             self,
-            TEST_URL + "?gramps_id=I0044",
+            TEST_URL + "?gramps_id=I00044",
             "event_ref_list",
             "events",
             join="&",
@@ -453,14 +453,14 @@ class TestPeople(unittest.TestCase):
     def test_get_people_parameter_extend_expected_result_family_list(self):
         """Test extend family_list result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=I0044", "family_list", "families", join="&"
+            self, TEST_URL + "?gramps_id=I00044", "family_list", "families", join="&"
         )
 
     def test_get_people_parameter_extend_expected_result_media_list(self):
         """Test extend media_list result."""
         check_single_extend_parameter(
             self,
-            TEST_URL + "?gramps_id=I0044",
+            TEST_URL + "?gramps_id=I00044",
             "media_list",
             "media",
             join="&",
@@ -470,7 +470,7 @@ class TestPeople(unittest.TestCase):
     def test_get_people_parameter_extend_expected_result_notes(self):
         """Test extend notes result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=I0044", "note_list", "notes", join="&"
+            self, TEST_URL + "?gramps_id=I00044", "note_list", "notes", join="&"
         )
 
     def test_get_people_parameter_extend_expected_result_parent_family_list(self):
@@ -478,7 +478,7 @@ class TestPeople(unittest.TestCase):
         rv = check_success(
             self,
             TEST_URL
-            + "?gramps_id=I0044&extend=parent_family_list&keys=parent_family_list,extended",
+            + "?gramps_id=I00044&extend=parent_family_list&keys=parent_family_list,extended",
         )
         self.assertEqual(len(rv[0]["extended"]), 1)
         if len(rv[0]["parent_family_list"]) > 1:
@@ -493,7 +493,7 @@ class TestPeople(unittest.TestCase):
         """Test extend person_ref_list result."""
         check_single_extend_parameter(
             self,
-            TEST_URL + "?gramps_id=I0044",
+            TEST_URL + "?gramps_id=I00044",
             "person_ref_list",
             "people",
             join="&",
@@ -505,7 +505,7 @@ class TestPeople(unittest.TestCase):
         rv = check_success(
             self,
             TEST_URL
-            + "?gramps_id=I0044&extend=primary_parent_family&keys=parent_family_list,extended",
+            + "?gramps_id=I00044&extend=primary_parent_family&keys=parent_family_list,extended",
         )
         self.assertEqual(len(rv[0]["extended"]), 1)
         self.assertIn(
@@ -516,12 +516,14 @@ class TestPeople(unittest.TestCase):
     def test_get_people_parameter_extend_expected_result_tag_list(self):
         """Test extend tag_list result."""
         check_single_extend_parameter(
-            self, TEST_URL + "?gramps_id=I0044", "tag_list", "tags", join="&"
+            self, TEST_URL + "?gramps_id=I00044", "tag_list", "tags", join="&"
         )
 
     def test_get_people_parameter_extend_expected_result_all(self):
         """Test extend all result."""
-        rv = check_success(self, TEST_URL + "?gramps_id=I0044&extend=all&keys=extended")
+        rv = check_success(
+            self, TEST_URL + "?gramps_id=I00044&extend=all&keys=extended"
+        )
         self.assertEqual(len(rv[0]["extended"]), 9)
         for key in [
             "citations",
@@ -541,7 +543,7 @@ class TestPeople(unittest.TestCase):
         rv = check_success(
             self,
             TEST_URL
-            + "?gramps_id=I0044&extend=note_list,tag_list&keys=note_list,tag_list,extended",
+            + "?gramps_id=I00044&extend=note_list,tag_list&keys=note_list,tag_list,extended",
         )
         self.assertEqual(len(rv[0]["extended"]), 2)
         self.assertIn("notes", rv[0]["extended"])
@@ -627,7 +629,7 @@ class TestPeople(unittest.TestCase):
                                     "summary": "Death - Adams, Jane",
                                     "type": "Death",
                                 },
-                                "gramps_id": "I0554",
+                                "gramps_id": "I00554",
                                 "handle": "914KQCNJ9TMDQMDL81",
                                 "name_display": "Adams, Jane",
                                 "name_given": "Jane",
@@ -668,14 +670,14 @@ class TestPeople(unittest.TestCase):
                                 "summary": "Death - Adams, William",
                                 "type": "Death",
                             },
-                            "gramps_id": "I0701",
+                            "gramps_id": "I00701",
                             "handle": "FR6KQCRONQWR69LFUI",
                             "name_display": "Adams, William",
                             "name_given": "William",
                             "name_surname": "Adams",
                             "sex": "M",
                         },
-                        "gramps_id": "F0204",
+                        "gramps_id": "F00204",
                         "handle": "R14KQCXMSQYXI2CS6W",
                         "marriage": {
                             "citations": 0,
@@ -707,7 +709,7 @@ class TestPeople(unittest.TestCase):
                                 "summary": "Death - Aguilar, Eleanor",
                                 "type": "Death",
                             },
-                            "gramps_id": "I0702",
+                            "gramps_id": "I00702",
                             "handle": "OS6KQCDBW36VIRF98Z",
                             "name_display": "Aguilar, Eleanor",
                             "name_given": "Eleanor",
@@ -717,7 +719,7 @@ class TestPeople(unittest.TestCase):
                         "relationship": "Married",
                     }
                 ],
-                "gramps_id": "I0702",
+                "gramps_id": "I00702",
                 "handle": "OS6KQCDBW36VIRF98Z",
                 "name_display": "Aguilar, Eleanor",
                 "name_given": "Eleanor",
@@ -745,7 +747,7 @@ class TestPeople(unittest.TestCase):
                                 "summary": "Death - Aguilar, Eleanor",
                                 "type": "Death",
                             },
-                            "gramps_id": "I0702",
+                            "gramps_id": "I00702",
                             "handle": "OS6KQCDBW36VIRF98Z",
                             "name_display": "Aguilar, Eleanor",
                             "name_given": "Eleanor",
@@ -775,14 +777,14 @@ class TestPeople(unittest.TestCase):
                             "summary": "Death - Aguilar, John",
                             "type": "Death",
                         },
-                        "gramps_id": "I0953",
+                        "gramps_id": "I00953",
                         "handle": "4GCKQC20GMQLO6N77C",
                         "name_display": "Aguilar, John",
                         "name_given": "John",
                         "name_surname": "Aguilar",
                         "sex": "M",
                     },
-                    "gramps_id": "F0704",
+                    "gramps_id": "F00704",
                     "handle": "DT6KQCOCKIUH1J4OSV",
                     "relationship": "Married",
                 },
@@ -805,7 +807,7 @@ class TestPeople(unittest.TestCase):
                                         "summary": "Death - Aguilar, Eleanor",
                                         "type": "Death",
                                     },
-                                    "gramps_id": "I0702",
+                                    "gramps_id": "I00702",
                                     "handle": "OS6KQCDBW36VIRF98Z",
                                     "name_display": "Aguilar, Eleanor",
                                     "name_given": "Eleanor",
@@ -829,14 +831,14 @@ class TestPeople(unittest.TestCase):
                                     "summary": "Death - Aguilar, John",
                                     "type": "Death",
                                 },
-                                "gramps_id": "I0953",
+                                "gramps_id": "I00953",
                                 "handle": "4GCKQC20GMQLO6N77C",
                                 "name_display": "Aguilar, John",
                                 "name_given": "John",
                                 "name_surname": "Aguilar",
                                 "sex": "M",
                             },
-                            "gramps_id": "F0704",
+                            "gramps_id": "F00704",
                             "handle": "DT6KQCOCKIUH1J4OSV",
                             "relationship": "Married",
                         },
@@ -857,7 +859,7 @@ class TestPeople(unittest.TestCase):
                                         "summary": "Death - Adams, Jane",
                                         "type": "Death",
                                     },
-                                    "gramps_id": "I0554",
+                                    "gramps_id": "I00554",
                                     "handle": "914KQCNJ9TMDQMDL81",
                                     "name_display": "Adams, Jane",
                                     "name_given": "Jane",
@@ -881,14 +883,14 @@ class TestPeople(unittest.TestCase):
                                     "summary": "Death - Adams, William",
                                     "type": "Death",
                                 },
-                                "gramps_id": "I0701",
+                                "gramps_id": "I00701",
                                 "handle": "FR6KQCRONQWR69LFUI",
                                 "name_display": "Adams, William",
                                 "name_given": "William",
                                 "name_surname": "Adams",
                                 "sex": "M",
                             },
-                            "gramps_id": "F0204",
+                            "gramps_id": "F00204",
                             "handle": "R14KQCXMSQYXI2CS6W",
                             "marriage": {
                                 "place": "Loveland, Larimer, CO, USA",
@@ -911,7 +913,7 @@ class TestPeople(unittest.TestCase):
                                     "summary": "Death - Aguilar, Eleanor",
                                     "type": "Death",
                                 },
-                                "gramps_id": "I0702",
+                                "gramps_id": "I00702",
                                 "handle": "OS6KQCDBW36VIRF98Z",
                                 "name_display": "Aguilar, Eleanor",
                                 "name_given": "Eleanor",
@@ -972,7 +974,7 @@ class TestPeopleHandle(unittest.TestCase):
     def test_get_people_handle_expected_result(self):
         """Test response for specific person."""
         rv = check_success(self, TEST_URL + "GNUJQCL9MD64AM56OH")
-        self.assertEqual(rv["gramps_id"], "I0044")
+        self.assertEqual(rv["gramps_id"], "I00044")
         self.assertEqual(rv["primary_name"]["first_name"], "Lewis Anderson")
         self.assertEqual(rv["primary_name"]["surname_list"][1]["surname"], "Zieliński")
 
@@ -1182,7 +1184,7 @@ class TestPeopleHandle(unittest.TestCase):
                     "type": "Death",
                     "summary": "Death - Warner, Mary Grace Elizabeth",
                 },
-                "gramps_id": "I0138",
+                "gramps_id": "I00138",
                 "handle": "0PWJQCZYFXOS0HGREE",
                 "name_display": "Warner, Mary Grace Elizabeth",
                 "name_given": "Mary Grace Elizabeth",
@@ -1276,7 +1278,7 @@ class TestPeopleHandle(unittest.TestCase):
 
     def test_get_people_handle_parameter_precision_expected_result(self):
         """Test precision parameter controls granularity of age strings."""
-        # FR6KQCRONQWR69LFUI = William Adams (I0701), has birth and death events
+        # FR6KQCRONQWR69LFUI = William Adams (I00701), has birth and death events
         rv3 = check_success(
             self, TEST_URL + "FR6KQCRONQWR69LFUI?profile=age&precision=3"
         )
@@ -1363,21 +1365,21 @@ class TestPeopleHandleTimeline(unittest.TestCase):
     def test_get_people_handle_timeline_expected_result(self):
         """Test response for specific person."""
         rv = check_success(self, TEST_URL + "GNUJQCL9MD64AM56OH/timeline")
-        self.assertEqual(rv[0]["gramps_id"], "E1656")
+        self.assertEqual(rv[0]["gramps_id"], "E01656")
         self.assertEqual(rv[0]["label"], "Birth")
-        self.assertEqual(rv[1]["gramps_id"], "E0200")
+        self.assertEqual(rv[1]["gramps_id"], "E00200")
         self.assertEqual(rv[1]["label"], "Birth (Stepsister)")
-        self.assertEqual(rv[5]["gramps_id"], "E0211")
+        self.assertEqual(rv[5]["gramps_id"], "E00211")
         self.assertEqual(rv[5]["label"], "Birth (Stepbrother)")
-        self.assertEqual(rv[11]["gramps_id"], "E2815")
+        self.assertEqual(rv[11]["gramps_id"], "E02815")
         self.assertEqual(rv[11]["label"], "Marriage")
-        self.assertEqual(rv[13]["gramps_id"], "E2037")
+        self.assertEqual(rv[13]["gramps_id"], "E02037")
         self.assertEqual(rv[13]["label"], "Birth (Son)")
-        self.assertEqual(rv[22]["gramps_id"], "E2051")
+        self.assertEqual(rv[22]["gramps_id"], "E02051")
         self.assertEqual(rv[22]["label"], "Birth (Daughter)")
-        self.assertEqual(rv[29]["gramps_id"], "E1657")
+        self.assertEqual(rv[29]["gramps_id"], "E01657")
         self.assertEqual(rv[29]["label"], "Death")
-        self.assertEqual(rv[30]["gramps_id"], "E1658")
+        self.assertEqual(rv[30]["gramps_id"], "E01658")
         self.assertEqual(rv[30]["label"], "Burial")
 
     def test_get_people_handle_timeline_validate_semantics(self):

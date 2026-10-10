@@ -15,7 +15,8 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "gramps[all]>=6.0.4,<6.1.0",
+    # TODO: switch to "gramps[all]>=6.1.0,<6.2.0" once Gramps 6.1.0 is on PyPI
+    "gramps[all] @ https://github.com/gramps-project/gramps/archive/refs/heads/maintenance/gramps61.tar.gz",
     "PYGObject<=3.50.0",
     "orjson",
     "Click>=7.0",
