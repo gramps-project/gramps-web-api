@@ -22,7 +22,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from ..config import DefaultConfig
 
@@ -64,11 +64,14 @@ def check_deprecations(
     config: Mapping[str, Any],
     environ: Mapping[str, str] | None = None,
     get_option: Callable[[str], Any] | None = None,
+    db_options: Iterable[str] = (),
 ) -> list[dict[str, str]]:
     """Return the deprecated configuration options this deployment relies on.
 
     `get_option` is used to look up options that can also be stored in the user
     database rather than in the app config; it defaults to the app config.
+    `db_options` are the options with a value stored in the user database that
+    differs from the app config.
     """
     if environ is None:
         environ = os.environ
@@ -128,6 +131,19 @@ def check_deprecations(
                 "EMAIL_USE_TLS",
                 replacement,
                 f"The `EMAIL_USE_TLS` config option is deprecated. {advice}",
+            )
+        )
+    for option in sorted(db_options):
+        deprecations.append(
+            _deprecation(
+                option,
+                # the option keeps its name, only where it is set changes
+                "",
+                f"Storing the `{option}` config option in the database, e.g. via"
+                " the first-run wizard, is deprecated, and stored values will no"
+                f" longer be read. Please set `{option}` in the server"
+                " configuration to the stored value; this warning disappears"
+                " once the two match.",
             )
         )
     return deprecations

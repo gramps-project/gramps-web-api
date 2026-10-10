@@ -40,6 +40,7 @@ from webargs import fields
 
 from gramps_webapi.const import TREE_MULTI, VERSION
 
+from ...auth import config_get_all
 from ...auth.const import PERM_EDIT_TREE, PERM_VIEW_PRIVATE, PERM_VIEW_SETTINGS
 from ...dbmanager import WebDbManager
 from ..auth import has_permissions, require_permissions
@@ -226,7 +227,14 @@ def _get_server_metadata() -> dict[str, Any]:
     ):
         # re-checked per request since some options can be stored in the database
         result["deprecations"] = check_deprecations(
-            current_app.config, get_option=get_config
+            current_app.config,
+            get_option=get_config,
+            # once the app config has the same value, nothing changes in 4.0
+            db_options=[
+                key
+                for key, value in config_get_all().items()
+                if value is not None and value != str(current_app.config.get(key))
+            ],
         )
     return result
 
