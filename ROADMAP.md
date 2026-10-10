@@ -14,15 +14,19 @@ removed no earlier than the next major.
 | Version | Target | Gramps | Breaking changes |
 |---|---|---|---|
 | 3.23.x | current | 6.0 | none |
-| 3.24.0 | October/November 2026 | 6.0 | none |
+| 3.24.0 | October 2026 | 6.0 | none |
 | 3.x | as needed | 6.0 | none |
-| 4.0.0 | TBD | 6.0, 6.1 or 6.2 (open) | multi-tree by default, removals below |
+| 4.0.0 | TBD | 6.1 | multi-tree by default, removals below |
+| 5.0.0 | TBD | 6.2 | TBD |
 
 ## Notable in 3.24
 
-TBD
+- User database migrations for task locking (#1049) and web push (#1001)
+- Configuration via the database is deprecated (#1050)
 
 ## Breaking in 4.0
+
+> Note: Depending on the (unknown) release date of Gramps 6.1, these breaking changes may be moved to 5.0 instead.
 
 Multi-tree mode becomes the default and single-tree mode goes away
 ([#885](https://github.com/gramps-project/gramps-web-api/issues/885)).
@@ -35,5 +39,6 @@ Multi-tree mode becomes the default and single-tree mode goes away
 | `GET /api/token/create_owner/` | `POST` on same endpoint |
 | `tree` arg on `GET /api/oidc/login/` | Tree selection after login |
 
-Support for the `PostgreSQL` backend will be dropped in 4.0, because it is not compatible with multi-tree mode. Note that both the `SharedPostgreSQL` and `SQLite` backends will continue to be fully
-supported.
+Support for the `PostgreSQL` backend will be dropped in 4.0, because it is not compatible with multi-tree mode. Note that both the `SharedPostgreSQL` and `SQLite` backends will continue to be fully supported.
+
+Configuration via the database is removed in 4.0, so that all configuration is in env vars or config files. The `config` table will be dropped, and the `config` API endpoints will return 404.
