@@ -105,7 +105,7 @@ class MediaFileResource(ProtectedResource):
         for etag in request.if_match:
             if etag != checksum_old:
                 abort_with_message(412, "ETag mismatch. Resource has been modified.")
-        mime = request.content_type
+        mime = request.mimetype
         if not mime:
             abort_with_message(HTTPStatus.NOT_ACCEPTABLE, "Media type not recognized")
         checksum, size, f = process_file(request.stream)

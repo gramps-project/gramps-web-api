@@ -77,7 +77,7 @@ class MediaObjectsResource(GrampsObjectsProtectedResource, MediaObjectResourceHe
     def post(self) -> Response:
         """Post a new object."""
         require_permissions([PERM_ADD_OBJ])
-        mime = request.content_type
+        mime = request.mimetype
         if not mime:
             abort_with_message(HTTPStatus.NOT_ACCEPTABLE, "Media type not recognized")
         if not get_extension(mime):

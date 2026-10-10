@@ -245,6 +245,34 @@ class TestUpload(unittest.TestCase):
         rv = self.client.get(f"/api/media/{handle}", headers=headers)
         self.assertEqual(rv.json["path"], f"{rv.json['checksum']}.gpx")
 
+    def test_upload_media_type_with_parameters(self):
+        """Parameters in the Content-Type header are ignored."""
+        headers = get_headers(self.client, "admin", "123")
+        data = b'{"type": "FeatureCollection", "features": []}'
+        rv = self.client.post(
+            "/api/media/",
+            data=data,
+            headers=headers,
+            content_type="application/geo+json; charset=utf-8",
+        )
+        self.assertEqual(rv.status_code, 201)
+        handle = rv.json[0]["new"]["handle"]
+        rv = self.client.get(f"/api/media/{handle}", headers=headers)
+        checksum = rv.json["checksum"]
+        self.assertEqual(rv.json["path"], f"{checksum}.geojson")
+        self.assertEqual(rv.json["mime"], "application/geo+json")
+        data = b'<?xml version="1.0"?><kml xmlns="http://www.opengis.net/kml/2.2"/>'
+        rv = self.client.put(
+            f"/api/media/{handle}/file",
+            data=data,
+            headers={**headers, "If-Match": checksum},
+            content_type="application/vnd.google-earth.kml+xml; charset=utf-8",
+        )
+        self.assertEqual(rv.status_code, 200)
+        rv = self.client.get(f"/api/media/{handle}", headers=headers)
+        self.assertEqual(rv.json["path"], f"{rv.json['checksum']}.kml")
+        self.assertEqual(rv.json["mime"], "application/vnd.google-earth.kml+xml")
+
 
 class TestUploadWithQuota(unittest.TestCase):
     @classmethod
