@@ -201,6 +201,78 @@ class TestUpload(unittest.TestCase):
         rv = self.client.get(f"/api/media/{handle}/file", headers=headers)
         self.assertEqual(rv.status_code, 200)
 
+    def test_upload_unsupported_media_type(self):
+        """A MIME type without a known file extension is rejected."""
+        img, checksum, size = get_image(4)
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post(
+            "/api/media/",
+            data=img.read(),
+            headers=headers,
+            content_type="application/x-no-such-type",
+        )
+        self.assertEqual(rv.status_code, 415)
+        img.seek(0)
+        rv = self.client.post(
+            "/api/media/", data=img.read(), headers=headers, content_type="image/jpeg"
+        )
+        self.assertEqual(rv.status_code, 201)
+        handle = rv.json[0]["new"]["handle"]
+        new_img, new_checksum, new_size = get_image(5)
+        rv = self.client.put(
+            f"/api/media/{handle}/file",
+            data=new_img.read(),
+            headers={**headers, "If-Match": checksum},
+            content_type="application/x-no-such-type",
+        )
+        self.assertEqual(rv.status_code, 415)
+        # the media object is unchanged
+        rv = self.client.get(f"/api/media/{handle}", headers=headers)
+        self.assertEqual(rv.json["checksum"], checksum)
+
+    def test_upload_gpx(self):
+        """GPX has no extension in the standard MIME tables but is supported."""
+        headers = get_headers(self.client, "admin", "123")
+        data = b'<?xml version="1.0"?><gpx version="1.1" creator="test"></gpx>'
+        rv = self.client.post(
+            "/api/media/",
+            data=data,
+            headers=headers,
+            content_type="application/gpx+xml",
+        )
+        self.assertEqual(rv.status_code, 201)
+        handle = rv.json[0]["new"]["handle"]
+        rv = self.client.get(f"/api/media/{handle}", headers=headers)
+        self.assertEqual(rv.json["path"], f"{rv.json['checksum']}.gpx")
+
+    def test_upload_media_type_with_parameters(self):
+        """Parameters in the Content-Type header are ignored."""
+        headers = get_headers(self.client, "admin", "123")
+        data = b'{"type": "FeatureCollection", "features": []}'
+        rv = self.client.post(
+            "/api/media/",
+            data=data,
+            headers=headers,
+            content_type="application/geo+json; charset=utf-8",
+        )
+        self.assertEqual(rv.status_code, 201)
+        handle = rv.json[0]["new"]["handle"]
+        rv = self.client.get(f"/api/media/{handle}", headers=headers)
+        checksum = rv.json["checksum"]
+        self.assertEqual(rv.json["path"], f"{checksum}.geojson")
+        self.assertEqual(rv.json["mime"], "application/geo+json")
+        data = b'<?xml version="1.0"?><kml xmlns="http://www.opengis.net/kml/2.2"/>'
+        rv = self.client.put(
+            f"/api/media/{handle}/file",
+            data=data,
+            headers={**headers, "If-Match": checksum},
+            content_type="application/vnd.google-earth.kml+xml; charset=utf-8",
+        )
+        self.assertEqual(rv.status_code, 200)
+        rv = self.client.get(f"/api/media/{handle}", headers=headers)
+        self.assertEqual(rv.json["path"], f"{rv.json['checksum']}.kml")
+        self.assertEqual(rv.json["mime"], "application/vnd.google-earth.kml+xml")
+
 
 class TestUploadWithQuota(unittest.TestCase):
     @classmethod
