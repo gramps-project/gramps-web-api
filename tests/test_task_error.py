@@ -28,6 +28,7 @@ from flask import Flask, Response
 from werkzeug.exceptions import HTTPException
 
 from gramps_webapi.api.resources.tasks import _task_error_payload, _task_meta
+from gramps_webapi.auth import user_db
 from gramps_webapi.util.celery import TaskError, TaskRejection, create_celery
 
 PAYLOAD = {"error": {"code": 405, "message": "Not allowed by people quota"}}
@@ -101,6 +102,10 @@ def _celery_app():
     """Return a celery app wired to a Flask app, as gramps_webapi.celery does."""
     app = Flask(__name__)
     app.config["CELERY_CONFIG"] = {}
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite://"
+    user_db.init_app(app)
+    with app.app_context():
+        user_db.create_all()
     return create_celery(app)
 
 

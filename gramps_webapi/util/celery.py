@@ -4,6 +4,8 @@ from celery import Task
 from celery import current_app as current_celery_app
 from werkzeug.exceptions import HTTPException
 
+from .task_state import run_tracked
+
 
 class TaskError(Exception):
     """Task failure carrying an API-style error payload as its only argument.
@@ -36,7 +38,9 @@ def create_celery(app):
                 return self.run(*args, **kwargs)
             with app.app_context():
                 try:
-                    return self.run(*args, **kwargs)
+                    return run_tracked(
+                        self.request.id, lambda: self.run(*args, **kwargs)
+                    )
                 except HTTPException as exc:
                     # Utilities like check_quota_people abort with an
                     # HTTPException inside tasks too; preserve the API error
