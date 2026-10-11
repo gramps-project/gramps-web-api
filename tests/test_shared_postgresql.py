@@ -346,9 +346,6 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
                 [{"handle": SHARED_PERSON, "birth.place.title": f"{label}ville"}],
             )
 
-    # gramps-object-query-language orders NULL as the smallest value, but
-    # emits no NULLS FIRST/LAST, so PostgreSQL sorts NULL first in `desc`.
-    @unittest.expectedFailure
     def test_query_order_by_path(self):
         rv = self._query(
             "owner_b",
