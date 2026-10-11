@@ -19,6 +19,7 @@
 
 """Tests for the ETags of cached endpoints."""
 
+import hashlib
 import os
 import unittest
 import uuid
@@ -114,3 +115,13 @@ class TestRequestCacheETag(unittest.TestCase):
             self._get_etag(path, self.headers_admin),
             self._get_etag(path, self.headers_user),
         )
+
+    def test_etag_without_timestamp(self):
+        """Without a last change timestamp, the ETag is the hash of the body."""
+        path = f"/api/notes/{self.handle}"
+        with patch(
+            "gramps_webapi.api.cache.get_db_last_change_timestamp", return_value=None
+        ):
+            rv = self.client.get(path, headers=self.headers_admin)
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.headers["ETag"], f'"{hashlib.sha256(rv.data).hexdigest()}"')
