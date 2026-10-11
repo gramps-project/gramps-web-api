@@ -674,36 +674,35 @@ def delete_all_objects(
     i = 0
     delete_all = namespaces is None
     order = _FAST_DELETE_ORDER if delete_all else list(GRAMPS_OBJECT_PLURAL.keys())
-    for class_name in order:
-        namespace = GRAMPS_OBJECT_PLURAL[class_name]
-        if namespaces is not None and namespace not in namespaces:
-            continue
-        iter_handles = db_handle.method("iter_%s_handles", class_name)
-        if delete_all:
-            # Fast path: batch=True skips undo-data recording and signal emission.
-            # Materialize handles before opening the transaction to avoid cursor
-            # conflicts with the deletions that follow.
-            handles = list(iter_handles())
-            unset_default_person = (
-                class_name == "Person" and db_handle.get_default_handle() is not None
-            )
-            remove = getattr(db_handle, f"remove_{class_name.lower()}")
-            with DbTxn(f"Delete {class_name}", db_handle, batch=True) as trans:
-                if unset_default_person:
-                    db_handle.set_default_person_handle(None)
+    class_names = [
+        class_name
+        for class_name in order
+        if namespaces is None or GRAMPS_OBJECT_PLURAL[class_name] in namespaces
+    ]
+    unset_default_person = (
+        "Person" in class_names and db_handle.get_default_handle() is not None
+    )
+    # One transaction, so the commit isn't long before the close that updates
+    # the last change timestamp. batch=True skips undo data and signals.
+    with DbTxn(
+        f"Delete {namespaces or 'all objects'}", db_handle, batch=delete_all
+    ) as trans:
+        if unset_default_person:
+            db_handle.set_default_person_handle(None)
+        for class_name in class_names:
+            iter_handles = db_handle.method("iter_%s_handles", class_name)
+            if delete_all:
+                # Materialize handles before the deletions that follow to
+                # avoid cursor conflicts.
+                handles = list(iter_handles())
+                remove = getattr(db_handle, f"remove_{class_name.lower()}")
                 for handle in handles:
                     if progress_cb:
                         progress_cb(current=i, total=total)
                     i += 1
                     remove(handle, trans)
-        else:
-            del_method = delete_methods[class_name.lower()]
-            unset_default_person = (
-                class_name == "Person" and db_handle.get_default_handle() is not None
-            )
-            with DbTxn(f"Delete {namespaces}", db_handle) as trans:
-                if unset_default_person:
-                    db_handle.set_default_person_handle(None)
+            else:
+                del_method = delete_methods[class_name.lower()]
                 for handle in iter_handles():
                     if progress_cb:
                         progress_cb(current=i, total=total)
