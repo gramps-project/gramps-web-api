@@ -5,10 +5,10 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from functools import wraps
+from typing import Callable, Collection
 
-from typing import Collection
-
-from flask import current_app, g, request
+from flask import Response, current_app, g, request
 from flask_caching import Cache
 from gramps.gen.errors import HandleError
 
@@ -93,6 +93,8 @@ def make_cache_key_request(*args, **kwargs):
         raise ValueError("Database last change timestamp is None")
 
     cache_key = tree_id + str(db_timestamp) + request.path + arg_hash + permission_hash
+    # reused for the ETag by request_cache_decorator
+    g.request_cache_key = cache_key
 
     return cache_key
 
@@ -121,9 +123,32 @@ def skip_cache_missing_media(*args, **kwargs) -> bool:
     return False
 
 
-request_cache_decorator = request_cache.cached(
+_request_cached = request_cache.cached(
     make_cache_key=make_cache_key_request, unless=skip_cache_condition_request
 )
+
+
+def request_cache_decorator(f: Callable) -> Callable:
+    """Cache the view's response and use the cache key as its ETag.
+
+    A cache key determines the response, so its hash is a valid ETag that,
+    unlike the hash of the body, is known before the view runs.
+    If caching is skipped, the response keeps its body-hash ETag.
+    """
+    cached_f = _request_cached(f)
+
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        g.pop("request_cache_key", None)
+        rv = cached_f(*args, **kwargs)
+        cache_key = g.pop("request_cache_key", None)
+        if cache_key and isinstance(rv, Response) and rv.status_code == 200:
+            rv.set_etag(hashlib.sha256(cache_key.encode()).hexdigest())
+        return rv
+
+    return wrapper
+
+
 thumbnail_cache_decorator = thumbnail_cache.cached(
     make_cache_key=make_cache_key_thumbnails, unless=skip_cache_missing_media
 )
