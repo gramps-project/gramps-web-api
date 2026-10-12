@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import os
+import time
 import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING, BinaryIO, Callable, List, Optional, Set
@@ -49,6 +50,47 @@ if TYPE_CHECKING:
     from .s3 import ObjectStorageFileHandler
 
 PREFIX_S3 = "s3://"
+
+# Media archives are never deleted when downloaded. They can be downloaded until
+# they are older than EXPORT_RETENTION_SECONDS, and are deleted by the next
+# export once they are older than that plus a grace period, so a download
+# started just before expiry is not cut off.
+ARCHIVE_DIR = "media_archives"
+ARCHIVE_GRACE_SECONDS = 3600
+ARCHIVE_URL_LIFETIME = 3600  # must not exceed ARCHIVE_GRACE_SECONDS
+
+
+def get_archive_download_name(timestamp: float) -> str:
+    """Return the download file name for a media archive created at timestamp."""
+    date_str = time.strftime("%Y%m%d%H%M%S", time.localtime(timestamp))
+    return f"gramps-web-media-export-{date_str}.zip"
+
+
+def is_archive_expired(created: float, retention: float) -> bool:
+    """Return whether a media archive can no longer be downloaded."""
+    return time.time() - created > retention
+
+
+def get_local_archive_dir(tree: str | None = None) -> str:
+    """Return the directory holding local media archives, of one tree or of all."""
+    archive_dir = os.path.join(current_app.config["EXPORT_DIR"], ARCHIVE_DIR)
+    if tree is None:
+        return os.path.abspath(archive_dir)
+    return os.path.abspath(os.path.join(archive_dir, tree))
+
+
+def delete_expired_local_archives(retention: float) -> None:
+    """Delete local media archives of all trees that are past the grace period."""
+    cutoff = time.time() - retention - ARCHIVE_GRACE_SECONDS
+    archive_dir = Path(get_local_archive_dir())
+    if not archive_dir.is_dir():
+        return
+    for path in archive_dir.glob("*/*.zip"):
+        try:
+            if path.stat().st_mtime < cutoff:
+                path.unlink()
+        except FileNotFoundError:
+            pass  # removed by a concurrent export
 
 
 class MediaHandlerBase:
@@ -320,6 +362,66 @@ class MediaHandlerS3(MediaHandlerBase):
                 file_handler = self.get_file_handler(obj.handle, db_handle=db_handle)
                 fobj = file_handler.get_file_object()
                 zip_file.writestr(media_path, fobj.read())
+
+    def _get_archive_key(self, tree: str, file_name: str) -> str:
+        """Get the object name of a media archive."""
+        from .s3 import get_object_name
+
+        return get_object_name(f"{ARCHIVE_DIR}/{tree}/{file_name}", self.prefix)
+
+    def upload_file_archive(
+        self, zip_filename: FilenameOrPath, tree: str, retention: float
+    ) -> None:
+        """Upload a media archive and delete expired archives."""
+        from .s3 import get_client
+
+        client = get_client(self.endpoint_url)
+        key = self._get_archive_key(tree, Path(zip_filename).name)
+        client.upload_file(
+            str(zip_filename),
+            self.bucket_name,
+            key,
+            ExtraArgs={"ContentType": "application/zip"},
+        )
+        cutoff = time.time() - retention - ARCHIVE_GRACE_SECONDS
+        # covers all trees under this handler's prefix
+        archive_prefix = self._get_archive_key("", "").rstrip("/") + "/"
+        paginator = client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self.bucket_name, Prefix=archive_prefix):
+            for obj in page.get("Contents", []):
+                if obj["Key"] != key and obj["LastModified"].timestamp() < cutoff:
+                    client.delete_object(Bucket=self.bucket_name, Key=obj["Key"])
+
+    def get_file_archive_url(
+        self, tree: str, file_name: str, retention: float
+    ) -> str | None:
+        """Return a presigned download URL for an unexpired media archive."""
+        from botocore.exceptions import ClientError
+
+        from .s3 import get_client
+
+        client = get_client(self.endpoint_url)
+        key = self._get_archive_key(tree, file_name)
+        try:
+            head = client.head_object(Bucket=self.bucket_name, Key=key)
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] in {"404", "NoSuchKey", "NotFound"}:
+                return None
+            raise
+        created = head["LastModified"].timestamp()
+        if is_archive_expired(created, retention):
+            return None
+        download_name = get_archive_download_name(created)
+        return client.generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": self.bucket_name,
+                "Key": key,
+                "ResponseContentType": "application/zip",
+                "ResponseContentDisposition": f'attachment; filename="{download_name}"',
+            },
+            ExpiresIn=ARCHIVE_URL_LIFETIME,
+        )
 
 
 def MediaHandler(base_dir: Optional[str]) -> MediaHandlerBase:

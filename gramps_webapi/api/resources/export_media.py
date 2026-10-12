@@ -21,19 +21,29 @@
 
 import os
 import re
-import time
 
-from flask import Response, abort, current_app, jsonify, send_file
+from flask import abort, current_app, jsonify, redirect, send_file
 from flask_jwt_extended import get_jwt_identity
 
 from ...auth.const import PERM_VIEW_PRIVATE
 from ..auth import has_permissions
+from ..media import (
+    MediaHandlerS3,
+    get_archive_download_name,
+    get_local_archive_dir,
+    get_media_handler,
+    is_archive_expired,
+)
 from ..ratelimiter import limiter_per_user
 from ..tasks import AsyncResult, export_media, make_task_response, run_task
-from ..util import abort_with_message, get_buffer_for_file, get_tree_from_jwt
+from ..util import (
+    abort_with_message,
+    get_db_handle,
+    get_tree_from_jwt,
+    get_tree_from_jwt_or_fail,
+)
 from . import ProtectedResource
 from gramps_webapi.types import ResponseReturnValue
-
 
 
 def get_limit() -> str:
@@ -63,24 +73,38 @@ class MediaArchiveResource(ProtectedResource):
 class MediaArchiveFileResource(ProtectedResource):
     """Resource for downloading an archive of media files."""
 
-    def get(self, filename: str) -> Response:
+    def get(self, filename: str) -> ResponseReturnValue:
         """Download an archive of media files."""
-        export_path = current_app.config["EXPORT_DIR"]
         # assert the filename is legit
         regex = re.compile(
             r"([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(\.zip)"
         )
-        match = regex.match(filename)
+        match = regex.fullmatch(filename)
         if not match:
             abort_with_message(422, "Invalid filename")
 
-        file_path = os.path.join(export_path, filename)
-        if not os.path.isfile(file_path):
+        tree = get_tree_from_jwt_or_fail()
+        retention = current_app.config["EXPORT_RETENTION_SECONDS"]
+        media_handler = get_media_handler(get_db_handle(), tree=tree)
+        if isinstance(media_handler, MediaHandlerS3):
+            url = media_handler.get_file_archive_url(
+                tree=tree, file_name=filename, retention=retention
+            )
+            if url is None:
+                abort(404)
+            return redirect(url, 307)
+
+        file_path = os.path.join(get_local_archive_dir(tree), filename)
+        try:
+            created = os.path.getmtime(file_path)
+        except FileNotFoundError:
             abort(404)
-        date_lastmod = time.localtime(os.path.getmtime(file_path))
-        buffer = get_buffer_for_file(file_path, delete=True)
-        date_str = time.strftime("%Y%m%d%H%M%S", date_lastmod)
-        download_name = f"gramps-web-media-export-{date_str}.zip"
+        if is_archive_expired(created, retention):
+            abort(404)
+        # streamed from disk, with support for resuming via range requests
         return send_file(
-            buffer, mimetype="application/zip", download_name=download_name
+            file_path,
+            mimetype="application/zip",
+            as_attachment=True,
+            download_name=get_archive_download_name(created),
         )
