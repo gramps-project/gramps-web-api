@@ -166,6 +166,31 @@ def test_pdf_render_size_capped():
     assert img.width <= 2000 and img.height <= 2000
 
 
+def test_pdf_render_keeps_the_page_shape():
+    """A portrait page must not be stretched to a square, see gramps-web#1450."""
+    buf = make_two_page_pdf(size=(595, 842))
+    handler = ThumbnailHandler(buf, MIME_PDF)
+    img = handler.get_image()
+    assert img.height == 2000
+    assert abs(img.width / img.height - 595 / 842) < 0.01
+
+
+def test_square_pdf_thumbnail_is_cropped_like_an_image():
+    """Square thumbnails of a portrait page are cropped, not squeezed."""
+    page = Image.new("RGB", (595, 842), color=(255, 255, 255))
+    # a black band across the top and bottom fifth of the page
+    page.paste((0, 0, 0), (0, 0, 595, 168))
+    page.paste((0, 0, 0), (0, 674, 595, 842))
+    buf = io.BytesIO()
+    page.save(buf, format="PDF")
+    buf.seek(0)
+    thumb = Image.open(ThumbnailHandler(buf, MIME_PDF).get_thumbnail(200, square=True))
+    assert thumb.size == (200, 200)
+    # cropped, about 15 px of each band remain; squeezed, it would be 40 px
+    assert thumb.convert("L").getpixel((100, 25)) > 200
+    assert thumb.convert("L").getpixel((100, 5)) < 50
+
+
 def test_unsupported_mime_type_aborts_415():
     """A MIME type with no thumbnailer must abort, not raise ValueError."""
     with pytest.raises(HTTPException) as exc_info:

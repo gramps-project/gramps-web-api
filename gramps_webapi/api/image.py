@@ -231,7 +231,9 @@ class ThumbnailHandler:
                 last_page=1,
                 use_cropbox=True,
                 dpi=100,
-                size=(2000, 2000),
+                # a single number scales the longer side, keeping the page's
+                # shape; a (width, height) pair would stretch it to that size
+                size=2000,
             )
         except PopplerNotInstalledError:
             abort_with_message(501, "Poppler is not installed")
