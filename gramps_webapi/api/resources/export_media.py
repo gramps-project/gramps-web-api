@@ -19,21 +19,28 @@
 
 """Endpoint for creating and downloading media archives."""
 
+import contextlib
+import io
 import os
 import re
-import time
+import uuid
 
-from flask import Response, abort, current_app, jsonify, send_file
+from flask import abort, current_app, jsonify, redirect, send_file
 from flask_jwt_extended import get_jwt_identity
 
 from ...auth.const import PERM_VIEW_PRIVATE
 from ..auth import has_permissions
+from ..media import MediaHandlerS3, get_archive_download_name, get_media_handler
 from ..ratelimiter import limiter_per_user
 from ..tasks import AsyncResult, export_media, make_task_response, run_task
-from ..util import abort_with_message, get_buffer_for_file, get_tree_from_jwt
+from ..util import (
+    abort_with_message,
+    get_db_handle,
+    get_tree_from_jwt,
+    get_tree_from_jwt_or_fail,
+)
 from . import ProtectedResource
 from gramps_webapi.types import ResponseReturnValue
-
 
 
 def get_limit() -> str:
@@ -60,10 +67,25 @@ class MediaArchiveResource(ProtectedResource):
         return jsonify(task), 201
 
 
+class _DeleteOnCloseFile(io.FileIO):
+    """Binary file that is deleted once the WSGI server has sent and closed it.
+
+    `Response.call_on_close` cannot be used for this, since Werkzeug hands file
+    responses directly to the server, bypassing the response's close callbacks.
+    """
+
+    def close(self) -> None:
+        try:
+            super().close()
+        finally:
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(self.name)
+
+
 class MediaArchiveFileResource(ProtectedResource):
     """Resource for downloading an archive of media files."""
 
-    def get(self, filename: str) -> Response:
+    def get(self, filename: str) -> ResponseReturnValue:
         """Download an archive of media files."""
         export_path = current_app.config["EXPORT_DIR"]
         # assert the filename is legit
@@ -74,13 +96,32 @@ class MediaArchiveFileResource(ProtectedResource):
         if not match:
             abort_with_message(422, "Invalid filename")
 
-        file_path = os.path.join(export_path, filename)
-        if not os.path.isfile(file_path):
+        tree = get_tree_from_jwt_or_fail()
+        media_handler = get_media_handler(get_db_handle(), tree=tree)
+        if isinstance(media_handler, MediaHandlerS3):
+            url = media_handler.get_file_archive_url(tree=tree, file_name=filename)
+            if url is None:
+                abort(404)
+            return redirect(url, 307)
+
+        # absolute, since send_file resolves relative paths against the app root
+        file_path = os.path.abspath(os.path.join(export_path, filename))
+        # claim the archive by renaming it, so a concurrent request for the
+        # same file gets a 404 instead of reading a file that is being deleted
+        sending_path = f"{file_path}.{uuid.uuid4()}.sending"
+        try:
+            os.rename(file_path, sending_path)
+        except FileNotFoundError:
             abort(404)
-        date_lastmod = time.localtime(os.path.getmtime(file_path))
-        buffer = get_buffer_for_file(file_path, delete=True)
-        date_str = time.strftime("%Y%m%d%H%M%S", date_lastmod)
-        download_name = f"gramps-web-media-export-{date_str}.zip"
-        return send_file(
-            buffer, mimetype="application/zip", download_name=download_name
+        download_name = get_archive_download_name(os.path.getmtime(sending_path))
+        # stream from disk rather than buffering archives of several GB in memory
+        file_obj = _DeleteOnCloseFile(sending_path)
+        response = send_file(
+            file_obj,
+            mimetype="application/zip",
+            as_attachment=True,
+            download_name=download_name,
+            conditional=False,
         )
+        response.content_length = os.fstat(file_obj.fileno()).st_size
+        return response

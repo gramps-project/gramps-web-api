@@ -48,7 +48,7 @@ from .check import check_database
 from .emails import email_confirm_email, email_new_user, email_reset_pw
 from ..verify_lib import run_verify
 from .export import prepare_options, run_export
-from .media import get_media_handler
+from .media import MediaHandlerS3, get_media_handler
 from .media_importer import MediaImporter
 from .report import run_report
 from .resources.delete import delete_all_objects
@@ -569,6 +569,12 @@ def export_media(
         close_db(db_handle)
 
     file_size = os.path.getsize(zip_filename)
+    if isinstance(media_handler, MediaHandlerS3):
+        # serve the archive from object storage rather than through the API
+        try:
+            media_handler.upload_file_archive(zip_filename, tree=tree)
+        finally:
+            os.remove(zip_filename)
     return {
         "file_name": file_name,
         "url": f"/api/media/archive/{file_name}",

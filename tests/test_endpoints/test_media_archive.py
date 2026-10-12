@@ -19,7 +19,10 @@
 
 """Tests for the file and thumbnail endpoints using example_gramps."""
 
+import io
+import os
 import unittest
+import zipfile
 
 from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_OWNER
 
@@ -48,5 +51,15 @@ class TestMediaArchiv(unittest.TestCase):
         assert "file_name" in rv.json
         assert "file_size" in rv.json
         assert "url" in rv.json
-        rv = self.client.get(rv.json["url"], headers=headers)
+        url = rv.json["url"]
+        rv = self.client.get(url, headers=headers)
         assert rv.status_code == 200
+        assert rv.mimetype == "application/zip"
+        assert rv.headers["Content-Disposition"].startswith("attachment;")
+        assert zipfile.is_zipfile(io.BytesIO(rv.data))
+        rv.close()
+        # the archive can only be downloaded once
+        rv = self.client.get(url, headers=headers)
+        assert rv.status_code == 404
+        export_dir = self.client.application.config["EXPORT_DIR"]
+        assert not [f for f in os.listdir(export_dir) if f.endswith(".sending")]

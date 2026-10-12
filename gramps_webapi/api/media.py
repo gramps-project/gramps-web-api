@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import os
+import time
 import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING, BinaryIO, Callable, List, Optional, Set
@@ -49,6 +50,14 @@ if TYPE_CHECKING:
     from .s3 import ObjectStorageFileHandler
 
 PREFIX_S3 = "s3://"
+ARCHIVE_DIR_S3 = "media_archives"
+ARCHIVE_URL_LIFETIME = 3600
+
+
+def get_archive_download_name(timestamp: float) -> str:
+    """Return the download file name for a media archive created at timestamp."""
+    date_str = time.strftime("%Y%m%d%H%M%S", time.localtime(timestamp))
+    return f"gramps-web-media-export-{date_str}.zip"
 
 
 class MediaHandlerBase:
@@ -320,6 +329,59 @@ class MediaHandlerS3(MediaHandlerBase):
                 file_handler = self.get_file_handler(obj.handle, db_handle=db_handle)
                 fobj = file_handler.get_file_object()
                 zip_file.writestr(media_path, fobj.read())
+
+    def _get_archive_key(self, tree: str, file_name: str) -> str:
+        """Get the object name of a media archive."""
+        from .s3 import get_object_name
+
+        return get_object_name(f"{ARCHIVE_DIR_S3}/{tree}/{file_name}", self.prefix)
+
+    def upload_file_archive(self, zip_filename: FilenameOrPath, tree: str) -> None:
+        """Upload a media archive, replacing earlier archives of the tree.
+
+        Archives are scoped by tree so that trees sharing a bucket without
+        prefix cannot delete each other's archives.
+        """
+        from .s3 import get_client
+
+        client = get_client(self.endpoint_url)
+        key = self._get_archive_key(tree, Path(zip_filename).name)
+        client.upload_file(
+            str(zip_filename),
+            self.bucket_name,
+            key,
+            ExtraArgs={"ContentType": "application/zip"},
+        )
+        archive_prefix = self._get_archive_key(tree, "")
+        paginator = client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self.bucket_name, Prefix=archive_prefix):
+            for obj in page.get("Contents", []):
+                if obj["Key"] != key:
+                    client.delete_object(Bucket=self.bucket_name, Key=obj["Key"])
+
+    def get_file_archive_url(self, tree: str, file_name: str) -> str | None:
+        """Return a presigned download URL for a media archive, if it exists."""
+        from botocore.exceptions import ClientError
+
+        from .s3 import get_client
+
+        client = get_client(self.endpoint_url)
+        key = self._get_archive_key(tree, file_name)
+        try:
+            head = client.head_object(Bucket=self.bucket_name, Key=key)
+        except ClientError:
+            return None
+        download_name = get_archive_download_name(head["LastModified"].timestamp())
+        return client.generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": self.bucket_name,
+                "Key": key,
+                "ResponseContentType": "application/zip",
+                "ResponseContentDisposition": f'attachment; filename="{download_name}"',
+            },
+            ExpiresIn=ARCHIVE_URL_LIFETIME,
+        )
 
 
 def MediaHandler(base_dir: Optional[str]) -> MediaHandlerBase:
