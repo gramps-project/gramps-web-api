@@ -83,6 +83,7 @@ class DefaultConfig(object):
     MEDIA_PREFIX_TREE = False
     REPORT_DIR = str(Path.cwd() / "report_cache")
     EXPORT_DIR = str(Path.cwd() / "export_cache")
+    EXPORT_RETENTION_SECONDS = 24 * 60 * 60
     NEW_DB_BACKEND = "sqlite"
     RATE_LIMIT_MEDIA_ARCHIVE = "1 per day"
     REGISTRATION_DISABLED = False

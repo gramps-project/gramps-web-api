@@ -19,11 +19,13 @@
 
 """Tests for the file and thumbnail endpoints using example_gramps."""
 
-import os
 import unittest
+import uuid
+from pathlib import Path
 from unittest.mock import patch
 
 import boto3
+from botocore.exceptions import ClientError
 import pytest
 from moto import mock_aws
 
@@ -105,24 +107,55 @@ class TestS3(unittest.TestCase):
         first_name = rv.json["file_name"]
         # the local copy is removed after the upload
         export_dir = self.client.application.config["EXPORT_DIR"]
-        self.assertFalse(os.path.exists(os.path.join(export_dir, first_name)))
+        self.assertFalse(
+            list(Path(export_dir, "media_archives").glob(f"*/{first_name}"))
+        )
         rv = self.client.get(first_url, headers=headers)
         self.assertEqual(rv.status_code, 307)
         location = rv.headers["Location"]
         self.assertIn("media_archives/", location)
         self.assertIn(first_name, location)
         self.assertIn("response-content-disposition=attachment", location)
-        # downloads can be repeated until the archive is replaced
+        # downloads can be repeated
         rv = self.client.get(first_url, headers=headers)
         self.assertEqual(rv.status_code, 307)
-        # a new archive replaces the previous one
+        # a new archive does not replace unexpired ones
         rv = self.client.post("/api/media/archive/", headers=headers)
         self.assertEqual(rv.status_code, 201)
-        second_name = rv.json["file_name"]
+        second_url = rv.json["url"]
+        keys = [obj.key for obj in bucket.objects.filter(Prefix="media_archives/")]
+        self.assertEqual(len(keys), 2)
+        # once expired, archives cannot be downloaded and the next export deletes them
+        config = self.client.application.config
+        retention = config["EXPORT_RETENTION_SECONDS"]
+        try:
+            config["EXPORT_RETENTION_SECONDS"] = 0
+            rv = self.client.get(second_url, headers=headers)
+            self.assertEqual(rv.status_code, 404)
+            with patch("gramps_webapi.api.media.ARCHIVE_GRACE_SECONDS", 0):
+                rv = self.client.post("/api/media/archive/", headers=headers)
+            self.assertEqual(rv.status_code, 201)
+        finally:
+            config["EXPORT_RETENTION_SECONDS"] = retention
         keys = [obj.key for obj in bucket.objects.filter(Prefix="media_archives/")]
         self.assertEqual(len(keys), 1)
-        self.assertTrue(keys[0].endswith(second_name))
-        rv = self.client.get(first_url, headers=headers)
+        self.assertTrue(keys[0].endswith(rv.json["file_name"]))
+
+    @mock_aws
+    def test_media_archive_storage_error(self):
+        """Storage errors other than a missing archive are not reported as 404."""
+        boto3.resource("s3", region_name="us-east-1").create_bucket(
+            Bucket="test-bucket"
+        )
+        headers = get_headers(self.client, "owner", "owner")
+        rv = self.client.post("/api/media/archive/", headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        url = rv.json["url"]
+        rv = self.client.get(
+            url.replace(rv.json["file_name"], f"{uuid.uuid4()}.zip"), headers=headers
+        )
         self.assertEqual(rv.status_code, 404)
-        rv = self.client.get(f"/api/media/archive/{second_name}", headers=headers)
-        self.assertEqual(rv.status_code, 307)
+        error = ClientError({"Error": {"Code": "403"}}, "HeadObject")
+        with patch("botocore.client.BaseClient._make_api_call", side_effect=error):
+            with self.assertRaises(ClientError):
+                self.client.get(url, headers=headers)
