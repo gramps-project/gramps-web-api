@@ -30,6 +30,7 @@ from gramps.gen.db import DbTxn, DbWriteBase
 from gramps.gen.dbstate import DbState
 from gramps.gen.lib import Person
 
+from ..const import GRAMPS_OBJECT_PLURAL
 from .resources.util import _class_keys
 
 # db.<attr> caches of custom type values (e.g. db.event_names); only ever
@@ -209,19 +210,6 @@ def strip_empty_refs(db_handle: DbWriteBase, trans: DbTxn) -> list[tuple[str, st
 # stray attributes, e.g. `type` on a Place from a frontend bug. The API returns
 # them on read, so a client echoing the object back gets a 400 on save, and
 # they break the backup restore diff.
-PRIMARY_OBJECT_TYPES = (
-    # (plural for iter_*, singular for commit_*)
-    ("people", "person"),
-    ("families", "family"),
-    ("events", "event"),
-    ("places", "place"),
-    ("sources", "source"),
-    ("citations", "citation"),
-    ("repositories", "repository"),
-    ("media", "media"),
-    ("notes", "note"),
-    ("tags", "tag"),
-)
 
 
 def _strip_unknown_keys_from_value(value) -> bool:
@@ -256,14 +244,16 @@ def strip_unknown_keys(db_handle: DbWriteBase, trans: DbTxn) -> list[tuple[str, 
     Returns the list of (object type, Gramps ID) pairs that were repaired.
     """
     repaired: list[tuple[str, str]] = []
-    for plural, singular in PRIMARY_OBJECT_TYPES:
+    for class_name, plural in GRAMPS_OBJECT_PLURAL.items():
         iter_objects = getattr(db_handle, f"iter_{plural}")
-        commit = getattr(db_handle, f"commit_{singular}")
+        commit = db_handle.method("commit_%s", class_name)
         for obj in iter_objects():
             if _strip_unknown_keys_from_value(obj):
                 commit(obj, trans)
                 # tags have no Gramps ID
-                repaired.append((singular, getattr(obj, "gramps_id", obj.handle)))
+                repaired.append(
+                    (class_name.lower(), getattr(obj, "gramps_id", obj.handle))
+                )
     return repaired
 
 
