@@ -19,9 +19,12 @@
 
 """Tests for pinning the PostgreSQL driver to psycopg2."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from sqlalchemy.engine import make_url
 
+from gramps_webapi.api.search import metadata
 from gramps_webapi.api.search.metadata import _get_engine
 from gramps_webapi.app import create_app
 from gramps_webapi.util import pin_postgres_driver
@@ -78,3 +81,22 @@ def test_user_db_uses_psycopg2():
 def test_search_metadata_uses_psycopg2():
     engine = _get_engine("postgresql://u:p@localhost/search")
     assert engine.dialect.driver == "psycopg2"
+
+
+@pytest.mark.parametrize(
+    "url", ["postgresql://u:p@localhost/search", "PostgreSQL://u:p@localhost/search"]
+)
+def test_search_metadata_upsert_uses_postgres_syntax(url):
+    """The SQLite-only upsert must not be sent to PostgreSQL."""
+    engine = _get_engine(url)
+    conn = MagicMock()
+    with (
+        patch.object(metadata, "ensure_metadata_table"),
+        patch.object(metadata, "_get_engine", return_value=engine),
+        patch.object(type(engine), "begin") as begin,
+    ):
+        begin.return_value.__enter__.return_value = conn
+        metadata.set_stored_model_name(url, "tree", "model")
+    sql = str(conn.execute.call_args[0][0])
+    assert "ON CONFLICT" in sql
+    assert "INSERT OR REPLACE" not in sql
