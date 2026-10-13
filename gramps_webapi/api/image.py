@@ -63,6 +63,10 @@ def open_image(fp: Union[BinaryIO, FilenameOrPath]) -> ImageType:
         return image
 
 
+# part of the thumbnail cache key for PDFs; bump whenever their rendering changes
+PDF_RENDER_VERSION = 2
+
+
 def image_thumbnail(image: ImageType, size: int, square: bool = False) -> ImageType:
     """Return a thumbnail of `size` (longest side) for the image.
 

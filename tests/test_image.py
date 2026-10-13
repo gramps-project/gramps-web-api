@@ -191,6 +191,16 @@ def test_square_pdf_thumbnail_is_cropped_like_an_image():
     assert thumb.convert("L").getpixel((100, 5)) < 50
 
 
+def test_pdf_thumbnail_cache_key_is_versioned():
+    """Cached PDF thumbnails from an older renderer must not be served."""
+    from gramps_webapi.api.cache import thumbnail_key_suffix
+    from gramps_webapi.api.image import PDF_RENDER_VERSION
+
+    assert thumbnail_key_suffix(MIME_PDF) == f":avif:pdf-v{PDF_RENDER_VERSION}"
+    # other thumbnails keep their keys, so they aren't all regenerated
+    assert thumbnail_key_suffix("image/jpeg") == ":avif"
+
+
 def test_unsupported_mime_type_aborts_415():
     """A MIME type with no thumbnailer must abort, not raise ValueError."""
     with pytest.raises(HTTPException) as exc_info:
