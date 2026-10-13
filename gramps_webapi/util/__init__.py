@@ -22,6 +22,9 @@
 import mimetypes
 from typing import Optional
 
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
+
 from ..const import MIME_TYPES
 
 
@@ -43,3 +46,22 @@ def get_type(ext: str) -> Optional[str]:
     # last resort
     typ, enc = mimetypes.guess_type(ext, strict=False)
     return typ
+
+
+def pin_postgres_driver(uri: str) -> str:
+    """Use psycopg2 for a PostgreSQL URL that names no driver.
+
+    SQLAlchemy 2.1 made psycopg (3) the default PostgreSQL driver, but Gramps
+    Web uses psycopg2 everywhere else (sifts, the PostgreSQL addons). A URL
+    with an explicit driver, e.g. ``postgresql+psycopg://``, is left alone,
+    and so is one SQLAlchemy can't parse, so that it reports the error.
+    """
+    try:
+        url = make_url(uri.strip())
+    except ArgumentError:
+        return uri
+    if url.drivername.lower() != "postgresql":
+        return uri
+    return url.set(drivername="postgresql+psycopg2").render_as_string(
+        hide_password=False
+    )

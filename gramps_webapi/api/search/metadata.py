@@ -30,14 +30,15 @@ from typing import Optional
 
 from sqlalchemy import create_engine, text
 
-
-def _is_postgres(db_url: str) -> bool:
-    return db_url.startswith("postgresql") or db_url.startswith("postgres")
+from ...util import pin_postgres_driver
 
 
 def _get_engine(db_url: str):
-    """Return a SQLAlchemy engine for the given URL."""
-    return create_engine(db_url)
+    """Return a SQLAlchemy engine for the given URL.
+
+    SEARCH_INDEX_DB_URI stays as configured, since sifts reads it directly.
+    """
+    return create_engine(pin_postgres_driver(db_url))
 
 
 def ensure_metadata_table(db_url: str) -> None:
@@ -70,7 +71,8 @@ def set_stored_model_name(db_url: str, tree: str, model_name: str) -> None:
     """Persist the model name used to build the index for this tree."""
     ensure_metadata_table(db_url)
     engine = _get_engine(db_url)
-    if _is_postgres(db_url):
+    # ask the engine, which accepts any spelling of the URL it was built from
+    if engine.dialect.name == "postgresql":
         upsert_sql = text("""
             INSERT INTO semantic_index_metadata (tree, model_name, indexed_at)
             VALUES (:tree, :model, CURRENT_TIMESTAMP)
