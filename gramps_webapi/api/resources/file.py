@@ -33,6 +33,7 @@ from marshmallow import Schema
 from webargs import fields
 
 from ...auth.const import PERM_EDIT_OBJ
+from ...util import get_extension
 from ..auth import require_permissions
 from ..blueprint import api_blueprint
 from ..file import process_file
@@ -104,7 +105,7 @@ class MediaFileResource(ProtectedResource):
         for etag in request.if_match:
             if etag != checksum_old:
                 abort_with_message(412, "ETag mismatch. Resource has been modified.")
-        mime = request.content_type
+        mime = request.mimetype
         if not mime:
             abort_with_message(HTTPStatus.NOT_ACCEPTABLE, "Media type not recognized")
         checksum, size, f = process_file(request.stream)
@@ -133,6 +134,10 @@ class MediaFileResource(ProtectedResource):
                 HTTPStatus.CONFLICT, "Uploaded file has the wrong checksum"
             )
         # we're updating an existing file
+        if not get_extension(mime):
+            abort_with_message(
+                HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "Media type not supported"
+            )
         try:
             size_old = file_handler.get_file_size()
         except FileNotFoundError:

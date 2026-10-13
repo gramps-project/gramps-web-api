@@ -787,3 +787,24 @@ def test_preload_event_backlinks_unknown_backend_without_treeid_returns_none():
 
     dbapi = _FakeDbapi(batches=[[("h1", "Person", "p1")], []])
     assert preload_event_backlinks(SomeFutureSharedBackend(dbapi)) is None
+
+
+@pytest.mark.parametrize(
+    "ext,mime",
+    [
+        (".geojson", "application/geo+json"),
+        (".kml", "application/vnd.google-earth.kml+xml"),
+        (".kmz", "application/vnd.google-earth.kmz"),
+        (".gpx", "application/gpx+xml"),
+    ],
+)
+def test_map_file_types_round_trip(ext, mime):
+    """Map overlay types must not depend on the host's mime.types.
+
+    Uploads derive the stored file name from the MIME type, so a type without
+    a known extension makes the upload fail -- `.gpx` is in no standard table.
+    """
+    from gramps_webapi.util import get_extension, get_type
+
+    assert get_extension(mime) == ext
+    assert get_type(ext) == mime
