@@ -65,6 +65,7 @@ def check_deprecations(
     environ: Mapping[str, str] | None = None,
     get_option: Callable[[str], Any] | None = None,
     db_options: Iterable[str] = (),
+    tree_backend: str | None = None,
 ) -> list[dict[str, str]]:
     """Return the deprecated configuration options this deployment relies on.
 
@@ -72,6 +73,7 @@ def check_deprecations(
     database rather than in the app config; it defaults to the app config.
     `db_options` are the options with a value stored in the user database that
     differs from the app config.
+    `tree_backend` is the database backend of the tree in single-tree mode.
     """
     if environ is None:
         environ = os.environ
@@ -131,6 +133,17 @@ def check_deprecations(
                 "EMAIL_USE_TLS",
                 replacement,
                 f"The `EMAIL_USE_TLS` config option is deprecated. {advice}",
+            )
+        )
+    # cannot hold multiple trees, so it goes away with single-tree mode (#885)
+    if tree_backend == "postgresql":
+        deprecations.append(
+            _deprecation(
+                "PostgreSQL",
+                "SharedPostgreSQL",
+                "The `PostgreSQL` database backend is deprecated. Please export"
+                " the family tree in Gramps XML format and import it into a new"
+                " tree using the `SharedPostgreSQL` or `SQLite` backend.",
             )
         )
     for option in sorted(db_options):

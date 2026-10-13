@@ -49,7 +49,12 @@ from ..deprecations import check_deprecations
 from ..search import get_search_indexer, get_semantic_search_indexer
 from ..search import _get_search_index_db_url
 from ..search.metadata import get_stored_model_name
-from ..util import get_config, get_db_handle, get_tree_from_jwt_or_fail
+from ..util import (
+    get_config,
+    get_db_handle,
+    get_tree_from_jwt,
+    get_tree_from_jwt_or_fail,
+)
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .schemas import MetadataSchema, MetadataServerSchema, ResearcherSchema
@@ -165,6 +170,16 @@ def _get_dbid_from_tree_id(tree_id: str) -> str:
     return get_dbid_from_tree_id(tree_id)
 
 
+def _get_single_tree_backend(is_multi_tree: bool) -> str | None:
+    """Return the DB backend ID of the tree in single-tree mode, else None."""
+    if is_multi_tree:
+        return None
+    tree_id = get_tree_from_jwt()
+    if not tree_id:
+        return None
+    return _get_dbid_from_tree_id(tree_id)
+
+
 def _get_server_metadata() -> dict[str, Any]:
     """Return the metadata sections that do not depend on a tree.
 
@@ -235,6 +250,7 @@ def _get_server_metadata() -> dict[str, Any]:
                 for key, value in config_get_all().items()
                 if value is not None and value != str(current_app.config.get(key))
             ],
+            tree_backend=_get_single_tree_backend(is_multi_tree),
         )
     return result
 

@@ -23,6 +23,10 @@ removed no earlier than the next major.
 
 - User database migrations for task locking (#1049) and web push (#1001)
 - Configuration via the database is deprecated (#1050)
+- The non-shared `PostgreSQL` backend is deprecated (#981)
+- The server locale is always English, regardless of `LANG`/`LC_*` (#1042)
+- Media archives are stored in `EXPORT_DIR/media_archives/<tree>/` (or the media bucket) and expire by age instead of being deleted on download (#1059)
+- Search reindexing after import or restore runs as separate tasks, so the import task finishes before search is up to date (#1046)
 
 ## Breaking in 4.0
 
