@@ -22,8 +22,8 @@
 
 import secrets
 import uuid
-from hashlib import sha256
 from datetime import datetime
+from hashlib import sha256
 from typing import Any, Dict, List, Optional, Sequence, Set, Union
 
 import sqlalchemy as sa
@@ -33,15 +33,14 @@ from sqlalchemy.exc import IntegrityError, StatementError
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql.functions import coalesce
 
-
 from ..const import DB_CONFIG_ALLOWED_KEYS
 from .const import (
     ACCESS_TOKEN_LABEL_MAX_LENGTH,
     ACCESS_TOKEN_MAX_PER_SCOPE,
     ACCESS_TOKEN_SCOPES,
     ACCESS_TOKEN_SCOPES_MULTIPLE,
-    PERMISSIONS,
     PERM_USE_CHAT,
+    PERMISSIONS,
     ROLE_ADMIN,
     ROLE_OWNER,
     ROLE_UNCONFIRMED,
@@ -50,6 +49,8 @@ from .passwords import hash_password, verify_password
 from .sql_guid import GUID
 
 user_db = SQLAlchemy()
+
+MAX_PUSH_SUBSCRIPTIONS_PER_USER = 20
 
 
 def add_user(
@@ -153,7 +154,7 @@ def get_tree(guid: str) -> Optional[str]:
 
 
 def delete_user(name: str) -> None:
-    """Delete an existing user and their associated OIDC accounts."""
+    """Delete a user and their OIDC accounts and push subscriptions."""
     query = user_db.session.query(User)  # pylint: disable=no-member
     user = query.filter_by(name=name).scalar()
     if user is None:
@@ -162,6 +163,9 @@ def delete_user(name: str) -> None:
     # Manually delete associated OIDC accounts first.
     # This is needed because SQLite does not enforce foreign key constraints by default.
     user_db.session.query(OIDCAccount).filter_by(
+        user_id=user.id
+    ).delete()  # pylint: disable=no-member
+    user_db.session.query(PushSubscription).filter_by(
         user_id=user.id
     ).delete()  # pylint: disable=no-member
 
@@ -310,9 +314,9 @@ def _normalize_multiple_token_scope(scope: str) -> str:
     return scope
 
 
-def _hash_access_token(token: str) -> str:
-    """Return deterministic SHA-256 hash for a persistent access token."""
-    return sha256(token.encode("utf-8")).hexdigest()
+def _hash_string(value: str) -> str:
+    """Return the deterministic SHA-256 hash of a UTF-8 string."""
+    return sha256(value.encode("utf-8")).hexdigest()
 
 
 def has_user_access_token(username: str, scope: str) -> bool:
@@ -343,7 +347,7 @@ def rotate_user_access_token(username: str, scope: str) -> str:
     access_token = query.filter_by(user_id=user.id, scope=scope).scalar()
     for _ in range(5):
         token = secrets.token_urlsafe(32)
-        token_hash = _hash_access_token(token)
+        token_hash = _hash_string(token)
         if access_token is None:
             access_token = AccessToken(user_id=user.id, scope=scope)
             user_db.session.add(access_token)  # pylint: disable=no-member
@@ -426,7 +430,7 @@ def create_user_access_token(
             user_id=user_id,
             scope=scope,
             label=label,
-            token_hash=_hash_access_token(token),
+            token_hash=_hash_string(token),
         )
         user_db.session.add(access_token)  # pylint: disable=no-member
         try:
@@ -463,7 +467,7 @@ def mark_access_token_used(token: str, scope: str) -> None:
     """Record that a persistent access token was just used."""
     scope = normalize_access_token_scope(scope)
     query = user_db.session.query(AccessToken)  # pylint: disable=no-member
-    query.filter_by(token_hash=_hash_access_token(token), scope=scope).update(
+    query.filter_by(token_hash=_hash_string(token), scope=scope).update(
         {AccessToken.last_used_at: datetime.utcnow()}
     )
     user_db.session.commit()  # pylint: disable=no-member
@@ -474,7 +478,7 @@ def get_user_from_access_token(token: str, scope: str) -> Optional["User"]:
     if not token:
         return None
     scope = normalize_access_token_scope(scope)
-    token_hash = _hash_access_token(token)
+    token_hash = _hash_string(token)
     query = user_db.session.query(User)  # pylint: disable=no-member
     return (
         query.join(AccessToken, AccessToken.user_id == User.id)
@@ -486,6 +490,72 @@ def get_user_from_access_token(token: str, scope: str) -> Optional["User"]:
         )
         .scalar()
     )
+
+
+def upsert_user_push_subscription(
+    user_id: Union[str, uuid.UUID],
+    endpoint: str,
+    p256dh: str,
+    auth: str,
+) -> None:
+    """Create or update a Web Push subscription for a user.
+
+    Push endpoints identify browser subscriptions globally. If a browser is
+    reused by another account, ownership is transferred to the current user so
+    the previous account cannot continue sending notifications to that device.
+    """
+    user_id = uuid.UUID(str(user_id))
+    endpoint_hash = _hash_string(endpoint)
+    for attempt in range(2):
+        query = user_db.session.query(PushSubscription)  # pylint: disable=no-member
+        subscription = query.filter_by(endpoint_hash=endpoint_hash).scalar()
+        if subscription is None or subscription.user_id != user_id:
+            count = query.filter_by(user_id=user_id).count()
+            if count >= MAX_PUSH_SUBSCRIPTIONS_PER_USER:
+                oldest = (
+                    query.filter_by(user_id=user_id)
+                    .order_by(PushSubscription.id.asc())
+                    .first()
+                )
+                if oldest is not None:
+                    user_db.session.delete(oldest)  # pylint: disable=no-member
+        if subscription is None:
+            subscription = PushSubscription(
+                user_id=user_id,
+                endpoint=endpoint,
+                endpoint_hash=endpoint_hash,
+            )
+            user_db.session.add(subscription)  # pylint: disable=no-member
+
+        subscription.user_id = user_id
+        subscription.endpoint = endpoint
+        subscription.p256dh = p256dh
+        subscription.auth = auth
+        try:
+            user_db.session.commit()  # pylint: disable=no-member
+            return
+        except IntegrityError:
+            user_db.session.rollback()  # pylint: disable=no-member
+            if attempt == 1:
+                raise
+
+
+def delete_user_push_subscription(
+    user_id: Union[str, uuid.UUID], endpoint: str
+) -> bool:
+    """Delete a user's Web Push subscription by endpoint."""
+    user_id = uuid.UUID(str(user_id))
+    endpoint_hash = _hash_string(endpoint)
+    subscription = (
+        user_db.session.query(PushSubscription)  # pylint: disable=no-member
+        .filter_by(user_id=user_id, endpoint_hash=endpoint_hash)
+        .scalar()
+    )
+    if subscription is None:
+        return False
+    user_db.session.delete(subscription)  # pylint: disable=no-member
+    user_db.session.commit()  # pylint: disable=no-member
+    return True
 
 
 def get_all_user_details(
@@ -881,6 +951,27 @@ class AccessToken(user_db.Model):  # type: ignore
             f"<AccessToken(user_id='{self.user_id}', scope='{self.scope}', "
             f"revoked_at='{self.revoked_at}')>"
         )
+
+
+class PushSubscription(user_db.Model):  # type: ignore
+    """Browser Web Push subscription table class for SQLAlchemy."""
+
+    __tablename__ = "push_subscriptions"
+
+    id = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+    user_id = mapped_column(
+        GUID, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    endpoint = mapped_column(sa.Text, nullable=False)
+    endpoint_hash = mapped_column(
+        sa.String(64), nullable=False, unique=True, index=True
+    )
+    p256dh = mapped_column(sa.Text, nullable=False)
+    auth = mapped_column(sa.Text, nullable=False)
+
+    def __repr__(self):
+        """Return a representation that does not expose subscription secrets."""
+        return f"<PushSubscription(id='{self.id}', user_id='{self.user_id}')>"
 
 
 class Config(user_db.Model):  # type: ignore

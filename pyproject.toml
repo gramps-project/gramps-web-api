@@ -50,6 +50,9 @@ dependencies = [
     "gramps-gedcom7>=0.4.0",
     "flask-smorest",
     "typing-extensions>=4.13.0",
+    "pywebpush>=2.5.0,<3.0.0",
+    "cryptography>=47.0.0",
+    "py-vapid>=1.7.0",
 ]
 
 [project.optional-dependencies]
