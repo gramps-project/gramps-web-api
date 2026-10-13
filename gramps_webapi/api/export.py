@@ -48,6 +48,7 @@ from gramps.gen.utils.resourcepath import ResourcePath
 
 from ..const import DISABLED_EXPORTERS
 from .resources.util import truncate_import_report
+from .snapshot import consistent_read
 from .util import UserTaskProgress, abort_with_message, get_locale_for_language
 
 _ = glocale.translation.gettext
@@ -298,7 +299,10 @@ def run_export(
         raise abort_with_message(500, "EXPORT_DIR not set in configuration")
     os.makedirs(export_path, exist_ok=True)
     if extension == GEDCOM7_EXTENSION:
-        return run_gedcom7_export(db_handle, export_path, options, progress=progress)
+        with consistent_read(db_handle) as snapshot_db:
+            return run_gedcom7_export(
+                snapshot_db, export_path, options, progress=progress
+            )
     file_name = f"{uuid.uuid4()}.{extension}"
     file_path = os.path.join(export_path, file_name)
     _resources = ResourcePath()
@@ -313,7 +317,8 @@ def run_export(
             else:
                 user = User()
             try:
-                result = export_function(db_handle, file_path, user, options)
+                with consistent_read(db_handle) as snapshot_db:
+                    result = export_function(snapshot_db, file_path, user, options)
             except HandleError:
                 # skipping the reference would silently write an incomplete file
                 abort_with_message(
