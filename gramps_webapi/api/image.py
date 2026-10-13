@@ -63,6 +63,10 @@ def open_image(fp: Union[BinaryIO, FilenameOrPath]) -> ImageType:
         return image
 
 
+# part of the thumbnail cache key for PDFs; bump whenever their rendering changes
+PDF_RENDER_VERSION = 2
+
+
 def image_thumbnail(image: ImageType, size: int, square: bool = False) -> ImageType:
     """Return a thumbnail of `size` (longest side) for the image.
 
@@ -231,7 +235,9 @@ class ThumbnailHandler:
                 last_page=1,
                 use_cropbox=True,
                 dpi=100,
-                size=(2000, 2000),
+                # a single number scales the longer side, keeping the page's
+                # shape; a (width, height) pair would stretch it to that size
+                size=2000,
             )
         except PopplerNotInstalledError:
             abort_with_message(501, "Poppler is not installed")

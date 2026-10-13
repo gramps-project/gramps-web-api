@@ -14,6 +14,7 @@ from gramps.gen.errors import HandleError
 
 from gramps_webapi.api.auth import has_permissions
 from gramps_webapi.api.faces import FACE_DETECTION_VERSION
+from gramps_webapi.api.image import PDF_RENDER_VERSION
 from gramps_webapi.api.util import (
     get_db_handle,
     get_db_manager,
@@ -22,7 +23,7 @@ from gramps_webapi.api.util import (
 )
 from gramps_webapi.auth import get_all_user_details
 from gramps_webapi.auth.const import PERM_VIEW_PRIVATE
-from gramps_webapi.const import TREE_MULTI
+from gramps_webapi.const import MIME_PDF, TREE_MULTI
 
 thumbnail_cache = Cache()
 request_cache = Cache()
@@ -61,6 +62,16 @@ def _hash_request_args() -> str:
     return str(arg_hash.hexdigest())
 
 
+def thumbnail_key_suffix(mime: str) -> str:
+    """Return the end of a thumbnail cache key for a media object's MIME type.
+
+    Versioned for PDFs, so that thumbnails from an older renderer aren't used.
+    """
+    if mime == MIME_PDF:
+        return f":avif:pdf-v{PDF_RENDER_VERSION}"
+    return ":avif"
+
+
 def make_cache_key_thumbnails(*args, **kwargs):
     """Make a cache key for thumbnails."""
     # Hash query args, excluding jwt and checksum (see _hash_request_args).
@@ -73,7 +84,13 @@ def make_cache_key_thumbnails(*args, **kwargs):
 
     dbmgr = get_db_manager(tree)
 
-    cache_key = checksum + request.path + arg_hash + dbmgr.dirname + ":avif"
+    cache_key = (
+        checksum
+        + request.path
+        + arg_hash
+        + dbmgr.dirname
+        + thumbnail_key_suffix(g.cached_media.mime)
+    )
 
     return cache_key
 
