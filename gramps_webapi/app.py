@@ -32,6 +32,7 @@ from flask_jwt_extended import JWTManager, verify_jwt_in_request
 from flask_jwt_extended.exceptions import WrongTokenError
 from gramps.gen.config import config as gramps_config
 from gramps.gen.config import set as setconfig
+from gramps.gen.db.utils import get_dbid_from_path
 from gramps.gen.errors import HandleError
 from PIL import Image
 
@@ -125,31 +126,33 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         # Flask's plain-text handler would duplicate every record on stderr.
         app.logger.removeHandler(default_handler)
 
-    for deprecation in check_deprecations(app.config):
-        app.logger.warning(
-            "%s Support will be removed in Gramps Web API %s.",
-            deprecation["message"],
-            deprecation["removed_in"],
-        )
-
     if init_sentry(app):
         app.logger.info("Sentry error reporting enabled.")
 
+    tree_backend = None
     if app.config["TREE"] != TREE_MULTI:
         if app.config.get("TREE_ID"):
             # TREE_ID takes precedence: identify tree by dirname, never by name
-            WebDbManager(
+            dbmgr = WebDbManager(
                 dirname=app.config["TREE_ID"],
                 create_if_missing=False,
                 ignore_lock=app.config["IGNORE_DB_LOCK"],
             )
         else:
             # legacy: identify tree by display name
-            WebDbManager(
+            dbmgr = WebDbManager(
                 name=app.config["TREE"],
                 create_if_missing=True,
                 ignore_lock=app.config["IGNORE_DB_LOCK"],
             )
+        tree_backend = get_dbid_from_path(dbmgr.path)
+
+    for deprecation in check_deprecations(app.config, tree_backend=tree_backend):
+        app.logger.warning(
+            "%s Support will be removed in Gramps Web API %s.",
+            deprecation["message"],
+            deprecation["removed_in"],
+        )
 
     if app.config["TREE"] == TREE_MULTI and not app.config["MEDIA_PREFIX_TREE"]:
         warnings.warn(

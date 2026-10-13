@@ -96,3 +96,10 @@ def test_options_stored_in_db_are_flagged():
     assert [d["option"] for d in deprecations] == ["BASE_URL", "EMAIL_HOST"]
     assert deprecations[0]["replacement"] == ""
     assert "set `BASE_URL` in the server configuration" in deprecations[0]["message"]
+
+
+def test_postgresql_tree_backend_flagged():
+    deprecations = check_deprecations(DEFAULTS, environ={}, tree_backend="postgresql")
+    assert [d["option"] for d in deprecations] == ["PostgreSQL"]
+    for backend in ["sqlite", "sharedpostgresql"]:
+        assert check_deprecations(DEFAULTS, environ={}, tree_backend=backend) == []
