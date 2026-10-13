@@ -30,6 +30,9 @@ from gramps.gen.db import DbTxn, DbWriteBase
 from gramps.gen.dbstate import DbState
 from gramps.gen.lib import Person
 
+from ..const import GRAMPS_OBJECT_PLURAL
+from .resources.util import _class_keys
+
 # db.<attr> caches of custom type values (e.g. db.event_names); only ever
 # grow as records commit, so they need rebuilding from live data here.
 CUSTOM_TYPE_CACHE_ATTRS = (
@@ -203,13 +206,64 @@ def strip_empty_refs(db_handle: DbWriteBase, trans: DbTxn) -> list[tuple[str, st
     return repaired
 
 
+# Objects committed before unknown keys were rejected on write (#1004) can carry
+# stray attributes, e.g. `type` on a Place from a frontend bug. The API returns
+# them on read, so a client echoing the object back gets a 400 on save, and
+# they break the backup restore diff.
+
+
+def _strip_unknown_keys_from_value(value) -> bool:
+    """Drop attributes the class does not define, recursively.
+
+    Returns True if anything was removed.
+    """
+    if isinstance(value, (list, tuple)):
+        removed = False
+        for item in value:
+            removed = _strip_unknown_keys_from_value(item) or removed
+        return removed
+    if not hasattr(value, "get_object_state"):
+        return False
+    known_keys = _class_keys(type(value).__name__)
+    removed = False
+    for key in list(vars(value)):
+        # private attributes are not part of the serialized state
+        if key.startswith("_"):
+            continue
+        if known_keys and key not in known_keys:
+            delattr(value, key)
+            removed = True
+            continue
+        removed = _strip_unknown_keys_from_value(getattr(value, key)) or removed
+    return removed
+
+
+def strip_unknown_keys(db_handle: DbWriteBase, trans: DbTxn) -> list[tuple[str, str]]:
+    """Remove attributes the class does not define from all primary objects.
+
+    Returns the list of (object type, Gramps ID) pairs that were repaired.
+    """
+    repaired: list[tuple[str, str]] = []
+    for class_name, plural in GRAMPS_OBJECT_PLURAL.items():
+        iter_objects = getattr(db_handle, f"iter_{plural}")
+        commit = db_handle.method("commit_%s", class_name)
+        for obj in iter_objects():
+            if _strip_unknown_keys_from_value(obj):
+                commit(obj, trans)
+                # tags have no Gramps ID
+                repaired.append(
+                    (class_name.lower(), getattr(obj, "gramps_id", obj.handle))
+                )
+    return repaired
+
+
 def check_database(db_handle: DbWriteBase, progress_cb: Optional[Callable] = None):
     from gramps.plugins.tool.check import CheckIntegrity
 
     i = 0
 
     def progress(i):
-        total = 22
+        total = 23
         if progress_cb:
             progress_cb(current=i, total=total)
         i += 1
@@ -261,6 +315,9 @@ def check_database(db_handle: DbWriteBase, progress_cb: Optional[Callable] = Non
 
         i = progress(i)
         checker.check_events()
+
+        i = progress(i)
+        stripped_keys = strip_unknown_keys(db_handle, trans)
 
         i = progress(i)
         # has to run before the reference checks below, which cannot see
@@ -315,8 +372,18 @@ def check_database(db_handle: DbWriteBase, progress_cb: Optional[Callable] = Non
     db_handle.enable_signals()
     db_handle.request_rebuild()
 
-    errs = checker.build_report() + len(removed_custom_types) + len(stripped_refs)
+    errs = (
+        checker.build_report()
+        + len(removed_custom_types)
+        + len(stripped_refs)
+        + len(stripped_keys)
+    )
     text = checker.text.getvalue()
+    if stripped_keys:
+        text += (
+            f"{len(stripped_keys)} object(s) had properties not defined by "
+            "Gramps, which were removed\n"
+        )
     if stripped_refs:
         text += (
             f"{len(stripped_refs)} object(s) had references without a target, "

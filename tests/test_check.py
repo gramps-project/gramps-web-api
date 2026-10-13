@@ -30,12 +30,16 @@ from gramps.gen.lib import (
     EventType,
     MediaRef,
     Person,
+    Place,
+    PlaceName,
+    PlaceType,
 )
 
 from gramps_webapi.api.check import (
     check_database,
     rebuild_custom_type_caches,
     strip_empty_refs,
+    strip_unknown_keys,
 )
 
 from . import ExampleDbInMemory
@@ -232,6 +236,77 @@ class TestStripEmptyRefs(unittest.TestCase):
         self.assertGreaterEqual(result["num_errors"], 1)
         self.assertIn("references without a target", result["message"])
         self.assertEqual(self.db.get_person_from_handle(handle).media_list, [])
+
+
+class TestStripUnknownKeys(unittest.TestCase):
+    """Tests for removing attributes a Gramps class does not define.
+
+    Such attributes were committed before unknown keys were rejected on write,
+    e.g. `type` instead of `place_type` on a Place.
+    """
+
+    def setUp(self):
+        self.exampledb = ExampleDbInMemory()
+        self.db = self.exampledb.load()
+
+    def tearDown(self):
+        self.db.close()
+        self.exampledb.close()
+
+    def _add_place(self, place):
+        with DbTxn("add place", self.db) as trans:
+            self.db.add_place(place, trans)
+        return place.handle
+
+    def test_clean_database_untouched(self):
+        with DbTxn("strip", self.db) as trans:
+            repaired = strip_unknown_keys(self.db, trans)
+
+        self.assertEqual(repaired, [])
+
+    def test_stray_place_type_removed(self):
+        place = Place()
+        place.set_type(PlaceType(PlaceType.PARISH))
+        place.type = PlaceType(PlaceType.CITY)
+        handle = self._add_place(place)
+        self.assertTrue(hasattr(self.db.get_place_from_handle(handle), "type"))
+
+        with DbTxn("strip", self.db) as trans:
+            repaired = strip_unknown_keys(self.db, trans)
+
+        self.assertEqual(repaired, [("place", place.gramps_id)])
+        place = self.db.get_place_from_handle(handle)
+        self.assertFalse(hasattr(place, "type"))
+        self.assertEqual(place.get_type(), PlaceType.PARISH)
+
+    def test_stray_key_on_embedded_object_removed(self):
+        place = Place()
+        name = PlaceName()
+        name.set_value("Somewhere")
+        name.stray = "x"
+        place.set_name(name)
+        handle = self._add_place(place)
+
+        with DbTxn("strip", self.db) as trans:
+            repaired = strip_unknown_keys(self.db, trans)
+
+        self.assertEqual(repaired, [("place", place.gramps_id)])
+        name = self.db.get_place_from_handle(handle).get_name()
+        self.assertFalse(hasattr(name, "stray"))
+        self.assertEqual(name.get_value(), "Somewhere")
+
+    def test_check_database_reports_and_repairs(self):
+        place = Place()
+        # not empty, or Gramps' own check removes the place before ours runs
+        place.set_title("Somewhere")
+        place.type = PlaceType(PlaceType.CITY)
+        handle = self._add_place(place)
+
+        result = check_database(self.db)
+
+        self.assertGreaterEqual(result["num_errors"], 1)
+        self.assertIn("properties not defined by Gramps", result["message"])
+        self.assertFalse(hasattr(self.db.get_place_from_handle(handle), "type"))
 
 
 if __name__ == "__main__":
