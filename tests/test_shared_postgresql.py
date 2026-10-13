@@ -58,6 +58,7 @@ from gramps.gen.lib import (
 )
 
 from gramps_webapi.api.resources.util import preload_event_backlinks
+from gramps_webapi.api.snapshot import consistent_read
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import ROLE_ADMIN, ROLE_OWNER
@@ -80,6 +81,8 @@ SHARED_NOTE = "N0001"
 # handles only present in one tree
 ONLY_A_PERSON = "PA001"
 ONLY_B_PERSON = "PB001"
+# added and removed again during a test
+LATE_PERSON = "PA002"
 
 POSTGRES_URL = os.getenv(ENV_POSTGRES_URL)
 
@@ -428,3 +431,30 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
             finally:
                 dbstate.db.close()
             self.assertEqual(index, {SHARED_EVENT: [("Person", SHARED_PERSON)]})
+
+    def test_consistent_read(self):
+        """A snapshot doesn't see later writes, and ends with the context."""
+        reader = self.dbmgr_a.get_db().db
+        writer = self.dbmgr_a.get_db(readonly=False).db
+        try:
+            with consistent_read(reader) as snapshot_db:
+                self.assertIs(snapshot_db, reader)
+                with DbTxn("add person", writer) as trans:
+                    person = Person()
+                    person.set_handle(LATE_PERSON)
+                    person.set_gramps_id("I0003")
+                    writer.add_person(person, trans)
+                self.assertEqual(
+                    set(snapshot_db.get_person_handles()),
+                    {SHARED_PERSON, ONLY_A_PERSON},
+                )
+            self.assertEqual(
+                set(reader.get_person_handles()),
+                {SHARED_PERSON, ONLY_A_PERSON, LATE_PERSON},
+            )
+        finally:
+            if writer.has_person_handle(LATE_PERSON):
+                with DbTxn("remove person", writer) as trans:
+                    writer.remove_person(LATE_PERSON, trans)
+            writer.close()
+            reader.close()
