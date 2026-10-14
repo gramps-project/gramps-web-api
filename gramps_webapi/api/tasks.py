@@ -643,6 +643,13 @@ def restore_backup_archive(
                 )
             result["data"] = summary
             result["missing_media"] = missing_media
+            if not dry_run:
+                # right away, so that the data is consistent with its usage and
+                # search indices even if restoring another part fails
+                update_usage_people(tree=tree, user_id=user_id)
+                result["index_tasks"] = update_search_indices_after_import(
+                    tree=tree, user_id=user_id
+                )
         if tree_settings:
             result["tree_settings"] = restore_tree_config(
                 tree, backup.tree_config, dry_run=dry_run
@@ -655,11 +662,6 @@ def restore_backup_archive(
                 os.remove(file_name)
             except OSError:
                 pass
-    if data and not dry_run:
-        update_usage_people(tree=tree, user_id=user_id)
-        result["index_tasks"] = update_search_indices_after_import(
-            tree=tree, user_id=user_id
-        )
     return result
 
 

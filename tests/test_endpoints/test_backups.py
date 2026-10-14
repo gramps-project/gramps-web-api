@@ -32,11 +32,13 @@ from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 from gramps.gen.utils.resourcepath import ResourcePath
 
-from gramps_webapi.api.backup import _get_users
+from gramps_webapi.api.backup import _get_users, write_backup
+from gramps_webapi.api.util import close_db, get_db_outside_request
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import (
     add_user,
     delete_user,
+    get_guid,
     get_tree_config,
     get_user_details,
     set_tree_config,
@@ -418,6 +420,23 @@ class TestBackups(unittest.TestCase):
             with self.test_app.app_context():
                 set_tree_config(self.tree, {"theme": "dark"})
 
+    def test_restore_data_post_processing_after_later_failure(self):
+        """If a later part fails, the restored data still gets its usage and
+        search index update."""
+        with (
+            patch(
+                "gramps_webapi.api.tasks.restore_tree_config",
+                side_effect=RuntimeError("boom"),
+            ),
+            patch(
+                "gramps_webapi.api.tasks.update_search_indices_after_import",
+                return_value=[],
+            ) as update_indices,
+        ):
+            rv = self._restore(self.archive, "?users=false")
+        self.assertEqual(rv.status_code, 500)
+        update_indices.assert_called_once()
+
     def test_restore_tree_settings_only(self):
         with self.test_app.app_context():
             set_tree_config(self.tree, {"theme": "light"})
@@ -481,7 +500,8 @@ class TestBackupsNotConfigured(unittest.TestCase):
     def setUpClass(cls):
         cls.name = "backups_not_configured"
         cls.dbman = CLIDbManager(DbState())
-        cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        dbpath, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        cls.tree = os.path.basename(dbpath)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_EMPTY_GRAMPS_AUTH_CONFIG}):
             cls.test_app = create_app(config_from_env=False, config={"TREE": cls.name})
         cls.test_app.config["TESTING"] = True
@@ -506,3 +526,27 @@ class TestBackupsNotConfigured(unittest.TestCase):
         self.assertEqual(rv.status_code, 501)
         rv = self.client.post(BACKUPS_URL, headers=headers)
         self.assertEqual(rv.status_code, 501)
+
+    def test_upload_restore(self):
+        """Restoring an uploaded archive doesn't need a backup directory."""
+        with self.test_app.app_context():
+            user_id = get_guid(TEST_USERS[ROLE_OWNER]["name"])
+            db_handle = get_db_outside_request(
+                tree=self.tree, view_private=True, readonly=True, user_id=user_id
+            )
+            try:
+                with tempfile.TemporaryDirectory() as directory:
+                    path = os.path.join(directory, "backup.tar")
+                    write_backup(
+                        db_handle, tree=self.tree, tree_name=self.name, file_path=path
+                    )
+                    with open(path, "rb") as f:
+                        archive = f.read()
+            finally:
+                close_db(db_handle)
+        headers = fetch_header(self.client, role=ROLE_OWNER)
+        rv = self.client.post(
+            RESTORE_URL + "?dry_run=true", data=io.BytesIO(archive), headers=headers
+        )
+        self.assertEqual(rv.status_code, 200, rv.json)
+        self.assertEqual(rv.json["data"]["to_add"]["people"], 0)
