@@ -85,7 +85,7 @@ class DefaultConfig(object):
     EXPORT_DIR = str(Path.cwd() / "export_cache")
     EXPORT_RETENTION_SECONDS = 24 * 60 * 60
     NEW_DB_BACKEND = "sqlite"
-    RATE_LIMIT_MEDIA_ARCHIVE = "1 per day"
+    RATE_LIMIT_MEDIA_ARCHIVE = "1 per hour"
     REGISTRATION_DISABLED = False
     LOG_LEVEL = "INFO"
     LLM_BASE_URL = None

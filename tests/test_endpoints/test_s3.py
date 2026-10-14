@@ -101,14 +101,16 @@ class TestS3(unittest.TestCase):
         s3 = boto3.resource("s3", region_name="us-east-1")
         bucket = s3.create_bucket(Bucket="test-bucket")
         headers = get_headers(self.client, "owner", "owner")
+        export_dir = self.client.application.config["EXPORT_DIR"]
+        local_archives = set(Path(export_dir, "media_archives").glob("*/*.zip"))
         rv = self.client.post("/api/media/archive/", headers=headers)
         self.assertEqual(rv.status_code, 201)
         first_url = rv.json["url"]
         first_name = rv.json["file_name"]
-        # the local copy is removed after the upload
-        export_dir = self.client.application.config["EXPORT_DIR"]
-        self.assertFalse(
-            list(Path(export_dir, "media_archives").glob(f"*/{first_name}"))
+        first_size = rv.json["file_size"]
+        # no local copy is left after the upload
+        self.assertEqual(
+            set(Path(export_dir, "media_archives").glob("*/*.zip")), local_archives
         )
         rv = self.client.get(first_url, headers=headers)
         self.assertEqual(rv.status_code, 307)
@@ -119,12 +121,17 @@ class TestS3(unittest.TestCase):
         # downloads can be repeated
         rv = self.client.get(first_url, headers=headers)
         self.assertEqual(rv.status_code, 307)
-        # a new archive does not replace unexpired ones
+        # an archive of unchanged media is reused
         rv = self.client.post("/api/media/archive/", headers=headers)
         self.assertEqual(rv.status_code, 201)
+        self.assertEqual(rv.json["file_name"], first_name)
+        self.assertEqual(rv.json["file_size"], first_size)
         second_url = rv.json["url"]
         keys = [obj.key for obj in bucket.objects.filter(Prefix="media_archives/")]
-        self.assertEqual(len(keys), 2)
+        self.assertEqual(len(keys), 1)
+        # an archive of other (older) media
+        other_key = keys[0].replace(first_name, f"{uuid.uuid4()}.zip")
+        bucket.put_object(Key=other_key, Body=b"")
         # once expired, archives cannot be downloaded and the next export deletes them
         config = self.client.application.config
         retention = config["EXPORT_RETENTION_SECONDS"]

@@ -76,7 +76,7 @@ class TestMetadata(unittest.TestCase):
         # the rate limit mini-language is parsed server-side into amount per window
         self.assertEqual(
             server["rate_limit_media_archive"],
-            [{"amount": 1, "window_seconds": 86400}],
+            [{"amount": 1, "window_seconds": 3600}],
         )
         # no upload limit is configured in the test config, so the key is omitted
         self.assertNotIn("max_media_archive_upload_bytes", server)
