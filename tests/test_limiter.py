@@ -21,6 +21,7 @@
 
 import os
 import unittest
+from pathlib import Path
 from time import sleep
 from unittest.mock import patch
 
@@ -40,6 +41,7 @@ class TestRateLimits(unittest.TestCase):
         cls.dbman = CLIDbManager(DbState())
         dbpath, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
         tree = os.path.basename(dbpath)
+        cls.tree = tree
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
             cls.app = create_app(
                 config={"TESTING": True, "RATELIMIT_ENABLED": True},
@@ -56,6 +58,8 @@ class TestRateLimits(unittest.TestCase):
         cls.dbman.remove_database(cls.name)
 
     def test_token_endpoint(self):
+        # other tests may have requested a token within the last second
+        sleep(1)
         rv = self.client.post(
             "/api/token/", json={"username": "user", "password": "123"}
         )
@@ -69,3 +73,29 @@ class TestRateLimits(unittest.TestCase):
             "/api/token/", json={"username": "user", "password": "123"}
         )
         assert rv.status_code == 200
+
+    def _header(self, username: str) -> dict:
+        # the token endpoint is rate limited to one request per second
+        sleep(1)
+        rv = self.client.post(
+            "/api/token/", json={"username": username, "password": "123"}
+        )
+        return {"Authorization": f"Bearer {rv.json['access_token']}"}
+
+    def test_media_archive(self):
+        """Only creating a new media archive counts towards the limit."""
+        headers = self._header("admin")
+        rv = self.client.post("/api/media/archive/", headers=headers)
+        assert rv.status_code == 201
+        file_name = rv.json["file_name"]
+        # the existing archive is returned, which doesn't count
+        rv = self.client.post("/api/media/archive/", headers=headers)
+        assert rv.status_code == 201
+        # creating the archive again does
+        archive_dir = Path(self.app.config["EXPORT_DIR"], "media_archives", self.tree)
+        (archive_dir / file_name).unlink()
+        rv = self.client.post("/api/media/archive/", headers=headers)
+        assert rv.status_code == 429
+        # the limit is per user
+        rv = self.client.post("/api/media/archive/", headers=self._header("user"))
+        assert rv.status_code == 201

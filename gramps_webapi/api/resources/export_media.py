@@ -30,16 +30,17 @@ from ..auth import has_permissions
 from ..media import (
     MediaHandlerS3,
     get_archive_download_name,
+    get_archive_name,
     get_local_archive_dir,
     get_media_handler,
     is_archive_expired,
+    is_archive_reusable,
 )
 from ..ratelimiter import limiter_per_user
 from ..tasks import AsyncResult, export_media, make_task_response, run_task
 from ..util import (
     abort_with_message,
     get_db_handle,
-    get_tree_from_jwt,
     get_tree_from_jwt_or_fail,
 )
 from . import ProtectedResource
@@ -54,17 +55,41 @@ def get_limit() -> str:
 class MediaArchiveResource(ProtectedResource):
     """Resource for downloading an archive of media files."""
 
-    @limiter_per_user.limit(get_limit)
     def post(self) -> ResponseReturnValue:
-        """Create an archive of media files."""
-        tree = get_tree_from_jwt()
+        """Create an archive of media files.
+
+        If an archive of the same media exists and can still be downloaded for
+        a while, it is returned instead. Only creating a new archive counts
+        towards the rate limit.
+        """
+        # like downloading it, which needs the tree
+        tree = get_tree_from_jwt_or_fail()
         user_id = get_jwt_identity()
-        task = run_task(
-            export_media,
-            tree=tree,
-            user_id=user_id,
-            view_private=has_permissions({PERM_VIEW_PRIVATE}),
-        )
+        view_private = has_permissions({PERM_VIEW_PRIVATE})
+        db_handle = get_db_handle()
+        file_name = get_archive_name(db_handle, include_private=view_private)
+        media_handler = get_media_handler(db_handle, tree=tree)
+        info = media_handler.get_file_archive_info(tree, file_name)
+        retention = current_app.config["EXPORT_RETENTION_SECONDS"]
+        if info is not None and is_archive_reusable(info[0], retention):
+            return (
+                jsonify(
+                    {
+                        "file_name": file_name,
+                        "url": f"/api/media/archive/{file_name}",
+                        "file_size": info[1],
+                    }
+                ),
+                201,
+            )
+        with limiter_per_user.limit(get_limit):
+            task = run_task(
+                export_media,
+                tree=tree,
+                user_id=user_id,
+                view_private=view_private,
+                file_name=file_name,
+            )
         if isinstance(task, AsyncResult):
             return make_task_response(task)
         return jsonify(task), 201
@@ -76,8 +101,10 @@ class MediaArchiveFileResource(ProtectedResource):
     def get(self, filename: str) -> ResponseReturnValue:
         """Download an archive of media files."""
         # assert the filename is legit
+        # named after their contents, or by a UUID if created before that
         regex = re.compile(
-            r"([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(\.zip)"
+            r"([a-f0-9]{64}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})"
+            r"(\.zip)"
         )
         match = regex.fullmatch(filename)
         if not match:

@@ -552,9 +552,16 @@ def generate_report(
 
 @shared_task(bind=True)
 def export_media(
-    self, tree: str, user_id: str, view_private: bool
+    self, tree: str, user_id: str, view_private: bool, file_name: str | None = None
 ) -> Dict[str, Union[str, int]]:
-    """Export media files."""
+    """Export media files to an archive named `file_name`.
+
+    The archive is built under a temporary name, so that concurrent exports of
+    the same archive never expose a partial file.
+    """
+    if file_name is None:
+        # queued before archives were named after their contents
+        file_name = f"{uuid.uuid4()}.zip"
     db_handle = get_db_outside_request(
         tree=tree, view_private=view_private, readonly=True, user_id=user_id
     )
@@ -565,26 +572,34 @@ def export_media(
         delete_expired_local_archives(retention)
         archive_dir = get_local_archive_dir(tree)
         os.makedirs(archive_dir, exist_ok=True)
-        file_name = f"{uuid.uuid4()}.zip"
-        zip_filename = os.path.join(archive_dir, file_name)
-        media_handler.create_file_archive(
-            db_handle=db_handle,
-            zip_filename=zip_filename,
-            include_private=view_private,
-            progress_cb=progress_callback_count(self),
-        )
+        # expires like an archive if left behind, but can't be downloaded
+        partial_filename = os.path.join(archive_dir, f"tmp-{uuid.uuid4()}.zip")
+        try:
+            media_handler.create_file_archive(
+                db_handle=db_handle,
+                zip_filename=partial_filename,
+                include_private=view_private,
+                progress_cb=progress_callback_count(self),
+            )
+        except BaseException:
+            if os.path.exists(partial_filename):
+                os.remove(partial_filename)
+            raise
     finally:
         close_db(db_handle)
 
-    file_size = os.path.getsize(zip_filename)
-    if isinstance(media_handler, MediaHandlerS3):
-        # serve the archive from object storage rather than through the API
-        try:
+    try:
+        file_size = os.path.getsize(partial_filename)
+        if isinstance(media_handler, MediaHandlerS3):
+            # serve the archive from object storage rather than through the API
             media_handler.upload_file_archive(
-                zip_filename, tree=tree, retention=retention
+                partial_filename, tree=tree, retention=retention, file_name=file_name
             )
-        finally:
-            os.remove(zip_filename)
+        else:
+            os.replace(partial_filename, os.path.join(archive_dir, file_name))
+    finally:
+        if os.path.exists(partial_filename):
+            os.remove(partial_filename)
     return {
         "file_name": file_name,
         "url": f"/api/media/archive/{file_name}",
