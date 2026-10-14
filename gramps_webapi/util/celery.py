@@ -39,7 +39,9 @@ def create_celery(app):
             with app.app_context():
                 try:
                     return run_tracked(
-                        self.request.id, lambda: self.run(*args, **kwargs)
+                        self.request.id,
+                        lambda: self.run(*args, **kwargs),
+                        fence=True,
                     )
                 except HTTPException as exc:
                     # Utilities like check_quota_people abort with an

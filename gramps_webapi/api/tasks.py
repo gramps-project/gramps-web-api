@@ -52,7 +52,6 @@ from ..util.task_state import (
     LOCK_WRITE,
     TaskLocked,
     acquire,
-    ensure_lock_held,
     mark_failed,
     progress_reporter,
     run_tracked,
@@ -465,7 +464,6 @@ def import_file(
                 )
         return dry_run_result
     check_quota_people(to_add=object_counts["people"], tree=tree, user_id=user_id)
-    ensure_lock_held()
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=False, user_id=user_id
     )
@@ -517,7 +515,6 @@ def restore_backup(
             tree=tree,
             user_id=user_id,
         )
-        ensure_lock_held()
         apply_reset_changeset(
             db_handle,
             changeset,

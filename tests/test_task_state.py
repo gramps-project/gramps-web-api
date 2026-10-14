@@ -20,12 +20,14 @@
 """Tests for the task lifecycle and per-tree task locks."""
 
 import json
+import threading
 import unittest
 import uuid
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
+import sqlalchemy as sa
 from werkzeug.exceptions import HTTPException
 
 from gramps_webapi.app import create_app
@@ -40,9 +42,8 @@ from gramps_webapi.util.task_state import (
     RUNNING,
     SUCCEEDED,
     TaskLocked,
-    TaskLockLost,
+    _Heartbeat,
     acquire,
-    ensure_lock_held,
     progress_reporter,
     reap,
     run_tracked,
@@ -225,18 +226,37 @@ class TestReap(TaskStateTestCase):
         assert holder is None
         assert self._row(task_id).status == LOST
 
-    def test_reaped_task_must_not_write(self):
-        task_id, _ = self._acquire(LOCK_WRITE)
 
-        def body():
-            ensure_lock_held()
-            self._age(task_id, status=LOST, lock_key=None)
-            ensure_lock_held()
+class TestHeartbeatFencing(unittest.TestCase):
+    """A fenced heartbeat terminates the process before the lock is handed over."""
 
-        with pytest.raises(TaskLockLost):
-            run_tracked(task_id, body)
-        # the reaper's verdict stands
-        assert self._row(task_id).status == LOST
+    def _run(self, update, fence=True, seconds=0.3):
+        abandon = threading.Event()
+        with (
+            patch("gramps_webapi.util.task_state._update", side_effect=update),
+            patch(
+                "gramps_webapi.util.task_state._abandon",
+                side_effect=lambda task_id: abandon.set(),
+            ),
+        ):
+            with _Heartbeat(MagicMock(), "task", timeout=0.2, fence=fence):
+                abandon.wait(seconds)
+        return abandon.is_set()
+
+    def test_reaped_task_is_abandoned(self):
+        assert self._run(update=lambda *args, **kwargs: 0)
+
+    def test_task_that_cannot_renew_is_abandoned(self):
+        def fail(*args, **kwargs):
+            raise sa.exc.OperationalError("UPDATE", {}, Exception("unreachable"))
+
+        assert self._run(update=fail)
+
+    def test_renewing_task_keeps_running(self):
+        assert not self._run(update=lambda *args, **kwargs: 1)
+
+    def test_unfenced_task_is_never_abandoned(self):
+        assert not self._run(update=lambda *args, **kwargs: 0, fence=False)
 
 
 class TestProgress(TaskStateTestCase):

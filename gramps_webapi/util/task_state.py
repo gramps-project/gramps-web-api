@@ -26,8 +26,8 @@ A task declared with a lock key is exclusive per tree and key. A second
 dispatch is rejected (409) or, for a coalescing key, folded into the active
 task, which then runs once more. A background thread keeps the heartbeat of
 a running task; the reaper marks tasks without heartbeat as lost, releasing
-their lock, and tree-writing tasks check that they still hold it right before
-writing, so a reaped task never runs concurrently with the next holder.
+their lock. In a worker, a task that lost or may lose its lock terminates its
+process first, so it never runs concurrently with the next holder.
 
 All writes go through their own connection rather than the session, so they
 never commit the caller's pending changes and work from any thread.
@@ -37,7 +37,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
+import time
 from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
@@ -83,10 +85,6 @@ class TaskLocked(Exception):
     def __init__(self, holder_id: str):
         super().__init__(holder_id)
         self.holder_id = holder_id
-
-
-class TaskLockLost(Exception):
-    """The task's row is no longer running, so it must not write."""
 
 
 def _now() -> datetime:
@@ -219,26 +217,42 @@ def mark_failed(task_id: str, error: Any) -> None:
     )
 
 
+def _abandon(task_id: str) -> None:
+    """Kill the worker process running a task that lost its lock."""
+    logger.error("Task %s lost its lock, terminating the worker process", task_id)
+    os._exit(1)
+
+
 class _Heartbeat:
     """Background thread proving that the worker running a task is alive.
 
     Independent of progress reports, so that long steps without any (such as
     loading a backup) do not make the task look stale.
+
+    With ``fence``, the heartbeat also guarantees that a task never writes
+    after its lock was handed over: it terminates the process as soon as it
+    finds the task reaped, or when it could not renew for half the timeout,
+    i.e. before the reaper can release the lock. The database rolls back the
+    open transaction, and Celery's prefork pool replaces the process. Only
+    used in workers, since it would take down a web server process.
     """
 
-    def __init__(self, engine: sa.Engine, task_id: str, interval: float):
+    def __init__(self, engine: sa.Engine, task_id: str, timeout: float, fence: bool):
         self._engine = engine
         self._task_id = task_id
-        self._interval = interval
+        self._timeout = timeout
+        self._interval = timeout / 10
+        self._fence = fence
         self._stop = threading.Event()
         self._thread = threading.Thread(
             target=self._beat, name=f"task-heartbeat-{task_id}", daemon=True
         )
 
     def _beat(self) -> None:
+        last_renewal = time.monotonic()
         while not self._stop.wait(self._interval):
             try:
-                _update(
+                renewed = _update(
                     self._engine,
                     _table.c.task_id == self._task_id,
                     _table.c.status == RUNNING,
@@ -246,6 +260,14 @@ class _Heartbeat:
                 )
             except Exception:
                 logger.warning("Task heartbeat failed", exc_info=True)
+                renewed = None
+            if renewed:
+                last_renewal = time.monotonic()
+            # once stopped, the task is finishing and its row may be terminal
+            if not self._fence or self._stop.is_set():
+                continue
+            if renewed == 0 or time.monotonic() - last_renewal > self._timeout / 2:
+                _abandon(self._task_id)
 
     def __enter__(self) -> _Heartbeat:
         self._thread.start()
@@ -279,13 +301,17 @@ def _finish(
     )
 
 
-def run_tracked(task_id: str | None, run: Callable[[], Any]) -> Any:
+def run_tracked(
+    task_id: str | None, run: Callable[[], Any], fence: bool = False
+) -> Any:
     """Run a task body under its task_tree row.
 
     Marks the row running, keeps its heartbeat while the body runs, and stores
     the outcome. A task whose row is no longer queued (it was reaped, or its
     message was delivered twice) does not run at all. A task without a row,
-    e.g. one dispatched before tracking existed, runs untracked.
+    e.g. one dispatched before tracking existed, runs untracked. With
+    ``fence``, a task holding a lock terminates its process rather than keep
+    running once the lock may have been handed over (see _Heartbeat).
     """
     if task_id is None:
         return run()
@@ -312,32 +338,34 @@ def run_tracked(task_id: str | None, run: Callable[[], Any]) -> Any:
         logger.info("Task %s is no longer queued, not running it", task_id)
         return None
     coalescing = row.lock_key in COALESCING_LOCKS
-    interval = current_app.config["TASK_HEARTBEAT_TIMEOUT"] / 10
+    timeout = current_app.config["TASK_HEARTBEAT_TIMEOUT"]
+    fence = fence and row.lock_key is not None
     token = _current_task_id.set(task_id)
     try:
-        with _Heartbeat(engine, task_id, interval):
-            while True:
-                try:
+        while True:
+            try:
+                # stopped before finishing, so it never sees the terminal row
+                with _Heartbeat(engine, task_id, timeout, fence):
                     result = run()
-                except BaseException as exc:
-                    try:
-                        _finish(engine, task_id, FAILED, error_payload(exc), False)
-                    except sa.exc.SQLAlchemyError:
-                        # don't hide the task's own error; the row gets reaped
-                        logger.warning("Failed to store task failure", exc_info=True)
-                    raise
-                if _finish(engine, task_id, SUCCEEDED, result, coalescing):
-                    return result
-                # a coalesced dispatch arrived while running: run once more,
-                # unless the task was reaped in the meantime
-                if not coalescing or not _update(
-                    engine,
-                    _table.c.task_id == task_id,
-                    _table.c.status == RUNNING,
-                    _table.c.rerun.is_(True),
-                    rerun=False,
-                ):
-                    return result
+            except BaseException as exc:
+                try:
+                    _finish(engine, task_id, FAILED, error_payload(exc), False)
+                except sa.exc.SQLAlchemyError:
+                    # don't hide the task's own error; the row gets reaped
+                    logger.warning("Failed to store task failure", exc_info=True)
+                raise
+            if _finish(engine, task_id, SUCCEEDED, result, coalescing):
+                return result
+            # a coalesced dispatch arrived while running: run once more,
+            # unless the task was reaped in the meantime
+            if not coalescing or not _update(
+                engine,
+                _table.c.task_id == task_id,
+                _table.c.status == RUNNING,
+                _table.c.rerun.is_(True),
+                rerun=False,
+            ):
+                return result
     finally:
         _current_task_id.reset(token)
 
@@ -365,20 +393,3 @@ def progress_reporter() -> Callable[[dict], None]:
             logger.warning("Failed to store task progress", exc_info=True)
 
     return report
-
-
-def ensure_lock_held() -> None:
-    """Raise TaskLockLost if the current task is no longer running.
-
-    Called by tree-writing tasks right before they write: a task reaped while
-    still alive must not run concurrently with the next lock holder.
-    """
-    task_id = _current_task_id.get()
-    if task_id is None:
-        return
-    with user_db.engine.connect() as connection:
-        status = connection.scalar(
-            sa.select(_table.c.status).where(_table.c.task_id == task_id)
-        )
-    if status != RUNNING:
-        raise TaskLockLost(f"Task {task_id} lost its lock before writing")
