@@ -31,6 +31,84 @@ class _Base(Schema):
         unknown = INCLUDE
 
 
+class AnniversaryEventReferenceSchema(_Base):
+    """Minimal event identity in an anniversary occurrence."""
+
+    handle = fields.Str(
+        required=True,
+        metadata={"description": "Internal Gramps event handle."},
+    )
+    gramps_id = fields.Str(
+        required=True,
+        allow_none=True,
+        metadata={"description": "Human-readable Gramps event ID, if assigned."},
+    )
+
+
+class AnniversaryParticipantSchema(_Base):
+    """A visible person or family associated with an anniversary event."""
+
+    object_type = fields.Str(
+        required=True,
+        validate=validate.OneOf(["person", "family"]),
+        metadata={"description": "Whether the participant is a person or family."},
+    )
+    gramps_id = fields.Str(
+        required=True,
+        allow_none=True,
+        metadata={"description": "Human-readable participant Gramps ID."},
+    )
+    name = fields.Str(
+        required=True,
+        metadata={"description": "Localized participant name."},
+    )
+
+
+class AnniversaryOccurrenceSchema(_Base):
+    """One annual occurrence of a selected Gramps event."""
+
+    occurrence_date = fields.Str(
+        required=True,
+        metadata={"description": "Occurrence date in YYYY-MM-DD format."},
+    )
+    historical_date = fields.Str(
+        required=True,
+        allow_none=True,
+        metadata={
+            "description": "Original Gregorian date, or null when its year is unknown."
+        },
+    )
+    anniversary = fields.Int(
+        required=True,
+        allow_none=True,
+        metadata={"description": "Years since the event, or null when unknown."},
+    )
+    event_date = fields.Str(
+        required=True,
+        metadata={
+            "description": "Original event date formatted in the requested locale."
+        },
+    )
+    type = fields.Str(
+        required=True,
+        metadata={"description": "Localized Gramps event type."},
+    )
+    summary = fields.Str(
+        required=True,
+        metadata={"description": "Localized event type and visible participant names."},
+    )
+    event = fields.Nested(
+        AnniversaryEventReferenceSchema,
+        required=True,
+        metadata={"description": "Identity of the underlying Gramps event."},
+    )
+    participants = fields.List(
+        fields.Nested(AnniversaryParticipantSchema),
+        required=True,
+        metadata={"description": "Visible people and families linked to the event."},
+    )
+
+
 def validate_push_endpoint(value: str) -> str:
     """Validate a browser-provided push endpoint without contacting it."""
     try:
