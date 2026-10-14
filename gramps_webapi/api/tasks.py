@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import uuid
 from datetime import datetime, timedelta, timezone
 from gettext import gettext as _
@@ -56,6 +57,15 @@ from ..util.task_state import (
     progress_reporter,
     run_tracked,
 )
+from .backup import (
+    extract_data,
+    find_missing_media,
+    read_backup,
+    restore_tree_config,
+    restore_users,
+    write_backup,
+)
+from .backup_store import get_backup_store
 from .check import check_database
 from .emails import email_confirm_email, email_new_user, email_reset_pw
 from ..verify_lib import run_verify
@@ -94,9 +104,11 @@ from .telemetry import (
     update_telemetry_timestamp,
 )
 from .util import (
+    UserTaskProgress,
     check_quota_people,
     close_db,
     get_config,
+    get_db_manager,
     get_db_outside_request,
     get_locale_for_language,
     gramps_object_from_dict,
@@ -497,39 +509,158 @@ def restore_backup(
     and, unless ``dry_run`` is set, applies it in a single transaction. Returns a
     per-object-type summary of the changeset in both cases.
     """
+    try:
+        summary, _ = _reset_tree(
+            tree=tree,
+            user_id=user_id,
+            file_name=file_name,
+            extension=extension,
+            dry_run=dry_run,
+        )
+    finally:
+        try:
+            os.remove(file_name)
+        except OSError:
+            pass
+    if dry_run:
+        return summary
+    update_usage_people(tree=tree, user_id=user_id)
+    index_tasks = update_search_indices_after_import(tree=tree, user_id=user_id)
+    return {**summary, "index_tasks": index_tasks}
+
+
+def _reset_tree(
+    tree: str,
+    user_id: str,
+    file_name: str,
+    extension: str,
+    dry_run: bool,
+    check_media: bool = False,
+) -> tuple[dict[str, dict[str, int]], list[str] | None]:
+    """Reset a tree to the state of a backup file, see `restore_backup`.
+
+    Returns the changeset summary and, with `check_media`, the Gramps IDs of
+    the backup's media objects whose files don't exist.
+    """
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=dry_run, user_id=user_id
     )
+    missing_media = None
     try:
         set_progress_title(title="Computing differences...")
         backup_db = load_backup_db(file_name=file_name, extension=extension.lower())
         try:
             changeset = compute_reset_changeset(db_handle, backup_db)
+            if check_media:
+                missing_media = find_missing_media(
+                    get_media_handler(db_handle, tree=tree), backup_db
+                )
         finally:
             backup_db.close()
         summary = summarize_changeset(db_handle, changeset)
-        if dry_run:
-            return summary
-        check_quota_people(
-            to_add=max(0, changeset_people_delta(changeset)),
-            tree=tree,
-            user_id=user_id,
-        )
-        apply_reset_changeset(
+        if not dry_run:
+            check_quota_people(
+                to_add=max(0, changeset_people_delta(changeset)),
+                tree=tree,
+                user_id=user_id,
+            )
+            apply_reset_changeset(
+                db_handle,
+                changeset,
+                progress_cb=progress_callback_count(title="Restoring from backup..."),
+            )
+    finally:
+        close_db(db_handle)
+    return summary, missing_media
+
+
+@shared_task(bind=True)
+def create_backup(self, tree: str, user_id: str) -> dict[str, Any]:
+    """Create a stored backup archive of a tree and prune the oldest ones."""
+    store = get_backup_store()
+    backup_id, file_path = store.new_path(tree)
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=True, readonly=True, user_id=user_id
+    )
+    try:
+        manifest = write_backup(
             db_handle,
-            changeset,
-            progress_cb=progress_callback_count(title="Restoring from backup..."),
+            tree=tree,
+            tree_name=get_db_manager(tree).name,
+            file_path=file_path,
+            user=UserTaskProgress(task=self),
+        )
+    except HandleError:
+        abort_with_message(
+            422,
+            "The family tree contains a reference to a record that does "
+            "not exist, so it cannot be backed up. Running the check & "
+            "repair tool on the tree should fix this.",
         )
     finally:
         close_db(db_handle)
-        try:
-            os.remove(file_name)
-        except OSError:
-            pass
+    store.prune(tree, keep=current_app.config["BACKUP_KEEP"])
+    return {
+        "id": backup_id,
+        "size": os.path.getsize(file_path),
+        "restorable": True,
+        "manifest": manifest,
+    }
 
-    update_usage_people(tree=tree, user_id=user_id)
-    index_tasks = update_search_indices_after_import(tree=tree, user_id=user_id)
-    return {**summary, "index_tasks": index_tasks}
+
+@shared_task(bind=True)
+def restore_backup_archive(
+    self,
+    tree: str,
+    user_id: str,
+    file_name: str,
+    data: bool,
+    tree_settings: bool,
+    users: bool,
+    dry_run: bool = False,
+    delete: bool = True,
+):
+    """Restore the selected parts of a tree from a backup archive.
+
+    The archive must have been validated with `read_backup` before. With
+    `delete`, the archive (an upload) is deleted afterwards. The Gramps
+    data is restored first, so that a failure there leaves the tree settings
+    and users untouched.
+    """
+    result: dict[str, Any] = {}
+    try:
+        backup = read_backup(file_name, verify=False)
+        result["manifest"] = backup.manifest
+        if data:
+            with tempfile.TemporaryDirectory(prefix="gramps-restore-") as directory:
+                summary, missing_media = _reset_tree(
+                    tree=tree,
+                    user_id=user_id,
+                    file_name=extract_data(file_name, directory),
+                    extension="gramps",
+                    dry_run=dry_run,
+                    check_media=True,
+                )
+            result["data"] = summary
+            result["missing_media"] = missing_media
+        if tree_settings:
+            result["tree_settings"] = restore_tree_config(
+                tree, backup.tree_config, dry_run=dry_run
+            )
+        if users:
+            result["users"] = restore_users(tree, backup.users, dry_run=dry_run)
+    finally:
+        if delete:
+            try:
+                os.remove(file_name)
+            except OSError:
+                pass
+    if data and not dry_run:
+        update_usage_people(tree=tree, user_id=user_id)
+        result["index_tasks"] = update_search_indices_after_import(
+            tree=tree, user_id=user_id
+        )
+    return result
 
 
 @shared_task(bind=True)

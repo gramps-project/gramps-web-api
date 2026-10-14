@@ -20,6 +20,7 @@
 """Tests for rate limited endpoints."""
 
 import os
+import tempfile
 import unittest
 from pathlib import Path
 from time import sleep
@@ -30,7 +31,7 @@ from gramps.gen.dbstate import DbState
 
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import add_user, user_db
-from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
+from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_GUEST, ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 
 
@@ -99,3 +100,59 @@ class TestRateLimits(unittest.TestCase):
         # the limit is per user
         rv = self.client.post("/api/media/archive/", headers=self._header("user"))
         assert rv.status_code == 201
+
+
+class TestBackupRateLimit(unittest.TestCase):
+    """Creating backups is rate limited per tree."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.name = "backups_rate_limit"
+        cls.dbman = CLIDbManager(DbState())
+        dbpath, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
+        tree = os.path.basename(dbpath)
+        cls.backup_dir = tempfile.TemporaryDirectory()
+        with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
+            cls.test_app = create_app(
+                config_from_env=False,
+                config={
+                    "TREE": cls.name,
+                    "BACKUP_DIR": cls.backup_dir.name,
+                    "RATELIMIT_ENABLED": True,
+                    "RATE_LIMIT_BACKUP": "2 per day",
+                },
+            )
+        cls.test_app.config["TESTING"] = True
+        cls.client = cls.test_app.test_client()
+        with cls.test_app.app_context():
+            user_db.create_all()
+            add_user(name="owner", password="123", role=ROLE_OWNER, tree=tree)
+            add_user(name="owner2", password="123", role=ROLE_OWNER, tree=tree)
+            add_user(name="editor", password="123", role=ROLE_EDITOR, tree=tree)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.dbman.remove_database(cls.name)
+        cls.backup_dir.cleanup()
+
+    def _header(self, name: str) -> dict:
+        # the token endpoint is rate limited to one request per second
+        sleep(1)
+        rv = self.client.post("/api/token/", json={"username": name, "password": "123"})
+        return {"Authorization": f"Bearer {rv.json['access_token']}"}
+
+    def test_rate_limit(self):
+        editor = self._header("editor")
+        owner = self._header("owner")
+        # rejected requests don't count
+        for _ in range(3):
+            rv = self.client.post("/api/backups/", headers=editor)
+            self.assertEqual(rv.status_code, 403)
+        for _ in range(2):
+            rv = self.client.post("/api/backups/", headers=owner)
+            self.assertEqual(rv.status_code, 201)
+        rv = self.client.post("/api/backups/", headers=owner)
+        self.assertEqual(rv.status_code, 429)
+        # the limit is per tree, not per user
+        rv = self.client.post("/api/backups/", headers=self._header("owner2"))
+        self.assertEqual(rv.status_code, 429)

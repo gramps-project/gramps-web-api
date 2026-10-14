@@ -36,8 +36,10 @@ named `gramps`, and the user must be allowed to create tables in it).
 `SharedPostgreSQL` addon.
 """
 
+import io
 import os
 import shutil
+import tempfile
 import unittest
 from unittest.mock import patch
 from urllib.parse import urlparse
@@ -199,6 +201,7 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
         url = urlparse(POSTGRES_URL)
         cls.pg_user = url.username
         cls.pg_password = url.password
+        cls.backup_dir = tempfile.TemporaryDirectory()
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
             cls.app = create_app(
                 config={
@@ -210,6 +213,7 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
                     "POSTGRES_USER": cls.pg_user,
                     "POSTGRES_PASSWORD": cls.pg_password,
                     "MEDIA_PREFIX_TREE": True,
+                    "BACKUP_DIR": cls.backup_dir.name,
                 },
                 config_from_env=False,
             )
@@ -248,6 +252,7 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
     def tearDownClass(cls):
         for dbmgr in (cls.dbmgr_a, cls.dbmgr_b):
             _delete_tree_rows(dbmgr)
+        cls.backup_dir.cleanup()
 
     @classmethod
     def _dbmgr(cls, tree: str) -> WebDbManager:
@@ -458,3 +463,42 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
                     writer.remove_person(LATE_PERSON, trans)
             writer.close()
             reader.close()
+
+    def test_backup_and_restore(self):
+        """A tree's backup contains only that tree, and restoring it leaves the
+        other tree alone."""
+        headers = self._header("owner_b")
+        rv = self.client.post(BASE_URL + "/backups/", headers=headers)
+        self.assertEqual(rv.status_code, 201, rv.json)
+        backup = rv.json
+        self.assertEqual(backup["manifest"]["backend"], "sharedpostgresql")
+        self.assertEqual(backup["manifest"]["tree"]["id"], self.tree_b)
+        self.assertEqual(backup["manifest"]["object_counts"]["people"], 2)
+        rv = self.client.get(BASE_URL + "/backups/" + backup["id"], headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        archive = rv.data
+        rv.close()
+
+        dbstate = self.dbmgr_b.get_db(readonly=False)
+        try:
+            with DbTxn("remove person", dbstate.db) as trans:
+                dbstate.db.remove_person(ONLY_B_PERSON, trans)
+        finally:
+            dbstate.db.close()
+        rv = self.client.post(
+            BASE_URL + "/backups/restore?tree_settings=false&users=false",
+            data=io.BytesIO(archive),
+            headers=self._header("owner_b"),
+        )
+        self.assertEqual(rv.status_code, 200, rv.json)
+        self.assertEqual(rv.json["data"]["to_add"]["people"], 1)
+        self.assertEqual(rv.json["data"]["to_delete"]["people"], 0)
+        for dbmgr, people in [
+            (self.dbmgr_a, {SHARED_PERSON, ONLY_A_PERSON}),
+            (self.dbmgr_b, {SHARED_PERSON, ONLY_B_PERSON}),
+        ]:
+            dbstate = dbmgr.get_db()
+            try:
+                self.assertEqual(set(dbstate.db.get_person_handles()), people)
+            finally:
+                dbstate.db.close()

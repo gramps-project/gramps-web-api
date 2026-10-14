@@ -117,7 +117,7 @@ class ImporterFileResource(ProtectedResource):
             abort_with_message(
                 HTTPStatus.NOT_FOUND, f"Importer for extension {extension} not found"
             )
-        file_path = _stream_upload_to_tempfile(extension)
+        file_path = stream_upload_to_tempfile(extension)
         tree = get_tree_from_jwt()
         user_id = get_jwt_identity()
         with remove_file_on_error(file_path):
@@ -139,7 +139,7 @@ class ImporterFileResource(ProtectedResource):
         return task, 201
 
 
-def _stream_upload_to_tempfile(extension: str) -> str:
+def stream_upload_to_tempfile(extension: str) -> str:
     """Stream the request body to a temporary file and return its path.
 
     Aborts with 400, removing the file, if the body is empty or its size does
@@ -208,7 +208,7 @@ class RestoreFileResource(FreshProtectedResource):
             abort_with_message(
                 HTTPStatus.NOT_FOUND, f"Importer for extension {extension} not found"
             )
-        file_path = _stream_upload_to_tempfile(extension)
+        file_path = stream_upload_to_tempfile(extension)
         tree = get_tree_from_jwt()
         user_id = get_jwt_identity()
         with remove_file_on_error(file_path):
