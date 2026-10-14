@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import time
 import zipfile
@@ -58,6 +59,8 @@ PREFIX_S3 = "s3://"
 ARCHIVE_DIR = "media_archives"
 ARCHIVE_GRACE_SECONDS = 3600
 ARCHIVE_URL_LIFETIME = 3600  # must not exceed ARCHIVE_GRACE_SECONDS
+# an existing archive is only reused if it can be downloaded for at least this long
+ARCHIVE_REUSE_MIN_REMAINING_SECONDS = 3600
 
 
 def get_archive_download_name(timestamp: float) -> str:
@@ -69,6 +72,29 @@ def get_archive_download_name(timestamp: float) -> str:
 def is_archive_expired(created: float, retention: float) -> bool:
     """Return whether a media archive can no longer be downloaded."""
     return time.time() - created > retention
+
+
+def is_archive_reusable(created: float, retention: float) -> bool:
+    """Return whether a media archive can be handed out again."""
+    return time.time() - created < retention - ARCHIVE_REUSE_MIN_REMAINING_SECONDS
+
+
+def get_archive_name(db_handle: DbReadBase, include_private: bool) -> str:
+    """Return the file name of the media archive for the current media.
+
+    Archives are named after what they contain, so that requesting an archive
+    again while the media haven't changed returns the existing one. Archives
+    with and without private media never share a name.
+    """
+    sha256 = hashlib.sha256(b"private" if include_private else b"public")
+    media = sorted(
+        (obj.handle, obj.path, obj.checksum)
+        for obj in db_handle.iter_media()
+        if include_private or not obj.private
+    )
+    for handle, path, checksum in media:
+        sha256.update(f"\0{handle}\0{path}\0{checksum}".encode("utf-8"))
+    return f"{sha256.hexdigest()}.zip"
 
 
 def get_local_archive_dir(tree: str | None = None) -> str:
@@ -142,6 +168,12 @@ class MediaHandlerBase:
         progress_cb: Optional[Callable] = None,
     ) -> None:
         """Create a ZIP archive on disk containing all media files."""
+        raise NotImplementedError
+
+    def get_file_archive_info(
+        self, tree: str, file_name: str
+    ) -> tuple[float, int] | None:
+        """Return the creation time and size of a media archive, if it exists."""
         raise NotImplementedError
 
 
@@ -237,6 +269,17 @@ class MediaHandlerLocal(MediaHandlerBase):
                 if Path(path).is_file() and path not in paths_seen:
                     zip_file.write(path, arcname=rel_path)
                     paths_seen.add(path)
+
+    def get_file_archive_info(
+        self, tree: str, file_name: str
+    ) -> tuple[float, int] | None:
+        """Return the creation time and size of a media archive, if it exists."""
+        path = os.path.join(get_local_archive_dir(tree), file_name)
+        try:
+            stat = os.stat(path)
+        except FileNotFoundError:
+            return None
+        return stat.st_mtime, stat.st_size
 
 
 class MediaHandlerS3(MediaHandlerBase):
@@ -370,13 +413,20 @@ class MediaHandlerS3(MediaHandlerBase):
         return get_object_name(f"{ARCHIVE_DIR}/{tree}/{file_name}", self.prefix)
 
     def upload_file_archive(
-        self, zip_filename: FilenameOrPath, tree: str, retention: float
+        self,
+        zip_filename: FilenameOrPath,
+        tree: str,
+        retention: float,
+        file_name: str | None = None,
     ) -> None:
-        """Upload a media archive and delete expired archives."""
+        """Upload a media archive and delete expired archives.
+
+        The archive is stored as `file_name`, by default its local name.
+        """
         from .s3 import get_client
 
         client = get_client(self.endpoint_url)
-        key = self._get_archive_key(tree, Path(zip_filename).name)
+        key = self._get_archive_key(tree, file_name or Path(zip_filename).name)
         client.upload_file(
             str(zip_filename),
             self.bucket_name,
@@ -391,6 +441,24 @@ class MediaHandlerS3(MediaHandlerBase):
             for obj in page.get("Contents", []):
                 if obj["Key"] != key and obj["LastModified"].timestamp() < cutoff:
                     client.delete_object(Bucket=self.bucket_name, Key=obj["Key"])
+
+    def get_file_archive_info(
+        self, tree: str, file_name: str
+    ) -> tuple[float, int] | None:
+        """Return the creation time and size of a media archive, if it exists."""
+        from botocore.exceptions import ClientError
+
+        from .s3 import get_client
+
+        client = get_client(self.endpoint_url)
+        key = self._get_archive_key(tree, file_name)
+        try:
+            head = client.head_object(Bucket=self.bucket_name, Key=key)
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] in {"404", "NoSuchKey", "NotFound"}:
+                return None
+            raise
+        return head["LastModified"].timestamp(), head["ContentLength"]
 
     def get_file_archive_url(
         self, tree: str, file_name: str, retention: float

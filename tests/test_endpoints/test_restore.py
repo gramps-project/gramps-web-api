@@ -22,6 +22,7 @@
 import io
 import os
 import unittest
+import uuid
 from unittest.mock import patch
 
 from gramps.cli.clidbman import CLIDbManager
@@ -32,6 +33,7 @@ from gramps_webapi.app import create_app
 from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EMPTY_GRAMPS_AUTH_CONFIG
+from gramps_webapi.util.task_state import LOCK_WRITE, acquire, mark_failed
 
 from . import BASE_URL, TEST_USERS
 from .checks import check_success
@@ -178,3 +180,20 @@ class TestRestoreFile(unittest.TestCase):
         self.assertEqual(
             len(check_success(self, f"{BASE_URL}/people/")), SMALL_TREE_PEOPLE
         )
+
+    def test_restore_while_locked_is_rejected_without_leaking_upload(self):
+        """A restore rejected by a running write task removes its upload."""
+        holder = str(uuid.uuid4())
+        export_dir = self.test_app.config["EXPORT_DIR"]
+        os.makedirs(export_dir, exist_ok=True)
+        with self.test_app.app_context():
+            acquire(holder, "restore_backup", self.tree, None, LOCK_WRITE)
+        try:
+            before = set(os.listdir(export_dir))
+            rv = self._post_backup(RESTORE_URL)
+            self.assertEqual(rv.status_code, 409)
+            self.assertEqual(rv.json["error"]["task"]["id"], holder)
+            self.assertEqual(set(os.listdir(export_dir)), before)
+        finally:
+            with self.test_app.app_context():
+                mark_failed(holder, "released by test")

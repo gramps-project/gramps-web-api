@@ -11,10 +11,37 @@
 
 """Tests for anniversaries ICS endpoint."""
 
+import gzip
+import json
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+from urllib.parse import urlencode
 from uuid import uuid4
 
+from gramps.gen.const import GRAMPS_LOCALE
+from gramps.gen.lib import (
+    Date,
+    Event,
+    EventRef,
+    EventRoleType,
+    EventType,
+    Family,
+    Person,
+)
+from marshmallow import ValidationError
+
+from gramps_webapi.api.cache import request_cache
+from gramps_webapi.api.resources.anniversaries import (
+    AnniversariesIcsQueryArgs,
+    AnniversaryEvent,
+    _build_ics,
+    _calendar_etag,
+    _collect_anniversaries,
+    _escape_ics_text,
+    _event_matches_type,
+    _filter_dependencies,
+    _get_anniversary_date_components,
+)
 from gramps_webapi.auth import (
     add_user,
     get_user_details,
@@ -41,6 +68,11 @@ class TestAnniversariesIcs(unittest.TestCase):
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
+
+    def setUp(self):
+        """Avoid sharing cached calendars between test cases."""
+        with self.client.application.app_context():
+            request_cache.clear()
 
     def _create_token(self, role=ROLE_OWNER):
         """Create or rotate token for role and return (header, token)."""
@@ -71,23 +103,419 @@ class TestAnniversariesIcs(unittest.TestCase):
         self.assertIn("BEGIN:VCALENDAR", text)
         self.assertIn("END:VCALENDAR", text)
         self.assertIn("RRULE:FREQ=YEARLY", text)
+        self.assertIn("REFRESH-INTERVAL;VALUE=DURATION:P1D", text)
+        self.assertIn("X-PUBLISHED-TTL:P1D", text)
+        self.assertEqual(rv.headers["Cache-Control"], "private, max-age=86400")
+        self.assertIn("ETag", rv.headers)
+        self.assertNotIn("Last-Modified", rv.headers)
+        self.assertIn("Expires", rv.headers)
+        etag = rv.headers["ETag"]
 
         rv = self.client.delete(TOKEN_URL, headers=header)
         self.assertEqual(rv.status_code, 200)
 
-        rv = self.client.get(f"{ICS_URL}?token={token}")
+        rv = self.client.get(
+            f"{ICS_URL}?token={token}", headers={"If-None-Match": etag}
+        )
         self.assertEqual(rv.status_code, 401)
+
+    def test_conditional_feed_does_not_open_database(self):
+        """A matching ETag returns 304 after authorization, before DB access."""
+        _, token = self._create_token()
+        url = f"{ICS_URL}?token={token}&event_types=Birth"
+        rv = self.client.get(url)
+        self.assertEqual(rv.status_code, 200)
+
+        with patch(
+            "gramps_webapi.api.resources.anniversaries.get_db_outside_request"
+        ) as get_db:
+            conditional = self.client.get(
+                url, headers={"If-None-Match": rv.headers["ETag"]}
+            )
+        self.assertEqual(conditional.status_code, 304)
+        self.assertEqual(conditional.data, b"")
+        get_db.assert_not_called()
+
+        date_only = self.client.get(
+            url, headers={"If-Modified-Since": "Wed, 21 Oct 2015 07:28:00 GMT"}
+        )
+        self.assertEqual(date_only.status_code, 200)
+        self.assertNotIn("Last-Modified", date_only.headers)
+
+    def test_etag_varies_with_feed_parameters(self):
+        """Different representations never share validators."""
+        _, token = self._create_token()
+        births = self.client.get(f"{ICS_URL}?token={token}&event_types=Birth")
+        deaths = self.client.get(f"{ICS_URL}?token={token}&event_types=Death")
+        self.assertEqual(births.status_code, 200)
+        self.assertEqual(deaths.status_code, 200)
+        self.assertNotEqual(births.headers["ETag"], deaths.headers["ETag"])
+
+    def test_feed_without_database_timestamp_uses_body_etag(self):
+        """Backends without an early timestamp still receive a body validator."""
+        _, token = self._create_token()
+        with patch(
+            "gramps_webapi.api.resources.anniversaries.get_db_last_change_timestamp",
+            return_value=None,
+        ):
+            rv = self.client.get(f"{ICS_URL}?token={token}&event_types=Marriage")
+        self.assertEqual(rv.status_code, 200)
+        self.assertIn("ETag", rv.headers)
+        self.assertNotIn("Last-Modified", rv.headers)
+
+    def test_calendar_response_supports_gzip(self):
+        """Calendar responses use Flask-Compress when requested."""
+        _, token = self._create_token()
+        rv = self.client.get(
+            f"{ICS_URL}?token={token}", headers={"Accept-Encoding": "gzip"}
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.headers["Content-Encoding"], "gzip")
+        self.assertIn(b"BEGIN:VCALENDAR", gzip.decompress(rv.data))
+
+    def test_calendar_serialization_is_utf8_safe(self):
+        """Long Unicode text is folded without splitting encoded characters."""
+        event = Event()
+        event.handle = "event-handle"
+        event.gramps_id = "E0001"
+        event.type = EventType(EventType.BIRTH)
+        event.date = Date(2000, 1, 2)
+        event.change = 1_700_000_000
+        entry = AnniversaryEvent(
+            event, (2000, 1, 2), {("person", "I0001"): "Éléonore, " * 20}
+        )
+        payload = _build_ics([entry], "tree", "My family tree", GRAMPS_LOCALE)
+        lines = payload.removesuffix("\r\n").split("\r\n")
+        self.assertTrue(all(len(line.encode("utf-8")) <= 75 for line in lines))
+        self.assertTrue(any(line.startswith(" ") for line in lines))
+        self.assertIn("X-WR-CALNAME:My family tree - ", payload)
+
+    def test_february_29_repeats_on_last_day_of_february(self):
+        """Leap-day anniversaries recur every year on February's last day."""
+        event = Event()
+        event.handle = "leap-event"
+        event.gramps_id = "E0002"
+        event.type = EventType(EventType.BIRTH)
+        event.date = Date(2000, 2, 29)
+        payload = _build_ics([AnniversaryEvent(event, (2000, 2, 29))], "tree", "Tree")
+        self.assertIn("RRULE:FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1", payload)
+        self.assertIn("DTSTART;VALUE=DATE:20000229", payload)
+
+    def test_yearless_dates_use_a_labeled_ics_placeholder_year(self):
+        """Yearless exact dates recur without presenting the placeholder as real."""
+        event = Event()
+        event.handle = "yearless-event"
+        event.gramps_id = "E0003"
+        event.type = EventType(EventType.BIRTH)
+        event.date = Date(0, 3, 4)
+        components = _get_anniversary_date_components(event)
+        self.assertEqual(components, (0, 3, 4))
+
+        payload = _build_ics([AnniversaryEvent(event, components)], "tree", "Tree")
+        self.assertIn("DTSTART;VALUE=DATE:20000304", payload)
+        self.assertIn("RRULE:FREQ=YEARLY", payload)
+        self.assertIn(
+            "2000 is only a technical placeholder", payload.replace("\r\n ", "")
+        )
+
+        event.date.set_calendar(Date.CAL_JULIAN)
+        julian_components = _get_anniversary_date_components(event)
+        self.assertEqual(julian_components, (0, 3, 17))
+        julian_payload = _build_ics(
+            [AnniversaryEvent(event, julian_components)], "tree", "Tree"
+        )
+        self.assertIn("DTSTART;VALUE=DATE:20000317", julian_payload)
+
+        event.date = Date(0, 2, 29)
+        leap_components = _get_anniversary_date_components(event)
+        self.assertEqual(leap_components, (0, 2, 29))
+        leap_payload = _build_ics(
+            [AnniversaryEvent(event, leap_components)], "tree", "Tree"
+        )
+        self.assertIn("DTSTART;VALUE=DATE:20000229", leap_payload)
+        self.assertIn("RRULE:FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1", leap_payload)
+
+    def test_ics_text_escaping_normalizes_all_line_endings(self):
+        """CR, LF, commas, semicolons and slashes are escaped once."""
+        escaped = _escape_ics_text("one\r\ntwo\rthree\nfour, five; \\six")
+        self.assertEqual(escaped, "one\\ntwo\\nthree\\nfour\\, five\\; \\\\six")
+
+    def test_exact_dates_allow_missing_year_but_exclude_approximate_dates(self):
+        """Missing years are valid; estimated and approximate dates are not."""
+        event = Event()
+        event.date = Date(2000, 3, 4)
+        self.assertEqual(_get_anniversary_date_components(event), (2000, 3, 4))
+        event.date.set_modifier(Date.MOD_ABOUT)
+        self.assertIsNone(_get_anniversary_date_components(event))
+        event.date = Date(0, 3, 4)
+        self.assertEqual(_get_anniversary_date_components(event), (0, 3, 4))
+        event.date.set_modifier(Date.MOD_ABOUT)
+        self.assertIsNone(_get_anniversary_date_components(event))
+
+    def test_event_types_all_accepts_custom_events_and_must_be_singular(self):
+        """The explicit all selector matches custom types and cannot be combined."""
+        parsed = AnniversariesIcsQueryArgs().load(
+            {"token": "unused", "event_types": "ALL"}
+        )
+        self.assertEqual(parsed["event_types"], ["ALL"])
+        custom_event = Event()
+        self.assertTrue(_event_matches_type(custom_event, {"all"}, GRAMPS_LOCALE))
+        with self.assertRaises(ValidationError):
+            AnniversariesIcsQueryArgs().load(
+                {"token": "unused", "event_types": "all,Birth"}
+            )
+
+    def test_filter_dependencies_reload_saved_filters_once_for_all_namespaces(self):
+        """Saved filter definitions are snapshotted with a single disk reload."""
+        with (
+            patch(
+                "gramps_webapi.api.resources.anniversaries.gramps_filters.reload_custom_filters"
+            ) as reload_filters,
+            patch(
+                "gramps_webapi.api.resources.anniversaries.get_custom_filters",
+                return_value=[],
+            ) as get_custom_filters,
+        ):
+            definitions, missing = _filter_dependencies({"person_rules": "{}"})
+
+        self.assertFalse(missing)
+        self.assertEqual(len(definitions), 9)
+        reload_filters.assert_called_once_with()
+        self.assertEqual(get_custom_filters.call_count, 9)
+        self.assertTrue(
+            all(
+                call.kwargs["reload"] is False
+                for call in get_custom_filters.call_args_list
+            )
+        )
+
+    def test_saved_filter_changes_invalidate_calendar_etag(self):
+        """The saved-filter snapshot remains part of the feed cache key."""
+        args = {"event_types": ["Birth"], "living_only": True}
+        base = ("tree", "Family tree", False, args, 1, GRAMPS_LOCALE)
+        first = [{"namespace": "Person", "filters": [{"name": "Adults"}]}]
+        second = [{"namespace": "Person", "filters": [{"name": "Living adults"}]}]
+        self.assertNotEqual(
+            _calendar_etag(*base, first),
+            _calendar_etag(*base, second),
+        )
 
     def test_public_feed_event_type_filter(self):
         """event_types filter limits event types included in ICS."""
         _, token = self._create_token(role=ROLE_OWNER)
-        rv = self.client.get(f"{ICS_URL}?token={token}&event_types=Birth")
+        rv = self.client.get(f"{ICS_URL}?token={token}&event_types=Birth&locale=en")
         self.assertEqual(rv.status_code, 200)
         text = rv.data.decode("utf-8")
         self.assertIn("Type: Birth", text)
         self.assertIn("\\nType: Birth", text)
         self.assertNotIn("\\\\nType: Birth", text)
         self.assertNotIn("Type: Death", text)
+
+    def test_event_types_match_case_and_requested_locale_with_shared_cache_key(self):
+        """Case variants share content and translated names select the same events."""
+        header, token = self._create_token()
+        self.addCleanup(self.client.delete, TOKEN_URL, headers=header)
+        for first, second in (("birth", "Birth"), ("Birth", "birth")):
+            with self.subTest(first=first):
+                with self.client.application.app_context():
+                    request_cache.clear()
+                responses = [
+                    self.client.get(
+                        f"{ICS_URL}?{urlencode({'token': token, 'event_types': value, 'locale': 'en'})}"
+                    )
+                    for value in (first, second)
+                ]
+                self.assertTrue(all(rv.status_code == 200 for rv in responses))
+                self.assertIn(b"BEGIN:VEVENT", responses[0].data)
+                self.assertEqual(responses[0].data, responses[1].data)
+                self.assertEqual(
+                    responses[0].headers["ETag"], responses[1].headers["ETag"]
+                )
+
+        german_locale = Mock(wraps=GRAMPS_LOCALE)
+        german_locale.language = ["de"]
+        german_locale.translation = Mock(wraps=GRAMPS_LOCALE.translation)
+        german_locale.translation.sgettext.side_effect = lambda value: (
+            "Geburt" if value == "Birth" else GRAMPS_LOCALE.translation.sgettext(value)
+        )
+        with patch(
+            "gramps_webapi.api.resources.anniversaries.get_locale_for_language",
+            return_value=german_locale,
+        ):
+            german = [
+                self.client.get(
+                    f"{ICS_URL}?{urlencode({'token': token, 'event_types': value, 'locale': 'de'})}"
+                )
+                for value in ("Birth", "Geburt", "geburt")
+            ]
+        self.assertTrue(all(rv.status_code == 200 for rv in german))
+        self.assertIn(b"BEGIN:VEVENT", german[0].data)
+        self.assertEqual(german[0].data, german[1].data)
+        self.assertEqual(german[1].data, german[2].data)
+        self.assertEqual(german[1].headers["ETag"], german[2].headers["ETag"])
+
+    def _collect_with_options(
+        self,
+        living_only,
+        primary_participants_only,
+        event_types=None,
+        diagnostics=False,
+    ):
+        """Collect deterministic person and family references with real Gramps roles."""
+        people = {}
+        for handle in ("alive", "partner", "deceased"):
+            person = Person()
+            person.handle = handle
+            person.gramps_id = handle
+            people[handle] = person
+
+        events = {}
+
+        def add_event(subject, handle, event_type, role=EventRoleType.PRIMARY):
+            event = Event()
+            event.handle = handle
+            event.gramps_id = handle
+            event.type = EventType(event_type)
+            event.date = Date(2000, 1, 2)
+            events[handle] = event
+            reference = EventRef()
+            reference.set_reference_handle(handle)
+            reference.set_role(role)
+            subject.add_event_ref(reference)
+
+        add_event(people["alive"], "alive-birth", EventType.BIRTH)
+        add_event(people["deceased"], "deceased-birth", EventType.BIRTH)
+        add_event(people["deceased"], "deceased-death", EventType.DEATH)
+        add_event(
+            people["alive"], "witness-birth", EventType.BIRTH, EventRoleType.WITNESS
+        )
+
+        families = {}
+        for handle, spouse in (
+            ("living-family", "partner"),
+            ("mixed-family", "deceased"),
+        ):
+            family = Family()
+            family.handle = handle
+            family.gramps_id = handle
+            family.set_father_handle("alive")
+            family.set_mother_handle(spouse)
+            people["alive"].add_family_handle(handle)
+            people[spouse].add_family_handle(handle)
+            families[handle] = family
+            add_event(
+                family, handle + "-marriage", EventType.MARRIAGE, EventRoleType.FAMILY
+            )
+        add_event(
+            families["living-family"],
+            "witness-marriage",
+            EventType.MARRIAGE,
+            EventRoleType.WITNESS,
+        )
+        # The same event may be referenced by both spouses and the family.
+        add_event(people["alive"], "living-family-marriage", EventType.MARRIAGE)
+
+        single_parent_family = Family()
+        single_parent_family.handle = "single-parent-family"
+        single_parent_family.gramps_id = "single-parent-family"
+        single_parent_family.set_father_handle("alive")
+        people["alive"].add_family_handle("single-parent-family")
+        families[single_parent_family.handle] = single_parent_family
+        add_event(
+            single_parent_family,
+            "single-parent-marriage",
+            EventType.MARRIAGE,
+            EventRoleType.FAMILY,
+        )
+
+        db_handle = Mock()
+        db_handle.get_person_handles.return_value = list(people)
+        db_handle.get_person_from_handle.side_effect = people.get
+        db_handle.get_family_from_handle.side_effect = families.get
+        db_handle.get_event_from_handle.side_effect = events.get
+        args = {
+            "event_types": event_types or ["Birth", "Marriage", "Death"],
+            "living_only": living_only,
+            "primary_participants_only": primary_participants_only,
+        }
+        with (
+            patch(
+                "gramps_webapi.api.resources.anniversaries.probably_alive",
+                side_effect=lambda person, db, today: person.handle != "deceased",
+            ) as probably_alive_mock,
+            patch(
+                "gramps_webapi.api.resources.anniversaries._get_anniversary_date_components",
+                wraps=_get_anniversary_date_components,
+            ) as date_components_mock,
+            patch(
+                "gramps_webapi.api.resources.anniversaries.get_family_name_localized",
+                return_value="Family",
+            ),
+        ):
+            handles = {
+                entry.event.handle
+                for entry in _collect_anniversaries(db_handle, args, GRAMPS_LOCALE)
+            }
+        if not diagnostics:
+            return handles
+        return {
+            "handles": handles,
+            "alive_calls": probably_alive_mock.call_count,
+            "date_handles": [
+                call.args[0].handle for call in date_components_mock.call_args_list
+            ],
+            "event_handles": [
+                call.args[0] for call in db_handle.get_event_from_handle.call_args_list
+            ],
+        }
+
+    def test_living_only_filters_births_and_marriages_but_keeps_deaths(self):
+        """Dead people's births and mixed-family marriages are optional."""
+        living = self._collect_with_options(True, True)
+        all_people = self._collect_with_options(False, True)
+        self.assertEqual(
+            living,
+            {"alive-birth", "deceased-death", "living-family-marriage"},
+        )
+        self.assertEqual(
+            all_people,
+            living
+            | {
+                "deceased-birth",
+                "mixed-family-marriage",
+                "single-parent-marriage",
+            },
+        )
+
+    def test_primary_participants_only_excludes_secondary_roles(self):
+        """Witness references appear only when secondary participants are allowed."""
+        primary = self._collect_with_options(False, True)
+        secondary = self._collect_with_options(False, False)
+        self.assertEqual(
+            secondary,
+            primary | {"witness-birth", "witness-marriage"},
+        )
+
+    def test_living_checks_are_skipped_when_not_needed(self):
+        """No alive calculation is needed when disabled or only deaths are selected."""
+        for living_only, event_types in (
+            (False, ["Birth", "Marriage", "Death"]),
+            (True, ["Death"]),
+            (True, ["Place"]),
+        ):
+            with self.subTest(living_only=living_only, event_types=event_types):
+                result = self._collect_with_options(
+                    living_only, True, event_types=event_types, diagnostics=True
+                )
+                self.assertEqual(result["alive_calls"], 0)
+                if event_types == ["Death"]:
+                    self.assertEqual(result["handles"], {"deceased-death"})
+
+    def test_shared_event_date_is_converted_once_during_collection(self):
+        """A family event referenced by a person reuses its computed date."""
+        result = self._collect_with_options(False, True, diagnostics=True)
+        self.assertEqual(result["date_handles"].count("living-family-marriage"), 1)
+        self.assertEqual(result["event_handles"].count("living-family-marriage"), 1)
 
     def test_public_feed_generation_depth_validation(self):
         """generation_depth is bounded between 1 and 9."""
@@ -97,28 +525,110 @@ class TestAnniversariesIcs(unittest.TestCase):
         rv = self.client.get(f"{ICS_URL}?token={token}&generation_depth=10")
         self.assertEqual(rv.status_code, 422)
 
+    def test_native_event_rules_intersect_with_event_types(self):
+        """Public shorthand and native Event rules are intersected."""
+        _, token = self._create_token()
+        query = urlencode(
+            {
+                "token": token,
+                "event_types": "Birth",
+                "living_only": "false",
+                "locale": "en",
+                "rules": json.dumps(
+                    {"rules": [{"name": "HasType", "values": ["Death"]}]}
+                ),
+            }
+        )
+        rv = self.client.get(f"{ICS_URL}?{query}")
+        self.assertEqual(rv.status_code, 200)
+        self.assertNotIn("BEGIN:VEVENT", rv.data.decode("utf-8"))
+
+    def test_event_types_all_still_intersects_with_native_event_rules(self):
+        """The all selector does not bypass saved/dynamic Event filters."""
+        _, token = self._create_token()
+        query = urlencode(
+            {
+                "token": token,
+                "event_types": "all",
+                "living_only": "false",
+                "locale": "en",
+                "rules": json.dumps(
+                    {"rules": [{"name": "HasType", "values": ["Death"]}]}
+                ),
+            }
+        )
+        rv = self.client.get(f"{ICS_URL}?{query}")
+        self.assertEqual(rv.status_code, 200)
+        self.assertIn("BEGIN:VEVENT", rv.data.decode("utf-8"))
+        self.assertNotIn("Type: Birth", rv.data.decode("utf-8"))
+
+    def test_event_types_all_is_case_insensitive_and_includes_default_events(self):
+        """All types is a stable, superset selection and has a normalized ETag."""
+        _, token = self._create_token()
+        default = self.client.get(f"{ICS_URL}?token={token}")
+        all_lower = self.client.get(f"{ICS_URL}?token={token}&event_types=all")
+        all_upper = self.client.get(f"{ICS_URL}?token={token}&event_types=ALL")
+        self.assertEqual(default.status_code, 200)
+        self.assertEqual(all_lower.status_code, 200)
+        self.assertGreaterEqual(
+            all_lower.data.count(b"BEGIN:VEVENT"),
+            default.data.count(b"BEGIN:VEVENT"),
+        )
+        self.assertEqual(all_lower.headers["ETag"], all_upper.headers["ETag"])
+        self.assertEqual(all_lower.data, all_upper.data)
+
+    def test_native_person_rules_limit_collected_events(self):
+        """Native Person rules are applied before event collection."""
+        _, token = self._create_token()
+        common = {
+            "token": token,
+            "event_types": "Birth",
+            "living_only": "false",
+            "locale": "en",
+        }
+        all_births = self.client.get(f"{ICS_URL}?{urlencode(common)}")
+        person_query = {
+            **common,
+            "person_rules": json.dumps(
+                {"rules": [{"name": "HasIdOf", "values": ["I0044"]}]}
+            ),
+        }
+        selected = self.client.get(f"{ICS_URL}?{urlencode(person_query)}")
+        self.assertEqual(selected.status_code, 200)
+        self.assertGreater(selected.data.count(b"BEGIN:VEVENT"), 0)
+        self.assertLess(
+            selected.data.count(b"BEGIN:VEVENT"),
+            all_births.data.count(b"BEGIN:VEVENT"),
+        )
+
+    def test_missing_saved_filter_returns_empty_calendar(self):
+        """A deleted saved filter does not permanently break a subscription."""
+        _, token = self._create_token()
+        rv = self.client.get(
+            f"{ICS_URL}?{urlencode({'token': token, 'filter': 'missing-filter'})}"
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertNotIn(b"BEGIN:VEVENT", rv.data)
+
     def test_public_feed_anchor_scope_for_owner_and_guest(self):
         """Anchor scope query works for both owner and guest roles."""
         # Use a known person ID from example_gramps.
         _, owner_token = self._create_token(role=ROLE_OWNER)
-        rv = self.client.get(
-            f"{ICS_URL}?token={owner_token}&anchor_gramps_id=I0044"
-        )
+        rv = self.client.get(f"{ICS_URL}?token={owner_token}&anchor_gramps_id=I0044")
         self.assertEqual(rv.status_code, 200)
 
         _, guest_token = self._create_token(role=ROLE_GUEST)
-        rv = self.client.get(
-            f"{ICS_URL}?token={guest_token}&anchor_gramps_id=I0044"
-        )
+        rv = self.client.get(f"{ICS_URL}?token={guest_token}&anchor_gramps_id=I0044")
         self.assertEqual(rv.status_code, 200)
 
     def test_public_feed_invalid_anchor(self):
-        """Unknown anchor Gramps ID returns 404."""
+        """Unknown anchor Gramps ID returns a valid empty calendar."""
         _, token = self._create_token(role=ROLE_OWNER)
         rv = self.client.get(
             f"{ICS_URL}?token={token}&anchor_gramps_id=NOT_A_REAL_GRMPS_ID"
         )
-        self.assertEqual(rv.status_code, 404)
+        self.assertEqual(rv.status_code, 200)
+        self.assertNotIn(b"BEGIN:VEVENT", rv.data)
 
     def test_public_feed_disabled_user(self):
         """Disabled users cannot use access tokens."""

@@ -39,7 +39,7 @@ from PIL import Image
 from .api import api_blueprint
 from .api.cache import persistent_cache, request_cache, thumbnail_cache
 from .api.deprecations import DEPRECATED_ENV_OPTIONS, check_deprecations
-from .api.ratelimiter import limiter
+from .api.ratelimiter import limiter, limiter_per_user
 from .api.resources.schemas import (
     CitationSchema,
     EventSchema,
@@ -61,6 +61,7 @@ from .auth.oidc import init_oidc
 from .config import DefaultConfig, DefaultConfigJWT
 from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI, VERSION
 from .dbmanager import WebDbManager
+from .future_gramps import apply_patches as apply_future_gramps_patches
 from .sentry import init_sentry
 from .util import pin_postgres_driver
 from .util.celery import create_celery
@@ -82,6 +83,8 @@ def deprecated_config_from_env(app):
 
 def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = True):
     """Flask application factory."""
+    apply_future_gramps_patches()
+
     app = Flask(__name__)
 
     app.logger.setLevel(logging.INFO)
@@ -227,7 +230,9 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
             )
 
     # enable gzip compression
-    Compress(app)
+    compress = Compress(app)
+    compress.compress_mimetypes_set.add("text/calendar")
+    app.config["COMPRESS_MIMETYPES"] = sorted(compress.compress_mimetypes_set)
 
     static_path = app.config.get("STATIC_PATH")
 
@@ -314,6 +319,7 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
             api.spec.components.schema(_schema_name, schema=_schema_cls())
 
     limiter.init_app(app)
+    limiter_per_user.init_app(app)
 
     # Flask 3.x removed the exc.response early-return from handle_http_exception,
     # so flask-smorest's handler now intercepts every HTTPException and reformats

@@ -23,11 +23,19 @@ import io
 import os
 import time
 import unittest
+import uuid
 import zipfile
 from pathlib import Path
+from unittest.mock import Mock
 
-from gramps_webapi.api.media import ARCHIVE_GRACE_SECONDS
-from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_OWNER
+from gramps.gen.lib import Media
+
+from gramps_webapi.api.media import (
+    ARCHIVE_GRACE_SECONDS,
+    ARCHIVE_REUSE_MIN_REMAINING_SECONDS,
+    get_archive_name,
+)
+from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_GUEST, ROLE_OWNER
 
 from . import BASE_URL, get_test_client
 from .util import fetch_header
@@ -76,6 +84,33 @@ class TestMediaArchiv(unittest.TestCase):
         assert int(rv.headers["Content-Length"]) == res["file_size"] - 10
         rv.close()
 
+    def test_reuse(self):
+        """Requesting an archive of unchanged media returns the existing one."""
+        headers = fetch_header(self.client, role=ROLE_EDITOR)
+        first = self._create_archive(headers)
+        path = self._archive_path(first["file_name"])
+        mtime = path.stat().st_mtime_ns
+        second = self._create_archive(headers)
+        assert second == first
+        assert path.stat().st_mtime_ns == mtime
+
+    def test_reuse_needs_remaining_validity(self):
+        """An archive that expires soon is created anew instead of reused."""
+        headers = fetch_header(self.client, role=ROLE_EDITOR)
+        res = self._create_archive(headers)
+        path = self._archive_path(res["file_name"])
+        retention = self.client.application.config["EXPORT_RETENTION_SECONDS"]
+        old = time.time() - retention + ARCHIVE_REUSE_MIN_REMAINING_SECONDS / 2
+        os.utime(path, (old, old))
+        assert self._create_archive(headers)["file_name"] == res["file_name"]
+        assert path.stat().st_mtime > old + 1
+
+    def test_private_and_public_archives(self):
+        """Users who can't see private records never get the same archive."""
+        private = self._create_archive(fetch_header(self.client, role=ROLE_EDITOR))
+        public = self._create_archive(fetch_header(self.client, role=ROLE_GUEST))
+        assert private["file_name"] != public["file_name"]
+
     def test_expired_archive(self):
         """Expired archives cannot be downloaded and are deleted by a later export."""
         headers = fetch_header(self.client, role=ROLE_EDITOR)
@@ -86,14 +121,20 @@ class TestMediaArchiv(unittest.TestCase):
         os.utime(path, (expired, expired))
         rv = self.client.get(res["url"], headers=headers)
         assert rv.status_code == 404
-        # still within the grace period, so not deleted yet
-        self._create_archive(headers)
-        assert path.exists()
+        # an expired archive is created anew
+        assert self._create_archive(headers)["file_name"] == res["file_name"]
+        rv = self.client.get(res["url"], headers=headers)
+        assert rv.status_code == 200
+        rv.close()
+        # other archives are deleted after the grace period
+        old = path.parent / f"{uuid.uuid4()}.zip"
+        old.write_bytes(b"")
         expired -= ARCHIVE_GRACE_SECONDS
+        os.utime(old, (expired, expired))
         os.utime(path, (expired, expired))
-        new = self._create_archive(headers)
-        assert not path.exists()
-        assert self._archive_path(new["file_name"]).exists()
+        self._create_archive(headers)
+        assert not old.exists()
+        assert path.exists()
 
     def test_archive_of_other_tree(self):
         """Archives can only be downloaded from the tree they were created for."""
@@ -102,6 +143,46 @@ class TestMediaArchiv(unittest.TestCase):
         path = self._archive_path(res["file_name"])
         other_dir = path.parent.parent / "other-tree"
         other_dir.mkdir(exist_ok=True)
-        path.rename(other_dir / path.name)
-        rv = self.client.get(res["url"], headers=headers)
-        assert rv.status_code == 404
+        moved = other_dir / path.name
+        path.rename(moved)
+        try:
+            rv = self.client.get(res["url"], headers=headers)
+            assert rv.status_code == 404
+        finally:
+            moved.unlink()
+
+
+class TestArchiveName(unittest.TestCase):
+    """Archives are named after the media they contain."""
+
+    def _db(self, *media):
+        db = Mock()
+        db.iter_media.side_effect = lambda: iter(media)
+        return db
+
+    def _media(self, handle, checksum, private=False):
+        media = Media()
+        media.set_handle(handle)
+        media.set_path(f"{handle}.jpg")
+        media.set_checksum(checksum)
+        media.set_privacy(private)
+        return media
+
+    def test_name(self):
+        a = self._media("a", "1")
+        b = self._media("b", "2")
+        name = get_archive_name(self._db(a, b), include_private=True)
+        # independent of the order
+        assert get_archive_name(self._db(b, a), include_private=True) == name
+        changed = self._media("b", "3")
+        assert get_archive_name(self._db(a, changed), include_private=True) != name
+        assert get_archive_name(self._db(a), include_private=True) != name
+
+    def test_private(self):
+        public = self._media("a", "1")
+        private = self._media("b", "2", private=True)
+        name = get_archive_name(self._db(public, private), include_private=False)
+        # private media don't matter for a public archive
+        assert get_archive_name(self._db(public), include_private=False) == name
+        # private and public archives never share a name
+        assert get_archive_name(self._db(public), include_private=True) != name

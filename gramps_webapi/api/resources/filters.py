@@ -315,10 +315,13 @@ def get_filter_rules(args: dict[str, Any], namespace: str) -> list[dict[str, Any
     return rule_list
 
 
-def get_custom_filters(args: dict[str, Any], namespace: str) -> list[dict[str, Any]]:
+def get_custom_filters(
+    args: dict[str, Any], namespace: str, *, reload: bool = True
+) -> list[dict[str, Any]]:
     """Return a list of custom filters for a namespace."""
     filter_list = []
-    filters.reload_custom_filters()
+    if reload:
+        filters.reload_custom_filters()
     for filter_class in filters.CustomFilters.get_filters(namespace):
         if (
             "filters" in args
