@@ -20,6 +20,8 @@
 """Backup archive API resources."""
 
 import os
+import shutil
+import uuid
 from datetime import datetime
 
 from flask import abort, current_app, jsonify, send_file
@@ -56,6 +58,7 @@ from ..tasks import (
 )
 from ..util import (
     abort_with_message,
+    remove_file_on_error,
     get_db_handle,
     get_db_manager,
     get_tree_from_jwt_or_fail,
@@ -199,28 +202,46 @@ def _require_restore_permissions(args: dict) -> None:
     require_permissions(permissions)
 
 
-def _restore(args: dict, tree: str, file_path: str, delete: bool):
-    """Validate the archive, then restore the selected components from it."""
-    try:
-        read_backup(file_path)
-    except BackupError as exc:
-        if delete:
-            os.remove(file_path)
-        abort_with_message(422, str(exc))
-    task = run_task(
-        restore_backup_archive,
-        tree=tree,
-        user_id=get_jwt_identity(),
-        file_name=file_path,
-        data=args["data"],
-        tree_settings=args["tree_settings"],
-        users=args["users"],
-        dry_run=args["dry_run"],
-        delete=delete,
-    )
+def _restore(args: dict, tree: str, file_path: str):
+    """Validate the archive, then restore the selected components from it.
+
+    `file_path` is the restore's own copy, which the task deletes when done.
+    """
+    with remove_file_on_error(file_path):
+        try:
+            read_backup(file_path)
+        except BackupError as exc:
+            abort_with_message(422, str(exc))
+        task = run_task(
+            restore_backup_archive,
+            tree=tree,
+            user_id=get_jwt_identity(),
+            file_name=file_path,
+            data=args["data"],
+            tree_settings=args["tree_settings"],
+            users=args["users"],
+            dry_run=args["dry_run"],
+        )
     if isinstance(task, AsyncResult):
         return make_task_response(task)
     return jsonify(task), 200
+
+
+def _copy_to_tempfile(source_path: str) -> str:
+    """Copy a stored archive to where uploads go and return the copy's path.
+
+    The restore then never touches the stored archive, which may be deleted
+    by pruning while the restore runs.
+    """
+    export_path = current_app.config["EXPORT_DIR"]
+    os.makedirs(export_path, exist_ok=True)
+    file_path = os.path.join(export_path, f"{uuid.uuid4()}{BACKUP_EXTENSION}")
+    try:
+        shutil.copyfile(source_path, file_path)
+    except FileNotFoundError:
+        # pruned in the meantime
+        abort(404)
+    return file_path
 
 
 class BackupRestoreResource(FreshProtectedResource):
@@ -233,10 +254,10 @@ class BackupRestoreResource(FreshProtectedResource):
         _require_restore_permissions(args)
         get_db_handle()  # needed to load plugins
         tree = get_tree_from_jwt_or_fail()
-        file_path = get_backup_store().get_path(tree, backup_id)
-        if file_path is None:
+        stored_path = get_backup_store().get_path(tree, backup_id)
+        if stored_path is None:
             abort(404)
-        return _restore(args, tree=tree, file_path=file_path, delete=False)
+        return _restore(args, tree=tree, file_path=_copy_to_tempfile(stored_path))
 
 
 class BackupUploadRestoreResource(FreshProtectedResource):
@@ -250,4 +271,4 @@ class BackupUploadRestoreResource(FreshProtectedResource):
         get_db_handle()  # needed to load plugins
         tree = get_tree_from_jwt_or_fail()
         file_path = stream_upload_to_tempfile(BACKUP_EXTENSION.lstrip("."))
-        return _restore(args, tree=tree, file_path=file_path, delete=True)
+        return _restore(args, tree=tree, file_path=file_path)

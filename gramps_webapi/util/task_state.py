@@ -61,6 +61,8 @@ LOCK_SEARCH_INDEX = "search-index"
 LOCK_SEMANTIC_INDEX = "semantic-index"
 LOCK_SEARCH_INDEX_INCREMENTAL = "search-index-incremental"
 LOCK_SEMANTIC_INDEX_INCREMENTAL = "semantic-index-incremental"
+# creating a backup doesn't write, but runs one database snapshot at a time
+LOCK_BACKUP = "backup"
 COALESCING_LOCKS = frozenset(
     {LOCK_SEARCH_INDEX_INCREMENTAL, LOCK_SEMANTIC_INDEX_INCREMENTAL}
 )

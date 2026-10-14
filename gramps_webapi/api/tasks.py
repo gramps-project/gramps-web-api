@@ -46,6 +46,7 @@ from ..auth import TaskTree, get_owner_emails
 from ..auth import user_db
 from ..undodb import migrate as migrate_undodb
 from ..util.task_state import (
+    LOCK_BACKUP,
     LOCK_SEARCH_INDEX,
     LOCK_SEARCH_INDEX_INCREMENTAL,
     LOCK_SEMANTIC_INDEX,
@@ -574,7 +575,7 @@ def _reset_tree(
     return summary, missing_media
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, lock_key=LOCK_BACKUP)
 def create_backup(self, tree: str, user_id: str) -> dict[str, Any]:
     """Create a stored backup archive of a tree and prune the oldest ones."""
     store = get_backup_store()
@@ -608,7 +609,7 @@ def create_backup(self, tree: str, user_id: str) -> dict[str, Any]:
     }
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, lock_key=LOCK_WRITE)
 def restore_backup_archive(
     self,
     tree: str,
@@ -618,12 +619,11 @@ def restore_backup_archive(
     tree_settings: bool,
     users: bool,
     dry_run: bool = False,
-    delete: bool = True,
 ):
     """Restore the selected parts of a tree from a backup archive.
 
-    The archive must have been validated with `read_backup` before. With
-    `delete`, the archive (an upload) is deleted afterwards. The Gramps
+    The archive, an upload or a copy of a stored backup, must have been
+    validated with `read_backup` before, and is deleted afterwards. The Gramps
     data is restored first, so that a failure there leaves the tree settings
     and users untouched.
     """
@@ -657,11 +657,10 @@ def restore_backup_archive(
         if users:
             result["users"] = restore_users(tree, backup.users, dry_run=dry_run)
     finally:
-        if delete:
-            try:
-                os.remove(file_name)
-            except OSError:
-                pass
+        try:
+            os.remove(file_name)
+        except OSError:
+            pass
     return result
 
 

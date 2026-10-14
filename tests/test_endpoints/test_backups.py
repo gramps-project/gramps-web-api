@@ -26,6 +26,9 @@ import os
 import tarfile
 import tempfile
 import unittest
+import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from unittest.mock import patch
 
 from gramps.cli.clidbman import CLIDbManager
@@ -49,6 +52,13 @@ from gramps_webapi.const import (
     ENV_CONFIG_FILE,
     TEST_EMPTY_GRAMPS_AUTH_CONFIG,
     TREE_MULTI,
+)
+
+from gramps_webapi.util.task_state import (
+    LOCK_BACKUP,
+    LOCK_WRITE,
+    acquire,
+    mark_failed,
 )
 
 from . import BASE_URL, TEST_USERS
@@ -148,6 +158,11 @@ class TestBackups(unittest.TestCase):
         rv = cls.client.post(IMPORT_URL, data=io.BytesIO(small_tree), headers=headers)
         assert rv.status_code == 201
         cls.archive = cls._download(cls._create_backup()["id"])
+        export_dir = cls.test_app.config["EXPORT_DIR"]
+        os.makedirs(export_dir, exist_ok=True)
+        cls.export_files = {
+            name for name in os.listdir(export_dir) if name.endswith(".tar")
+        }
 
     @classmethod
     def tearDownClass(cls):
@@ -362,6 +377,52 @@ class TestBackups(unittest.TestCase):
         self.assertEqual(rv.status_code, 200, rv.json)
         self.assertEqual(rv.json["data"]["unchanged"]["people"], SMALL_TREE_PEOPLE)
         self.assertIn(backup_id, [backup["id"] for backup in self._list()])
+        # the restore's copy of the archive is removed
+        self.assertEqual(self._export_files(), self.export_files)
+
+    def _export_files(self) -> set[str]:
+        export_dir = self.test_app.config["EXPORT_DIR"]
+        return {name for name in os.listdir(export_dir) if name.endswith(".tar")}
+
+    @contextmanager
+    def _locked(self, lock_key: str) -> Iterator[str]:
+        """Hold a lock on the tree as if another task were running."""
+        holder = str(uuid.uuid4())
+        with self.test_app.app_context():
+            acquire(holder, "other_task", self.tree, None, lock_key)
+        try:
+            yield holder
+        finally:
+            with self.test_app.app_context():
+                mark_failed(holder, "released by test")
+
+    def test_restore_while_locked(self):
+        """A restore is rejected while another task writes to the tree, and
+        leaves no files behind."""
+        backup_id = self._create_backup()["id"]
+        headers = fetch_header(self.client, role=ROLE_OWNER)
+        with self._locked(LOCK_WRITE) as holder:
+            rv = self._restore(self.archive)
+            self.assertEqual(rv.status_code, 409)
+            self.assertEqual(rv.json["error"]["task"]["id"], holder)
+            rv = self.client.post(f"{BACKUPS_URL}{backup_id}/restore", headers=headers)
+            self.assertEqual(rv.status_code, 409)
+            # dry runs don't write, so they aren't blocked
+            rv = self._restore(self.archive, "?dry_run=true")
+            self.assertEqual(rv.status_code, 200, rv.json)
+        self.assertEqual(self._export_files(), self.export_files)
+        self.assertIn(backup_id, [backup["id"] for backup in self._list()])
+
+    def test_create_while_locked(self):
+        """Backups of a tree are created one at a time, but not blocked by
+        other tasks."""
+        headers = fetch_header(self.client, role=ROLE_OWNER)
+        with self._locked(LOCK_BACKUP):
+            rv = self.client.post(BACKUPS_URL, headers=headers)
+            self.assertEqual(rv.status_code, 409)
+        with self._locked(LOCK_WRITE):
+            rv = self.client.post(BACKUPS_URL, headers=headers)
+            self.assertEqual(rv.status_code, 201, rv.json)
 
     def test_restore_wrong_role(self):
         rv = self._restore(self.archive, role=ROLE_EDITOR)
