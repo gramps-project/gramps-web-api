@@ -141,6 +141,7 @@ def answer_with_agent(
             model_name=model_name,
             base_url=base_url,
             system_prompt_override=system_prompt_override,
+            semantic_search=bool(config.get("VECTOR_EMBEDDING_MODEL")),
         )
     except (UserError, ValueError, OpenAIError) as e:
         # e.g. unknown provider prefix or missing provider API key/base URL

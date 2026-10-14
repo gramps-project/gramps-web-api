@@ -342,6 +342,51 @@ def search_genealogy_database(
     Returns:
         Formatted genealogical data matching the query.
     """
+    return _search_genealogy_database(
+        ctx,
+        query=query,
+        object_type=object_type,
+        max_results=max_results,
+        semantic=search_type != "fulltext",
+    )
+
+
+@log_tool_call
+def search_genealogy_database_fulltext(
+    ctx: RunContext[AgentDeps],
+    query: str,
+    object_type: str = "",
+    max_results: int = 20,
+) -> str:
+    """Search the family tree database for exact names or phrases.
+
+    Args:
+        query: Exact names or phrases to match.
+        object_type: Restrict to one object type: "Person", "Family", "Event",
+            "Place", "Source", "Citation", "Repository", "Note", "Media".
+            Leave empty to search all types.
+        max_results: Maximum results to return (default: 20, max: 50)
+
+    Returns:
+        Formatted genealogical data matching the query.
+    """
+    return _search_genealogy_database(
+        ctx,
+        query=query,
+        object_type=object_type,
+        max_results=max_results,
+        semantic=False,
+    )
+
+
+def _search_genealogy_database(
+    ctx: RunContext[AgentDeps],
+    query: str,
+    object_type: str,
+    max_results: int,
+    semantic: bool,
+) -> str:
+    """Search the full-text or the semantic search index."""
     if ctx.deps.progress_callback:
         ctx.deps.progress_callback(
             "search_genealogy_database", "Searching genealogy database..."
@@ -356,10 +401,10 @@ def search_genealogy_database(
 
     try:
         searcher: SearchIndexerBase
-        if search_type == "fulltext":
-            searcher = get_search_indexer(ctx.deps.tree)
-        else:
+        if semantic:
             searcher = get_semantic_search_indexer(ctx.deps.tree)
+        else:
+            searcher = get_search_indexer(ctx.deps.tree)
         _, hits = searcher.search(
             query=query,
             page=1,
