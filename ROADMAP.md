@@ -15,6 +15,7 @@ removed no earlier than the next major.
 |---|---|---|---|
 | 3.23.x | current | 6.0 | none |
 | 3.24.0 | October 2026 | 6.0 | none |
+| 3.25.0 | November 2026 | 6.0 | none |
 | 3.x | as needed | 6.0 | none |
 | 4.0.0 | TBD | 6.1 | multi-tree by default, removals below |
 | 5.0.0 | TBD | 6.2 | TBD |
@@ -27,6 +28,9 @@ removed no earlier than the next major.
 - The server locale is always English, regardless of `LANG`/`LC_*` (#1042)
 - Media archives are stored in `EXPORT_DIR/media_archives/<tree>/` (or the media bucket) and expire by age instead of being deleted on download (#1059)
 - Search reindexing after import or restore runs as separate tasks, so the import task finishes before search is up to date (#1046)
+- Remove support for Python 3.10 (#1067)
+
+
 
 ## Breaking in 4.0
 
