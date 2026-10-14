@@ -30,7 +30,9 @@ from ...auth import (
     get_user_oidc_accounts,
     unlink_oidc_account,
 )
+from ...auth.const import PERM_EDIT_OWN_USER
 from ...auth.oidc_helpers import is_oidc_enabled
+from ..auth import require_permissions
 from ..blueprint import api_blueprint
 from ..ratelimiter import limiter
 from ..util import abort_with_message
@@ -44,6 +46,8 @@ class UserOIDCAccountsResource(ProtectedResource):
     @api_blueprint.response(200, UserOIDCAccountSchema(many=True))
     def get(self):
         """List the current user's OIDC accounts."""
+        # not for the narrower tokens exchanged from persistent access tokens
+        require_permissions([PERM_EDIT_OWN_USER])
         return get_user_oidc_accounts(get_jwt_identity())
 
 
@@ -59,7 +63,12 @@ class UserOIDCAccountResource(FreshProtectedResource):
         Unlinking the last one needs the user's current password, so that they
         can still log in, and is refused if local authentication is disabled.
         """
+        require_permissions([PERM_EDIT_OWN_USER])
         user_id = get_jwt_identity()
+        try:
+            user_name = get_name(user_id)
+        except ValueError:
+            abort_with_message(401, "User not found for token ID")
         local_auth_disabled = is_oidc_enabled() and current_app.config.get(
             "OIDC_DISABLE_LOCAL_AUTH", False
         )
@@ -68,7 +77,7 @@ class UserOIDCAccountResource(FreshProtectedResource):
         allow_last = (
             not local_auth_disabled
             and bool(password)
-            and authorized(get_name(user_id), password)
+            and authorized(user_name, password)
         )
         result = unlink_oidc_account(user_id, account_id, allow_last=allow_last)
         if result == UNLINK_NOT_FOUND:

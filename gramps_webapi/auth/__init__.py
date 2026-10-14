@@ -829,13 +829,20 @@ UNLINK_LAST = "last"
 def unlink_oidc_account(user_id: str, account_id: int, allow_last: bool) -> str:
     """Remove one of a user's OIDC accounts.
 
-    The last one is only removed if `allow_last` is true. The user's accounts are
-    locked while checking, so two unlinks at once can't remove the last two.
+    The last one is only removed if `allow_last` is true. Two unlinks at once
+    must not remove the last two, so the check runs under a write lock.
     """
+    # A no-op update takes the write lock before reading: it locks the user's
+    # rows in PostgreSQL and the database in SQLite, where SELECT ... FOR UPDATE
+    # does nothing. A concurrent unlink waits for it and then reads the result.
+    user_db.session.execute(  # pylint: disable=no-member
+        sa.update(OIDCAccount)
+        .where(OIDCAccount.user_id == user_id)
+        .values(provider_id=OIDCAccount.provider_id)
+    )
     accounts = (
         user_db.session.query(OIDCAccount)  # pylint: disable=no-member
         .filter_by(user_id=user_id)
-        .with_for_update()
         .all()
     )
     account = next((a for a in accounts if a.id == account_id), None)

@@ -19,18 +19,30 @@
 
 """Tests for listing and unlinking the current user's OIDC accounts."""
 
+import os
+import shutil
+import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 from uuid import uuid4
 
+from gramps_webapi.api.resources.token import issue_access_token
+from gramps_webapi.app import create_app
 from gramps_webapi.auth import (
+    UNLINK_LAST,
+    UNLINKED,
     add_user,
     create_oidc_account,
+    delete_user,
     get_guid,
     get_user_details,
     get_user_oidc_accounts,
+    unlink_oidc_account,
+    user_db,
 )
-from gramps_webapi.auth.const import ROLE_EDITOR
+from gramps_webapi.auth.const import ACCESS_TOKEN_SCOPE_SYNC, ROLE_EDITOR
+from gramps_webapi.const import ENV_CONFIG_FILE, TREE_MULTI
 
 from . import BASE_URL, get_test_client
 
@@ -180,3 +192,86 @@ class TestOIDCAccounts(unittest.TestCase):
         ):
             rv = self.client.delete(f"{LIST_URL}{account}/", headers=header)
         self.assertEqual(rv.status_code, 204)
+
+    def test_sync_token_cannot_list_accounts(self):
+        """Tokens exchanged from a sync token may only sync."""
+        self._link(self.user)
+        with self.app.test_request_context():
+            token = issue_access_token(
+                self._guid(self.user), scope=ACCESS_TOKEN_SCOPE_SYNC
+            )["access_token"]
+        rv = self.client.get(LIST_URL, headers={"Authorization": f"Bearer {token}"})
+        self.assertEqual(rv.status_code, 403)
+
+    def test_deleted_user_gets_401(self):
+        account = self._link(self.user)
+        header = self._header(self.user)
+        with self.app.app_context():
+            delete_user(self.user)
+        rv = self.client.delete(
+            f"{LIST_URL}{account}/", headers=header, json={"password": "secret"}
+        )
+        self.assertEqual(rv.status_code, 401)
+
+    def _guid(self, name):
+        with self.app.app_context():
+            return str(get_guid(name))
+
+
+class TestConcurrentUnlink(unittest.TestCase):
+    """Two unlinks at once against a SQLite file, as in a default deployment."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmpdir, ignore_errors=True)
+        # a config file left in the environment by another test would be loaded
+        with patch.dict(os.environ):
+            os.environ.pop(ENV_CONFIG_FILE, None)
+            self.app = create_app(
+                config={
+                    "TREE": TREE_MULTI,
+                    "SECRET_KEY": "secret",
+                    "USER_DB_URI": "sqlite:///" + os.path.join(self.tmpdir, "u.sqlite"),
+                },
+                config_from_env=False,
+            )
+        with self.app.app_context():
+            user_db.create_all()
+            add_user(name="user", password="secret", role=ROLE_EDITOR)
+            self.user_id = str(get_guid("user"))
+            for provider in ("one", "two"):
+                create_oidc_account(self.user_id, provider, "sub")
+            self.accounts = [a["id"] for a in get_user_oidc_accounts(self.user_id)]
+
+    def test_the_last_account_survives_two_unlinks_at_once(self):
+        barrier = threading.Barrier(2)
+        results = []
+        delete = user_db.session.delete
+
+        def slow_delete(obj):
+            # widen the window between the check and the delete
+            threading.Event().wait(0.2)
+            delete(obj)
+
+        def unlink(account_id):
+            with self.app.app_context():
+                barrier.wait()
+                try:
+                    results.append(
+                        unlink_oidc_account(self.user_id, account_id, allow_last=False)
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    results.append(exc)
+
+        with patch.object(user_db.session, "delete", side_effect=slow_delete):
+            threads = [
+                threading.Thread(target=unlink, args=(account_id,))
+                for account_id in self.accounts
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+        self.assertEqual(sorted(map(str, results)), sorted([UNLINKED, UNLINK_LAST]))
+        with self.app.app_context():
+            self.assertEqual(len(get_user_oidc_accounts(self.user_id)), 1)
