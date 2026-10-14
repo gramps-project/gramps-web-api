@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git fetch)",
+      "Bash(git fetch *)",
+      "Bash(pip show *)",
+      "Bash(black --check *)",
+      "Bash(pip index versions *)"
+    ]
+  }
+}
