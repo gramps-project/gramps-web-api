@@ -81,6 +81,20 @@ class TestMetadata(unittest.TestCase):
         # no upload limit is configured in the test config, so the key is omitted
         self.assertNotIn("max_media_archive_upload_bytes", server)
 
+    def test_get_metadata_chat_without_semantic_search(self):
+        """Chat is available with an LLM even without an embedding model."""
+        config = self.client.application.config
+        embedding_model = config["VECTOR_EMBEDDING_MODEL"]
+        config["VECTOR_EMBEDDING_MODEL"] = ""
+        try:
+            header = fetch_header(self.client, role=ROLE_GUEST)
+            rv = self.client.get(TEST_URL, headers=header)
+        finally:
+            config["VECTOR_EMBEDDING_MODEL"] = embedding_model
+        self.assertEqual(rv.status_code, 200)
+        self.assertFalse(rv.json["server"]["semantic_search"])
+        self.assertTrue(rv.json["server"]["chat"])
+
     def test_get_metadata_server_visible_to_guest(self):
         """Test that the server block is returned for the lowest role, too."""
         header = fetch_header(self.client, role=ROLE_GUEST)

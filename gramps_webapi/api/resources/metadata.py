@@ -216,7 +216,7 @@ def _get_server_metadata() -> dict[str, Any]:
             "ocr": has_ocr,
             "ocr_languages": ocr_languages,
             "semantic_search": has_semantic_search,
-            "chat": has_semantic_search and bool(current_app.config["LLM_MODEL"]),
+            "chat": bool(current_app.config["LLM_MODEL"]),
             "face_detection": _get_face_detection_available(),
             "thumbnails": _get_thumbnail_support(),
             # may be stored in the database, so it is looked up rather than

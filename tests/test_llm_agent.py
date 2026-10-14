@@ -17,14 +17,17 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""Tests for how the configured model name is resolved."""
+"""Tests for how the agent is set up from the configuration."""
 
 import pytest
+from pydantic_ai.messages import ModelResponse, SystemPromptPart, TextPart
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.mistral import MistralModel
 from pydantic_ai.models.ollama import OllamaModel
 from pydantic_ai.models.openai import OpenAIChatModel
 
 from gramps_webapi.api.llm.agent import create_agent
+from gramps_webapi.api.llm.deps import AgentDeps
 
 
 @pytest.mark.parametrize(
@@ -65,3 +68,45 @@ def test_ollama_model_without_base_url(monkeypatch):
     agent = create_agent("ollama:qwen2.5:7b")
     assert isinstance(agent.model, OllamaModel)
     assert agent.model.base_url == "http://ollama:11434/v1/"
+
+
+def _tools_and_prompt(semantic_search: bool) -> tuple[dict, str]:
+    """Run the agent once and return the tool definitions and system prompt it got."""
+    seen = {}
+
+    def model_function(messages, info: AgentInfo) -> ModelResponse:
+        seen["tools"] = {tool.name: tool for tool in info.function_tools}
+        seen["prompt"] = "".join(
+            part.content
+            for part in messages[0].parts
+            if isinstance(part, SystemPromptPart)
+        )
+        return ModelResponse(parts=[TextPart(content="done")])
+
+    agent = create_agent("gpt-4o-mini", semantic_search=semantic_search)
+    deps = AgentDeps(
+        tree="tree", include_private=False, max_context_length=1000, user_id="user"
+    )
+    with agent.override(model=FunctionModel(model_function)):
+        agent.run_sync("question", deps=deps)
+    return seen["tools"], seen["prompt"]
+
+
+def test_search_tool_with_semantic_search(monkeypatch):
+    """With an embedding model, the search tool offers semantic search."""
+    monkeypatch.setenv("OPENAI_API_KEY", "key")
+    tools, prompt = _tools_and_prompt(semantic_search=True)
+    search_tool = tools["search_genealogy_database"]
+    assert "search_type" in search_tool.parameters_json_schema["properties"]
+    assert 'search_type="semantic"' in prompt
+
+
+def test_search_tool_without_semantic_search(monkeypatch):
+    """Without an embedding model, the search tool only offers full-text search."""
+    monkeypatch.setenv("OPENAI_API_KEY", "key")
+    tools, prompt = _tools_and_prompt(semantic_search=False)
+    search_tool = tools["search_genealogy_database"]
+    assert "search_type" not in search_tool.parameters_json_schema["properties"]
+    assert "semantic" not in search_tool.description.lower()
+    assert "semantic" not in prompt.lower()
+    assert "search_genealogy_database matches exact names" in prompt
