@@ -46,7 +46,11 @@ from ..search import (
     get_current_semantic_search_indexer,
     get_search_indexer,
 )
-from ..tasks import run_task, update_search_indices_from_transaction
+from ..tasks import (
+    run_task,
+    update_media_usage_task,
+    update_search_indices_from_transaction,
+)
 from ..util import get_db_handle, get_tree_from_jwt_or_fail
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
@@ -205,7 +209,11 @@ class _SimpleMergeResource(GrampsJSONEncoder, ProtectedResource):
         except MergeError as exc:
             abort_with_message(409, str(exc))
         _update_search_index(titanic_handle, phoenix_handle, self.gramps_class_name)
+        self._after_merge()
         return self.response(200, {})
+
+    def _after_merge(self) -> None:
+        """Hook for subclasses to run after a successful merge."""
 
 
 class MergeEventResource(_SimpleMergeResource):
@@ -248,6 +256,14 @@ class MergeMediaResource(_SimpleMergeResource):
 
     gramps_class_name = "Media"
     _merge_query_class = MergeMediaQuery
+
+    def _after_merge(self) -> None:
+        """Recompute the media usage, as titanic's file may no longer count."""
+        run_task(
+            update_media_usage_task,
+            tree=get_tree_from_jwt_or_fail(),
+            user_id=get_jwt_identity(),
+        )
 
 
 class MergeNoteResource(_SimpleMergeResource):
