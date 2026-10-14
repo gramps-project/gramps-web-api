@@ -463,6 +463,16 @@ class TestTaskEndpoints(unittest.TestCase):
         assert task["state"] == "FAILURE"
         assert task["result_object"] == payload
 
+    def test_get_tracked_task_failed_with_exception(self):
+        """A plain error message is reported unquoted, as before."""
+        task = self._get_tracked(
+            status="failed", result='"Failed importing gramps file"'
+        )
+        assert task["state"] == "FAILURE"
+        assert task["result_object"] == "Failed importing gramps file"
+        assert task["result"] == "Failed importing gramps file"
+        assert task["info"] == task["result"]
+
     def test_get_stale_task_is_reported_lost(self):
         stale = datetime.utcnow() - timedelta(hours=1)
         task = self._get_tracked(

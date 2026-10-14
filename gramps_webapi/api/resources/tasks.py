@@ -234,12 +234,17 @@ class TaskResource(ProtectedResource):
                 user_db.session.refresh(row)
 
         meta = _row_meta(row, task_id)
+        if meta.state == "FAILURE" and isinstance(meta.result, str):
+            # an error message, reported as is like the exception it replaces
+            serialized = meta.result
+        else:
+            serialized = _serialize_task_result(meta.result)
         result = {
             "state": meta.state,
             "result_object": _serializable_task_result(meta.result),
             # kept for backward compatibility (info is an alias of result)
-            "info": _serialize_task_result(meta.result),
-            "result": _serialize_task_result(meta.result),
+            "info": serialized,
+            "result": serialized,
         }
         if row is not None:
             result["task_id"] = row.task_id
