@@ -28,10 +28,11 @@ import logging
 import os
 import smtplib
 import socket
+from contextlib import contextmanager
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 from http import HTTPStatus
-from typing import Any, BinaryIO, NoReturn, Optional, Sequence
+from typing import Any, BinaryIO, Iterator, NoReturn, Optional, Sequence
 
 import gramps.gen.lib
 from celery import Task
@@ -807,6 +808,21 @@ def check_quota_ai(requested: int, tree: str | None = None) -> None:
         return
     if usage + requested > quota:
         abort_with_message(405, "Not allowed by AI quota")
+
+
+@contextmanager
+def remove_file_on_error(file_path: str) -> Iterator[None]:
+    """Remove an uploaded file if handing it to a task fails.
+
+    A task that is rejected (e.g. because the tree is locked) or fails to be
+    dispatched never runs, so the cleanup it would do never happens.
+    """
+    try:
+        yield
+    except BaseException:
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+        raise
 
 
 def abort_with_message(
