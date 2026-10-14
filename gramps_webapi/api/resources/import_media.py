@@ -30,7 +30,7 @@ from flask_jwt_extended import get_jwt_identity
 from ...auth.const import PERM_IMPORT_FILE
 from ..auth import require_permissions
 from ..tasks import AsyncResult, import_media_archive, make_task_response, run_task
-from ..util import abort_with_message, get_tree_from_jwt
+from ..util import abort_with_message, get_tree_from_jwt, remove_file_on_error
 from . import ProtectedResource
 from gramps_webapi.types import ResponseReturnValue
 
@@ -119,13 +119,14 @@ class MediaUploadZipResource(ProtectedResource):
 
         tree = get_tree_from_jwt()
         user_id = get_jwt_identity()
-        task = run_task(
-            import_media_archive,
-            tree=tree,
-            user_id=user_id,
-            file_name=file_path,
-            delete=True,
-        )
+        with remove_file_on_error(file_path):
+            task = run_task(
+                import_media_archive,
+                tree=tree,
+                user_id=user_id,
+                file_name=file_path,
+                delete=True,
+            )
         if isinstance(task, AsyncResult):
             return make_task_response(task)
         return jsonify(task), 201

@@ -28,10 +28,11 @@ import logging
 import os
 import smtplib
 import socket
+from contextlib import contextmanager
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 from http import HTTPStatus
-from typing import Any, BinaryIO, NoReturn, Optional, Sequence
+from typing import Any, BinaryIO, Iterator, NoReturn, Optional, Sequence
 
 import gramps.gen.lib
 from celery import Task
@@ -95,6 +96,7 @@ from ..const import (
     TREE_MULTI,
 )
 from ..dbmanager import WebDbManager
+from ..util.task_state import progress_reporter
 from .auth import has_permissions
 
 
@@ -344,6 +346,7 @@ class UserTaskProgress(InfoCollectorMixin, UserBase):
             self, callback=self._callback, error=None, uistate=None, dbstate=None
         )
         self.task = task
+        self._report = progress_reporter()
         self.steps = 0
         self.current_step = 0
         self.progress_title = ""
@@ -351,10 +354,8 @@ class UserTaskProgress(InfoCollectorMixin, UserBase):
         self.info_messages = []
 
     def _update_state(self, meta: dict) -> None:
-        """Report progress, unless the task was called directly (no Celery)."""
-        if self.task is None or self.task.request.id is None:
-            return
-        self.task.update_state(state="PROGRESS", meta=meta)
+        """Report progress, unless running outside a tracked task."""
+        self._report(meta)
 
     def _callback(self, percentage, text=None):
         """Report only the percentage."""
@@ -809,13 +810,32 @@ def check_quota_ai(requested: int, tree: str | None = None) -> None:
         abort_with_message(405, "Not allowed by AI quota")
 
 
+@contextmanager
+def remove_file_on_error(file_path: str) -> Iterator[None]:
+    """Remove an uploaded file if handing it to a task fails.
+
+    A task that is rejected (e.g. because the tree is locked) or fails to be
+    dispatched never runs, so the cleanup it would do never happens.
+    """
+    try:
+        yield
+    except BaseException:
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+        raise
+
+
 def abort_with_message(
-    status: int, message: str, error_type: str | None = None
+    status: int,
+    message: str,
+    error_type: str | None = None,
+    extra: dict[str, Any] | None = None,
 ) -> NoReturn:
-    """Abort with a JSON response."""
+    """Abort with a JSON response, adding ``extra`` to the error body."""
     error_body: dict[str, Any] = {"code": status, "message": message}
     if error_type is not None:
         error_body["type"] = error_type
+    error_body.update(extra or {})
     payload = {"error": error_body}
     response = Response(
         response=json.dumps(payload),
