@@ -115,6 +115,7 @@ from .resources.ocr import MediaOcrResource
 from .resources.oidc import (
     OIDCCallbackResource,
     OIDCConfigResource,
+    OIDCLinkCompleteResource,
     OIDCLinkResource,
     OIDCLoginResource,
     OIDCLogoutResource,
@@ -322,6 +323,12 @@ register_endpt(
 )
 register_endpt(OIDCLogoutResource, "/oidc/logout/", "oidclogoutresource", tags=["OIDC"])
 register_endpt(OIDCLinkResource, "/oidc/link/", "oidclinkresource", tags=["OIDC"])
+register_endpt(
+    OIDCLinkCompleteResource,
+    "/oidc/link/complete/",
+    "oidclinkcompleteresource",
+    tags=["OIDC"],
+)
 # People
 register_endpt(
     PersonTimelineResource,
