@@ -39,7 +39,7 @@ from PIL import Image
 from .api import api_blueprint
 from .api.cache import persistent_cache, request_cache, thumbnail_cache
 from .api.deprecations import DEPRECATED_ENV_OPTIONS, check_deprecations
-from .api.ratelimiter import limiter, limiter_per_user
+from .api.ratelimiter import limiter, limiter_per_tree, limiter_per_user
 from .api.resources.schemas import (
     CitationSchema,
     EventSchema,
@@ -320,6 +320,7 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
 
     limiter.init_app(app)
     limiter_per_user.init_app(app)
+    limiter_per_tree.init_app(app)
 
     # Flask 3.x removed the exc.response early-return from handle_http_exception,
     # so flask-smorest's handler now intercepts every HTTPException and reformats

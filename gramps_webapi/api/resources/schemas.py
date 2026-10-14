@@ -2492,11 +2492,32 @@ class ServerSchema(_Base):
             " thumbnail endpoints."
         },
     )
+    backups = fields.Boolean(
+        metadata={
+            "description": "Whether a backup directory is configured. If false,"
+            " backups can't be created or stored, only restored from an upload."
+        },
+    )
     rate_limit_media_archive = fields.List(
         fields.Nested(RateLimitSchema),
         metadata={
             "description": "Rate limits, per user, for creating a media archive for"
             " download. All of the limits apply simultaneously."
+        },
+    )
+    backup_keep = fields.Int(
+        metadata={
+            "description": "Number of stored backups kept per tree. Creating a"
+            " backup deletes the oldest ones beyond this number. Absent if"
+            " backups are not configured."
+        },
+    )
+    rate_limit_backup = fields.List(
+        fields.Nested(RateLimitSchema),
+        metadata={
+            "description": "Rate limits, per tree, for creating a backup. All of"
+            " the limits apply simultaneously. Absent if backups are not"
+            " configured."
         },
     )
 
@@ -2730,6 +2751,111 @@ class RestoreSummarySchema(_Base):
                 "results may be incomplete until these tasks have finished. "
                 "Empty when the server runs without a task queue, in which case "
                 "the indices were already updated. Absent for a dry run."
+            )
+        },
+    )
+
+
+class BackupSchema(_Base):
+    """A stored backup archive."""
+
+    id = fields.Str(metadata={"description": "ID of the backup."})
+    size = fields.Integer(metadata={"description": "Size of the archive in bytes."})
+    restorable = fields.Boolean(
+        metadata={
+            "description": (
+                "Whether this server can restore the backup. False e.g. for a"
+                " backup made with a newer database schema, after a downgrade."
+            )
+        },
+    )
+    manifest = fields.Dict(
+        metadata={
+            "description": (
+                "The backup's manifest: when and from which tree it was made, "
+                "the versions, object counts and number of media files."
+            )
+        },
+    )
+
+
+class TreeSettingsRestoreSchema(_Base):
+    """Result of restoring the tree settings from a backup."""
+
+    changed = fields.Boolean(
+        metadata={
+            "description": "Whether the backup's tree settings differ from the current ones."
+        },
+    )
+
+
+class UsersRestoreSchema(_Base):
+    """Result of restoring the users from a backup."""
+
+    added = fields.List(
+        fields.Str(),
+        metadata={
+            "description": (
+                "Names of the users added to the tree, with a random password "
+                "and a role of at most owner. They log in after resetting "
+                "their password."
+            )
+        },
+    )
+    skipped = fields.List(
+        fields.Str(),
+        metadata={
+            "description": (
+                "Names of the users not added because a user with that name "
+                "already exists on the server, in any tree. Existing users are "
+                "never changed."
+            )
+        },
+    )
+
+
+class BackupRestoreResultSchema(_Base):
+    """Result of restoring a tree from a backup archive."""
+
+    manifest = fields.Dict(
+        metadata={
+            "description": (
+                "The backup's manifest: when and from which tree it was made, "
+                "the versions, object counts and media totals."
+            )
+        },
+    )
+    data = fields.Nested(
+        RestoreSummarySchema,
+        metadata={
+            "description": "Changeset of the family tree data. Absent if not selected."
+        },
+    )
+    missing_media = fields.List(
+        fields.Str(),
+        metadata={
+            "description": (
+                "Gramps IDs of the backup's media objects whose files don't "
+                "exist on the server. Media files are not part of the backup. "
+                "Absent if the data was not selected."
+            )
+        },
+    )
+    tree_settings = fields.Nested(
+        TreeSettingsRestoreSchema,
+        metadata={"description": "Absent if not selected."},
+    )
+    users = fields.Nested(
+        UsersRestoreSchema,
+        metadata={"description": "Absent if not selected."},
+    )
+    index_tasks = fields.List(
+        fields.Nested(lambda: TaskReferenceSchema()),
+        metadata={
+            "description": (
+                "Background tasks updating the search indices after the data "
+                "was restored, see the restore endpoint. Absent for a dry run "
+                "or if the data was not selected."
             )
         },
     )

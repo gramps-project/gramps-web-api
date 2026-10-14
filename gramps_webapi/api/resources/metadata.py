@@ -44,6 +44,7 @@ from ...auth import config_get_all
 from ...auth.const import PERM_EDIT_TREE, PERM_VIEW_PRIVATE, PERM_VIEW_SETTINGS
 from ...dbmanager import WebDbManager
 from ..auth import has_permissions, require_permissions
+from ..backup_store import backups_enabled
 from ..blueprint import api_blueprint
 from ..deprecations import check_deprecations
 from ..search import get_search_indexer, get_semantic_search_indexer
@@ -223,6 +224,7 @@ def _get_server_metadata() -> dict[str, Any]:
             # read from the app config
             "email": bool(get_config("DEFAULT_FROM_EMAIL")),
             "max_thumbnail_file_bytes": current_app.config["MAX_THUMBNAIL_FILE_BYTES"],
+            "backups": backups_enabled(),
         },
     }
     max_upload_bytes = current_app.config["MAX_MEDIA_ARCHIVE_UPLOAD_BYTES"]
@@ -233,6 +235,11 @@ def _get_server_metadata() -> dict[str, Any]:
     if rate_limit is not None:
         # omitted if the configured limit string is unparseable
         result["server"]["rate_limit_media_archive"] = rate_limit
+    if backups_enabled():
+        result["server"]["backup_keep"] = current_app.config["BACKUP_KEEP"]
+        rate_limit = _parse_rate_limit(current_app.config["RATE_LIMIT_BACKUP"])
+        if rate_limit is not None:
+            result["server"]["rate_limit_backup"] = rate_limit
     if has_permissions({PERM_VIEW_SETTINGS}) or (
         # in a single-tree deployment the owner is the server operator and can
         # act on the deprecations, while in multi-tree they are a tenant who

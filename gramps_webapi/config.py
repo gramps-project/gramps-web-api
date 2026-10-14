@@ -88,6 +88,10 @@ class DefaultConfig(object):
     REPORT_DIR = str(Path.cwd() / "report_cache")
     EXPORT_DIR = str(Path.cwd() / "export_cache")
     EXPORT_RETENTION_SECONDS = 24 * 60 * 60
+    # no default: on most deployments it would be ephemeral storage
+    BACKUP_DIR = ""
+    BACKUP_KEEP = 5  # backups kept per tree
+    RATE_LIMIT_BACKUP = "10 per day"  # per tree
     NEW_DB_BACKEND = "sqlite"
     RATE_LIMIT_MEDIA_ARCHIVE = "1 per hour"
     REGISTRATION_DISABLED = False

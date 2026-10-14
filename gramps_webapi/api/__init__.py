@@ -37,6 +37,12 @@ from .resources.access_tokens import (
 )
 from .resources.anniversaries import AnniversariesIcsResource
 from .resources.base import Resource, object_request_body
+from .resources.backups import (
+    BackupResource,
+    BackupRestoreResource,
+    BackupsResource,
+    BackupUploadRestoreResource,
+)
 from .resources.bookmarks import (
     BookmarkEditResource,
     BookmarkResource,
@@ -787,6 +793,23 @@ register_endpt(
     ImporterResource, "/importers/<string:extension>", "importer", tags=["Importers"]
 )
 register_endpt(ImportersResource, "/importers/", "importers", tags=["Importers"])
+# Backups
+register_endpt(BackupsResource, "/backups/", "backups", tags=["Backups"])
+register_endpt(
+    BackupUploadRestoreResource,
+    "/backups/restore",
+    "backup-upload-restore",
+    tags=["Backups"],
+)
+register_endpt(
+    BackupResource, "/backups/<string:backup_id>", "backup", tags=["Backups"]
+)
+register_endpt(
+    BackupRestoreResource,
+    "/backups/<string:backup_id>/restore",
+    "backup-restore",
+    tags=["Backups"],
+)
 # Holidays
 register_endpt(
     HolidayResource,
