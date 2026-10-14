@@ -246,6 +246,37 @@ class TestMerge(unittest.TestCase):
         self.assertEqual(self._get(f"/api/people/{h1}").status_code, 200)
         self.assertEqual(self._get(f"/api/people/{h2}").status_code, 404)
 
+    def _assert_people_usage_up_to_date(self):
+        num_people = len(self._get("/api/people/?keys=handle").json)
+        usage = self._get("/api/trees/-").json["usage_people"]
+        self.assertEqual(usage, num_people)
+
+    def test_merge_person_updates_people_usage(self):
+        h1 = self._create_person()
+        h2 = self._create_person()
+        self.assertEqual(self._merge("people", h1, h2).status_code, 200)
+        self._assert_people_usage_up_to_date()
+
+    def test_merge_family_merging_parents_updates_people_usage(self):
+        """Merging two families with different fathers merges the fathers."""
+        families = []
+        for _ in range(2):
+            father = self._create_person(first_name="Father")
+            handle = make_handle()
+            fam = {
+                "_class": "Family",
+                "handle": handle,
+                "gramps_id": f"F{handle[:6]}",
+                "father_handle": father,
+            }
+            self.assertEqual(self._post("/api/families/", json=fam).status_code, 201)
+            families.append((handle, father))
+        (h1, father1), (h2, father2) = families
+        rv = self._merge("families", h1, h2, body={"phoenix_father_handle": father1})
+        self.assertEqual(rv.status_code, 200, rv.json)
+        self.assertEqual(self._get(f"/api/people/{father2}").status_code, 404)
+        self._assert_people_usage_up_to_date()
+
     def test_merge_person_family_merger_param(self):
         h1 = self._create_person()
         h2 = self._create_person()
