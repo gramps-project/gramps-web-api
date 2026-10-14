@@ -88,7 +88,7 @@ class BackupsResource(ProtectedResource):
 
     @api_blueprint.response(201, BackupSchema())
     @api_blueprint.arguments(Schema(), location="query")
-    # only backups actually created count, not e.g. rejected requests
+    # only accepted requests count, not rejected ones (e.g. 403, 409)
     @limiter_per_tree.limit(
         get_limit, deduct_when=lambda response: response.status_code in (201, 202)
     )
