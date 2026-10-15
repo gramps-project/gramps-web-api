@@ -21,6 +21,7 @@
 
 import io
 import os
+import tempfile
 import time
 import unittest
 import uuid
@@ -50,6 +51,16 @@ class TestMediaArchiv(unittest.TestCase):
     def setUpClass(cls):
         """Test class setup."""
         cls.client = get_test_client()
+        # archives are named after their contents and outlive the test run, so
+        # a shared export dir would hold the archives of earlier runs' trees
+        cls.export_dir = tempfile.TemporaryDirectory()
+        cls.export_dir_orig = cls.client.application.config["EXPORT_DIR"]
+        cls.client.application.config["EXPORT_DIR"] = cls.export_dir.name
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.client.application.config["EXPORT_DIR"] = cls.export_dir_orig
+        cls.export_dir.cleanup()
 
     def _create_archive(self, headers):
         rv = self.client.post(TEST_URL, headers=headers)
