@@ -51,7 +51,7 @@ from ..tasks import (
     update_media_usage_task,
     update_search_indices_from_transaction,
 )
-from ..util import get_db_handle, get_tree_from_jwt_or_fail
+from ..util import get_db_handle, get_tree_from_jwt_or_fail, update_usage_people
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
 from .util import abort_with_message
@@ -137,6 +137,7 @@ class MergePersonResource(GrampsJSONEncoder, ProtectedResource):
             )
         except MergeError as exc:
             abort_with_message(409, str(exc))
+        update_usage_people()
         _update_search_index(titanic_handle, phoenix_handle, "Person")
         return self.response(200, {})
 
@@ -172,6 +173,8 @@ class MergeFamilyResource(GrampsJSONEncoder, ProtectedResource):
             abort_with_message(409, str(exc))
         except AssertionError:
             abort_with_message(400, "Invalid parent handle")
+        # merging the families can merge their parents, deleting people
+        update_usage_people()
         _update_search_index(titanic_handle, phoenix_handle, "Family")
         return self.response(200, {})
 
