@@ -47,6 +47,7 @@ from ..auth import user_db
 from ..undodb import migrate as migrate_undodb
 from ..util.task_state import (
     LOCK_BACKUP,
+    LOCK_MEDIA_USAGE,
     LOCK_SEARCH_INDEX,
     LOCK_SEARCH_INDEX_INCREMENTAL,
     LOCK_SEMANTIC_INDEX,
@@ -76,6 +77,7 @@ from .media import (
     delete_expired_local_archives,
     get_local_archive_dir,
     get_media_handler,
+    update_usage_media,
 )
 from .media_importer import MediaImporter
 from .report import run_report
@@ -890,6 +892,7 @@ def delete_objects(
         close_db(db_handle)
 
     update_usage_people(tree=tree, user_id=user_id)
+    update_usage_media(tree=tree, user_id=user_id)
     _search_reindex_incremental(
         tree=tree,
         user_id=user_id,
@@ -1058,6 +1061,25 @@ def _index_objects(
                 handle,
                 exc_info=True,
             )
+
+
+@shared_task(lock_key=LOCK_MEDIA_USAGE)
+def update_media_usage_task(tree: str, user_id: str) -> None:
+    """Recompute and store the media usage for a tree.
+
+    Recomputing scans every media object's file, so this is run as a task
+    rather than inline in the request, the same way search index updates are.
+
+    Declared with a coalescing lock key (see util/task_state.py): a dispatch
+    arriving while a rescan is already running for this tree is folded into
+    it rather than queuing a second one, and the running rescan re-runs once
+    more before releasing the lock. Rescans of a tree therefore never run
+    concurrently, and uploads arriving faster than a rescan share it; uploads
+    slower than a rescan, such as a sync uploading files one by one, still
+    get one rescan each. Upload endpoints add the file size to the usage
+    right away, so quota checks don't wait for the rescan.
+    """
+    update_usage_media(tree=tree, user_id=user_id)
 
 
 @shared_task(bind=True)

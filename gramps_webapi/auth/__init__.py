@@ -788,6 +788,22 @@ def set_tree_usage(
     user_db.session.commit()  # pylint: disable=no-member
 
 
+def add_tree_usage_media(tree: str, size: int) -> None:
+    """Add `size` bytes to the tree's media usage.
+
+    Done atomically in the database, so concurrent uploads don't lose each
+    other's increment. An unknown usage is left alone, as the next quota check
+    computes it from scratch.
+    """
+    statement = (
+        sa.update(Tree)
+        .where(Tree.id == tree, Tree.usage_media.is_not(None))
+        .values(usage_media=Tree.usage_media + size)
+    )
+    user_db.session.execute(statement)  # pylint: disable=no-member
+    user_db.session.commit()  # pylint: disable=no-member
+
+
 def set_tree_details(
     tree: str,
     quota_media: Optional[int] = None,
