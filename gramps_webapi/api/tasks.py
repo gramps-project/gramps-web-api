@@ -493,6 +493,8 @@ def import_file(
     finally:
         close_db(db_handle)
     update_usage_people(tree=tree, user_id=user_id)
+    # imported media objects can refer to files already on disk
+    run_task(update_media_usage_task, tree=tree, user_id=user_id)
     index_tasks = update_search_indices_after_import(tree=tree, user_id=user_id)
     return {**object_counts, "messages": messages, "index_tasks": index_tasks}
 
@@ -528,6 +530,7 @@ def restore_backup(
     if dry_run:
         return summary
     update_usage_people(tree=tree, user_id=user_id)
+    run_task(update_media_usage_task, tree=tree, user_id=user_id)
     index_tasks = update_search_indices_after_import(tree=tree, user_id=user_id)
     return {**summary, "index_tasks": index_tasks}
 
@@ -649,6 +652,7 @@ def restore_backup_archive(
                 # right away, so that the data is consistent with its usage and
                 # search indices even if restoring another part fails
                 update_usage_people(tree=tree, user_id=user_id)
+                run_task(update_media_usage_task, tree=tree, user_id=user_id)
                 result["index_tasks"] = update_search_indices_after_import(
                     tree=tree, user_id=user_id
                 )
@@ -892,7 +896,7 @@ def delete_objects(
         close_db(db_handle)
 
     update_usage_people(tree=tree, user_id=user_id)
-    update_usage_media(tree=tree, user_id=user_id)
+    run_task(update_media_usage_task, tree=tree, user_id=user_id)
     _search_reindex_incremental(
         tree=tree,
         user_id=user_id,
@@ -945,6 +949,8 @@ def apply_transactions(
         item["type"] == "add" and item["_class"] == "Person" for item in payload
     )
     num_people_new = num_people_added - num_people_deleted
+    # adding, deleting or re-pointing a media object changes the media usage
+    media_changed = any(item.get("_class") == "Media" for item in payload)
     check_quota_people(to_add=num_people_new, tree=tree, user_id=user_id)
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=False, user_id=user_id
@@ -991,6 +997,8 @@ def apply_transactions(
         close_db(db_handle)
     if num_people_new:
         update_usage_people(tree=tree, user_id=user_id)
+    if media_changed:
+        run_task(update_media_usage_task, tree=tree, user_id=user_id)
     return trans_dict
 
 
