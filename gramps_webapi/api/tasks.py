@@ -1073,8 +1073,11 @@ def update_media_usage_task(tree: str, user_id: str) -> None:
     Declared with a coalescing lock key (see util/task_state.py): a dispatch
     arriving while a rescan is already running for this tree is folded into
     it rather than queuing a second one, and the running rescan re-runs once
-    more before releasing the lock. This bounds a burst of N uploads/deletes
-    for one tree to at most two full rescans instead of N.
+    more before releasing the lock. Rescans of a tree therefore never run
+    concurrently, and uploads arriving faster than a rescan share it; uploads
+    slower than a rescan, such as a sync uploading files one by one, still
+    get one rescan each. Upload endpoints add the file size to the usage
+    right away, so quota checks don't wait for the rescan.
     """
     update_usage_media(tree=tree, user_id=user_id)
 

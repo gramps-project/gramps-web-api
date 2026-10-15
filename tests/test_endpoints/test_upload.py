@@ -328,6 +328,43 @@ class TestUploadWithQuota(unittest.TestCase):
         )
         assert rv.status_code == 405
 
+    def test_upload_quota_counts_pending_uploads(self):
+        """The quota counts an upload before its usage recompute has run.
+
+        Otherwise a sync uploading files one after the other could exceed
+        the quota by everything uploaded while the recompute is queued.
+        """
+        headers = get_headers(self.client, "admin", "123")
+        # unknown on a fresh tree, where the first quota check computes it
+        rv = self.client.get("/api/trees/-", headers=headers)
+        usage = rv.json.get("usage_media") or 0
+        img1, _, size1 = get_image(30)
+        img2, _, size2 = get_image(31)
+        rv = self.client.put(
+            "/api/trees/-",
+            json={"quota_media": usage + size1 + size2 - 1},
+            headers=headers,
+        )
+        assert rv.status_code == 200
+        # the recompute is queued but doesn't run
+        with patch("gramps_webapi.api.resources.media.run_task"):
+            rv = self.client.post(
+                "/api/media/",
+                data=img1.read(),
+                headers=headers,
+                content_type="image/jpeg",
+            )
+            assert rv.status_code == 201
+            rv = self.client.get("/api/trees/-", headers=headers)
+            assert rv.json["usage_media"] == usage + size1
+            rv = self.client.post(
+                "/api/media/",
+                data=img2.read(),
+                headers=headers,
+                content_type="image/jpeg",
+            )
+            assert rv.status_code == 405
+
 
 class TestUploadUsageBackgroundUpdate(unittest.TestCase):
     """Check that the (expensive) usage recompute doesn't block the request."""
