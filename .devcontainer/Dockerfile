@@ -24,8 +24,10 @@ RUN mkdir -p $GRAMPSHOME/gramps/gramps$GRAMPS_VERSION/plugins && \
     chown -R vscode:vscode $GRAMPSHOME/gramps
 
 # use a fixed path for Hugging Face model cache (must match runtime user)
+# chown the whole ~/.cache: mkdir -p creates it as root, and Gramps needs
+# ~/.cache/gramps, otherwise the example tree import fails
 ENV HF_HOME=/home/vscode/.cache/huggingface
-RUN mkdir -p $HF_HOME && chown -R vscode:vscode $HF_HOME
+RUN mkdir -p $HF_HOME && chown -R vscode:vscode /home/vscode/.cache
 
 # CPU-only version of PyTorch
 RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
