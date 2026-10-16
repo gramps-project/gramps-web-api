@@ -117,3 +117,11 @@ def test_prompt_asks_to_link_the_subject(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "key")
     _, prompt = _tools_and_prompt(semantic_search=False)
     assert "This includes the person the user asked about" in prompt
+
+
+def test_get_note_tool(monkeypatch):
+    """The agent can read notes in full."""
+    monkeypatch.setenv("OPENAI_API_KEY", "key")
+    tools, prompt = _tools_and_prompt(semantic_search=False)
+    assert "get_note" in tools
+    assert "`/note/ID` → get_note" in prompt

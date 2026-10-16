@@ -33,6 +33,7 @@ from gramps_webapi.api.llm.tools import (
     filter_people,
     get_event,
     get_family,
+    get_note,
     get_person,
     get_place,
     search_genealogy_database_fulltext,
@@ -45,7 +46,6 @@ from gramps_webapi.auth.const import ROLE_OWNER
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_EXAMPLE_GRAMPS_AUTH_CONFIG
 from gramps_webapi.dbmanager import WebDbManager
 from tests import ExampleDbSQLite
-
 
 TEST_APP = None
 TEST_TREE = None
@@ -896,11 +896,15 @@ class TestFilterPeopleOrLogic(unittest.TestCase):
         if "Showing" in result and "of" in result:
             # Extract X and Y from "Showing X of Y matching people"
             import re
+
             m = re.search(r"Showing (\d+) of (\d+)", result)
             if m:
                 shown, total = int(m.group(1)), int(m.group(2))
-                self.assertGreater(total, shown,
-                    "Total count must be > shown count (was broken in old OR path)")
+                self.assertGreater(
+                    total,
+                    shown,
+                    "Total count must be > shown count (was broken in old OR path)",
+                )
 
 
 class TestFilterEventsParticipantRole(unittest.TestCase):
@@ -976,6 +980,46 @@ class TestSearchFulltext(unittest.TestCase):
         result = self._search(query="Garner", object_type="Person", max_results=3)
         self.assertNotIn("Error", result)
         self.assertIn("/person/", result)
+
+    def test_attribute_only_match_shows_attribute(self):
+        # "fingers" only occurs in an attribute of I0044
+        result = self._search(query="fingers toes", object_type="Person")
+        self.assertIn("(/person/I0044)", result)
+        self.assertIn("10 fingers, 10 toes.", result)
+
+    def test_private_attribute(self):
+        result = self._search(query="Big Louie", object_type="Person")
+        self.assertIn("123-456-7890", result)
+        self.ctx.deps.include_private = False
+        result = self._search(query="Big Louie", object_type="Person")
+        self.assertIn("(/person/I0044)", result)
+        self.assertNotIn("123-456-7890", result)
+
+
+class TestGetNote(unittest.TestCase):
+    """Tests for the get_note tool."""
+
+    def setUp(self):
+        self.ctx = MagicMock()
+        self.ctx.deps = AgentDeps(
+            tree=TEST_TREE,
+            include_private=True,
+            max_context_length=50000,
+            user_id="test_user",
+        )
+
+    def _get_note(self, gramps_id):
+        with TEST_APP.app_context():
+            return get_note(self.ctx, gramps_id)
+
+    def test_full_text_and_backlinks(self):
+        result = self._get_note("N0003")
+        self.assertIn("Mission Statement Generator", result)
+        self.assertIn("Referenced by: [Lewis Anderson Garner", result)
+
+    def test_unknown_id_returns_not_found(self):
+        result = self._get_note("INVALID_XYZ_999")
+        self.assertIn("No note found", result)
 
 
 class TestGetPerson(unittest.TestCase):
@@ -1230,7 +1274,6 @@ class TestFilterFamilies(unittest.TestCase):
             father_surname="Garner", mother_surname="Smith", combine_filters="or"
         )
         self.assertNotIn("Error", result)
-
 
 
 if __name__ == "__main__":
