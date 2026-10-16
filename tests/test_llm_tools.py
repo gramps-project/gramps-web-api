@@ -983,6 +983,12 @@ class TestSearchFulltext(unittest.TestCase):
         self.assertNotIn("Error", result)
         self.assertIn("/person/", result)
 
+    def test_tag_hits_skipped(self):
+        # "ToDo" only matches a tag, which has no record to show
+        result = self._search(query="ToDo")
+        self.assertNotIn("Error", result)
+        self.assertIn("No results found", result)
+
     def test_attribute_only_match_shows_attribute(self):
         # "fingers" only occurs in an attribute of I0044
         result = self._search(query="fingers toes", object_type="Person")

@@ -186,6 +186,16 @@ class TestRenderModified(unittest.TestCase):
             self.db.commit_family(family, trans)
         self.assertNotIn("Parents (", _render(self.db, "Person", "I0044"))
 
+    def test_family_without_person_as_parent(self):
+        # I0044's own parents' family, wrongly listed as one of his families
+        family = self.db.get_family_from_gramps_id("F0018")
+        with DbTxn("add inconsistent family", self.db) as trans:
+            self.person.add_family_handle(family.handle)
+            self.db.commit_person(self.person, trans)
+        text = _render(self.db, "Person", "I0044")
+        self.assertNotIn("- [family](/family/F0018)", text)
+        self.assertIn("- [family](/family/F0017)", text)
+
     def test_place_name_with_comma(self):
         place = self.db.get_place_from_gramps_id("P1435")
         with DbTxn("rename place", self.db) as trans:

@@ -402,15 +402,15 @@ def _search_genealogy_database(
             object_types=object_types,
         )
 
-        if not hits:
-            if semantic:
-                return "No results found in the genealogy database."
-            return (
-                "No results found in the genealogy database. All search terms "
-                "must match, so try fewer or different words (e.g. only the "
-                "surname, or a name variant), or use filter_people for names, "
-                "dates and places."
+        no_results = "No results found in the genealogy database."
+        if not semantic:
+            no_results += (
+                " All search terms must match, so try fewer or different words "
+                "(e.g. only the surname, or a name variant), or use filter_people "
+                "for names, dates and places."
             )
+        if not hits:
+            return no_results
 
         # The index stores a bag of words without links or dates, so each hit
         # is rendered from the database like in the get_* tools.
@@ -453,6 +453,9 @@ def _search_genealogy_database(
             context_parts.append(content)
             current_length += len(content) + 2
 
+        if not context_parts:
+            # e.g. only tags matched
+            return no_results
         result = "\n\n".join(context_parts)
         if len(context_parts) < total:
             result += f"\n\n---\nShowing {len(context_parts)} of {total} matches."

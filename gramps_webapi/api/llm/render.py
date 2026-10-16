@@ -408,7 +408,11 @@ def _person(db_handle: DbReadBase, person: Person) -> list[str]:
     family_lines = []
     for family_handle in person.get_family_handle_list():
         family = _get(db_handle, "Family", family_handle)
-        if family is None:
+        if family is None or person.handle not in (
+            family.father_handle,
+            family.mother_handle,
+        ):
+            # the family does not list the person as a parent
             continue
         spouse_handle = (
             family.mother_handle
@@ -641,7 +645,13 @@ def render_object(db_handle: DbReadBase, class_name: str, obj) -> str:
 
 
 def render_handle(db_handle: DbReadBase, class_name: str, handle: str) -> str:
-    """Render the object with a handle; empty if it is missing or private."""
+    """Render the object with a handle.
+
+    Empty if the object is missing or private, or of a class without a
+    renderer (tags, which the search index contains as well).
+    """
+    if class_name not in RENDERERS:
+        return ""
     obj = _get(db_handle, class_name, handle)
     if obj is None:
         return ""
