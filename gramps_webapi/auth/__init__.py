@@ -896,6 +896,7 @@ def get_user_oidc_accounts(user_id: str) -> List[Dict[str, Any]]:
     oidc_accounts = query.filter_by(user_id=user_id).all()
     return [
         {
+            "id": account.id,
             "provider_id": account.provider_id,
             "subject_id": account.subject_id,
             "email": account.email,
@@ -903,6 +904,43 @@ def get_user_oidc_accounts(user_id: str) -> List[Dict[str, Any]]:
         }
         for account in oidc_accounts
     ]
+
+
+# Results of `unlink_oidc_account`.
+UNLINKED = "unlinked"
+UNLINK_NOT_FOUND = "not_found"
+UNLINK_LAST = "last"
+
+
+def unlink_oidc_account(user_id: str, account_id: int, allow_last: bool) -> str:
+    """Remove one of a user's OIDC accounts.
+
+    The last one is only removed if `allow_last` is true. Two unlinks at once
+    must not remove the last two, so the check runs under a write lock.
+    """
+    # A no-op update takes the write lock before reading: it locks the user's
+    # rows in PostgreSQL and the database in SQLite, where SELECT ... FOR UPDATE
+    # does nothing. A concurrent unlink waits for it and then reads the result.
+    user_db.session.execute(  # pylint: disable=no-member
+        sa.update(OIDCAccount)
+        .where(OIDCAccount.user_id == user_id)
+        .values(provider_id=OIDCAccount.provider_id)
+    )
+    accounts = (
+        user_db.session.query(OIDCAccount)  # pylint: disable=no-member
+        .filter_by(user_id=user_id)
+        .all()
+    )
+    account = next((a for a in accounts if a.id == account_id), None)
+    if account is None:
+        user_db.session.rollback()  # pylint: disable=no-member
+        return UNLINK_NOT_FOUND
+    if len(accounts) == 1 and not allow_last:
+        user_db.session.rollback()  # pylint: disable=no-member
+        return UNLINK_LAST
+    user_db.session.delete(account)  # pylint: disable=no-member
+    user_db.session.commit()  # pylint: disable=no-member
+    return UNLINKED
 
 
 class User(user_db.Model):  # type: ignore
