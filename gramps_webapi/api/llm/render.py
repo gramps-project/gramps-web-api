@@ -167,9 +167,9 @@ def _person_line(db_handle: DbReadBase, person: Person) -> str:
     return line
 
 
-def _place_hierarchy(db_handle: DbReadBase, place: Place) -> str:
-    """The linked place followed by its enclosing places."""
-    parts = [_obj_link(db_handle, "Place", place)]
+def _enclosing_places(db_handle: DbReadBase, place: Place) -> list[str]:
+    """The names of the places enclosing a place, innermost first."""
+    names = []
     seen = {place.handle}
     current = place
     while current.get_placeref_list():
@@ -177,9 +177,15 @@ def _place_hierarchy(db_handle: DbReadBase, place: Place) -> str:
         if parent is None or parent.handle in seen:
             break
         seen.add(parent.handle)
-        parts.append(_place_name(parent))
+        names.append(_place_name(parent))
         current = parent
-    return ", ".join(parts)
+    return names
+
+
+def _place_hierarchy(db_handle: DbReadBase, place: Place) -> str:
+    """The linked place followed by its enclosing places."""
+    parts = [_obj_link(db_handle, "Place", place)]
+    return ", ".join(parts + _enclosing_places(db_handle, place))
 
 
 def _event_line(db_handle: DbReadBase, event: Event, role=None) -> str:
@@ -371,7 +377,13 @@ def _person(db_handle: DbReadBase, person: Person) -> list[str]:
     lines += _section("Events", _event_lines(db_handle, person.get_event_ref_list()))
     for family_handle in person.get_parent_family_handle_list():
         family = _get(db_handle, "Family", family_handle)
-        if family is None:
+        child_refs = (
+            [ref for ref in family.get_child_ref_list() if ref.ref == person.handle]
+            if family is not None
+            else []
+        )
+        if not child_refs:
+            # the family does not list the person as a child
             continue
         parents = [
             _person_line(db_handle, parent)
@@ -381,20 +393,17 @@ def _person(db_handle: DbReadBase, person: Person) -> list[str]:
             )
             if parent is not None
         ]
-        relations = [
-            f"relation to father: {child_ref.frel.xml_str()}, "
-            f"relation to mother: {child_ref.mrel.xml_str()}"
-            for child_ref in family.get_child_ref_list()
-            if child_ref.ref == person.handle
-            and (
-                child_ref.frel.value != ChildRefType.BIRTH
-                or child_ref.mrel.value != ChildRefType.BIRTH
-            )
-        ]
+        child_ref = child_refs[0]
         line = f"Parents ({_link('family', 'Family', family.gramps_id)}): "
         line += " and ".join(parents) if parents else "unknown"
-        if relations:
-            line += f" ({relations[0]})"
+        if (
+            child_ref.frel.value != ChildRefType.BIRTH
+            or child_ref.mrel.value != ChildRefType.BIRTH
+        ):
+            line += (
+                f" (relation to father: {child_ref.frel.xml_str()}, "
+                f"relation to mother: {child_ref.mrel.xml_str()})"
+            )
         lines.append(line)
     family_lines = []
     for family_handle in person.get_family_handle_list():
@@ -512,9 +521,9 @@ def _place(db_handle: DbReadBase, place: Place) -> list[str]:
     lines = [f"## Place: {_obj_link(db_handle, 'Place', place)}"]
     if place.place_type:
         lines.append(f"Type: {place.place_type.xml_str()}")
-    hierarchy = _place_hierarchy(db_handle, place).split(", ", 1)
-    if len(hierarchy) > 1:
-        lines.append(f"Part of: {hierarchy[1]}")
+    enclosing = _enclosing_places(db_handle, place)
+    if enclosing:
+        lines.append(f"Part of: {', '.join(enclosing)}")
     alt_names = [name.get_value() for name in place.get_alternative_names()]
     if alt_names:
         lines.append(f"Also known as: {'; '.join(alt_names)}")

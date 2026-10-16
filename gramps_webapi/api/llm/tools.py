@@ -744,8 +744,36 @@ def filter_events(
     )
 
 
-def _get_object(ctx: RunContext[AgentDeps], class_name: str, gramps_id: str) -> str:
-    """Fetch and render a single object by its Gramps ID."""
+def _page(content: str, offset: int, limit: int, tool: str) -> str:
+    """Return a section of a long text, saying how to read the next one."""
+    offset = max(0, offset)
+    if offset == 0 and len(content) <= limit:
+        return content
+    if offset >= len(content):
+        return f"The text has only {len(content)} characters."
+    end = min(offset + limit, len(content))
+    page = content[offset:end]
+    if end < len(content):
+        page += (
+            f"\n\n[Characters {offset}–{end} of {len(content)}. "
+            f"Call {tool} with offset={end} to read on.]"
+        )
+    else:
+        page += f"\n\n[Characters {offset}–{end} of {len(content)}, end of text.]"
+    return page
+
+
+def _get_object(
+    ctx: RunContext[AgentDeps],
+    class_name: str,
+    gramps_id: str,
+    offset: int | None = None,
+) -> str:
+    """Fetch and render a single object by its Gramps ID.
+
+    Long records are truncated, unless `offset` is given: then the section
+    starting at that character is returned.
+    """
     label = class_name.lower()
     if ctx.deps.progress_callback:
         ctx.deps.progress_callback(f"get_{label}", f"Fetching {label} record...")
@@ -765,7 +793,10 @@ def _get_object(ctx: RunContext[AgentDeps], class_name: str, gramps_id: str) -> 
             content = render_object(db_handle, class_name, obj)
         finally:
             db_handle.close()
-        return _truncate_content(content, min(ctx.deps.max_context_length // 2, 10000))
+        limit = min(ctx.deps.max_context_length // 2, 10000)
+        if offset is not None:
+            return _page(content, offset, limit, f"get_{label}")
+        return _truncate_content(content, limit)
     except Exception as e:  # pylint: disable=broad-except
         logger.error("Error fetching %s %s: %s", label, gramps_id, e)
         return f"Error fetching {label} '{gramps_id}': {e}"
@@ -838,19 +869,22 @@ def get_place(ctx: RunContext[AgentDeps], gramps_id: str) -> str:
 
 
 @log_tool_call
-def get_note(ctx: RunContext[AgentDeps], gramps_id: str) -> str:
+def get_note(ctx: RunContext[AgentDeps], gramps_id: str, offset: int = 0) -> str:
     """Fetch the full text of a single note by its Gramps ID.
 
     Other records only show the beginning of their notes. Use this to read a
     note in full, e.g. a biography, and to see which records it belongs to.
+    Long notes are returned in sections; the end of each section says which
+    offset to use for the next one.
 
     Args:
         gramps_id: The Gramps ID of the note (e.g., "N0001")
+        offset: Character position to start reading from (default: 0)
 
     Returns:
-        Full note text and the records referencing it, or an error message.
+        Note text and the records referencing it, or an error message.
     """
-    return _get_object(ctx, "Note", gramps_id)
+    return _get_object(ctx, "Note", gramps_id, offset=offset)
 
 
 @log_tool_call

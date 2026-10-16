@@ -160,3 +160,39 @@ class TestRenderModified(unittest.TestCase):
             self.db.commit_person(spouse, trans)
         self.assertIn("/person/I0045", _render(self.db, "Person", "I0044"))
         self.assertNotIn("/person/I0045", self._public("Person", "I0044"))
+
+    def test_private_child_reference(self):
+        parents = "Parents ([family](/family/F0018))"
+        self.assertIn(parents, self._public("Person", "I0044"))
+        family = self.db.get_family_from_gramps_id("F0018")
+        with DbTxn("make child reference private", self.db) as trans:
+            for child_ref in family.get_child_ref_list():
+                if child_ref.ref == self.person.handle:
+                    child_ref.set_privacy(True)
+            self.db.commit_family(family, trans)
+        self.assertIn(parents, _render(self.db, "Person", "I0044"))
+        self.assertNotIn(parents, self._public("Person", "I0044"))
+
+    def test_parent_family_without_child_reference(self):
+        family = self.db.get_family_from_gramps_id("F0018")
+        with DbTxn("remove child reference", self.db) as trans:
+            family.set_child_ref_list(
+                [
+                    child_ref
+                    for child_ref in family.get_child_ref_list()
+                    if child_ref.ref != self.person.handle
+                ]
+            )
+            self.db.commit_family(family, trans)
+        self.assertNotIn("Parents (", _render(self.db, "Person", "I0044"))
+
+    def test_place_name_with_comma(self):
+        place = self.db.get_place_from_gramps_id("P1435")
+        with DbTxn("rename place", self.db) as trans:
+            name = place.get_name()
+            name.set_value("Great Falls, Cascade County")
+            place.set_name(name)
+            self.db.commit_place(place, trans)
+        text = _render(self.db, "Place", "P1435")
+        self.assertIn("## Place: [Great Falls, Cascade County](/place/P1435)", text)
+        self.assertIn("Part of: MT, USA", text)

@@ -20,6 +20,7 @@
 """Tests for LLM tools."""
 
 import os
+import re
 import shutil
 import tempfile
 import unittest
@@ -27,6 +28,7 @@ from unittest.mock import MagicMock, patch
 
 from gramps_webapi.api.llm.tools import (
     _build_date_expression,
+    _page,
     _truncate_content,
     filter_events,
     filter_families,
@@ -994,6 +996,30 @@ class TestSearchFulltext(unittest.TestCase):
         result = self._search(query="Big Louie", object_type="Person")
         self.assertIn("(/person/I0044)", result)
         self.assertNotIn("123-456-7890", result)
+
+
+class TestPage(unittest.TestCase):
+    """Tests for reading long texts in sections."""
+
+    def test_short_text_unchanged(self):
+        self.assertEqual(_page("short", 0, 100, "get_note"), "short")
+
+    def test_fact_in_the_middle_of_a_long_text(self):
+        text = "x" * 25000 + " MIDDLE FACT " + "y" * 25000
+        offset, pages = 0, []
+        while True:
+            page = _page(text, offset, 10000, "get_note")
+            pages.append(page)
+            match = re.search(r"Call get_note with offset=(\d+)", page)
+            if not match:
+                break
+            offset = int(match.group(1))
+        self.assertEqual(len(pages), 6)
+        self.assertIn("MIDDLE FACT", "".join(pages))
+        self.assertTrue(pages[-1].endswith("end of text.]"))
+
+    def test_offset_beyond_end(self):
+        self.assertIn("only 5 characters", _page("short", 10, 100, "get_note"))
 
 
 class TestGetNote(unittest.TestCase):
