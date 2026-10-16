@@ -35,14 +35,14 @@ from .resources.access_tokens import (
     UserAccessTokenListResource,
     UserAccessTokenResource,
 )
-from .resources.anniversaries import AnniversariesIcsResource
-from .resources.base import Resource, object_request_body
+from .resources.anniversaries import AnniversariesIcsResource, AnniversariesResource
 from .resources.backups import (
     BackupResource,
     BackupRestoreResource,
     BackupsResource,
     BackupUploadRestoreResource,
 )
+from .resources.base import Resource, object_request_body
 from .resources.bookmarks import (
     BookmarkEditResource,
     BookmarkResource,
@@ -843,6 +843,12 @@ register_endpt(
     tags=["Metadata"],
 )
 # Anniversaries
+register_endpt(
+    AnniversariesResource,
+    "/anniversaries/",
+    "anniversaries",
+    tags=["Anniversaries"],
+)
 register_endpt(
     AnniversariesIcsResource,
     "/anniversaries.ics",
