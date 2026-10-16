@@ -102,6 +102,20 @@ def _name(name: Name) -> str:
     return " ".join(part.strip() for part in parts if part.strip())
 
 
+def _name_details(name: Name) -> str:
+    """Searchable parts of a name that _name leaves out."""
+    details = [
+        (label, value.strip())
+        for label, value in (
+            ("title", name.get_title()),
+            ("call name", name.get_call_name()),
+            ("nickname", name.get_nick_name()),
+            ("family nickname", name.get_family_nick_name()),
+        )
+    ]
+    return ", ".join(f"{label} {value}" for label, value in details if value)
+
+
 def _event_label(event: Event) -> str:
     return event.type.xml_str()
 
@@ -367,9 +381,12 @@ def _referenced_by(db_handle: DbReadBase, class_name: str, obj) -> list[str]:
 
 def _person(db_handle: DbReadBase, person: Person) -> list[str]:
     lines = [f"## Person: {_obj_link(db_handle, 'Person', person)}"]
+    details = _name_details(person.get_primary_name())
+    if details:
+        lines.append(f"Name details: {details}")
     lines.append(f"Gender: {GENDERS.get(person.gender, 'unknown')}")
     alternate_names = [
-        f"{_name(name)} ({name.get_type().xml_str()})"
+        f"{_name(name)} ({', '.join(filter(None, [name.get_type().xml_str(), _name_details(name)]))})"
         for name in person.get_alternate_names()
     ]
     if alternate_names:

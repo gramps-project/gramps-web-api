@@ -63,6 +63,14 @@ class TestRender(unittest.TestCase):
         self.assertIn("with [Luella Jacques Martel](/person/I0045)", text)
         self.assertIn("[Eugene Stanley Garner](/person/I0046)", text)
 
+    def test_person_name_details(self):
+        text = _render(self.db, "Person", "I0044")
+        self.assertIn(
+            "Name details: title Dr., call name Anderson, nickname Big Louie, "
+            "family nickname Beauregard",
+            text,
+        )
+
     def test_person_fields_not_in_semantic_text(self):
         text = _render(self.db, "Person", "I0044")
         self.assertIn("Description: 10 fingers, 10 toes.", text)
