@@ -296,6 +296,9 @@ class Timeline:
         if self.anchor_person and handle == self.anchor_person.handle:
             return
         person = self.db_handle.get_person_from_handle(handle)
+        if person is None:
+            # the private proxy returns None for private people
+            raise HandleError(f"Handle {handle} not found")
         if person.handle not in self.birth_dates:
             event = get_birth_or_fallback(self.db_handle, person)
             if event:
@@ -409,6 +412,9 @@ class Timeline:
     ):
         """Add events for all family members to the timeline."""
         family = self.db_handle.get_family_from_handle(handle)
+        if family is None:
+            # the private proxy returns None for private families
+            raise HandleError(f"Handle {handle} not found")
         if anchor:
             for event_ref in family.event_ref_list:
                 event = self.db_handle.get_event_from_handle(event_ref.ref)
