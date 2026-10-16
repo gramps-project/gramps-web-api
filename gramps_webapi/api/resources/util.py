@@ -549,7 +549,7 @@ def get_event_profile_for_object(
 
 
 def get_place_name_for_event(db_handle: DbReadBase, event: Event) -> str:
-    """Get place name for an event."""
+    """Get the name a place had at the date of an event."""
     place_handle = event.get_place_handle()
     if not place_handle:
         return ""
@@ -559,10 +559,33 @@ def get_place_name_for_event(db_handle: DbReadBase, event: Event) -> str:
         return ""
     if not place:
         return ""
-    place_name = place.get_name()
-    if not place_name:
-        return ""
-    return place_name.value
+    return get_place_name_at_date(place, event.get_date_object())
+
+
+def get_place_name_at_date(place: Place, date: Date) -> str:
+    """Get the name of a place valid at a date.
+
+    A name whose date matches wins over one without a date, so that an
+    alternative name dated e.g. 1910-1945 is used for an event in 1930 even
+    if the primary name has no date. Gramps' place display, which builds the
+    full place title, only does so if the primary name is dated too, so the
+    title can differ from this name. If no dated name matches, the first name
+    without a date is used, and the primary name if there is none or if the
+    date is empty.
+    """
+    primary = place.get_name()
+    if not date.is_empty():
+        undated = None
+        for place_name in place.get_all_names():
+            name_date = place_name.get_date_object()
+            if name_date.is_empty():
+                if undated is None:
+                    undated = place_name
+            elif date.match_exact(name_date):
+                return place_name.get_value()
+        if undated is not None:
+            return undated.get_value()
+    return primary.get_value() if primary else ""
 
 
 def get_event_profile_for_handle(
