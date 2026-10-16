@@ -98,6 +98,13 @@ def test_options_stored_in_db_are_flagged():
     assert "set `BASE_URL` in the server configuration" in deprecations[0]["message"]
 
 
+def test_vector_embedding_model_flagged():
+    config = {**DEFAULTS, "VECTOR_EMBEDDING_MODEL": "some-model"}
+    deprecations = check_deprecations(config, environ={})
+    assert [d["option"] for d in deprecations] == ["VECTOR_EMBEDDING_MODEL"]
+    assert deprecations[0]["removed_in"] == "3.25.0"
+
+
 def test_postgresql_tree_backend_flagged():
     deprecations = check_deprecations(DEFAULTS, environ={}, tree_backend="postgresql")
     assert [d["option"] for d in deprecations] == ["PostgreSQL"]

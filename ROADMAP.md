@@ -9,13 +9,17 @@ Semver applies to the HTTP API, config options and env vars, not to Python inter
 Only majors break: minors add, patches fix. Deprecations are announced in a minor and
 removed no earlier than the next major.
 
+Exception: an optional feature can be removed in a minor, at the earliest one minor after
+its deprecation, if neither clients nor deployments have to change. Its config options
+and API parameters are then still accepted but ignored.
+
 ## Releases
 
 | Version | Target | Gramps | Breaking changes |
 |---|---|---|---|
 | 3.23.x | current | 6.0 | none |
 | 3.24.0 | October 2026 | 6.0 | none |
-| 3.25.0 | November 2026 | 6.0 | none |
+| 3.25.0 | November 2026 | 6.0 | semantic search removed |
 | 3.x | as needed | 6.0 | none |
 | 4.0.0 | TBD | 6.1 | multi-tree by default, removals below |
 | 5.0.0 | TBD | 6.2 | TBD |
@@ -29,8 +33,12 @@ removed no earlier than the next major.
 - Media archives are stored in `EXPORT_DIR/media_archives/<tree>/` (or the media bucket) and expire by age instead of being deleted on download (#1059)
 - Search reindexing after import or restore runs as separate tasks, so the import task finishes before search is up to date (#1046)
 - Remove support for Python 3.10 (#1067)
+- Semantic search is deprecated, with a warning if `VECTOR_EMBEDDING_MODEL` is set
 
+## Notable in 3.25
 
+- Semantic search is removed. `VECTOR_EMBEDDING_MODEL` and the `semantic` parameter of
+  `/search/` and `/search/index/` are still accepted but ignored
 
 ## Breaking in 4.0
 
