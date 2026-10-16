@@ -17,6 +17,7 @@ services:
       GRAMPSWEB_THUMBNAIL_CACHE_CONFIG__CACHE_DIR: /workspaces/web-api/data/thumbnail_cache
       GRAMPSWEB_REPORT_DIR: /workspaces/web-api/data/reports_cache
       GRAMPSWEB_EXPORT_DIR: /workspaces/web-api/data/export_cache
+      GRAMPSWEB_BACKUP_DIR: /workspaces/web-api/data/backup
       GRAMPSHOME: /workspaces/web-api/data/
       GRAMPS_DATABASE_PATH: /workspaces/web-api/data/grampsdb
       GRAMPSWEB_TREE: "Gramps Web"

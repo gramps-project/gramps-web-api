@@ -15,7 +15,8 @@
         "ms-python.vscode-pylance",
         "ms-python.black-formatter",
         "GitHub.vscode-pull-request-github",
-        "GitHub.copilot"
+        "GitHub.copilot",
+        "anthropic.claude-code"
       ],
       "settings": {
         "python.experiments.optOutFrom": [
