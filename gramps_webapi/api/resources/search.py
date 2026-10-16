@@ -90,7 +90,10 @@ class SearchQueryArgs(Schema):
     semantic = fields.Boolean(
         load_default=False,
         metadata={
-            "description": "If true, use semantic (vector) search rather than full-text search."
+            "description": (
+                "If true, use semantic (vector) search rather than full-text search."
+                " Deprecated: will be ignored from version 3.25.0 on."
+            )
         },
     )
     page = fields.Int(
@@ -283,7 +286,10 @@ class SearchIndexQueryArgs(Schema):
     semantic = fields.Boolean(
         load_default=False,
         metadata={
-            "description": "If true, use semantic (vector) search rather than full-text search."
+            "description": (
+                "If true, rebuild the semantic (vector) index rather than the"
+                " full-text index. Deprecated: will be ignored from version 3.25.0 on."
+            )
         },
     )
 

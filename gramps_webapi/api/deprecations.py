@@ -26,7 +26,7 @@ from typing import Any, Callable, Iterable, Mapping
 
 from ..config import DefaultConfig
 
-# default removal target; individual deprecations may be scheduled for a later release
+# default removal target; individual deprecations may be scheduled for another release
 REMOVED_IN = "4.0.0"
 
 # config options that can also be set via an unprefixed environment variable
@@ -133,6 +133,19 @@ def check_deprecations(
                 "EMAIL_USE_TLS",
                 replacement,
                 f"The `EMAIL_USE_TLS` config option is deprecated. {advice}",
+            )
+        )
+    # removed early under the optional-feature exception, see ROADMAP.md
+    if config["VECTOR_EMBEDDING_MODEL"]:
+        deprecations.append(
+            _deprecation(
+                "VECTOR_EMBEDDING_MODEL",
+                "",
+                "Semantic search is deprecated and will be removed, after which the"
+                " `VECTOR_EMBEDDING_MODEL` config option is ignored. Full-text search"
+                " is not affected. Please remove the option to use full-text search"
+                " only.",
+                removed_in="3.25.0",
             )
         )
     # cannot hold multiple trees, so it goes away with single-tree mode (#885)
