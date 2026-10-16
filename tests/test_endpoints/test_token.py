@@ -26,8 +26,9 @@ from flask_jwt_extended.utils import decode_token
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
+from gramps_webapi.api.resources.token import get_tokens
 from gramps_webapi.app import create_app
-from gramps_webapi.auth import add_user, user_db
+from gramps_webapi.auth import add_user, get_guid, user_db
 from gramps_webapi.auth.const import ROLE_DISABLED, ROLE_OWNER, ROLE_UNCONFIRMED
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 from gramps_webapi.dbmanager import WebDbManager
@@ -205,6 +206,43 @@ class TestTokenRefresh(unittest.TestCase):
         )
         self.assertIn("access_token", rv.json)
         self.assertNotIn("refresh_token", rv.json)
+
+    def _refreshed_claims(self, refresh_token):
+        rv = self.client.post(
+            BASE_URL + "/token/refresh/",
+            headers={"Authorization": f"Bearer {refresh_token}"},
+        )
+        self.assertEqual(rv.status_code, 200)
+        with self.client.application.app_context():
+            return decode_token(rv.json["access_token"])
+
+    def test_refresh_keeps_the_oidc_provider(self):
+        """Clients use it to sign the user in again through the provider."""
+        app = self.client.application
+        with app.test_request_context():
+            user_id = get_guid(TEST_USERS[ROLE_OWNER]["name"])
+            tokens = get_tokens(
+                user_id=user_id,
+                permissions=[],
+                tree_id=None,
+                include_refresh=True,
+                fresh=True,
+                oidc_provider="custom",
+            )
+        claims = self._refreshed_claims(tokens["refresh_token"])
+        self.assertEqual(claims["oidc_provider"], "custom")
+        self.assertFalse(claims["fresh"])
+
+    def test_refresh_after_password_login_has_no_oidc_provider(self):
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={
+                "username": TEST_USERS[ROLE_OWNER]["name"],
+                "password": TEST_USERS[ROLE_OWNER]["password"],
+            },
+        )
+        claims = self._refreshed_claims(rv.json["refresh_token"])
+        self.assertNotIn("oidc_provider", claims)
 
 
 class TestTokenCreateOwner(unittest.TestCase):
