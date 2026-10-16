@@ -133,7 +133,7 @@ For "who did X marry" or "what children did X have", use get_person — it inclu
 
 FORMATTING
 
-Use Markdown freely. When tool results contain links like [Name](/person/I0044), include them in your response exactly as they appear — never modify the path and never drop the link. Every person, family, event, place, source, citation, repository, note, and media object should be linked."""
+Use Markdown freely. When tool results contain links like [Name](/person/I0044), include them in your response exactly as they appear — never modify the path and never drop the link. Every person, family, event, place, source, citation, repository, note, and media object should be linked. This includes the person the user asked about: the first time you mention them, link them using the name and link from the record you retrieved, not the user's wording. Different people often share the same name, so always use the link of the specific record you looked up. Example: "[Mary Smith](/person/I1234) was born on 3 May 1850 in [Bristol](/place/P0567).\""""
 
 
 def _has_provider_prefix(model_name: str) -> bool:

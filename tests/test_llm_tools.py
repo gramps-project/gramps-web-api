@@ -35,6 +35,7 @@ from gramps_webapi.api.llm.tools import (
     get_family,
     get_person,
     get_place,
+    search_genealogy_database_fulltext,
 )
 from gramps_webapi.api.llm.deps import AgentDeps
 from gramps_webapi.api.search import get_search_indexer
@@ -928,6 +929,53 @@ class TestFilterEventsParticipantRole(unittest.TestCase):
         # participant_role parameter has been removed; calling without it must work
         result = self._filter_events(event_type="Birth", participant_id="I0552")
         self.assertNotIn("Error", result)
+
+
+class TestSearchFulltext(unittest.TestCase):
+    """Tests for the full-text search tool."""
+
+    def setUp(self):
+        self.ctx = MagicMock()
+        self.ctx.deps = AgentDeps(
+            tree=TEST_TREE,
+            include_private=True,
+            max_context_length=50000,
+            user_id="test_user",
+        )
+
+    def _search(self, **kwargs):
+        with TEST_APP.app_context():
+            return search_genealogy_database_fulltext(self.ctx, **kwargs)
+
+    def test_hits_have_type_and_link(self):
+        result = self._search(query="Lewis Anderson Garner", object_type="Person")
+        self.assertTrue(result.startswith("## Person: "), result[:100])
+        self.assertIn("(/person/I0044)", result)
+
+    def test_hits_include_dates(self):
+        result = self._search(query="Lewis Anderson Garner", object_type="Person")
+        self.assertIn("1855-06-21", result)
+
+    def test_object_type_filter(self):
+        result = self._search(query="Garner", object_type="Event", max_results=5)
+        headers = [line for line in result.splitlines() if line.startswith("## ")]
+        self.assertTrue(headers)
+        self.assertTrue(all(h.startswith("## Event: ") for h in headers))
+
+    def test_truncation_message(self):
+        result = self._search(query="Garner", max_results=1)
+        self.assertRegex(result, r"Showing 1 of \d+ matches\.")
+
+    def test_no_results_hint(self):
+        result = self._search(query="Xyzzyqwertyuiop")
+        self.assertIn("No results found", result)
+        self.assertIn("filter_people", result)
+
+    def test_without_private(self):
+        self.ctx.deps.include_private = False
+        result = self._search(query="Garner", object_type="Person", max_results=3)
+        self.assertNotIn("Error", result)
+        self.assertIn("/person/", result)
 
 
 class TestGetPerson(unittest.TestCase):

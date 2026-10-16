@@ -26,6 +26,7 @@ from datetime import datetime
 from functools import wraps
 from typing import Any
 
+from gramps.gen.errors import HandleError
 from pydantic_ai import RunContext
 
 from ..resources.filters import apply_filter
@@ -379,6 +380,29 @@ def search_genealogy_database_fulltext(
     )
 
 
+def _hit_content(db_handle, hit: dict[str, Any], include_private: bool) -> str:
+    """Return the text of a full-text search hit as the get_* tools show it.
+
+    The full-text index stores a bag of words without the object type, links,
+    or dates, so the object is rendered again from the database.
+    """
+    class_name = hit["object_type"].capitalize()
+    try:
+        obj = db_handle.method("get_%s_from_handle", class_name)(hit["handle"])
+    except HandleError:
+        # deleted since the index was last updated
+        return ""
+    obj_dict = obj_strings_from_object(
+        db_handle=db_handle,
+        class_name=class_name,
+        obj=obj,
+        semantic=True,
+    )
+    if not obj_dict:
+        return ""
+    return obj_dict["string_all"] if include_private else obj_dict["string_public"]
+
+
 def _search_genealogy_database(
     ctx: RunContext[AgentDeps],
     query: str,
@@ -399,23 +423,39 @@ def _search_genealogy_database(
 
     object_types = [object_type.lower()] if object_type else None
 
+    db_handle = None
     try:
         searcher: SearchIndexerBase
         if semantic:
             searcher = get_semantic_search_indexer(ctx.deps.tree)
         else:
             searcher = get_search_indexer(ctx.deps.tree)
-        _, hits = searcher.search(
+        total, hits = searcher.search(
             query=query,
             page=1,
             pagesize=max_results,
             include_private=ctx.deps.include_private,
-            include_content=True,
+            include_content=semantic,
             object_types=object_types,
         )
 
         if not hits:
-            return "No results found in the genealogy database."
+            if semantic:
+                return "No results found in the genealogy database."
+            return (
+                "No results found in the genealogy database. All search terms "
+                "must match, so try fewer or different words (e.g. only the "
+                "surname, or a name variant), or use filter_people for names, "
+                "dates and places."
+            )
+
+        if not semantic:
+            db_handle = get_db_outside_request(
+                tree=ctx.deps.tree,
+                view_private=ctx.deps.include_private,
+                readonly=True,
+                user_id=ctx.deps.user_id,
+            )
 
         context_parts: list[str] = []
         max_length = ctx.deps.max_context_length
@@ -423,7 +463,12 @@ def _search_genealogy_database(
         current_length = 0
 
         for hit in hits:
-            content = hit.get("content", "")
+            if semantic:
+                content = hit.get("content", "")
+            else:
+                content = _hit_content(db_handle, hit, ctx.deps.include_private)
+                if not content:
+                    continue
 
             # Truncate individual items if they're too long
             if len(content) > per_item_max:
@@ -445,6 +490,8 @@ def _search_genealogy_database(
             current_length += len(content) + 2
 
         result = "\n\n".join(context_parts)
+        if len(context_parts) < total:
+            result += f"\n\n---\nShowing {len(context_parts)} of {total} matches."
         logger.debug(
             "Tool search_genealogy_database returned %d results (%d chars) for query: %r",
             len(context_parts),
@@ -456,6 +503,9 @@ def _search_genealogy_database(
     except Exception as e:  # pylint: disable=broad-except
         logger.error("Error searching genealogy database: %s", e)
         return f"Error searching the database: {str(e)}"
+    finally:
+        if db_handle is not None:
+            db_handle.close()
 
 
 @log_tool_call

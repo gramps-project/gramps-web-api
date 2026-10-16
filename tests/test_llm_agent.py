@@ -110,3 +110,10 @@ def test_search_tool_without_semantic_search(monkeypatch):
     assert "semantic" not in search_tool.description.lower()
     assert "semantic" not in prompt.lower()
     assert "search_genealogy_database matches exact names" in prompt
+
+
+def test_prompt_asks_to_link_the_subject(monkeypatch):
+    """The prompt asks to link the person the question is about."""
+    monkeypatch.setenv("OPENAI_API_KEY", "key")
+    _, prompt = _tools_and_prompt(semantic_search=False)
+    assert "This includes the person the user asked about" in prompt
