@@ -17,9 +17,8 @@ and API parameters are then still accepted but ignored.
 
 | Version | Target | Gramps | Breaking changes |
 |---|---|---|---|
-| 3.23.x | current | 6.0 | none |
-| 3.24.0 | October 2026 | 6.0 | none |
-| 3.25.0 | November 2026 | 6.0 | semantic search removed |
+| 3.24.x | current | 6.0 | none |
+| 3.25.0 | early November 2026 | 6.0 | semantic search removed |
 | 3.x | as needed | 6.0 | none |
 | 4.0.0 | TBD | 6.1 | multi-tree by default, removals below |
 | 5.0.0 | TBD | 6.2 | TBD |
