@@ -1951,6 +1951,46 @@ class OIDCTokenExchangeSchema(_Base):
     )
 
 
+class OIDCLinkSchema(_Base):
+    """Body of a POST to /oidc/link/."""
+
+    provider = fields.Str(
+        required=True,
+        metadata={"description": "ID of the OIDC provider to link, e.g. 'custom'."},
+    )
+
+
+class OIDCLinkTicketSchema(_Base):
+    """Ticket returned by /oidc/link/."""
+
+    ticket = fields.Str(
+        metadata={
+            "description": "Short-lived, single-use ticket to pass as `link` to"
+            " /oidc/login/."
+        },
+    )
+
+
+class OIDCLinkCompleteSchema(_Base):
+    """Body of a POST to /oidc/link/complete/."""
+
+    code = fields.Str(
+        required=True,
+        metadata={
+            "description": "Single-use `link_code` from the fragment of the"
+            " redirect after linking at the provider."
+        },
+    )
+
+
+class OIDCLinkedSchema(_Base):
+    """Result of a completed link."""
+
+    provider = fields.Str(
+        metadata={"description": "ID of the OIDC provider that was linked."},
+    )
+
+
 class OIDCTokensSchema(_Base):
     """Tokens returned by the /oidc/tokens/ code exchange endpoint."""
 
