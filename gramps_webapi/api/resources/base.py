@@ -329,6 +329,9 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
             obj = self.get_object_from_handle(handle)
         except HandleError:
             abort(404)
+        if obj is None:
+            # the private proxy returns None for private objects
+            abort(404)
         locale = get_locale_for_language(args["locale"], default=True)
         return self.response(
             200,

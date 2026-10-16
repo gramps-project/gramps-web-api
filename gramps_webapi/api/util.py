@@ -144,8 +144,15 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
         return self.db.get_summary()
 
     def get_surname_list(self):
-        """Return the list of locale-sorted surnames contained in the database."""
-        return self.db.get_surname_list()
+        """Return the sorted surnames of people whose primary name is visible."""
+        visible = set()
+        for person in self.db.iter_people():
+            name = person.get_primary_name()
+            if not person.private and not name.private:
+                visible.add(name.get_primary_surname().get_surname())
+        return [
+            surname for surname in self.db.get_surname_list() if surname in visible
+        ]
 
     def get_place_types(self):
         """Return custom place types assocated with places in the database."""
@@ -154,6 +161,32 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
     def set_name_group_mapping(self, name, group):
         """Set a name group mapping."""
         return self.db.set_name_group_mapping(name, group)
+
+    def find_backlink_handles(self, handle, include_classes=None):
+        """Find all non-private objects that reference the object handle.
+
+        PrivateProxyDb only skips private referencing objects. This also
+        skips objects that only reference the handle privately, e.g. a public
+        person with a private media reference, or with a note on a private
+        name: the sanitized object returned by the proxy no longer
+        references the handle.
+        """
+        for class_name, ref_handle in self.db.find_backlink_handles(
+            handle, include_classes
+        ):
+            get_method = self.method("get_%s_from_handle", class_name)
+            if get_method is None:
+                continue
+            try:
+                obj = get_method(ref_handle)
+            except HandleError:
+                continue
+            if obj is None:
+                continue
+            if any(
+                ref == handle for _, ref in obj.get_referenced_handles_recursively()
+            ):
+                yield (class_name, ref_handle)
 
     # the below methods are to fix a bug in Gramps.
     # can be removed once bug is fixed in Gramps and version
