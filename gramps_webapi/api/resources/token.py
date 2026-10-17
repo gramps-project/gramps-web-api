@@ -25,6 +25,7 @@ from flask import abort, current_app
 from flask_jwt_extended import (
     create_access_token,
     create_refresh_token,
+    get_jwt,
     get_jwt_identity,
 )
 from marshmallow import Schema
@@ -99,14 +100,21 @@ def get_tokens(
     )
     if not include_refresh:
         return {"access_token": access_token}
-    refresh_token = create_refresh_token(identity=str(user_id))
+    # kept in the refresh token, so that refreshed access tokens still tell
+    # clients the user signed in through a provider, e.g. to sign in again there
+    refresh_claims = {"oidc_provider": oidc_provider} if oidc_provider else None
+    refresh_token = create_refresh_token(
+        identity=str(user_id), additional_claims=refresh_claims
+    )
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
     }
 
 
-def issue_access_token(user_id: str, scope: str | None = None) -> dict[str, str]:
+def issue_access_token(
+    user_id: str, scope: str | None = None, oidc_provider: str | None = None
+) -> dict[str, str]:
     """Create a non-fresh access token, without a refresh token, for a user.
 
     The tree, the permissions and whether the tree is disabled are looked up
@@ -116,6 +124,8 @@ def issue_access_token(user_id: str, scope: str | None = None) -> dict[str, str]
     With a persistent access token ``scope``, the permissions are narrowed to
     the scope's allowlist in ``ACCESS_TOKEN_SCOPE_PERMISSIONS``; without one
     (token refresh), the user keeps all of their permissions.
+
+    ``oidc_provider`` is passed on as a claim, like that of the login.
     """
     try:
         username = get_name(user_id)
@@ -132,6 +142,7 @@ def issue_access_token(user_id: str, scope: str | None = None) -> dict[str, str]
         tree_id=tree_id,
         include_refresh=False,
         fresh=False,
+        oidc_provider=oidc_provider,
     )
 
 
@@ -222,7 +233,9 @@ class TokenRefreshResource(RefreshProtectedResource):
     @api_blueprint.response(200, TokenSchema)
     def post(self):
         """Fetch a new token."""
-        return issue_access_token(get_jwt_identity())
+        return issue_access_token(
+            get_jwt_identity(), oidc_provider=get_jwt().get("oidc_provider")
+        )
 
 
 class TokenSyncSchema(Schema):
