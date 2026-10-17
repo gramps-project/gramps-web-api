@@ -20,7 +20,12 @@
 
 """Tests for the /api/filters endpoints using example_gramps."""
 
+import importlib.util
 import json
+import os
+import struct
+import sys
+import tempfile
 import uuid
 import unittest
 from unittest.mock import patch
@@ -29,7 +34,11 @@ from gramps.gen.filters.rules import Rule
 from gramps.gen.utils.grampslocale import GrampsLocale
 from jsonschema import validate
 
-from gramps_webapi.api.resources.filters import get_rule_map
+from gramps_webapi.api.resources.filters import (
+    _RULE_CLASS_CACHE,
+    get_addon_translation,
+    get_rule_map,
+)
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 from gramps_webapi.const import GRAMPS_NAMESPACES
 
@@ -1447,6 +1456,114 @@ class TestRuleTranslation(unittest.TestCase):
         """An unknown language code falls back to English."""
         rule = self._rule("people", "HasBirth", "&locale=xx")
         assert rule["category"] == "Event filters"
+
+
+def write_mo(path, messages):
+    """Write a gettext catalog with the given translations to path."""
+    messages = {"": "Content-Type: text/plain; charset=UTF-8\n", **messages}
+    keys = sorted(messages)
+    ids = strs = b""
+    offsets = []
+    for key in keys:
+        key_bytes, value_bytes = key.encode(), messages[key].encode()
+        offsets.append((len(ids), len(key_bytes), len(strs), len(value_bytes)))
+        ids += key_bytes + b"\0"
+        strs += value_bytes + b"\0"
+    count = len(keys)
+    key_start = 7 * 4 + 16 * count
+    value_start = key_start + len(ids)
+    key_table = []
+    value_table = []
+    for id_offset, id_length, str_offset, str_length in offsets:
+        key_table += [id_length, key_start + id_offset]
+        value_table += [str_length, value_start + str_offset]
+    with open(path, "wb") as mo_file:
+        mo_file.write(
+            struct.pack("Iiiiiii", 0x950412DE, 0, count, 7 * 4, 7 * 4 + 8 * count, 0, 0)
+        )
+        mo_file.write(struct.pack(f"{4 * count}i", *key_table, *value_table))
+        mo_file.write(ids + strs)
+
+
+ADDON_RULE_SOURCE = """
+from gramps.gen.filters.rules import Rule
+
+
+class MyAddonRule(Rule):
+    labels = ["Age:", "Event type:"]
+    name = "People with an addon <age>"
+    description = "Matches people with an addon age"
+    category = "General filters"
+"""
+
+
+class TestAddonRuleTranslation(unittest.TestCase):
+    """Addon rules are translated with the addon's own translations."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = get_test_client()
+        cls.translate = GrampsLocale(lang="de").translation.gettext
+        cls.tmpdir = tempfile.TemporaryDirectory()
+        addon_dir = cls.tmpdir.name
+        module_path = os.path.join(addon_dir, "myaddonrule.py")
+        with open(module_path, "w", encoding="utf-8") as module_file:
+            module_file.write(ADDON_RULE_SOURCE)
+        mo_dir = os.path.join(addon_dir, "locale", "de", "LC_MESSAGES")
+        os.makedirs(mo_dir)
+        write_mo(
+            os.path.join(mo_dir, "addon.mo"),
+            {
+                "People with an addon <age>": "Personen mit einem Addon-<Alter>",
+                "Matches people with an addon age": "Passt auf Personen mit Addon-Alter",
+                "Age:": "Addon-Alter:",
+            },
+        )
+        spec = importlib.util.spec_from_file_location("myaddonrule", module_path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["myaddonrule"] = module
+        spec.loader.exec_module(module)
+        cls.rule_class = module.MyAddonRule
+
+    @classmethod
+    def tearDownClass(cls):
+        del sys.modules["myaddonrule"]
+        cls.tmpdir.cleanup()
+
+    def _rule(self, query=""):
+        rules = {**get_rule_map("Person"), "MyAddonRule": self.rule_class}
+        with patch.dict(_RULE_CLASS_CACHE, {"Person": rules}):
+            rv = check_success(self, f"{TEST_URL}people?rules=MyAddonRule{query}")
+        return rv["rules"][0]
+
+    def test_addon_translation(self):
+        """Strings of the addon catalog are translated with it."""
+        rule = self._rule("&locale=de")
+        assert rule["name"] == "Personen mit einem Addon-<Alter>"
+        assert rule["description"] == "Passt auf Personen mit Addon-Alter"
+        # the addon catalog wins, the Gramps translations fill the gaps
+        assert rule["labels"] == ["Addon-Alter:", self.translate("Event type:")]
+        assert self.translate("Event type:") != "Event type:"
+        assert rule["category"] == self.translate("General filters")
+
+    def test_addon_without_locale_unchanged(self):
+        """Without locale, the addon rule is described by its attributes."""
+        rule = self._rule()
+        assert rule["name"] == "People with an addon <age>"
+        assert rule["labels"] == ["Age:", "Event type:"]
+
+    def test_addon_language_without_catalog(self):
+        """A language the addon has no catalog for uses the Gramps translations."""
+        rule = self._rule("&locale=fr")
+        assert rule["name"] == "People with an addon <age>"
+        french = GrampsLocale(lang="fr").translation.gettext
+        assert rule["category"] == french("General filters")
+
+    def test_no_addon_translation_for_other_rules(self):
+        """Rules of Gramps and of the API have no addon translations."""
+        for namespace, rule in [("Person", "HasBirth"), ("Person", "MatchesQuery")]:
+            rule_class = get_rule_map(namespace)[rule]
+            assert get_addon_translation(rule_class, ["de"]) is None
 
 
 class MyInteger:
