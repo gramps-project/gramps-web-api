@@ -22,6 +22,8 @@
 
 import unittest
 
+from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
+
 from . import BASE_URL, get_test_client
 from .checks import (
     check_conforms_to_openapi_schema,
@@ -35,6 +37,7 @@ from .checks import (
     check_strip_parameter,
     check_success,
 )
+from .util import fetch_header
 
 TEST_URL = BASE_URL + "/timelines/"
 
@@ -501,3 +504,31 @@ class TestTimelinesFamilies(unittest.TestCase):
         self.assertEqual(len(rv), 885)
         rv = check_success(self, TEST_URL + "families/?dates=1855/1/1-1900/12/31")
         self.assertEqual(len(rv), 290)
+
+
+class TestTimelinesPeoplePrivatePerson(unittest.TestCase):
+    """Test the people timeline with a person hidden by the private proxy."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_anchor_with_private_relative_without_permission(self):
+        """Without ViewPrivate, a private relative must give 404, not 500."""
+        header_owner = fetch_header(self.client, role=ROLE_OWNER)
+        handle = "test_timelines_private_person"
+        rv = self.client.post(
+            BASE_URL + "/people/",
+            json={"_class": "Person", "handle": handle, "private": True},
+            headers=header_owner,
+        )
+        self.assertEqual(rv.status_code, 201)
+        try:
+            check_resource_missing(
+                self,
+                f"{TEST_URL}people/?anchor=GNUJQCL9MD64AM56OH&handles={handle}",
+                role=ROLE_GUEST,
+            )
+        finally:
+            self.client.delete(BASE_URL + f"/people/{handle}", headers=header_owner)

@@ -339,6 +339,9 @@ class Timeline:
     def add_relative(self, handle: Handle, ancestors: int = 1, offspring: int = 1):
         """Add events for a relative of the anchor person."""
         person = self.db_handle.get_person_from_handle(handle)
+        if person is None:
+            # the private proxy returns None for private people
+            raise HandleError(f"Handle {handle} not found")
         # English string for filtering and recursion, localized one for display
         relationship_en = ""
         if self.relative_filters or ancestors > 1:
