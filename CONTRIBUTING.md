@@ -50,25 +50,24 @@ If you point an agent at this repository, [AGENTS.md](AGENTS.md) holds the proje
 
 Setup, coding standards and API details are in the [developer documentation](https://www.grampsweb.org/development/dev/). Please include tests and documentation updates where applicable.
 
-### Testing remote embeddings (optional)
+### Testing the AI assistant with a local model (optional)
 
-The devcontainer includes an optional [Ollama](https://ollama.com/) service for testing the remote embedding API without external dependencies.
+The devcontainer includes an optional [Ollama](https://ollama.com/) service for testing the AI assistant without external dependencies.
 
 1. Start the Ollama service:
    ```bash
    docker compose -f .devcontainer/docker-compose.yml --profile ollama up -d ollama
    ```
 
-2. Pull an embedding model:
+2. Pull a model that supports tool calling:
    ```bash
-   docker compose -f .devcontainer/docker-compose.yml exec ollama ollama pull nomic-embed-text
+   docker compose -f .devcontainer/docker-compose.yml exec ollama ollama pull qwen2.5:7b
    ```
 
-3. In `.devcontainer/docker-compose.yml`, comment out the local `GRAMPSWEB_VECTOR_EMBEDDING_MODEL` line and uncomment the Ollama lines:
+3. In `.devcontainer/docker-compose.yml`, uncomment the `GRAMPSWEB_LLM_*` lines:
    ```yaml
-   # GRAMPSWEB_VECTOR_EMBEDDING_MODEL: sentence-transformers/distiluse-base-multilingual-cased-v2
-   GRAMPSWEB_VECTOR_EMBEDDING_BASE_URL: http://ollama:11434
-   GRAMPSWEB_VECTOR_EMBEDDING_MODEL: nomic-embed-text
+   GRAMPSWEB_LLM_BASE_URL: http://ollama:11434/v1/
+   GRAMPSWEB_LLM_MODEL: qwen2.5:7b
    ```
 
 4. Restart the devcontainer to pick up the new environment variables.

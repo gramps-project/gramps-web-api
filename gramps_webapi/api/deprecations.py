@@ -141,10 +141,9 @@ def check_deprecations(
             _deprecation(
                 "VECTOR_EMBEDDING_MODEL",
                 "",
-                "Semantic search is deprecated and will be removed, after which the"
-                " `VECTOR_EMBEDDING_MODEL` config option is ignored. Full-text search"
-                " is not affected. Please remove the option to use full-text search"
-                " only.",
+                "Semantic search has been removed and the `VECTOR_EMBEDDING_MODEL`"
+                " config option is ignored. Full-text search is not affected. Please"
+                " remove the option.",
                 removed_in="3.25.0",
             )
         )

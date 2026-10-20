@@ -37,20 +37,13 @@ from ...auth.const import PERM_TRIGGER_REINDEX, PERM_VIEW_PRIVATE
 from ...const import PRIMARY_GRAMPS_OBJECTS
 from ..auth import has_permissions, require_permissions
 from ..blueprint import api_blueprint
-from ..search import (
-    SearchIndexer,
-    SemanticSearchIndexer,
-    get_search_indexer,
-    get_semantic_search_indexer,
-)
+from ..search import get_search_indexer
 from ..tasks import (
     AsyncResult,
     make_task_response,
     run_task,
     search_reindex_full,
-    search_reindex_full_semantic,
     search_reindex_incremental,
-    search_reindex_incremental_semantic,
 )
 from ..util import (
     get_db_handle,
@@ -91,8 +84,8 @@ class SearchQueryArgs(Schema):
         load_default=False,
         metadata={
             "description": (
-                "If true, use semantic (vector) search rather than full-text search."
-                " Deprecated: will be ignored from version 3.25.0 on."
+                "Ignored. Semantic search was removed in version 3.25.0;"
+                " the parameter is accepted for backward compatibility."
             )
         },
     )
@@ -223,18 +216,9 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
         """Get search result."""
         tree = get_tree_from_jwt_or_fail()
         try:
-            if args["semantic"]:
-                searcher: SearchIndexer | SemanticSearchIndexer = (
-                    get_semantic_search_indexer(tree)
-                )
-            else:
-                searcher = get_search_indexer(tree)
+            searcher = get_search_indexer(tree)
         except ValueError as exc:
             abort_with_message(503, str(exc))
-        if args["semantic"] and args.get("sort"):
-            abort_with_message(
-                422, "the sort parameter is not allowed with semantic search"
-            )
         if args.get("change"):
             match = re.match(r"^(<=|>=|<|>)(\d+(\.\d+)?)$", args["change"])
             if match:
@@ -287,8 +271,8 @@ class SearchIndexQueryArgs(Schema):
         load_default=False,
         metadata={
             "description": (
-                "If true, rebuild the semantic (vector) index rather than the"
-                " full-text index. Deprecated: will be ignored from version 3.25.0 on."
+                "Ignored. Semantic search was removed in version 3.25.0;"
+                " the parameter is accepted for backward compatibility."
             )
         },
     )
@@ -303,18 +287,7 @@ class SearchIndexResource(ProtectedResource):
         require_permissions([PERM_TRIGGER_REINDEX])
         tree = get_tree_from_jwt_or_fail()
         user_id = get_jwt_identity()
-        if args["full"]:
-            task_func = (
-                search_reindex_full_semantic
-                if args["semantic"]
-                else search_reindex_full
-            )
-        else:
-            task_func = (
-                search_reindex_incremental_semantic
-                if args["semantic"]
-                else search_reindex_incremental
-            )
+        task_func = search_reindex_full if args["full"] else search_reindex_incremental
         task = run_task(task_func, tree=tree, user_id=user_id)
         if isinstance(task, AsyncResult):
             return make_task_response(task)

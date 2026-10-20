@@ -102,10 +102,9 @@ class DefaultConfig(object):
     LLM_MAX_REQUESTS = 15
     LLM_MAX_TOKENS = 200_000
     LLM_SYSTEM_PROMPT = None
-    VECTOR_EMBEDDING_MODEL = ""  # Model name for semantic search embeddings
-    # If set, use remote OpenAI-compatible API instead of local model
+    # ignored since semantic search was removed in 3.25.0, see deprecations.py
+    VECTOR_EMBEDDING_MODEL = ""
     VECTOR_EMBEDDING_BASE_URL = None
-    # Optional API key for authenticated embedding providers
     VECTOR_EMBEDDING_API_KEY = None
     DISABLE_TELEMETRY = False
     SENTRY_DSN = ""

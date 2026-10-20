@@ -19,18 +19,12 @@
 
 """Full-text search utilities."""
 
-import logging
 from pathlib import Path
 from urllib.parse import urlparse
 
 from flask import current_app
 
-from .indexer import (
-    SearchIndexer,
-    SemanticSearchIndexer,
-    SearchIndexerBase,
-    StaleSemanticIndexError,
-)
+from .indexer import SearchIndexer
 
 
 def _get_search_index_db_url() -> str:
@@ -63,42 +57,3 @@ def get_search_indexer(tree: str) -> SearchIndexer:
     """Get the search indexer for the tree."""
     db_url = _get_search_index_db_url()
     return SearchIndexer(db_url=db_url, tree=tree)
-
-
-def get_semantic_search_indexer(
-    tree: str, skip_model_check: bool = False
-) -> SemanticSearchIndexer:
-    """Get the semantic search indexer for the tree.
-
-    Raises StaleSemanticIndexError if the stored model name doesn't match the
-    configured model, unless ``skip_model_check=True`` (used when doing a full
-    reindex which will rebuild the index from scratch).
-    """
-    db_url = _get_search_index_db_url()
-    embedding_function = current_app.config.get("_EMBEDDING_FUNCTION")
-    if not embedding_function:
-        raise ValueError("VECTOR_EMBEDDING_MODEL option not set")
-    model_name = current_app.config.get("VECTOR_EMBEDDING_MODEL") or None
-    return SemanticSearchIndexer(
-        db_url=db_url,
-        tree=tree,
-        embedding_function=embedding_function,
-        model_name=model_name,
-        skip_model_check=skip_model_check,
-    )
-
-
-def get_current_semantic_search_indexer(tree: str) -> SemanticSearchIndexer | None:
-    """Get the semantic search indexer for keeping the index up to date.
-
-    Returns None if semantic search is not enabled, or if the index was built
-    with a different model: then it is useless until the next full reindex,
-    and updating it must not make the change that triggered the update fail.
-    """
-    if not current_app.config.get("VECTOR_EMBEDDING_MODEL"):
-        return None
-    try:
-        return get_semantic_search_indexer(tree)
-    except StaleSemanticIndexError as exc:
-        logging.getLogger(__name__).warning("Not updating semantic index: %s", exc)
-        return None

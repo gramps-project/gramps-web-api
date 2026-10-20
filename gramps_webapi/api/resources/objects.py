@@ -196,7 +196,7 @@ class DeleteObjectsByHandleResource(ProtectedResource):
         elif args["namespace"] == GRAMPS_OBJECT_PLURAL["Media"]:
             run_task(update_media_usage_task, tree=tree, user_id=get_jwt_identity())
         trans_dict_to_reindex = remove_deleted_from_search_indices(tree, trans_dict)
-        # additions/updates require (re)computing embeddings: do it in the background
+        # additions/updates require loading the objects: do it in the background
         if trans_dict_to_reindex:
             run_task(
                 update_search_indices_from_transaction,

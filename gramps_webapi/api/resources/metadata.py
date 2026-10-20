@@ -47,9 +47,7 @@ from ..auth import has_permissions, require_permissions
 from ..backup_store import backups_enabled
 from ..blueprint import api_blueprint
 from ..deprecations import check_deprecations
-from ..search import get_search_indexer, get_semantic_search_indexer
-from ..search import _get_search_index_db_url
-from ..search.metadata import get_stored_model_name
+from ..search import get_search_indexer
 from ..util import (
     get_config,
     get_db_handle,
@@ -188,7 +186,6 @@ def _get_server_metadata() -> dict[str, Any]:
     shape in both.
     """
     is_multi_tree = current_app.config["TREE"] == TREE_MULTI
-    has_semantic_search = bool(current_app.config["VECTOR_EMBEDDING_MODEL"])
     has_ocr, ocr_languages = _get_ocr_info()
     result: dict[str, Any] = {
         "gramps": {
@@ -216,7 +213,8 @@ def _get_server_metadata() -> dict[str, Any]:
             "task_queue": bool(current_app.config["CELERY_CONFIG"]),
             "ocr": has_ocr,
             "ocr_languages": ocr_languages,
-            "semantic_search": has_semantic_search,
+            # semantic search was removed in 3.25.0; kept for older clients
+            "semantic_search": False,
             "chat": bool(current_app.config["LLM_MODEL"]),
             "face_detection": _get_face_detection_available(),
             "thumbnails": _get_thumbnail_support(),
@@ -297,25 +295,6 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
             "version": sifts.__version__,
             "count": search_count,
         }
-        if current_app.config.get("VECTOR_EMBEDDING_MODEL"):
-            configured_model = current_app.config["VECTOR_EMBEDDING_MODEL"]
-            try:
-                db_url = _get_search_index_db_url()
-                stored_model = get_stored_model_name(db_url, tree_id)
-                stale = stored_model is not None and stored_model != configured_model
-            except (ValueError, OSError):
-                stale = False
-            sifts_info["semantic_index_stale"] = stale
-            if not stale:
-                try:
-                    searcher_s = get_semantic_search_indexer(tree_id)
-                    sifts_info["count_semantic"] = searcher_s.count(
-                        include_private=has_permissions({PERM_VIEW_PRIVATE})
-                    )
-                except ValueError:
-                    sifts_info["count_semantic"] = None
-            else:
-                sifts_info["count_semantic"] = None
 
         result = {
             **_get_server_metadata(),

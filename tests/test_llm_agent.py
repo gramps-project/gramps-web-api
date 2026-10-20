@@ -70,7 +70,7 @@ def test_ollama_model_without_base_url(monkeypatch):
     assert agent.model.base_url == "http://ollama:11434/v1/"
 
 
-def _tools_and_prompt(semantic_search: bool) -> tuple[dict, str]:
+def _tools_and_prompt() -> tuple[dict, str]:
     """Run the agent once and return the tool definitions and system prompt it got."""
     seen = {}
 
@@ -83,7 +83,7 @@ def _tools_and_prompt(semantic_search: bool) -> tuple[dict, str]:
         )
         return ModelResponse(parts=[TextPart(content="done")])
 
-    agent = create_agent("gpt-4o-mini", semantic_search=semantic_search)
+    agent = create_agent("gpt-4o-mini")
     deps = AgentDeps(
         tree="tree", include_private=False, max_context_length=1000, user_id="user"
     )
@@ -92,19 +92,10 @@ def _tools_and_prompt(semantic_search: bool) -> tuple[dict, str]:
     return seen["tools"], seen["prompt"]
 
 
-def test_search_tool_with_semantic_search(monkeypatch):
-    """With an embedding model, the search tool offers semantic search."""
+def test_search_tool_is_fulltext(monkeypatch):
+    """The search tool only offers full-text search."""
     monkeypatch.setenv("OPENAI_API_KEY", "key")
-    tools, prompt = _tools_and_prompt(semantic_search=True)
-    search_tool = tools["search_genealogy_database"]
-    assert "search_type" in search_tool.parameters_json_schema["properties"]
-    assert 'search_type="semantic"' in prompt
-
-
-def test_search_tool_without_semantic_search(monkeypatch):
-    """Without an embedding model, the search tool only offers full-text search."""
-    monkeypatch.setenv("OPENAI_API_KEY", "key")
-    tools, prompt = _tools_and_prompt(semantic_search=False)
+    tools, prompt = _tools_and_prompt()
     search_tool = tools["search_genealogy_database"]
     assert "search_type" not in search_tool.parameters_json_schema["properties"]
     assert "semantic" not in search_tool.description.lower()
@@ -115,13 +106,13 @@ def test_search_tool_without_semantic_search(monkeypatch):
 def test_prompt_asks_to_link_the_subject(monkeypatch):
     """The prompt asks to link the person the question is about."""
     monkeypatch.setenv("OPENAI_API_KEY", "key")
-    _, prompt = _tools_and_prompt(semantic_search=False)
+    _, prompt = _tools_and_prompt()
     assert "This includes the person the user asked about" in prompt
 
 
 def test_get_note_tool(monkeypatch):
     """The agent can read notes in full."""
     monkeypatch.setenv("OPENAI_API_KEY", "key")
-    tools, prompt = _tools_and_prompt(semantic_search=False)
+    tools, prompt = _tools_and_prompt()
     assert "get_note" in tools
     assert "`/note/ID` → get_note" in prompt

@@ -40,7 +40,7 @@ from gramps.gen.lib.json_utils import object_to_dict
 from gramps.gen.merge.diff import diff_items
 from werkzeug.exceptions import HTTPException
 
-from gramps_webapi.api.search.indexer import SearchIndexer, SemanticSearchIndexer
+from gramps_webapi.api.search.indexer import SearchIndexer
 
 from ..auth import TaskTree, get_owner_emails
 from ..auth import user_db
@@ -50,8 +50,6 @@ from ..util.task_state import (
     LOCK_MEDIA_USAGE,
     LOCK_SEARCH_INDEX,
     LOCK_SEARCH_INDEX_INCREMENTAL,
-    LOCK_SEMANTIC_INDEX,
-    LOCK_SEMANTIC_INDEX_INCREMENTAL,
     LOCK_WRITE,
     TaskLocked,
     acquire,
@@ -95,11 +93,7 @@ from .resources.util import (
     run_import,
     transaction_to_json,
 )
-from .search import (
-    get_current_semantic_search_indexer,
-    get_search_indexer,
-    get_semantic_search_indexer,
-)
+from .search import get_search_indexer
 from .telemetry import (
     get_telemetry_payload,
     send_telemetry,
@@ -286,15 +280,10 @@ def send_email_new_user(
 
 
 def _search_reindex_full(
-    tree: str, user_id: str, semantic: bool, progress_cb: Optional[Callable] = None
+    tree: str, user_id: str, progress_cb: Optional[Callable] = None
 ) -> None:
     """Rebuild the search index."""
-    if semantic:
-        indexer: SearchIndexer | SemanticSearchIndexer = get_semantic_search_indexer(
-            tree, skip_model_check=True
-        )
-    else:
-        indexer = get_search_indexer(tree)
+    indexer = get_search_indexer(tree)
     db = get_db_outside_request(
         tree=tree, view_private=True, readonly=True, user_id=user_id
     )
@@ -350,52 +339,23 @@ def set_progress_title(title: str = "", message: str = "") -> None:
 
 @shared_task(bind=True, lock_key=LOCK_SEARCH_INDEX)
 def search_reindex_full(self, tree: str, user_id: str, semantic: bool = False) -> None:
-    """Rebuild the full-text search index (or the semantic index if ``semantic=True``).
+    """Rebuild the full-text search index.
 
-    The ``semantic`` parameter is accepted for backward compatibility with
-    jobs that were enqueued before this task was split into separate
-    full-text / semantic variants.  New callers should use
-    ``search_reindex_full_semantic`` for semantic reindexing.
+    The ``semantic`` parameter is ignored; it is accepted so that jobs
+    enqueued before semantic search was removed still run.
     """
     return _search_reindex_full(
         tree=tree,
         user_id=user_id,
-        semantic=semantic,
         progress_cb=progress_callback_count(title="Updating search index..."),
     )
 
 
-@shared_task(bind=True, lock_key=LOCK_SEMANTIC_INDEX)
-def search_reindex_full_semantic(self, tree: str, user_id: str) -> None:
-    """Rebuild the semantic search index."""
-    return _search_reindex_full(
-        tree=tree,
-        user_id=user_id,
-        semantic=True,
-        progress_cb=progress_callback_count(title="Updating semantic search index..."),
-    )
-
-
 def _search_reindex_incremental(
-    tree: str, user_id: str, semantic: bool, progress_cb: Optional[Callable] = None
+    tree: str, user_id: str, progress_cb: Optional[Callable] = None
 ) -> None:
     """Run an incremental reindex of the search index."""
-    if semantic:
-        indexer: SearchIndexer | SemanticSearchIndexer = get_semantic_search_indexer(
-            tree
-        )
-    else:
-        indexer = get_search_indexer(tree)
-    _reindex_incremental(indexer, tree=tree, user_id=user_id, progress_cb=progress_cb)
-
-
-def _reindex_incremental(
-    indexer: SearchIndexer | SemanticSearchIndexer,
-    tree: str,
-    user_id: str,
-    progress_cb: Optional[Callable] = None,
-) -> None:
-    """Run an incremental reindex with the given indexer."""
+    indexer = get_search_indexer(tree)
     db = get_db_outside_request(
         tree=tree, view_private=True, readonly=True, user_id=user_id
     )
@@ -409,29 +369,15 @@ def _reindex_incremental(
 def search_reindex_incremental(
     self, tree: str, user_id: str, semantic: bool = False
 ) -> None:
-    """Run an incremental reindex of the full-text search index (or the semantic index if ``semantic=True``).
+    """Run an incremental reindex of the full-text search index.
 
-    The ``semantic`` parameter is accepted for backward compatibility with
-    jobs that were enqueued before this task was split into separate
-    full-text / semantic variants.  New callers should use
-    ``search_reindex_incremental_semantic`` for semantic reindexing.
+    The ``semantic`` parameter is ignored; it is accepted so that jobs
+    enqueued before semantic search was removed still run.
     """
     return _search_reindex_incremental(
         tree=tree,
         user_id=user_id,
-        semantic=semantic,
         progress_cb=progress_callback_count(title="Updating search index..."),
-    )
-
-
-@shared_task(bind=True, lock_key=LOCK_SEMANTIC_INDEX_INCREMENTAL)
-def search_reindex_incremental_semantic(self, tree: str, user_id: str) -> None:
-    """Run an incremental reindex of the semantic search index."""
-    return _search_reindex_incremental(
-        tree=tree,
-        user_id=user_id,
-        semantic=True,
-        progress_cb=progress_callback_count(title="Updating semantic search index..."),
     )
 
 
@@ -443,13 +389,10 @@ def update_search_indices_after_import(tree: str, user_id: str) -> list[dict[str
     cannot make the import look failed. Returns references to those tasks;
     without a task queue, the reindex runs inline and nothing is returned.
     """
-    tasks: list[Task] = [search_reindex_incremental]
-    if get_current_semantic_search_indexer(tree) is not None:
-        tasks.append(search_reindex_incremental_semantic)
-    results = [run_task(task, tree=tree, user_id=user_id) for task in tasks]
-    return [
-        task_reference(result) for result in results if isinstance(result, AsyncResult)
-    ]
+    result = run_task(search_reindex_incremental, tree=tree, user_id=user_id)
+    if isinstance(result, AsyncResult):
+        return [task_reference(result)]
+    return []
 
 
 @shared_task(bind=True, lock_key=LOCK_WRITE)
@@ -900,19 +843,8 @@ def delete_objects(
     _search_reindex_incremental(
         tree=tree,
         user_id=user_id,
-        semantic=False,
         progress_cb=progress_callback_count(title="Updating full-text search index..."),
     )
-    indexer_semantic = get_current_semantic_search_indexer(tree)
-    if indexer_semantic is not None:
-        _reindex_incremental(
-            indexer_semantic,
-            tree=tree,
-            user_id=user_id,
-            progress_cb=progress_callback_count(
-                title="Updating semantic search index..."
-            ),
-        )
 
 
 @shared_task(bind=True)
@@ -1037,7 +969,7 @@ def old_unchanged(db: DbReadBase, class_name: str, handle: str, old_data: Dict) 
 
 
 def _index_objects(
-    indexer: SearchIndexer | SemanticSearchIndexer,
+    indexer: SearchIndexer,
     trans_dict: list[dict],
     db_handle: DbReadBase,
 ) -> None:
@@ -1100,9 +1032,6 @@ def update_search_indices_from_transaction(
     )
     try:
         _index_objects(get_search_indexer(tree), trans_dict, db_handle)
-        indexer_semantic = get_current_semantic_search_indexer(tree)
-        if indexer_semantic is not None:
-            _index_objects(indexer_semantic, trans_dict, db_handle)
     finally:
         close_db(db_handle)
 
