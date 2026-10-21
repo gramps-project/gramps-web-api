@@ -155,13 +155,34 @@ def get_postgres_credentials(directory, username, password):
     return dbkwargs
 
 
+def register_plugins(
+    dbstate: DbState | None = None, uistate=None, rescan: bool = False
+) -> None:
+    """Register the plugins once per process.
+
+    This also adds the rules of addons to the `gramps.gen.filters.rules`
+    modules.
+    """
+    global _plugins_registered
+    with _plugins_lock:
+        if _plugins_registered and not rescan:
+            return
+        if dbstate is None:
+            dbstate = DbState()
+        pmgr = BasePluginManager.get_instance()
+        pmgr.reg_plugins(PLUGINS_DIR, dbstate, uistate, rescan=rescan)
+        pmgr.reg_plugins(USER_PLUGINS, dbstate, uistate, load_on_reg=True)
+        if rescan:  # supports updated plugin installs
+            pmgr.reload_plugins()
+        _plugins_registered = True
+
+
 class WebDbSessionManager:
     """Session manager derived from `CLIDbLoader` and `CLIManager`."""
 
     def __init__(self, dbstate: DbState, user: UserBase, user_id: str | None):
         """Initialize self."""
         self.dbstate = dbstate
-        self._pmgr = BasePluginManager.get_instance()
         self.user = user
         self.user_id = user_id
 
@@ -292,12 +313,4 @@ class WebDbSessionManager:
 
     def do_reg_plugins(self, dbstate, uistate, rescan=False):
         """Register the plugins at initialization time."""
-        global _plugins_registered
-        with _plugins_lock:
-            if _plugins_registered and not rescan:
-                return
-            self._pmgr.reg_plugins(PLUGINS_DIR, dbstate, uistate, rescan=rescan)
-            self._pmgr.reg_plugins(USER_PLUGINS, dbstate, uistate, load_on_reg=True)
-            if rescan:  # supports updated plugin installs
-                self._pmgr.reload_plugins()
-            _plugins_registered = True
+        register_plugins(dbstate, uistate, rescan=rescan)
