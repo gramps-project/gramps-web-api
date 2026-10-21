@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import gzip
 import io
+import json
 import os
 import string
 import zipfile
@@ -51,6 +52,7 @@ from gramps.gen.lib import (
     Date,
     Event,
     EventRef,
+    EventRoleType,
     EventType,
     Family,
     Media,
@@ -111,6 +113,14 @@ KNOWN_SEARCH_LEAKS = (
     # their members without checking whether these are private
     "private father of a public family: ",
     "private participant of a public event: ",
+    "private father of a family taking part in a public event: ",
+)
+KNOWN_SEARCH_CONNECTION_LEAKS = (
+    # the search index text of events includes the names of their participants
+    # without checking whether the reference or the family is private
+    "participant through a private event reference: ",
+    "family event of a private family: ",
+    "family event through a private family event reference: ",
 )
 AGGREGATE_URLS = [
     "/api/metadata/?surnames=true",
@@ -139,8 +149,12 @@ class Canaries:
     # (description, class_a, handle_a, class_b, handle_b): a and b are only
     # connected through a private reference
     edges: list[tuple[str, str, str, str, str]] = field(default_factory=list)
+    # (description, query, handle): searching for the query finds the object
+    # only through a private connection
+    search_edges: list[tuple[str, str, str]] = field(default_factory=list)
     person_pairs: list[tuple[str, str]] = field(default_factory=list)
     _letters: object = None
+    _public_letters: object = None
 
     def token(self, description: str) -> str:
         """Return a new unique token (letters only, so tokenizers keep it whole)."""
@@ -149,6 +163,12 @@ class Canaries:
         token = "zqprv" + "".join(next(self._letters))
         self.tokens[token] = description
         return token
+
+    def word(self) -> str:
+        """Return a new unique word for public text, unlike a token."""
+        if self._public_letters is None:
+            self._public_letters = product(string.ascii_lowercase, repeat=3)
+        return "zqpub" + "".join(next(self._public_letters))
 
 
 def _name(first: str, surname: str = "Canary") -> Name:
@@ -337,7 +357,8 @@ def _plant(db) -> Canaries:
         db.add_event(target_event, trans)
         ref_note = Note("public note on a private event reference")
         db.add_note(ref_note, trans)
-        referrer = _person(db, trans, "EventReferrer")
+        word = c.word()
+        referrer = _person(db, trans, word)
         event_ref = EventRef()
         event_ref.set_reference_handle(target_event.handle)
         event_ref.add_note(ref_note.handle)
@@ -345,6 +366,9 @@ def _plant(db) -> Canaries:
         referrer.add_event_ref(event_ref)
         db.commit_person(referrer, trans)
         edge("private event reference", referrer, "Event", target_event.handle)
+        c.search_edges.append(
+            ("participant through a private event reference", word, target_event.handle)
+        )
         edge("note on a private event reference", referrer, "Note", ref_note.handle)
 
         target_media = Media()
@@ -425,6 +449,73 @@ def _plant(db) -> Canaries:
         citation.add_attribute(attribute)
         db.add_citation(citation, trans)
         c.objects.append(("Citation", citation.handle))
+
+        # --- names copied into the search text of families and events ---
+        def family_event(father, private_family=False, private_ref=False) -> Event:
+            """Add a family of `father` taking part in a new public event."""
+            event = Event()
+            event.set_type(EventType.MARRIAGE)
+            db.add_event(event, trans)
+            event_ref = EventRef()
+            event_ref.set_reference_handle(event.handle)
+            event_ref.set_role(EventRoleType.FAMILY)
+            event_ref.set_privacy(private_ref)
+            family = Family()
+            family.set_father_handle(father.handle)
+            family.add_event_ref(event_ref)
+            family.set_privacy(private_family)
+            db.add_family(family, trans)
+            father.add_family_handle(family.handle)
+            db.commit_person(father, trans)
+            if private_family:
+                c.private_objects.append(("Family", family.handle))
+            else:
+                c.objects.append(("Family", family.handle))
+            c.objects.append(("Event", event.handle))
+            return event
+
+        word = c.word()
+        event = family_event(_person(db, trans, word), private_family=True)
+        c.search_edges.append(("family event of a private family", word, event.handle))
+
+        word = c.word()
+        event = family_event(_person(db, trans, word), private_ref=True)
+        c.search_edges.append(
+            (
+                "family event through a private family event reference",
+                word,
+                event.handle,
+            )
+        )
+
+        father = _person(
+            db,
+            trans,
+            c.token("private father of a family taking part in a public event"),
+            True,
+        )
+        family_event(father)
+        c.private_objects.append(("Person", father.handle))
+
+        father = _person(
+            db, trans, c.token("private primary name of a public family's father")
+        )
+        father.get_primary_name().set_privacy(True)
+        family_event(father)
+        c.objects.append(("Person", father.handle))
+
+        participant = _person(
+            db, trans, c.token("private primary name of a public event's participant")
+        )
+        participant.get_primary_name().set_privacy(True)
+        event = Event()
+        event.set_type(EventType.DEATH)
+        db.add_event(event, trans)
+        event_ref = EventRef()
+        event_ref.set_reference_handle(event.handle)
+        participant.add_event_ref(event_ref)
+        db.commit_person(participant, trans)
+        c.objects += [("Person", participant.handle), ("Event", event.handle)]
 
     return c
 
@@ -510,8 +601,8 @@ def _crawl(client, headers, canaries: Canaries) -> dict[str, tuple[int, str]]:
     )
     for url in AGGREGATE_URLS:
         get(url, [calendar_params] if url == "/api/anniversaries.ics" else [""])
-    for token in canaries.tokens:
-        get(f"/api/search/?query={token}")
+    for query in [*canaries.tokens, *(q for _, q, _ in canaries.search_edges)]:
+        get(f"/api/search/?query={query}")
     for handle1, handle2 in canaries.person_pairs:
         get(f"/api/relations/{handle1}/{handle2}")
         get(f"/api/relations/{handle1}/{handle2}/all")
@@ -592,6 +683,28 @@ def test_guest_search_finds_no_canary(crawl):
         if _search_hits(guest[f"/api/search/?query={token}"])
     ]
     _check_leaks(leaks, KNOWN_SEARCH_LEAKS, "Search reveals private text")
+
+
+def _search_handles(response: tuple[int, str]) -> set[str]:
+    status, body = response
+    assert status == 200, f"search failed with {status}: {body[:200]}"
+    return {hit["handle"] for hit in json.loads(body)}
+
+
+def test_guest_search_respects_private_connections(crawl):
+    """Searching finds no object that matches only through private data."""
+    canaries, owner, guest = crawl
+    leaks, unreached = [], []
+    for description, query, handle in canaries.search_edges:
+        url = f"/api/search/?query={query}"
+        if handle not in _search_handles(owner[url]):
+            unreached.append(description)
+        if handle in _search_handles(guest[url]):
+            leaks.append(f"{description}: search for {query} finds {handle}")
+    assert not unreached, "Positive control failed for:\n" + "\n".join(unreached)
+    _check_leaks(
+        leaks, KNOWN_SEARCH_CONNECTION_LEAKS, "Search reveals private connections"
+    )
 
 
 def test_guest_cannot_fetch_private_objects(crawl):
