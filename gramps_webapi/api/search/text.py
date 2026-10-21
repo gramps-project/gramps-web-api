@@ -121,6 +121,10 @@ GENERIC_EXCLUDED = {
 _ADDRESS = ("street", "locality", "city", "county", "state", "country", "postal")
 _ATTRIBUTE = FieldSpec(text=("value",), custom_types=("type",))
 
+# References to other objects (event, media, person and repository references,
+# and their attributes) are never indexed, not even their text: Gramps hides a
+# reference completely if its target is private, so its text would depend on
+# another object's privacy. An object's indexed text depends only on the object.
 FIELD_SPECS: dict[str, FieldSpec] = {
     # primary objects
     "Person": FieldSpec(
@@ -131,45 +135,51 @@ FIELD_SPECS: dict[str, FieldSpec] = {
             "attribute_list",
             "address_list",
             "urls",
+        ),
+        excluded=(
+            "family_list",
+            "parent_family_list",
             "event_ref_list",
             "person_ref_list",
             "media_list",
+            # LDS ordinances, whose only text is a temple code
+            "lds_ord_list",
         ),
-        # references, and LDS ordinances, whose text is a temple code
-        excluded=("family_list", "parent_family_list", "lds_ord_list"),
     ),
     "Family": FieldSpec(
         text=("gramps_id",),
         types=("type",),
-        children=("attribute_list", "event_ref_list", "media_list"),
-        # child references only have relationship types, e.g. "Birth"
+        children=("attribute_list",),
         excluded=(
             "father_handle",
             "mother_handle",
             "child_ref_list",
+            "event_ref_list",
+            "media_list",
             "lds_ord_list",
         ),
     ),
     "Event": FieldSpec(
         text=("gramps_id", "description"),
         types=("type",),
-        children=("attribute_list", "media_list"),
-        excluded=("place",),
+        children=("attribute_list",),
+        excluded=("place", "media_list"),
     ),
     "Place": FieldSpec(
         text=("gramps_id", "title", "code"),
         types=("place_type",),
-        children=("name", "alt_names", "alt_loc", "urls", "media_list"),
-        excluded=("long", "lat", "placeref_list"),
+        children=("name", "alt_names", "alt_loc", "urls"),
+        excluded=("long", "lat", "placeref_list", "media_list"),
     ),
     "Source": FieldSpec(
         text=("gramps_id", "title", "author", "pubinfo", "abbrev"),
-        children=("attribute_list", "reporef_list", "media_list"),
+        children=("attribute_list",),
+        excluded=("reporef_list", "media_list"),
     ),
     "Citation": FieldSpec(
         text=("gramps_id", "page"),
-        children=("attribute_list", "media_list"),
-        excluded=("source_handle",),
+        children=("attribute_list",),
+        excluded=("source_handle", "media_list"),
     ),
     "Repository": FieldSpec(
         text=("gramps_id", "name"),
@@ -187,7 +197,7 @@ FIELD_SPECS: dict[str, FieldSpec] = {
         excluded=("type",),
     ),
     "Tag": FieldSpec(text=("name",), excluded=("color",)),
-    # secondary objects
+    # secondary objects, which are part of the object holding them
     "Name": FieldSpec(
         text=("first_name", "call", "nick", "title", "suffix", "famnick"),
         children=("surname_list",),
@@ -203,10 +213,6 @@ FIELD_SPECS: dict[str, FieldSpec] = {
     "Address": FieldSpec(text=_ADDRESS + ("phone",)),
     "Location": FieldSpec(text=_ADDRESS + ("phone", "parish")),
     "Url": FieldSpec(text=("path", "desc"), excluded=("type",)),
-    "EventRef": FieldSpec(children=("attribute_list",), excluded=("role",)),
-    "PersonRef": FieldSpec(text=("rel",)),
-    "MediaRef": FieldSpec(children=("attribute_list",), excluded=("rect",)),
-    "RepoRef": FieldSpec(text=("call_number",), excluded=("media_type",)),
     "PlaceName": FieldSpec(text=("value",), excluded=("lang",)),
     "StyledText": FieldSpec(text=("string",), excluded=("tags",)),
 }

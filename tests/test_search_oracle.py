@@ -56,7 +56,7 @@ def _db_url(backend: str, tmp_path_factory) -> str:
 
 
 def _make_private(db, rng: random.Random) -> None:
-    """Make some people, names, attributes, families, events and references private."""
+    """Make parts of the tree private, at random."""
     with DbTxn("make private", db) as trans:
         for person in list(db.iter_people()):
             draw = rng.random()
@@ -82,6 +82,14 @@ def _make_private(db, rng: random.Random) -> None:
             if rng.random() < 0.05:
                 event.set_privacy(True)
                 db.commit_event(event, trans)
+        for media in list(db.iter_media()):
+            if rng.random() < 0.2:
+                media.set_privacy(True)
+                db.commit_media(media, trans)
+        for repository in list(db.iter_repositories()):
+            if rng.random() < 0.2:
+                repository.set_privacy(True)
+                db.commit_repository(repository, trans)
 
 
 def _is_placeholder(name: Name) -> bool:
@@ -172,6 +180,18 @@ def _queries(db, rng: random.Random) -> list[str]:
         public, full = own_strings(obj)
         hidden |= set(tokenize(full)) - set(tokenize(public))
     queries += rng.sample(sorted(hidden), min(15, len(hidden)))
+    # words on references, which are hidden with references to private objects
+    on_references = set()
+    for person in db.iter_people():
+        for ref in person.get_event_ref_list() + person.get_media_list():
+            for attribute in ref.get_attribute_list():
+                on_references |= set(tokenize(attribute.get_value()))
+        for person_ref in person.get_person_ref_list():
+            on_references |= set(tokenize(person_ref.get_relation()))
+    for source in db.iter_sources():
+        for repo_ref in source.get_reporef_list():
+            on_references |= set(tokenize(repo_ref.get_call_number()))
+    queries += rng.sample(sorted(on_references), min(15, len(on_references)))
     return queries
 
 

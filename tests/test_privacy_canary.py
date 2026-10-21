@@ -503,6 +503,38 @@ def _plant(db) -> Canaries:
         db.commit_person(participant, trans)
         c.objects += [("Person", participant.handle), ("Event", event.handle)]
 
+        # --- text on public references to private objects, which the
+        # private proxy hides together with the reference ---
+        private = {}
+        for class_name, handle in c.private_objects:
+            private.setdefault(class_name, handle)
+        holder = _person(db, trans, "ReferenceHolder")
+        event_ref = EventRef()
+        event_ref.set_reference_handle(private["Event"])
+        event_ref.add_attribute(
+            _attribute(c.token("attribute of a reference to a private event"))
+        )
+        holder.add_event_ref(event_ref)
+        media_ref = MediaRef()
+        media_ref.set_reference_handle(private["Media"])
+        media_ref.add_attribute(
+            _attribute(c.token("attribute of a reference to private media"))
+        )
+        holder.add_media_reference(media_ref)
+        person_ref = PersonRef()
+        person_ref.set_reference_handle(private["Person"])
+        person_ref.set_relation(c.token("association with a private person"))
+        holder.add_person_ref(person_ref)
+        db.commit_person(holder, trans)
+        source = Source()
+        source.set_title("ReferenceHolder source")
+        repo_ref = RepoRef()
+        repo_ref.set_reference_handle(private["Repository"])
+        repo_ref.set_call_number(c.token("call number at a private repository"))
+        source.add_repo_reference(repo_ref)
+        db.add_source(source, trans)
+        c.objects += [("Person", holder.handle), ("Source", source.handle)]
+
     return c
 
 

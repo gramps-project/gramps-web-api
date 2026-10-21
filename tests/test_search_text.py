@@ -34,8 +34,12 @@ from gramps.gen.lib import (
     MediaRef,
     Name,
     Person,
+    PersonRef,
+    RepoRef,
+    Source,
     Surname,
 )
+from gramps.gen.lib.json_utils import object_to_dict
 
 from gramps_webapi.api.search.text import (
     FIELD_SPECS,
@@ -44,6 +48,8 @@ from gramps_webapi.api.search.text import (
     own_strings,
     tokenize,
 )
+from gramps_webapi.const import GRAMPS_OBJECT_PLURAL, PRIMARY_GRAMPS_OBJECTS
+from tests import ExampleDbInMemory
 
 
 @pytest.mark.parametrize("class_name", sorted(FIELD_SPECS))
@@ -108,33 +114,62 @@ def test_labels_not_indexed():
     assert _words(full) == {"john", "smith"}
 
 
-def test_nested_attributes_and_privacy():
-    """Text is found at every level; privacy covers everything below."""
-    public_ref = EventRef()
-    public_ref.add_attribute(_attribute("zqpublic"))
-    public_ref.add_attribute(_attribute("zqprivattr", private=True))
-    private_ref = EventRef()
-    private_ref.set_privacy(True)
-    private_ref.add_attribute(_attribute("zqprivref"))
+def test_reference_text_not_indexed():
+    """Text on references is hidden with them if their target is private.
+
+    It would then depend on another object's privacy, so it is never indexed.
+    """
+    event_ref = EventRef()
+    event_ref.add_attribute(_attribute("zqeventref"))
     media_ref = MediaRef()
-    media_ref.add_attribute(_attribute("zqmedia"))
-    person = _person(add_media_reference=media_ref)
-    person.add_event_ref(public_ref)
-    person.add_event_ref(private_ref)
-    public, full = own_strings(person)
-    assert {"zqpublic", "zqmedia"} <= _words(public)
-    assert not {"zqprivattr", "zqprivref"} & _words(public)
-    assert {"zqpublic", "zqmedia", "zqprivattr", "zqprivref"} <= _words(full)
+    media_ref.add_attribute(_attribute("zqmediaref"))
+    person_ref = PersonRef()
+    person_ref.set_relation("zqpersonref")
+    person = _person(add_event_ref=event_ref, add_media_reference=media_ref)
+    person.add_person_ref(person_ref)
+    repo_ref = RepoRef()
+    repo_ref.set_call_number("zqreporef")
+    source = Source()
+    source.add_repo_reference(repo_ref)
+    words = _words(own_strings(person)[1]) | _words(own_strings(source)[1])
+    assert not words & {"zqeventref", "zqmediaref", "zqpersonref", "zqreporef"}
+
+
+def _visit(data, path=""):
+    """Yield (path, object) for every object the extraction descends into."""
+    yield path, data
+    for key in FIELD_SPECS[data["_class"]].children:
+        children = data.get(key)
+        for child in children if isinstance(children, list) else [children]:
+            if isinstance(child, dict):
+                yield from _visit(child, f"{path}{data['_class']}.{key}/")
+
+
+def test_no_reference_descended_into():
+    """No indexed text comes from a reference to another object."""
+    db = ExampleDbInMemory().load()
+    try:
+        for class_name in PRIMARY_GRAMPS_OBJECTS:
+            for obj in db.method("iter_%s", GRAMPS_OBJECT_PLURAL[class_name])():
+                for path, data in _visit(object_to_dict(obj)):
+                    assert "ref" not in data, f"descends into a reference: {path}"
+    finally:
+        db.close()
 
 
 def test_private_name():
+    """Privacy covers everything below a private object."""
     name = Name()
     name.set_first_name("Zqhidden")
+    surname = Surname()
+    surname.set_surname("Zqsurname")
+    name.add_surname(surname)
     name.set_privacy(True)
-    person = _person(add_alternate_name=name)
+    attribute = _attribute("zqattribute", private=True)
+    person = _person(add_alternate_name=name, add_attribute=attribute)
     public, full = own_strings(person)
-    assert "zqhidden" not in _words(public)
-    assert "zqhidden" in _words(full)
+    assert not {"zqhidden", "zqsurname", "zqattribute"} & _words(public)
+    assert {"zqhidden", "zqsurname", "zqattribute"} <= _words(full)
 
 
 def test_types():
