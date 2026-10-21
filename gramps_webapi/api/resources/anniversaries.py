@@ -13,6 +13,7 @@
 
 import hashlib
 import json
+from calendar import monthrange
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, cast
@@ -55,10 +56,10 @@ from .filters import apply_filter, get_custom_filters
 from .util import get_family_name_localized
 
 # Bump this when the ICS representation changes so old server cache entries expire.
-ICS_FORMAT_VERSION = 3
+ICS_FORMAT_VERSION = 4
 ICS_CACHE_TIMEOUT = 86400
-# RFC 5545 requires a full DATE; leap year 2000 also represents yearless Feb 29.
-ICS_PLACEHOLDER_YEAR = 2000
+# Leap year 2000 lets us validate month/day pairs without a recorded year.
+ICS_VALIDATION_YEAR = 2000
 # Representative source-calendar years near Gregorian 2000 for yearless conversion.
 ICS_SOURCE_REFERENCE_YEARS = {
     Date.CAL_GREGORIAN: 2000,
@@ -93,8 +94,11 @@ def _calendar_etag(
     timestamp,
     locale: GrampsLocale,
     filter_definitions: list[dict],
+    current_year: int | None = None,
 ) -> str:
     """Identify the feed without opening the tree database."""
+    if current_year is None:
+        current_year = datetime.now(timezone.utc).year
     normalized = {key: value for key, value in args.items() if key != "token"}
     normalized["event_types"] = sorted(
         {
@@ -117,6 +121,7 @@ def _calendar_etag(
             if args["living_only"]
             else None
         ),
+        current_year,
     )
     return hashlib.sha256(json.dumps(dimensions, sort_keys=True).encode()).hexdigest()
 
@@ -190,8 +195,8 @@ def _get_anniversary_date_components(event: Event) -> tuple[int, int, int] | Non
     if year_is_unknown:
         year = 0
     try:
-        # Validate month/day using the ICS placeholder when Gramps has no year.
-        datetime(year or ICS_PLACEHOLDER_YEAR, month, day)
+        # Leap year 2000 validates dates with no recorded year, including Feb 29.
+        datetime(year or ICS_VALIDATION_YEAR, month, day)
     except ValueError:
         return None
     return year, month, day
@@ -359,10 +364,12 @@ def _collect_anniversaries(
             event = _get_record(db_handle.get_event_from_handle, reference.ref)
             if event is None or not _event_matches_type(event, allowed_types, locale):
                 continue
+            if args["living_only"] and event.type == EventType.DEATH:
+                continue
             components = anniversary_date(event)
             if components is None:
                 continue
-            if args["living_only"] and event.type != EventType.DEATH:
+            if args["living_only"]:
                 if spouses_alive is None:
                     spouses = [
                         (
@@ -393,10 +400,12 @@ def _collect_anniversaries(
             event = _get_record(db_handle.get_event_from_handle, reference.ref)
             if event is None or not _event_matches_type(event, allowed_types, locale):
                 continue
+            if args["living_only"] and event.type == EventType.DEATH:
+                continue
             components = anniversary_date(event)
             if components is None:
                 continue
-            if args["living_only"] and event.type != EventType.DEATH:
+            if args["living_only"]:
                 if event.type == EventType.MARRIAGE or not is_living(person):
                     continue
             if participant is None:
@@ -433,8 +442,11 @@ def _build_ics(
     tree_id: str,
     tree_name: str,
     locale: GrampsLocale = glocale,
+    current_year: int | None = None,
 ) -> str:
     """Build ICS calendar content for a list of events."""
+    if current_year is None:
+        current_year = datetime.now(timezone.utc).year
     translate = locale.translation.gettext
     lines = [
         "BEGIN:VCALENDAR",
@@ -450,26 +462,20 @@ def _build_ics(
     for entry in entries:
         event = entry.event
         year, month, day = entry.date_components
-        year_is_unknown = year == 0
-        ics_year = ICS_PLACEHOLDER_YEAR if year_is_unknown else year
+        ics_year = max(year, current_year) if year else current_year
+        ics_day = min(day, monthrange(ics_year, month)[1])
         dtstamp = datetime.fromtimestamp(event.change or 0, timezone.utc).strftime(
             "%Y%m%dT%H%M%SZ"
         )
-        dtstart = f"{ics_year:04d}{month:02d}{day:02d}"
+        dtstart = f"{ics_year:04d}{month:02d}{ics_day:02d}"
         event_type = locale.translation.sgettext(event.type.xml_str())
         participants = ", ".join(sorted(entry.participants.values()))
         summary = f"{event_type} - {participants}" if participants else event_type
         description_lines = [
             f"{translate('Gramps ID')}: {event.gramps_id or ''}",
             f"{translate('Type')}: {event_type}",
+            f"{translate('Date')}: {locale.date_displayer.display(event.date)}",
         ]
-        if year_is_unknown:
-            description_lines.append(
-                translate(
-                    "The year is not recorded; 2000 is only a technical "
-                    "placeholder for the yearly recurrence."
-                )
-            )
         description = _escape_ics_text("\n".join(description_lines))
         uid = _escape_ics_text(f"{event.handle}@{tree_id}.anniversaries.gramps-web")
         lines.extend(
@@ -495,8 +501,10 @@ def _build_ics(
 class AnniversariesIcsQueryArgs(Schema):
     """Query arguments for GET /anniversaries.ics.
 
-    Exact dates with a known day and month are included. A missing year uses
-    2000 as a technical DTSTART placeholder for the yearly recurrence.
+    Exact dates with a known day and month are included. Annual recurrence
+    starts in the current UTC year, or in a later historical year when the
+    event is dated in the future. Yearless dates use the current UTC year only
+    as DTSTART; the original localized date remains in the description.
     """
 
     token = fields.Str(
@@ -520,10 +528,10 @@ class AnniversariesIcsQueryArgs(Schema):
         load_default=True,
         metadata={
             "description": (
-                "Include non-death personal events only for living people; "
+                "Exclude death events and include non-death personal events "
+                "only for living people; "
                 "personal marriage events are excluded. Include non-death family "
-                "events only when both spouses are known and living. Death events "
-                "are not excluded."
+                "events only when both spouses are known and living."
             )
         },
     )
@@ -573,7 +581,11 @@ class AnniversariesIcsResource(Resource):
     @limiter.limit("10/minute", key_func=_token_limit_key)
     @api_blueprint.arguments(AnniversariesIcsQueryArgs, location="query")
     def get(self, args: dict) -> Response:
-        """Return exact anniversaries; missing years use 2000 as an ICS placeholder."""
+        """Return exact anniversaries recurring from the current year onward.
+
+        A yearless date uses the current UTC year as DTSTART without presenting
+        that year as part of its localized event date.
+        """
         user = get_active_user_from_access_token(
             args["token"], ACCESS_TOKEN_SCOPE_ANNIVERSARIES_ICS
         )
@@ -587,6 +599,7 @@ class AnniversariesIcsResource(Resource):
         locale = get_locale_for_language(args["locale"], default=True)
         tree_name = get_db_manager(tree_id).name
         timestamp = get_db_last_change_timestamp(tree_id)
+        current_year = datetime.now(timezone.utc).year
         filter_definitions, missing_filter = _filter_dependencies(args)
         etag = _calendar_etag(
             tree_id,
@@ -596,6 +609,7 @@ class AnniversariesIcsResource(Resource):
             timestamp,
             locale,
             filter_definitions,
+            current_year=current_year,
         )
         cache_key = f"anniversaries_ics:{etag}"
         if timestamp is not None:
@@ -621,6 +635,7 @@ class AnniversariesIcsResource(Resource):
                 tree_id=tree_id,
                 tree_name=tree_name,
                 locale=locale,
+                current_year=current_year,
             )
         finally:
             close_db(db_handle)

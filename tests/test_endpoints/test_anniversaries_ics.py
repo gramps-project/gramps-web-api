@@ -197,12 +197,17 @@ class TestAnniversariesIcs(unittest.TestCase):
         event.gramps_id = "E0002"
         event.type = EventType(EventType.BIRTH)
         event.date = Date(2000, 2, 29)
-        payload = _build_ics([AnniversaryEvent(event, (2000, 2, 29))], "tree", "Tree")
+        payload = _build_ics(
+            [AnniversaryEvent(event, (2000, 2, 29))],
+            "tree",
+            "Tree",
+            current_year=2026,
+        )
         self.assertIn("RRULE:FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1", payload)
-        self.assertIn("DTSTART;VALUE=DATE:20000229", payload)
+        self.assertIn("DTSTART;VALUE=DATE:20260228", payload)
 
-    def test_yearless_dates_use_a_labeled_ics_placeholder_year(self):
-        """Yearless exact dates recur without presenting the placeholder as real."""
+    def test_yearless_dates_start_in_current_year_without_fake_historic_year(self):
+        """Yearless exact dates recur from now without implying a historic year."""
         event = Event()
         event.handle = "yearless-event"
         event.gramps_id = "E0003"
@@ -211,29 +216,68 @@ class TestAnniversariesIcs(unittest.TestCase):
         components = _get_anniversary_date_components(event)
         self.assertEqual(components, (0, 3, 4))
 
-        payload = _build_ics([AnniversaryEvent(event, components)], "tree", "Tree")
-        self.assertIn("DTSTART;VALUE=DATE:20000304", payload)
-        self.assertIn("RRULE:FREQ=YEARLY", payload)
-        self.assertIn(
-            "2000 is only a technical placeholder", payload.replace("\r\n ", "")
+        payload = _build_ics(
+            [AnniversaryEvent(event, components)],
+            "tree",
+            "Tree",
+            current_year=2026,
         )
+        self.assertIn("DTSTART;VALUE=DATE:20260304", payload)
+        self.assertIn("RRULE:FREQ=YEARLY", payload)
+        description = payload.replace("\r\n ", "")
+        self.assertIn("Date:", description)
+        self.assertNotIn("2000 is only a technical placeholder", description)
+        self.assertNotIn("Date: 2000", description)
 
         event.date.set_calendar(Date.CAL_JULIAN)
         julian_components = _get_anniversary_date_components(event)
         self.assertEqual(julian_components, (0, 3, 17))
         julian_payload = _build_ics(
-            [AnniversaryEvent(event, julian_components)], "tree", "Tree"
+            [AnniversaryEvent(event, julian_components)],
+            "tree",
+            "Tree",
+            current_year=2026,
         )
-        self.assertIn("DTSTART;VALUE=DATE:20000317", julian_payload)
+        self.assertIn("DTSTART;VALUE=DATE:20260317", julian_payload)
 
         event.date = Date(0, 2, 29)
         leap_components = _get_anniversary_date_components(event)
         self.assertEqual(leap_components, (0, 2, 29))
         leap_payload = _build_ics(
-            [AnniversaryEvent(event, leap_components)], "tree", "Tree"
+            [AnniversaryEvent(event, leap_components)],
+            "tree",
+            "Tree",
+            current_year=2028,
         )
-        self.assertIn("DTSTART;VALUE=DATE:20000229", leap_payload)
+        self.assertIn("DTSTART;VALUE=DATE:20280229", leap_payload)
         self.assertIn("RRULE:FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1", leap_payload)
+
+    def test_historical_recurrence_starts_this_year_or_historical_future_year(self):
+        """Old anniversaries start now while future-dated events retain their year."""
+        event = Event()
+        event.handle = "historical-event"
+        event.gramps_id = "E0004"
+        event.type = EventType(EventType.BIRTH)
+        event.date = Date(1500, 1, 2)
+        current = _build_ics(
+            [AnniversaryEvent(event, (1500, 1, 2))],
+            "tree",
+            "Tree",
+            current_year=2026,
+        )
+        self.assertIn("DTSTART;VALUE=DATE:20260102", current)
+        flattened = current.replace("\r\n ", "")
+        self.assertIn("Date:", flattened)
+        self.assertIn("1500", flattened)
+
+        event.date = Date(2040, 1, 2)
+        future = _build_ics(
+            [AnniversaryEvent(event, (2040, 1, 2))],
+            "tree",
+            "Tree",
+            current_year=2026,
+        )
+        self.assertIn("DTSTART;VALUE=DATE:20400102", future)
 
     def test_ics_text_escaping_normalizes_all_line_endings(self):
         """CR, LF, commas, semicolons and slashes are escaped once."""
@@ -298,6 +342,15 @@ class TestAnniversariesIcs(unittest.TestCase):
         self.assertNotEqual(
             _calendar_etag(*base, first),
             _calendar_etag(*base, second),
+        )
+
+    def test_calendar_etag_changes_each_year_even_when_living_filter_is_disabled(self):
+        """The recurrence DTSTART changes at year rollover for every feed."""
+        args = {"event_types": ["Birth"], "living_only": False}
+        dimensions = ("tree", "Family tree", False, args, 1, GRAMPS_LOCALE, [])
+        self.assertNotEqual(
+            _calendar_etag(*dimensions, current_year=2026),
+            _calendar_etag(*dimensions, current_year=2027),
         )
 
     def test_public_feed_event_type_filter(self):
@@ -469,19 +522,20 @@ class TestAnniversariesIcs(unittest.TestCase):
             ],
         }
 
-    def test_living_only_filters_births_and_marriages_but_keeps_deaths(self):
-        """Dead people's births and mixed-family marriages are optional."""
+    def test_living_only_excludes_deaths_and_filters_births_and_marriages(self):
+        """Living-only excludes deaths and requires living event participants."""
         living = self._collect_with_options(True, True)
         all_people = self._collect_with_options(False, True)
         self.assertEqual(
             living,
-            {"alive-birth", "deceased-death", "living-family-marriage"},
+            {"alive-birth", "living-family-marriage"},
         )
         self.assertEqual(
             all_people,
             living
             | {
                 "deceased-birth",
+                "deceased-death",
                 "mixed-family-marriage",
                 "single-parent-marriage",
             },
@@ -509,7 +563,8 @@ class TestAnniversariesIcs(unittest.TestCase):
                 )
                 self.assertEqual(result["alive_calls"], 0)
                 if event_types == ["Death"]:
-                    self.assertEqual(result["handles"], {"deceased-death"})
+                    self.assertEqual(result["handles"], set())
+                    self.assertEqual(result["date_handles"], [])
 
     def test_shared_event_date_is_converted_once_during_collection(self):
         """A family event referenced by a person reuses its computed date."""
