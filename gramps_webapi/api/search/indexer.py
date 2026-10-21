@@ -21,54 +21,43 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Iterable, List, Set
+from typing import Any, Dict, Iterable, List, Set
 
 import sifts
 from gramps.gen.db.base import DbReadBase
 
 from ...types import ProgressCallback
 from .text import iter_obj_strings, obj_strings_from_handle
-from .metadata import get_stored_model_name, set_stored_model_name
 from ..util import get_total_number_of_objects, get_object_timestamps
 
 
-class SearchIndexerBase:
-    """Search indexer base class."""
+class SearchIndexer:
+    """Full-text search indexer."""
 
     SUFFIX = ""
     SUFFIX_PUBLIC = "__p"
 
-    def __init__(
-        self,
-        tree: str,
-        db_url: str | None = None,
-        embedding_function: Callable | None = None,
-        use_fts: bool = True,
-        use_semantic_text: bool = False,
-    ):
+    def __init__(self, tree: str, db_url: str | None = None):
         """Initialize the indexer."""
         if not tree:
             raise ValueError("`tree` is required for the search index")
         if tree.endswith("__p") or tree.endswith("__s"):
             # we can't allow tree IDs ending in __p or __s since it would
-            # interfere with our default collection names
+            # interfere with our collection names (__s was used by the
+            # former semantic index)
             raise ValueError("Invalid tree ID")
         self.tree = tree
-        self.use_semantic_text = use_semantic_text
-        self.embedding_function = embedding_function
         # index for all objects
         self.index = sifts.Collection(
             db_url=db_url or "",
             name=f"{tree}{self.SUFFIX}",
-            embedding_function=embedding_function,
-            use_fts=use_fts,
+            use_fts=True,
         )
         # index for view with only non-private objects
         self.index_public = sifts.Collection(
             db_url=db_url or "",
             name=f"{tree}{self.SUFFIX_PUBLIC}",
-            embedding_function=embedding_function,
-            use_fts=use_fts,
+            use_fts=True,
         )
 
     def count(self, include_private: bool):
@@ -129,28 +118,16 @@ class SearchIndexerBase:
             for obj_dict in obj_dicts
             if obj_dict.get("private")
         ]
-        contents = [dat["contents"] for dat in data]
-        contents_public = [dat["contents"] for dat in data_public]
-        embeddings = embeddings_public = None
-        if self.embedding_function and obj_dicts:
-            # the public text is often identical to the full one,
-            # so embed every distinct text only once
-            unique = list(dict.fromkeys(contents + contents_public))
-            vectors = dict(zip(unique, self.embedding_function(unique)))
-            embeddings = [vectors[content] for content in contents]
-            embeddings_public = [vectors[content] for content in contents_public]
         self.index.add(
-            contents=contents,
+            contents=[dat["contents"] for dat in data],
             ids=[dat["id"] for dat in data],
             metadatas=[dat["metadata"] for dat in data],
-            embeddings=embeddings,
         )
         if data_public:
             self.index_public.add(
-                contents=contents_public,
+                contents=[dat["contents"] for dat in data_public],
                 ids=[dat["id"] for dat in data_public],
                 metadatas=[dat["metadata"] for dat in data_public],
-                embeddings=embeddings_public,
             )
         if ids_private:
             # remove objects that have been made private since the last update
@@ -167,9 +144,7 @@ class SearchIndexerBase:
 
         def all_objects():
             prev: int | None = None
-            for i, obj_dict in enumerate(
-                iter_obj_strings(db_handle, semantic=self.use_semantic_text)
-            ):
+            for i, obj_dict in enumerate(iter_obj_strings(db_handle)):
                 yield obj_dict
                 if progress_cb:
                     progress_cb(current=i, total=total, prev=prev)
@@ -179,13 +154,9 @@ class SearchIndexerBase:
         if progress_cb:
             progress_cb(current=total - 1, total=total)
 
-    def _chunk_size(self, total: int) -> int:
+    @staticmethod
+    def _chunk_size(total: int) -> int:
         """Return the number of objects to add to the index at once."""
-        if self.use_semantic_text:
-            # semantic search indexing is slow and uses lots of memory, so we use
-            # a small chunk size: at most 100. If we have less than 1000 objects,
-            # use 1/10th as chunk size.
-            return min(100, total // 10 + 1)
         # full-text search indexing is fast, so we use a large chunk size:
         # at least 100 (but at most 10%).
         return max(100, total // 10)
@@ -256,9 +227,7 @@ class SearchIndexerBase:
         self, handle: str, db_handle: DbReadBase, class_name: str
     ) -> None:
         """Add an object to the index or update it if it exists."""
-        obj_dict = obj_strings_from_handle(
-            db_handle, class_name, handle, semantic=self.use_semantic_text
-        )
+        obj_dict = obj_strings_from_handle(db_handle, class_name, handle)
         if obj_dict is not None:
             self._add_objects([obj_dict])
 
@@ -330,10 +299,7 @@ class SearchIndexerBase:
                 for class_name, handles in update_info[key].items():
                     for handle in handles:
                         obj_strings = obj_strings_from_handle(
-                            db_handle,
-                            class_name,
-                            handle,
-                            semantic=self.use_semantic_text,
+                            db_handle, class_name, handle
                         )
                         i = progress(i)
                         if obj_strings is not None:
@@ -396,7 +362,6 @@ class SearchIndexerBase:
                 offset=offset,
                 order_by=sort,
                 where=where or None,
-                vector_search=self.use_semantic_text,
             )
         total = results["total"]
         hits = [
@@ -404,66 +369,3 @@ class SearchIndexerBase:
             for i, hit in enumerate(results["results"])
         ]
         return total, hits
-
-
-class SearchIndexer(SearchIndexerBase):
-    """Full-text search indexer."""
-
-    def __init__(
-        self,
-        tree: str,
-        db_url: str | None = None,
-    ):
-        """Initialize the indexer."""
-        super().__init__(
-            tree=tree, db_url=db_url, embedding_function=None, use_fts=True
-        )
-
-
-class StaleSemanticIndexError(ValueError):
-    """The semantic index was built with a different embedding model."""
-
-
-class SemanticSearchIndexer(SearchIndexerBase):
-    """Semantic (vector embedding) search indexer."""
-
-    SUFFIX = "__s"
-    SUFFIX_PUBLIC = "__s__p"
-
-    def __init__(
-        self,
-        tree: str,
-        db_url: str | None = None,
-        embedding_function: Callable | None = None,
-        model_name: str | None = None,
-        skip_model_check: bool = False,
-    ):
-        """Initialize the indexer."""
-        # Check for model mismatch BEFORE opening/creating the sifts collections
-        # via super().__init__, so no side effects occur on a stale index.
-        if db_url and model_name and not skip_model_check:
-            stored = get_stored_model_name(db_url, tree)
-            if stored is not None and stored != model_name:
-                raise StaleSemanticIndexError(
-                    f"Embedding model mismatch for tree '{tree}': "
-                    f"the search index was built with '{stored}' but the "
-                    f"configured model is '{model_name}'. "
-                    "Run a full semantic reindex to rebuild the index with the new model."
-                )
-        super().__init__(
-            tree=tree,
-            db_url=db_url,
-            embedding_function=embedding_function,
-            use_fts=False,
-            use_semantic_text=True,
-        )
-        self.model_name = model_name
-        self._db_url = db_url
-
-    def reindex_full(
-        self, db_handle: DbReadBase, progress_cb: ProgressCallback | None = None
-    ):
-        """Rebuild the semantic index and record the model name."""
-        super().reindex_full(db_handle, progress_cb=progress_cb)
-        if self._db_url and self.model_name:
-            set_stored_model_name(self._db_url, self.tree, self.model_name)

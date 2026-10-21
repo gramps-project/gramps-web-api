@@ -196,6 +196,14 @@ class TestSearch(unittest.TestCase):
         self.assertEqual(rv[0]["rank"], 0)
         self.assertIsInstance(rv[0]["score"], float)
 
+    def test_get_search_semantic_is_ignored(self):
+        """Test that the removed semantic parameter falls back to full-text search."""
+        rv = check_success(self, TEST_URL + "?query=microfilm&semantic=1&sort=-change")
+        self.assertEqual(
+            {hit["handle"] for hit in rv},
+            {"b39fe2e143d1e599450", "b39fe3f390e30bd2b99", "b39fe1cfc1305ac4a21"},
+        )
+
     def test_get_search_expected_result_text_string_wildcard(self):
         """Test expected result querying for text."""
         rv = check_success(self, TEST_URL + "?query=micr*")

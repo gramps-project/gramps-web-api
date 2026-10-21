@@ -38,7 +38,7 @@ from gramps_webapi.api.llm.tools import (
     get_note,
     get_person,
     get_place,
-    search_genealogy_database_fulltext,
+    search_genealogy_database,
 )
 from gramps_webapi.api.llm.deps import AgentDeps
 from gramps_webapi.api.search import get_search_indexer
@@ -69,7 +69,6 @@ def setUpModule():
                 "TESTING": True,
                 "RATELIMIT_ENABLED": False,
                 "MEDIA_BASE_DIR": f"{os.environ['GRAMPS_RESOURCES']}/doc/gramps/example/gramps",
-                "VECTOR_EMBEDDING_MODEL": "paraphrase-albert-small-v2",
                 "LLM_MODEL": "mock-model",
                 "SEARCH_INDEX_DB_URI": f"sqlite:///{_SEARCH_INDEX_TMPDIR}/search_index.db",
             },
@@ -951,7 +950,7 @@ class TestSearchFulltext(unittest.TestCase):
 
     def _search(self, **kwargs):
         with TEST_APP.app_context():
-            return search_genealogy_database_fulltext(self.ctx, **kwargs)
+            return search_genealogy_database(self.ctx, **kwargs)
 
     def test_hits_have_type_and_link(self):
         result = self._search(query="Lewis Anderson Garner", object_type="Person")

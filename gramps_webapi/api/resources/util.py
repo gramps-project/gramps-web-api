@@ -2262,11 +2262,6 @@ def dry_run_import(
     return result
 
 
-def app_has_semantic_search() -> bool:
-    """Indicate whether the app supports semantic search."""
-    return bool(current_app.config.get("VECTOR_EMBEDDING_MODEL"))
-
-
 def normalize_etag(etag: str | None) -> str | None:
     """Normalize an Etag"""
     if not etag:

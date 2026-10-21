@@ -63,14 +63,13 @@ RUN apt-get update && apt-get install -y \
   tesseract-ocr-vie \
   tesseract-ocr-chi-sim \
   tesseract-ocr-chi-tra \
-  libopenblas-dev \
   && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8 \
   && rm -rf /var/lib/apt/lists/*
 ENV LANGUAGE=en_US.utf8
 ENV LANG=en_US.utf8
 ENV LC_ALL=en_US.utf8
 
-# limit pytorch to 1 thread
+# limit OpenMP and BLAS (NumPy, OpenCV) to 1 thread
 ENV OMP_NUM_THREADS=1
 
 # Use a venv so pip can manage packages without conflicting with Debian-installed ones
@@ -89,20 +88,12 @@ RUN pip install --no-cache-dir Pillow
 # Install PyICU (slow to compile on ARM, so pre-install in base image)
 RUN pip install --no-cache-dir PyICU
 
-# Install PyTorch and opencv
-RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch
+# Install opencv
 # keep in sync with the "face" extra in pyproject.toml
 RUN pip install --no-cache-dir 'opencv-python-headless>=4.8,<6'
 
 # Install AI dependencies
-RUN pip install --no-cache-dir \
-    'sentence-transformers>=4.1.0' \
-    'accelerate' \
-    'pydantic-ai[openai]>=1.0.0,<2.0.0'
-
-# download and cache sentence transformer model
-RUN python3 -c "from sentence_transformers import SentenceTransformer; \
-model = SentenceTransformer('sentence-transformers/distiluse-base-multilingual-cased-v2');"
+RUN pip install --no-cache-dir 'pydantic-ai[openai]>=1.0.0,<2.0.0'
 
 # install Gramps addons
 RUN mkdir -p /root/gramps/gramps$GRAMPS_VERSION/plugins && \

@@ -44,7 +44,6 @@ from .tools import (
     get_person,
     get_place,
     search_genealogy_database,
-    search_genealogy_database_fulltext,
 )
 
 
@@ -87,11 +86,6 @@ def _trim_history(
 
     return messages
 
-
-SEARCH_STRATEGY_SEMANTIC = """For search_genealogy_database:
-- search_type="fulltext": exact names or phrases to match literally
-- search_type="semantic" (default): open-ended or conceptual queries; phrase
-  the query as a description of the content to find, not as a question about it."""
 
 SEARCH_STRATEGY_FULLTEXT = """search_genealogy_database matches exact names or
 phrases literally; search for the specific words you expect in the records."""
@@ -160,7 +154,6 @@ def create_agent(
     model_name: str,
     base_url: str | None = None,
     system_prompt_override: str | None = None,
-    semantic_search: bool = False,
 ) -> Agent[AgentDeps, str]:
     """Create a Pydantic AI agent with the specified model.
 
@@ -174,8 +167,6 @@ def create_agent(
             model_name contains a provider prefix, except for "ollama:", where
             it takes precedence over the OLLAMA_BASE_URL environment variable.
         system_prompt_override: Optional override for the system prompt
-        semantic_search: Whether the search tool may use the semantic search
-            index. If false, it only offers full-text search.
 
     Returns:
         A configured Pydantic AI agent
@@ -198,9 +189,7 @@ def create_agent(
         )
 
     system_prompt = system_prompt_override or SYSTEM_PROMPT_TEMPLATE.format(
-        search_strategy=(
-            SEARCH_STRATEGY_SEMANTIC if semantic_search else SEARCH_STRATEGY_FULLTEXT
-        )
+        search_strategy=SEARCH_STRATEGY_FULLTEXT
     )
 
     agent = Agent(
@@ -210,10 +199,7 @@ def create_agent(
         capabilities=[ProcessHistory(_trim_history)],
     )
     agent.tool(get_current_date)
-    if semantic_search:
-        agent.tool(search_genealogy_database)
-    else:
-        agent.tool(name="search_genealogy_database")(search_genealogy_database_fulltext)
+    agent.tool(search_genealogy_database)
     agent.tool(get_person)
     agent.tool(get_family)
     agent.tool(get_event)

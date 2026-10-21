@@ -36,8 +36,10 @@ and API parameters are then still accepted but ignored.
 
 ## Notable in 3.25
 
-- Semantic search is removed. `VECTOR_EMBEDDING_MODEL` and the `semantic` parameter of
-  `/search/` and `/search/index/` are still accepted but ignored
+- Semantic search is removed (#1074). `VECTOR_EMBEDDING_MODEL`, the `semantic` parameter of
+  `/search/` and `/search/index/` and the `--semantic` option of the `search` CLI command
+  are still accepted but ignored. `server.semantic_search` in `/metadata/` is always false
+- The Docker images no longer contain PyTorch, Sentence Transformers or an embedding model
 
 ## Breaking in 4.0
 

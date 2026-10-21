@@ -23,34 +23,12 @@ from typing import Any, Dict, Generator, Optional, Sequence, Tuple
 
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
-from gramps.gen.lib import (
-    Event,
-    Family,
-    Name,
-    Person,
-    Place,
-    Citation,
-    Source,
-    Repository,
-    Note,
-    Media,
-)
+from gramps.gen.lib import Event, Family, Name
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from unidecode import unidecode
 
 from ...const import GRAMPS_OBJECT_PLURAL, PRIMARY_GRAMPS_OBJECTS
 from ..resources.util import get_event_participants_for_handle, preload_event_backlinks
-from .text_semantic import (
-    person_to_text,
-    family_to_text,
-    event_to_text,
-    place_to_text,
-    citation_to_text,
-    source_to_text,
-    repository_to_text,
-    note_to_text,
-    media_to_text,
-)
 
 
 def object_to_strings(
@@ -134,39 +112,8 @@ def process_strings(strings: Sequence[str]) -> str:
     return " ".join(generator())
 
 
-def object_to_strings_semantic(
-    obj: GrampsObject, db_handle: DbReadBase
-) -> Tuple[str, str]:
-    """Create strings from a Gramps object's textual pieces.
-
-    This function returns a tuple of two strings: the first one contains
-    the concatenated string of the object and the strings of all
-    non-private child objects. The second contains the concatenated
-    strings of all private child objects."""
-    if isinstance(obj, Person):
-        return person_to_text(obj, db_handle)
-    if isinstance(obj, Family):
-        return family_to_text(obj, db_handle)
-    if isinstance(obj, Event):
-        return event_to_text(obj, db_handle)
-    if isinstance(obj, Place):
-        return place_to_text(obj, db_handle)
-    if isinstance(obj, Citation):
-        return citation_to_text(obj, db_handle)
-    if isinstance(obj, Source):
-        return source_to_text(obj, db_handle)
-    if isinstance(obj, Repository):
-        return repository_to_text(obj, db_handle)
-    if isinstance(obj, Media):
-        return media_to_text(obj, db_handle)
-    if isinstance(obj, Note):
-        return note_to_text(obj, db_handle)
-    else:
-        return "", ""
-
-
 def obj_strings_from_handle(
-    db_handle: DbReadBase, class_name: str, handle, semantic: bool = False
+    db_handle: DbReadBase, class_name: str, handle
 ) -> Optional[Dict[str, Any]]:
     """Return object strings from a handle and Gramps class name."""
     query_method = db_handle.method("get_%s_from_handle", class_name)
@@ -175,25 +122,19 @@ def obj_strings_from_handle(
         obj = query_method(handle)
     except HandleError:
         return None
-    return obj_strings_from_object(
-        db_handle=db_handle, class_name=class_name, obj=obj, semantic=semantic
-    )
+    return obj_strings_from_object(db_handle=db_handle, class_name=class_name, obj=obj)
 
 
 def obj_strings_from_object(
     db_handle: DbReadBase,
     class_name: str,
     obj: GrampsObject,
-    semantic: bool = False,
     backlink_index: Optional[Dict[Any, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Return object strings from a handle and Gramps class name."""
-    if semantic:
-        obj_string_public, obj_string_all = object_to_strings_semantic(obj, db_handle)
-    else:
-        obj_string_public, obj_string_all = object_to_strings(
-            obj, db_handle, backlink_index=backlink_index
-        )
+    obj_string_public, obj_string_all = object_to_strings(
+        obj, db_handle, backlink_index=backlink_index
+    )
     private = hasattr(obj, "private") and obj.private
     if obj_string_all:
         return {
@@ -208,7 +149,7 @@ def obj_strings_from_object(
 
 
 def iter_obj_strings(
-    db_handle: DbReadBase, semantic: bool = False
+    db_handle: DbReadBase,
 ) -> Generator[Dict[str, Any], None, None]:
     """Iterate over object strings in the whole database."""
     # One query for every event's backlinks instead of one query per
@@ -216,22 +157,14 @@ def iter_obj_strings(
     # preload_event_backlinks()'s docstring. None (its fallback for a
     # backend gramps-web-api doesn't control) just means
     # get_event_participants_for_handle() queries per event as before.
-    # Only worth building for the non-semantic path: obj_strings_from_object()
-    # routes a semantic pass through object_to_strings_semantic(), which
-    # never receives backlink_index, so building it here would pay the
-    # full reference-table scan for a dict nothing consults.
-    backlink_index = None if semantic else preload_event_backlinks(db_handle)
+    backlink_index = preload_event_backlinks(db_handle)
     for class_name in PRIMARY_GRAMPS_OBJECTS:
         plural_name = GRAMPS_OBJECT_PLURAL[class_name]
         iter_method = db_handle.method("iter_%s", plural_name)
         assert iter_method is not None  # type checker
         for obj in iter_method():
             obj_strings = obj_strings_from_object(
-                db_handle,
-                class_name,
-                obj,
-                semantic=semantic,
-                backlink_index=backlink_index,
+                db_handle, class_name, obj, backlink_index=backlink_index
             )
             if obj_strings:
                 yield obj_strings
