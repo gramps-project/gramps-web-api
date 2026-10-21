@@ -346,6 +346,17 @@ class DbUndoSQL(DbUndo):
     def _ensure_schema(self) -> None:
         """Create the undo DB tables if not already present."""
         Base.metadata.create_all(self.engine)
+        if self.engine.dialect.name == "sqlite":
+            # create_all skips indexes of existing tables, so a database made
+            # before v3.22 never gets this one. Only cheap on SQLite: on
+            # Postgres the statement locks the table even when it's a no-op.
+            with self.engine.begin() as conn:
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_changes_obj_class_obj_handle "
+                        "ON changes (obj_class, obj_handle)"
+                    )
+                )
         self._schema_initialized = True
 
     def _make_connection_id(self) -> int:

@@ -586,6 +586,23 @@ class TestMigrate(unittest.TestCase):
         }
         self.assertIn("ix_changes_obj_class_obj_handle", index_names_after)
 
+    def test_sqlite_object_index_added_without_migrate(self):
+        """Opening an SQLite undo DB adds the object index when absent."""
+        from sqlalchemy import inspect as sa_inspect
+
+        undodb = self._get_undodb()
+        with undodb.session_scope() as session:
+            session.execute(text("DROP INDEX ix_changes_obj_class_obj_handle"))
+
+        reopened = DbUndoSQL(self.db, str(undodb.engine.url))
+        with reopened.session_scope():
+            pass
+
+        index_names = {
+            idx["name"] for idx in sa_inspect(reopened.engine).get_indexes("changes")
+        }
+        self.assertIn("ix_changes_obj_class_obj_handle", index_names)
+
     def test_migrate_object_index_idempotent(self):
         """Calling migrate() when the index already exists does not raise."""
         from gramps_webapi.undodb import migrate
