@@ -19,8 +19,12 @@
 
 """Database engine and tables of the full-text search index.
 
-The index is derived data: when its layout changes, SCHEMA_VERSION is
-increased and every tree is rebuilt, rather than migrated.
+The index is derived data, so it is rebuilt rather than migrated: when what
+is indexed or how it is stored changes, SCHEMA_VERSION is increased. A
+database with another version then has its search tables dropped and created
+anew, and every tree's index is built again in the background (see
+`queue_search_index_build`). Changes that don't affect the content, such as
+a new index, are made with `IF NOT EXISTS` and need no new version.
 """
 
 from __future__ import annotations
@@ -33,7 +37,7 @@ from sqlalchemy import event
 
 from ...util import pin_postgres_driver
 
-# increase to rebuild every tree's index after a change of what is indexed
+# increase after any change of what is indexed or of the tables
 SCHEMA_VERSION = 1
 
 _engines: dict[str, sa.Engine] = {}
@@ -72,9 +76,9 @@ search_ref = sa.Table(
 )
 
 _TABLES = """
+CREATE TABLE IF NOT EXISTS search_schema (version INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS search_meta (
     tree TEXT PRIMARY KEY,
-    schema_version INTEGER NOT NULL,
     built_at {float} NOT NULL
 );
 CREATE TABLE IF NOT EXISTS search_obj (
@@ -122,7 +126,6 @@ END;
 """
 
 _POSTGRES = """
-SELECT pg_advisory_xact_lock(4146016735);
 CREATE TABLE IF NOT EXISTS search_doc (
     id BIGSERIAL PRIMARY KEY,
     tree TEXT NOT NULL,
@@ -135,6 +138,16 @@ CREATE TABLE IF NOT EXISTS search_doc (
 );
 CREATE INDEX IF NOT EXISTS search_doc_handle ON search_doc (tree, handle);
 """
+
+# all tables of the index, in the order they can be dropped
+_ALL_TABLES = (
+    "search_fts",
+    "search_doc",
+    "search_obj",
+    "search_ref",
+    "search_meta",
+    "search_schema",
+)
 
 # columns of the `documents` table of sifts, the former search library
 _SIFTS_COLUMNS = {"id", "name", "metadata", "content"}
@@ -192,6 +205,26 @@ def _create_gin_index(conn: sa.Connection) -> None:
     )
 
 
+def _drop_outdated_tables(conn: sa.Connection) -> None:
+    """Drop the search tables if they were created with another version."""
+    inspector = sa.inspect(conn)
+    existing = [table for table in _ALL_TABLES if inspector.has_table(table)]
+    if not existing:
+        return
+    version = None
+    if "search_schema" in existing:
+        version = conn.exec_driver_sql("SELECT version FROM search_schema").scalar()
+    if version == SCHEMA_VERSION:
+        return
+    logging.getLogger(__name__).info(
+        "Search index version %s is outdated, rebuilding with version %s",
+        version,
+        SCHEMA_VERSION,
+    )
+    for table in existing:
+        conn.exec_driver_sql(f"DROP TABLE {table}")
+
+
 def _create_schema(engine: sa.Engine) -> None:
     sqlite = engine.dialect.name == "sqlite"
     script = (_SQLITE if sqlite else _POSTGRES) + _TABLES.format(
@@ -199,11 +232,19 @@ def _create_schema(engine: sa.Engine) -> None:
     )
     with engine.connect().execution_options(write=True) as conn:
         with conn.begin():
+            if not sqlite:
+                # one process at a time; SQLite's BEGIN IMMEDIATE does the same
+                conn.exec_driver_sql("SELECT pg_advisory_xact_lock(4146016735)")
+            _drop_sifts_tables(conn)
+            _drop_outdated_tables(conn)
             for statement in _statements(script):
                 conn.exec_driver_sql(statement)
             if not sqlite:
                 _create_gin_index(conn)
-            _drop_sifts_tables(conn)
+            conn.exec_driver_sql("DELETE FROM search_schema")
+            conn.exec_driver_sql(
+                f"INSERT INTO search_schema (version) VALUES ({SCHEMA_VERSION})"
+            )
 
 
 def _sqlite_transactions(engine: sa.Engine) -> None:

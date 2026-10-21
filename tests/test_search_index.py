@@ -30,6 +30,7 @@ import uuid
 
 import pytest
 
+from gramps_webapi.api.search import schema
 from gramps_webapi.api.search.indexer import SearchIndexer
 from gramps_webapi.api.search.query import Term, parse_query
 from gramps_webapi.api.search.schema import get_engine
@@ -297,3 +298,38 @@ def test_unrelated_documents_table_kept(tmp_path):
     tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master")}
     conn.close()
     assert "documents" in tables
+
+
+def _reopen(url: str, tree: str) -> SearchIndexer:
+    """An indexer on a new engine, as after restarting the application."""
+    schema._engines.pop(url, None)
+    return SearchIndexer(tree=tree, db_url=url)
+
+
+def _version(indexer: SearchIndexer):
+    with indexer.engine.connect() as conn:
+        return conn.exec_driver_sql("SELECT version FROM search_schema").scalar()
+
+
+@pytest.mark.parametrize("stored_version", ["same", "other", "none"])
+def test_schema_version(tmp_path, stored_version):
+    """Tables of another or unknown version are dropped and rebuilt."""
+    url = f"sqlite:///{tmp_path}/search.db"
+    indexer = _reopen(url, "tree")
+    indexer._add_objects([person("I1", "John Smith")])
+    indexer._mark_built()
+    assert _version(indexer) == schema.SCHEMA_VERSION
+    with indexer.engine.connect() as conn:
+        if stored_version == "other":
+            conn.exec_driver_sql("UPDATE search_schema SET version = 0")
+        elif stored_version == "none":
+            conn.exec_driver_sql("DROP TABLE search_schema")
+        conn.commit()
+    indexer = _reopen(url, "tree")
+    assert _version(indexer) == schema.SCHEMA_VERSION
+    kept = stored_version == "same"
+    assert indexer.is_built() is kept
+    assert found(indexer, "smith") == ({"I1"} if kept else set())
+    # the recreated tables work
+    indexer._add_objects([person("I2", "Mary Jones")])
+    assert found(indexer, "jones") == {"I2"}

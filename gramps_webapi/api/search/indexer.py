@@ -30,7 +30,7 @@ from gramps.gen.db.base import DbReadBase
 from ...types import ProgressCallback
 from ..util import get_object_timestamps, get_total_number_of_objects
 from .query import build_list, build_search, parse_query
-from .schema import SCHEMA_VERSION, get_engine, search_doc, search_obj, search_ref
+from .schema import get_engine, search_doc, search_obj, search_ref
 from .text import ObjectRows, iter_object_rows, object_rows_from_handle
 
 _TABLES = ("search_doc", "search_ref", "search_obj")
@@ -54,13 +54,17 @@ class SearchIndexer:
         return self.engine.connect().execution_options(write=True)
 
     def is_built(self) -> bool:
-        """Whether the tree's index was fully built with the current schema."""
+        """Whether the tree's index was fully built.
+
+        Tables of another schema version were dropped when the engine was
+        created, so a built index always has the current version.
+        """
         with self.engine.connect() as conn:
-            version = conn.execute(
-                sa.text("SELECT schema_version FROM search_meta WHERE tree = :tree"),
+            built = conn.execute(
+                sa.text("SELECT 1 FROM search_meta WHERE tree = :tree"),
                 {"tree": self.tree},
             ).scalar()
-        return version == SCHEMA_VERSION
+        return built is not None
 
     def count(self, include_private: bool) -> int:
         """Return the number of objects in the index visible to the user."""
@@ -165,10 +169,9 @@ class SearchIndexer:
             )
             conn.execute(
                 sa.text(
-                    "INSERT INTO search_meta (tree, schema_version, built_at)"
-                    " VALUES (:tree, :version, :built_at)"
+                    "INSERT INTO search_meta (tree, built_at) VALUES (:tree, :built_at)"
                 ),
-                {"tree": self.tree, "version": SCHEMA_VERSION, "built_at": time.time()},
+                {"tree": self.tree, "built_at": time.time()},
             )
 
     def reindex_full(
