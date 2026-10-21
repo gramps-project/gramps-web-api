@@ -557,6 +557,46 @@ class TestCreateOrUpdateOidcUser:
             tree=None,
         )
 
+    @patch("gramps_webapi.auth.oidc.get_oidc_account")
+    @patch("gramps_webapi.auth.oidc.get_name")
+    @patch("gramps_webapi.auth.oidc.modify_user")
+    @patch("gramps_webapi.auth.oidc.get_provider_config")
+    def test_existing_user_without_name_claim(
+        self, mock_get_config, mock_modify, mock_get_name, mock_get_oidc
+    ):
+        """Test that a missing name claim preserves the stored full name."""
+        mock_get_oidc.return_value = "existing-user-guid"
+        mock_get_name.return_value = "testuser"
+        mock_get_config.return_value = {"username_claim": "preferred_username"}
+
+        userinfo = {
+            "sub": "provider-sub-123",
+            "preferred_username": "testuser",
+            "email": "test@example.com",
+        }
+
+        mock_app = MagicMock()
+        mock_app.config.get.return_value = "groups"
+
+        with patch("gramps_webapi.auth.oidc.current_app", mock_app):
+            with patch(
+                "gramps_webapi.auth.oidc.get_role_from_claims", return_value=None
+            ):
+                with patch(
+                    "gramps_webapi.api.util.get_tree_id_or_none",
+                    return_value="test_tree",
+                ):
+                    create_or_update_oidc_user(userinfo, "test_tree", "google")
+
+        # fullname=None leaves the stored full name untouched
+        mock_modify.assert_called_once_with(
+            name="testuser",
+            fullname=None,
+            email="test@example.com",
+            role=None,
+            tree=None,
+        )
+
     @patch("gramps_webapi.auth.oidc.get_oidc_account", return_value=None)
     @patch("gramps_webapi.auth.oidc.get_user_details", return_value=None)
     @patch("gramps_webapi.auth.oidc.add_user")
