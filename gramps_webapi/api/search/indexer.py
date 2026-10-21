@@ -1,7 +1,7 @@
 #
 # Gramps Web API - A RESTful API for the Gramps genealogy program
 #
-# Copyright (C) 2020-2024      David Straub
+# Copyright (C) 2020-2026      David Straub
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -21,305 +21,267 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Set
+import time
+from typing import Any, Dict, Iterable, List
 
-import sifts
+import sqlalchemy as sa
 from gramps.gen.db.base import DbReadBase
 
 from ...types import ProgressCallback
-from .text import iter_obj_strings, obj_strings_from_handle
-from ..util import get_total_number_of_objects, get_object_timestamps
+from ..util import get_object_timestamps, get_total_number_of_objects
+from .query import build_list, build_search, parse_query
+from .schema import get_engine, search_doc, search_obj, search_ref
+from .text import ObjectRows, iter_object_rows, object_rows_from_handle
+
+_TABLES = ("search_doc", "search_ref", "search_obj")
 
 
 class SearchIndexer:
-    """Full-text search indexer."""
+    """Full-text search index of one tree.
 
-    SUFFIX = ""
-    SUFFIX_PUBLIC = "__p"
+    All trees share the tables of one database, told apart by a tree column.
+    """
 
-    def __init__(self, tree: str, db_url: str | None = None):
+    def __init__(self, tree: str, db_url: str):
         """Initialize the indexer."""
         if not tree:
             raise ValueError("`tree` is required for the search index")
-        if tree.endswith("__p") or tree.endswith("__s"):
-            # we can't allow tree IDs ending in __p or __s since it would
-            # interfere with our collection names (__s was used by the
-            # former semantic index)
-            raise ValueError("Invalid tree ID")
         self.tree = tree
-        # index for all objects
-        self.index = sifts.Collection(
-            db_url=db_url or "",
-            name=f"{tree}{self.SUFFIX}",
-            use_fts=True,
+        self.engine = get_engine(db_url)
+        self.dialect = self.engine.dialect.name
+
+    def _write(self):
+        return self.engine.connect().execution_options(write=True)
+
+    def is_built(self) -> bool:
+        """Whether the tree's index was fully built.
+
+        Tables of another schema version were dropped when the engine was
+        created, so a built index always has the current version.
+        """
+        with self.engine.connect() as conn:
+            built = conn.execute(
+                sa.text("SELECT 1 FROM search_meta WHERE tree = :tree"),
+                {"tree": self.tree},
+            ).scalar()
+        return built is not None
+
+    def count(self, include_private: bool) -> int:
+        """Return the number of objects in the index visible to the user."""
+        statement, params = build_list(
+            self.tree, include_private=include_private, count_only=True
         )
-        # index for view with only non-private objects
-        self.index_public = sifts.Collection(
-            db_url=db_url or "",
-            name=f"{tree}{self.SUFFIX_PUBLIC}",
-            use_fts=True,
-        )
+        with self.engine.connect() as conn:
+            return conn.execute(statement, params).scalar() or 0
 
-    def count(self, include_private: bool):
-        """Return the number of items in the collection."""
-        if include_private:
-            return self.index.count()
-        return self.index_public.count()
-
-    def _object_id(self, handle: str, class_name: str) -> str:
-        """Return the object ID for class name and handle."""
-        return f"{class_name.lower()}_{handle}_{self.tree}{self.SUFFIX}"
-
-    def _object_id_public(self, handle: str, class_name: str) -> str:
-        """Return the object ID for class name and handle."""
-        return f"{class_name.lower()}_{handle}_{self.tree}{self.SUFFIX_PUBLIC}"
-
-    def _get_object_data(self, obj_dict: Dict[str, Any], public_only: bool = False):
-        """Get the object data (content, ID, metadata) from an object dictioanry."""
-        if public_only:
-            obj_id = self._object_id_public(
-                handle=obj_dict["handle"], class_name=obj_dict["class_name"]
-            )
-        else:
-            obj_id = self._object_id(
-                handle=obj_dict["handle"], class_name=obj_dict["class_name"]
+    def _delete(self, conn: sa.Connection, handles: List[str]) -> None:
+        if not handles:
+            return
+        for table, column in (
+            ("search_doc", "handle"),
+            ("search_ref", "from_handle"),
+            ("search_obj", "handle"),
+        ):
+            conn.execute(
+                sa.text(
+                    f"DELETE FROM {table} WHERE tree = :tree AND {column} IN :handles"
+                ).bindparams(sa.bindparam("handles", expanding=True)),
+                {"tree": self.tree, "handles": handles},
             )
 
-        metadata = {
-            "type": obj_dict["class_name"].lower(),
-            "handle": obj_dict["handle"],
-            "change": obj_dict["change"],
-        }
-        if public_only:
-            contents = obj_dict["string_public"]
-        else:
-            contents = obj_dict["string_all"]
-        return {
-            "contents": contents,
-            "id": obj_id,
-            "metadata": metadata,
-        }
+    def _add_objects(self, rows: List[ObjectRows]) -> None:
+        """Add objects to the index, replacing their previous rows."""
+        tree = self.tree
+        with self._write() as conn, conn.begin():
+            self._delete(conn, [obj.handle for obj in rows])
+            objs = [
+                {
+                    "tree": tree,
+                    "handle": obj.handle,
+                    "obj_type": obj.obj_type,
+                    "private": obj.private,
+                    "change": obj.change,
+                }
+                for obj in rows
+            ]
+            docs = [
+                {
+                    "tree": tree,
+                    "handle": obj.handle,
+                    "kind": kind,
+                    "variant": variant,
+                    "private": private,
+                    "content": content,
+                }
+                for obj in rows
+                for kind, variant, private, content in obj.docs
+            ]
+            refs = [
+                {
+                    "tree": tree,
+                    "from_handle": obj.handle,
+                    "to_handle": to_handle,
+                    "kind": kind,
+                    "private": private,
+                }
+                for obj in rows
+                for to_handle, kind, private in obj.refs
+            ]
+            for table, values in (
+                (search_obj, objs),
+                (search_doc, docs),
+                (search_ref, refs),
+            ):
+                if values:
+                    conn.execute(sa.insert(table), values)
 
-    def _add_objects(self, obj_dicts: List[Dict[str, Any]]):
-        """Add or update an object to the index."""
-        data = [
-            self._get_object_data(obj_dict, public_only=False) for obj_dict in obj_dicts
-        ]
-        # private objects must not be in the public index at all
-        data_public = [
-            self._get_object_data(obj_dict, public_only=True)
-            for obj_dict in obj_dicts
-            if not obj_dict.get("private")
-        ]
-        ids_private = [
-            self._object_id_public(
-                handle=obj_dict["handle"], class_name=obj_dict["class_name"]
-            )
-            for obj_dict in obj_dicts
-            if obj_dict.get("private")
-        ]
-        self.index.add(
-            contents=[dat["contents"] for dat in data],
-            ids=[dat["id"] for dat in data],
-            metadatas=[dat["metadata"] for dat in data],
-        )
-        if data_public:
-            self.index_public.add(
-                contents=[dat["contents"] for dat in data_public],
-                ids=[dat["id"] for dat in data_public],
-                metadatas=[dat["metadata"] for dat in data_public],
-            )
-        if ids_private:
-            # remove objects that have been made private since the last update
-            self.index_public.delete(ids_private)
-
-    def reindex_full(
-        self, db_handle: DbReadBase, progress_cb: ProgressCallback | None = None
-    ):
-        """Reindex the whole database."""
-        total = get_total_number_of_objects(db_handle)
-
-        self.index.delete_all()
-        self.index_public.delete_all()
-
-        def all_objects():
-            prev: int | None = None
-            for i, obj_dict in enumerate(iter_obj_strings(db_handle)):
-                yield obj_dict
-                if progress_cb:
-                    progress_cb(current=i, total=total, prev=prev)
-                prev = i
-
-        self._add_objects_chunked(all_objects(), self._chunk_size(total))
-        if progress_cb:
-            progress_cb(current=total - 1, total=total)
-
-    @staticmethod
-    def _chunk_size(total: int) -> int:
-        """Return the number of objects to add to the index at once."""
-        # full-text search indexing is fast, so we use a large chunk size:
-        # at least 100 (but at most 10%).
-        return max(100, total // 10)
-
-    def _add_objects_chunked(
-        self, obj_dicts: Iterable[Dict[str, Any]], chunk_size: int
-    ) -> None:
+    def _add_objects_chunked(self, rows: Iterable[ObjectRows], chunk_size: int) -> None:
         """Add objects to the index in chunks of at most `chunk_size`."""
         chunk = []
-        for obj_dict in obj_dicts:
-            chunk.append(obj_dict)
+        for obj in rows:
+            chunk.append(obj)
             if len(chunk) >= chunk_size:
                 self._add_objects(chunk)
                 chunk = []
         if chunk:
             self._add_objects(chunk)
 
-    def _get_object_timestamps(self):
-        """Get a dictionary with the timestamps of all objects in the index."""
-        d = {}
-        all_docs = self.index.get()["results"]
-        for doc in all_docs:
-            meta = doc["metadata"]
-            class_name = meta["type"]
-            if class_name not in d:
-                d[class_name] = set()
-            d[class_name].add((meta["handle"], meta["change"]))
-        return d
+    @staticmethod
+    def _chunk_size(total: int) -> int:
+        """Return the number of objects to add to the index at once."""
+        # indexing is fast, so we use a large chunk size: at least 100
+        # (but at most 10%), so that progress is reported regularly
+        return max(100, total // 10)
 
-    def _get_update_info(self, db_handle: DbReadBase) -> Dict[str, Dict[str, Set[str]]]:
-        """Get a dictionary with info about changed objects in the db."""
-        db_timestamps, db_private = get_object_timestamps(db_handle)
-        ix_timestamps = self._get_object_timestamps()
-        deleted = {}
-        updated = {}
-        new = {}
-        for class_name in db_timestamps:
-            db_handles = set(handle for handle, _ in db_timestamps[class_name])
-            ix_handles = set(
-                handle for handle, _ in ix_timestamps.get(class_name.lower(), set())
+    def _delete_all(self) -> None:
+        with self._write() as conn, conn.begin():
+            for table in (*_TABLES, "search_meta"):
+                conn.execute(
+                    sa.text(f"DELETE FROM {table} WHERE tree = :tree"),
+                    {"tree": self.tree},
+                )
+
+    def _mark_built(self) -> None:
+        with self._write() as conn, conn.begin():
+            conn.execute(
+                sa.text("DELETE FROM search_meta WHERE tree = :tree"),
+                {"tree": self.tree},
             )
-            # new: not present in index
-            new[class_name] = db_handles - ix_handles
-            # deleted: not present in db
-            deleted[class_name] = ix_handles - db_handles
-            # changed: different (new or modified) in db
-            changed_timestamps = db_timestamps[class_name] - ix_timestamps.get(
-                class_name.lower(), set()
+            conn.execute(
+                sa.text(
+                    "INSERT INTO search_meta (tree, built_at) VALUES (:tree, :built_at)"
+                ),
+                {"tree": self.tree, "built_at": time.time()},
             )
-            changed_handles = set(handle for handle, _ in changed_timestamps)
-            # updated: changed and present in the index
-            updated[class_name] = changed_handles & ix_handles
-        return {
-            "deleted": deleted,
-            "updated": updated,
-            "new": new,
-            "private": db_private,
-        }
+
+    def reindex_full(
+        self, db_handle: DbReadBase, progress_cb: ProgressCallback | None = None
+    ):
+        """Reindex the whole database."""
+        total = get_total_number_of_objects(db_handle)
+        self._delete_all()
+
+        def all_objects():
+            prev: int | None = None
+            for i, rows in enumerate(iter_object_rows(db_handle)):
+                yield rows
+                if progress_cb:
+                    progress_cb(current=i, total=total, prev=prev)
+                prev = i
+
+        self._add_objects_chunked(all_objects(), self._chunk_size(total))
+        self._mark_built()
+        self.analyze()
+        if progress_cb:
+            progress_cb(current=total - 1, total=total)
+
+    def analyze(self) -> None:
+        """Let SQLite update its statistics where they are out of date.
+
+        SQLite never collects them by itself, and without them its query
+        planner picks slower plans; its documentation asks applications to
+        run `PRAGMA optimize`, which only analyzes tables that changed a lot
+        since. The mask 0x10002 checks all tables, not only those queried by
+        this connection. PostgreSQL's autovacuum does this by itself.
+        """
+        if self.dialect != "sqlite":
+            return
+        with self._write() as conn, conn.begin():
+            conn.exec_driver_sql("PRAGMA optimize=0x10002")
+
+    def _indexed_timestamps(self) -> Dict[str, set[tuple[str, float]]]:
+        """Return the (handle, change) pairs in the index by object type."""
+        result: Dict[str, set[tuple[str, float]]] = {}
+        with self.engine.connect() as conn:
+            for handle, obj_type, change in conn.execute(
+                sa.text(
+                    "SELECT handle, obj_type, change FROM search_obj WHERE tree = :tree"
+                ),
+                {"tree": self.tree},
+            ):
+                result.setdefault(obj_type, set()).add((handle, change))
+        return result
+
+    def reindex_incremental(
+        self, db_handle: DbReadBase, progress_cb: ProgressCallback | None = None
+    ):
+        """Update the index incrementally.
+
+        Every row belongs to the object it was made from, so only objects
+        that changed since they were indexed need to be indexed again.
+        """
+        if not self.is_built():
+            # never built, or built with an older schema: also the case right
+            # after a bulk import into an empty tree, where indexing objects
+            # one by one would mean one query per object
+            self.reindex_full(db_handle, progress_cb=progress_cb)
+            return
+        db_timestamps = get_object_timestamps(db_handle)
+        ix_timestamps = self._indexed_timestamps()
+        deleted: List[str] = []
+        changed: list[tuple[str, str]] = []
+        for class_name, db_items in db_timestamps.items():
+            ix_items = ix_timestamps.get(class_name.lower(), set())
+            db_handles = {handle for handle, _ in db_items}
+            deleted += [handle for handle, _ in ix_items if handle not in db_handles]
+            changed += [
+                (class_name, handle) for handle, _ in sorted(db_items - ix_items)
+            ]
+        total = len(deleted) + len(changed)
+        with self._write() as conn, conn.begin():
+            self._delete(conn, deleted)
+        if progress_cb:
+            for i in range(len(deleted)):
+                progress_cb(current=i, total=total)
+
+        def changed_objects():
+            for i, (class_name, handle) in enumerate(changed, start=len(deleted)):
+                rows = object_rows_from_handle(db_handle, class_name, handle)
+                if progress_cb:
+                    progress_cb(current=i, total=total)
+                if rows is not None:
+                    yield rows
+
+        self._add_objects_chunked(changed_objects(), self._chunk_size(total))
 
     def delete_object(self, handle: str, class_name: str) -> None:
-        """Delete an object from the index."""
-        obj_id = self._object_id(handle=handle, class_name=class_name)
-        self.index.delete([obj_id])
-        obj_id = self._object_id_public(handle=handle, class_name=class_name)
-        self.index_public.delete([obj_id])
+        """Delete an object from the index.
+
+        References to it from other objects stay, but lead nowhere: a
+        reference only counts if its target is in the index.
+        """
+        with self._write() as conn, conn.begin():
+            self._delete(conn, [handle])
 
     def add_or_update_object(
         self, handle: str, db_handle: DbReadBase, class_name: str
     ) -> None:
         """Add an object to the index or update it if it exists."""
-        obj_dict = obj_strings_from_handle(db_handle, class_name, handle)
-        if obj_dict is not None:
-            self._add_objects([obj_dict])
-
-    def reindex_incremental(
-        self, db_handle: DbReadBase, progress_cb: ProgressCallback | None = None
-    ):
-        """Update the index incrementally."""
-        if self.index.count() == 0:
-            # Empty index -- every object in db_handle is "new", so this
-            # call is really a full reindex (e.g. right after a bulk
-            # import into a previously-empty tree). The path below fetches
-            # each new/changed object individually by handle
-            # (obj_strings_from_handle -> get_<class>_from_handle: one DB
-            # round trip per object, before even counting the extra
-            # per-object lookups object_to_strings() does for
-            # Family/Event parent and participant names). reindex_full()
-            # instead streams every object via the DB's own bulk iterators
-            # (iter_people() etc. -- one query per object type, not one
-            # per object), which is what it's already built for. For a
-            # tree with hundreds of thousands of objects fresh off a bulk
-            # import, that's the difference between roughly ten queries
-            # and potentially millions of individual round trips.
-            self.reindex_full(db_handle, progress_cb=progress_cb)
-            return
-        update_info = self._get_update_info(db_handle)
-        total = sum(
-            len(handles)
-            for key in ["deleted", "updated", "new"]
-            for handles in update_info[key].values()
-        )
-        i = 0
-
-        def progress(i):
-            if progress_cb:
-                progress_cb(current=i, total=total)
-            i += 1
-            return i
-
-        # delete objects
-        for class_name, handles in update_info["deleted"].items():
-            obj_ids = [
-                self._object_id(handle=handle, class_name=class_name)
-                for handle in handles
-            ]
-            self.index.delete(obj_ids)
-            obj_ids = [
-                self._object_id_public(handle=handle, class_name=class_name)
-                for handle in handles
-            ]
-            self.index_public.delete(obj_ids)
-            for _ in handles:
-                i = progress(i)
-
-        # remove private objects from the public index; needed for indexes
-        # built before private objects were excluded from it
-        for class_name, handles in update_info["private"].items():
-            if handles:
-                self.index_public.delete(
-                    [
-                        self._object_id_public(handle=handle, class_name=class_name)
-                        for handle in handles
-                    ]
-                )
-
-        # add new and update changed objects
-        def changed_objects():
-            nonlocal i
-            for key in ["new", "updated"]:
-                for class_name, handles in update_info[key].items():
-                    for handle in handles:
-                        obj_strings = obj_strings_from_handle(
-                            db_handle, class_name, handle
-                        )
-                        i = progress(i)
-                        if obj_strings is not None:
-                            yield obj_strings
-
-        self._add_objects_chunked(changed_objects(), self._chunk_size(total))
-
-    @staticmethod
-    def _format_hit(hit, rank, include_content: bool) -> Dict[str, Any]:
-        """Format a search hit."""
-        score = hit.get("rank")
-        formatted_hit = {
-            "handle": hit["metadata"]["handle"],
-            "object_type": hit["metadata"]["type"],
-            "score": float(score) if score is not None else None,
-            "rank": rank,
-        }
-        if include_content:
-            formatted_hit["content"] = hit["content"]
-        return formatted_hit
+        rows = object_rows_from_handle(db_handle, class_name, handle)
+        if rows is None:
+            self.delete_object(handle, class_name)
+        else:
+            self._add_objects([rows])
 
     def search(
         self,
@@ -331,41 +293,52 @@ class SearchIndexer:
         object_types: List[str] | None = None,
         change_op: str | None = None,
         change_value: float | None = None,
-        include_content: bool = False,
     ):
         """Search the index.
 
         If `include_private` is true, include also private objects and
         search in private fields.
         """
-        search = self.index if include_private else self.index_public
-        where: dict[str, Any] = {}
-        if object_types:
-            where["type"] = {"$in": object_types}
-        if change_op and change_value is not None:
-            if change_op not in {">", "<", ">=", "<="}:
-                raise ValueError("Invalid operator for change condition")
-            ops = {">": "$gt", "<": "$lt", ">=": "$gte", "<=": "$lte"}
-            where["change"] = {ops[change_op]: change_value}
         offset = (page - 1) * pagesize
+        options: Dict[str, Any] = {
+            "include_private": include_private,
+            "object_types": object_types,
+            "change_op": change_op,
+            "change_value": change_value,
+        }
         if not query or query.strip() == "*":
-            results = search.get(
-                limit=pagesize,
-                offset=offset,
-                order_by=sort,
-                where=where or None,
-            )
+
+            def build(**kwargs):
+                return build_list(self.tree, **options, **kwargs)
+
         else:
-            results = search.query(
-                query,
-                limit=pagesize,
-                offset=offset,
-                order_by=sort,
-                where=where or None,
-            )
-        total = results["total"]
+            clauses = parse_query(query)
+            if not clauses:
+                return 0, []
+
+            def build(**kwargs):
+                return build_search(
+                    self.dialect, self.tree, clauses, **options, **kwargs
+                )
+
+        statement, params = build(sort=sort, limit=pagesize, offset=offset)
+        with self.engine.connect() as conn:
+            rows = conn.execute(statement, params).all()
+            if rows:
+                total = rows[0][3]
+            elif offset:
+                # past the last page: no row to carry the total
+                statement, params = build(count_only=True)
+                total = conn.execute(statement, params).scalar() or 0
+            else:
+                total = 0
         hits = [
-            self._format_hit(hit, rank=offset + i, include_content=include_content)
-            for i, hit in enumerate(results["results"])
+            {
+                "handle": handle,
+                "object_type": obj_type,
+                "score": float(score) if score is not None else None,
+                "rank": offset + i,
+            }
+            for i, (handle, obj_type, score, _) in enumerate(rows)
         ]
         return total, hits
