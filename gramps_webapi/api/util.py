@@ -150,9 +150,7 @@ class ModifiedPrivateProxyDb(PrivateProxyDb):
             name = person.get_primary_name()
             if not person.private and not name.private:
                 visible.add(name.get_primary_surname().get_surname())
-        return [
-            surname for surname in self.db.get_surname_list() if surname in visible
-        ]
+        return [surname for surname in self.db.get_surname_list() if surname in visible]
 
     def get_place_types(self):
         """Return custom place types assocated with places in the database."""
@@ -906,27 +904,22 @@ def get_total_number_of_objects(db_handle: DbReadBase):
 
 def get_object_timestamps(
     db_handle: DbReadBase,
-) -> tuple[dict[str, set[tuple[str, float | int]]], dict[str, set[str]]]:
-    """Get change timestamps and private handles of all objects in the DB.
+) -> dict[str, set[tuple[str, float | int]]]:
+    """Get change timestamps of all objects in the DB.
 
-    Returns a tuple of two dictionaries keyed by class name: the first with
-    sets of (handle, change timestamp) tuples, the second with sets of
-    handles of private objects.
+    Returns a dictionary keyed by class name with sets of (handle, change
+    timestamp) tuples.
     """
     d: dict[str, set[tuple[str, float | int]]] = {}
-    private: dict[str, set[str]] = {}
     for class_name in PRIMARY_GRAMPS_OBJECTS:
         d[class_name] = set()
-        private[class_name] = set()
         iter_method = db_handle.method("iter_%s_handles", class_name)
         assert iter_method is not None, f"Method iter_{class_name}_handles not found"
+        query_method = db_handle.method("get_%s_from_handle", class_name)
         for handle in iter_method():
-            query_method = db_handle.method("get_%s_from_handle", class_name)
             obj = query_method(handle)
             d[class_name].add((handle, obj.change))
-            if getattr(obj, "private", False):
-                private[class_name].add(handle)
-    return d, private
+    return d
 
 
 def get_logger() -> logging.Logger:

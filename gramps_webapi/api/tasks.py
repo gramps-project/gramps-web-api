@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import tempfile
 import uuid
@@ -28,7 +29,6 @@ from gettext import gettext as _
 from http import HTTPStatus
 from typing import Any, Callable, Dict, List, Optional, Union
 
-import logging
 import sqlalchemy as sa
 from celery import Task, shared_task
 from celery.result import AsyncResult
@@ -42,8 +42,7 @@ from werkzeug.exceptions import HTTPException
 
 from gramps_webapi.api.search.indexer import SearchIndexer
 
-from ..auth import TaskTree, get_owner_emails
-from ..auth import user_db
+from ..auth import TaskTree, get_owner_emails, user_db
 from ..undodb import migrate as migrate_undodb
 from ..util.task_state import (
     LOCK_BACKUP,
@@ -57,6 +56,7 @@ from ..util.task_state import (
     progress_reporter,
     run_tracked,
 )
+from ..verify_lib import run_verify
 from .backup import (
     extract_data,
     find_missing_media,
@@ -68,7 +68,6 @@ from .backup import (
 from .backup_store import get_backup_store
 from .check import check_database
 from .emails import email_confirm_email, email_new_user, email_reset_pw
-from ..verify_lib import run_verify
 from .export import prepare_options, run_export
 from .media import (
     MediaHandlerS3,
@@ -379,6 +378,38 @@ def search_reindex_incremental(
         user_id=user_id,
         progress_cb=progress_callback_count(title="Updating search index..."),
     )
+
+
+def queue_search_index_build(tree: str, user_id: str) -> bool:
+    """Start building a tree's search index if it isn't built yet.
+
+    That is the case after an upgrade that changed the index, or for a tree
+    that was never indexed. Returns whether the index is being built.
+
+    Without a task queue, nothing is started: building in the request would
+    block it for minutes on a large tree. The frontend then asks an admin to
+    build the index instead. A failure to start is logged, not raised, so
+    that it doesn't break the request that triggered it.
+    """
+    if get_search_indexer(tree).is_built():
+        return False
+    if not current_app.config["CELERY_CONFIG"]:
+        return False
+    try:
+        run_task(search_reindex_full, tree=tree, user_id=user_id)
+    except HTTPException as exc:
+        if exc.code != HTTPStatus.CONFLICT:
+            logging.getLogger(__name__).warning(
+                "Could not start building the search index: %s", exc
+            )
+            return False
+        # 409: a task holding the search index lock, i.e. this build, runs
+    except Exception:  # pylint: disable=broad-except
+        logging.getLogger(__name__).warning(
+            "Could not start building the search index", exc_info=True
+        )
+        return False
+    return True
 
 
 def update_search_indices_after_import(tree: str, user_id: str) -> list[dict[str, str]]:
@@ -1069,12 +1100,13 @@ def process_chat(
 ) -> dict[str, Any]:
     """Process a chat query with the AI agent."""
     # import here to avoid error if AI dependencies are not installed
+    from pydantic_ai import ModelMessagesTypeAdapter
+
     from gramps_webapi.api.llm import (
         answer_with_agent,
         extract_metadata_from_result,
         sanitize_answer,
     )
-    from pydantic_ai import ModelMessagesTypeAdapter
 
     # Create the reporter in the main worker thread: run_sync hands off tool
     # calls to a thread-pool executor, which has no task context.

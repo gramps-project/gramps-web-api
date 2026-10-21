@@ -108,20 +108,6 @@ KNOWN_LEAKS = (
     "custom type of a private citation attribute: GET /api/types/",
     "private event's custom type: GET /api/types/",
 )
-KNOWN_SEARCH_LEAKS = (
-    # the search index text of families and events includes the names of
-    # their members without checking whether these are private
-    "private father of a public family: ",
-    "private participant of a public event: ",
-    "private father of a family taking part in a public event: ",
-)
-KNOWN_SEARCH_CONNECTION_LEAKS = (
-    # the search index text of events includes the names of their participants
-    # without checking whether the reference or the family is private
-    "participant through a private event reference: ",
-    "family event of a private family: ",
-    "family event through a private family event reference: ",
-)
 AGGREGATE_URLS = [
     "/api/metadata/?surnames=true",
     "/api/types/",
@@ -682,7 +668,7 @@ def test_guest_search_finds_no_canary(crawl):
         for token, description in canaries.tokens.items()
         if _search_hits(guest[f"/api/search/?query={token}"])
     ]
-    _check_leaks(leaks, KNOWN_SEARCH_LEAKS, "Search reveals private text")
+    assert not leaks, "Search reveals private text:\n" + "\n".join(sorted(leaks))
 
 
 def _search_handles(response: tuple[int, str]) -> set[str]:
@@ -702,9 +688,7 @@ def test_guest_search_respects_private_connections(crawl):
         if handle in _search_handles(guest[url]):
             leaks.append(f"{description}: search for {query} finds {handle}")
     assert not unreached, "Positive control failed for:\n" + "\n".join(unreached)
-    _check_leaks(
-        leaks, KNOWN_SEARCH_CONNECTION_LEAKS, "Search reveals private connections"
-    )
+    assert not leaks, "Search reveals private connections:\n" + "\n".join(leaks)
 
 
 def test_guest_cannot_fetch_private_objects(crawl):

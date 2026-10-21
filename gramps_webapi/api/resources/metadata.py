@@ -28,14 +28,14 @@ from typing import Any
 
 import gramps_ql as gql
 import limits
-import sifts
 from flask import Response, current_app
+from flask_jwt_extended import get_jwt_identity
 from gramps.gen.const import ENV, GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.db.generic import DbGeneric
 from gramps.gen.db.utils import get_dbid_from_path
 from gramps.gen.utils.grampslocale import INCOMPLETE_TRANSLATIONS
-from marshmallow import Schema, RAISE
+from marshmallow import RAISE, Schema
 from webargs import fields
 
 from gramps_webapi.const import TREE_MULTI, VERSION
@@ -48,6 +48,7 @@ from ..backup_store import backups_enabled
 from ..blueprint import api_blueprint
 from ..deprecations import check_deprecations
 from ..search import get_search_indexer
+from ..tasks import queue_search_index_build
 from ..util import (
     get_config,
     get_db_handle,
@@ -288,11 +289,14 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
         tree_id = get_tree_from_jwt_or_fail()
         db_type = _get_dbid_from_tree_id(tree_id)
         searcher = get_search_indexer(tree_id)
+        building = queue_search_index_build(tree_id, user_id=get_jwt_identity())
         search_count = searcher.count(
             include_private=has_permissions({PERM_VIEW_PRIVATE})
         )
+        # kept under the name of the former search library: the frontend
+        # reads the count to tell whether the index needs to be rebuilt
         sifts_info = {
-            "version": sifts.__version__,
+            "version": VERSION,
             "count": search_count,
         }
 
@@ -319,6 +323,7 @@ class MetadataResource(ProtectedResource, GrampsJSONEncoder):
             "researcher": db_handle.get_researcher(),
             "search": {
                 "sifts": sifts_info,
+                "building": building,
             },
         }
         if args["surnames"]:
