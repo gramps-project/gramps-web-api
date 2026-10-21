@@ -29,11 +29,13 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Generator, Optional, Sequence
+from typing import Any, Generator, Optional, Sequence
 
+import gramps.gen.lib
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Family, Name, Person
+from gramps.gen.lib.json_utils import object_to_dict
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from unidecode import unidecode
 
@@ -80,25 +82,181 @@ class ObjectRows:
     refs: list[tuple[str, str, bool]] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class FieldSpec:
+    """What of an object of a given class is indexed.
+
+    Fields are named as in the object's JSON representation. Every text,
+    object and object list field of the class must be in exactly one of the
+    tuples, or in GENERIC_EXCLUDED; a test checks this against Gramps' schema,
+    so that a field added by a new Gramps version needs a decision.
+    """
+
+    text: tuple[str, ...] = ()
+    # type fields: a standard type untranslated (e.g. "Birth"), as the
+    # server's language is not the user's; a custom type as entered
+    types: tuple[str, ...] = ()
+    # type fields indexed only if custom, i.e. entered by the user
+    custom_types: tuple[str, ...] = ()
+    # child objects or lists of them, indexed with their own FieldSpec
+    children: tuple[str, ...] = ()
+    # deliberately not indexed
+    excluded: tuple[str, ...] = ()
+
+
+# not text: identifiers, references to other objects, privacy and dates
+# (dates are better searched with filters)
+GENERIC_EXCLUDED = {
+    "_class",
+    "handle",
+    "change",
+    "private",
+    "ref",
+    "citation_list",
+    "note_list",
+    "tag_list",
+    "date",
+}
+
+_ADDRESS = ("street", "locality", "city", "county", "state", "country", "postal")
+_ATTRIBUTE = FieldSpec(text=("value",), custom_types=("type",))
+
+FIELD_SPECS: dict[str, FieldSpec] = {
+    # primary objects
+    "Person": FieldSpec(
+        text=("gramps_id",),
+        children=(
+            "primary_name",
+            "alternate_names",
+            "attribute_list",
+            "address_list",
+            "urls",
+            "event_ref_list",
+            "person_ref_list",
+            "media_list",
+        ),
+        # references, and LDS ordinances, whose text is a temple code
+        excluded=("family_list", "parent_family_list", "lds_ord_list"),
+    ),
+    "Family": FieldSpec(
+        text=("gramps_id",),
+        types=("type",),
+        children=("attribute_list", "event_ref_list", "media_list"),
+        # child references only have relationship types, e.g. "Birth"
+        excluded=(
+            "father_handle",
+            "mother_handle",
+            "child_ref_list",
+            "lds_ord_list",
+        ),
+    ),
+    "Event": FieldSpec(
+        text=("gramps_id", "description"),
+        types=("type",),
+        children=("attribute_list", "media_list"),
+        excluded=("place",),
+    ),
+    "Place": FieldSpec(
+        text=("gramps_id", "title", "code"),
+        types=("place_type",),
+        children=("name", "alt_names", "alt_loc", "urls", "media_list"),
+        excluded=("long", "lat", "placeref_list"),
+    ),
+    "Source": FieldSpec(
+        text=("gramps_id", "title", "author", "pubinfo", "abbrev"),
+        children=("attribute_list", "reporef_list", "media_list"),
+    ),
+    "Citation": FieldSpec(
+        text=("gramps_id", "page"),
+        children=("attribute_list", "media_list"),
+        excluded=("source_handle",),
+    ),
+    "Repository": FieldSpec(
+        text=("gramps_id", "name"),
+        types=("type",),
+        children=("address_list", "urls"),
+    ),
+    "Media": FieldSpec(
+        text=("gramps_id", "desc", "path"),
+        children=("attribute_list",),
+        excluded=("mime", "checksum"),
+    ),
+    "Note": FieldSpec(
+        text=("gramps_id",),
+        children=("text",),
+        excluded=("type",),
+    ),
+    "Tag": FieldSpec(text=("name",), excluded=("color",)),
+    # secondary objects
+    "Name": FieldSpec(
+        text=("first_name", "call", "nick", "title", "suffix", "famnick"),
+        children=("surname_list",),
+        # the type ("Birth Name") would match every person
+        excluded=("type", "group_as"),
+    ),
+    "Surname": FieldSpec(
+        text=("prefix", "surname", "connector"),
+        excluded=("origintype",),
+    ),
+    "Attribute": _ATTRIBUTE,
+    "SrcAttribute": _ATTRIBUTE,
+    "Address": FieldSpec(text=_ADDRESS + ("phone",)),
+    "Location": FieldSpec(text=_ADDRESS + ("phone", "parish")),
+    "Url": FieldSpec(text=("path", "desc"), excluded=("type",)),
+    "EventRef": FieldSpec(children=("attribute_list",), excluded=("role",)),
+    "PersonRef": FieldSpec(text=("rel",)),
+    "MediaRef": FieldSpec(children=("attribute_list",), excluded=("rect",)),
+    "RepoRef": FieldSpec(text=("call_number",), excluded=("media_type",)),
+    "PlaceName": FieldSpec(text=("value",), excluded=("lang",)),
+    "StyledText": FieldSpec(text=("string",), excluded=("tags",)),
+}
+
+
+def _type_string(data: Any, custom_only: bool) -> str:
+    """Return the text of a Gramps type in its JSON representation."""
+    if not isinstance(data, dict):
+        return ""
+    type_class = getattr(gramps.gen.lib, data["_class"])
+    gramps_type = type_class((data["value"], data["string"]))
+    if gramps_type.is_custom():
+        return gramps_type.string
+    if custom_only or data["value"] == getattr(type_class, "UNKNOWN", None):
+        return ""
+    return gramps_type.xml_str()
+
+
+def _collect(
+    data: dict, public: list[str], private: list[str], is_private: bool = False
+) -> None:
+    """Add the text of an object in its JSON representation, recursively.
+
+    Text of a private object, and of everything below it, goes to `private`.
+    """
+    spec = FIELD_SPECS[data["_class"]]
+    is_private = is_private or bool(data.get("private"))
+    strings = private if is_private else public
+    strings += [data[key] for key in spec.text if data.get(key)]
+    strings += [_type_string(data.get(key), False) for key in spec.types]
+    strings += [_type_string(data.get(key), True) for key in spec.custom_types]
+    for key in spec.children:
+        children = data.get(key)
+        for child in children if isinstance(children, list) else [children]:
+            if isinstance(child, dict):
+                _collect(child, public, private, is_private)
+
+
 def own_strings(obj: GrampsObject) -> tuple[str, str]:
     """Return the object's own text without and with private child objects."""
-    strings = obj.get_text_data_list()
-    private_strings: list[str] = []
-    if hasattr(obj, "gramps_id") and obj.gramps_id not in strings:
-        # repositories and notes currently don't have gramps_id on their
-        # text_data_list, so it is added here explicitly if missing
-        strings.append(obj.gramps_id)
-    for child_obj in obj.get_text_data_child_list():
-        if not hasattr(child_obj, "get_text_data_list"):
-            continue
-        target = private_strings if getattr(child_obj, "private", False) else strings
-        target += child_obj.get_text_data_list()
-        if isinstance(child_obj, Name):
-            # for names, need to iterate one level deeper to also find surnames
-            for grandchild_obj in child_obj.get_text_data_child_list():
-                if hasattr(grandchild_obj, "get_text_data_list"):
-                    target += grandchild_obj.get_text_data_list()
-    return process_strings(strings), process_strings(strings + private_strings)
+    public: list[str] = []
+    private: list[str] = []
+    data = object_to_dict(obj)
+    # the object's own privacy is handled by the caller
+    data["private"] = False
+    _collect(data, public, private)
+    public = [string for string in public if string]
+    return process_strings(public), process_strings(
+        public + [string for string in private if string]
+    )
 
 
 def name_string(name: Name) -> str:
@@ -107,16 +265,11 @@ def name_string(name: Name) -> str:
     The type ("Birth Name") is left out because families and events are
     found through their people's names: "birth" would match every person.
     """
-    strings = [
-        name.first_name,
-        name.call,
-        name.nick,
-        name.title,
-        name.suffix,
-        name.famnick,
-    ]
-    for surname in name.get_surname_list():
-        strings += [surname.prefix, surname.surname, surname.connector]
+    strings: list[str] = []
+    data = object_to_dict(name)
+    # the name's privacy is stored with the document
+    data["private"] = False
+    _collect(data, strings, strings)
     return process_strings([string for string in strings if string])
 
 

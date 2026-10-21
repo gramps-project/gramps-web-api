@@ -56,7 +56,7 @@ def _db_url(backend: str, tmp_path_factory) -> str:
 
 
 def _make_private(db, rng: random.Random) -> None:
-    """Make some people, names, families, events and references private."""
+    """Make some people, names, attributes, families, events and references private."""
     with DbTxn("make private", db) as trans:
         for person in list(db.iter_people()):
             draw = rng.random()
@@ -66,6 +66,12 @@ def _make_private(db, rng: random.Random) -> None:
                 person.get_primary_name().set_privacy(True)
             for ref in person.get_event_ref_list():
                 ref.set_privacy(rng.random() < 0.05)
+                for attribute in ref.get_attribute_list():
+                    attribute.set_privacy(rng.random() < 0.3)
+            for attribute in person.get_attribute_list():
+                attribute.set_privacy(rng.random() < 0.3)
+            for name in person.get_alternate_names():
+                name.set_privacy(rng.random() < 0.3)
             db.commit_person(person, trans)
         for family in list(db.iter_families()):
             family.set_privacy(rng.random() < 0.05)
@@ -160,6 +166,12 @@ def _queries(db, rng: random.Random) -> list[str]:
     queries += [f"{rng.choice(words)} OR {rng.choice(words)}" for _ in range(5)]
     queries += [f"{rng.choice(EVENT_TYPES)} {rng.choice(words)}" for _ in range(10)]
     queries += [rng.choice(rng.choice(other)) for _ in range(10)]
+    # words that are only in private parts of public objects
+    hidden = set()
+    for obj in db.iter_people():
+        public, full = own_strings(obj)
+        hidden |= set(tokenize(full)) - set(tokenize(public))
+    queries += rng.sample(sorted(hidden), min(15, len(hidden)))
     return queries
 
 
