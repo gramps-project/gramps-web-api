@@ -603,6 +603,54 @@ class TestMigrate(unittest.TestCase):
         }
         self.assertIn("ix_changes_obj_class_obj_handle", index_names)
 
+    def test_migrate_adds_missing_connection_index(self):
+        """migrate() adds the (connection_id, id) index on SQLite when absent."""
+        from gramps_webapi.undodb import migrate
+        from sqlalchemy import inspect as sa_inspect
+
+        undodb = self._get_undodb()
+        with undodb.engine.begin() as conn:
+            conn.execute(text("DROP INDEX ix_changes_connection_id_id"))
+
+        migrate(undodb)
+
+        index_names = {
+            idx["name"] for idx in sa_inspect(undodb.engine).get_indexes("changes")
+        }
+        self.assertIn("ix_changes_connection_id_id", index_names)
+
+    def test_sqlite_connection_index_added_without_migrate(self):
+        """Opening an SQLite undo DB adds the (connection_id, id) index."""
+        from sqlalchemy import inspect as sa_inspect
+
+        undodb = self._get_undodb()
+        with undodb.engine.begin() as conn:
+            conn.execute(text("DROP INDEX ix_changes_connection_id_id"))
+
+        reopened = DbUndoSQL(self.db, str(undodb.engine.url))
+        with reopened.session_scope():
+            pass
+
+        index_names = {
+            idx["name"] for idx in sa_inspect(reopened.engine).get_indexes("changes")
+        }
+        self.assertIn("ix_changes_connection_id_id", index_names)
+
+    def test_connection_index_used_for_len(self):
+        """The query behind len() is resolved from the (connection_id, id) index."""
+        undodb = self._get_undodb()
+        with undodb.engine.connect() as conn:
+            plan = " ".join(
+                row[-1]
+                for row in conn.execute(
+                    text(
+                        "EXPLAIN QUERY PLAN SELECT max(id) FROM changes "
+                        "WHERE connection_id = 1"
+                    )
+                )
+            )
+        self.assertIn("ix_changes_connection_id_id", plan)
+
     def test_migrate_object_index_idempotent(self):
         """Calling migrate() when the index already exists does not raise."""
         from gramps_webapi.undodb import migrate

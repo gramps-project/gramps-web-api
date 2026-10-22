@@ -96,10 +96,14 @@ class Change(Base):
         # handles aren't guaranteed unique across object classes, so both
         # columns are needed to look up a single object's change history
         Index("ix_changes_obj_class_obj_handle", "obj_class", "obj_handle"),
+        # the primary key starts with id, so it can't serve max(id) for a
+        # single connection (DbUndoSQL.__len__). Also covers lookups by
+        # connection_id alone.
+        Index("ix_changes_connection_id_id", "connection_id", "id"),
     )
 
     id = mapped_column(Integer)
-    connection_id = mapped_column(Integer, ForeignKey("connections.id"), index=True)
+    connection_id = mapped_column(Integer, ForeignKey("connections.id"))
     obj_class = mapped_column(Text)
     trans_type = mapped_column(Integer)
     obj_handle = mapped_column(Text)
@@ -347,14 +351,20 @@ class DbUndoSQL(DbUndo):
         """Create the undo DB tables if not already present."""
         Base.metadata.create_all(self.engine)
         if self.engine.dialect.name == "sqlite":
-            # create_all skips indexes of existing tables, so a database made
-            # before v3.22 never gets this one. Only cheap on SQLite: on
-            # Postgres the statement locks the table even when it's a no-op.
+            # create_all skips indexes of existing tables, so older databases
+            # never get these. Only cheap on SQLite: on Postgres the
+            # statement locks the table even when it's a no-op.
             with self.engine.begin() as conn:
                 conn.execute(
                     text(
                         "CREATE INDEX IF NOT EXISTS ix_changes_obj_class_obj_handle "
                         "ON changes (obj_class, obj_handle)"
+                    )
+                )
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_changes_connection_id_id "
+                        "ON changes (connection_id, id)"
                     )
                 )
         self._schema_initialized = True
