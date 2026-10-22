@@ -60,6 +60,7 @@ from gramps.gen.lib import (
 )
 
 from gramps_webapi.api.resources.util import preload_event_backlinks
+from gramps_webapi.api.search import get_search_indexer
 from gramps_webapi.api.snapshot import consistent_read
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import add_user, user_db
@@ -214,6 +215,8 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
                     "POSTGRES_PASSWORD": cls.pg_password,
                     "MEDIA_PREFIX_TREE": True,
                     "BACKUP_DIR": cls.backup_dir.name,
+                    # the search index shares the database with the trees
+                    "SEARCH_INDEX_DB_URI": POSTGRES_URL,
                 },
                 config_from_env=False,
             )
@@ -252,6 +255,9 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
     def tearDownClass(cls):
         for dbmgr in (cls.dbmgr_a, cls.dbmgr_b):
             _delete_tree_rows(dbmgr)
+        with cls.app.app_context():
+            for tree in (cls.tree_a, cls.tree_b):
+                get_search_indexer(tree)._delete_all()
         cls.backup_dir.cleanup()
 
     @classmethod
@@ -427,6 +433,41 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
             {"select": ["handle"], "after": ONLY_A_PERSON},
             status=422,
         )
+
+    def test_search(self):
+        """Trees indexed into their shared database find only their own objects.
+
+        Both trees use the same handles.
+        """
+        with self.app.app_context():
+            for tree, dbmgr in (
+                (self.tree_a, self.dbmgr_a),
+                (self.tree_b, self.dbmgr_b),
+            ):
+                dbstate = dbmgr.get_db()
+                try:
+                    get_search_indexer(tree).reindex_full(dbstate.db)
+                finally:
+                    dbstate.db.close()
+        for username, label, other in [
+            ("owner_a", "Alpha", "Beta"),
+            ("owner_b", "Beta", "Alpha"),
+        ]:
+            with self.subTest(username=username):
+                header = self._header(username)
+                rv = self.client.get(
+                    BASE_URL + f"/search/?query={label}", headers=header
+                )
+                self.assertEqual(rv.status_code, 200, rv.json)
+                handles = {hit["handle"] for hit in rv.json}
+                self.assertIn(SHARED_PERSON, handles)
+                self.assertIn(SHARED_EVENT, handles)
+                rv = self.client.get(
+                    BASE_URL + f"/search/?query={other}", headers=header
+                )
+                self.assertEqual(rv.json, [])
+                rv = self.client.get(BASE_URL + "/search/?query=Shared", headers=header)
+                self.assertEqual(rv.headers["X-Total-Count"], "2")  # person and event
 
     def test_preload_event_backlinks(self):
         for dbmgr in (self.dbmgr_a, self.dbmgr_b):

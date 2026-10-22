@@ -21,6 +21,8 @@
 
 import unittest
 
+from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
+
 from . import BASE_URL, get_single_tree_test_client, get_test_client
 from .checks import (
     check_conforms_to_openapi_schema,
@@ -187,3 +189,31 @@ class TestFacts(unittest.TestCase):
             self,
             TEST_URL + "?person=SomeFakeCustomFilter&gramps_id=I0044",
         )
+
+
+class TestFactsPrivatePerson(unittest.TestCase):
+    """Test the facts endpoint with a person hidden by the private proxy."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_private_person_handle_without_permission(self):
+        """Without ViewPrivate, a private person's handle must give 422, not 500."""
+        header_owner = fetch_header(self.client, role=ROLE_OWNER)
+        handle = "test_facts_private_person"
+        rv = self.client.post(
+            BASE_URL + "/people/",
+            json={"_class": "Person", "handle": handle, "private": True},
+            headers=header_owner,
+        )
+        self.assertEqual(rv.status_code, 201)
+        try:
+            rv = self.client.get(
+                f"{TEST_URL}?person=Descendants&handle={handle}",
+                headers=fetch_header(self.client, role=ROLE_GUEST),
+            )
+            self.assertEqual(rv.status_code, 422)
+        finally:
+            self.client.delete(BASE_URL + f"/people/{handle}", headers=header_owner)

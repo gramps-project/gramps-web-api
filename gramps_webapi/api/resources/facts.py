@@ -66,6 +66,9 @@ def get_person_filter(db_handle: DbReadBase, args: Dict) -> Union[GenericFilter,
             person = db_handle.get_person_from_handle(args["handle"])
         except HandleError:
             abort_with_message(422, "Person with this handle not found")
+        if person is None:
+            # the private proxy returns None for private people
+            abort_with_message(422, "Person with this handle not found")
         gramps_id = person.gramps_id
 
     person_filter = filters.GenericFilter()

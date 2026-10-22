@@ -52,7 +52,6 @@ from .api.resources.schemas import (
     SourceSchema,
     TagSchema,
 )
-from .api.search.embeddings import create_remote_embedding_function, load_model
 from .api.tasks import run_task, send_telemetry_task
 from .api.telemetry import get_server_uuid, should_send_telemetry
 from .api.util import close_db, get_tree_from_jwt
@@ -387,17 +386,6 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
             user_db.session.rollback()  # pylint: disable=no-member
         user_db.session.close()  # pylint: disable=no-member
         user_db.session.remove()  # pylint: disable=no-member
-
-    if app.config.get("VECTOR_EMBEDDING_MODEL"):
-        if app.config.get("VECTOR_EMBEDDING_BASE_URL"):
-            app.config["_EMBEDDING_FUNCTION"] = create_remote_embedding_function(
-                base_url=app.config["VECTOR_EMBEDDING_BASE_URL"],
-                model_name=app.config["VECTOR_EMBEDDING_MODEL"],
-                api_key=app.config.get("VECTOR_EMBEDDING_API_KEY"),
-            )
-        else:
-            model = load_model(app.config["VECTOR_EMBEDDING_MODEL"])
-            app.config["_EMBEDDING_FUNCTION"] = model.encode
 
     @app.route("/ready", methods=["GET"])
     def ready():

@@ -30,8 +30,7 @@ from pydantic_ai import RunContext
 
 from ..resources.filters import apply_filter
 from ..resources.util import get_one_relationship
-from ..search import get_search_indexer, get_semantic_search_indexer
-from ..search.indexer import SearchIndexerBase
+from ..search import get_search_indexer
 from ..util import get_db_outside_request, get_logger
 from .deps import AgentDeps
 from .render import render_handle, render_object
@@ -307,39 +306,6 @@ def search_genealogy_database(
     query: str,
     object_type: str = "",
     max_results: int = 20,
-    search_type: str = "semantic",
-) -> str:
-    """Search the family tree database.
-
-    Args:
-        query: Keywords or descriptive phrase to match. For semantic search, use
-            content-describing phrases ("Catholic farmer Bavaria born 1840"), not
-            verbatim questions. For fulltext, use exact names or phrases to match.
-        object_type: Restrict to one object type: "Person", "Family", "Event",
-            "Place", "Source", "Citation", "Repository", "Note", "Media".
-            Leave empty to search all types.
-        max_results: Maximum results to return (default: 20, max: 50)
-        search_type: "semantic" (default) for concept/biography queries;
-            "fulltext" for exact name/phrase matches.
-
-    Returns:
-        Formatted genealogical data matching the query.
-    """
-    return _search_genealogy_database(
-        ctx,
-        query=query,
-        object_type=object_type,
-        max_results=max_results,
-        semantic=search_type != "fulltext",
-    )
-
-
-@log_tool_call
-def search_genealogy_database_fulltext(
-    ctx: RunContext[AgentDeps],
-    query: str,
-    object_type: str = "",
-    max_results: int = 20,
 ) -> str:
     """Search the family tree database for exact names or phrases.
 
@@ -358,23 +324,6 @@ def search_genealogy_database_fulltext(
     Returns:
         Formatted genealogical data matching the query.
     """
-    return _search_genealogy_database(
-        ctx,
-        query=query,
-        object_type=object_type,
-        max_results=max_results,
-        semantic=False,
-    )
-
-
-def _search_genealogy_database(
-    ctx: RunContext[AgentDeps],
-    query: str,
-    object_type: str,
-    max_results: int,
-    semantic: bool,
-) -> str:
-    """Search the full-text or the semantic search index."""
     if ctx.deps.progress_callback:
         ctx.deps.progress_callback(
             "search_genealogy_database", "Searching genealogy database..."
@@ -389,11 +338,7 @@ def _search_genealogy_database(
 
     db_handle = None
     try:
-        searcher: SearchIndexerBase
-        if semantic:
-            searcher = get_semantic_search_indexer(ctx.deps.tree)
-        else:
-            searcher = get_search_indexer(ctx.deps.tree)
+        searcher = get_search_indexer(ctx.deps.tree)
         total, hits = searcher.search(
             query=query,
             page=1,
@@ -402,13 +347,12 @@ def _search_genealogy_database(
             object_types=object_types,
         )
 
-        no_results = "No results found in the genealogy database."
-        if not semantic:
-            no_results += (
-                " All search terms must match, so try fewer or different words "
-                "(e.g. only the surname, or a name variant), or use filter_people "
-                "for names, dates and places."
-            )
+        no_results = (
+            "No results found in the genealogy database."
+            " All search terms must match, so try fewer or different words "
+            "(e.g. only the surname, or a name variant), or use filter_people "
+            "for names, dates and places."
+        )
         if not hits:
             return no_results
 

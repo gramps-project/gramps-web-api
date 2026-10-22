@@ -23,7 +23,10 @@
 import shutil
 import tempfile
 import unittest
+from unittest.mock import MagicMock, patch
 from urllib.parse import quote
+
+from werkzeug.exceptions import Conflict
 
 from gramps_webapi.api.search import SearchIndexer
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
@@ -122,11 +125,13 @@ class TestSearchReindexIncrementalOnEmptyIndex(unittest.TestCase):
 
     def test_empty_index_is_fully_indexed_and_searchable(self):
         """reindex_incremental() on an empty index indexes every object."""
-        self.assertEqual(self.search.index.count(), 0)
+        self.assertEqual(self.search.count(include_private=True), 0)
+        self.assertFalse(self.search.is_built())
         db = self.dbmgr.get_db().db
         self.search.reindex_incremental(db)
         db.close()
-        self.assertGreater(self.search.index.count(), 0)
+        self.assertGreater(self.search.count(include_private=True), 0)
+        self.assertTrue(self.search.is_built())
         total, rv = self.search.search("I0044", page=1, pagesize=10)
         self.assertEqual(len(rv), 1)
         # event participants (see get_event_participants_for_handle /
@@ -161,7 +166,7 @@ class TestSearchReindexIncrementalOnEmptyIndex(unittest.TestCase):
         db = self.dbmgr.get_db().db
         self.search.reindex_incremental(db, progress_cb=progress_cb)
         db.close()
-        object_count = self.search.index.count()
+        object_count = self.search.count(include_private=True)
         self.assertGreater(object_count, 0)
         # One call per object, plus reindex_full()'s own final call after
         # the loop (current=total - 1, matching the last object's index).
@@ -192,9 +197,17 @@ class TestSearch(unittest.TestCase):
             {hit["handle"] for hit in rv},
             {"b39fe2e143d1e599450", "b39fe3f390e30bd2b99", "b39fe1cfc1305ac4a21"},
         )
-        self.assertIn(rv[0]["object_type"], ["source", "note"])
+        self.assertIn(rv[0]["object_type"], ["source", "note", "media"])
         self.assertEqual(rv[0]["rank"], 0)
         self.assertIsInstance(rv[0]["score"], float)
+
+    def test_get_search_semantic_is_ignored(self):
+        """Test that the removed semantic parameter falls back to full-text search."""
+        rv = check_success(self, TEST_URL + "?query=microfilm&semantic=1&sort=-change")
+        self.assertEqual(
+            {hit["handle"] for hit in rv},
+            {"b39fe2e143d1e599450", "b39fe3f390e30bd2b99", "b39fe1cfc1305ac4a21"},
+        )
 
     def test_get_search_expected_result_text_string_wildcard(self):
         """Test expected result querying for text."""
@@ -203,7 +216,7 @@ class TestSearch(unittest.TestCase):
             {hit["handle"] for hit in rv},
             {"b39fe2e143d1e599450", "b39fe3f390e30bd2b99", "b39fe1cfc1305ac4a21"},
         )
-        self.assertIn(rv[0]["object_type"], ["source", "note"])
+        self.assertIn(rv[0]["object_type"], ["source", "note", "media"])
         self.assertEqual(rv[0]["rank"], 0)
         self.assertIsInstance(rv[0]["score"], float)
 
@@ -264,38 +277,25 @@ class TestSearch(unittest.TestCase):
 
     def test_get_search_parameter_page_pagesize_expected_result(self):
         """Test page and pagesize parameters expected result."""
+        # the order depends on the ranking, which differs between database
+        # backends, so pages are compared to the unpaged result
+        rv = check_success(self, TEST_URL + "?query=microfilm", full=True)
+        ordered = [hit["handle"] for hit in rv.json]
+        self.assertEqual(len(ordered), 3)
+        for page in (1, 2, 3):
+            rv = check_success(
+                self,
+                TEST_URL + f"?query=microfilm&page={page}&pagesize=1",
+                full=True,
+            )
+            self.assertEqual([hit["handle"] for hit in rv.json], [ordered[page - 1]])
+            self.assertEqual(rv.headers.pop("X-Total-Count"), "3")
+        # past the last page: no hits, but still the total
         rv = check_success(
-            self, TEST_URL + "?query=microfilm&page=1&pagesize=1", full=True
+            self, TEST_URL + "?query=microfilm&page=4&pagesize=1", full=True
         )
-        self.assertEqual(len(rv.json), 1)
-        self.assertEqual(
-            [hit["handle"] for hit in rv.json],
-            ["b39fe3f390e30bd2b99"],
-        )
-        count = rv.headers.pop("X-Total-Count")
-        self.assertEqual(count, "3")
-        rv = check_success(
-            self, TEST_URL + "?query=microfilm&page=2&pagesize=1", full=True
-        )
-
-        self.assertEqual(len(rv.json), 1)
-        self.assertEqual(
-            [hit["handle"] for hit in rv.json],
-            ["b39fe1cfc1305ac4a21"],
-        )
-        count = rv.headers.pop("X-Total-Count")
-        self.assertEqual(count, "3")
-
-        rv = check_success(
-            self, TEST_URL + "?query=microfilm&page=3&pagesize=1", full=True
-        )
-        self.assertEqual(len(rv.json), 1)
-        self.assertEqual(
-            [hit["handle"] for hit in rv.json],
-            ["b39fe2e143d1e599450"],
-        )
-        count = rv.headers.pop("X-Total-Count")
-        self.assertEqual(count, "3")
+        self.assertEqual(rv.json, [])
+        self.assertEqual(rv.headers.pop("X-Total-Count"), "3")
 
     def test_get_search_parameter_strip_validate_semantics(self):
         """Test invalid strip parameter and values."""
@@ -372,15 +372,17 @@ class TestSearch(unittest.TestCase):
         self.assertEqual(len(rv.json), 1)
         self.assertEqual(rv.json[0]["object"]["gramps_id"], "R0003")
 
-    def test_get_search_oldest(self):
-        """Search for the oldest person record."""
+    def test_get_search_sort_by_change(self):
+        """Search results sorted by last change, in both directions."""
         header = fetch_header(self.client, role=ROLE_OWNER)
-        rv = self.client.get(
-            TEST_URL + "?pagesize=1&page=1&query=Anderson&type=person",
-            headers=header,
-        )
-        self.assertEqual(len(rv.json), 1)
-        self.assertEqual(rv.json[0]["object"]["gramps_id"], "I0044")
+        for sort, reverse in (("change", False), ("-change", True)):
+            rv = self.client.get(
+                TEST_URL + f"?pagesize=100&query=Anderson&type=person&sort={sort}",
+                headers=header,
+            )
+            changes = [hit["object"]["change"] for hit in rv.json]
+            self.assertGreater(len(changes), 1)
+            self.assertEqual(changes, sorted(changes, reverse=reverse))
 
     # def test_get_search_newest(self):
     #     """Search for the newest person record."""
@@ -394,3 +396,58 @@ class TestSearch(unittest.TestCase):
     #     )
     #     self.assertEqual(len(rv.json), 1)
     #     self.assertEqual(rv.json[0]["object"]["gramps_id"], "I0363")
+
+
+class TestQueueSearchIndexBuild(unittest.TestCase):
+    """Building a missing search index in the background."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+        cls.app = cls.client.application
+
+    def _queue(self, tree, run_task=None, celery=True):
+        from gramps_webapi.api import tasks
+
+        config = {"broker_url": "redis://"} if celery else {}
+        with (
+            self.app.app_context(),
+            patch.dict(self.app.config, {"CELERY_CONFIG": config}),
+            patch.object(tasks, "run_task", run_task or MagicMock()) as mock,
+        ):
+            return tasks.queue_search_index_build(tree, user_id="user"), mock
+
+    def test_built_index_is_not_rebuilt(self):
+        tree = WebDbManager(name="example_gramps", create_if_missing=False).dirname
+        building, run_task = self._queue(tree)
+        self.assertFalse(building)
+        run_task.assert_not_called()
+
+    def test_missing_index_is_built(self):
+        from gramps_webapi.api.tasks import search_reindex_full
+
+        building, run_task = self._queue("never-indexed")
+        self.assertTrue(building)
+        self.assertIs(run_task.call_args[0][0], search_reindex_full)
+        self.assertEqual(run_task.call_args[1]["tree"], "never-indexed")
+
+    def test_no_task_queue(self):
+        """Without a queue, a build would block the request: leave it to an admin."""
+        building, run_task = self._queue("never-indexed", celery=False)
+        self.assertFalse(building)
+        run_task.assert_not_called()
+
+    def test_build_already_running(self):
+        building, _ = self._queue("never-indexed", MagicMock(side_effect=Conflict()))
+        self.assertTrue(building)
+
+    def test_failure_to_start_does_not_raise(self):
+        building, _ = self._queue(
+            "never-indexed", MagicMock(side_effect=ConnectionError("no broker"))
+        )
+        self.assertFalse(building)
+
+    def test_metadata_reports_building(self):
+        rv = check_success(self, BASE_URL + "/metadata/")
+        self.assertIs(rv["search"]["building"], False)

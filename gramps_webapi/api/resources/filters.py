@@ -61,6 +61,7 @@ from webargs import ValidationError, fields, validate
 
 from ...auth.const import PERM_EDIT_CUSTOM_FILTER
 from ...const import GRAMPS_NAMESPACES, TREE_MULTI
+from ...dbloader import register_plugins
 from ...types import Handle
 from ..blueprint import api_blueprint
 from ..util import abort_with_message, get_locale_for_language
@@ -247,6 +248,9 @@ _NAMESPACE_BRIDGES: dict[tuple[str, str], Callable] = {
 def get_rule_map(namespace: str) -> dict[str, type[Rule]]:
     """Return a class-name → class mapping for all available rules in a namespace."""
     if namespace not in _RULE_CLASS_CACHE:
+        # addon rules are only in the rule modules once the plugins are
+        # registered, which may not have happened yet in this process
+        register_plugins()
         mod = _NAMESPACE_MODULES.get(namespace)
         if mod is None:
             _RULE_CLASS_CACHE[namespace] = {}

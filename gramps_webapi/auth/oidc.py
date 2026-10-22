@@ -334,7 +334,8 @@ def create_or_update_oidc_user(
             f"No 'sub' claim found in OIDC userinfo for provider '{provider_id}'. Available claims: {available_claims}"
         )
 
-    full_name = userinfo.get("name", "")
+    # None if the provider sends no name, so that the stored one is kept
+    full_name = userinfo.get("name") or None
 
     # Get provider-specific configuration for username display
     provider_config = get_provider_config(provider_id)

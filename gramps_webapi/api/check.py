@@ -231,7 +231,9 @@ def _strip_unknown_keys_from_value(value) -> bool:
         if key.startswith("_"):
             continue
         if known_keys and key not in known_keys:
-            delattr(value, key)
+            # not delattr: the key can shadow a class property, e.g. a stray
+            # `year` on a Date, and deleting through it would raise
+            del vars(value)[key]
             removed = True
             continue
         removed = _strip_unknown_keys_from_value(getattr(value, key)) or removed

@@ -28,7 +28,6 @@ from gramps_webapi.api.tasks import (
     _index_objects,
     progress_callback_count,
     search_reindex_incremental,
-    search_reindex_incremental_semantic,
     update_search_indices_after_import,
 )
 
@@ -148,25 +147,19 @@ def test_progress_callback_count_throttles_explicit_prev():
     assert report.call_count == 2
 
 
-def _dispatch_reindex(semantic_indexer):
+def _dispatch_reindex():
     """Run `update_search_indices_after_import` as if a task queue were set up."""
-    with (
-        patch(
-            "gramps_webapi.api.tasks.get_current_semantic_search_indexer",
-            return_value=semantic_indexer,
-        ),
-        patch(
-            "gramps_webapi.api.tasks.run_task",
-            side_effect=lambda task, **kwargs: AsyncResult(f"id-{task.__name__}"),
-        ) as run_task,
-    ):
+    with patch(
+        "gramps_webapi.api.tasks.run_task",
+        side_effect=lambda task, **kwargs: AsyncResult(f"id-{task.__name__}"),
+    ) as run_task:
         result = update_search_indices_after_import(tree="tree", user_id="user")
     return result, run_task
 
 
 def test_reindex_after_import_runs_as_separate_tasks():
     """The import result must not wait for the reindex, but point to it."""
-    result, run_task = _dispatch_reindex(semantic_indexer=None)
+    result, run_task = _dispatch_reindex()
 
     run_task.assert_called_once_with(
         search_reindex_incremental, tree="tree", user_id="user"
@@ -179,27 +172,8 @@ def test_reindex_after_import_runs_as_separate_tasks():
     ]
 
 
-def test_reindex_after_import_includes_semantic_index_when_enabled():
-    result, run_task = _dispatch_reindex(semantic_indexer=MagicMock())
-
-    assert [call.args[0] for call in run_task.call_args_list] == [
-        search_reindex_incremental,
-        search_reindex_incremental_semantic,
-    ]
-    assert [ref["id"] for ref in result] == [
-        "id-search_reindex_incremental",
-        "id-search_reindex_incremental_semantic",
-    ]
-
-
 def test_reindex_after_import_without_task_queue_returns_no_tasks():
     """Without a task queue `run_task` reindexes inline and returns its result."""
-    with (
-        patch(
-            "gramps_webapi.api.tasks.get_current_semantic_search_indexer",
-            return_value=None,
-        ),
-        patch("gramps_webapi.api.tasks.run_task", return_value=None) as run_task,
-    ):
+    with patch("gramps_webapi.api.tasks.run_task", return_value=None) as run_task:
         assert update_search_indices_after_import(tree="tree", user_id="user") == []
     run_task.assert_called_once()

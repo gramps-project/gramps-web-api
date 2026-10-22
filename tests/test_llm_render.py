@@ -71,7 +71,7 @@ class TestRender(unittest.TestCase):
             text,
         )
 
-    def test_person_fields_not_in_semantic_text(self):
+    def test_person_attribute_fields(self):
         text = _render(self.db, "Person", "I0044")
         self.assertIn("Description: 10 fingers, 10 toes.", text)
         self.assertIn("1600 Pennsylvania Ave.", text)

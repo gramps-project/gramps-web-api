@@ -295,6 +295,24 @@ class TestStripUnknownKeys(unittest.TestCase):
         self.assertFalse(hasattr(name, "stray"))
         self.assertEqual(name.get_value(), "Somewhere")
 
+    def test_stray_key_shadowing_property_removed(self):
+        event = Event()
+        event.set_type(EventType.BIRTH)
+        event.get_date_object().set_yr_mon_day(1900, 1, 2)
+        # as left by deserializing a date dict that carried `year`
+        vars(event.get_date_object())["year"] = 1900
+        with DbTxn("add event", self.db) as trans:
+            self.db.add_event(event, trans)
+        self.assertIn("year", vars(self.db.get_event_from_handle(event.handle).date))
+
+        with DbTxn("strip", self.db) as trans:
+            repaired = strip_unknown_keys(self.db, trans)
+
+        self.assertEqual(repaired, [("event", event.gramps_id)])
+        date = self.db.get_event_from_handle(event.handle).get_date_object()
+        self.assertNotIn("year", vars(date))
+        self.assertEqual(date.get_year(), 1900)
+
     def test_check_database_reports_and_repairs(self):
         place = Place()
         # not empty, or Gramps' own check removes the place before ours runs

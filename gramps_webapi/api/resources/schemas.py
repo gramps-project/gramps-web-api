@@ -2492,7 +2492,9 @@ class ServerSchema(_Base):
         metadata={"description": "Language codes available for OCR."},
     )
     semantic_search = fields.Bool(
-        metadata={"description": "Whether semantic search is available."},
+        metadata={
+            "description": "Always false: semantic search was removed in version 3.25.0."
+        },
     )
     chat = fields.Bool(
         metadata={"description": "Whether the AI chat endpoint is available."},
@@ -2947,7 +2949,7 @@ class ReportSchema(_Base):
 
 
 class SearchResultSchema(_Base):
-    """A single result from a full-text or semantic search."""
+    """A single result from a full-text search."""
 
     handle = fields.Str(
         metadata={"description": "Handle of the matching object."},

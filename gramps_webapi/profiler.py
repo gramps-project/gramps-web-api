@@ -216,8 +216,6 @@ def print_installation_info(info: Dict):
             features.append("multi-tree")
         if server.get("task_queue"):
             features.append("task queue")
-        if server.get("semantic_search"):
-            features.append("semantic search")
         if server.get("chat"):
             features.append("AI chat")
         if server.get("ocr"):

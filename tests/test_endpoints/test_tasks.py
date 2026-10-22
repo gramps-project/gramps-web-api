@@ -557,13 +557,13 @@ class TestSearchIndexDispatch(unittest.TestCase):
         mock_run_task.assert_called_once()
         assert mock_run_task.call_args[0][0] is search_reindex_full
 
-    def test_full_semantic_dispatches_search_reindex_full_semantic(self):
-        from gramps_webapi.api.tasks import search_reindex_full_semantic
+    def test_full_semantic_is_ignored(self):
+        from gramps_webapi.api.tasks import search_reindex_full
 
         rv, mock_run_task = self._post_index(full=True, semantic=True)
         assert rv.status_code == 201
         mock_run_task.assert_called_once()
-        assert mock_run_task.call_args[0][0] is search_reindex_full_semantic
+        assert mock_run_task.call_args[0][0] is search_reindex_full
 
     def test_incremental_nonsemantic_dispatches_search_reindex_incremental(self):
         from gramps_webapi.api.tasks import search_reindex_incremental
@@ -573,10 +573,10 @@ class TestSearchIndexDispatch(unittest.TestCase):
         mock_run_task.assert_called_once()
         assert mock_run_task.call_args[0][0] is search_reindex_incremental
 
-    def test_incremental_semantic_dispatches_search_reindex_incremental_semantic(self):
-        from gramps_webapi.api.tasks import search_reindex_incremental_semantic
+    def test_incremental_semantic_is_ignored(self):
+        from gramps_webapi.api.tasks import search_reindex_incremental
 
         rv, mock_run_task = self._post_index(full=False, semantic=True)
         assert rv.status_code == 201
         mock_run_task.assert_called_once()
-        assert mock_run_task.call_args[0][0] is search_reindex_incremental_semantic
+        assert mock_run_task.call_args[0][0] is search_reindex_incremental

@@ -39,7 +39,7 @@ from gramps.gen.utils.db import (
 )
 
 from ...const import GRAMPS_OBJECT_PLURAL
-from ..search import get_current_semantic_search_indexer, get_search_indexer
+from ..search import get_search_indexer
 from .util import transaction_to_json
 
 
@@ -598,11 +598,10 @@ def remove_deleted_from_search_indices(
 
     Deletions are cheap and applied right away. The remaining (non-delete)
     transaction records are returned so the caller can schedule them for
-    (re-)indexing in the background, since that requires (re-)computing
-    embeddings for semantic search.
+    (re-)indexing in the background, since that requires loading the
+    objects from the database.
     """
     indexer = get_search_indexer(tree)
-    indexer_semantic = get_current_semantic_search_indexer(tree)
     # An object can appear more than once in the same transaction (e.g. a
     # self-referencing object being both updated to remove the self-reference
     # and then deleted). Its final state - deleted - takes precedence, so we
@@ -617,10 +616,6 @@ def remove_deleted_from_search_indices(
         key = (item["handle"], item["_class"])
         if item["type"] == "delete":
             indexer.delete_object(handle=item["handle"], class_name=item["_class"])
-            if indexer_semantic is not None:
-                indexer_semantic.delete_object(
-                    handle=item["handle"], class_name=item["_class"]
-                )
         elif key not in deleted:
             trans_dict_to_reindex.append(item)
     return trans_dict_to_reindex
