@@ -25,11 +25,13 @@ import uuid
 import unittest
 from unittest.mock import patch
 
+import gramps.gen.filters.rules.person as person_rules
 from gramps.gen.filters.rules import Rule
+from gramps.gen.plug import BasePluginManager
 from gramps.gen.utils.grampslocale import GrampsLocale
 from jsonschema import validate
 
-from gramps_webapi.api.resources.filters import get_rule_map
+from gramps_webapi.api.resources.filters import _RULE_CLASS_CACHE, get_rule_map
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 from gramps_webapi.const import GRAMPS_NAMESPACES
 
@@ -832,6 +834,50 @@ class TestExcludedRules(unittest.TestCase):
             headers=headers,
         )
         assert rv.status_code == 404
+
+
+class AddonRule(Rule):
+    """Stands in for the rule of an addon."""
+
+    name = "People of an addon"
+    description = "Matches no person"
+    category = "General filters"
+
+    def apply_to_one(self, db, person):
+        return False
+
+
+class TestAddonRulesBeforeDatabase(unittest.TestCase):
+    """Addon rules are available if /filters comes before loading a database."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = get_test_client()
+
+    def test_addon_rule_after_filters_request(self):
+        """Building the rule map registers the plugins first."""
+        headers = fetch_header(self.client)
+
+        def reg_plugins(*args, **kwargs):
+            # registering an addon adds its rules to the rule modules
+            person_rules.AddonRule = AddonRule
+
+        self.addCleanup(vars(person_rules).pop, "AddonRule", None)
+        # as in a new process: no rules cached, no plugins registered
+        with (
+            patch.dict(_RULE_CLASS_CACHE, clear=True),
+            patch("gramps_webapi.dbloader._plugins_registered", False),
+            patch.object(BasePluginManager, "reg_plugins", side_effect=reg_plugins),
+        ):
+            rv = self.client.get(TEST_URL + "people?rules=AddonRule", headers=headers)
+            assert rv.status_code == 200
+            rv = self.client.get(
+                "/api/people/",
+                query_string={"rules": '{"rules":[{"name":"AddonRule"}]}'},
+                headers=headers,
+            )
+            assert rv.status_code == 200
+            assert rv.json == []
 
 
 class TestCrossNamespaceFilters(unittest.TestCase):
