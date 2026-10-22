@@ -21,6 +21,8 @@
 
 import unittest
 
+from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
+
 from . import BASE_URL, get_test_client
 from .checks import (
     check_invalid_semantics,
@@ -28,6 +30,7 @@ from .checks import (
     check_resource_missing,
     check_success,
 )
+from .util import fetch_header
 
 TEST_URL = BASE_URL + "/relations/"
 
@@ -185,3 +188,33 @@ class TestRelationsAll(unittest.TestCase):
             self, TEST_URL + "9BXKQC1PVLPYFMD6IX/ORFKQC4KLWEGTGR19L/all?locale=de"
         )
         self.assertEqual(rv[0]["relationship_string"], "Stief-/Adoptivalttante")
+
+
+class TestRelationsPrivatePerson(unittest.TestCase):
+    """Test relation endpoints with a person hidden by the private proxy."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def test_private_person_not_found_without_permission(self):
+        """Without ViewPrivate, a private person must give 404, not 500."""
+        header_owner = fetch_header(self.client, role=ROLE_OWNER)
+        handle = "test_relations_private_person"
+        rv = self.client.post(
+            BASE_URL + "/people/",
+            json={"_class": "Person", "handle": handle, "private": True},
+            headers=header_owner,
+        )
+        self.assertEqual(rv.status_code, 201)
+        try:
+            for url in [
+                f"{TEST_URL}9BXKQC1PVLPYFMD6IX/{handle}",
+                f"{TEST_URL}{handle}/9BXKQC1PVLPYFMD6IX",
+                f"{TEST_URL}9BXKQC1PVLPYFMD6IX/{handle}/all",
+                f"{TEST_URL}{handle}/9BXKQC1PVLPYFMD6IX/all",
+            ]:
+                check_resource_missing(self, url, role=ROLE_GUEST)
+        finally:
+            self.client.delete(BASE_URL + f"/people/{handle}", headers=header_owner)

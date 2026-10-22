@@ -23,7 +23,9 @@
 from typing import Dict
 
 from flask import Response
+from gramps.gen.db import DbReadBase
 from gramps.gen.errors import HandleError
+from gramps.gen.lib import Person
 from gramps.gen.relationship import get_relationship_calculator
 from marshmallow import Schema
 from webargs import fields, validate
@@ -59,6 +61,18 @@ class RelationQueryArgs(Schema):
     )
 
 
+def _get_person_or_404(db_handle: DbReadBase, handle: Handle) -> Person:
+    """Get a person, aborting with 404 if missing or hidden by the private proxy."""
+    try:
+        person = db_handle.get_person_from_handle(handle)
+    except HandleError:
+        person = None
+    if person is None:
+        abort_with_message(404, f"Person {handle} not found")
+        raise AssertionError  # for type checker
+    return person
+
+
 class RelationResource(ProtectedResource, GrampsJSONEncoder):
     """Relation resource."""
 
@@ -68,14 +82,8 @@ class RelationResource(ProtectedResource, GrampsJSONEncoder):
     def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:
         """Get the most direct relationship between two people."""
         db_handle = CachePeopleFamiliesProxy(get_db_handle())
-        try:
-            person1 = db_handle.get_person_from_handle(handle1)
-        except HandleError:
-            abort_with_message(404, f"Person {handle1} not found")
-        try:
-            person2 = db_handle.get_person_from_handle(handle2)
-        except HandleError:
-            abort_with_message(404, f"Person {handle2} not found")
+        person1 = _get_person_or_404(db_handle, handle1)
+        person2 = _get_person_or_404(db_handle, handle2)
 
         db_handle.cache_people()
         db_handle.cache_families()
@@ -107,16 +115,8 @@ class RelationsResource(ProtectedResource, GrampsJSONEncoder):
     def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:
         """Get all possible relationships between two people."""
         db_handle = CachePeopleFamiliesProxy(get_db_handle())
-
-        try:
-            person1 = db_handle.get_person_from_handle(handle1)
-        except HandleError:
-            abort_with_message(404, f"Person {handle1} not found")
-
-        try:
-            person2 = db_handle.get_person_from_handle(handle2)
-        except HandleError:
-            abort_with_message(404, f"Person {handle2} not found")
+        person1 = _get_person_or_404(db_handle, handle1)
+        person2 = _get_person_or_404(db_handle, handle2)
 
         db_handle.cache_people()
         db_handle.cache_families()
