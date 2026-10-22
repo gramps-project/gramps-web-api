@@ -20,11 +20,14 @@
 
 """Gramps filter interface."""
 
+import gettext
 import inspect
 import json
+import os
 import re
 from collections import defaultdict
 from collections.abc import Callable
+from functools import lru_cache
 from typing import Any
 
 import gramps.gen.filters as filters
@@ -277,19 +280,59 @@ def get_rule_list(namespace: str) -> list[type[Rule]]:
     return list(get_rule_map(namespace).values())
 
 
+@lru_cache(maxsize=None)
+def _addon_translation(
+    localedir: str, languages: tuple[str, ...]
+) -> gettext.NullTranslations:
+    """Return the translations of an addon, or no-op translations."""
+    return gettext.translation(
+        "addon", localedir, languages=list(languages), fallback=True
+    )
+
+
+def get_addon_translation(
+    rule_class: type[Rule], languages: list[str]
+) -> gettext.NullTranslations | None:
+    """Return the translations of the addon defining a rule.
+
+    Addons keep their translations next to their code, in
+    locale/LANG/LC_MESSAGES/addon.mo (as GrampsLocale.get_addon_translator
+    assumes). Returns None for rules not defined by such an addon.
+    """
+    try:
+        filename = inspect.getfile(rule_class)
+    except TypeError:
+        return None
+    localedir = os.path.join(os.path.dirname(os.path.abspath(filename)), "locale")
+    if not os.path.isdir(localedir):
+        return None
+    return _addon_translation(localedir, tuple(languages))
+
+
 def get_filter_rules(args: dict[str, Any], namespace: str) -> list[dict[str, Any]]:
     """Return a list of available filter rules for a namespace.
 
     Rule strings are English, since the server locale is. They are translated
-    into the requested locale with the Gramps translations. Strings that
-    Gramps doesn't translate (those of our own rules and of addon rules) stay
-    as they are.
+    into the requested locale with the translations of the addon defining the
+    rule, if any, and the Gramps translations. Strings neither translates
+    (those of our own rules) stay as they are.
     """
-    translation = get_locale_for_language(args.get("locale"), default=True).translation
+    locale = get_locale_for_language(args.get("locale"), default=True)
 
-    def translate(text: str) -> str:
-        # gettext("") returns the catalog header
-        return translation.gettext(text) if text else text
+    def translator(rule_class: type[Rule]) -> Callable[[str], str]:
+        addon_translation = get_addon_translation(rule_class, locale.language)
+
+        def translate(text: str) -> str:
+            # gettext("") returns the catalog header
+            if not text:
+                return text
+            if addon_translation is not None:
+                translated = addon_translation.gettext(text)
+                if translated != text:
+                    return translated
+            return locale.translation.gettext(text)
+
+        return translate
 
     rule_list = []
     for rule_class in get_rule_list(namespace):
@@ -299,6 +342,7 @@ def get_filter_rules(args: dict[str, Any], namespace: str) -> list[dict[str, Any
             and rule_class.__name__ not in args["rules"]
         ):
             continue
+        translate = translator(rule_class)
         rule_list.append(
             {
                 "category": translate(rule_class.category),
