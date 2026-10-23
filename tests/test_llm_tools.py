@@ -26,6 +26,7 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
+from gramps_webapi.api.llm import clean_answer
 from gramps_webapi.api.llm.tools import (
     _build_date_expression,
     _page,
@@ -1051,6 +1052,47 @@ class TestGetNote(unittest.TestCase):
     def test_unknown_id_returns_not_found(self):
         result = self._get_note("INVALID_XYZ_999")
         self.assertIn("No note found", result)
+
+
+class TestCleanAnswer(unittest.TestCase):
+    """Tests for cleaning the links in answers."""
+
+    def _clean(self, answer):
+        with TEST_APP.app_context():
+            return clean_answer(
+                answer, tree=TEST_TREE, include_private=True, user_id="test_user"
+            )
+
+    def test_keeps_links_to_existing_objects(self):
+        answer = "[Lewis Anderson Garner](/person/I0044) wrote [a note](/note/N0003)."
+        self.assertEqual(self._clean(answer), answer)
+
+    def test_replaces_links_to_missing_objects_by_text(self):
+        answer = (
+            "[Lewis Anderson Garner](/person/I0044) had a son"
+            " [John Garner](/person/I99999) in [Family](/family/F99999)."
+        )
+        self.assertEqual(
+            self._clean(answer),
+            "[Lewis Anderson Garner](/person/I0044) had a son John Garner in Family.",
+        )
+
+    def test_makes_placeholder_links_relative(self):
+        answer = (
+            "[Lewis Anderson Garner](https://www.example.com/person/I0044) and"
+            " [John Garner](http://example.org/person/I99999)"
+        )
+        self.assertEqual(
+            self._clean(answer),
+            "[Lewis Anderson Garner](/person/I0044) and John Garner",
+        )
+
+    def test_keeps_other_links(self):
+        answer = (
+            "See [Wikipedia](https://en.wikipedia.org/), [tag](/tag/Foo) or"
+            " [FamilySearch](https://www.familysearch.org/tree/person/details/L1)."
+        )
+        self.assertEqual(self._clean(answer), answer)
 
 
 class TestGetPerson(unittest.TestCase):

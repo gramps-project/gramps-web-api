@@ -1104,8 +1104,8 @@ def process_chat(
 
     from gramps_webapi.api.llm import (
         answer_with_agent,
+        clean_answer,
         extract_metadata_from_result,
-        sanitize_answer,
     )
 
     # Create the reporter in the main worker thread: run_sync hands off tool
@@ -1129,7 +1129,12 @@ def process_chat(
         message_history_raw=message_history_raw,
     )
 
-    response_text = sanitize_answer(result.response.text or "")
+    response_text = clean_answer(
+        result.response.text or "",
+        tree=tree,
+        include_private=include_private,
+        user_id=user_id,
+    )
     response_dict: dict[str, Any] = {
         "response": response_text,
         "message_history_raw": ModelMessagesTypeAdapter.dump_json(

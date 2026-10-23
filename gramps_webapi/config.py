@@ -101,6 +101,7 @@ class DefaultConfig(object):
     LLM_MAX_CONTEXT_LENGTH = 50000
     LLM_MAX_REQUESTS = 15
     LLM_MAX_TOKENS = 200_000
+    LLM_MAX_OUTPUT_TOKENS = 8192
     LLM_SYSTEM_PROMPT = None
     # ignored since semantic search was removed in 3.25.0, see deprecations.py
     VECTOR_EMBEDDING_MODEL = ""

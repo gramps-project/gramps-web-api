@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from typing import Any
 
@@ -25,21 +26,64 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
-
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import UsageLimits
 
-from ..util import abort_with_message, get_logger
+from ..util import abort_with_message, close_db, get_db_outside_request, get_logger
 from .agent import create_agent
 from .deps import AgentDeps
+
+# e.g. https://www.example.com, followed by the path of a link
+_PLACEHOLDER_ORIGIN = re.compile(r"https?://(?:[\w-]+\.)*example\.(?:com|org|net)(?=/)")
 
 
 def sanitize_answer(answer: str) -> str:
     """Sanitize the LLM answer."""
     # some models convert relative URLs to absolute URLs with placeholder domains
-    answer = answer.replace("https://www.example.com", "")
-    answer = answer.replace("https://example.com", "")
-    answer = answer.replace("http://example.com", "")
-    return answer
+    return _PLACEHOLDER_ORIGIN.sub("", answer)
+
+
+# object types of links like [Name](/person/I0044) that have a Gramps ID
+LINK_TYPES = (
+    "person",
+    "family",
+    "event",
+    "place",
+    "source",
+    "citation",
+    "repository",
+    "media",
+    "note",
+)
+_LINK = re.compile(rf"\[([^\]]*)\]\(/({'|'.join(LINK_TYPES)})/([^)\s]+)\)")
+
+
+def clean_answer(answer: str, tree: str, include_private: bool, user_id: str) -> str:
+    """Sanitize the LLM answer and remove links to objects the user cannot see.
+
+    Models sometimes link made-up Gramps IDs, e.g. for people they know from
+    general knowledge but the tree does not contain. Such links are replaced
+    by their text.
+    """
+    answer = sanitize_answer(answer)
+    if not _LINK.search(answer):
+        return answer
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=include_private, readonly=True, user_id=user_id
+    )
+    try:
+
+        def replace(match: re.Match) -> str:
+            text, obj_type, gramps_id = match.groups()
+            get_obj = getattr(db_handle, f"get_{obj_type}_from_gramps_id")
+            if get_obj(gramps_id) is None:
+                get_logger().warning("Removed AI answer link to missing %s", gramps_id)
+                return text
+            return match.group(0)
+
+        return _LINK.sub(replace, answer)
+    finally:
+        close_db(db_handle)
 
 
 def extract_metadata_from_result(result) -> dict[str, Any]:
@@ -131,6 +175,7 @@ def answer_with_agent(
     system_prompt_override = config.get("LLM_SYSTEM_PROMPT")
     max_requests = config.get("LLM_MAX_REQUESTS", 15)
     max_tokens = config.get("LLM_MAX_TOKENS", 200_000)
+    max_output_tokens = config.get("LLM_MAX_OUTPUT_TOKENS", 8192)
 
     if not model_name:
         logger.error("No LLM model specified")
@@ -191,6 +236,9 @@ def answer_with_agent(
             deps=deps,
             message_history=message_history,
             usage_limits=usage_limits,
+            # the total tokens limit is only checked after each response, so
+            # also cap the responses, which can otherwise run on indefinitely
+            model_settings=ModelSettings(max_tokens=max_output_tokens),
         )
         logger.debug("Agent response: '%s'", result.response.text or "")
         return result

@@ -20,12 +20,14 @@
 """Tests for how the agent is set up from the configuration."""
 
 import pytest
+from flask import Flask
 from pydantic_ai.messages import ModelResponse, SystemPromptPart, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.mistral import MistralModel
 from pydantic_ai.models.ollama import OllamaModel
 from pydantic_ai.models.openai import OpenAIChatModel
 
+from gramps_webapi.api.llm import answer_with_agent
 from gramps_webapi.api.llm.agent import create_agent
 from gramps_webapi.api.llm.deps import AgentDeps
 
@@ -68,6 +70,33 @@ def test_ollama_model_without_base_url(monkeypatch):
     agent = create_agent("ollama:qwen2.5:7b")
     assert isinstance(agent.model, OllamaModel)
     assert agent.model.base_url == "http://ollama:11434/v1/"
+
+
+@pytest.mark.parametrize(
+    "config,max_tokens", [({}, 8192), ({"LLM_MAX_OUTPUT_TOKENS": 1000}, 1000)]
+)
+def test_response_tokens_are_capped(monkeypatch, config, max_tokens):
+    """Each model response is capped, as LLM_MAX_TOKENS is only checked after it."""
+    monkeypatch.setenv("OPENAI_API_KEY", "key")
+    seen = {}
+
+    def model_function(messages, info: AgentInfo) -> ModelResponse:
+        seen["settings"] = info.model_settings
+        return ModelResponse(parts=[TextPart(content="done")])
+
+    def create(**kwargs):
+        agent = create_agent(**kwargs)
+        agent.model = FunctionModel(model_function)
+        return agent
+
+    monkeypatch.setattr("gramps_webapi.api.llm.create_agent", create)
+    app = Flask(__name__)
+    app.config.update(LLM_MODEL="gpt-4o-mini", **config)
+    with app.app_context():
+        answer_with_agent(
+            prompt="question", tree="tree", include_private=False, user_id="user"
+        )
+    assert seen["settings"]["max_tokens"] == max_tokens
 
 
 def _tools_and_prompt() -> tuple[dict, str]:
