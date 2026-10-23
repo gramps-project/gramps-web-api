@@ -314,6 +314,9 @@ class DbUndoSQL(DbUndo):
         self.tree_id = tree_id
         self.user_id = user_id
         self.undodb: list[bytes] = []
+        # changes of the open transaction by ID, only written on commit, as
+        # the undo DB is not notified when a transaction is aborted
+        self._pending: dict[int, dict[str, Any]] = {}
         # verify pooled connections on checkout, as idle ones can be dropped
         # server-side between operations on this engine
         self.engine = create_engine(dburl, pool_pre_ping=True)
@@ -383,31 +386,43 @@ class DbUndoSQL(DbUndo):
         """Close the backing storage."""
         self.engine.dispose()
 
-    def append(self, value) -> None:
-        """Add a new entry on the end."""
+    @staticmethod
+    def _change_fields(value: bytes) -> dict[str, Any]:
+        """Return the fields of a change from a pickled undo record."""
         obj_type, trans_type, handle, old_data, new_data = pickle.loads(value)
         if isinstance(handle, tuple):
             obj_handle, ref_handle = handle
         else:
             obj_handle, ref_handle = (handle, None)
-        length = len(self)
-        connection_id = self.connection_id  # outside session to prevent lock error
-        with self.session_scope() as session:
-            old_json = None if old_data is None else data_to_string(old_data)
-            new_json = None if new_data is None else data_to_string(new_data)
-            new_change = Change(
-                connection_id=connection_id,
-                id=length + 1,
-                obj_class=KEY_TO_CLASS_MAP.get(obj_type, str(obj_type)),
-                trans_type=trans_type,
-                obj_handle=obj_handle,
-                ref_handle=ref_handle,
-                old_json=old_json,
-                new_json=new_json,
-                timestamp=time_ns(),
-            )
-            session.add(new_change)
-            session.commit()
+        return {
+            "obj_class": KEY_TO_CLASS_MAP.get(obj_type, str(obj_type)),
+            "trans_type": trans_type,
+            "obj_handle": obj_handle,
+            "ref_handle": ref_handle,
+            "old_json": None if old_data is None else data_to_string(old_data),
+            "new_json": None if new_data is None else data_to_string(new_data),
+            "timestamp": time_ns(),
+        }
+
+    @staticmethod
+    def _record(fields: dict[str, Any]) -> bytes:
+        """Return the pickled undo record of a change."""
+        obj_class = int(CLASS_TO_KEY_MAP.get(fields["obj_class"], fields["obj_class"]))
+        old_json, new_json = fields["old_json"], fields["new_json"]
+        old_data = None if old_json is None else string_to_data_or_list(old_json)
+        new_data = None if new_json is None else string_to_data_or_list(new_json)
+        if fields["ref_handle"]:
+            handle = (fields["obj_handle"], fields["ref_handle"])
+        else:
+            handle = fields["obj_handle"]
+        return pickle.dumps(
+            (obj_class, fields["trans_type"], handle, old_data, new_data),
+            protocol=1,
+        )
+
+    def append(self, value) -> None:
+        """Add a new entry on the end."""
+        self._pending[len(self) + 1] = self._change_fields(value)
 
     def _after_commit(
         self, transaction: DbTxn, undo: bool = False, redo: bool = False
@@ -430,8 +445,19 @@ class DbUndoSQL(DbUndo):
             last = None
         else:
             last = transaction.last + 1
+        # pending changes outside the transaction belong to aborted ones
+        changes = {
+            change_id: fields
+            for change_id, fields in self._pending.items()
+            if first is not None and first <= change_id <= last
+        }
+        self._pending.clear()
         connection_id = self.connection_id  # outside session to prevent lock error
         with self.session_scope() as session:
+            session.add_all(
+                Change(connection_id=connection_id, id=change_id, **fields)
+                for change_id, fields in sorted(changes.items())
+            )
             new_transaction = Transaction(
                 connection_id=connection_id,
                 description=msg,
@@ -446,6 +472,8 @@ class DbUndoSQL(DbUndo):
         """
         Returns an entry by index number.
         """
+        if index + 1 in self._pending:
+            return self._record(self._pending[index + 1])
         connection_id = self.connection_id  # outside session to prevent lock error
         with self.session_scope() as session:
             change = (
@@ -457,38 +485,25 @@ class DbUndoSQL(DbUndo):
             if change is None:
                 raise IndexError("list index out of range")
 
-            obj_class = int(CLASS_TO_KEY_MAP.get(change.obj_class, change.obj_class))
-            old_data = (
-                None
-                if change.old_json is None
-                else string_to_data_or_list(change.old_json)
+            return self._record(
+                {
+                    "obj_class": change.obj_class,
+                    "trans_type": change.trans_type,
+                    "obj_handle": change.obj_handle,
+                    "ref_handle": change.ref_handle,
+                    "old_json": change.old_json,
+                    "new_json": change.new_json,
+                }
             )
-            new_data = (
-                None
-                if change.new_json is None
-                else string_to_data_or_list(change.new_json)
-            )
-
-            if change.ref_handle:
-                handle = (change.obj_handle, change.ref_handle)
-            else:
-                handle = change.obj_handle
-
-            blob_data = pickle.dumps(
-                (obj_class, change.trans_type, handle, old_data, new_data),
-                protocol=1,
-            )
-            return blob_data
 
     def __setitem__(self, index: int, value: bytes) -> None:
         """
         Set an entry to a value.
         """
-        obj_type, trans_type, handle, old_data, new_data = pickle.loads(value)
-        if isinstance(handle, tuple):
-            obj_handle, ref_handle = handle
-        else:
-            obj_handle, ref_handle = (handle, None)
+        fields = self._change_fields(value)
+        if index + 1 in self._pending:
+            self._pending[index + 1] = fields
+            return
         connection_id = self.connection_id  # outside session to prevent lock error
         with self.session_scope() as session:
             change = (
@@ -500,18 +515,15 @@ class DbUndoSQL(DbUndo):
             if change is None:
                 raise IndexError("list index out of range")
 
-            change.obj_class = KEY_TO_CLASS_MAP.get(obj_type, str(obj_type))
-            change.trans_type = trans_type
-            change.obj_handle = obj_handle
-            change.ref_handle = ref_handle
-            change.old_json = data_to_string(old_data) if old_data is not None else None
-            change.new_json = data_to_string(new_data) if new_data is not None else None
-            change.timestamp = time_ns()
+            for key, field in fields.items():
+                setattr(change, key, field)
 
             session.commit()
 
     def __len__(self) -> int:
         """Returns the number of entries."""
+        if self._pending:
+            return max(self._pending)
         connection_id = self.connection_id  # outside session to prevent lock error
         with self.session_scope() as session:
             max_id = (
