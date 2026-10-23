@@ -449,7 +449,7 @@ class DbUndoSQL(DbUndo):
         changes = {
             change_id: fields
             for change_id, fields in self._pending.items()
-            if first is not None and first <= change_id <= last
+            if first is not None and last is not None and first <= change_id <= last
         }
         self._pending.clear()
         connection_id = self.connection_id  # outside session to prevent lock error
