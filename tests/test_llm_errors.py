@@ -19,6 +19,8 @@
 
 """Tests for how agent failures are mapped to HTTP status codes."""
 
+import logging
+
 import httpx
 import pytest
 from flask import Flask
@@ -108,8 +110,10 @@ def test_agent_setup_error_status_code(app, monkeypatch, model_name, base_url):
     assert excinfo.value.code == 500
 
 
-def _answer_with_response(app, monkeypatch, response: ModelResponse):
+def _answer_with_response(app, monkeypatch, caplog, response: ModelResponse):
     """Answer a prompt with a model that returns `response`."""
+    # Pydantic AI can leave the root logger at ERROR, see `_disable_griffe_logging`
+    caplog.set_level(logging.WARNING)
     monkeypatch.setenv("OPENAI_API_KEY", "key")
 
     def model_function(messages, info: AgentInfo) -> ModelResponse:
@@ -135,7 +139,7 @@ def test_output_limit_before_response(app, monkeypatch, caplog):
     """A response cut off before any output is not an unexpected error."""
     with pytest.raises(HTTPException) as excinfo:
         _answer_with_response(
-            app, monkeypatch, ModelResponse(parts=[], finish_reason="length")
+            app, monkeypatch, caplog, ModelResponse(parts=[], finish_reason="length")
         )
     assert excinfo.value.code == 400
     assert "LLM_MAX_OUTPUT_TOKENS" in caplog.text
@@ -146,6 +150,7 @@ def test_output_limit_during_answer(app, monkeypatch, caplog):
     result = _answer_with_response(
         app,
         monkeypatch,
+        caplog,
         ModelResponse(parts=[TextPart(content="She was")], finish_reason="length"),
     )
     assert result.response.text == "She was"
