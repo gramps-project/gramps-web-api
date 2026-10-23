@@ -77,6 +77,19 @@ class TestReports(unittest.TestCase):
         """Test invalid parameters and values."""
         check_success(self, TEST_URL + "?include_help=0")
 
+    def test_get_reports_keeps_date_format(self):
+        """Test building the report options does not change the date format."""
+        check_success(self, TEST_URL)
+        rv = check_success(self, BASE_URL + "/living/9BXKQC1PVLPYFMD6IX/dates")
+        self.assertEqual(rv["birth"], "1999-04-11")
+
+    def test_get_reports_keeps_holiday_countries(self):
+        """Test building the report options does not add an empty country."""
+        check_success(self, TEST_URL)
+        rv = check_success(self, BASE_URL + "/holidays/")
+        self.assertNotIn("", rv)
+        self.assertEqual(rv, sorted(rv))
+
 
 class TestReportsReportId(unittest.TestCase):
     """Test cases for the /api/reports/{report_id} endpoint."""

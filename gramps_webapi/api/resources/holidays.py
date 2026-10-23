@@ -38,7 +38,10 @@ class HolidaysResource(ProtectedResource, GrampsJSONEncoder):
     def get(self, args) -> Response:
         """Get list of countries that have holiday calendars."""
         holidays = HolidayTable()
-        return self.response(200, holidays.get_countries())
+        # The calendar reports sort this shared list and insert an empty
+        # entry for "no country", so return a cleaned-up copy
+        countries = sorted(country for country in holidays.get_countries() if country)
+        return self.response(200, countries)
 
 
 class HolidayResource(ProtectedResource, GrampsJSONEncoder):
