@@ -31,7 +31,7 @@ from gramps.gen.lib.json_utils import (
     object_to_dict,
     string_to_dict,
 )
-from gramps.gen.db import PERSON_KEY, TXNUPD, DbTxn, DbWriteBase
+from gramps.gen.db import PERSON_KEY, TXNADD, TXNUPD, DbTxn, DbWriteBase
 from gramps.gen.db.utils import make_database
 from gramps.gen.lib import (
     Citation,
@@ -275,6 +275,22 @@ class TestUndoHistory(unittest.TestCase):
             self.db.get_person_from_handle(person_b.handle).gramps_id == old_gramps_id
         )
         assert self.db.get_person_from_handle(person_a.handle).gramps_id != "aborted"
+
+    def test_append_time_independent_of_transaction_size(self):
+        undodb = self.db.get_undodb()
+        record = pickle.dumps((PERSON_KEY, TXNADD, "handle", None, None), 1)
+
+        def append(count: int) -> float:
+            start = time.perf_counter()
+            for _ in range(count):
+                index = undodb.append(record)
+                assert index == len(undodb) - 1
+            return time.perf_counter() - start
+
+        first = append(2000)
+        append(40000)
+        # 20 times slower if appending scanned the open transaction
+        assert append(2000) < 5 * first
 
 
 class TestGetTransactions(unittest.TestCase):

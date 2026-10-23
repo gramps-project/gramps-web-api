@@ -317,6 +317,8 @@ class DbUndoSQL(DbUndo):
         # changes of the open transaction by ID, only written on commit, as
         # the undo DB is not notified when a transaction is aborted
         self._pending: dict[int, dict[str, Any]] = {}
+        # highest change ID of this connection, once known
+        self._last_id: int | None = None
         # verify pooled connections on checkout, as idle ones can be dropped
         # server-side between operations on this engine
         self.engine = create_engine(dburl, pool_pre_ping=True)
@@ -420,9 +422,12 @@ class DbUndoSQL(DbUndo):
             protocol=1,
         )
 
-    def append(self, value) -> None:
-        """Add a new entry on the end."""
-        self._pending[len(self) + 1] = self._change_fields(value)
+    def append(self, value) -> int:
+        """Add a new entry on the end and return its index."""
+        last_id = len(self) + 1
+        self._pending[last_id] = self._change_fields(value)
+        self._last_id = last_id
+        return last_id - 1
 
     def _after_commit(
         self, transaction: DbTxn, undo: bool = False, redo: bool = False
@@ -522,8 +527,9 @@ class DbUndoSQL(DbUndo):
 
     def __len__(self) -> int:
         """Returns the number of entries."""
-        if self._pending:
-            return max(self._pending)
+        if self._last_id is not None:
+            # only this connection writes changes with its ID
+            return self._last_id
         connection_id = self.connection_id  # outside session to prevent lock error
         with self.session_scope() as session:
             max_id = (
