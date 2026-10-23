@@ -26,7 +26,7 @@ jobs:
   build:
     runs-on: ubuntu-26.04
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.15"]
     steps:
@@ -66,7 +66,7 @@ jobs:
           fi
       - name: Test with pytest
         # loadfile keeps the tests of a module, and its fixtures, on one worker
-        run: pytest -x -n auto --dist loadfile
+        run: pytest -n auto --dist loadfile
 
   test-base-image:
     runs-on: ubuntu-26.04
@@ -92,4 +92,4 @@ jobs:
         env:
           GRAMPSWEB_TEST_POSTGRES_URL: postgresql://gramps:gramps@postgres:5432/gramps
         # the base image ships the SharedPostgreSQL addon
-        run: GRAMPSWEB_TEST_ADDONS_DIR=/root/gramps/gramps$GRAMPS_VERSION/plugins pytest -x -n auto --dist loadfile
+        run: GRAMPSWEB_TEST_ADDONS_DIR=/root/gramps/gramps$GRAMPS_VERSION/plugins pytest -n auto --dist loadfile
