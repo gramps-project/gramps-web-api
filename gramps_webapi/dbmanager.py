@@ -44,6 +44,16 @@ _name_cache: dict[str, Optional[str]] = {}  # dirpath -> tree name
 _backend_cache: dict[str, tuple[int, str]] = {}  # dirpath -> (mtime_ns, db backend id)
 
 
+def clear_caches() -> None:
+    """Clear the process-wide metadata caches.
+
+    Only needed when trees are removed without this process noticing and new
+    ones may reuse their directory names, as in tests.
+    """
+    _name_cache.clear()
+    _backend_cache.clear()
+
+
 class WebDbManager:
     """Database manager class based on Gramps CLI."""
 
