@@ -120,6 +120,7 @@ class Timeline:
         """Initialize timeline."""
         self.db_handle = db_handle
         self.timeline: List[Tuple[Event, Person, str, str]] = []
+        self.timeline_handles: Set[str] = set()
         self.dates = dates
         self.start_date = None
         self.end_date = None
@@ -273,15 +274,15 @@ class Timeline:
         if self.start_date:
             if self.start_date.match(event[0].date, comparison=">"):
                 return
-        for item in self.timeline:
-            if item[0].handle == event[0].handle:
-                return
+        if event[0].handle in self.timeline_handles:
+            return
         if self.is_eligible(event[0], relative):
             if self.ratings:
                 count, confidence = get_rating(self.db_handle, event[0])
                 event[0].citations = count
                 event[0].confidence = confidence
             self.timeline.append(event)
+            self.timeline_handles.add(event[0].handle)
 
     def add_person(
         self,
