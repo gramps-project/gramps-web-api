@@ -147,6 +147,10 @@ def get_match_data(
     )
     if data[0][0] <= 0:  # Unrelated
         side = SIDE_UNKNOWN
+    elif not data[0][2]:
+        # the person is the common ancestor (parent, grandparent, ...) of the
+        # match, so the shared DNA can be on either of the person's copies
+        side = SIDE_UNKNOWN
     elif data[0][0] == 1:  # parent / child
         parent_gender = db_handle.get_person_from_handle(data[0][1]).gender
         if parent_gender == Person.FEMALE:
