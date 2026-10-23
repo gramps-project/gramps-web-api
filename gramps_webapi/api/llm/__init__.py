@@ -175,7 +175,7 @@ def answer_with_agent(
     system_prompt_override = config.get("LLM_SYSTEM_PROMPT")
     max_requests = config.get("LLM_MAX_REQUESTS", 15)
     max_tokens = config.get("LLM_MAX_TOKENS", 200_000)
-    max_output_tokens = config.get("LLM_MAX_OUTPUT_TOKENS", 8192)
+    max_output_tokens = config.get("LLM_MAX_OUTPUT_TOKENS")
 
     if not model_name:
         logger.error("No LLM model specified")
@@ -236,9 +236,12 @@ def answer_with_agent(
             deps=deps,
             message_history=message_history,
             usage_limits=usage_limits,
-            # the total tokens limit is only checked after each response, so
-            # also cap the responses, which can otherwise run on indefinitely
-            model_settings=ModelSettings(max_tokens=max_output_tokens),
+            # no default, as providers reject values above the model's limit
+            model_settings=(
+                ModelSettings(max_tokens=max_output_tokens)
+                if max_output_tokens
+                else None
+            ),
         )
         logger.debug("Agent response: '%s'", result.response.text or "")
         return result

@@ -73,10 +73,10 @@ def test_ollama_model_without_base_url(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "config,max_tokens", [({}, 8192), ({"LLM_MAX_OUTPUT_TOKENS": 1000}, 1000)]
+    "config,max_tokens", [({}, None), ({"LLM_MAX_OUTPUT_TOKENS": 1000}, 1000)]
 )
 def test_response_tokens_are_capped(monkeypatch, config, max_tokens):
-    """Each model response is capped, as LLM_MAX_TOKENS is only checked after it."""
+    """Responses are only capped if configured, as model limits differ."""
     monkeypatch.setenv("OPENAI_API_KEY", "key")
     seen = {}
 
@@ -96,7 +96,7 @@ def test_response_tokens_are_capped(monkeypatch, config, max_tokens):
         answer_with_agent(
             prompt="question", tree="tree", include_private=False, user_id="user"
         )
-    assert seen["settings"]["max_tokens"] == max_tokens
+    assert (seen["settings"] or {}).get("max_tokens") == max_tokens
 
 
 def _tools_and_prompt() -> tuple[dict, str]:
