@@ -9,8 +9,9 @@ from typing import Any
 import httpx
 from flask import current_app
 from openai import OpenAIError
-from pydantic_ai import ModelMessagesTypeAdapter
+from pydantic_ai import ModelMessagesTypeAdapter, capture_run_messages
 from pydantic_ai.exceptions import (
+    IncompleteToolCall,
     ModelAPIError,
     ModelHTTPError,
     ModelRetry,
@@ -19,6 +20,7 @@ from pydantic_ai.exceptions import (
     UserError,
 )
 from pydantic_ai.messages import (
+    ModelMessage,
     ModelRequest,
     ModelResponse,
     TextPart,
@@ -141,6 +143,12 @@ def extract_metadata_from_result(result) -> dict[str, Any]:
     return metadata
 
 
+def _output_limit_reached(messages: list[ModelMessage]) -> bool:
+    """Whether the last model response was cut off at the output token limit."""
+    responses = [msg for msg in messages if isinstance(msg, ModelResponse)]
+    return bool(responses) and responses[-1].finish_reason == "length"
+
+
 def answer_with_agent(
     prompt: str,
     tree: str,
@@ -229,21 +237,28 @@ def answer_with_agent(
         total_tokens_limit=max_tokens,
     )
 
+    messages: list[ModelMessage] = []
     try:
         logger.debug("Running Pydantic AI agent with prompt: '%s'", prompt)
-        result = agent.run_sync(
-            prompt,
-            deps=deps,
-            message_history=message_history,
-            usage_limits=usage_limits,
-            # no default, as providers reject values above the model's limit
-            model_settings=(
-                ModelSettings(max_tokens=max_output_tokens)
-                if max_output_tokens
-                else None
-            ),
-        )
+        with capture_run_messages() as messages:
+            result = agent.run_sync(
+                prompt,
+                deps=deps,
+                message_history=message_history,
+                usage_limits=usage_limits,
+                # no default, as providers reject values above the model's limit
+                model_settings=(
+                    ModelSettings(max_tokens=max_output_tokens)
+                    if max_output_tokens
+                    else None
+                ),
+            )
         logger.debug("Agent response: '%s'", result.response.text or "")
+        if result.response.finish_reason == "length":
+            logger.warning(
+                "AI answer cut off at the output token limit, see "
+                "LLM_MAX_OUTPUT_TOKENS"
+            )
         return result
     except UsageLimitExceeded as e:
         logger.warning("Agent usage limit exceeded: %s", e)
@@ -271,6 +286,14 @@ def answer_with_agent(
         logger.error("Model provider request failed: %r", e)
         abort_with_message(503, "The AI model provider is temporarily unavailable.")
     except (UnexpectedModelBehavior, ModelRetry) as e:
+        if isinstance(e, IncompleteToolCall) or _output_limit_reached(messages):
+            logger.warning(
+                "AI model response cut off at the output token limit, see "
+                "LLM_MAX_OUTPUT_TOKENS"
+            )
+            abort_with_message(
+                400, "The AI model's response exceeded its output token limit."
+            )
         logger.error("Pydantic AI error: %s", e)
         abort_with_message(500, "Error communicating with the AI model")
     except Exception:
