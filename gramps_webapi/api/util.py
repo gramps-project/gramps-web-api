@@ -311,15 +311,19 @@ def get_db_outside_request(
     return dbstate.db
 
 
-def close_db(db_handle: DbReadBase) -> None:
-    """Close the connection to the database including the undo log."""
+def close_db(db_handle: DbReadBase, update: bool = True) -> None:
+    """Close the connection to the database including the undo log.
+
+    If `update` is false, state that Gramps keeps in memory and writes on
+    closing, e.g. custom types, is discarded.
+    """
     if isinstance(db_handle, RestrictedDb):
-        # closes the undo log, too
+        # read-only, so there is nothing to discard; closes the undo log, too
         db_handle.close()
         return
     basedb = db_handle.basedb if isinstance(db_handle, ProxyDbBase) else db_handle
     try:
-        db_handle.close()
+        basedb.close(update=update)
     except Exception:
         # DbGeneric.close() saves the metadata before it closes the connection.
         # If saving fails, e.g. with "database is locked", the connection would
