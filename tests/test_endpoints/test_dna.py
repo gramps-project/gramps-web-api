@@ -118,6 +118,71 @@ class TestDnaMatches(unittest.TestCase):
         assert rv.status_code == 200
         assert rv.json == []
 
+    def test_direct_line_side(self):
+        """Test the side when the person is a parent or grandparent of the match."""
+        headers = get_headers(self.client, "admin", "123")
+        handle_grandf = make_handle()
+        handle_father = make_handle()
+        handle_son = make_handle()
+        handle_f1 = make_handle()
+        handle_f2 = make_handle()
+        handle_n = make_handle()
+
+        def person(handle, first_name, match_handle):
+            return {
+                "_class": "Person",
+                "handle": handle,
+                "primary_name": {
+                    "_class": "Name",
+                    "surname_list": [{"_class": "Surname", "surname": "Doe"}],
+                    "first_name": first_name,
+                },
+                "gender": 1,
+                "person_ref_list": [
+                    {
+                        "_class": "PersonRef",
+                        "ref": match_handle,
+                        "rel": "DNA",
+                        "note_list": [handle_n],
+                    }
+                ],
+            }
+
+        objects = [
+            person(handle_grandf, "Grandfather", handle_son),
+            person(handle_father, "Father", handle_son),
+            person(handle_son, "Son", handle_father),
+            {
+                "_class": "Family",
+                "handle": handle_f1,
+                "father_handle": handle_grandf,
+                "child_ref_list": [{"_class": "ChildRef", "ref": handle_father}],
+            },
+            {
+                "_class": "Family",
+                "handle": handle_f2,
+                "father_handle": handle_father,
+                "child_ref_list": [{"_class": "ChildRef", "ref": handle_son}],
+            },
+            {
+                "_class": "Note",
+                "handle": handle_n,
+                "text": {"_class": "StyledText", "string": MATCH1},
+            },
+        ]
+        rv = self.client.post("/api/objects/", json=objects, headers=headers)
+        assert rv.status_code == 201
+        # the son inherited the shared DNA from his father: paternal side
+        rv = self.client.get(f"/api/people/{handle_son}/dna/matches", headers=headers)
+        assert rv.status_code == 200
+        assert {segment["side"] for segment in rv.json[0]["segments"]} == {"P"}
+        # for the father and the grandfather, the side is unknown
+        for handle in [handle_father, handle_grandf]:
+            rv = self.client.get(f"/api/people/{handle}/dna/matches", headers=headers)
+            assert rv.status_code == 200
+            assert len(rv.json) == 1
+            assert {segment["side"] for segment in rv.json[0]["segments"]} == {"U"}
+
     def test_one(self):
         """Full test."""
         headers = get_headers(self.client, "admin", "123")
