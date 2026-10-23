@@ -31,7 +31,7 @@ from gramps.gen.lib.json_utils import (
     object_to_dict,
     string_to_dict,
 )
-from gramps.gen.db import DbTxn, DbWriteBase
+from gramps.gen.db import PERSON_KEY, TXNADD, TXNUPD, DbTxn, DbWriteBase
 from gramps.gen.db.utils import make_database
 from gramps.gen.lib import (
     Citation,
@@ -224,6 +224,73 @@ class TestUndoHistory(unittest.TestCase):
         assert string_to_dict(commit["new_json"]) == object_to_dict(person)
         assert string_to_dict(commit["new_json"]) == object_to_dict(new_person)
         assert string_to_dict(commit["old_json"]) == object_to_dict(old_person)
+
+    def _modify_person(self, person: Person, gramps_id: str, trans: DbTxn) -> None:
+        person.gramps_id = gramps_id
+        self.db.commit_person(person, trans)
+
+    def test_aborted_transaction_leaves_no_changes(self):
+        person: Person = next(self.db.iter_people())
+        with self.assertRaises(ValueError):
+            with DbTxn("Aborted change", self.db) as trans:
+                self._modify_person(person, "aborted", trans)
+                raise ValueError
+        assert self.db.get_person_from_handle(person.handle).gramps_id != "aborted"
+        assert len(self._get_history_table("transactions")) == 1
+        assert len(self._get_history_table("changes")) == 100
+
+    def test_changes_readable_before_commit(self):
+        person: Person = next(self.db.iter_people())
+        old_data = self.db.get_raw_person_data(person.handle)
+        with DbTxn("Modify person", self.db) as trans:
+            self._modify_person(person, "modified", trans)
+            records = [trans.get_record(recno) for recno in trans.get_recnos()]
+            assert len(self._get_history_table("changes")) == 100
+        assert len(records) == 1
+        key, trans_type, handle, old, new = records[0]
+        assert (key, trans_type, handle) == (PERSON_KEY, TXNUPD, person.handle)
+        assert old == old_data
+        assert new["gramps_id"] == "modified"
+        changes = self._get_history_table("changes")
+        assert len(changes) == 101
+        assert string_to_dict(changes[-1]["new_json"])["gramps_id"] == "modified"
+
+    def test_commit_after_aborted_transaction(self):
+        person_a, person_b = list(self.db.iter_people())[:2]
+        old_gramps_id = person_b.gramps_id
+        with self.assertRaises(ValueError):
+            with DbTxn("Aborted change", self.db) as trans:
+                self._modify_person(person_a, "aborted", trans)
+                raise ValueError
+        with DbTxn("Modify person", self.db) as trans:
+            self._modify_person(person_b, "modified", trans)
+        changes = self._get_history_table("changes")
+        assert [change["obj_handle"] for change in changes[100:]] == [person_b.handle]
+        transactions = self._get_history_table("transactions")
+        assert len(transactions) == 2
+        assert transactions[-1]["first"] == transactions[-1]["last"]
+        assert transactions[-1]["first"] == changes[-1]["id"]
+        self.db.undo()
+        assert (
+            self.db.get_person_from_handle(person_b.handle).gramps_id == old_gramps_id
+        )
+        assert self.db.get_person_from_handle(person_a.handle).gramps_id != "aborted"
+
+    def test_append_time_independent_of_transaction_size(self):
+        undodb = self.db.get_undodb()
+        record = pickle.dumps((PERSON_KEY, TXNADD, "handle", None, None), 1)
+
+        def append(count: int) -> float:
+            start = time.perf_counter()
+            for _ in range(count):
+                index = undodb.append(record)
+                assert index == len(undodb) - 1
+            return time.perf_counter() - start
+
+        first = append(2000)
+        append(40000)
+        # 20 times slower if appending scanned the open transaction
+        assert append(2000) < 5 * first
 
 
 class TestGetTransactions(unittest.TestCase):
