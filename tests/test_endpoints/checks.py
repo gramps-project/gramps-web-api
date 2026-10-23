@@ -19,7 +19,8 @@
 
 """Check functions for performing specific unit tests."""
 
-from jsonschema import RefResolver, validate
+from jsonschema import RefResolver
+from jsonschema.validators import validator_for
 
 from gramps_webapi.auth.const import ROLE_OWNER
 
@@ -101,11 +102,15 @@ def check_conforms_to_openapi_schema(test, url, name, role=ROLE_OWNER):
     rv = test.client.get(url, headers=header)
     test.assertEqual(rv.status_code, 200)
     schema, resolver = get_openapi_schema_validator(test.client, name)
+    # check the schema once rather than for every item, as validate() would
+    validator_class = validator_for(schema)
+    validator_class.check_schema(schema)
+    validator = validator_class(schema, resolver=resolver)
     if isinstance(rv.json, list):
         for item in rv.json:
-            validate(instance=item, schema=schema, resolver=resolver)
+            validator.validate(item)
     else:
-        validate(instance=rv.json, schema=schema, resolver=resolver)
+        validator.validate(rv.json)
     return rv.json
 
 
