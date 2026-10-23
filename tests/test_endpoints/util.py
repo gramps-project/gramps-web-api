@@ -19,9 +19,22 @@
 
 """Test utility functions."""
 
+import time
+from weakref import WeakKeyDictionary
+
 from gramps_webapi.auth.const import ROLE_OWNER
 
 from . import TEST_USERS
+
+# Logging in hashes the password, which is slow by design, so access tokens
+# are cached per app and user, and renewed well before they expire.
+_TOKEN_CACHE: WeakKeyDictionary = WeakKeyDictionary()
+_TOKEN_MAX_AGE = 600
+
+
+def clear_token_cache():
+    """Clear cached access tokens, e.g. after changing a user's role."""
+    _TOKEN_CACHE.clear()
 
 
 def fetch_header(test, role=ROLE_OWNER, empty_db: bool = False):
@@ -29,14 +42,19 @@ def fetch_header(test, role=ROLE_OWNER, empty_db: bool = False):
     username = TEST_USERS[role]["name"]
     if empty_db:
         username += "_empty"
-    rv = test.post(
-        "/api/token/",
-        json={
-            "username": username,
-            "password": TEST_USERS[role]["password"],
-        },
-    )
-    return {"Authorization": "Bearer {}".format(rv.json["access_token"])}
+    tokens = _TOKEN_CACHE.setdefault(test.application, {})
+    token, created = tokens.get(username, (None, 0.0))
+    if token is None or time.monotonic() - created > _TOKEN_MAX_AGE:
+        rv = test.post(
+            "/api/token/",
+            json={
+                "username": username,
+                "password": TEST_USERS[role]["password"],
+            },
+        )
+        token = rv.json["access_token"]
+        tokens[username] = (token, time.monotonic())
+    return {"Authorization": "Bearer {}".format(token)}
 
 
 def check_keys_stripped(test, object1, object2):

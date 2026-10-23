@@ -22,7 +22,9 @@
 import base64
 import io
 import os
+import shutil
 import struct
+import subprocess
 import pytest
 from gramps_webapi.app import create_app
 from gramps_webapi.api.image import ThumbnailHandler, save_image_buffer
@@ -233,6 +235,24 @@ def test_truncated_image_aborts_422():
     with pytest.raises(HTTPException) as exc_info:
         handler.get_image()
     assert exc_info.value.code == 422
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg is not installed")
+def test_video_thumbnail_is_first_frame(tmp_path):
+    """A video is thumbnailed by its first frame where ffmpeg is installed,
+    e.g. in the Docker base image."""
+    path = tmp_path / "video.mp4"
+    subprocess.run(
+        ["ffmpeg", "-f", "lavfi", "-i", "color=c=red:s=64x48:d=1"]
+        + ["-pix_fmt", "yuv420p", str(path)],
+        check=True,
+        capture_output=True,
+    )
+    with open(path, "rb") as f:
+        image = ThumbnailHandler(f, "video/mp4").get_image()
+    assert image.size == (64, 48)
+    red, green, blue = image.convert("RGB").getpixel((32, 24))
+    assert red > 200 and green < 50 and blue < 50
 
 
 def test_abort_if_too_large_returns_413():

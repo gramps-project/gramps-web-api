@@ -41,6 +41,16 @@ from .util import fetch_header
 
 TEST_URL = BASE_URL + "/timelines/"
 
+# Building the timeline of the whole tree takes seconds, so the tests of
+# generic behavior use a few people or families with enough events for paging
+PEOPLE_SUBSET_URL = (
+    TEST_URL + "people/?handles=1WUJQCHNH76G6YD3A,35WJQC1B7T7NPV8OLV,"
+    "AWFKQCJELLUWDY2PD3,46WJQCIOLQ0KOX2XCC,6TFKQCUTO94WB2NHN,CH5KQCIEXSN1J5UEHB"
+)
+FAMILIES_SUBSET_URL = (
+    TEST_URL + "families/?handles=8OUJQCUVZ0XML7BQLF,9OUJQCBOHW9UEK9CNV"
+)
+
 
 class TestTimelinesPeople(unittest.TestCase):
     """Test cases for the /api/timelines/people endpoint for a group of people."""
@@ -52,12 +62,12 @@ class TestTimelinesPeople(unittest.TestCase):
 
     def test_get_timelines_people_requires_token(self):
         """Test authorization required."""
-        check_requires_token(self, TEST_URL + "people/")
+        check_requires_token(self, PEOPLE_SUBSET_URL)
 
     def test_get_timelines_people_conforms_to_schema(self):
         """Test conforms to schema."""
         check_conforms_to_openapi_schema(
-            self, TEST_URL + "people/?ratings=1", "TimelineEventProfile"
+            self, PEOPLE_SUBSET_URL + "&ratings=1", "TimelineEventProfile"
         )
 
     def test_get_timelines_people_expected_results(self):
@@ -78,7 +88,7 @@ class TestTimelinesPeople(unittest.TestCase):
 
     def test_get_timelines_people_parameter_strip_expected_result(self):
         """Test strip parameter produces expected result."""
-        check_strip_parameter(self, TEST_URL + "people/")
+        check_strip_parameter(self, PEOPLE_SUBSET_URL)
 
     def test_get_timelines_people_parameter_keys_validate_semantics(self):
         """Test invalid keys parameter and values."""
@@ -86,12 +96,14 @@ class TestTimelinesPeople(unittest.TestCase):
 
     def test_get_timelines_people_parameter_keys_expected_result_single_key(self):
         """Test keys parameter for some single keys produces expected result."""
-        check_keys_parameter(self, TEST_URL + "people/", ["date", "handle", "type"])
+        check_keys_parameter(
+            self, PEOPLE_SUBSET_URL, ["date", "handle", "type"], join="&"
+        )
 
     def test_get_timelines_people_parameter_keys_expected_result_multiple_keys(self):
         """Test keys parameter for multiple keys produces expected result."""
         check_keys_parameter(
-            self, TEST_URL + "people/", [",".join(["date", "handle", "type"])]
+            self, PEOPLE_SUBSET_URL, [",".join(["date", "handle", "type"])], join="&"
         )
 
     def test_get_timelines_people_parameter_skipkeys_validate_semantics(self):
@@ -100,14 +112,16 @@ class TestTimelinesPeople(unittest.TestCase):
 
     def test_get_timelines_people_parameter_skipkeys_expected_result_single_key(self):
         """Test skipkeys parameter for some single keys produces expected result."""
-        check_skipkeys_parameter(self, TEST_URL + "people/", ["date", "handle", "type"])
+        check_skipkeys_parameter(
+            self, PEOPLE_SUBSET_URL, ["date", "handle", "type"], join="&"
+        )
 
     def test_get_timelines_people_parameter_skipkeys_expected_result_multiple_keys(
         self,
     ):
         """Test skipkeys parameter for multiple keys produces expected result."""
         check_skipkeys_parameter(
-            self, TEST_URL + "people/", [",".join(["date", "handle", "type"])]
+            self, PEOPLE_SUBSET_URL, [",".join(["date", "handle", "type"])], join="&"
         )
 
     def test_get_timelines_people_parameter_page_validate_semantics(self):
@@ -120,7 +134,7 @@ class TestTimelinesPeople(unittest.TestCase):
 
     def test_get_timelines_people_parameter_page_pagesize_expected_result(self):
         """Test page and pagesize parameters produce expected result."""
-        check_paging_parameters(self, TEST_URL + "people/?keys=handle", 10, join="&")
+        check_paging_parameters(self, PEOPLE_SUBSET_URL + "&keys=handle", 10, join="&")
 
     def test_get_timelines_people_parameter_filter_validate_semantics(self):
         """Test invalid rules parameter and values."""
@@ -313,12 +327,12 @@ class TestTimelinesFamilies(unittest.TestCase):
 
     def test_get_timelines_families_requires_token(self):
         """Test authorization required."""
-        check_requires_token(self, TEST_URL + "families/")
+        check_requires_token(self, FAMILIES_SUBSET_URL)
 
     def test_get_timelines_families_conforms_to_schema(self):
         """Test conforms to schema."""
         check_conforms_to_openapi_schema(
-            self, TEST_URL + "families/?ratings=1", "TimelineEventProfile"
+            self, FAMILIES_SUBSET_URL + "&ratings=1", "TimelineEventProfile"
         )
 
     def test_get_timelines_families_expected_results(self):
@@ -339,7 +353,7 @@ class TestTimelinesFamilies(unittest.TestCase):
 
     def test_get_timelines_families_parameter_strip_expected_result(self):
         """Test strip parameter produces expected result."""
-        check_strip_parameter(self, TEST_URL + "families/")
+        check_strip_parameter(self, FAMILIES_SUBSET_URL)
 
     def test_get_timelines_families_parameter_keys_validate_semantics(self):
         """Test invalid keys parameter and values."""
@@ -347,12 +361,14 @@ class TestTimelinesFamilies(unittest.TestCase):
 
     def test_get_timelines_families_parameter_keys_expected_result_single_key(self):
         """Test keys parameter for some single keys produces expected result."""
-        check_keys_parameter(self, TEST_URL + "families/", ["date", "handle", "type"])
+        check_keys_parameter(
+            self, FAMILIES_SUBSET_URL, ["date", "handle", "type"], join="&"
+        )
 
     def test_get_timelines_families_parameter_keys_expected_result_multiple_keys(self):
         """Test keys parameter for multiple keys produces expected result."""
         check_keys_parameter(
-            self, TEST_URL + "families/", [",".join(["date", "handle", "type"])]
+            self, FAMILIES_SUBSET_URL, [",".join(["date", "handle", "type"])], join="&"
         )
 
     def test_get_timelines_families_parameter_skipkeys_validate_semantics(self):
@@ -362,7 +378,7 @@ class TestTimelinesFamilies(unittest.TestCase):
     def test_get_timelines_families_parameter_skipkeys_expected_result_single_key(self):
         """Test skipkeys parameter for some single keys produces expected result."""
         check_skipkeys_parameter(
-            self, TEST_URL + "families/", ["date", "handle", "type"]
+            self, FAMILIES_SUBSET_URL, ["date", "handle", "type"], join="&"
         )
 
     def test_get_timelines_families_parameter_skipkeys_expected_result_multiple_keys(
@@ -370,7 +386,7 @@ class TestTimelinesFamilies(unittest.TestCase):
     ):
         """Test skipkeys parameter for multiple keys produces expected result."""
         check_skipkeys_parameter(
-            self, TEST_URL + "families/", [",".join(["date", "handle", "type"])]
+            self, FAMILIES_SUBSET_URL, [",".join(["date", "handle", "type"])], join="&"
         )
 
     def test_get_timelines_families_parameter_page_validate_semantics(self):
@@ -383,7 +399,9 @@ class TestTimelinesFamilies(unittest.TestCase):
 
     def test_get_timelines_families_parameter_page_pagesize_expected_result(self):
         """Test page and pagesize parameters produce expected result."""
-        check_paging_parameters(self, TEST_URL + "families/?keys=handle", 10, join="&")
+        check_paging_parameters(
+            self, FAMILIES_SUBSET_URL + "&keys=handle", 10, join="&"
+        )
 
     def test_get_timelines_families_parameter_filter_validate_semantics(self):
         """Test invalid rules parameter and values."""

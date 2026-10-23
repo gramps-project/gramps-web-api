@@ -24,7 +24,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 from . import BASE_URL, get_test_client
-from .util import fetch_header
+from .util import clear_token_cache, fetch_header
 
 from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_OWNER
 
@@ -86,6 +86,8 @@ class TestChat(unittest.TestCase):
             f"/api/trees/{tree_id}", json={"min_role_ai": ROLE_OWNER}, headers=header
         )
         assert rv.status_code == 200
+        # the permissions in the tokens depend on the setting
+        clear_token_cache()
         header = fetch_header(self.client, empty_db=True)
         header_editor = fetch_header(self.client, empty_db=True, role=ROLE_EDITOR)
         query = "What should I have for dinner tonight?"
@@ -132,6 +134,8 @@ class TestChat(unittest.TestCase):
             f"/api/trees/{tree_id}", json={"min_role_ai": ROLE_OWNER}, headers=header
         )
         assert rv.status_code == 200
+        # the permissions in the tokens depend on the setting
+        clear_token_cache()
 
         # Refresh header after setting permissions
         header = fetch_header(self.client, empty_db=True)
@@ -178,6 +182,8 @@ class TestChat(unittest.TestCase):
             f"/api/trees/{tree_id}", json={"min_role_ai": ROLE_OWNER}, headers=header
         )
         assert rv.status_code == 200
+        # the permissions in the tokens depend on the setting
+        clear_token_cache()
 
         header = fetch_header(self.client, empty_db=True)
         query = "What should I have for dinner tonight?"
@@ -232,6 +238,8 @@ class TestChat(unittest.TestCase):
             f"/api/trees/{tree_id}", json={"min_role_ai": ROLE_OWNER}, headers=header
         )
         assert rv.status_code == 200
+        # the permissions in the tokens depend on the setting
+        clear_token_cache()
         header = fetch_header(self.client, empty_db=True)
 
         # First turn — verify message_history_raw is returned

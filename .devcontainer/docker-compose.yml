@@ -8,7 +8,6 @@ services:
     command: sleep infinity
     environment:
       LANGUAGE: en
-      OMP_NUM_THREADS: 1
       GRAMPSWEB_BASE_URL: http://localhost:8001
       GRAMPSWEB_USER_DB_URI: sqlite:////workspaces/web-api/data/users.sqlite
       GRAMPSWEB_MEDIA_BASE_DIR: /workspaces/web-api/data/media

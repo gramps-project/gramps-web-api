@@ -14,7 +14,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install Ubuntu dependencies
-        run: sudo apt update && sudo apt-get -y install gettext appstream pkg-config libcairo2-dev gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev libopencv-dev gir1.2-pango-1.0
+        run: sudo apt update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y install gettext appstream pkg-config libcairo2-dev gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev gir1.2-pango-1.0
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip wheel setuptools
@@ -26,7 +26,7 @@ jobs:
   build:
     runs-on: ubuntu-26.04
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.15"]
     steps:
@@ -44,7 +44,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install Ubuntu dependencies
-        run: sudo apt update && sudo apt-get -y install gettext appstream pkg-config libcairo2-dev gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev libopencv-dev tesseract-ocr gir1.2-pango-1.0 poppler-utils
+        run: sudo apt update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y install gettext appstream pkg-config libcairo2-dev gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev tesseract-ocr gir1.2-pango-1.0 poppler-utils
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip wheel setuptools
@@ -65,7 +65,8 @@ jobs:
             exit 1
           fi
       - name: Test with pytest
-        run: pytest -x
+        # loadfile keeps the tests of a module, and its fixtures, on one worker
+        run: pytest -n auto --dist loadfile
 
   test-base-image:
     runs-on: ubuntu-26.04
@@ -91,4 +92,4 @@ jobs:
         env:
           GRAMPSWEB_TEST_POSTGRES_URL: postgresql://gramps:gramps@postgres:5432/gramps
         # the base image ships the SharedPostgreSQL addon
-        run: GRAMPSWEB_TEST_ADDONS_DIR=/root/gramps/gramps$GRAMPS_VERSION/plugins pytest -x
+        run: GRAMPSWEB_TEST_ADDONS_DIR=/root/gramps/gramps$GRAMPS_VERSION/plugins pytest -n auto --dist loadfile

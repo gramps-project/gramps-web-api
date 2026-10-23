@@ -25,6 +25,7 @@ from __future__ import annotations
 import os
 import sys
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -68,6 +69,22 @@ from .util import abort_with_message
 _ = glocale.translation.gettext
 
 _EXTENSION_MAP = {".gvpdf": ".pdf", ".gspdf": ".pdf"}
+
+
+@contextmanager
+def _preserve_date_format():
+    """Restore the date format of the default locale afterwards.
+
+    Gramps changes the format of the report locale's date displayer when
+    building the date format option and when running a report. For the
+    default language, that is the date displayer used by all API responses.
+    """
+    date_displayer = glocale.date_displayer
+    date_format = date_displayer.format
+    try:
+        yield
+    finally:
+        date_displayer.set_format(date_format)
 
 
 def get_report_profile(
@@ -157,6 +174,7 @@ class ModifiedCommandLineReport(CommandLineReport):
     Avoids calling get_person_from_handle (individual database
     calls) on every person in the database."""
 
+    @_preserve_date_format()
     def __init__(self, *args, **kwargs):
         """Initialize report."""
         self._name_dict = {}
@@ -269,6 +287,7 @@ class ModifiedCommandLineReport(CommandLineReport):
                 )
 
 
+@_preserve_date_format()
 def cl_report_new(
     database,
     name,

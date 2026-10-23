@@ -51,6 +51,25 @@ from gramps_webapi.dbmanager import WebDbManager
 # Set on the default config so it applies to every create_app() call.
 DefaultConfig.SEARCH_INDEX_DB_URI = f"sqlite:///{TEST_GRAMPSHOME}/search_index.db"
 
+# Likewise for the caches and output directories, which would otherwise be
+# shared between parallel test processes.
+for _cache_config in (
+    "REQUEST_CACHE_CONFIG",
+    "THUMBNAIL_CACHE_CONFIG",
+    "PERSISTENT_CACHE_CONFIG",
+):
+    _cache_dir = getattr(DefaultConfig, _cache_config)["CACHE_DIR"]
+    setattr(
+        DefaultConfig,
+        _cache_config,
+        {
+            **getattr(DefaultConfig, _cache_config),
+            "CACHE_DIR": os.path.join(TEST_GRAMPSHOME, Path(_cache_dir).name),
+        },
+    )
+DefaultConfig.REPORT_DIR = os.path.join(TEST_GRAMPSHOME, "report_cache")
+DefaultConfig.EXPORT_DIR = os.path.join(TEST_GRAMPSHOME, "export_cache")
+
 
 class ExampleDbBase:
     """Gramps example database handler base class."""

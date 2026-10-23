@@ -45,6 +45,10 @@ from gramps_webapi.undodb import DbUndoSQLWeb
 class TestMigrateCLI(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        # the CLI sets the config file environment variable, so restore the
+        # environment afterwards for the tests that follow in this process
+        cls.environ = patch.dict("os.environ")
+        cls.environ.start()
         cls.name = "Test Web API CLI"
         cls.dbman = CLIDbManager(DbState())
         _, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
@@ -73,7 +77,7 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
         # cls.dbman.remove_database(cls.name)
         # os.remove(cls.config_file.name)
         # os.remove(cls.user_db.name)
-        pass
+        cls.environ.stop()
 
     def test_migrate_to_v21(self):
         db_handle = self.db_manager.get_db(readonly=False).db
