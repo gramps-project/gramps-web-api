@@ -69,6 +69,7 @@ class TestOIDCEndpoints(unittest.TestCase):
         self.assertIn("auto_redirect", data)
 
     @patch.dict("os.environ", {"GRAMPSWEB_OIDC_ENABLED": "true"})
+    @patch("gramps_webapi.auth.oidc_helpers.is_oidc_enabled", return_value=True)
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch(
         "gramps_webapi.api.resources.oidc.get_available_oidc_providers",
@@ -76,7 +77,11 @@ class TestOIDCEndpoints(unittest.TestCase):
     )
     @patch("gramps_webapi.api.resources.oidc.get_provider_config")
     def test_oidc_config_with_disabled_local_auth(
-        self, mock_get_provider_config, mock_get_providers, mock_oidc_enabled
+        self,
+        mock_get_provider_config,
+        mock_get_providers,
+        mock_oidc_enabled,
+        mock_helper_oidc_enabled,
     ):
         """Test OIDC config endpoint with local auth disabled."""
         mock_get_provider_config.return_value = {"name": "Custom Provider"}

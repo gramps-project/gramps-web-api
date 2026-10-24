@@ -19,7 +19,6 @@
 
 """Resources for the current user's own OIDC accounts."""
 
-from flask import current_app
 from flask_jwt_extended import get_jwt_identity
 
 from ...auth import (
@@ -31,7 +30,7 @@ from ...auth import (
     unlink_oidc_account,
 )
 from ...auth.const import PERM_EDIT_OWN_USER
-from ...auth.oidc_helpers import is_oidc_enabled
+from ...auth.oidc_helpers import is_local_auth_disabled
 from ..auth import require_permissions
 from ..blueprint import api_blueprint
 from ..ratelimiter import limiter
@@ -69,9 +68,7 @@ class UserOIDCAccountResource(FreshProtectedResource):
             user_name = get_name(user_id)
         except ValueError:
             abort_with_message(401, "User not found for token ID")
-        local_auth_disabled = is_oidc_enabled() and current_app.config.get(
-            "OIDC_DISABLE_LOCAL_AUTH", False
-        )
+        local_auth_disabled = is_local_auth_disabled()
         password = args["password"]
         # users created through OIDC have a random password they don't know
         allow_last = (

@@ -29,3 +29,13 @@ from flask import current_app
 def is_oidc_enabled() -> bool:
     """Check if OIDC is enabled in the current app."""
     return current_app.config.get("OIDC_ENABLED", False)
+
+
+def is_local_auth_disabled() -> bool:
+    """Check if local (password) authentication is disabled.
+
+    OIDC_DISABLE_LOCAL_AUTH only takes effect while OIDC is enabled.
+    """
+    return is_oidc_enabled() and current_app.config.get(
+        "OIDC_DISABLE_LOCAL_AUTH", False
+    )

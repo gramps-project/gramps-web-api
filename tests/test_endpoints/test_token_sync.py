@@ -212,9 +212,7 @@ class TestTokenSync(unittest.TestCase):
         _, token, _ = self._create_token(role=ROLE_OWNER)
         config = self.client.application.config
         with (
-            patch(
-                "gramps_webapi.api.resources.token.is_oidc_enabled", return_value=True
-            ),
+            patch("gramps_webapi.auth.oidc_helpers.is_oidc_enabled", return_value=True),
             patch.dict(config, {"OIDC_DISABLE_LOCAL_AUTH": True}),
         ):
             rv = self.client.post(

@@ -1031,9 +1031,12 @@ class TestUser(unittest.TestCase):
             "password": "abc",
             "tree": self.tree,
         }
+        body_without_tree = {k: v for k, v in body.items() if k != "tree"}
         with self.app.app_context():
             number_users = get_number_users()
-        with patch("gramps_webapi.api.util.smtplib.SMTP_SSL"):
+        with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
+            mock_smtp_instance = MagicMock()
+            mock_smtp.return_value = mock_smtp_instance
             # OIDC with local authentication disabled: no registration
             with patch.dict(
                 self.app.config,
@@ -1042,7 +1045,14 @@ class TestUser(unittest.TestCase):
                 rv = self.client.post(
                     BASE_URL + "/users/new_user_4/register/", json=body
                 )
-            assert rv.status_code == 405
+                assert rv.status_code == 405
+                # 405 also without a tree in the multi-tree setup, not 422
+                rv = self.client.post(
+                    BASE_URL + "/users/new_user_4/register/",
+                    json=body_without_tree,
+                )
+                assert rv.status_code == 405
+            mock_smtp.assert_not_called()
             with self.app.app_context():
                 assert get_number_users() == number_users
             # the setting has no effect while OIDC is disabled
@@ -1054,6 +1064,7 @@ class TestUser(unittest.TestCase):
                     BASE_URL + "/users/new_user_4/register/", json=body
                 )
             assert rv.status_code == 201
+            mock_smtp_instance.send_message.assert_called_once()
 
     def test_confirm_email(self):
         with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
