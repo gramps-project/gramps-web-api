@@ -145,27 +145,13 @@ def get_match_data(
         all_dist=True,
         only_birth=True,
     )
-    if data[0][0] <= 0:  # Unrelated
-        side = SIDE_UNKNOWN
-    elif not data[0][2]:
-        # the person is the common ancestor (parent, grandparent, ...) of the
-        # match, so the shared DNA can be on either of the person's copies
-        side = SIDE_UNKNOWN
-    elif data[0][0] == 1:  # parent / child
-        parent_gender = db_handle.get_person_from_handle(data[0][1]).gender
-        if parent_gender == Person.FEMALE:
-            side = SIDE_MATERNAL
-        elif parent_gender == Person.MALE:
-            side = SIDE_PATERNAL
-        else:
-            side = SIDE_UNKNOWN
-    elif (
-        len(data) > 1 and data[0][0] == data[1][0] and data[0][2][0] != data[1][2][0]
-    ):  # shares both parents
-        side = SIDE_UNKNOWN
-    else:
-        translate_sides = {"m": SIDE_MATERNAL, "f": SIDE_PATERNAL}
-        side = translate_sides[data[0][2][0]]
+    loop_detected = isinstance(data, tuple)
+    if loop_detected:
+        # a relationship loop returns a single tuple even with all_dist=True
+        data = [data]
+    side = get_side(data)
+    # a male's X chromosome always comes from his mother
+    side_x = SIDE_MATERNAL if person.gender == Person.MALE else side
 
     segments = []
 
@@ -184,14 +170,20 @@ def get_match_data(
             note_handles += citation.get_note_list()
 
     for note_handle in note_handles:
-        note_segments = get_segments_from_note(db_handle, handle=note_handle, side=side)
+        note_segments = get_segments_from_note(
+            db_handle, handle=note_handle, side=side, side_x=side_x
+        )
         if note_segments:
             segments += note_segments
             note_handles_with_segments.append(note_handle)
 
-    rel_strings, common_ancestors = relationship.get_all_relationships(
-        db_handle, person, associate
-    )
+    if loop_detected:
+        # get_all_relationships fails on the same single tuple
+        rel_strings, common_ancestors = [], []
+    else:
+        rel_strings, common_ancestors = relationship.get_all_relationships(
+            db_handle, person, associate
+        )
     if len(rel_strings) == 0:
         rel_string = ""
         ancestor_handles = []
@@ -222,8 +214,38 @@ def get_match_data(
     return result
 
 
+def get_side(data: list[tuple]) -> str:
+    """Get the side of the shared DNA from the relationship paths.
+
+    `data` is the list returned by `get_relationship_distance_new` with
+    `all_dist=True`. The side is paternal or maternal only if every shortest
+    path from the person to a common ancestor starts with the same parent.
+    A path that starts with a sibling in a family without parents, or an empty
+    path (the person is the common ancestor), gives an unknown side.
+    """
+    min_rank = min(row[0] for row in data)
+    if min_rank <= 0:  # Unrelated
+        return SIDE_UNKNOWN
+    translate_sides = {"m": SIDE_MATERNAL, "f": SIDE_PATERNAL}
+    sides = {translate_sides.get(row[2][:1]) for row in data if row[0] == min_rank}
+    if len(sides) == 1:
+        (only_side,) = sides
+        if only_side is not None:
+            return only_side
+    return SIDE_UNKNOWN
+
+
+def is_x_chromosome(chromosome: object) -> bool:
+    """Return true if the chromosome label denotes the X chromosome."""
+    label = str(chromosome).strip().upper().removeprefix("CHR")
+    return label in {"X", "23"}
+
+
 def get_segments_from_note(
-    db_handle: DbReadBase, handle: Handle, side: str | None = None
+    db_handle: DbReadBase,
+    handle: Handle,
+    side: str | None = None,
+    side_x: str | None = None,
 ) -> list[MatchSegment]:
     """Get the segements from a note handle."""
     try:
@@ -233,23 +255,27 @@ def get_segments_from_note(
     if note is None:
         return []
     raw_string: str = note.get()
-    return parse_raw_match_string_with_default_side(raw_string, side=side)
+    return parse_raw_match_string_with_default_side(
+        raw_string, side=side, side_x=side_x
+    )
 
 
 def parse_raw_match_string_with_default_side(
-    raw_string: str, side: str | None = None
+    raw_string: str, side: str | None = None, side_x: str | None = None
 ) -> list[MatchSegment]:
     """Parse a raw DNA match string and return a list of segments.
 
-    If the side is unknown, optionally set it to a default value.
+    If the side is unknown, optionally set it to a default value. `side_x`
+    is the default for the X chromosome; if it is None, `side` is used.
     """
     original_segments = parse_raw_dna_match_string(raw_string)
-    if side is None:
-        return original_segments
+    if side_x is None:
+        side_x = side
     segments = []
     for segment in original_segments:
-        if segment["side"] == SIDE_UNKNOWN:
-            segments.append(segment | {"side": side})
+        default = side_x if is_x_chromosome(segment["chromosome"]) else side
+        if segment["side"] == SIDE_UNKNOWN and default is not None:
+            segments.append(segment | {"side": default})
         else:
             segments.append(segment)
     return segments
