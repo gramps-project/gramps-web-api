@@ -228,6 +228,12 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
                 max_pixels_param,
             )
 
+    # Flask-Compress evaluates conditional requests (If-None-Match) for streamed
+    # responses only for the endpoints listed here; the frontend files are
+    # served by send_static below, not by Flask's static endpoint
+    app.config.setdefault(
+        "COMPRESS_STREAMING_ENDPOINT_CONDITIONAL", ["static", "send_static"]
+    )
     # enable gzip compression
     compress = Compress(app)
     compress.compress_mimetypes_set.add("text/calendar")
