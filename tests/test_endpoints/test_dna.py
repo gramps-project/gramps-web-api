@@ -270,6 +270,10 @@ class TestDnaMatches(unittest.TestCase):
         data = rv.json[0]
         assert data["handle"] == handle_p2
         assert data["ancestor_handles"] == [handle_grandf]
+        assert len(data["ancestor_profiles"]) == 1
+        assert data["ancestor_profiles"][0]["handle"] == handle_grandf
+        assert data["ancestor_profiles"][0]["name_given"] == "Grandfather"
+        assert data["ancestor_profiles"][0]["name_surname"] == "Doe"
         assert data["relation"] == "le premier cousin"
         assert len(data["segments"]) == 4
         assert data["segments"][0] == {
