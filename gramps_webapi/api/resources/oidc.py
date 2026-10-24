@@ -50,7 +50,7 @@ from ...auth.oidc import (
     get_provider_config,
 )
 from ...auth.const import PERM_EDIT_OWN_USER
-from ...auth.oidc_helpers import is_oidc_enabled
+from ...auth.oidc_helpers import is_local_auth_disabled, is_oidc_enabled
 from ...const import TREE_MULTI
 from ..auth import require_permissions
 from ..blueprint import api_blueprint
@@ -659,9 +659,7 @@ class OIDCConfigResource(Resource):
         return {
             "enabled": True,
             "providers": providers,
-            "disable_local_auth": current_app.config.get(
-                "OIDC_DISABLE_LOCAL_AUTH", False
-            ),
+            "disable_local_auth": is_local_auth_disabled(),
             "auto_redirect": current_app.config.get("OIDC_AUTO_REDIRECT", False),
         }
 

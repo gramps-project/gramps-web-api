@@ -173,7 +173,7 @@ class TestOIDCAccounts(unittest.TestCase):
         account = self._link(self.user)
         header = self._header(self.user)
         with (
-            patch(f"{OIDC}.is_oidc_enabled", return_value=True),
+            patch("gramps_webapi.auth.oidc_helpers.is_oidc_enabled", return_value=True),
             patch.dict(self.app.config, {"OIDC_DISABLE_LOCAL_AUTH": True}),
         ):
             rv = self.client.delete(
@@ -187,7 +187,7 @@ class TestOIDCAccounts(unittest.TestCase):
         self._link(self.user)
         header = self._header(self.user)
         with (
-            patch(f"{OIDC}.is_oidc_enabled", return_value=True),
+            patch("gramps_webapi.auth.oidc_helpers.is_oidc_enabled", return_value=True),
             patch.dict(self.app.config, {"OIDC_DISABLE_LOCAL_AUTH": True}),
         ):
             rv = self.client.delete(f"{LIST_URL}{account}/", headers=header)

@@ -42,7 +42,7 @@ from ...auth import (
     is_tree_disabled,
     mark_access_token_used,
 )
-from ...auth.oidc_helpers import is_oidc_enabled
+from ...auth.oidc_helpers import is_local_auth_disabled
 from ...auth.const import (
     ACCESS_TOKEN_SCOPE_PERMISSIONS,
     ACCESS_TOKEN_SCOPE_SYNC,
@@ -172,10 +172,7 @@ class TokenResource(Resource):
     @api_blueprint.arguments(TokenLoginSchema, location="json")
     def post(self, args):
         """Post username and password to fetch a token."""
-        # Check if local authentication is disabled when OIDC is enabled
-        if is_oidc_enabled() and current_app.config.get(
-            "OIDC_DISABLE_LOCAL_AUTH", False
-        ):
+        if is_local_auth_disabled():
             abort_with_message(
                 403, "Local authentication is disabled. Please use OIDC authentication."
             )

@@ -29,6 +29,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from celery.result import AsyncResult
+from flask_jwt_extended import create_access_token
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
@@ -41,16 +42,19 @@ from gramps_webapi.auth import (
     get_all_user_details,
     get_guid,
     get_number_users,
+    get_pwhash,
     get_user_details,
     get_user_oidc_accounts,
     user_db,
 )
 from gramps_webapi.auth.const import (
+    CLAIM_LIMITED_SCOPE,
     ROLE_ADMIN,
     ROLE_DISABLED,
     ROLE_MEMBER,
     ROLE_OWNER,
     ROLE_UNCONFIRMED,
+    SCOPE_RESET_PW,
 )
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
 from gramps_webapi.dbmanager import WebDbManager
@@ -1024,6 +1028,158 @@ class TestUser(unittest.TestCase):
             )
             assert rv.status_code == 403
 
+    def test_register_user_local_auth_disabled(self):
+        body = {
+            "email": "new_4@example.com",
+            "full_name": "New Name",
+            "password": "abc",
+            "tree": self.tree,
+        }
+        body_without_tree = {k: v for k, v in body.items() if k != "tree"}
+        with self.app.app_context():
+            number_users = get_number_users()
+        with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
+            mock_smtp_instance = MagicMock()
+            mock_smtp.return_value = mock_smtp_instance
+            # OIDC with local authentication disabled: no registration
+            with patch.dict(
+                self.app.config,
+                {"OIDC_ENABLED": True, "OIDC_DISABLE_LOCAL_AUTH": True},
+            ):
+                rv = self.client.post(
+                    BASE_URL + "/users/new_user_4/register/", json=body
+                )
+                assert rv.status_code == 405
+                # 405 also without a tree in the multi-tree setup, not 422
+                rv = self.client.post(
+                    BASE_URL + "/users/new_user_4/register/",
+                    json=body_without_tree,
+                )
+                assert rv.status_code == 405
+            mock_smtp.assert_not_called()
+            with self.app.app_context():
+                assert get_number_users() == number_users
+            # the setting has no effect while OIDC is disabled
+            with patch.dict(
+                self.app.config,
+                {"OIDC_ENABLED": False, "OIDC_DISABLE_LOCAL_AUTH": True},
+            ):
+                rv = self.client.post(
+                    BASE_URL + "/users/new_user_4/register/", json=body
+                )
+            assert rv.status_code == 201
+            mock_smtp_instance.send_message.assert_called_once()
+
+    def test_add_user_local_auth_disabled(self):
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "owner", "password": "123"}
+        )
+        assert rv.status_code == 200
+        header = {"Authorization": f"Bearer {rv.json['access_token']}"}
+        body = {
+            "email": "new_5@example.com",
+            "role": ROLE_MEMBER,
+            "full_name": "My Name",
+            "password": "abc",
+        }
+        with self.app.app_context():
+            number_users = get_number_users()
+        with patch.dict(
+            self.app.config, {"OIDC_ENABLED": True, "OIDC_DISABLE_LOCAL_AUTH": True}
+        ):
+            rv = self.client.post(
+                BASE_URL + "/users/new_user_5/", headers=header, json=body
+            )
+        assert rv.status_code == 405
+        with self.app.app_context():
+            assert get_number_users() == number_users
+        # the setting has no effect while OIDC is disabled
+        with patch.dict(
+            self.app.config, {"OIDC_ENABLED": False, "OIDC_DISABLE_LOCAL_AUTH": True}
+        ):
+            rv = self.client.post(
+                BASE_URL + "/users/new_user_5/", headers=header, json=body
+            )
+        assert rv.status_code == 201
+
+    def test_change_password_local_auth_disabled(self):
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "user", "password": "123"}
+        )
+        assert rv.status_code == 200
+        header = {"Authorization": f"Bearer {rv.json['access_token']}"}
+        body = {"old_password": "123", "new_password": "456"}
+        with patch.dict(
+            self.app.config, {"OIDC_ENABLED": True, "OIDC_DISABLE_LOCAL_AUTH": True}
+        ):
+            rv = self.client.post(
+                BASE_URL + "/users/-/password/change", headers=header, json=body
+            )
+        assert rv.status_code == 405
+        # the password is unchanged
+        rv = self.client.post(
+            BASE_URL + "/token/", json={"username": "user", "password": "123"}
+        )
+        assert rv.status_code == 200
+        # the setting has no effect while OIDC is disabled
+        with patch.dict(
+            self.app.config, {"OIDC_ENABLED": False, "OIDC_DISABLE_LOCAL_AUTH": True}
+        ):
+            rv = self.client.post(
+                BASE_URL + "/users/-/password/change", headers=header, json=body
+            )
+        assert rv.status_code == 201
+
+    def test_reset_password_local_auth_disabled(self):
+        with self.app.app_context():
+            token = create_access_token(
+                identity=str(get_guid(name="user")),
+                additional_claims={
+                    "old_hash": get_pwhash("user"),
+                    CLAIM_LIMITED_SCOPE: SCOPE_RESET_PW,
+                },
+            )
+        header = {"Authorization": f"Bearer {token}"}
+        with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
+            mock_smtp_instance = MagicMock()
+            mock_smtp.return_value = mock_smtp_instance
+            with patch.dict(
+                self.app.config,
+                {"OIDC_ENABLED": True, "OIDC_DISABLE_LOCAL_AUTH": True},
+            ):
+                rv = self.client.post(BASE_URL + "/users/user/password/reset/trigger/")
+                assert rv.status_code == 405
+                rv = self.client.get(
+                    BASE_URL + "/users/-/password/reset/", headers=header
+                )
+                assert rv.status_code == 405
+                rv = self.client.post(
+                    BASE_URL + "/users/-/password/reset/",
+                    headers=header,
+                    json={"new_password": "789"},
+                )
+                assert rv.status_code == 405
+            mock_smtp.assert_not_called()
+            # the password is unchanged
+            rv = self.client.post(
+                BASE_URL + "/token/", json={"username": "user", "password": "123"}
+            )
+            assert rv.status_code == 200
+            # the setting has no effect while OIDC is disabled
+            with patch.dict(
+                self.app.config,
+                {"OIDC_ENABLED": False, "OIDC_DISABLE_LOCAL_AUTH": True},
+            ):
+                rv = self.client.post(BASE_URL + "/users/user/password/reset/trigger/")
+                assert rv.status_code == 201
+                mock_smtp_instance.send_message.assert_called_once()
+                rv = self.client.post(
+                    BASE_URL + "/users/-/password/reset/",
+                    headers=header,
+                    json={"new_password": "789"},
+                )
+                assert rv.status_code == 201
+
     def test_confirm_email(self):
         with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
             mock_smtp_instance = MagicMock()
@@ -1479,6 +1635,34 @@ class TestUserCreateOwner(unittest.TestCase):
             assert get_number_users() == 1
         rv = self.client.get(f"{BASE_URL}/token/create_owner/")
         assert rv.status_code == 405
+
+    def test_create_admin_local_auth_disabled(self):
+        self._delete_users()
+        rv = self.client.get(f"{BASE_URL}/token/create_owner/")
+        assert rv.status_code == 200
+        header = {"Authorization": f"Bearer {rv.json['access_token']}"}
+        body = {
+            "password": "123",
+            "email": "test@example.com",
+            "full_name": "My Name",
+        }
+        with patch.dict(
+            self.app.config, {"OIDC_ENABLED": True, "OIDC_DISABLE_LOCAL_AUTH": True}
+        ):
+            rv = self.client.post(
+                f"{BASE_URL}/users/site_admin/create_owner/", headers=header, json=body
+            )
+        assert rv.status_code == 405
+        with self.app.app_context():
+            assert get_number_users() == 0
+        # the setting has no effect while OIDC is disabled
+        with patch.dict(
+            self.app.config, {"OIDC_ENABLED": False, "OIDC_DISABLE_LOCAL_AUTH": True}
+        ):
+            rv = self.client.post(
+                f"{BASE_URL}/users/site_admin/create_owner/", headers=header, json=body
+            )
+        assert rv.status_code == 201
 
     def test_create_owner(self):
         self._delete_users()

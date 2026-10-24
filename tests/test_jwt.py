@@ -208,7 +208,7 @@ class TestPerson(unittest.TestCase):
         assert "access_token" in rv.json
         assert rv.json["access_token"] != 1
 
-    @patch("gramps_webapi.api.resources.token.is_oidc_enabled", return_value=True)
+    @patch("gramps_webapi.auth.oidc_helpers.is_oidc_enabled", return_value=True)
     def test_token_endpoint_disabled_local_auth(self, mock_oidc_enabled):
         """Test token endpoint when local auth is disabled."""
         with self.app.app_context():
@@ -224,7 +224,7 @@ class TestPerson(unittest.TestCase):
             # Clean up
             self.app.config["OIDC_DISABLE_LOCAL_AUTH"] = False
 
-    @patch("gramps_webapi.api.resources.token.is_oidc_enabled", return_value=False)
+    @patch("gramps_webapi.auth.oidc_helpers.is_oidc_enabled", return_value=False)
     def test_token_endpoint_local_auth_enabled_when_oidc_disabled(
         self, mock_oidc_enabled
     ):
