@@ -488,6 +488,15 @@ def validate_options(
             _validate_standard_option(name, report.options_help[name], value)
 
 
+def _has_gramps_id(db_handle: DbReadBase, obj_type: str, gramps_id: str) -> bool:
+    """Check that an object with this Gramps ID exists and is visible to the user.
+
+    The proxy databases (e.g. for users without permission to view private
+    records) don't implement the has_*_gramps_id methods, so use the getters.
+    """
+    return getattr(db_handle, f"get_{obj_type}_from_gramps_id")(gramps_id) is not None
+
+
 def _validate_menu_option(db_handle: DbReadBase, name: str, option, value: str):
     """Check a value against the menu option of a report or docgen."""
     if isinstance(option, NumberOption):
@@ -509,17 +518,17 @@ def _validate_menu_option(db_handle: DbReadBase, name: str, option, value: str):
     elif isinstance(option, EnumeratedListOption):
         valid = value in [str(item) for item, _descr in option.get_items()]
     elif isinstance(option, PersonOption):
-        valid = db_handle.has_person_gramps_id(value)
+        valid = _has_gramps_id(db_handle, "person", value)
     elif isinstance(option, FamilyOption):
-        valid = db_handle.has_family_gramps_id(value)
+        valid = _has_gramps_id(db_handle, "family", value)
     elif isinstance(option, NoteOption):
-        valid = db_handle.has_note_gramps_id(value)
+        valid = _has_gramps_id(db_handle, "note", value)
     elif isinstance(option, MediaOption):
-        valid = db_handle.has_media_gramps_id(value)
+        valid = _has_gramps_id(db_handle, "media", value)
     elif isinstance(option, PersonListOption):
-        valid = all(db_handle.has_person_gramps_id(gid) for gid in value.split())
+        valid = all(_has_gramps_id(db_handle, "person", gid) for gid in value.split())
     elif isinstance(option, PlaceListOption):
-        valid = all(db_handle.has_place_gramps_id(gid) for gid in value.split())
+        valid = all(_has_gramps_id(db_handle, "place", gid) for gid in value.split())
     else:
         # free text
         valid = True
