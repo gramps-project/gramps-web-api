@@ -535,6 +535,31 @@ def _plant(db) -> Canaries:
         db.add_source(source, trans)
         c.objects += [("Person", holder.handle), ("Source", source.handle)]
 
+        # --- a spouse with a private attribute, which the living dates of
+        # the other spouse are estimated from ---
+        spouse = _person(db, trans, "Spouse")
+        spouse.add_attribute(
+            _attribute(c.token("private attribute of a spouse"), private=True)
+        )
+        baptism = Event()
+        baptism.set_type(EventType.BAPTISM)
+        date = Date()
+        date.set_yr_mon_day(1990, 5, 4)
+        baptism.set_date_object(date)
+        db.add_event(baptism, trans)
+        event_ref = EventRef()
+        event_ref.set_reference_handle(baptism.handle)
+        spouse.add_event_ref(event_ref)
+        partner = _person(db, trans, "Partner")
+        family = Family()
+        family.set_father_handle(partner.handle)
+        family.set_mother_handle(spouse.handle)
+        db.add_family(family, trans)
+        for obj in (spouse, partner):
+            obj.add_family_handle(family.handle)
+            db.commit_person(obj, trans)
+        c.objects += [("Person", partner.handle), ("Family", family.handle)]
+
     return c
 
 
