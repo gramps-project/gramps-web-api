@@ -531,6 +531,11 @@ class UserRegisterResource(Resource):
         """Check if the registration is disabled."""
         if current_app.config["REGISTRATION_DISABLED"]:
             return True
+        # without local authentication, a registered user could never log in
+        if is_oidc_enabled() and current_app.config.get(
+            "OIDC_DISABLE_LOCAL_AUTH", False
+        ):
+            return True
         # check if there are tree owners or, in a single-tree setup,
         # tree admins
         if current_app.config["TREE"] == TREE_MULTI:

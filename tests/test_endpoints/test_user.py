@@ -1024,6 +1024,37 @@ class TestUser(unittest.TestCase):
             )
             assert rv.status_code == 403
 
+    def test_register_user_local_auth_disabled(self):
+        body = {
+            "email": "new_4@example.com",
+            "full_name": "New Name",
+            "password": "abc",
+            "tree": self.tree,
+        }
+        with self.app.app_context():
+            number_users = get_number_users()
+        with patch("gramps_webapi.api.util.smtplib.SMTP_SSL"):
+            # OIDC with local authentication disabled: no registration
+            with patch.dict(
+                self.app.config,
+                {"OIDC_ENABLED": True, "OIDC_DISABLE_LOCAL_AUTH": True},
+            ):
+                rv = self.client.post(
+                    BASE_URL + "/users/new_user_4/register/", json=body
+                )
+            assert rv.status_code == 405
+            with self.app.app_context():
+                assert get_number_users() == number_users
+            # the setting has no effect while OIDC is disabled
+            with patch.dict(
+                self.app.config,
+                {"OIDC_ENABLED": False, "OIDC_DISABLE_LOCAL_AUTH": True},
+            ):
+                rv = self.client.post(
+                    BASE_URL + "/users/new_user_4/register/", json=body
+                )
+            assert rv.status_code == 201
+
     def test_confirm_email(self):
         with patch("gramps_webapi.api.util.smtplib.SMTP_SSL") as mock_smtp:
             mock_smtp_instance = MagicMock()
