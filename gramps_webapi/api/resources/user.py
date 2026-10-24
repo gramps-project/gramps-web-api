@@ -118,6 +118,15 @@ def abort_if_last_owner(user_name: str, message: str) -> None:
     abort_with_message(405, message)
 
 
+def abort_if_local_auth_disabled() -> None:
+    """Abort if local authentication is disabled.
+
+    For endpoints that set a password: it could never be used to log in.
+    """
+    if is_local_auth_disabled():
+        abort_with_message(405, "Local authentication is disabled")
+
+
 class UserChangeBase(ProtectedResource):
     """Base class for user change endpoints."""
 
@@ -444,6 +453,7 @@ class UserResource(UserChangeBase):
         if user_name == "-":
             # Adding a new user does not make sense for "own" user
             abort(404)
+        abort_if_local_auth_disabled()
         if args["role"] >= ROLE_ADMIN:
             # only admins can create new admin users
             require_permissions([PERM_MAKE_ADMIN])
@@ -630,6 +640,7 @@ class UserCreateOwnerResource(LimitedScopeProtectedResource):
         if user_name == "-":
             # User name - is not allowed
             abort(404)
+        abort_if_local_auth_disabled()
         claims = get_jwt()
         if "tree" in args and not tree_exists(args["tree"]):
             abort_with_message(422, "Tree does not exist")
@@ -695,6 +706,7 @@ class UserChangePasswordResource(UserChangeBase):
     @api_blueprint.arguments(UserChangePasswordBodyArgs, location="json")
     def post(self, args, user_name: str):
         """Post new password."""
+        abort_if_local_auth_disabled()
         user_name, _ = self.prepare_edit(user_name)
         if not args["new_password"]:
             abort_with_message(400, "Empty password provided")
@@ -710,6 +722,7 @@ class UserTriggerResetPasswordResource(Resource):
     @limiter.limit("1/second")
     def post(self, user_name):
         """Post username to initiate the password reset."""
+        abort_if_local_auth_disabled()
         if user_name == "-":
             return "", 201
         details = get_user_details(user_name)
@@ -757,6 +770,7 @@ class UserResetPasswordResource(LimitedScopeProtectedResource):
     @api_blueprint.arguments(UserResetPasswordBodyArgs, location="json")
     def post(self, args):
         """Post new password."""
+        abort_if_local_auth_disabled()
         if not args["new_password"]:
             abort_with_message(400, "Empty password provided")
         claims = get_jwt()
@@ -778,6 +792,7 @@ class UserResetPasswordResource(LimitedScopeProtectedResource):
 
     def get(self):
         """Reset password form."""
+        abort_if_local_auth_disabled()
         user_id = get_jwt_identity()
         try:
             username = get_name(user_id)
