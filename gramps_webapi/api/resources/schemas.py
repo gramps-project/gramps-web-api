@@ -3138,7 +3138,7 @@ class DnaMatchSchema(_Base):
         metadata={"description": "Handles of latest common ancestors."},
     )
     ancestor_profiles = fields.List(
-        fields.List(fields.Nested(PersonProfileSchema)),
+        fields.Nested(PersonProfileSchema),
         metadata={"description": "Profiles of latest common ancestors."},
     )
     segments = fields.List(
