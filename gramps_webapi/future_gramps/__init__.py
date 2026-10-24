@@ -31,10 +31,12 @@ move into Gramps core unchanged.
 See https://gramps.discourse.group/t/proposal-process-for-upstreaming-web-api-improvements-into-gramps-core/9940
 """
 
-from . import relationship
+from . import alive, relationship
 
 
 def apply_patches() -> None:
     """Apply all patches to Gramps core."""
     # https://github.com/gramps-project/gramps/pull/2526
     relationship.apply_patch()
+    # https://github.com/gramps-project/gramps/pull/2565
+    alive.apply_patch()

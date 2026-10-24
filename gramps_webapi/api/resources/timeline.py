@@ -29,7 +29,7 @@ from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Date, Event, EventType, Person, Span
 from gramps.gen.relationship import get_relationship_calculator
-from gramps.gen.utils.alive import probably_alive_range
+from gramps.gen.utils import alive
 from gramps.gen.utils.db import (
     get_birth_or_fallback,
     get_death_or_fallback,
@@ -323,7 +323,11 @@ class Timeline:
                             if self.is_death_indicator(self.timeline[-1][0]):
                                 self.end_date = self.timeline[-1][0].date
                             else:
-                                data = probably_alive_range(person, self.db_handle)
+                                # looked up on the module, which
+                                # future_gramps patches
+                                data = alive.probably_alive_range(
+                                    person, self.db_handle
+                                )
                                 self.end_date = data[1]
 
             for family in person.parent_family_list:
