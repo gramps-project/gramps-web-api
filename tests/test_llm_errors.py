@@ -19,17 +19,23 @@
 
 """Tests for how agent failures are mapped to HTTP status codes."""
 
+import logging
+
 import httpx
 import pytest
 from flask import Flask
 from pydantic_ai.exceptions import (
+    IncompleteToolCall,
     ModelAPIError,
     ModelHTTPError,
     UnexpectedModelBehavior,
 )
+from pydantic_ai.messages import ModelResponse, TextPart
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from werkzeug.exceptions import HTTPException
 
 from gramps_webapi.api.llm import answer_with_agent
+from gramps_webapi.api.llm.agent import create_agent
 
 
 @pytest.fixture(name="app")
@@ -51,6 +57,7 @@ def fixture_app():
         (ModelHTTPError(status_code=400, model_name="test-model"), 502),
         (ModelHTTPError(status_code=401, model_name="test-model"), 502),
         (UnexpectedModelBehavior("garbage"), 500),
+        (IncompleteToolCall("cut off"), 400),
         (RuntimeError("boom"), 500),
     ],
 )
@@ -101,3 +108,50 @@ def test_agent_setup_error_status_code(app, monkeypatch, model_name, base_url):
             )
 
     assert excinfo.value.code == 500
+
+
+def _answer_with_response(app, monkeypatch, caplog, response: ModelResponse):
+    """Answer a prompt with a model that returns `response`."""
+    # Pydantic AI can leave the root logger at ERROR, see `_disable_griffe_logging`
+    caplog.set_level(logging.WARNING)
+    monkeypatch.setenv("OPENAI_API_KEY", "key")
+
+    def model_function(messages, info: AgentInfo) -> ModelResponse:
+        return response
+
+    def create(**kwargs):
+        agent = create_agent(**kwargs)
+        agent.model = FunctionModel(model_function)
+        return agent
+
+    monkeypatch.setattr("gramps_webapi.api.llm.create_agent", create)
+    app.config.update(LLM_MODEL="gpt-4o-mini", LLM_MAX_OUTPUT_TOKENS=256)
+    with app.app_context():
+        return answer_with_agent(
+            prompt="Who was my grandmother?",
+            tree="tree",
+            include_private=False,
+            user_id="user",
+        )
+
+
+def test_output_limit_before_response(app, monkeypatch, caplog):
+    """A response cut off before any output is not an unexpected error."""
+    with pytest.raises(HTTPException) as excinfo:
+        _answer_with_response(
+            app, monkeypatch, caplog, ModelResponse(parts=[], finish_reason="length")
+        )
+    assert excinfo.value.code == 400
+    assert "LLM_MAX_OUTPUT_TOKENS" in caplog.text
+
+
+def test_output_limit_during_answer(app, monkeypatch, caplog):
+    """A cut off answer is returned, with a warning for the admin."""
+    result = _answer_with_response(
+        app,
+        monkeypatch,
+        caplog,
+        ModelResponse(parts=[TextPart(content="She was")], finish_reason="length"),
+    )
+    assert result.response.text == "She was"
+    assert "LLM_MAX_OUTPUT_TOKENS" in caplog.text
