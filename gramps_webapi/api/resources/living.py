@@ -22,7 +22,7 @@
 from typing import Dict
 
 from flask import Response, abort
-from gramps.gen.utils.alive import probably_alive, probably_alive_range
+from gramps.gen.utils import alive
 from marshmallow import Schema
 from webargs import fields, validate
 
@@ -73,7 +73,7 @@ class LivingResource(ProtectedResource, GrampsJSONEncoder):
         if person == {}:
             abort(404)
 
-        data = probably_alive(
+        data = alive.probably_alive(
             person,
             db_handle,
             max_sib_age_diff=args["max_sibling_age_difference"],
@@ -129,7 +129,8 @@ class LivingDatesResource(ProtectedResource, GrampsJSONEncoder):
         if person == {}:
             abort(404)
 
-        data = probably_alive_range(
+        # looked up on the module, which future_gramps patches
+        data = alive.probably_alive_range(
             person,
             db_handle,
             max_sib_age_diff=args["max_sibling_age_difference"],
