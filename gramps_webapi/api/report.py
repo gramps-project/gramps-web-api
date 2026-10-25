@@ -491,7 +491,7 @@ def validate_options(
 def _has_gramps_id(db_handle: DbReadBase, obj_type: str, gramps_id: str) -> bool:
     """Check that an object with this Gramps ID exists and is visible to the user.
 
-    The proxy databases (e.g. for users without permission to view private
+    Restricted databases (for users without permission to view private
     records) don't implement the has_*_gramps_id methods, so use the getters.
     """
     return getattr(db_handle, f"get_{obj_type}_from_gramps_id")(gramps_id) is not None

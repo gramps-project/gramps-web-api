@@ -80,6 +80,7 @@ from gramps_object_query_language.query_lang import (
 )
 
 from ...auth.const import PERM_VIEW_PRIVATE
+from ..access import RestrictedDb
 from ..auth import require_permissions
 from ..blueprint import api_blueprint
 from ..util import abort_with_message, get_db_handle, get_locale_for_language
@@ -891,7 +892,7 @@ class ObjectQueryResource(ProtectedResource):
     def post(self, args: dict) -> Any:
         """Run a structured query."""
         db = get_db_handle(readonly=True)
-        if isinstance(db, ProxyDbBase):
+        if isinstance(db, (ProxyDbBase, RestrictedDb)):
             # Privacy (and any future proxy-applied rule) comes from `db`
             # itself here, not from a second, SQL-side reimplementation of
             # it -- see `proxied_query.py`'s module docstring. Not fast,

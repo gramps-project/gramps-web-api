@@ -25,7 +25,7 @@ from gramps.gen.db import DbTxn
 from gramps.gen.lib import Attribute, AttributeType, Event, EventRef, EventType
 
 from gramps_webapi.api.llm.render import render_object
-from gramps_webapi.api.util import ModifiedPrivateProxyDb
+from gramps_webapi.api.access import AccessPolicy, RestrictedDb
 
 from . import ExampleDbInMemory
 
@@ -42,7 +42,7 @@ class TestRender(unittest.TestCase):
     def setUpClass(cls):
         cls.exampledb = ExampleDbInMemory()
         cls.db = cls.exampledb.load()
-        cls.proxy = ModifiedPrivateProxyDb(cls.db)
+        cls.proxy = RestrictedDb(cls.db, AccessPolicy(view_private=False))
 
     @classmethod
     def tearDownClass(cls):
@@ -108,7 +108,7 @@ class TestRenderModified(unittest.TestCase):
     def setUp(self):
         self.exampledb = ExampleDbInMemory()
         self.db = self.exampledb.load()
-        self.proxy = ModifiedPrivateProxyDb(self.db)
+        self.proxy = RestrictedDb(self.db, AccessPolicy(view_private=False))
         self.person = self.db.get_person_from_gramps_id("I0044")
 
     def tearDown(self):

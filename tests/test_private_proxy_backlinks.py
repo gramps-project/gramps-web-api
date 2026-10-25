@@ -17,7 +17,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""Tests that ModifiedPrivateProxyDb backlinks do not reveal private references."""
+"""Tests that RestrictedDb backlinks do not reveal private references."""
 
 import pytest
 from gramps.cli.clidbman import CLIDbManager
@@ -27,7 +27,7 @@ from gramps.gen.dbstate import DbState
 from gramps.gen.lib import Event, EventRef, Media, MediaRef, Name, Note, Person
 
 from gramps_webapi.api.resources.util import get_backlinks
-from gramps_webapi.api.util import ModifiedPrivateProxyDb
+from gramps_webapi.api.access import AccessPolicy, RestrictedDb
 
 
 @pytest.fixture(scope="module")
@@ -88,9 +88,9 @@ def db_handles():
 
 @pytest.fixture(scope="module")
 def proxy(db_handles):
-    """Return a ModifiedPrivateProxyDb wrapping the test db."""
+    """Return a RestrictedDb wrapping the test db."""
     db, _handles = db_handles
-    return ModifiedPrivateProxyDb(db)
+    return RestrictedDb(db, AccessPolicy(view_private=False))
 
 
 def _backlink_handles(db, handle):

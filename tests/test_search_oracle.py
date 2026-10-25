@@ -40,7 +40,7 @@ from gramps.gen.lib import Name
 from gramps_webapi.api.search.indexer import SearchIndexer
 from gramps_webapi.api.search.query import Clause, Term, parse_query
 from gramps_webapi.api.search.text import name_string, own_strings, tokenize
-from gramps_webapi.api.util import ModifiedPrivateProxyDb
+from gramps_webapi.api.access import AccessPolicy, RestrictedDb
 from gramps_webapi.const import GRAMPS_OBJECT_PLURAL, PRIMARY_GRAMPS_OBJECTS
 from tests import ExampleDbInMemory
 
@@ -100,7 +100,7 @@ def _is_placeholder(name: Name) -> bool:
 
 def oracle_docs(db, guest: bool) -> dict[str, list[list[str]]]:
     """Return the token lists each visible object can be found by."""
-    view = ModifiedPrivateProxyDb(db) if guest else db
+    view = RestrictedDb(db, AccessPolicy(view_private=False)) if guest else db
     docs: dict[str, list[list[str]]] = {}
     names: dict[str, list[str]] = {}
     for class_name in PRIMARY_GRAMPS_OBJECTS:

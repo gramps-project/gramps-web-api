@@ -23,10 +23,9 @@ Every referenced object is a Markdown link, so the model can cite it and look
 it up with the matching tool.
 
 Privacy is not handled here: when the user may not view private records, the
-tools pass a private proxy database, which hides private objects (returning
-None) and strips private parts from the objects it returns. The one exception
-is backlinks, which the proxy does not filter by the privacy of the reference
-itself, see `_backlinks`.
+tools pass a `RestrictedDb`, which hides private objects (returning None),
+strips private parts from the objects it returns and only returns backlinks
+from objects that still reference the target.
 """
 
 from __future__ import annotations
@@ -53,7 +52,7 @@ from gramps.gen.lib import (
 )
 from gramps.gen.utils.place import conv_lat_lon
 
-from ..resources.util import display_date
+from ..resources.util import display_date, get_object_or_none
 
 MAX_BACKLINKS = 20
 MAX_NOTES = 10
@@ -68,16 +67,6 @@ GENDERS = {
     Person.UNKNOWN: "unknown",
     Person.OTHER: "other",
 }
-
-
-def _get(db_handle: DbReadBase, class_name: str, handle: str) -> Any:
-    """Get an object by handle, or None if it is missing or private."""
-    if not handle:
-        return None
-    try:
-        return db_handle.method("get_%s_from_handle", class_name)(handle)
-    except HandleError:
-        return None
 
 
 def _skipped(type_name: str) -> bool:
@@ -124,8 +113,8 @@ def _family_label(db_handle: DbReadBase, family: Family) -> str:
     parents = [
         _name(person.primary_name)
         for person in (
-            _get(db_handle, "Person", family.father_handle),
-            _get(db_handle, "Person", family.mother_handle),
+            get_object_or_none(db_handle, "Person", family.father_handle),
+            get_object_or_none(db_handle, "Person", family.mother_handle),
         )
         if person is not None
     ]
@@ -150,7 +139,7 @@ def _label(db_handle: DbReadBase, class_name: str, obj) -> str:
     if class_name == "Source":
         return obj.title
     if class_name == "Citation":
-        source = _get(db_handle, "Source", obj.source_handle)
+        source = get_object_or_none(db_handle, "Source", obj.source_handle)
         title = source.title if source else ""
         return ", ".join(part for part in (title, obj.page) if part)
     if class_name == "Repository":
@@ -171,7 +160,7 @@ def _person_line(db_handle: DbReadBase, person: Person) -> str:
         ("born", person.get_birth_ref()),
         ("died", person.get_death_ref()),
     ):
-        event = _get(db_handle, "Event", ref.ref) if ref else None
+        event = get_object_or_none(db_handle, "Event", ref.ref) if ref else None
         date = _date(event) if event else ""
         if date:
             dates.append(f"{prefix} {date}")
@@ -187,7 +176,9 @@ def _enclosing_places(db_handle: DbReadBase, place: Place) -> list[str]:
     seen = {place.handle}
     current = place
     while current.get_placeref_list():
-        parent = _get(db_handle, "Place", current.get_placeref_list()[0].ref)
+        parent = get_object_or_none(
+            db_handle, "Place", current.get_placeref_list()[0].ref
+        )
         if parent is None or parent.handle in seen:
             break
         seen.add(parent.handle)
@@ -209,7 +200,7 @@ def _event_line(db_handle: DbReadBase, event: Event, role=None) -> str:
     date = _date(event)
     if date:
         details.append(date)
-    place = _get(db_handle, "Place", event.place)
+    place = get_object_or_none(db_handle, "Place", event.place)
     if place is not None:
         details.append(f"in {_place_hierarchy(db_handle, place)}")
     if details:
@@ -224,7 +215,7 @@ def _event_line(db_handle: DbReadBase, event: Event, role=None) -> str:
 def _event_lines(db_handle: DbReadBase, event_ref_list) -> list[str]:
     lines = []
     for event_ref in event_ref_list:
-        event = _get(db_handle, "Event", event_ref.ref)
+        event = get_object_or_none(db_handle, "Event", event_ref.ref)
         if event is None or _skipped(event.type.xml_str()):
             continue
         lines.append("- " + _event_line(db_handle, event, event_ref.get_role()))
@@ -290,7 +281,8 @@ def _citations(db_handle: DbReadBase, obj) -> list[str]:
     links = [
         _obj_link(db_handle, "Citation", citation)
         for citation in (
-            _get(db_handle, "Citation", handle) for handle in obj.get_citation_list()
+            get_object_or_none(db_handle, "Citation", handle)
+            for handle in obj.get_citation_list()
         )
         if citation is not None
     ]
@@ -301,7 +293,7 @@ def _media(db_handle: DbReadBase, obj) -> list[str]:
     links = [
         _obj_link(db_handle, "Media", media)
         for media in (
-            _get(db_handle, "Media", media_ref.ref)
+            get_object_or_none(db_handle, "Media", media_ref.ref)
             for media_ref in obj.get_media_list()
         )
         if media is not None
@@ -322,8 +314,11 @@ def _note_type(note: Note) -> str:
 def _notes(db_handle: DbReadBase, obj) -> list[str]:
     """Note links with a short preview; get_note returns the full text."""
     lines = []
-    notes = [_get(db_handle, "Note", handle) for handle in obj.get_note_list()]
-    notes = [note for note in notes if note is not None]
+    notes = [
+        note
+        for handle in obj.get_note_list()
+        if (note := get_object_or_none(db_handle, "Note", handle)) is not None
+    ]
     for note in notes[:MAX_NOTES]:
         text = _note_text(note)
         if len(text) > NOTE_PREVIEW_CHARS:
@@ -340,33 +335,22 @@ def _notes(db_handle: DbReadBase, obj) -> list[str]:
 
 def _backlinks(
     db_handle: DbReadBase,
-    class_name: str,
     handle: str,
     include_classes: list[str] | None = None,
 ) -> list[tuple[str, Any]]:
-    """Return the objects that reference an object.
-
-    The private proxy's find_backlink_handles only hides private referencing
-    objects, not private references (e.g. a private media reference of a
-    public person). The proxy does strip those from the objects it returns,
-    so a backlink is only kept if the returned object still references the
-    target.
-    """
+    """Return the objects that reference an object."""
     result = []
     for ref_class, ref_handle in db_handle.find_backlink_handles(
         handle, include_classes=include_classes
     ):
-        obj = _get(db_handle, ref_class, ref_handle)
-        if obj is None:
-            continue
-        if (class_name, handle) not in obj.get_referenced_handles_recursively():
-            continue
-        result.append((ref_class, obj))
+        obj = get_object_or_none(db_handle, ref_class, ref_handle)
+        if obj is not None:
+            result.append((ref_class, obj))
     return result
 
 
-def _referenced_by(db_handle: DbReadBase, class_name: str, obj) -> list[str]:
-    backlinks = _backlinks(db_handle, class_name, obj.handle)
+def _referenced_by(db_handle: DbReadBase, obj) -> list[str]:
+    backlinks = _backlinks(db_handle, obj.handle)
     links = [
         _obj_link(db_handle, ref_class, ref_obj)
         for ref_class, ref_obj in backlinks[:MAX_BACKLINKS]
@@ -393,20 +377,20 @@ def _person(db_handle: DbReadBase, person: Person) -> list[str]:
         lines.append(f"Also known as: {'; '.join(alternate_names)}")
     lines += _section("Events", _event_lines(db_handle, person.get_event_ref_list()))
     for family_handle in person.get_parent_family_handle_list():
-        family = _get(db_handle, "Family", family_handle)
-        child_refs = (
-            [ref for ref in family.get_child_ref_list() if ref.ref == person.handle]
-            if family is not None
-            else []
-        )
+        family = get_object_or_none(db_handle, "Family", family_handle)
+        if family is None:
+            continue
+        child_refs = [
+            ref for ref in family.get_child_ref_list() if ref.ref == person.handle
+        ]
         if not child_refs:
             # the family does not list the person as a child
             continue
         parents = [
             _person_line(db_handle, parent)
             for parent in (
-                _get(db_handle, "Person", family.father_handle),
-                _get(db_handle, "Person", family.mother_handle),
+                get_object_or_none(db_handle, "Person", family.father_handle),
+                get_object_or_none(db_handle, "Person", family.mother_handle),
             )
             if parent is not None
         ]
@@ -424,7 +408,7 @@ def _person(db_handle: DbReadBase, person: Person) -> list[str]:
         lines.append(line)
     family_lines = []
     for family_handle in person.get_family_handle_list():
-        family = _get(db_handle, "Family", family_handle)
+        family = get_object_or_none(db_handle, "Family", family_handle)
         if family is None or person.handle not in (
             family.father_handle,
             family.mother_handle,
@@ -436,13 +420,13 @@ def _person(db_handle: DbReadBase, person: Person) -> list[str]:
             if family.father_handle == person.handle
             else family.father_handle
         )
-        spouse = _get(db_handle, "Person", spouse_handle)
+        spouse = get_object_or_none(db_handle, "Person", spouse_handle)
         line = f"- {_link('family', 'Family', family.gramps_id)}"
         line += f" with {_person_line(db_handle, spouse)}" if spouse else ""
         events = [
             _event_line(db_handle, event)
             for event in (
-                _get(db_handle, "Event", event_ref.ref)
+                get_object_or_none(db_handle, "Event", event_ref.ref)
                 for event_ref in family.get_event_ref_list()
             )
             if event is not None and not _skipped(event.type.xml_str())
@@ -452,7 +436,7 @@ def _person(db_handle: DbReadBase, person: Person) -> list[str]:
         children = [
             _person_line(db_handle, child)
             for child in (
-                _get(db_handle, "Person", child_ref.ref)
+                get_object_or_none(db_handle, "Person", child_ref.ref)
                 for child_ref in family.get_child_ref_list()
             )
             if child is not None
@@ -463,7 +447,7 @@ def _person(db_handle: DbReadBase, person: Person) -> list[str]:
     lines += _section("Families", family_lines)
     associations = []
     for person_ref in person.get_person_ref_list():
-        other = _get(db_handle, "Person", person_ref.ref)
+        other = get_object_or_none(db_handle, "Person", person_ref.ref)
         if other is not None:
             associations.append(f"{_person_line(db_handle, other)} ({person_ref.rel})")
     if associations:
@@ -480,7 +464,7 @@ def _family(db_handle: DbReadBase, family: Family) -> list[str]:
         ("Father", family.father_handle),
         ("Mother", family.mother_handle),
     ):
-        parent = _get(db_handle, "Person", handle)
+        parent = get_object_or_none(db_handle, "Person", handle)
         if parent is not None:
             lines.append(f"{title}: {_person_line(db_handle, parent)}")
     if family.type:
@@ -488,7 +472,7 @@ def _family(db_handle: DbReadBase, family: Family) -> list[str]:
     lines += _section("Events", _event_lines(db_handle, family.get_event_ref_list()))
     children = []
     for child_ref in family.get_child_ref_list():
-        child = _get(db_handle, "Person", child_ref.ref)
+        child = get_object_or_none(db_handle, "Person", child_ref.ref)
         if child is None:
             continue
         line = "- " + _person_line(db_handle, child)
@@ -512,14 +496,14 @@ def _event(db_handle: DbReadBase, event: Event) -> list[str]:
     date = _date(event)
     if date:
         lines.append(f"Date: {date}")
-    place = _get(db_handle, "Place", event.place)
+    place = get_object_or_none(db_handle, "Place", event.place)
     if place is not None:
         lines.append(f"Place: {_place_hierarchy(db_handle, place)}")
     if event.description:
         lines.append(f"Description: {event.description}")
     participants = []
     for ref_class, obj in _backlinks(
-        db_handle, "Event", event.handle, include_classes=["Person", "Family"]
+        db_handle, event.handle, include_classes=["Person", "Family"]
     ):
         for event_ref in obj.get_event_ref_list():
             if event_ref.ref != event.handle:
@@ -559,7 +543,7 @@ def _place(db_handle: DbReadBase, place: Place) -> list[str]:
 
 def _citation(db_handle: DbReadBase, citation: Citation) -> list[str]:
     lines = [f"## Citation: {_obj_link(db_handle, 'Citation', citation)}"]
-    source = _get(db_handle, "Source", citation.source_handle)
+    source = get_object_or_none(db_handle, "Source", citation.source_handle)
     if source is not None:
         lines.append(f"Source: {_obj_link(db_handle, 'Source', source)}")
     if citation.page.strip():
@@ -568,7 +552,7 @@ def _citation(db_handle: DbReadBase, citation: Citation) -> list[str]:
     if date:
         lines.append(f"Date: {date}")
     lines += _attributes(citation)
-    lines += _referenced_by(db_handle, "Citation", citation)
+    lines += _referenced_by(db_handle, citation)
     return lines
 
 
@@ -582,7 +566,7 @@ def _source(db_handle: DbReadBase, source: Source) -> list[str]:
         lines.append(f"Abbreviation: {source.abbrev}")
     repositories = []
     for repo_ref in source.get_reporef_list():
-        repository = _get(db_handle, "Repository", repo_ref.ref)
+        repository = get_object_or_none(db_handle, "Repository", repo_ref.ref)
         if repository is None:
             continue
         line = _obj_link(db_handle, "Repository", repository)
@@ -600,9 +584,7 @@ def _repository(db_handle: DbReadBase, repository: Repository) -> list[str]:
     lines.append(f"Type: {repository.type.xml_str()}")
     lines += _addresses(repository)
     lines += _urls(repository)
-    sources = _backlinks(
-        db_handle, "Repository", repository.handle, include_classes=["Source"]
-    )
+    sources = _backlinks(db_handle, repository.handle, include_classes=["Source"])
     links = [_obj_link(db_handle, "Source", source) for _, source in sources]
     if len(links) > MAX_BACKLINKS:
         links = links[:MAX_BACKLINKS] + [f"… and {len(links) - MAX_BACKLINKS} more"]
@@ -616,7 +598,7 @@ def _note(db_handle: DbReadBase, note: Note) -> list[str]:
     note_type = _note_type(note)
     if note_type:
         lines.append(f"Type: {note_type}")
-    lines += _referenced_by(db_handle, "Note", note)
+    lines += _referenced_by(db_handle, note)
     lines += ["Text:", re.sub(r"\n\s*\n+", "\n", note.get()).strip()]
     return lines
 
@@ -631,7 +613,7 @@ def _media_object(db_handle: DbReadBase, media: Media) -> list[str]:
     if media.path:
         lines.append(f"File: {media.path}")
     lines += _attributes(media)
-    lines += _referenced_by(db_handle, "Media", media)
+    lines += _referenced_by(db_handle, media)
     return lines
 
 
@@ -669,7 +651,7 @@ def render_handle(db_handle: DbReadBase, class_name: str, handle: str) -> str:
     """
     if class_name not in RENDERERS:
         return ""
-    obj = _get(db_handle, class_name, handle)
+    obj = get_object_or_none(db_handle, class_name, handle)
     if obj is None:
         return ""
     return render_object(db_handle, class_name, obj)

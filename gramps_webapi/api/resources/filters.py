@@ -114,11 +114,12 @@ class IsReferencedByObjectType(Rule):
 class MatchesQuery(Rule):
     """Rule that matches objects against a GOQL expression.
 
-    On an unproxied DB-API database, the matching handles are computed with a
-    single SQL query in `prepare` and exposed as `selected_handles`, which
+    On an unrestricted DB-API database, the matching handles are computed with
+    a single SQL query in `prepare` and exposed as `selected_handles`, which
     Gramps' filter optimizer uses to skip loading non-matching objects. On a
-    proxied database, or a backend we can't compile SQL for, each object is
-    evaluated in Python against what the proxy returns.
+    restricted database (which has no `dbapi`), a Gramps proxy, or a backend
+    we can't compile SQL for, each object is evaluated in Python against what
+    the database returns.
     """
 
     labels = ["Expression:"]

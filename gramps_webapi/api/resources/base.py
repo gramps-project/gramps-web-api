@@ -384,7 +384,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         with DbTxn(f"Edit {self.gramps_class_name}", db_handle) as trans:
             try:
                 update_object(db_handle, obj, trans)
-            except ValueError as exc:
+            except ValueError:
                 abort_with_message(400, "Error while updating object")
             trans_dict = transaction_to_json(trans)
         # update search index
@@ -683,10 +683,10 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
 
         if "filter" in args or "rules" in args:
             handles = [obj.handle for obj in objects]
-            handles = apply_filter(
-                self.db_handle, args, self.gramps_class_name, handles
+            handles = set(
+                apply_filter(self.db_handle, args, self.gramps_class_name, handles)
             )
-            objects = [obj for obj in objects if obj.handle in set(handles)]
+            objects = [obj for obj in objects if obj.handle in handles]
 
         if "gql" in args:
             try:

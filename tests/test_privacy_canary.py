@@ -100,6 +100,8 @@ PLURAL = {
     "Note": "notes",
 }
 FULL_PARAMS = ["?extend=all&profile=all&backlinks=true", "?extend=all", ""]
+# handles of objects that don't exist, by class
+MISSING = {class_name: f"missing{class_name.lower()}" for class_name in PLURAL}
 # Leaks that are known and will be fixed when search and permissions are
 # redesigned, as prefixes of the reported leaks.
 KNOWN_LEAKS = (
@@ -611,6 +613,20 @@ def _body(data: bytes) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+def _object_urls(class_name: str, handle: str) -> list[tuple[str, list[str]]]:
+    """Return (url, parameter options) of the URLs crawled for an object."""
+    base = f"/api/{PLURAL[class_name]}/{handle}"
+    urls = [(base, FULL_PARAMS)]
+    if class_name == "Person":
+        for suffix in ("/timeline", "/dna/matches", "/ydna"):
+            urls.append((base + suffix, [""]))
+        urls.append((f"/api/living/{handle}", [""]))
+        urls.append((f"/api/living/{handle}/dates", [""]))
+    if class_name == "Family":
+        urls.append((base + "/timeline", [""]))
+    return urls
+
+
 def _crawl(client, headers, canaries: Canaries) -> dict[str, tuple[int, str]]:
     """Return {url: (status, body)} for all crawled URLs."""
     results: dict[str, tuple[int, str]] = {}
@@ -622,16 +638,11 @@ def _crawl(client, headers, canaries: Canaries) -> dict[str, tuple[int, str]]:
                 break
         results[url] = (rv.status_code, _body(rv.data))
 
-    for class_name, handle in set(canaries.objects + canaries.private_objects):
-        base = f"/api/{PLURAL[class_name]}/{handle}"
-        get(base, FULL_PARAMS)
-        if class_name == "Person":
-            for suffix in ("/timeline", "/dna/matches", "/ydna"):
-                get(base + suffix)
-            get(f"/api/living/{handle}")
-            get(f"/api/living/{handle}/dates")
-        if class_name == "Family":
-            get(base + "/timeline")
+    for class_name, handle in set(
+        canaries.objects + canaries.private_objects + list(MISSING.items())
+    ):
+        for url, param_options in _object_urls(class_name, handle):
+            get(url, param_options)
     for plural in PLURAL.values():
         get(f"/api/{plural}/", ["?extend=all&backlinks=true", ""])
     rv = client.post(
@@ -757,6 +768,28 @@ def test_guest_cannot_fetch_private_objects(crawl):
         if guest[(url := f"/api/{PLURAL[class_name]}/{handle}")][0] < 400
     ]
     assert not found, "\n".join(found)
+
+
+def test_private_objects_look_missing(crawl):
+    """A guest can't tell a private object from one that doesn't exist."""
+    canaries, _owner, guest = crawl
+    different = []
+    for class_name, handle in canaries.private_objects:
+        missing = MISSING[class_name]
+        for (url, _), (missing_url, _) in zip(
+            _object_urls(class_name, handle), _object_urls(class_name, missing)
+        ):
+            got = (guest[url][0], guest[url][1].replace(handle, "<handle>"))
+            expected = (
+                guest[missing_url][0],
+                guest[missing_url][1].replace(missing, "<handle>"),
+            )
+            if got != expected:
+                different.append(
+                    f"GET {url}: {got[0]} {got[1][:200]!r}, "
+                    f"missing object: {expected[0]} {expected[1][:200]!r}"
+                )
+    assert not different, "\n".join(different)
 
 
 def test_private_references_hidden(crawl):
