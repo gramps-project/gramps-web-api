@@ -72,12 +72,12 @@ class TestNotes(unittest.TestCase):
         """Test some expected results returned."""
         rv = check_success(self, TEST_URL)
         # check first expected record
-        self.assertEqual(rv[0]["gramps_id"], "N0001")
-        self.assertEqual(rv[0]["handle"], "ac380498bac48eedee8")
-        self.assertEqual(rv[0]["type"], "Name Note")
+        self.assertEqual(rv[0]["gramps_id"], "_custom1")
+        self.assertEqual(rv[0]["handle"], "d0436be64ac277b615b79b34e72")
+        self.assertEqual(rv[0]["type"], "General")
         # check last expected record
-        self.assertEqual(rv[-1]["gramps_id"], "_custom1")
-        self.assertEqual(rv[-1]["handle"], "d0436be64ac277b615b79b34e72")
+        self.assertEqual(rv[-1]["gramps_id"], "N0015")
+        self.assertEqual(rv[-1]["handle"], "c140d4c29520c92055c")
         self.assertEqual(rv[-1]["type"], "General")
 
     def test_get_notes_validate_semantics(self):
@@ -312,7 +312,9 @@ class TestNotes(unittest.TestCase):
 
     def test_get_notes_parameter_backlinks_expected_result(self):
         """Test backlinks expected result."""
-        rv = check_success(self, TEST_URL + "?page=1&keys=backlinks&backlinks=1")
+        rv = check_success(
+            self, TEST_URL + "?gramps_id=N0001&keys=backlinks&backlinks=1"
+        )
         for key in ["GNUJQCL9MD64AM56OH"]:
             self.assertIn(key, rv[0]["backlinks"]["person"])
 

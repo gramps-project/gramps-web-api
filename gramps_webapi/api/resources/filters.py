@@ -63,6 +63,7 @@ from ...auth.const import PERM_EDIT_CUSTOM_FILTER
 from ...const import GRAMPS_NAMESPACES, TREE_MULTI
 from ...dbloader import register_plugins
 from ...types import Handle
+from ..access import RestrictedDb
 from ..blueprint import api_blueprint
 from ..util import abort_with_message, get_locale_for_language
 from ..auth import require_permissions
@@ -135,7 +136,8 @@ class MatchesQuery(Rule):
         self.where = compile_expr_for_spec(self.spec, self.list[0])
         self.selected_handles: set[Handle] | None = None
         dbapi = getattr(db, "dbapi", None)
-        if isinstance(db, ProxyDbBase) or dbapi is None:
+        # SQL would match private data of a restricted database
+        if isinstance(db, (ProxyDbBase, RestrictedDb)) or dbapi is None:
             return
         try:
             dialect = detect_dialect(db)

@@ -41,6 +41,7 @@ from itertools import product
 from unittest.mock import patch
 
 import pytest
+from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db import DbTxn
 from gramps.gen.db.utils import open_database
 from gramps.gen.lib import (
@@ -757,6 +758,17 @@ def test_guest_search_respects_private_connections(crawl):
             leaks.append(f"{description}: search for {query} finds {handle}")
     assert not unreached, "Positive control failed for:\n" + "\n".join(unreached)
     assert not leaks, "Search reveals private connections:\n" + "\n".join(leaks)
+
+
+def test_guest_list_order_uses_visible_values(crawl):
+    """Lists are sorted by visible values only, e.g. not by private names."""
+    _canaries, _owner, guest = crawl
+    for plural in PLURAL.values():
+        status, body = guest[f"/api/{plural}/"]
+        assert status == 200, plural
+        key = "name" if plural == "tags" else "gramps_id"
+        values = [obj[key] for obj in json.loads(body)]
+        assert values == sorted(values, key=glocale.sort_key), plural
 
 
 def test_guest_cannot_fetch_private_objects(crawl):

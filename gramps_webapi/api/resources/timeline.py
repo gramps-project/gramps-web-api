@@ -1039,7 +1039,7 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
             if "handles" in args:
                 handles = args["handles"]
             else:
-                handles = db_handle.get_person_handles(sort_handles=True, locale=locale)
+                handles = db_handle.get_person_handles()
 
             if "filter" in args or "rules" in args:
                 handles = apply_filter(db_handle, args, "Person", handles)
@@ -1181,7 +1181,7 @@ class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
         if "handles" in args:
             handles = args["handles"]
         else:
-            handles = db_handle.get_family_handles(sort_handles=True, locale=locale)
+            handles = db_handle.get_family_handles()
 
         try:
             if "filter" in args or "rules" in args:

@@ -34,12 +34,14 @@ from gramps.gen.lib import (
     StyledText,
     StyledTextTag,
     StyledTextTagType,
+    Surname,
 )
 from gramps.gen.lib.json_utils import data_to_object, object_to_data, remove_object
 from gramps.gen.proxy import PrivateProxyDb
 from gramps.gen.proxy.proxybase import ProxyDbBase
 
 from gramps_webapi.api.access import AccessPolicy, RestrictedDb
+from gramps_webapi.api.access import db as access_db
 from gramps_webapi.api.access.db import CLASS_NAMES, ITER_NAMES, TABLES
 from gramps_webapi.api.access.sanitize import sanitize
 from gramps_webapi.api.resources.filters import _ADDITIONAL_RULES, MatchesQuery
@@ -118,6 +120,16 @@ def tree():
         person.set_birth_ref(ref)
         db.commit_person(person, trans)
         handles["person_birth_index"] = person.handle
+        # a person whose first surname isn't the one flagged primary
+        person = _person(db, trans, "Surnamed")
+        name = person.get_primary_name()
+        name.get_surname_list()[0].set_surname("Firstsurname")
+        name.get_surname_list()[0].set_primary(False)
+        surname = Surname()
+        surname.set_surname("Flaggedsurname")
+        surname.set_primary(True)
+        name.add_surname(surname)
+        db.commit_person(person, trans)
     yield db, handles
     db.close()
 
@@ -139,9 +151,25 @@ def test_unimplemented_methods_fail(tree):
     restricted = RestrictedDb(db, GUEST)
     with pytest.raises(NotImplementedError):
         restricted.has_person_gramps_id("I0001")
+    # the base database would sort by hidden values, e.g. private names
+    for class_name in CLASS_NAMES:
+        get_handles = restricted.method("get_%s_handles", TABLES[class_name])
+        with pytest.raises(NotImplementedError):
+            get_handles(sort_handles=True)
+        with pytest.raises(NotImplementedError):
+            get_handles(True)
 
 
-def test_same_as_private_proxy(tree):
+@pytest.fixture(params=["sql", "python", "all_at_once"])
+def lookups(request, monkeypatch):
+    """Run with SQL, without SQL, and without single-handle lookups."""
+    if request.param == "python":
+        monkeypatch.setattr(access_db, "_has_sql", lambda db: False)
+    if request.param == "all_at_once":
+        monkeypatch.setattr(access_db, "SINGLE_LOOKUPS", 0)
+
+
+def test_same_as_private_proxy(tree, lookups):
     """Without grants, RestrictedDb shows what Gramps' private proxy shows,
     except for deliberate differences, which the extra cases cover."""
     db, handles = tree
@@ -167,7 +195,7 @@ def test_same_as_private_proxy(tree):
             )
 
 
-def test_hidden_objects(tree):
+def test_hidden_objects(tree, lookups):
     db, handles = tree
     restricted = RestrictedDb(db, GUEST)
     assert (
@@ -178,6 +206,17 @@ def test_hidden_objects(tree):
     )
     assert restricted.get_note_from_handle(handles["note_private_link"]) is None
     assert restricted.get_note_from_handle(handles["note_public_link"]) is not None
+
+
+def test_surname_list(tree):
+    """Like Gramps' surname list, of the first surnames of visible names."""
+    db, _ = tree
+    surnames = RestrictedDb(db, GUEST).get_surname_list()
+    assert "Firstsurname" in surnames
+    assert "Flaggedsurname" not in surnames
+    assert set(surnames) <= set(db.get_surname_list())
+    owner = RestrictedDb(db, AccessPolicy(view_private=True))
+    assert owner.get_surname_list() == db.get_surname_list()
 
 
 def test_birth_index_follows_removed_references(tree):

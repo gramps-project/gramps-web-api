@@ -160,6 +160,8 @@ class RestrictedDb(DbReadBase):
         # family handle -> handles of children with a public child reference,
         # read at once when iterating over all people
         self.__child_refs: Optional[dict[str, frozenset[str]]] = None
+        # the same for single families, until a request needs many
+        self.__single_child_refs: dict[str, frozenset[str]] = {}
         self.name_formats = db.name_formats
         # the tree's title, set by Gramps when opening it
         self.db_name = getattr(db, "db_name", "")
@@ -328,10 +330,20 @@ class RestrictedDb(DbReadBase):
 
     def __child_ref_visible(self, family_handle: str, person_handle: str) -> bool:
         """Whether the family's reference to the child isn't private."""
+        cache = self.__single_child_refs
+        if self.__child_refs is None and family_handle not in cache:
+            if len(cache) >= SINGLE_LOOKUPS:
+                self.__load_child_refs()
+            else:
+                family = self.__db._get_raw_data(
+                    CLASS_TO_KEY_MAP["Family"], family_handle
+                )
+                cache[family_handle] = (
+                    frozenset() if family is None else _public_children(family)
+                )
         if self.__child_refs is not None:
             return person_handle in self.__child_refs.get(family_handle, ())
-        family = self.__db._get_raw_data(CLASS_TO_KEY_MAP["Family"], family_handle)
-        return family is not None and person_handle in _public_children(family)
+        return person_handle in cache[family_handle]
 
     def __load_child_refs(self) -> None:
         """Read the public child references of all families at once."""
@@ -397,13 +409,16 @@ class RestrictedDb(DbReadBase):
     def __get_handles(
         self,
         class_name: str,
-        *args: Union[bool, GrampsLocale],
-        **kwargs: Union[bool, GrampsLocale],
+        sort_handles: bool = False,
+        locale: Optional[GrampsLocale] = None,
     ) -> list[str]:
-        """Like the base database's method, e.g. sorted if requested."""
+        """Return the visible handles, unsorted."""
+        if sort_handles:
+            # the base database would sort by values that may be hidden
+            raise NotImplementedError("Sorted handles are not supported")
         visible = self.__visible_handles(class_name)
         get_handles = self.__db.method("get_%s_handles", TABLES[class_name])
-        return [handle for handle in get_handles(*args, **kwargs) if handle in visible]
+        return [handle for handle in get_handles() if handle in visible]
 
     def __add_methods(self, class_name: str) -> None:
         """Add the per-class methods, e.g. `get_person_from_handle`."""
@@ -493,6 +508,8 @@ class RestrictedDb(DbReadBase):
 
     def get_surname_list(self) -> list[str]:
         """Return the sorted surnames of people whose primary name is visible."""
+        if self.__policy.sees_everything:
+            return self.__db.get_surname_list()
         visible = set()
         people = self.__visible_handles("Person")
         # no need to sanitize: only the primary name is used
@@ -502,10 +519,9 @@ class RestrictedDb(DbReadBase):
             name = as_object(data["primary_name"])
             if name.get("private"):
                 continue
-            surnames = [as_object(surname) for surname in as_list(name["surname_list"])]
-            primary = [surname for surname in surnames if surname.get("primary")]
-            for surname in (primary or surnames)[:1]:
-                visible.add(surname["surname"])
+            # like Gramps' list, the first surname, not the one flagged primary
+            surnames = as_list(name["surname_list"])
+            visible.add(as_object(surnames[0])["surname"] if surnames else "")
         return [s for s in self.__db.get_surname_list() if s in visible]
 
     # metadata that doesn't depend on privacy

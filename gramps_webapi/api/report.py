@@ -210,10 +210,11 @@ class ModifiedCommandLineReport(CommandLineReport):
 
             if isinstance(option, PersonOption):
                 name_dict = self._get_name_dict()
-                handles = self.database.get_person_handles(True)
                 id_list = [
-                    f"{name_dict[handle]['gramps_id']}\t{name_dict[handle]['name']}"
-                    for handle in handles
+                    f"{person['gramps_id']}\t{person['name']}"
+                    for person in sorted(
+                        name_dict.values(), key=lambda person: person["name"]
+                    )
                 ]
                 self.options_help[name].append(id_list)
             elif isinstance(option, FamilyOption):

@@ -37,6 +37,7 @@ the same pattern `GrampsObjectResourceHelper` subclasses already use with
 import json
 from typing import Any, Optional, Sequence, Tuple
 
+from gramps.gen.errors import HandleError
 from gramps.gen.proxy.proxybase import ProxyDbBase
 from marshmallow import Schema, ValidationError, validate, validates_schema
 from webargs import fields as wf
@@ -703,7 +704,11 @@ def _resolve_after_proxied(
     second, unproxied query behind the caller's back.
     """
     getter = getattr(db, GETTER_BY_TABLE[spec.table])
-    after_obj = getter(after_handle)
+    try:
+        after_obj = getter(after_handle)
+    except HandleError:
+        # same as a hidden object, which the getter returns as None
+        after_obj = None
     if after_obj is None:
         abort_with_message(422, "Invalid 'after' cursor")
     return tuple(
