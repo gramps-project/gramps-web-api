@@ -164,7 +164,7 @@ def test_unimplemented_methods_fail(tree):
 def lookups(request, monkeypatch):
     """Run with SQL, without SQL, and without single-handle lookups."""
     if request.param == "python":
-        monkeypatch.setattr(access_db, "_has_sql", lambda db: False)
+        monkeypatch.setattr(access_db, "has_secondary_columns", lambda db: False)
     if request.param == "all_at_once":
         monkeypatch.setattr(access_db, "SINGLE_LOOKUPS", 0)
 
