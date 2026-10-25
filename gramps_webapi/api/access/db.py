@@ -313,6 +313,9 @@ class RestrictedDb(DbReadBase):
     # raw data and objects
 
     def __sanitize(self, class_name: str, data: RawData) -> DataDict:
+        if self.__policy.sees_everything:
+            # nothing to hide
+            return DataDict(data)
         clean = sanitize(data, self.is_visible)
         if class_name == "Person":
             person_handle = as_handle(data["handle"]) or ""

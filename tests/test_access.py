@@ -210,13 +210,17 @@ def test_sanitizer_knows_all_references(tree):
 
 
 def test_owner_sees_everything(tree):
+    """A policy that sees everything returns objects as stored."""
     db, _ = tree
     restricted = RestrictedDb(db, AccessPolicy(view_private=True))
     for class_name in CLASS_NAMES:
         table = TABLES[class_name]
-        assert set(restricted.method("iter_%s_handles", table)()) == set(
-            db.method("iter_%s_handles", table)()
-        )
+        handles = set(db.method("iter_%s_handles", table)())
+        assert set(restricted.method("iter_%s_handles", table)()) == handles
+        for handle in handles:
+            expected = _data(db.method("get_%s_from_handle", table)(handle))
+            got = _data(restricted.method("get_%s_from_handle", table)(handle))
+            assert got == expected, (class_name, handle)
 
 
 def test_goql_rule_does_not_use_sql(tree):
