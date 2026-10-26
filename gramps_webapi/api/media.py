@@ -107,11 +107,19 @@ def get_local_archive_dir(tree: str | None = None) -> str:
 
 def get_contained_path(base_dir: FilenameOrPath, path: FilenameOrPath) -> Path | None:
     """Return the resolved path of a media file, or None if outside the base dir."""
-    base_path = Path(base_dir).resolve()
-    file_path = Path(base_path, path).resolve()
+    try:
+        base_path = Path(base_dir).resolve()
+        file_path = Path(base_path, path).resolve()
+    except (OSError, RuntimeError, ValueError):
+        return None  # e.g. symlink loop or NUL byte
     if base_path not in file_path.parents:
         return None
     return file_path
+
+
+def is_parent_path(path: str) -> bool:
+    """Return whether a normalized relative path points to a parent directory."""
+    return path == os.pardir or path.startswith(os.pardir + os.sep)
 
 
 def delete_expired_local_archives(retention: float) -> None:
@@ -251,7 +259,7 @@ class MediaHandlerLocal(MediaHandlerBase):
         progress_cb: Optional[Callable] = None,
     ) -> None:
         """Create a ZIP archive on disk containing all media files."""
-        paths_seen = set()
+        names_seen = set()
         if progress_cb:
             total = db_handle.get_number_of_media()
         with zipfile.ZipFile(zip_filename, "w") as zip_file:
@@ -264,10 +272,16 @@ class MediaHandlerLocal(MediaHandlerBase):
                 path = get_contained_path(self.base_dir, obj.path)
                 if path is None:
                     continue  # file outside base dir - ignore
-                if path.is_file() and path not in paths_seen:
-                    rel_path = path.relative_to(Path(self.base_dir).resolve())
+                # name the file as the media object does, e.g. not after
+                # a symlink's target, unless that name would escape the archive
+                rel_path = os.path.relpath(
+                    os.path.join(self.base_dir, obj.path), self.base_dir
+                )
+                if is_parent_path(rel_path):
+                    rel_path = str(path.relative_to(Path(self.base_dir).resolve()))
+                if path.is_file() and rel_path not in names_seen:
                     zip_file.write(path, arcname=rel_path)
-                    paths_seen.add(path)
+                    names_seen.add(rel_path)
 
     def get_file_archive_info(
         self, tree: str, file_name: str
@@ -399,7 +413,7 @@ class MediaHandlerS3(MediaHandlerBase):
                 if obj.checksum not in remote_keys:
                     continue
                 media_path = os.path.normpath(obj.path)
-                if os.path.isabs(media_path) or media_path.startswith(".."):
+                if os.path.isabs(media_path) or is_parent_path(media_path):
                     continue  # ignore paths that would escape the archive
                 file_handler = self.get_file_handler(obj.handle, db_handle=db_handle)
                 fobj = file_handler.get_file_object()

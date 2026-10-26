@@ -225,6 +225,10 @@ class TestMediaOutsideBaseDir(unittest.TestCase):
         self.base_dir = root / "media"
         (self.base_dir / "sub").mkdir(parents=True)
         (self.base_dir / "sub" / "inside.jpg").write_bytes(b"inside")
+        (self.base_dir / "..dots.jpg").write_bytes(b"dots")
+        (self.base_dir / "alias.jpg").symlink_to(self.base_dir / "sub" / "inside.jpg")
+        (self.base_dir / "loop").symlink_to(self.base_dir / "loop")
+        (root / "link").symlink_to(self.base_dir)
         (root / "secret.txt").write_bytes(b"secret")
         self.db = _media_db(
             "sub/inside.jpg",
@@ -232,7 +236,14 @@ class TestMediaOutsideBaseDir(unittest.TestCase):
             "../secret.txt",
             "sub/../../secret.txt",
             str(root / "secret.txt"),
+            "alias.jpg",
+            "loop",
+            "a\0b",
+            "..dots.jpg",
+            # escapes the media folder by name, but not when resolved
+            str(root / "link" / "sub" / "inside.jpg"),
         )
+        self.names = ["sub/inside.jpg", "alias.jpg", "..dots.jpg"]
         self.handler = MediaHandlerLocal(str(self.base_dir))
 
     def tearDown(self):
@@ -242,10 +253,13 @@ class TestMediaOutsideBaseDir(unittest.TestCase):
         zip_filename = Path(self.temp_dir.name, "archive.zip")
         self.handler.create_file_archive(self.db, zip_filename, include_private=True)
         with zipfile.ZipFile(zip_filename) as zip_file:
-            assert zip_file.namelist() == ["sub/inside.jpg"]
+            assert zip_file.namelist() == self.names
+            assert zip_file.read("alias.jpg") == b"inside"
 
     def test_media_size(self):
-        assert self.handler.get_media_size(db_handle=self.db) == len(b"inside")
+        # the symlink's target only counts once
+        size = self.handler.get_media_size(db_handle=self.db)
+        assert size == len(b"inside") + len(b"dots")
 
     def test_archive_s3(self):
         """Object storage archives contain no names that escape the archive."""
@@ -253,10 +267,11 @@ class TestMediaOutsideBaseDir(unittest.TestCase):
         file_handler = Mock()
         file_handler.get_file_object.side_effect = lambda: io.BytesIO(b"content")
         zip_filename = Path(self.temp_dir.name, "archive.zip")
+        remote_keys = {"0", "2", "3", "5", "8"}
         with (
-            patch.object(handler, "get_remote_keys", return_value={"0", "2", "3"}),
+            patch.object(handler, "get_remote_keys", return_value=remote_keys),
             patch.object(handler, "get_file_handler", return_value=file_handler),
         ):
             handler.create_file_archive(self.db, zip_filename, include_private=True)
         with zipfile.ZipFile(zip_filename) as zip_file:
-            assert zip_file.namelist() == ["sub/inside.jpg"]
+            assert zip_file.namelist() == self.names
