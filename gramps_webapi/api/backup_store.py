@@ -91,12 +91,19 @@ class LocalBackupStore:
             return False
         return True
 
-    def prune(self, tree: str, keep: int) -> None:
+    def prune(self, tree: str, keep: int, keep_id: str) -> None:
         """Delete all but the newest `keep` archives of the tree (at least one).
 
-        Files whose manifest can't be read are left alone.
+        The archive `keep_id`, the one just created, is always kept, even if
+        others have the same or a later creation time. Files whose manifest
+        can't be read are left alone.
         """
-        for path, _size, _manifest in self._newest_first(tree)[max(keep, 1) :]:
+        others = [
+            archive
+            for archive in self._newest_first(tree)
+            if archive[0].stem != keep_id
+        ]
+        for path, _size, _manifest in others[max(keep, 1) - 1 :]:
             try:
                 path.unlink()
             except FileNotFoundError:

@@ -579,7 +579,7 @@ def create_backup(self, tree: str, user_id: str) -> dict[str, Any]:
         )
     finally:
         close_db(db_handle)
-    store.prune(tree, keep=current_app.config["BACKUP_KEEP"])
+    store.prune(tree, keep=current_app.config["BACKUP_KEEP"], keep_id=backup_id)
     return {
         "id": backup_id,
         "size": os.path.getsize(file_path),

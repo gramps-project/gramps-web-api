@@ -301,6 +301,30 @@ class TestBackups(unittest.TestCase):
         listed = [backup["id"] for backup in self._list()]
         self.assertEqual(listed, [new_id] + old_ids[:0:-1])
 
+    def test_keep_new_backup(self):
+        """A new backup is kept even if the stored ones sort after it, as with
+        equal creation times or a clock that was ahead."""
+        tree_dir = os.path.join(self.backup_dir.name, self.tree)
+        for name in os.listdir(tree_dir):
+            os.remove(os.path.join(tree_dir, name))
+        manifest = json.loads(_read_members(self.archive)["backup.json"])
+        users = _read_members(self.archive)["users.json"]
+        later_ids = []
+        for day in range(1, BACKUP_KEEP + 1):
+            backup_id = f"ffffffff-ffff-4fff-bfff-fffffffffff{day}"
+            archive = _modify(
+                self.archive,
+                "users.json",
+                users,
+                {**manifest, "created": f"2999-01-0{day}T00:00:00Z"},
+            )
+            with open(os.path.join(tree_dir, f"{backup_id}.tar"), "wb") as f:
+                f.write(archive)
+            later_ids.append(backup_id)
+        new_id = self._create_backup()["id"]
+        listed = [backup["id"] for backup in self._list()]
+        self.assertEqual(listed, later_ids[:0:-1] + [new_id])
+
     def test_users_multi_tree(self):
         """In a multi-tree setup, site admins (users without a tree) are not
         part of a tree's backup."""
