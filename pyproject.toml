@@ -41,7 +41,7 @@ dependencies = [
     "celery[redis]",
     "Unidecode",
     "pytesseract",
-    "gramps-object-query-language>=0.5.5,<0.6",
+    "gramps-object-query-language>=0.5.7,<0.6",
     "gramps-ql>=0.5.0",
     "psycopg2-binary",  # PostgreSQL driver for the user DB and search index
     "requests",

@@ -25,7 +25,9 @@ from unittest.mock import patch
 
 from gramps.gen.proxy.proxybase import ProxyDbBase
 
-from gramps_webapi.api.resources.object_query import run_query as _real_run_query
+from gramps_webapi.api.resources.object_query import (
+    run_query_with_total as _real_run_query_with_total,
+)
 from gramps_webapi.api.util import get_db_handle
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 
@@ -426,7 +428,8 @@ class TestPeopleQuery(unittest.TestCase):
         self.assertEqual(rv.status_code, 422)
 
     def _count_with_call_tracking(self, header, body):
-        """POST to the proxied path, returning (response, run_query call count)."""
+        """POST to the proxied path, returning (response, number of passes
+        over the records, i.e. `run_query_with_total` calls)."""
 
         def fake_get_db_handle(readonly=True):
             db = get_db_handle(readonly=readonly)
@@ -437,7 +440,7 @@ class TestPeopleQuery(unittest.TestCase):
 
         def counting_run_query(*args, **kwargs):
             calls.append(kwargs)
-            return _real_run_query(*args, **kwargs)
+            return _real_run_query_with_total(*args, **kwargs)
 
         with (
             patch(
@@ -445,19 +448,16 @@ class TestPeopleQuery(unittest.TestCase):
                 side_effect=fake_get_db_handle,
             ),
             patch(
-                "gramps_webapi.api.resources.object_query.run_query",
+                "gramps_webapi.api.resources.object_query.run_query_with_total",
                 side_effect=counting_run_query,
             ),
         ):
             rv = self.client.post(TEST_URL, json=body, headers=header)
         return rv, len(calls)
 
-    def test_proxied_count_reuses_first_page_when_it_is_the_whole_result(self):
-        # When the (over-fetched) first page already contains every match --
-        # no `after`, and fewer rows came back than the over-fetch asked
-        # for -- the total is just `len(rows)`. No need to re-run
-        # `run_query` a second time, with no `limit` at all, just to
-        # recompute a number the first call already established.
+    def test_proxied_count_when_the_first_page_is_the_whole_result(self):
+        # When the (over-fetched) first page already contains every match,
+        # the total is the number of rows returned.
         header = fetch_header(self.client)
         rv, call_count = self._count_with_call_tracking(
             header,
@@ -472,10 +472,10 @@ class TestPeopleQuery(unittest.TestCase):
         self.assertEqual(int(rv.headers["X-Total-Count"]), len(rv.json["items"]))
         self.assertEqual(call_count, 1)  # no second, unlimited count query
 
-    def test_proxied_count_still_needs_second_query_when_paginated(self):
-        # A page that does *not* already contain every match -- because
-        # there are more rows beyond it -- can't infer the total from
-        # `rows` alone, and still needs the second, unlimited `run_query`.
+    def test_proxied_count_comes_from_the_same_pass_when_paginated(self):
+        # A page that does *not* contain every match still gets the full
+        # total from the one pass that found the page -- no second,
+        # unlimited query over every record.
         header = fetch_header(self.client)
         rv, call_count = self._count_with_call_tracking(
             header,
@@ -483,7 +483,7 @@ class TestPeopleQuery(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 200)
         self.assertEqual(int(rv.headers["X-Total-Count"]), get_object_count("people"))
-        self.assertEqual(call_count, 2)
+        self.assertEqual(call_count, 1)
 
     def test_private_people_excluded_without_permission(self):
         # ROLE_GUEST lacks PERM_VIEW_PRIVATE; ROLE_OWNER has it. (ROLE_MEMBER
@@ -591,6 +591,53 @@ class TestPeopleQuery(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         for item in rv.json["items"]:
             self.assertEqual(set(item), {"handle", "birthplace"})
+
+    def test_select_values_have_schema_types(self):
+        """Selected values have the type Gramps' schema gives them, on the
+        SQL path (owner) as on the proxied path (guest): booleans as
+        true/false rather than 0/1, numbers as numbers, objects parsed.
+        """
+        select = [
+            "handle",
+            "private",
+            "primary_name.private",
+            "primary_name.first_name",
+            "birth.private",
+            "birth.date.sortval",
+            "birth.date",
+        ]
+        types = {
+            "private": bool,
+            "primary_name.private": bool,
+            "primary_name.first_name": str,
+            "birth.private": bool,
+            "birth.date.sortval": int,
+            "birth.date": dict,
+        }
+        owner = self._fetch_all(
+            fetch_header(self.client, role=ROLE_OWNER), {"select": select}
+        )
+        guest = self._fetch_all(
+            fetch_header(self.client, role=ROLE_GUEST), {"select": select}
+        )
+        for items in (owner, guest):
+            for item in items:
+                for key, expected in types.items():
+                    if item[key] is not None:
+                        self.assertIs(type(item[key]), expected, (key, item[key]))
+        # Not vacuous: somebody has a birth date.
+        self.assertTrue(any(item["birth.date.sortval"] for item in owner))
+        # A public person reads the same either way.
+        guest_by_handle = {item["handle"]: item for item in guest}
+        compared = 0
+        for item in owner:
+            if item["private"] or item["handle"] not in guest_by_handle:
+                continue
+            if item["birth.private"] or item["primary_name.private"]:
+                continue  # removed or replaced for the guest
+            self.assertEqual(item, guest_by_handle[item["handle"]])
+            compared += 1
+        self.assertGreater(compared, 0)
 
     def test_select_string_and_json_path_forms_agree(self):
         """The expression string and the older {"json_path": [...]} wire form

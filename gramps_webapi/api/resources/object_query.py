@@ -34,7 +34,6 @@ the same pattern `GrampsObjectResourceHelper` subclasses already use with
 `gramps_class_name` (see `resources/people.py`/`families.py`).
 """
 
-import json
 from typing import Any, Optional, Sequence, Tuple
 
 from gramps.gen.errors import HandleError
@@ -42,8 +41,12 @@ from gramps.gen.proxy.proxybase import ProxyDbBase
 from marshmallow import Schema, ValidationError, validate, validates_schema
 from webargs import fields as wf
 
-from gramps_object_query_language.evaluator import GETTER_BY_TABLE, resolve_column_ref
-from gramps_object_query_language.proxied_query import run_query
+from gramps_object_query_language.evaluator import (
+    GETTER_BY_TABLE,
+    RawDataReader,
+    resolve_column_ref,
+)
+from gramps_object_query_language.proxied_query import run_query_with_total
 from gramps_object_query_language.query import (
     CITATION,
     EVENT,
@@ -67,9 +70,8 @@ from gramps_object_query_language.query import (
     compile_count_query,
     compile_query,
     default_ref_key,
-    is_composite_type,
-    ref_value_type,
     resolve_order_by,
+    select_normalizer,
 )
 from gramps_object_query_language.query_lang import (
     VALID_LEAF_OPS,
@@ -423,8 +425,8 @@ def _parse_select_entry(raw: Any, spec: ObjectTypeSpec) -> Tuple[SelectRef, str]
     `_parse_column_ref` and `_build_where` already got: a hand-maintained
     second copy is exactly how `count_of` ended up supported for filtering
     but not for a plain column reference. It is also what makes a response
-    value's *type* knowable here -- see `_needs_json_decoding`, which needs
-    a resolved reference and used to be handed the raw string.
+    value's *type* knowable -- see `select_normalizer` in `_post_sql`, which
+    needs a resolved reference, not the raw string.
 
     A **`{"json_path": [...], "as": "..."}`** object resolves the path the
     same way `_parse_column_ref` does, and uses `as` as the response key if
@@ -484,45 +486,6 @@ def _check_no_duplicate_keys(parsed_select: Sequence[Tuple[SelectRef, str]]) -> 
         if key in seen:
             raise QueryError(f"duplicate select key: {key!r}")
         seen.add(key)
-
-
-def _needs_json_decoding(ref: ColumnRef, spec: ObjectTypeSpec) -> bool:
-    """Does `ref`'s value arrive JSON-encoded, and so need
-    `_normalize_json_value`?
-
-    Only *composite* values do: SQLite's `json_extract` returns objects and
-    arrays as JSON text, while scalars come back already correctly typed
-    (and PostgreSQL's `jsonb` expressions arrive parsed either way). The
-    answer comes from the type Gramps' own schema gives the path
-    (`ref_value_type`), resolved statically before the query runs.
-
-    This deliberately replaces an older "does it terminate in a `JsonPath`?"
-    test, which was too broad in exactly the way its own docstring warned
-    about for flat columns: `primary_name.first_name` terminates in a
-    `JsonPath` but holds a *string*, so a person actually named "123" came
-    back from the API as the integer `123`. Nothing could distinguish those
-    cases before the schema was available to ask.
-    """
-    return is_composite_type(ref_value_type(spec, ref))
-
-
-def _normalize_json_value(value: Any) -> Any:
-    """Normalize a JSON-sourced response value to its parsed form either way.
-
-    SQLite's `json_extract()` returns a JSON *string* for object/array
-    results (scalars come back already correctly typed); PostgreSQL's
-    `jsonb` expressions come back through psycopg2 already parsed
-    (verified live against both). `None` (no such row, or it's private and
-    the caller can't view it) passes through unchanged. Only applied to
-    response values whose `ColumnRef` is `_needs_json_decoding()` -- see
-    there.
-    """
-    if isinstance(value, str):
-        try:
-            return json.loads(value)
-        except ValueError:
-            return value
-    return value
 
 
 def _validate_leaf_condition(condition: dict) -> None:
@@ -1009,15 +972,15 @@ class ObjectQueryResource(ProtectedResource):
             headers["X-Total-Count"] = str(basedb.dbapi.fetchone()[0])
 
         handle_index = fetch_refs.index("handle")
-        decoded_keys = {
-            key
-            for ref, key in zip(fetch_refs, fetch_keys)
-            if _needs_json_decoding(ref, self.spec)
-        }
+        # The database returns some values in its own form: a boolean as
+        # 0/1, a JSON number or boolean as text on PostgreSQL, an object or
+        # list as JSON text on SQLite. Normalized, each value has the type
+        # Gramps' schema gives it, as on the proxied path.
+        normalize = select_normalizer(self.spec, fetch_refs)
         items = [
             {
-                key: (_normalize_json_value(val) if key in decoded_keys else val)
-                for key, val in zip(fetch_keys, row)
+                key: val
+                for key, val in zip(fetch_keys, normalize(row))
                 if key in requested_keys
             }
             for row in rows
@@ -1028,7 +991,7 @@ class ObjectQueryResource(ProtectedResource):
 
     def _post_proxied(self, db: Any, args: dict) -> Any:
         """Same request/response contract as `_post_sql`, but for a proxied
-        `db` -- delegates directly to `proxied_query.run_query`'s own
+        `db` -- delegates directly to `proxied_query.run_query_with_total`'s own
         `order_by`/`limit`/`after`/`select` support rather than
         reimplementing sort/seek/limit here: every candidate is still
         deserialized and tested in Python (no SQL push-down), so this is
@@ -1083,10 +1046,17 @@ class ObjectQueryResource(ProtectedResource):
         if args.get("after"):
             after = _resolve_after_proxied(db, self.spec, order_by, args["after"])
 
+        # `RestrictedDb` cleans raw data directly, so reading it raw skips
+        # building an object per record. A Gramps proxy builds the object
+        # anyway, so it keeps the default object reader.
+        reader = RawDataReader(db) if isinstance(db, RestrictedDb) else None
         # See the matching comment in `_post_sql`: over-fetch by one row so
         # an exact-multiple-of-`limit` result set doesn't need a wasted
-        # follow-up request to learn there's no next page.
-        rows = run_query(
+        # follow-up request to learn there's no next page. Every record is
+        # read and tested to sort the matches anyway, so the total (which
+        # ignores `after` and `limit`, like `count_sql`) comes from the same
+        # pass rather than a second, unlimited one.
+        rows, total = run_query_with_total(
             db,
             self.spec,
             where,
@@ -1094,29 +1064,13 @@ class ObjectQueryResource(ProtectedResource):
             limit=args["limit"] + 1,
             after=after,
             select=fetch_refs,
+            reader=reader,
         )
         has_more = len(rows) > args["limit"]
         rows = rows[: args["limit"]]
 
         headers = {}
         if args["count"]:
-            if after is None and not has_more:
-                # The first page already *is* every match -- no `after` to
-                # have skipped earlier rows, and no `has_more` to mean later
-                # ones exist beyond what was fetched. Reuse it instead of
-                # re-deserializing the whole table a second time just to
-                # count what's already sitting in `rows`.
-                total = len(rows)
-            else:
-                # `limit`/`after` narrow `rows` to one page; the total needs
-                # every `where`-match independent of both -- same "costs a
-                # second query, opt-in" tradeoff `_post_sql` already makes
-                # for its own `count_sql`. Unlike `count_sql`, which is a
-                # single index-backed `COUNT(*)`, this re-runs the full
-                # per-object deserialize-and-privacy-sanitize pass a second
-                # time with no `limit` at all -- the more expensive of the
-                # two by far.
-                total = len(run_query(db, self.spec, where))
             headers["X-Total-Count"] = str(total)
 
         handle_index = fetch_refs.index("handle")
