@@ -73,13 +73,13 @@ class TestPeople(unittest.TestCase):
         """Test some expected results returned."""
         rv = check_success(self, TEST_URL)
         # check first expected record
-        self.assertEqual(rv[0]["gramps_id"], "I2110")
-        self.assertEqual(rv[0]["primary_name"]["first_name"], "محمد")
-        self.assertEqual(rv[0]["primary_name"]["surname_list"][0]["surname"], "")
+        self.assertEqual(rv[0]["gramps_id"], "I0000")
+        self.assertEqual(rv[0]["primary_name"]["first_name"], "The First")
+        self.assertEqual(rv[0]["primary_name"]["surname_list"][0]["surname"], "Person")
         # check last expected record
-        self.assertEqual(rv[-1]["gramps_id"], "I0247")
-        self.assertEqual(rv[-1]["primary_name"]["first_name"], "Allen")
-        self.assertEqual(rv[-1]["primary_name"]["surname_list"][0]["surname"], "鈴木")
+        self.assertEqual(rv[-1]["gramps_id"], "I2156")
+        self.assertEqual(rv[-1]["primary_name"]["first_name"], "蘭")
+        self.assertEqual(rv[-1]["primary_name"]["surname_list"][0]["surname"], "賈")
 
     def test_get_people_validate_semantics(self):
         """Test invalid parameters and values."""
@@ -183,8 +183,8 @@ class TestPeople(unittest.TestCase):
         rv = check_boolean_parameter(
             self, TEST_URL + "?keys=handle,soundex", "soundex", join="&"
         )
-        self.assertEqual(rv[0]["soundex"], "Z000")
-        self.assertEqual(rv[244]["soundex"], "B260")
+        self.assertEqual(rv[0]["soundex"], "P625")
+        self.assertEqual(rv[244]["soundex"], "M650")
 
     def test_get_people_parameter_sort_validate_semantics(self):
         """Test invalid sort parameter and values."""
@@ -928,7 +928,7 @@ class TestPeople(unittest.TestCase):
 
     def test_get_people_parameter_profile_expected_result_with_locale(self):
         """Test expected profile response for a locale."""
-        rv = check_success(self, TEST_URL + "?page=1&profile=all&locale=de")
+        rv = check_success(self, TEST_URL + "?gramps_id=I2110&profile=all&locale=de")
         self.assertEqual(rv[0]["profile"]["birth"]["age"], "0 Tage")
         self.assertEqual(rv[0]["profile"]["birth"]["type"], "Geburt")
         self.assertEqual(rv[0]["profile"]["families"][0]["relationship"], "Verheiratet")
@@ -940,7 +940,9 @@ class TestPeople(unittest.TestCase):
 
     def test_get_people_parameter_backlinks_expected_result(self):
         """Test backlinks expected result."""
-        rv = check_boolean_parameter(self, TEST_URL + "?page=1", "backlinks", join="&")
+        rv = check_boolean_parameter(
+            self, TEST_URL + "?gramps_id=I2110", "backlinks", join="&"
+        )
         self.assertIn("cc8205d874433c12fd8", rv[0]["backlinks"]["family"])
         self.assertIn("cc8205d87492b90b437", rv[0]["backlinks"]["family"])
 

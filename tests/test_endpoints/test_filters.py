@@ -1144,6 +1144,9 @@ class TestMatchesQuery(unittest.TestCase):
         cls.public_handle = make_handle()
         cls.private_handle = make_handle()
         cls.family_handle = make_handle()
+        # a public person with a private primary name
+        cls.secret_surname = "GOQLSecret" + suffix
+        cls.secret_name_handle = make_handle()
         payloads = [
             (
                 "/api/events/",
@@ -1178,6 +1181,20 @@ class TestMatchesQuery(unittest.TestCase):
                 },
             ),
             (
+                "/api/people/",
+                {
+                    "_class": "Person",
+                    "handle": cls.secret_name_handle,
+                    "primary_name": {
+                        "_class": "Name",
+                        "private": True,
+                        "surname_list": [
+                            {"_class": "Surname", "surname": cls.secret_surname}
+                        ],
+                    },
+                },
+            ),
+            (
                 "/api/families/",
                 {
                     "_class": "Family",
@@ -1197,6 +1214,7 @@ class TestMatchesQuery(unittest.TestCase):
             ("/api/families/", cls.family_handle),
             ("/api/people/", cls.public_handle),
             ("/api/people/", cls.private_handle),
+            ("/api/people/", cls.secret_name_handle),
             ("/api/events/", cls.event_handle),
         ]:
             rv = cls.client.delete(f"{endpoint}{handle}", headers=headers)
@@ -1292,6 +1310,22 @@ class TestMatchesQuery(unittest.TestCase):
         assert status == 200
         assert self.public_handle not in handles
         assert self.private_handle in handles
+
+    def test_guest_does_not_match_private_name(self):
+        """A guest's rule sees the sanitized name, also when inverted."""
+        rule = self._rule(f"surname == '{self.secret_surname}'")
+        status, handles = self._query("/api/people/", rule)
+        assert status == 200
+        assert self.secret_name_handle in handles
+        status, handles = self._query("/api/people/", rule, role=ROLE_GUEST)
+        assert status == 200
+        assert self.secret_name_handle not in handles
+        status, handles = self._query(
+            "/api/people/", {**rule, "invert": True}, role=ROLE_GUEST
+        )
+        assert status == 200
+        assert self.secret_name_handle in handles
+        assert self.private_handle not in handles
 
     def test_invalid_expression_returns_422(self):
         """Unparsable expressions and unknown fields return 422."""

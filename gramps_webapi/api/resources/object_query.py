@@ -37,6 +37,7 @@ the same pattern `GrampsObjectResourceHelper` subclasses already use with
 import json
 from typing import Any, Optional, Sequence, Tuple
 
+from gramps.gen.errors import HandleError
 from gramps.gen.proxy.proxybase import ProxyDbBase
 from marshmallow import Schema, ValidationError, validate, validates_schema
 from webargs import fields as wf
@@ -80,6 +81,7 @@ from gramps_object_query_language.query_lang import (
 )
 
 from ...auth.const import PERM_VIEW_PRIVATE
+from ..access import RestrictedDb
 from ..auth import require_permissions
 from ..blueprint import api_blueprint
 from ..util import abort_with_message, get_db_handle, get_locale_for_language
@@ -702,7 +704,11 @@ def _resolve_after_proxied(
     second, unproxied query behind the caller's back.
     """
     getter = getattr(db, GETTER_BY_TABLE[spec.table])
-    after_obj = getter(after_handle)
+    try:
+        after_obj = getter(after_handle)
+    except HandleError:
+        # same as a hidden object, which the getter returns as None
+        after_obj = None
     if after_obj is None:
         abort_with_message(422, "Invalid 'after' cursor")
     return tuple(
@@ -891,7 +897,7 @@ class ObjectQueryResource(ProtectedResource):
     def post(self, args: dict) -> Any:
         """Run a structured query."""
         db = get_db_handle(readonly=True)
-        if isinstance(db, ProxyDbBase):
+        if isinstance(db, (ProxyDbBase, RestrictedDb)):
             # Privacy (and any future proxy-applied rule) comes from `db`
             # itself here, not from a second, SQL-side reimplementation of
             # it -- see `proxied_query.py`'s module docstring. Not fast,

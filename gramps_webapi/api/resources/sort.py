@@ -31,9 +31,10 @@ from gramps.gen.display.name import NameDisplay
 from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.lib import Date
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
-from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps.gen.soundex import soundex
 from gramps.gen.utils.db import get_birth_or_fallback, get_death_or_fallback
+
+from .util import get_fallback_event, get_object_or_none
 
 
 class Sort:
@@ -90,7 +91,7 @@ class Sort:
 
     def by_person_birthdate_key(self, obj: GrampsObject):
         """Compare by birth date, if equal sorts by name."""
-        birth = get_birth_or_fallback(self.database, obj)
+        birth = get_fallback_event(get_birth_or_fallback, self.database, obj)
         if birth:
             date = birth.get_date_object()
         else:
@@ -99,7 +100,7 @@ class Sort:
 
     def by_person_deathdate_key(self, obj: GrampsObject):
         """Compare by death date, if equal sorts by name."""
-        death = get_death_or_fallback(self.database, obj)
+        death = get_fallback_event(get_death_or_fallback, self.database, obj)
         if death:
             date = death.get_date_object()
         else:
@@ -112,11 +113,9 @@ class Sort:
 
     def by_family_surname_key(self, obj: GrampsObject):
         """Compare by family surname, if equal uses given and suffix."""
-        person = None
-        if obj.father_handle is not None:
-            person = self.database.get_person_from_handle(obj.father_handle)
-        if person is None and obj.mother_handle is not None:
-            person = self.database.get_person_from_handle(obj.mother_handle)
+        person = get_object_or_none(self.database, "Person", obj.father_handle)
+        if person is None:
+            person = get_object_or_none(self.database, "Person", obj.mother_handle)
         if person is None:
             return self.locale.sort_key("")
         name = person.get_primary_name()
@@ -127,11 +126,9 @@ class Sort:
 
     def by_family_soundex_key(self, obj: GrampsObject):
         """Compare by family soundex."""
-        person = None
-        if obj.father_handle is not None:
-            person = self.database.get_person_from_handle(obj.father_handle)
-        if person is None and obj.mother_handle is not None:
-            person = self.database.get_person_from_handle(obj.mother_handle)
+        person = get_object_or_none(self.database, "Person", obj.father_handle)
+        if person is None:
+            person = get_object_or_none(self.database, "Person", obj.mother_handle)
         if person is None:
             return ""
         return soundex(person.get_primary_name().get_surname())
@@ -350,11 +347,6 @@ def sort_handles_by_raw_data(
             return None
         sort_keys.append((sort_key, reverse))
     names = list(dict.fromkeys(name for name, _ in sort_keys))
-    # read the raw data from the base database if proxied. This is fine since
-    # `handles` only contains handles of objects included by the proxy and
-    # the sort keys are not changed by the (private) proxy.
-    if isinstance(db_handle, ProxyDbBase):
-        db_handle = db_handle.basedb
     obj_key = CLASS_TO_KEY_MAP[gramps_class_name]
     values: Dict[str, Dict[str, Any]] = {name: {} for name in names}
     raw_handles = set()

@@ -44,7 +44,6 @@ from flask import (
     has_app_context,
     jsonify,
     make_response,
-    request,
 )
 from flask_jwt_extended import get_jwt, get_jwt_identity
 from flask_jwt_extended.exceptions import WrongTokenError
@@ -52,33 +51,10 @@ from gramps.cli.clidbman import NAME_FILE, CLIDbManager
 from gramps.gen.config import config
 from gramps.gen.const import GRAMPS_LOCALE
 from gramps.gen.db.base import DbReadBase
-from gramps.gen.db.dbconst import (
-    CITATION_KEY,
-    DBBACKEND,
-    EVENT_KEY,
-    FAMILY_KEY,
-    MEDIA_KEY,
-    NOTE_KEY,
-    PERSON_KEY,
-    PLACE_KEY,
-    REPOSITORY_KEY,
-    SOURCE_KEY,
-)
+from gramps.gen.db.dbconst import DBBACKEND
 from gramps.gen.db.exceptions import DbUpgradeRequiredError
 from gramps.gen.dbstate import DbState
-from gramps.gen.errors import HandleError
 from gramps.gen.lib.json_utils import data_to_object, object_to_dict
-from gramps.gen.proxy import PrivateProxyDb
-from gramps.gen.proxy.private import (
-    sanitize_citation,
-    sanitize_event,
-    sanitize_family,
-    sanitize_media,
-    sanitize_person,
-    sanitize_place,
-    sanitize_repository,
-    sanitize_source,
-)
 from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps.gen.user import User, UserBase
 from gramps.gen.utils.grampslocale import GrampsLocale
@@ -97,6 +73,7 @@ from ..const import (
 )
 from ..dbmanager import WebDbManager
 from ..util.task_state import progress_reporter
+from .access import AccessPolicy, RestrictedDb
 from .auth import has_permissions
 
 
@@ -125,217 +102,6 @@ class Parser(FlaskParser):
 
 parser = Parser()
 use_args = parser.use_args
-
-
-class ModifiedPrivateProxyDb(PrivateProxyDb):
-    """PrivateProxyDb with additional methods."""
-
-    def __init__(self, *args, **kwargs):
-        """Initialize self."""
-        super().__init__(*args, **kwargs)
-        self.name_formats = self.db.name_formats
-
-    def get_dbname(self):
-        """Get the name of the database."""
-        return self.db.get_dbname()
-
-    def get_summary(self):
-        """Return dictionary of summary item."""
-        return self.db.get_summary()
-
-    def get_surname_list(self):
-        """Return the sorted surnames of people whose primary name is visible."""
-        visible = set()
-        for person in self.db.iter_people():
-            name = person.get_primary_name()
-            if not person.private and not name.private:
-                visible.add(name.get_primary_surname().get_surname())
-        return [surname for surname in self.db.get_surname_list() if surname in visible]
-
-    def get_place_types(self):
-        """Return custom place types assocated with places in the database."""
-        return self.db.get_place_types()
-
-    def set_name_group_mapping(self, name, group):
-        """Set a name group mapping."""
-        return self.db.set_name_group_mapping(name, group)
-
-    def find_backlink_handles(self, handle, include_classes=None):
-        """Find all non-private objects that reference the object handle.
-
-        PrivateProxyDb only skips private referencing objects. This also
-        skips objects that only reference the handle privately, e.g. a public
-        person with a private media reference, or with a note on a private
-        name: the sanitized object returned by the proxy no longer
-        references the handle.
-        """
-        for class_name, ref_handle in self.db.find_backlink_handles(
-            handle, include_classes
-        ):
-            get_method = self.method("get_%s_from_handle", class_name)
-            if get_method is None:
-                continue
-            try:
-                obj = get_method(ref_handle)
-            except HandleError:
-                continue
-            if obj is None:
-                continue
-            if any(
-                ref == handle for _, ref in obj.get_referenced_handles_recursively()
-            ):
-                yield (class_name, ref_handle)
-
-    # the below methods are to fix a bug in Gramps.
-    # can be removed once bug is fixed in Gramps and version
-    # requirement is updated.
-    def get_media_from_handle(self, handle):
-        """
-        Finds an Object in the database from the passed Gramps ID.
-        If no such Object exists, None is returned.
-        """
-        media = self.db.get_media_from_handle(handle)
-        if media and not media.get_privacy():
-            return _sanitize_media_patched(self.db, media)
-        return None
-
-    def get_media_from_gramps_id(self, val):
-        """
-        Finds a Media in the database from the passed Gramps ID.
-        If no such Media exists, None is returned.
-        """
-        obj = self.db.get_media_from_gramps_id(val)
-        if obj and not obj.get_privacy():
-            return _sanitize_media_patched(self.db, obj)
-        return None
-
-    def _iter_handles(self, obj_key):
-        """
-        Return an iterator over the handles of all non-private objects.
-        """
-        # faster than the include_* predicates, which instantiate every object.
-        # _iter_raw_data is implemented by every backend, so no assumptions
-        # about the storage schema (or the tree scoping) are needed here.
-        for handle, data in self.basedb._iter_raw_data(obj_key):
-            if not data.private:
-                yield handle
-
-    def iter_person_handles(self):
-        """
-        Return an iterator over database handles, one handle for each Person in
-        the database.
-        """
-        return self._iter_handles(PERSON_KEY)
-
-    def iter_family_handles(self):
-        """
-        Return an iterator over database handles, one handle for each Family in
-        the database.
-        """
-        return self._iter_handles(FAMILY_KEY)
-
-    def iter_event_handles(self):
-        """
-        Return an iterator over database handles, one handle for each Event in
-        the database.
-        """
-        return self._iter_handles(EVENT_KEY)
-
-    def iter_source_handles(self):
-        """
-        Return an iterator over database handles, one handle for each Source in
-        the database.
-        """
-        return self._iter_handles(SOURCE_KEY)
-
-    def iter_citation_handles(self):
-        """
-        Return an iterator over database handles, one handle for each Citation
-        in the database.
-        """
-        return self._iter_handles(CITATION_KEY)
-
-    def iter_place_handles(self):
-        """
-        Return an iterator over database handles, one handle for each Place in
-        the database.
-        """
-        return self._iter_handles(PLACE_KEY)
-
-    def iter_media_handles(self):
-        """
-        Return an iterator over database handles, one handle for each Media
-        Object in the database.
-        """
-        return self._iter_handles(MEDIA_KEY)
-
-    def iter_repository_handles(self):
-        """
-        Return an iterator over database handles, one handle for each
-        Repository in the database.
-        """
-        return self._iter_handles(REPOSITORY_KEY)
-
-    def iter_note_handles(self):
-        """
-        Return an iterator over database handles, one handle for each Note in
-        the database.
-        """
-        return self._iter_handles(NOTE_KEY)
-
-    def iter_people(self):
-        """Return an iterator over Person objects, filtered and sanitized."""
-        for obj in self.db.iter_people():
-            if not obj.get_privacy():
-                yield sanitize_person(self.db, obj)
-
-    def iter_families(self):
-        """Return an iterator over Family objects, filtered and sanitized."""
-        for obj in self.db.iter_families():
-            if not obj.get_privacy():
-                yield sanitize_family(self.db, obj)
-
-    def iter_events(self):
-        """Return an iterator over Event objects, filtered and sanitized."""
-        for obj in self.db.iter_events():
-            if not obj.get_privacy():
-                yield sanitize_event(self.db, obj)
-
-    def iter_places(self):
-        """Return an iterator over Place objects, filtered and sanitized."""
-        for obj in self.db.iter_places():
-            if not obj.get_privacy():
-                yield sanitize_place(self.db, obj)
-
-    def iter_sources(self):
-        """Return an iterator over Source objects, filtered and sanitized."""
-        for obj in self.db.iter_sources():
-            if not obj.get_privacy():
-                yield sanitize_source(self.db, obj)
-
-    def iter_citations(self):
-        """Return an iterator over Citation objects, filtered and sanitized."""
-        for obj in self.db.iter_citations():
-            if not obj.get_privacy():
-                yield sanitize_citation(self.db, obj)
-
-    def iter_media(self):
-        """Return an iterator over Media objects, filtered and sanitized."""
-        for obj in self.db.iter_media():
-            if not obj.get_privacy():
-                yield _sanitize_media_patched(self.db, obj)
-
-    def iter_repositories(self):
-        """Return an iterator over Repository objects, filtered and sanitized."""
-        for obj in self.db.iter_repositories():
-            if not obj.get_privacy():
-                yield sanitize_repository(self.db, obj)
-
-    def iter_notes(self):
-        """Return an iterator over Note objects, filtered (nothing to sanitize)."""
-        for obj in self.db.iter_notes():
-            if not obj.get_privacy():
-                yield obj
 
 
 class InfoCollectorMixin:
@@ -449,13 +215,6 @@ class UserTaskProgress(InfoCollectorMixin, UserBase):
         self.notify_error(title="Error detected in database.", error=error)
 
 
-def _sanitize_media_patched(db, media):
-    """Patched sanitize_media function."""
-    obj = sanitize_media(db, media)
-    obj.set_checksum(media.get_checksum())
-    return obj
-
-
 def get_db_manager(tree: str | None) -> WebDbManager:
     """Get an appropriate WebDbManager instance."""
     return WebDbManager(
@@ -501,7 +260,7 @@ def get_db_outside_request(
     Called before every request.
 
     If a user is not authorized to view private records,
-    returns a proxy DB instance.
+    returns a `RestrictedDb` instance.
 
     If `readonly` is false, locks the database during the request.
     """
@@ -515,18 +274,22 @@ def get_db_outside_request(
         )
     if not view_private:
         if not readonly:
-            # requesting write access on a private proxy DB is impossible & forbidden!
+            # write access to a restricted DB is impossible & forbidden!
             abort_with_message(
-                HTTPStatus.FORBIDDEN, "Cannot write to a private proxy database"
+                HTTPStatus.FORBIDDEN, "Cannot write to a restricted database"
             )
         # if we're not authorized to view private records,
-        # return a proxy DB instead of the real one
-        return ModifiedPrivateProxyDb(dbstate.db)
+        # return a restricted DB instead of the real one
+        return RestrictedDb(dbstate.db, AccessPolicy(view_private=False))
     return dbstate.db
 
 
 def close_db(db_handle: DbReadBase) -> None:
     """Close the connection to the database including the undo log."""
+    if isinstance(db_handle, RestrictedDb):
+        # closes the undo log, too
+        db_handle.close()
+        return
     db_handle.close()
     if isinstance(db_handle, ProxyDbBase):
         db_handle.basedb.undodb.close()
@@ -540,7 +303,7 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
     Called before every request.
 
     If a user is not authorized to view private records,
-    returns a proxy DB instance.
+    returns a `RestrictedDb` instance.
 
     If `readonly` is false, locks the database during the request.
     """
@@ -561,11 +324,11 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
 
     if not view_private:
         if not readonly:
-            # requesting write access on a private proxy DB is impossible & forbidden!
+            # write access to a restricted DB is impossible & forbidden!
             abort_with_message(
-                HTTPStatus.FORBIDDEN, "Cannot write to a private proxy database"
+                HTTPStatus.FORBIDDEN, "Cannot write to a restricted database"
             )
-        # g.db was opened with view_private=False, so it is a private proxy
+        # g.db was opened with view_private=False, so it is a restricted
         # database already and must not be wrapped again
         return g.db
 

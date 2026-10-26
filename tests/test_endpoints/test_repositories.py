@@ -69,13 +69,13 @@ class TestRepositories(unittest.TestCase):
         """Test some expected results returned."""
         rv = check_success(self, TEST_URL)
         # check first expected record
-        self.assertEqual(rv[0]["gramps_id"], "R0002")
-        self.assertEqual(rv[0]["handle"], "a701e99f93e5434f6f3")
+        self.assertEqual(rv[0]["gramps_id"], "R0000")
+        self.assertEqual(rv[0]["handle"], "b39fe38593f3f8c4f12")
         self.assertEqual(rv[0]["type"], "Library")
         # check last expected record
-        self.assertEqual(rv[-1]["gramps_id"], "R0000")
-        self.assertEqual(rv[-1]["handle"], "b39fe38593f3f8c4f12")
-        self.assertEqual(rv[-1]["type"], "Library")
+        self.assertEqual(rv[-1]["gramps_id"], "R0003")
+        self.assertEqual(rv[-1]["handle"], "a701ead12841521cd4d")
+        self.assertEqual(rv[-1]["type"], "Collection")
 
     def test_get_repositories_validate_semantics(self):
         """Test invalid parameters and values."""
@@ -329,7 +329,9 @@ class TestRepositories(unittest.TestCase):
 
     def test_get_repositories_parameter_backlinks_expected_result(self):
         """Test backlinks expected result."""
-        rv = check_boolean_parameter(self, TEST_URL + "?page=1", "backlinks", join="&")
+        rv = check_boolean_parameter(
+            self, TEST_URL + "?gramps_id=R0002", "backlinks", join="&"
+        )
         self.assertIn("X5TJQC9JXU4RKT6VAX", rv[0]["backlinks"]["source"])
 
 

@@ -137,7 +137,9 @@ class TestPeopleQuery(unittest.TestCase):
     def test_total_count_reflects_all_matching_rows_not_just_this_page(self):
         header = fetch_header(self.client)
         rv = self.client.post(
-            TEST_URL, json={"select": ["handle"], "limit": 5, "count": True}, headers=header
+            TEST_URL,
+            json={"select": ["handle"], "limit": 5, "count": True},
+            headers=header,
         )
         self.assertEqual(rv.status_code, 200)
         self.assertEqual(len(rv.json["items"]), 5)  # capped by limit
@@ -437,12 +439,15 @@ class TestPeopleQuery(unittest.TestCase):
             calls.append(kwargs)
             return _real_run_query(*args, **kwargs)
 
-        with patch(
-            "gramps_webapi.api.resources.object_query.get_db_handle",
-            side_effect=fake_get_db_handle,
-        ), patch(
-            "gramps_webapi.api.resources.object_query.run_query",
-            side_effect=counting_run_query,
+        with (
+            patch(
+                "gramps_webapi.api.resources.object_query.get_db_handle",
+                side_effect=fake_get_db_handle,
+            ),
+            patch(
+                "gramps_webapi.api.resources.object_query.run_query",
+                side_effect=counting_run_query,
+            ),
         ):
             rv = self.client.post(TEST_URL, json=body, headers=header)
         return rv, len(calls)
@@ -508,6 +513,57 @@ class TestPeopleQuery(unittest.TestCase):
             self.assertEqual(len(owner_handles) - len(guest_handles), 1)
         finally:
             self.client.delete(BASE_URL + f"/people/{handle}", headers=header_owner)
+
+    def test_guest_sees_private_parts_like_missing_ones(self):
+        """For a guest, a private name doesn't match and a private person's
+        handle is as invalid a cursor as a nonexistent one."""
+        header_owner = fetch_header(self.client, role=ROLE_OWNER)
+        header_guest = fetch_header(self.client, role=ROLE_GUEST)
+        private_handle = "test_query_private_cursor"
+        name_handle = "test_query_private_name"
+        surname = "QuerySecretSurname"
+        for payload in (
+            {"_class": "Person", "handle": private_handle, "private": True},
+            {
+                "_class": "Person",
+                "handle": name_handle,
+                "primary_name": {
+                    "_class": "Name",
+                    "private": True,
+                    "surname_list": [{"_class": "Surname", "surname": surname}],
+                },
+            },
+        ):
+            rv = self.client.post(
+                BASE_URL + "/people/", json=payload, headers=header_owner
+            )
+            self.assertEqual(rv.status_code, 201)
+        try:
+            for after in (private_handle, "test_query_missing_cursor"):
+                rv = self.client.post(
+                    TEST_URL,
+                    json={
+                        "order_by": [{"column": "handle", "direction": "asc"}],
+                        "after": after,
+                    },
+                    headers=header_guest,
+                )
+                self.assertEqual(rv.status_code, 422, after)
+            body = {
+                "select": ["handle"],
+                "where": [{"column": "surname", "op": "eq", "value": surname}],
+                "count": True,
+            }
+            rv = self.client.post(TEST_URL, json=body, headers=header_owner)
+            self.assertEqual(rv.status_code, 200)
+            self.assertEqual(rv.json["items"], [{"handle": name_handle}])
+            rv = self.client.post(TEST_URL, json=body, headers=header_guest)
+            self.assertEqual(rv.status_code, 200)
+            self.assertEqual(rv.json["items"], [])
+            self.assertEqual(rv.headers["X-Total-Count"], "0")
+        finally:
+            for handle in (private_handle, name_handle):
+                self.client.delete(BASE_URL + f"/people/{handle}", headers=header_owner)
 
     # --- path expressions (gramps-object-query-language >= 0.4.0) ------------
 
@@ -682,9 +738,7 @@ class TestPeopleQuery(unittest.TestCase):
             TEST_URL,
             json={
                 "select": ["handle"],
-                "where": [
-                    {"column": "birth.date.sortval", "op": "gt", "value": 0}
-                ],
+                "where": [{"column": "birth.date.sortval", "op": "gt", "value": 0}],
                 "limit": 10,
             },
             headers=header,

@@ -30,7 +30,7 @@ import re
 from functools import lru_cache
 from hashlib import sha256
 from http import HTTPStatus
-from typing import Any, Literal, Optional, Union, cast
+from typing import Any, Callable, Literal, Optional, TypeVar, Union, cast
 
 import gramps
 import gramps.gen.lib
@@ -96,6 +96,40 @@ from .db_backend import SINGLE_TREE_DBAPI_CLASS_NAMES
 pd = PlaceDisplay()
 _ = glocale.translation.gettext
 _LOG = logging.getLogger(__name__)
+
+
+def get_object_or_none(
+    db_handle: DbReadBase, class_name: str, handle: Optional[str]
+) -> Optional[GrampsObject]:
+    """Get an object by handle, or None if it is missing or not available.
+
+    Databases raise `HandleError` for missing objects, while proxies and
+    `RestrictedDb` return None for objects they hide.
+    """
+    if not handle:
+        return None
+    try:
+        return db_handle.method("get_%s_from_handle", class_name)(handle)
+    except HandleError:
+        return None
+
+
+PersonOrFamily = TypeVar("PersonOrFamily", Person, Family)
+
+
+def get_fallback_event(
+    get_event: Callable[[DbReadBase, PersonOrFamily], Optional[Event]],
+    db_handle: DbReadBase,
+    obj: PersonOrFamily,
+) -> Optional[Event]:
+    """Call one of Gramps' `get_*_or_fallback` functions.
+
+    Return None instead of raising `HandleError` for a broken event reference.
+    """
+    try:
+        return get_event(db_handle, obj)
+    except HandleError:
+        return None
 
 
 def get_person_by_handle(db_handle: DbReadBase, handle: Handle) -> Union[Person, dict]:
@@ -652,7 +686,7 @@ def get_marriage_profile(
     name_format: str | None = None,
 ) -> tuple[dict, Union[Event, None]]:
     """Return best available marriage information for a couple."""
-    event = get_marriage_or_fallback(db_handle, family)
+    event = get_fallback_event(get_marriage_or_fallback, db_handle, family)
     if event is None:
         return {}, None
     args = args or []
@@ -672,7 +706,7 @@ def get_divorce_profile(
     name_format: str | None = None,
 ) -> tuple[dict, Event | None]:
     """Return best available divorce information for a couple."""
-    event = get_divorce_or_fallback(db_handle, family)
+    event = get_fallback_event(get_divorce_or_fallback, db_handle, family)
     if event is None:
         return {}, None
     args = args or []
@@ -1983,15 +2017,6 @@ def filter_missing_files(objects: list[Media]) -> list[Media]:
     objects_existing = handler.filter_existing_files(objects, db_handle=db_handle)
     handles_existing = set(obj.handle for obj in objects_existing)
     return [obj for obj in objects if obj.handle not in handles_existing]
-
-
-def get_missing_media_file_handles(
-    db_handle: DbReadBase, handles: list[str]
-) -> list[str]:
-    """Filter media handles returning only ones where the file is missing."""
-    objects = [db_handle.get_media_from_handle(handle) for handle in handles]
-    objects_missing = filter_missing_files(objects)
-    return [obj.handle for obj in objects_missing]
 
 
 def get_one_relationship(

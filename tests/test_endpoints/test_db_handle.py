@@ -24,7 +24,8 @@ from unittest.mock import patch
 
 from gramps.gen.proxy.proxybase import ProxyDbBase
 
-from gramps_webapi.api.util import ModifiedPrivateProxyDb, get_db_handle
+from gramps_webapi.api.access import RestrictedDb
+from gramps_webapi.api.util import get_db_handle
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 
 from . import BASE_URL, get_test_client
@@ -60,13 +61,13 @@ class TestDbHandle(unittest.TestCase):
         self.assertTrue(db_handles)
         return db_handles
 
-    def test_private_proxy_applied_once(self):
-        """Test a user without access to private records gets a single proxy."""
+    def test_restricted_without_private_access(self):
+        """Test a user without access to private records gets a restricted db."""
         for db_handle in self._get_db_handle_for_request(ROLE_GUEST):
-            self.assertIsInstance(db_handle, ModifiedPrivateProxyDb)
-            self.assertNotIsInstance(db_handle.db, ProxyDbBase)
+            self.assertIsInstance(db_handle, RestrictedDb)
+            self.assertFalse(db_handle.policy.view_private)
 
-    def test_no_proxy_with_private_access(self):
-        """Test a user with access to private records gets the unproxied db."""
+    def test_unrestricted_with_private_access(self):
+        """Test a user with access to private records gets the base db."""
         for db_handle in self._get_db_handle_for_request(ROLE_OWNER):
-            self.assertNotIsInstance(db_handle, ProxyDbBase)
+            self.assertNotIsInstance(db_handle, (RestrictedDb, ProxyDbBase))

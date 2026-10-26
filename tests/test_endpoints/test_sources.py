@@ -69,13 +69,15 @@ class TestSources(unittest.TestCase):
         """Test some expected results returned."""
         rv = check_success(self, TEST_URL)
         # check first expected record
-        self.assertEqual(rv[0]["gramps_id"], "S0001")
-        self.assertEqual(rv[0]["handle"], "c140d4ef77841431905")
-        self.assertEqual(rv[0]["title"], "All possible citations")
+        self.assertEqual(rv[0]["gramps_id"], "S0000")
+        self.assertEqual(rv[0]["handle"], "b39fe3f390e30bd2b99")
+        self.assertEqual(
+            rv[0]["title"], "Baptize registry 1850 - 1867 Great Falls Church"
+        )
         # check last expected record
-        self.assertEqual(rv[-1]["gramps_id"], "S0002")
-        self.assertEqual(rv[-1]["handle"], "VUBKMQTA2XZG1V6QP8")
-        self.assertEqual(rv[-1]["title"], "World of the Wierd")
+        self.assertEqual(rv[-1]["gramps_id"], "S0003")
+        self.assertEqual(rv[-1]["handle"], "X5TJQC9JXU4RKT6VAX")
+        self.assertEqual(rv[-1]["title"], "Import from test2.ged")
 
     def test_get_sources_validate_semantics(self):
         """Test invalid parameters and values."""

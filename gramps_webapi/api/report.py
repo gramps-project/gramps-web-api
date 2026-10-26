@@ -210,10 +210,11 @@ class ModifiedCommandLineReport(CommandLineReport):
 
             if isinstance(option, PersonOption):
                 name_dict = self._get_name_dict()
-                handles = self.database.get_person_handles(True)
                 id_list = [
-                    f"{name_dict[handle]['gramps_id']}\t{name_dict[handle]['name']}"
-                    for handle in handles
+                    f"{person['gramps_id']}\t{person['name']}"
+                    for person in sorted(
+                        name_dict.values(), key=lambda person: person["name"]
+                    )
                 ]
                 self.options_help[name].append(id_list)
             elif isinstance(option, FamilyOption):
@@ -491,7 +492,7 @@ def validate_options(
 def _has_gramps_id(db_handle: DbReadBase, obj_type: str, gramps_id: str) -> bool:
     """Check that an object with this Gramps ID exists and is visible to the user.
 
-    The proxy databases (e.g. for users without permission to view private
+    Restricted databases (for users without permission to view private
     records) don't implement the has_*_gramps_id methods, so use the getters.
     """
     return getattr(db_handle, f"get_{obj_type}_from_gramps_id")(gramps_id) is not None

@@ -39,13 +39,12 @@ from gramps_webapi.api.dna import parse_raw_dna_match_string
 from gramps_webapi.api.people_families_cache import CachePeopleFamiliesProxy
 from gramps_webapi.types import Handle, MatchSegment, ResponseReturnValue
 
-from ...types import Handle
 from ..blueprint import api_blueprint
 from ..cache import request_cache_decorator
 from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .schemas import DnaMatchSchema, DnaSegmentSchema
-from .util import get_person_profile_for_handle
+from .util import get_object_or_none, get_person_profile_for_handle
 
 SIDE_UNKNOWN = "U"
 SIDE_MATERNAL = "M"
@@ -103,7 +102,8 @@ class PersonDnaMatchesResource(ProtectedResource):
                     locale=locale,
                     include_raw_data=args["raw"],
                 )
-                matches.append(match_data)
+                if match_data is not None:
+                    matches.append(match_data)
         return matches
 
 
@@ -132,11 +132,16 @@ def get_match_data(
     association_index: int,
     locale: GrampsLocale = glocale,
     include_raw_data: bool = False,
-) -> dict[str, Any]:
-    """Get the DNA match data in the appropriate format."""
+) -> dict[str, Any] | None:
+    """Get the DNA match data in the appropriate format.
+
+    Return None if the associated person is missing or not available.
+    """
     relationship = get_relationship_calculator(reinit=True, clocale=locale)
     association = person.get_person_ref_list()[association_index]
-    associate = db_handle.get_person_from_handle(association.ref)
+    associate = get_object_or_none(db_handle, "Person", association.ref)
+    if associate is None:
+        return None
     data, _ = relationship.get_relationship_distance_new(
         db_handle,
         person,
@@ -212,8 +217,9 @@ def get_match_data(
     if include_raw_data:
         raw_data = []
         for note_handle in note_handles_with_segments:
-            note: Note = db_handle.get_note_from_handle(note_handle)
-            raw_data.append(note.get())
+            note: Note | None = get_object_or_none(db_handle, "Note", note_handle)
+            if note is not None:
+                raw_data.append(note.get())
         result["raw_data"] = raw_data
     return result
 

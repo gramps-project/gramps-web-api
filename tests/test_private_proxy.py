@@ -17,7 +17,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""Tests that ModifiedPrivateProxyDb.iter_*() does not leak private sub-references."""
+"""Tests that RestrictedDb.iter_*() does not leak private sub-references."""
 
 import pytest
 from gramps.cli.clidbman import CLIDbManager
@@ -38,7 +38,7 @@ from gramps.gen.lib import (
     Source,
 )
 
-from gramps_webapi.api.util import ModifiedPrivateProxyDb
+from gramps_webapi.api.access import AccessPolicy, RestrictedDb
 
 
 @pytest.fixture(scope="module")
@@ -147,9 +147,9 @@ def db_handles():
 
 @pytest.fixture(scope="module")
 def proxy(db_handles):
-    """Return a ModifiedPrivateProxyDb wrapping the test db."""
+    """Return a RestrictedDb wrapping the test db."""
     db, handles = db_handles
-    return ModifiedPrivateProxyDb(db)
+    return RestrictedDb(db, AccessPolicy(view_private=False))
 
 
 # ---------------------------------------------------------------------------
@@ -323,27 +323,27 @@ def test_iter_notes_includes_public_note(db_handles, proxy):
 # ---------------------------------------------------------------------------
 
 ITER_HANDLE_METHODS = [
-    ("iter_person_handles", "include_person"),
-    ("iter_family_handles", "include_family"),
-    ("iter_event_handles", "include_event"),
-    ("iter_source_handles", "include_source"),
-    ("iter_citation_handles", "include_citation"),
-    ("iter_place_handles", "include_place"),
-    ("iter_media_handles", "include_media"),
-    ("iter_repository_handles", "include_repository"),
-    ("iter_note_handles", "include_note"),
+    ("iter_person_handles", "has_person_handle"),
+    ("iter_family_handles", "has_family_handle"),
+    ("iter_event_handles", "has_event_handle"),
+    ("iter_source_handles", "has_source_handle"),
+    ("iter_citation_handles", "has_citation_handle"),
+    ("iter_place_handles", "has_place_handle"),
+    ("iter_media_handles", "has_media_handle"),
+    ("iter_repository_handles", "has_repository_handle"),
+    ("iter_note_handles", "has_note_handle"),
 ]
 
 
 @pytest.mark.parametrize("method,predicate", ITER_HANDLE_METHODS)
-def test_iter_handles_agrees_with_include_predicate(
-    db_handles, proxy, method, predicate
-):
-    """The raw data based fast path must agree with the stock include_* filtering."""
+def test_iter_handles_agrees_with_single_lookups(db_handles, method, predicate):
+    """Iterating handles must agree with looking up single handles."""
     db, _handles = db_handles
-    assert set(getattr(proxy, method)()) == set(
-        filter(getattr(proxy, predicate), getattr(db, method)())
-    )
+    restricted = RestrictedDb(db, AccessPolicy(view_private=False))
+    expected = set(filter(getattr(restricted, predicate), getattr(db, method)()))
+    # a new database, so that the handles are read at once
+    restricted = RestrictedDb(db, AccessPolicy(view_private=False))
+    assert set(getattr(restricted, method)()) == expected
 
 
 def test_iter_note_handles_excludes_private_note(db_handles, proxy):

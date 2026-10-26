@@ -69,13 +69,13 @@ class TestFamilies(unittest.TestCase):
         """Test some expected results returned."""
         rv = check_success(self, TEST_URL)
         # check first expected record
-        self.assertEqual(rv[0]["handle"], "cc82060505948b9e57f")
-        self.assertEqual(rv[0]["father_handle"], "cc82060504445ab6deb")
-        self.assertEqual(rv[0]["mother_handle"], "cc8206050980ea622d0")
+        self.assertEqual(rv[0]["handle"], "d5839c123c034ef82ab")
+        self.assertEqual(rv[0]["father_handle"], "d5839c1237765987724")
+        self.assertEqual(rv[0]["mother_handle"], "d5839c126d11a754f46")
         # check last expected record
-        self.assertEqual(rv[-1]["handle"], "WYAKQC3ELT2539P9W2")
-        self.assertEqual(rv[-1]["father_handle"], "B5QKQCZM5CDWEV4SP4")
-        self.assertEqual(rv[-1]["mother_handle"], "LYAKQCT2QKFQUVU4AF")
+        self.assertEqual(rv[-1]["handle"], "d64cc45259c01f324b4")
+        self.assertEqual(rv[-1]["father_handle"], "d64cc45258f454e7dac")
+        self.assertEqual(rv[-1]["mother_handle"], "d64cc452655308a46f8")
 
     def test_get_families_validate_semantics(self):
         """Test invalid parameters and values."""
@@ -152,8 +152,8 @@ class TestFamilies(unittest.TestCase):
         rv = check_boolean_parameter(
             self, TEST_URL + "?keys=handle,soundex", "soundex", join="&"
         )
-        self.assertEqual(rv[0]["soundex"], "Z000")
-        self.assertEqual(rv[244]["soundex"], "G656")
+        self.assertEqual(rv[0]["soundex"], "P625")
+        self.assertEqual(rv[244]["soundex"], "B260")
 
     def test_get_families_parameter_sort_validate_semantics(self):
         """Test invalid sort parameter and values."""
@@ -409,9 +409,7 @@ class TestFamilies(unittest.TestCase):
 
     def test_get_families_parameter_profile_expected_result(self):
         """Test expected response."""
-        rv = check_success(
-            self, TEST_URL + "?page=1&pagesize=1&keys=profile&profile=all"
-        )
+        rv = check_success(self, TEST_URL + "?gramps_id=F0745&keys=profile&profile=all")
         self.assertEqual(
             rv[0]["profile"],
             {
@@ -565,7 +563,7 @@ class TestFamilies(unittest.TestCase):
     def test_get_families_parameter_profile_expected_result_with_locale(self):
         """Test expected profile response for a locale."""
         rv = check_success(
-            self, TEST_URL + "?page=1&keys=profile&profile=all&locale=it"
+            self, TEST_URL + "?gramps_id=F0745&keys=profile&profile=all&locale=it"
         )
         self.assertEqual(rv[0]["profile"]["father"]["birth"]["age"], "0 giorni")
         self.assertEqual(rv[0]["profile"]["father"]["birth"]["type"], "Nascita")
@@ -577,7 +575,9 @@ class TestFamilies(unittest.TestCase):
 
     def test_get_families_parameter_backlinks_expected_result(self):
         """Test backlinks expected result."""
-        rv = check_success(self, TEST_URL + "?page=1&keys=backlinks&backlinks=1")
+        rv = check_success(
+            self, TEST_URL + "?gramps_id=F0745&keys=backlinks&backlinks=1"
+        )
         for key in [
             "cc82060504445ab6deb",
             "cc8206050980ea622d0",

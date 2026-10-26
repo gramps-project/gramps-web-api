@@ -39,7 +39,7 @@ from gramps.gen.db.dbconst import DBMODE_R
 from gramps.gen.db.utils import make_database
 
 from .resources.db_backend import SHARED_POSTGRES_CLASS_NAME, is_sqlite
-from .util import ModifiedPrivateProxyDb
+from .access import RestrictedDb
 
 
 @contextmanager
@@ -51,15 +51,12 @@ def consistent_read(db_handle: DbReadBase) -> Generator[DbReadBase, None, None]:
     read-only `REPEATABLE READ` transaction. Other backends are yielded
     unchanged, without a snapshot.
 
-    A private proxy database is preserved: the snapshot is taken of the
-    underlying database and wrapped in a new proxy if needed.
+    A restricted database is preserved: the snapshot is taken of the base
+    database and restricted with the same policy.
     """
-    if isinstance(db_handle, ModifiedPrivateProxyDb):
-        with consistent_read(db_handle.db) as snapshot_db:
-            if snapshot_db is db_handle.db:
-                yield db_handle
-            else:
-                yield ModifiedPrivateProxyDb(snapshot_db)
+    if isinstance(db_handle, RestrictedDb):
+        with db_handle.restricted_context(consistent_read) as snapshot_db:
+            yield snapshot_db
         return
     if is_sqlite(db_handle):
         with _sqlite_snapshot(db_handle) as snapshot_db:

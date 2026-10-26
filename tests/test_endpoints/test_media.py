@@ -71,8 +71,8 @@ class TestMedia(unittest.TestCase):
         self.assertEqual(rv[0]["gramps_id"], "O0000")
         self.assertEqual(rv[0]["handle"], "b39fe1cfc1305ac4a21")
         # check last expected record
-        self.assertEqual(rv[-1]["gramps_id"], "O0009")
-        self.assertEqual(rv[-1]["handle"], "78V2GQX2FKNSYQ3OHE")
+        self.assertEqual(rv[-1]["gramps_id"], "O0011")
+        self.assertEqual(rv[-1]["handle"], "Y3ARGQWE088EQRTTDH")
 
     def test_get_media_validate_semantics(self):
         """Test invalid parameters and values."""
@@ -158,14 +158,14 @@ class TestMedia(unittest.TestCase):
     def test_get_media_parameter_sort_date_ascending_expected_result(self):
         """Test sort parameter date ascending result."""
         rv = check_success(self, TEST_URL + "?keys=handle&sort=+date")
-        self.assertEqual(rv[0]["handle"], "b39fe1cfc1305ac4a21")
+        self.assertEqual(rv[0]["handle"], "78V2GQX2FKNSYQ3OHE")
         self.assertEqual(rv[-1]["handle"], "238CGQ939HG18SS5MG")
 
     def test_get_media_parameter_sort_date_descending_expected_result(self):
         """Test sort parameter date descending result."""
         rv = check_success(self, TEST_URL + "?keys=handle&sort=-date")
         self.assertEqual(rv[0]["handle"], "238CGQ939HG18SS5MG")
-        self.assertEqual(rv[-1]["handle"], "78V2GQX2FKNSYQ3OHE")
+        self.assertEqual(rv[-1]["handle"], "b39fe1cfc1305ac4a21")
 
     def test_get_media_parameter_sort_gramps_id_ascending_expected_result(self):
         """Test sort parameter gramps_id ascending result."""
@@ -267,8 +267,8 @@ class TestMedia(unittest.TestCase):
             TEST_URL
             + '?keys=handle&rules={"function":"or","rules":[{"name":"HasTag","values":["ToDo"]},{"name":"HasIdOf","values":["O0007"]}]}',
         )
-        self.assertEqual(rv[0]["handle"], "238CGQ939HG18SS5MG")
-        self.assertEqual(rv[1]["handle"], "F8JYGQFL2PKLSYH79X")
+        self.assertEqual(rv[0]["handle"], "F8JYGQFL2PKLSYH79X")
+        self.assertEqual(rv[1]["handle"], "238CGQ939HG18SS5MG")
 
     def test_get_media_parameter_rules_expected_response_one_function(self):
         """Test rules parameter expected response for one function."""

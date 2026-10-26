@@ -40,6 +40,7 @@ import contextvars
 import statistics
 
 from gramps.gen.const import GRAMPS_LOCALE as glocale
+from gramps.gen.errors import HandleError
 from gramps.gen.lib import (
     ChildRefType,
     EventRoleType,
@@ -375,13 +376,21 @@ class VerifyRunner:
 
     def find_person(self, handle):
         if handle not in self._person_cache:
-            person = self.db.get_person_from_handle(handle)
+            try:
+                person = self.db.get_person_from_handle(handle)
+            except HandleError:
+                # a broken reference
+                person = None
             self._person_cache[handle] = VerifyPerson(self.db, person)
         return self._person_cache[handle]
 
     def find_family(self, handle):
         if handle not in self._family_cache:
-            family = self.db.get_family_from_handle(handle)
+            try:
+                family = self.db.get_family_from_handle(handle)
+            except HandleError:
+                # a broken reference
+                family = None
             self._family_cache[handle] = VerifyFamily(self.db, family)
         return self._family_cache[handle]
 

@@ -63,6 +63,7 @@ from ...auth.const import PERM_EDIT_CUSTOM_FILTER
 from ...const import GRAMPS_NAMESPACES, TREE_MULTI
 from ...dbloader import register_plugins
 from ...types import Handle
+from ..access import RestrictedDb
 from ..blueprint import api_blueprint
 from ..util import abort_with_message, get_locale_for_language
 from ..auth import require_permissions
@@ -114,11 +115,12 @@ class IsReferencedByObjectType(Rule):
 class MatchesQuery(Rule):
     """Rule that matches objects against a GOQL expression.
 
-    On an unproxied DB-API database, the matching handles are computed with a
-    single SQL query in `prepare` and exposed as `selected_handles`, which
+    On an unrestricted DB-API database, the matching handles are computed with
+    a single SQL query in `prepare` and exposed as `selected_handles`, which
     Gramps' filter optimizer uses to skip loading non-matching objects. On a
-    proxied database, or a backend we can't compile SQL for, each object is
-    evaluated in Python against what the proxy returns.
+    restricted database (which has no `dbapi`), a Gramps proxy, or a backend
+    we can't compile SQL for, each object is evaluated in Python against what
+    the database returns.
     """
 
     labels = ["Expression:"]
@@ -134,7 +136,8 @@ class MatchesQuery(Rule):
         self.where = compile_expr_for_spec(self.spec, self.list[0])
         self.selected_handles: set[Handle] | None = None
         dbapi = getattr(db, "dbapi", None)
-        if isinstance(db, ProxyDbBase) or dbapi is None:
+        # SQL would match private data of a restricted database
+        if isinstance(db, (ProxyDbBase, RestrictedDb)) or dbapi is None:
             return
         try:
             dialect = detect_dialect(db)

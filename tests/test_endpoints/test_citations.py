@@ -72,9 +72,9 @@ class TestCitations(unittest.TestCase):
         self.assertEqual(rv[0]["handle"], "c140d2362f25a92643b")
         self.assertEqual(rv[0]["source_handle"], "b39fe3f390e30bd2b99")
         # check last expected record
-        self.assertEqual(rv[-1]["gramps_id"], "C2324")
-        self.assertEqual(rv[-1]["handle"], "c140d28761775ca12ba")
-        self.assertEqual(rv[-1]["source_handle"], "VUBKMQTA2XZG1V6QP8")
+        self.assertEqual(rv[-1]["gramps_id"], "C2853")
+        self.assertEqual(rv[-1]["handle"], "c140e0925ac0adcf8c4")
+        self.assertEqual(rv[-1]["source_handle"], "c140d4ef77841431905")
 
     def test_get_citations_validate_semantics(self):
         """Test invalid parameters and values."""

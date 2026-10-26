@@ -34,7 +34,7 @@ from gramps.gen.user import User
 from gramps.plugins.export.exportxml import export_data
 
 from gramps_webapi.api.snapshot import consistent_read
-from gramps_webapi.api.util import ModifiedPrivateProxyDb
+from gramps_webapi.api.access import AccessPolicy, RestrictedDb
 from gramps_webapi.dbmanager import WebDbManager
 
 XML_NAMESPACE = "{http://gramps-project.org/xml/1.7.2/}"
@@ -137,11 +137,11 @@ class TestConsistentReadSQLite(unittest.TestCase):
             self.assertTrue(os.path.isdir(directory))
         self.assertFalse(os.path.exists(directory))
 
-    def test_private_proxy_is_preserved(self):
-        proxy = ModifiedPrivateProxyDb(self.reader)
-        with consistent_read(proxy) as snapshot_db:
-            self.assertIsInstance(snapshot_db, ModifiedPrivateProxyDb)
-            self.assertIsNot(snapshot_db.db, self.reader)
+    def test_restricted_db_is_preserved(self):
+        restricted = RestrictedDb(self.reader, AccessPolicy(view_private=False))
+        with consistent_read(restricted) as snapshot_db:
+            self.assertIsInstance(snapshot_db, RestrictedDb)
+            self.assertIsNot(snapshot_db, restricted)
             _add_person(self.writer, "P0003")
             self.assertEqual(set(snapshot_db.get_person_handles()), {"P0001"})
 

@@ -50,6 +50,8 @@ from .schemas import TimelineEventProfileSchema
 from ...const import NAME_FORMAT_REGEXP
 from .util import (
     display_date,
+    get_fallback_event,
+    get_object_or_none,
     get_person_profile_for_object,
     get_place_profile_for_object,
     get_rating,
@@ -301,11 +303,13 @@ class Timeline:
             # the private proxy returns None for private people
             raise HandleError(f"Handle {handle} not found")
         if person.handle not in self.birth_dates:
-            event = get_birth_or_fallback(self.db_handle, person)
+            event = get_fallback_event(get_birth_or_fallback, self.db_handle, person)
             if event:
                 self.birth_dates.update({person.handle: event.date})
         for event_ref in person.event_ref_list:
-            event = self.db_handle.get_event_from_handle(event_ref.ref)
+            event = get_object_or_none(self.db_handle, "Event", event_ref.ref)
+            if event is None:
+                continue
             role = event_ref.get_role().xml_str()
             self.add_event((event, person, "self", role))
         if anchor and not self.anchor_person:
@@ -331,15 +335,28 @@ class Timeline:
                                 self.end_date = data[1]
 
             for family in person.parent_family_list:
-                self.add_family(family, ancestors=ancestors)
+                self._add_referenced(self.add_family, family, ancestors=ancestors)
 
             for family in person.family_list:
-                self.add_family(
-                    family, anchor=person, ancestors=ancestors, offspring=offspring
+                self._add_referenced(
+                    self.add_family,
+                    family,
+                    anchor=person,
+                    ancestors=ancestors,
+                    offspring=offspring,
                 )
         else:
             for family in person.family_list:
-                self.add_family(family, anchor=person, events_only=True)
+                self._add_referenced(
+                    self.add_family, family, anchor=person, events_only=True
+                )
+
+    def _add_referenced(self, add, handle: Handle, **kwargs) -> None:
+        """Add a referenced object, skipping it if it is missing or hidden."""
+        try:
+            add(handle, **kwargs)
+        except HandleError:
+            pass
 
     def add_relative(self, handle: Handle, ancestors: int = 1, offspring: int = 1):
         """Add events for a relative of the anchor person."""
@@ -373,40 +390,49 @@ class Timeline:
 
         if self.relative_event_filters:
             for event_ref in person.event_ref_list:
-                event = self.db_handle.get_event_from_handle(event_ref.ref)
+                event = get_object_or_none(self.db_handle, "Event", event_ref.ref)
+                if event is None:
+                    continue
                 role = event_ref.get_role().xml_str()
                 self.add_event((event, person, relationship, role), relative=True)
 
-        event = get_birth_or_fallback(self.db_handle, person)
+        event = get_fallback_event(get_birth_or_fallback, self.db_handle, person)
         if event:
             self.add_event((event, person, relationship, "Primary"), relative=True)
             if person.handle not in self.birth_dates:
                 self.birth_dates.update({person.handle: event.date})
 
-        event = get_death_or_fallback(self.db_handle, person)
+        event = get_fallback_event(get_death_or_fallback, self.db_handle, person)
         if event:
             self.add_event((event, person, relationship, "Primary"), relative=True)
 
         for family_handle in person.family_list:
-            family = self.db_handle.get_family_from_handle(family_handle)
+            family = get_object_or_none(self.db_handle, "Family", family_handle)
+            if family is None:
+                continue
 
-            event = get_marriage_or_fallback(self.db_handle, family)
+            event = get_fallback_event(get_marriage_or_fallback, self.db_handle, family)
             if event:
                 self.add_event((event, person, relationship, "Family"), relative=True)
 
-            event = get_divorce_or_fallback(self.db_handle, family)
+            event = get_fallback_event(get_divorce_or_fallback, self.db_handle, family)
             if event:
                 self.add_event((event, person, relationship, "Family"), relative=True)
 
             if offspring > 1:
                 for child_ref in family.child_ref_list:
-                    self.add_relative(child_ref.ref, offspring=offspring - 1)
+                    self._add_referenced(
+                        self.add_relative, child_ref.ref, offspring=offspring - 1
+                    )
 
         if ancestors > 1:
             if "father" in relationship_en or "mother" in relationship_en:
                 for family_handle in person.parent_family_list:
-                    self.add_family(
-                        family_handle, include_children=False, ancestors=ancestors - 1
+                    self._add_referenced(
+                        self.add_family,
+                        family_handle,
+                        include_children=False,
+                        ancestors=ancestors - 1,
                     )
 
     def add_family(
@@ -425,7 +451,9 @@ class Timeline:
             raise HandleError(f"Handle {handle} not found")
         if anchor:
             for event_ref in family.event_ref_list:
-                event = self.db_handle.get_event_from_handle(event_ref.ref)
+                event = get_object_or_none(self.db_handle, "Event", event_ref.ref)
+                if event is None:
+                    continue
                 role = event_ref.get_role().xml_str()
                 self.add_event((event, anchor, "self", role))
             if events_only:
@@ -435,23 +463,29 @@ class Timeline:
                 family.father_handle
                 and family.father_handle != self.anchor_person.handle
             ):
-                self.add_relative(family.father_handle, ancestors=ancestors)
+                self._add_referenced(
+                    self.add_relative, family.father_handle, ancestors=ancestors
+                )
             if (
                 family.mother_handle
                 and family.mother_handle != self.anchor_person.handle
             ):
-                self.add_relative(family.mother_handle, ancestors=ancestors)
+                self._add_referenced(
+                    self.add_relative, family.mother_handle, ancestors=ancestors
+                )
             if include_children:
                 for child in family.child_ref_list:
                     if child.ref != self.anchor_person.handle:
-                        self.add_relative(child.ref, offspring=offspring)
+                        self._add_referenced(
+                            self.add_relative, child.ref, offspring=offspring
+                        )
         else:
             if family.father_handle:
-                self.add_person(family.father_handle)
+                self._add_referenced(self.add_person, family.father_handle)
             if family.mother_handle:
-                self.add_person(family.mother_handle)
+                self._add_referenced(self.add_person, family.mother_handle)
             for child in family.child_ref_list:
-                self.add_person(child.ref)
+                self._add_referenced(self.add_person, child.ref)
 
     def profile(self, page=0, pagesize=20):
         """Return a profile for the timeline."""
@@ -1005,7 +1039,7 @@ class TimelinePeopleResource(ProtectedResource, GrampsJSONEncoder):
             if "handles" in args:
                 handles = args["handles"]
             else:
-                handles = db_handle.get_person_handles(sort_handles=True, locale=locale)
+                handles = db_handle.get_person_handles()
 
             if "filter" in args or "rules" in args:
                 handles = apply_filter(db_handle, args, "Person", handles)
@@ -1147,7 +1181,7 @@ class TimelineFamiliesResource(ProtectedResource, GrampsJSONEncoder):
         if "handles" in args:
             handles = args["handles"]
         else:
-            handles = db_handle.get_family_handles(sort_handles=True, locale=locale)
+            handles = db_handle.get_family_handles()
 
         try:
             if "filter" in args or "rules" in args:
