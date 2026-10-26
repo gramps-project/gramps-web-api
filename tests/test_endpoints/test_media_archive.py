@@ -27,13 +27,15 @@ import unittest
 import uuid
 import zipfile
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from gramps.gen.lib import Media
 
 from gramps_webapi.api.media import (
     ARCHIVE_GRACE_SECONDS,
     ARCHIVE_REUSE_MIN_REMAINING_SECONDS,
+    MediaHandlerLocal,
+    MediaHandlerS3,
     get_archive_name,
 )
 from gramps_webapi.auth.const import ROLE_EDITOR, ROLE_GUEST, ROLE_OWNER
@@ -197,3 +199,64 @@ class TestArchiveName(unittest.TestCase):
         assert get_archive_name(self._db(public), include_private=False) == name
         # private and public archives never share a name
         assert get_archive_name(self._db(public), include_private=True) != name
+
+
+def _media_db(*paths):
+    """Return a mock database with media objects at the given paths."""
+    media = []
+    for i, path in enumerate(paths):
+        obj = Media()
+        obj.set_handle(str(i))
+        obj.set_path(path)
+        obj.set_checksum(str(i))
+        media.append(obj)
+    db = Mock()
+    db.iter_media.side_effect = lambda: iter(media)
+    db.get_number_of_media.return_value = len(media)
+    return db
+
+
+class TestMediaOutsideBaseDir(unittest.TestCase):
+    """Media paths pointing outside the media folder are ignored."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        root = Path(self.temp_dir.name)
+        self.base_dir = root / "media"
+        (self.base_dir / "sub").mkdir(parents=True)
+        (self.base_dir / "sub" / "inside.jpg").write_bytes(b"inside")
+        (root / "secret.txt").write_bytes(b"secret")
+        self.db = _media_db(
+            "sub/inside.jpg",
+            str(self.base_dir / "sub" / "inside.jpg"),
+            "../secret.txt",
+            "sub/../../secret.txt",
+            str(root / "secret.txt"),
+        )
+        self.handler = MediaHandlerLocal(str(self.base_dir))
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_archive(self):
+        zip_filename = Path(self.temp_dir.name, "archive.zip")
+        self.handler.create_file_archive(self.db, zip_filename, include_private=True)
+        with zipfile.ZipFile(zip_filename) as zip_file:
+            assert zip_file.namelist() == ["sub/inside.jpg"]
+
+    def test_media_size(self):
+        assert self.handler.get_media_size(db_handle=self.db) == len(b"inside")
+
+    def test_archive_s3(self):
+        """Object storage archives contain no names that escape the archive."""
+        handler = MediaHandlerS3("s3://bucket")
+        file_handler = Mock()
+        file_handler.get_file_object.side_effect = lambda: io.BytesIO(b"content")
+        zip_filename = Path(self.temp_dir.name, "archive.zip")
+        with (
+            patch.object(handler, "get_remote_keys", return_value={"0", "2", "3"}),
+            patch.object(handler, "get_file_handler", return_value=file_handler),
+        ):
+            handler.create_file_archive(self.db, zip_filename, include_private=True)
+        with zipfile.ZipFile(zip_filename) as zip_file:
+            assert zip_file.namelist() == ["sub/inside.jpg"]

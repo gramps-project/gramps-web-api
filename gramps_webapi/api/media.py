@@ -105,6 +105,15 @@ def get_local_archive_dir(tree: str | None = None) -> str:
     return os.path.abspath(os.path.join(archive_dir, tree))
 
 
+def get_contained_path(base_dir: FilenameOrPath, path: FilenameOrPath) -> Path | None:
+    """Return the resolved path of a media file, or None if outside the base dir."""
+    base_path = Path(base_dir).resolve()
+    file_path = Path(base_path, path).resolve()
+    if base_path not in file_path.parents:
+        return None
+    return file_path
+
+
 def delete_expired_local_archives(retention: float) -> None:
     """Delete local media archives of all trees that are past the grace period."""
     cutoff = time.time() - retention - ARCHIVE_GRACE_SECONDS
@@ -226,15 +235,11 @@ class MediaHandlerLocal(MediaHandlerBase):
         size = 0
         paths_seen = set()
         for obj in db_handle.iter_media():
-            path = obj.path
-            if os.path.isabs(path):
-                if Path(self.base_dir).resolve() not in Path(path).resolve().parents:
-                    continue  # file outside base dir - ignore
-            else:
-                path = os.path.join(self.base_dir, path)
-            if Path(path).is_file() and path not in paths_seen:
-                file_size = os.path.getsize(path)
-                size += file_size
+            path = get_contained_path(self.base_dir, obj.path)
+            if path is None:
+                continue  # file outside base dir - ignore
+            if path.is_file() and path not in paths_seen:
+                size += path.stat().st_size
                 paths_seen.add(path)
         return size
 
@@ -256,17 +261,11 @@ class MediaHandlerLocal(MediaHandlerBase):
 
                 if not include_private and obj.private:
                     continue
-                path = obj.path
-                if os.path.isabs(path):
-                    if (
-                        Path(self.base_dir).resolve()
-                        not in Path(path).resolve().parents
-                    ):
-                        continue  # file outside base dir - ignore
-                else:
-                    path = os.path.join(self.base_dir, path)
-                rel_path = os.path.relpath(path, self.base_dir)
-                if Path(path).is_file() and path not in paths_seen:
+                path = get_contained_path(self.base_dir, obj.path)
+                if path is None:
+                    continue  # file outside base dir - ignore
+                if path.is_file() and path not in paths_seen:
+                    rel_path = path.relative_to(Path(self.base_dir).resolve())
                     zip_file.write(path, arcname=rel_path)
                     paths_seen.add(path)
 
@@ -399,9 +398,9 @@ class MediaHandlerS3(MediaHandlerBase):
                     continue
                 if obj.checksum not in remote_keys:
                     continue
-                media_path = obj.path
-                if os.path.isabs(media_path):
-                    continue  # ignore absolute paths
+                media_path = os.path.normpath(obj.path)
+                if os.path.isabs(media_path) or media_path.startswith(".."):
+                    continue  # ignore paths that would escape the archive
                 file_handler = self.get_file_handler(obj.handle, db_handle=db_handle)
                 fobj = file_handler.get_file_object()
                 zip_file.writestr(media_path, fobj.read())
