@@ -25,11 +25,12 @@ import os
 import shutil
 import struct
 import subprocess
+import warnings
 import pytest
 from gramps_webapi.app import create_app
 from gramps_webapi.api.image import ThumbnailHandler, save_image_buffer
 from gramps_webapi.const import MIME_PDF
-from PIL import Image, ImageCms
+from PIL import Image, ImageCms, TiffImagePlugin, TiffTags
 from werkzeug.exceptions import HTTPException
 
 from .test_endpoints.test_upload import get_image
@@ -235,6 +236,51 @@ def test_truncated_image_aborts_422():
     with pytest.raises(HTTPException) as exc_info:
         handler.get_image()
     assert exc_info.value.code == 422
+
+
+def make_tiff_with_xmp(xmp, tag_type: int, orientation=None) -> io.BytesIO:
+    """Return a 40×20 TIFF whose XMP tag is stored with the given TIFF type."""
+    ifd = TiffImagePlugin.ImageFileDirectory_v2()
+    ifd[700] = xmp
+    ifd.tagtype[700] = tag_type
+    if orientation is not None:
+        ifd[274] = orientation
+    buf = io.BytesIO()
+    Image.new("RGB", (40, 20), color=(255, 0, 0)).save(buf, format="TIFF", tiffinfo=ifd)
+    buf.seek(0)
+    return buf
+
+
+@pytest.mark.parametrize(
+    "xmp,tag_type",
+    [("<x:xmpmeta/>", TiffTags.ASCII), ((1, 2, 3), TiffTags.SHORT)],
+)
+@pytest.mark.parametrize("orientation", [None, 6])
+def test_tiff_with_non_bytes_xmp_thumbnails(xmp, tag_type, orientation):
+    """Pillow assumes TIFF XMP is bytes and raised a TypeError otherwise."""
+    with warnings.catch_warnings():
+        # Pillow warns about the multi-value XMP tag when writing it
+        warnings.simplefilter("ignore", UserWarning)
+        buf = make_tiff_with_xmp(xmp, tag_type, orientation)
+    expected_size = (20, 40) if orientation == 6 else (40, 20)
+    handler = ThumbnailHandler(buf, "image/tiff")
+    thumb = Image.open(handler.get_thumbnail(100, fmt="PNG"))
+    assert thumb.size == expected_size
+    cropped = Image.open(handler.get_thumbnail_cropped(100, 0, 0, 50, 50, fmt="PNG"))
+    assert cropped.size == (expected_size[0] // 2, expected_size[1] // 2)
+
+
+def test_tiff_with_text_xmp_keeps_its_orientation():
+    """An orientation stored only in text XMP must still be applied."""
+    xmp = (
+        '<x:xmpmeta xmlns:tiff="http://ns.adobe.com/tiff/1.0/">'
+        "<tiff:Orientation>6</tiff:Orientation></x:xmpmeta>"
+    )
+    handler = ThumbnailHandler(make_tiff_with_xmp(xmp, TiffTags.ASCII), "image/tiff")
+    thumb = Image.open(handler.get_thumbnail(100, fmt="PNG"))
+    assert thumb.size == (20, 40)
+    cropped = Image.open(handler.get_thumbnail_cropped(100, 0, 0, 50, 50, fmt="PNG"))
+    assert cropped.size == (10, 20)
 
 
 @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg is not installed")
