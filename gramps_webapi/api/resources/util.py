@@ -85,7 +85,6 @@ from ...types import FilenameOrPath, Handle, TransactionJson
 from ..media import get_media_handler
 from ..util import (
     ImportUser,
-    InfoCollectorMixin,
     UserTaskProgress,
     abort_with_message,
     get_db_handle,
@@ -2237,18 +2236,21 @@ def run_import(
     for plugin in plugin_manager.get_import_plugins():
         if extension == plugin.get_extension():
             import_function = plugin.get_import_function()
-            user: InfoCollectorMixin
+            user: ImportUser | UserTaskProgress
             if task:
                 user = UserTaskProgress(task=task)
             else:
                 user = ImportUser()
             user.hidden_dir = os.path.dirname(str(file_name))
+            user.error_messages = []
             result = import_function(db_handle, str(file_name), user)
             if delete:
                 os.remove(file_name)
             if not result:
-                abort_with_message(500, "Import failed")
-            return truncate_import_report(user.info_messages)
+                abort_with_message(
+                    500, "\n\n".join(["Import failed", *user.error_messages])
+                )
+            return truncate_import_report(user.error_messages + user.info_messages)
     return []
 
 

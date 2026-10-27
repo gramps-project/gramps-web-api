@@ -667,3 +667,25 @@ class TestImportErrorReported(unittest.TestCase):
         finally:
             if os.path.exists(temp_file):
                 os.unlink(temp_file)
+
+    def test_recoverable_error_does_not_fail_import(self):
+        """An error the importer recovered from is reported, not raised."""
+        content = (
+            b"Person,Surname,Given\n[I1],Doe,John\n\n"
+            b"Place,Title,Name,Type,Latitude,Longitude,Code,Enclosed_by,Date\n"
+            b"[P1],,Town,City,,,,[P2],\n"
+        )
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            f.write(content)
+            temp_file = f.name
+        try:
+            with APP.app_context():
+                result = dry_run_import(file_name=temp_file, extension="csv")
+            assert result is not None
+            self.assertEqual(result["people"], 1)
+            # the unresolved enclosing place is created as a placeholder
+            self.assertEqual(result["places"], 2)
+            self.assertIn("Bad references", "\n".join(result["messages"]))
+        finally:
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
