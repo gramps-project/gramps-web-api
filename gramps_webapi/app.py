@@ -55,7 +55,7 @@ from .api.resources.schemas import (
 from .api.tasks import run_task, send_telemetry_task
 from .api.telemetry import get_server_uuid, should_send_telemetry
 from .api.util import close_db, get_tree_from_jwt
-from .auth import user_db
+from .auth import enable_sqlite_wal, user_db
 from .auth.oidc import init_oidc
 from .config import DefaultConfig, DefaultConfigJWT
 from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI, VERSION
@@ -180,6 +180,8 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
 
     app.config["SQLALCHEMY_DATABASE_URI"] = app.config["USER_DB_URI"]
     user_db.init_app(app)
+    with app.app_context():
+        enable_sqlite_wal(user_db.engine)
 
     # initialize OIDC if enabled
     init_oidc(app)

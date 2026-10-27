@@ -53,6 +53,33 @@ user_db = SQLAlchemy()
 MAX_PUSH_SUBSCRIPTIONS_PER_USER = 20
 
 
+def enable_sqlite_wal(engine: sa.Engine) -> None:
+    """Put a SQLite user database into write-ahead log mode.
+
+    In SQLite's default rollback-journal mode, a reader has to wait while
+    another connection commits, and fails with "database is locked" once the
+    driver's timeout (5 s) runs out. Celery workers write task state and
+    progress to the user database while API clients poll it, so a status
+    request could fail with a 500 although the task itself was fine. In WAL
+    mode readers never wait for writers. The mode is stored in the database
+    file, so this changes it once and is a no-op afterwards.
+    """
+    if engine.dialect.name != "sqlite" or engine.url.database in (None, "", ":memory:"):
+        return
+    try:
+        with engine.connect() as connection:
+            mode = connection.exec_driver_sql("PRAGMA journal_mode=WAL").scalar()
+    except sa.exc.OperationalError:
+        current_app.logger.warning(
+            "Could not switch the user database to WAL mode", exc_info=True
+        )
+        return
+    if mode != "wal":
+        current_app.logger.warning(
+            "User database journal mode is %s, not WAL", mode
+        )
+
+
 def add_user(
     name: str,
     password: str,
