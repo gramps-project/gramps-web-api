@@ -55,10 +55,35 @@ def abort_on_image_errors() -> Iterator[None]:
         abort_with_message(422, "Image file is corrupt or truncated")
 
 
+def _fix_xmp(image: ImageType) -> None:
+    """Make sure XMP metadata is bytes, as `Image.getexif` assumes.
+
+    TIFF files can store XMP as text or numbers, which makes Pillow raise a
+    `TypeError` when it looks for an orientation in it.
+    """
+    xmp = image.info.get("xmp")
+    if xmp is None or isinstance(xmp, bytes):
+        return
+    if isinstance(xmp, str):
+        image.info["xmp"] = xmp.encode()
+    else:
+        del image.info["xmp"]
+
+
+def exif_transpose(image: ImageType) -> ImageType:
+    """Return a copy of the image rotated according to its EXIF orientation."""
+    _fix_xmp(image)
+    transposed = ImageOps.exif_transpose(image)
+    assert transposed is not None  # for type checker
+    return transposed
+
+
 def open_image(fp: Union[BinaryIO, FilenameOrPath]) -> ImageType:
     """Open an image, decoding it eagerly so that corrupt data fails here."""
     with abort_on_image_errors():
         image = Image.open(fp)
+        # loading a TIFF reads its orientation, so this has to happen first
+        _fix_xmp(image)
         image.load()
         return image
 
@@ -72,8 +97,7 @@ def image_thumbnail(image: ImageType, size: int, square: bool = False) -> ImageT
 
     If `square` is true, the image is cropped to a centered square.
     """
-    img = ImageOps.exif_transpose(image)
-    assert img is not None, "img is None"  # for type checker. Can't happen in practice.
+    img = exif_transpose(image)
     if square:
         # don't enlarge image: square size is at most shorter (!) side's length
         size_orig = min(img.size)
@@ -109,8 +133,7 @@ def crop_image(image: ImageType, x1: int, y1: int, x2: int, y2: int) -> ImageTyp
     """
     # Apply EXIF orientation before cropping so that the percentage coordinates
     # (which are defined in display/viewing space) map to the correct pixels.
-    image = ImageOps.exif_transpose(image)
-    assert image is not None  # for type checker
+    image = exif_transpose(image)
     width, height = image.size
     x1_abs = x1 * width / 100
     x2_abs = x2 * width / 100
@@ -408,8 +431,7 @@ def get_map_tile(
     Source image assumed equirectangular (linear lat/lon → pixel).
     Destination tile uses Web Mercator for correct geographic placement.
     """
-    image = ImageOps.exif_transpose(image)
-    assert image is not None
+    image = exif_transpose(image)
 
     img_lat_min, img_lon_min = bounds[0]
     img_lat_max, img_lon_max = bounds[1]
