@@ -94,11 +94,9 @@ def _calendar_etag(
     timestamp,
     locale: GrampsLocale,
     filter_definitions: list[dict],
-    current_year: int | None = None,
+    current_year: int,
 ) -> str:
     """Identify the feed without opening the tree database."""
-    if current_year is None:
-        current_year = datetime.now(timezone.utc).year
     normalized = {key: value for key, value in args.items() if key != "token"}
     normalized["event_types"] = sorted(
         {
@@ -442,11 +440,10 @@ def _build_ics(
     tree_id: str,
     tree_name: str,
     locale: GrampsLocale = glocale,
-    current_year: int | None = None,
+    *,
+    current_year: int,
 ) -> str:
     """Build ICS calendar content for a list of events."""
-    if current_year is None:
-        current_year = datetime.now(timezone.utc).year
     translate = locale.translation.gettext
     lines = [
         "BEGIN:VCALENDAR",
@@ -462,7 +459,7 @@ def _build_ics(
     for entry in entries:
         event = entry.event
         year, month, day = entry.date_components
-        ics_year = max(year, current_year) if year else current_year
+        ics_year = max(year, current_year - 1)
         ics_day = min(day, monthrange(ics_year, month)[1])
         dtstamp = datetime.fromtimestamp(event.change or 0, timezone.utc).strftime(
             "%Y%m%dT%H%M%SZ"
@@ -474,8 +471,11 @@ def _build_ics(
         description_lines = [
             f"{translate('Gramps ID')}: {event.gramps_id or ''}",
             f"{translate('Type')}: {event_type}",
-            f"{translate('Date')}: {locale.date_displayer.display(event.date)}",
         ]
+        if year:
+            description_lines.append(
+                f"{translate('Date')}: {locale.date_displayer.display(event.date)}"
+            )
         description = _escape_ics_text("\n".join(description_lines))
         uid = _escape_ics_text(f"{event.handle}@{tree_id}.anniversaries.gramps-web")
         lines.extend(
@@ -502,9 +502,9 @@ class AnniversariesIcsQueryArgs(Schema):
     """Query arguments for GET /anniversaries.ics.
 
     Exact dates with a known day and month are included. Annual recurrence
-    starts in the current UTC year, or in a later historical year when the
-    event is dated in the future. Yearless dates use the current UTC year only
-    as DTSTART; the original localized date remains in the description.
+    starts one year before the current UTC year, or in a later historical year
+    when the event is dated in the future. Yearless dates use that start year
+    only as DTSTART and omit the date from the description.
     """
 
     token = fields.Str(
@@ -514,7 +514,7 @@ class AnniversariesIcsQueryArgs(Schema):
     )
     event_types = fields.DelimitedList(
         fields.Str(validate=validate.Length(min=1)),
-        load_default=lambda: ["Birth", "Marriage", "Death"],
+        load_default=lambda: ["Birth", "Marriage"],
         validate=[validate.Length(min=1), _validate_event_types],
         metadata={
             "description": (
@@ -581,10 +581,10 @@ class AnniversariesIcsResource(Resource):
     @limiter.limit("10/minute", key_func=_token_limit_key)
     @api_blueprint.arguments(AnniversariesIcsQueryArgs, location="query")
     def get(self, args: dict) -> Response:
-        """Return exact anniversaries recurring from the current year onward.
+        """Return exact anniversaries recurring from last year onward.
 
-        A yearless date uses the current UTC year as DTSTART without presenting
-        that year as part of its localized event date.
+        A yearless date uses the recurrence start year only as DTSTART and is
+        omitted from the localized event description.
         """
         user = get_active_user_from_access_token(
             args["token"], ACCESS_TOKEN_SCOPE_ANNIVERSARIES_ICS

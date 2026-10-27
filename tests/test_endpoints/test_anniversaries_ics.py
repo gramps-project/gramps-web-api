@@ -184,7 +184,9 @@ class TestAnniversariesIcs(unittest.TestCase):
         entry = AnniversaryEvent(
             event, (2000, 1, 2), {("person", "I0001"): "Éléonore, " * 20}
         )
-        payload = _build_ics([entry], "tree", "My family tree", GRAMPS_LOCALE)
+        payload = _build_ics(
+            [entry], "tree", "My family tree", GRAMPS_LOCALE, current_year=2026
+        )
         lines = payload.removesuffix("\r\n").split("\r\n")
         self.assertTrue(all(len(line.encode("utf-8")) <= 75 for line in lines))
         self.assertTrue(any(line.startswith(" ") for line in lines))
@@ -204,10 +206,10 @@ class TestAnniversariesIcs(unittest.TestCase):
             current_year=2026,
         )
         self.assertIn("RRULE:FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1", payload)
-        self.assertIn("DTSTART;VALUE=DATE:20260228", payload)
+        self.assertIn("DTSTART;VALUE=DATE:20250228", payload)
 
-    def test_yearless_dates_start_in_current_year_without_fake_historic_year(self):
-        """Yearless exact dates recur from now without implying a historic year."""
+    def test_yearless_dates_start_last_year_without_a_fake_date_description(self):
+        """Yearless exact dates recur from last year without showing year zero."""
         event = Event()
         event.handle = "yearless-event"
         event.gramps_id = "E0003"
@@ -222,10 +224,11 @@ class TestAnniversariesIcs(unittest.TestCase):
             "Tree",
             current_year=2026,
         )
-        self.assertIn("DTSTART;VALUE=DATE:20260304", payload)
+        self.assertIn("DTSTART;VALUE=DATE:20250304", payload)
         self.assertIn("RRULE:FREQ=YEARLY", payload)
         description = payload.replace("\r\n ", "")
-        self.assertIn("Date:", description)
+        self.assertNotIn("Date:", description)
+        self.assertNotIn("0-03-04", description)
         self.assertNotIn("2000 is only a technical placeholder", description)
         self.assertNotIn("Date: 2000", description)
 
@@ -238,7 +241,7 @@ class TestAnniversariesIcs(unittest.TestCase):
             "Tree",
             current_year=2026,
         )
-        self.assertIn("DTSTART;VALUE=DATE:20260317", julian_payload)
+        self.assertIn("DTSTART;VALUE=DATE:20250317", julian_payload)
 
         event.date = Date(0, 2, 29)
         leap_components = _get_anniversary_date_components(event)
@@ -249,11 +252,11 @@ class TestAnniversariesIcs(unittest.TestCase):
             "Tree",
             current_year=2028,
         )
-        self.assertIn("DTSTART;VALUE=DATE:20280229", leap_payload)
+        self.assertIn("DTSTART;VALUE=DATE:20270228", leap_payload)
         self.assertIn("RRULE:FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1", leap_payload)
 
-    def test_historical_recurrence_starts_this_year_or_historical_future_year(self):
-        """Old anniversaries start now while future-dated events retain their year."""
+    def test_historical_recurrence_starts_last_year_or_historical_future_year(self):
+        """Old anniversaries start last year while future events retain their year."""
         event = Event()
         event.handle = "historical-event"
         event.gramps_id = "E0004"
@@ -265,7 +268,7 @@ class TestAnniversariesIcs(unittest.TestCase):
             "Tree",
             current_year=2026,
         )
-        self.assertIn("DTSTART;VALUE=DATE:20260102", current)
+        self.assertIn("DTSTART;VALUE=DATE:20250102", current)
         flattened = current.replace("\r\n ", "")
         self.assertIn("Date:", flattened)
         self.assertIn("1500", flattened)
@@ -309,6 +312,12 @@ class TestAnniversariesIcs(unittest.TestCase):
                 {"token": "unused", "event_types": "all,Birth"}
             )
 
+    def test_default_event_types_match_living_only_default(self):
+        """Safe defaults omit deaths because living-only excludes them."""
+        parsed = AnniversariesIcsQueryArgs().load({"token": "unused"})
+        self.assertEqual(parsed["event_types"], ["Birth", "Marriage"])
+        self.assertTrue(parsed["living_only"])
+
     def test_filter_dependencies_reload_saved_filters_once_for_all_namespaces(self):
         """Saved filter definitions are snapshotted with a single disk reload."""
         with (
@@ -340,8 +349,8 @@ class TestAnniversariesIcs(unittest.TestCase):
         first = [{"namespace": "Person", "filters": [{"name": "Adults"}]}]
         second = [{"namespace": "Person", "filters": [{"name": "Living adults"}]}]
         self.assertNotEqual(
-            _calendar_etag(*base, first),
-            _calendar_etag(*base, second),
+            _calendar_etag(*base, first, current_year=2026),
+            _calendar_etag(*base, second, current_year=2026),
         )
 
     def test_calendar_etag_changes_each_year_even_when_living_filter_is_disabled(self):
