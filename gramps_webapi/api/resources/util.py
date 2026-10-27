@@ -85,7 +85,6 @@ from ...types import FilenameOrPath, Handle, TransactionJson
 from ..media import get_media_handler
 from ..util import (
     ImportUser,
-    InfoCollectorMixin,
     UserTaskProgress,
     abort_with_message,
     get_db_handle,
@@ -2072,13 +2071,18 @@ def detect_gedcom_major_version(path: str) -> int:
     Returns:
         The major version number (e.g., 5 or 7). Returns 0 if not found.
 
-    This function parses the GEDCOM file header looking for the VERS tag
-    within the HEAD section. It uses latin-1 encoding which is compatible
-    with both GEDCOM 5.x (ANSEL) and GEDCOM 7.x (UTF-8) files.
+    This function parses the GEDCOM file header looking for the HEAD.GEDC.VERS
+    tag. Other VERS tags in the header, like the exporting software's version
+    in HEAD.SOUR.VERS, are ignored. It uses latin-1 encoding which is
+    compatible with both GEDCOM 5.x (ANSEL) and GEDCOM 7.x (UTF-8) files.
     """
     with open(path, encoding="latin-1") as f:
         in_head = False
-        for line in f:
+        in_gedc = False
+        for i, line in enumerate(f):
+            if i == 0:
+                # UTF-8 byte order mark, decoded as latin-1
+                line = line.removeprefix("\xef\xbb\xbf")
             parts = line.strip().split(maxsplit=2)
             if len(parts) < 2:
                 continue
@@ -2091,7 +2095,10 @@ def detect_gedcom_major_version(path: str) -> int:
                 elif in_head:
                     break
 
-            elif in_head and tag == "VERS" and len(parts) == 3:
+            elif level == "1":
+                in_gedc = in_head and tag == "GEDC"
+
+            elif in_gedc and level == "2" and tag == "VERS" and len(parts) == 3:
                 version = parts[2]
                 match = re.search(r"\d+", version)
                 gedcom_major_version = int(match.group()) if match else 0
@@ -2229,17 +2236,21 @@ def run_import(
     for plugin in plugin_manager.get_import_plugins():
         if extension == plugin.get_extension():
             import_function = plugin.get_import_function()
-            user: InfoCollectorMixin
+            user: ImportUser | UserTaskProgress
             if task:
                 user = UserTaskProgress(task=task)
             else:
                 user = ImportUser()
+            user.hidden_dir = os.path.dirname(str(file_name))
+            user.error_messages = []
             result = import_function(db_handle, str(file_name), user)
             if delete:
                 os.remove(file_name)
             if not result:
-                abort_with_message(500, "Import failed")
-            return truncate_import_report(user.info_messages)
+                abort_with_message(
+                    500, "\n\n".join(["Import failed", *user.error_messages])
+                )
+            return truncate_import_report(user.error_messages + user.info_messages)
     return []
 
 

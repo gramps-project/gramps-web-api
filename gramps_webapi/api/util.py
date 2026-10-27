@@ -122,7 +122,46 @@ class InfoCollectorMixin:
             self.info_messages.append(message)
 
 
-class ImportUser(InfoCollectorMixin, User):
+class ErrorRaisingMixin:
+    """Mixin turning error notifications into an aborted request.
+
+    Gramps importers report a fatal problem by calling `User.notify_error()`
+    and then returning `None`. The default implementation discards the
+    message, which would leave only a generic failure without the reason.
+
+    Some importers also report a problem they recovered from this way, like
+    the CSV importer's unresolved references after committing its data. If
+    `error_messages` is a list, the messages are collected there instead, and
+    the caller decides from the importer's return value whether it failed.
+
+    The messages usually embed the path of the file being processed. If
+    `hidden_dir` is set, it is stripped from them, so the server's directory
+    layout ends up neither in the response nor in the logs.
+    """
+
+    hidden_dir: str | None = None
+    error_messages: list[str] | None = None
+
+    def notify_error(self, title: str, error: str = "") -> None:
+        """Notify the user of an error."""
+        message = f"{title}\n\n{error}"
+        if self.hidden_dir:
+            message = message.replace(self.hidden_dir + os.sep, "")
+        if self.error_messages is not None:
+            self.error_messages.append(message.strip())
+            return
+        abort_with_message(HTTPStatus.INTERNAL_SERVER_ERROR, message)
+
+    def notify_db_error(self, error: str) -> None:
+        """Notify the user of a DB error."""
+        self.notify_error(title="Low level database corruption detected", error=error)
+
+    def notify_db_repair(self, error: str) -> None:
+        """Notify the user their DB might need repair."""
+        self.notify_error(title="Error detected in database.", error=error)
+
+
+class ImportUser(ErrorRaisingMixin, InfoCollectorMixin, User):
     """Silent user collecting info messages, for imports without a task."""
 
     def __init__(self, *args, **kwargs):
@@ -131,7 +170,7 @@ class ImportUser(InfoCollectorMixin, User):
         self.info_messages = []
 
 
-class UserTaskProgress(InfoCollectorMixin, UserBase):
+class UserTaskProgress(ErrorRaisingMixin, InfoCollectorMixin, UserBase):
     """Web API specific implementation of `gramps.gen.user.UserBase`.
 
     Needed for implementing progress displays. This has nothing
@@ -201,18 +240,6 @@ class UserTaskProgress(InfoCollectorMixin, UserBase):
 
     def warn(self, title: str, warning: str = "") -> None:
         """Warn the user."""
-
-    def notify_error(self, title: str, error: str = "") -> None:
-        """Notify the user of an error."""
-        abort_with_message(HTTPStatus.INTERNAL_SERVER_ERROR, f"{title}\n\n{error}")
-
-    def notify_db_error(self, error: str) -> None:
-        """Notify the user of a DB error."""
-        self.notify_error(title="Low level database corruption detected", error=error)
-
-    def notify_db_repair(self, error: str) -> None:
-        """Notify the user their DB might need repair."""
-        self.notify_error(title="Error detected in database.", error=error)
 
 
 def get_db_manager(tree: str | None) -> WebDbManager:
