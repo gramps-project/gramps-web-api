@@ -30,6 +30,7 @@ from werkzeug.exceptions import HTTPException
 
 from gramps_webapi.api.resources.util import (
     MAX_IMPORT_REPORT_CHARS,
+    detect_gedcom_major_version,
     dry_run_import,
     remove_mediapath_from_gramps_xml,
     run_import,
@@ -597,6 +598,72 @@ class TestDryRunImportReport(unittest.TestCase):
             report = "\n".join(result["messages"])
             self.assertIn("QUAY", report)
             self.assertIn("I404", report)
+        finally:
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
+
+
+class TestDetectGedcomMajorVersion(unittest.TestCase):
+    """Test cases for detecting the GEDCOM version of a file."""
+
+    @staticmethod
+    def _detect(content: bytes) -> int:
+        """Write content to a temporary file and detect its version."""
+        with tempfile.NamedTemporaryFile(suffix=".ged", delete=False) as f:
+            f.write(content)
+            temp_file = f.name
+        try:
+            return detect_gedcom_major_version(temp_file)
+        finally:
+            os.unlink(temp_file)
+
+    def test_gedcom_7(self):
+        """A GEDCOM 7 header is detected."""
+        content = b"0 HEAD\n1 GEDC\n2 VERS 7.0\n0 TRLR\n"
+        self.assertEqual(self._detect(content), 7)
+
+    def test_gedcom_5(self):
+        """A GEDCOM 5.5.1 header is detected."""
+        content = b"0 HEAD\n1 GEDC\n2 VERS 5.5.1\n2 FORM LINEAGE-LINKED\n0 TRLR\n"
+        self.assertEqual(self._detect(content), 5)
+
+    def test_software_version_ignored(self):
+        """The exporting software's version does not count as GEDCOM version."""
+        content = (
+            b"0 HEAD\n1 SOUR MyApp\n2 VERS 5.2\n2 NAME My App\n"
+            b"1 GEDC\n2 VERS 7.0\n0 TRLR\n"
+        )
+        self.assertEqual(self._detect(content), 7)
+
+    def test_byte_order_mark(self):
+        """A UTF-8 byte order mark before the header is skipped."""
+        content = b"\xef\xbb\xbf0 HEAD\n1 GEDC\n2 VERS 7.0\n0 TRLR\n"
+        self.assertEqual(self._detect(content), 7)
+
+    def test_no_gedc(self):
+        """A header without GEDC structure yields 0."""
+        content = b"0 HEAD\n1 SOUR MyApp\n2 VERS 7.0\n0 @I1@ INDI\n0 TRLR\n"
+        self.assertEqual(self._detect(content), 0)
+
+
+class TestImportErrorReported(unittest.TestCase):
+    """Test cases for reporting why an importer rejected a file."""
+
+    def test_dry_run_reports_importer_error(self):
+        """The importer's error message reaches the caller without the path."""
+        with tempfile.NamedTemporaryFile(suffix=".ged", delete=False) as f:
+            f.write(b"0 @I1@ INDI\n1 NAME John /Doe/\n0 TRLR\n")
+            temp_file = f.name
+        try:
+            with APP.app_context():
+                with self.assertRaises(HTTPException) as context:
+                    dry_run_import(file_name=temp_file, extension="ged")
+            response = context.exception.response
+            assert response is not None
+            message = response.get_json()["error"]["message"]
+            self.assertIn("not a GEDCOM file", message)
+            self.assertIn(os.path.basename(temp_file), message)
+            self.assertNotIn(os.path.dirname(temp_file), message)
         finally:
             if os.path.exists(temp_file):
                 os.unlink(temp_file)
