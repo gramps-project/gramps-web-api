@@ -28,6 +28,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import sqlalchemy as sa
+from celery import Celery
 from werkzeug.exceptions import HTTPException
 
 from gramps_webapi.app import create_app
@@ -45,6 +46,7 @@ from gramps_webapi.util.task_state import (
     _Heartbeat,
     acquire,
     progress_reporter,
+    read_progress,
     reap,
     run_tracked,
 )
@@ -260,19 +262,61 @@ class TestHeartbeatFencing(unittest.TestCase):
 
 
 class TestProgress(TaskStateTestCase):
-    def test_progress_is_stored_while_running(self):
+    """Progress goes to the result backend, here Celery's in-memory one."""
+
+    def setUp(self):
+        super().setUp()
+        self.celery = Celery(broker="memory://", backend="cache+memory://")
+        for patcher in (
+            patch.dict(self.app.config, {"CELERY_CONFIG": {"broker_url": "memory://"}}),
+            patch("gramps_webapi.util.task_state.current_celery_app", self.celery),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_progress_is_stored_in_result_backend(self):
         task_id, _ = self._acquire()
         seen = {}
 
         def body():
             progress_reporter()({"progress": 0.5})
-            seen.update(json.loads(self._row(task_id).result))
+            seen["progress"] = read_progress(task_id)
+            seen["row"] = self._row(task_id).result
 
         run_tracked(task_id, body)
-        assert seen == {"progress": 0.5}
+        assert seen == {"progress": {"progress": 0.5}, "row": None}
+
+    def test_celery_states_are_not_progress(self):
+        task_id = _new_id()
+        self.celery.backend.store_result(task_id, {"pid": 1}, "STARTED")
+        assert read_progress(task_id) is None
 
     def test_reporter_outside_task_does_nothing(self):
         progress_reporter()({"progress": 0.5})
+
+    def test_reporter_without_queue_does_nothing(self):
+        task_id, _ = self._acquire()
+        self.app.config["CELERY_CONFIG"] = {}
+        run_tracked(task_id, lambda: progress_reporter()({"progress": 0.5}))
+        assert self.celery.backend.get_task_meta(task_id)["status"] == "PENDING"
+
+    def test_unreachable_backend_does_not_fail_the_task(self):
+        task_id, _ = self._acquire()
+        backend = MagicMock()
+        backend.store_result.side_effect = ConnectionError("no backend")
+        backend.get_task_meta.side_effect = ConnectionError("no backend")
+
+        def body():
+            progress_reporter()({"progress": 0.5})
+            return read_progress(task_id)
+
+        with patch(
+            "gramps_webapi.util.task_state.current_celery_app",
+            MagicMock(backend=backend),
+        ):
+            assert run_tracked(task_id, body) is None
+        backend.store_result.assert_called_once()
+        assert self._row(task_id).status == SUCCEEDED
 
 
 class TestRunTaskInline(TaskStateTestCase):

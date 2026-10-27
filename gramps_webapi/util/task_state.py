@@ -20,7 +20,8 @@
 """Task lifecycle and per-tree task locks, tracked in the user database.
 
 The task_tree row is the source of truth for a task's state; the broker only
-carries messages.
+carries messages. Progress of a running task is the exception: it goes to the
+Celery result backend (see progress_reporter).
 
 A task declared with a lock key is exclusive per tree and key. A second
 dispatch is rejected (409) or, for a coalescing key, folded into the active
@@ -45,6 +46,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
 import sqlalchemy as sa
+from celery import current_app as current_celery_app
 from flask import current_app
 from gramps.gen.lib.json_utils import object_to_string
 from werkzeug.exceptions import HTTPException
@@ -76,6 +78,8 @@ FAILED = "failed"
 LOST = "lost"
 UNKNOWN = "unknown"
 ACTIVE = (QUEUED, RUNNING)
+# the result backend state of a running task that reported progress
+PROGRESS = "PROGRESS"
 
 LOST_MESSAGE = "The task stopped responding and was abandoned"
 
@@ -375,25 +379,40 @@ def run_tracked(
 
 
 def progress_reporter() -> Callable[[dict], None]:
-    """Return a function storing progress of the current task in its row.
+    """Return a function storing progress of the current task.
+
+    Progress goes to the Celery result backend in state PROGRESS, not to the
+    task's row: a task reports up to once per percentage point, and on SQLite
+    every write to the user database blocks all its readers until committed.
 
     Create it in the task's own thread; the function can then be called from
-    any thread. Outside a tracked task, it does nothing.
+    any thread. Outside a tracked task, or without a task queue, it does
+    nothing.
     """
     task_id = _current_task_id.get()
-    if task_id is None:
+    if task_id is None or not current_app.config["CELERY_CONFIG"]:
         return lambda meta: None
-    engine = user_db.engine
+    backend = current_celery_app.backend
 
     def report(meta: dict) -> None:
         try:
-            _update(
-                engine,
-                _table.c.task_id == task_id,
-                _table.c.status == RUNNING,
-                result=_dump(meta),
-            )
-        except sa.exc.SQLAlchemyError:
+            backend.store_result(task_id, meta, PROGRESS)
+        except Exception:
             logger.warning("Failed to store task progress", exc_info=True)
 
     return report
+
+
+def read_progress(task_id: str) -> Any:
+    """Return the last progress stored by a running task, or None."""
+    if not current_app.config["CELERY_CONFIG"]:
+        return None
+    try:
+        meta = current_celery_app.backend.get_task_meta(task_id)
+    except Exception:
+        logger.warning("Failed to read task progress", exc_info=True)
+        return None
+    # the backend also holds Celery's own states, e.g. STARTED with the pid
+    if meta.get("status") != PROGRESS:
+        return None
+    return meta.get("result")
