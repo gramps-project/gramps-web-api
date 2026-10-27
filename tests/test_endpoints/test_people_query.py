@@ -24,8 +24,11 @@ import unittest
 from unittest.mock import patch
 
 from gramps.gen.proxy.proxybase import ProxyDbBase
+from gramps_object_query_language.evaluator import RawDataReader
 
-from gramps_webapi.api.resources.object_query import run_query as _real_run_query
+from gramps_webapi.api.resources.object_query import (
+    run_query_with_total as _real_run_query_with_total,
+)
 from gramps_webapi.api.util import get_db_handle
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 
@@ -425,8 +428,11 @@ class TestPeopleQuery(unittest.TestCase):
             )
         self.assertEqual(rv.status_code, 422)
 
-    def _count_with_call_tracking(self, header, body):
-        """POST to the proxied path, returning (response, run_query call count)."""
+    def _proxied_calls(self, header, body, fake_proxy=True):
+        """POST to the proxied path, returning (response, the keyword
+        arguments of each `run_query_with_total` call). With `fake_proxy`,
+        the database is a `_FakeNonPrivateProxy`; otherwise it is whatever
+        the role gets."""
 
         def fake_get_db_handle(readonly=True):
             db = get_db_handle(readonly=readonly)
@@ -437,27 +443,46 @@ class TestPeopleQuery(unittest.TestCase):
 
         def counting_run_query(*args, **kwargs):
             calls.append(kwargs)
-            return _real_run_query(*args, **kwargs)
+            return _real_run_query_with_total(*args, **kwargs)
 
         with (
             patch(
                 "gramps_webapi.api.resources.object_query.get_db_handle",
-                side_effect=fake_get_db_handle,
+                side_effect=fake_get_db_handle if fake_proxy else get_db_handle,
             ),
             patch(
-                "gramps_webapi.api.resources.object_query.run_query",
+                "gramps_webapi.api.resources.object_query.run_query_with_total",
                 side_effect=counting_run_query,
             ),
         ):
             rv = self.client.post(TEST_URL, json=body, headers=header)
+        return rv, calls
+
+    def _count_with_call_tracking(self, header, body):
+        """POST to the proxied path, returning (response, number of passes
+        over the records, i.e. `run_query_with_total` calls)."""
+        rv, calls = self._proxied_calls(header, body)
         return rv, len(calls)
 
-    def test_proxied_count_reuses_first_page_when_it_is_the_whole_result(self):
-        # When the (over-fetched) first page already contains every match --
-        # no `after`, and fewer rows came back than the over-fetch asked
-        # for -- the total is just `len(rows)`. No need to re-run
-        # `run_query` a second time, with no `limit` at all, just to
-        # recompute a number the first call already established.
+    def test_restricted_db_is_read_as_raw_data(self):
+        # RestrictedDb cleans raw data directly, so a guest's query reads it
+        # raw; a Gramps proxy builds each object anyway, so it keeps the
+        # default object reader.
+        body = {"select": ["handle"], "limit": 2}
+        rv, calls = self._proxied_calls(
+            fetch_header(self.client, role=ROLE_GUEST), body, fake_proxy=False
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(len(calls), 1)
+        self.assertIsInstance(calls[0]["reader"], RawDataReader)
+        rv, calls = self._proxied_calls(fetch_header(self.client), body)
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(len(calls), 1)
+        self.assertIsNone(calls[0]["reader"])
+
+    def test_proxied_count_when_the_first_page_is_the_whole_result(self):
+        # When the (over-fetched) first page already contains every match,
+        # the total is the number of rows returned.
         header = fetch_header(self.client)
         rv, call_count = self._count_with_call_tracking(
             header,
@@ -472,10 +497,10 @@ class TestPeopleQuery(unittest.TestCase):
         self.assertEqual(int(rv.headers["X-Total-Count"]), len(rv.json["items"]))
         self.assertEqual(call_count, 1)  # no second, unlimited count query
 
-    def test_proxied_count_still_needs_second_query_when_paginated(self):
-        # A page that does *not* already contain every match -- because
-        # there are more rows beyond it -- can't infer the total from
-        # `rows` alone, and still needs the second, unlimited `run_query`.
+    def test_proxied_count_comes_from_the_same_pass_when_paginated(self):
+        # A page that does *not* contain every match still gets the full
+        # total from the one pass that found the page -- no second,
+        # unlimited query over every record.
         header = fetch_header(self.client)
         rv, call_count = self._count_with_call_tracking(
             header,
@@ -483,7 +508,7 @@ class TestPeopleQuery(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 200)
         self.assertEqual(int(rv.headers["X-Total-Count"]), get_object_count("people"))
-        self.assertEqual(call_count, 2)
+        self.assertEqual(call_count, 1)
 
     def test_private_people_excluded_without_permission(self):
         # ROLE_GUEST lacks PERM_VIEW_PRIVATE; ROLE_OWNER has it. (ROLE_MEMBER
@@ -565,6 +590,137 @@ class TestPeopleQuery(unittest.TestCase):
             for handle in (private_handle, name_handle):
                 self.client.delete(BASE_URL + f"/people/{handle}", headers=header_owner)
 
+    def test_guest_cannot_see_private_related_records(self):
+        """For a guest, related records are read cleaned too: a private place
+        or event can't be matched, selected or counted through the person."""
+        header_owner = fetch_header(self.client, role=ROLE_OWNER)
+        header_guest = fetch_header(self.client, role=ROLE_GUEST)
+        surname = "QueryRelatedPrivacy"
+        secret_place = "QuerySecretPlace"
+        secret_event = "QuerySecretEvent"
+        birth = {"_class": "EventType", "string": "Birth"}
+        place_handle = "test_query_private_place"
+        public_event = "test_query_event_at_private_place"
+        private_event = "test_query_private_event"
+        at_private_place = "test_query_born_at_private_place"
+        private_birth = "test_query_private_birth"
+
+        def person(handle, event_handles):
+            return {
+                "_class": "Person",
+                "handle": handle,
+                "primary_name": {
+                    "_class": "Name",
+                    "surname_list": [{"_class": "Surname", "surname": surname}],
+                },
+                "event_ref_list": [
+                    {"_class": "EventRef", "ref": event_handle}
+                    for event_handle in event_handles
+                ],
+                "birth_ref_index": 0,
+            }
+
+        records = [
+            (
+                "places",
+                {
+                    "_class": "Place",
+                    "handle": place_handle,
+                    "title": secret_place,
+                    "private": True,
+                },
+            ),
+            (
+                "events",
+                {
+                    "_class": "Event",
+                    "handle": public_event,
+                    "type": birth,
+                    "place": place_handle,
+                },
+            ),
+            (
+                "events",
+                {
+                    "_class": "Event",
+                    "handle": private_event,
+                    "type": birth,
+                    "description": secret_event,
+                    "private": True,
+                },
+            ),
+            ("people", person(at_private_place, [public_event])),
+            ("people", person(private_birth, [private_event, public_event])),
+        ]
+        created = []
+        try:
+            for endpoint, payload in records:
+                rv = self.client.post(
+                    BASE_URL + f"/{endpoint}/", json=payload, headers=header_owner
+                )
+                self.assertEqual(rv.status_code, 201, payload["handle"])
+                created.append((endpoint, payload["handle"]))
+
+            def handles(header, condition):
+                rv = self.client.post(
+                    TEST_URL,
+                    json={
+                        "select": ["handle"],
+                        "where_expr": f"surname == '{surname}' and {condition}",
+                        "count": True,
+                    },
+                    headers=header,
+                )
+                self.assertEqual(rv.status_code, 200, condition)
+                self.assertEqual(
+                    rv.headers["X-Total-Count"], str(len(rv.json["items"]))
+                )
+                return {item["handle"] for item in rv.json["items"]}
+
+            for condition, owner_match in (
+                (f"birth.place.title == '{secret_place}'", at_private_place),
+                (f"birth.description == '{secret_event}'", private_birth),
+                (
+                    f"any(e for e in events if e.description == '{secret_event}')",
+                    private_birth,
+                ),
+                ("len(events) == 2", private_birth),
+            ):
+                self.assertEqual(
+                    handles(header_owner, condition), {owner_match}, condition
+                )
+                self.assertEqual(handles(header_guest, condition), set(), condition)
+
+            select = [
+                "handle",
+                "birth.place.title",
+                "birth.description",
+                "count(events) as n_events",
+            ]
+            body = {"select": select, "where_expr": f"surname == '{surname}'"}
+            owner = {
+                item["handle"]: item for item in self._fetch_all(header_owner, body)
+            }
+            guest = {
+                item["handle"]: item for item in self._fetch_all(header_guest, body)
+            }
+            self.assertEqual(owner[at_private_place]["birth.place.title"], secret_place)
+            self.assertEqual(owner[private_birth]["birth.description"], secret_event)
+            self.assertEqual(owner[private_birth]["n_events"], 2)
+            # Both people are public, so the guest sees them, but not the
+            # private place or event.
+            self.assertEqual(set(guest), {at_private_place, private_birth})
+            self.assertIsNone(guest[at_private_place]["birth.place.title"])
+            self.assertNotEqual(guest[private_birth]["birth.description"], secret_event)
+            self.assertEqual(guest[private_birth]["n_events"], 1)
+            self.assertNotIn(secret_place, str(guest))
+            self.assertNotIn(secret_event, str(guest))
+        finally:
+            for endpoint, handle in reversed(created):
+                self.client.delete(
+                    BASE_URL + f"/{endpoint}/{handle}", headers=header_owner
+                )
+
     # --- path expressions (gramps-object-query-language >= 0.4.0) ------------
 
     def test_select_path_expression(self):
@@ -591,6 +747,53 @@ class TestPeopleQuery(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         for item in rv.json["items"]:
             self.assertEqual(set(item), {"handle", "birthplace"})
+
+    def test_select_values_have_schema_types(self):
+        """Selected values have the type Gramps' schema gives them, on the
+        SQL path (owner) as on the proxied path (guest): booleans as
+        true/false rather than 0/1, numbers as numbers, objects parsed.
+        """
+        select = [
+            "handle",
+            "private",
+            "primary_name.private",
+            "primary_name.first_name",
+            "birth.private",
+            "birth.date.sortval",
+            "birth.date",
+        ]
+        types = {
+            "private": bool,
+            "primary_name.private": bool,
+            "primary_name.first_name": str,
+            "birth.private": bool,
+            "birth.date.sortval": int,
+            "birth.date": dict,
+        }
+        owner = self._fetch_all(
+            fetch_header(self.client, role=ROLE_OWNER), {"select": select}
+        )
+        guest = self._fetch_all(
+            fetch_header(self.client, role=ROLE_GUEST), {"select": select}
+        )
+        for items in (owner, guest):
+            for item in items:
+                for key, expected in types.items():
+                    if item[key] is not None:
+                        self.assertIs(type(item[key]), expected, (key, item[key]))
+        # Not vacuous: somebody has a birth date.
+        self.assertTrue(any(item["birth.date.sortval"] for item in owner))
+        # A public person reads the same either way.
+        guest_by_handle = {item["handle"]: item for item in guest}
+        compared = 0
+        for item in owner:
+            if item["private"] or item["handle"] not in guest_by_handle:
+                continue
+            if item["birth.private"] or item["primary_name.private"]:
+                continue  # removed or replaced for the guest
+            self.assertEqual(item, guest_by_handle[item["handle"]])
+            compared += 1
+        self.assertGreater(compared, 0)
 
     def test_select_string_and_json_path_forms_agree(self):
         """The expression string and the older {"json_path": [...]} wire form

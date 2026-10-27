@@ -65,8 +65,6 @@ from gramps_webapi.api.resources.object_query import (
     QueryWhereConditionArgs,
     _build_where,
     _check_no_duplicate_keys,
-    _needs_json_decoding,
-    _normalize_json_value,
     _parse_column_ref,
     _parse_select_entry,
     _resolve_after,
@@ -315,85 +313,6 @@ def test_check_no_duplicate_keys_rejects_duplicate():
     path_b = JsonPath(("y",))
     with pytest.raises(QueryError):
         _check_no_duplicate_keys([(path_a, "same"), (path_b, "same")])
-
-
-# --- _needs_json_decoding / _normalize_json_value --------------------------------
-
-
-def test_needs_json_decoding_plain_string_false():
-    assert _needs_json_decoding("surname", PERSON) is False
-
-
-def test_needs_json_decoding_scalar_json_path_false():
-    """Regression: `primary_name.first_name` terminates in a JsonPath, but
-    Gramps' schema says it holds a *string*. Decoding it turned a person
-    genuinely named "123" into the integer 123 in the response.
-    """
-    assert _needs_json_decoding(JsonPath(("primary_name", "first_name")), PERSON) is False
-
-
-def test_needs_json_decoding_composite_json_path_true():
-    # A whole Name struct is an object -- SQLite hands that back as JSON text.
-    assert _needs_json_decoding(JsonPath(("primary_name",)), PERSON) is True
-
-
-def test_needs_json_decoding_array_json_path_true():
-    assert _needs_json_decoding(JsonPath(("event_ref_list",)), PERSON) is True
-
-
-def test_needs_json_decoding_related_object_plain_field_false():
-    # father.surname ends in a real flat column -- no JSON functions
-    # involved at all, so no decoding needed.
-    ref = resolve_column_path(FAMILY, ["father", "surname"])
-    assert _needs_json_decoding(ref, FAMILY) is False
-
-
-def test_needs_json_decoding_related_object_composite_field_true():
-    ref = resolve_column_path(PERSON, ["birth", "date"])
-    assert _needs_json_decoding(ref, PERSON) is True
-
-
-def test_needs_json_decoding_related_object_scalar_field_false():
-    # birth.date.sortval is an integer inside the related event's JSON --
-    # typed correctly by SQLite already, so nothing to decode.
-    ref = resolve_column_path(PERSON, ["birth", "date", "sortval"])
-    assert _needs_json_decoding(ref, PERSON) is False
-
-
-def test_needs_json_decoding_chained_related_object():
-    # birth.place.title: the chain's own leaf ("title") is a plain column,
-    # even though an intermediate hop (birth -> Event) uses a JsonPath
-    # internally for its handle_ref -- only the final value's type matters.
-    ref = resolve_column_path(PERSON, ["birth", "place", "title"])
-    assert _needs_json_decoding(ref, PERSON) is False
-
-
-def test_normalize_json_value_parses_json_object_string():
-    assert _normalize_json_value('{"sortval": 2439857}') == {"sortval": 2439857}
-
-
-def test_normalize_json_value_parses_json_number_string():
-    # PostgreSQL's jsonb_extract_path_text always returns TEXT, even for a
-    # scalar number -- confirmed live ('2439857', not a native int).
-    assert _normalize_json_value("2439857") == 2439857
-
-
-def test_normalize_json_value_passes_through_dict():
-    # PostgreSQL's jsonb expressions can also come back through psycopg2
-    # already parsed for some call shapes -- nothing to do in that case.
-    value = {"sortval": 2439857}
-    assert _normalize_json_value(value) is value
-
-
-def test_normalize_json_value_passes_through_none():
-    assert _normalize_json_value(None) is None
-
-
-def test_normalize_json_value_passes_through_non_json_text():
-    # A free-text value that happens not to be valid JSON (e.g. SQLite's
-    # json_extract on a plain string field already de-quotes it) must not
-    # raise -- returned unchanged.
-    assert _normalize_json_value("About 1968") == "About 1968"
 
 
 # --- _resolve_dialect -----------------------------------------------------------
