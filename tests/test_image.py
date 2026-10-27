@@ -270,6 +270,19 @@ def test_tiff_with_non_bytes_xmp_thumbnails(xmp, tag_type, orientation):
     assert cropped.size == (expected_size[0] // 2, expected_size[1] // 2)
 
 
+def test_tiff_with_text_xmp_keeps_its_orientation():
+    """An orientation stored only in text XMP must still be applied."""
+    xmp = (
+        '<x:xmpmeta xmlns:tiff="http://ns.adobe.com/tiff/1.0/">'
+        "<tiff:Orientation>6</tiff:Orientation></x:xmpmeta>"
+    )
+    handler = ThumbnailHandler(make_tiff_with_xmp(xmp, TiffTags.ASCII), "image/tiff")
+    thumb = Image.open(handler.get_thumbnail(100, fmt="PNG"))
+    assert thumb.size == (20, 40)
+    cropped = Image.open(handler.get_thumbnail_cropped(100, 0, 0, 50, 50, fmt="PNG"))
+    assert cropped.size == (10, 20)
+
+
 @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg is not installed")
 def test_video_thumbnail_is_first_frame(tmp_path):
     """A video is thumbnailed by its first frame where ffmpeg is installed,

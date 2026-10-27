@@ -62,6 +62,10 @@ def _fix_xmp(image: ImageType) -> None:
     `TypeError` when it looks for an orientation in it.
     """
     xmp = image.info.get("xmp")
+    # Pillow < 11.3 wraps a single TIFF value in a tuple
+    if isinstance(xmp, tuple) and len(xmp) == 1:
+        xmp = xmp[0]
+        image.info["xmp"] = xmp
     if xmp is None or isinstance(xmp, bytes):
         return
     if isinstance(xmp, str):
