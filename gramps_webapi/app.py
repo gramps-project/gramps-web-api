@@ -379,11 +379,13 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
     def close_db_connection(exception) -> None:
         """Close the Gramps database after every request."""
         db = g.pop("db", None)
-        if db:
-            close_db(db)
         db_write = g.pop("db_write", None)
-        if db_write:
-            close_db(db_write)
+        try:
+            if db:
+                close_db(db)
+        finally:
+            if db_write:
+                close_db(db_write)
 
     @app.teardown_request
     def close_user_db_connection(exception) -> None:

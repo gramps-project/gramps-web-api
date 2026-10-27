@@ -702,8 +702,10 @@ class RestrictedDb(DbReadBase):
 
     def close(self) -> None:
         """Close the base database and its undo log."""
-        self.__db.close()
-        self.__db.undodb.close()
+        # imported here, since ..util imports this module
+        from ..util import close_db  # pylint: disable=import-outside-toplevel
+
+        close_db(self.__db)
 
 
 def _public_children(family: RawData) -> frozenset[str]:

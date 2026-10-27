@@ -290,11 +290,25 @@ def close_db(db_handle: DbReadBase) -> None:
         # closes the undo log, too
         db_handle.close()
         return
-    db_handle.close()
-    if isinstance(db_handle, ProxyDbBase):
-        db_handle.basedb.undodb.close()
-    else:
-        db_handle.undodb.close()
+    basedb = db_handle.basedb if isinstance(db_handle, ProxyDbBase) else db_handle
+    try:
+        db_handle.close()
+    except Exception:
+        # DbGeneric.close() saves the metadata before it closes the connection.
+        # If saving fails, e.g. with "database is locked", the connection would
+        # stay open and keep its lock, and every later write would fail.
+        dbapi = getattr(basedb, "dbapi", None)
+        if dbapi is not None:
+            # End the failed transaction first: on Python 3.11, close() alone
+            # leaves its lock held while the failed statement is pending.
+            try:
+                dbapi.rollback()
+            except Exception:  # pylint: disable=broad-except
+                pass
+            dbapi.close()
+        raise
+    finally:
+        basedb.undodb.close()
 
 
 def get_db_handle(readonly: bool = True) -> DbReadBase:
