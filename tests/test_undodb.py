@@ -287,10 +287,14 @@ class TestUndoHistory(unittest.TestCase):
                 assert index == len(undodb) - 1
             return time.perf_counter() - start
 
-        first = append(2000)
+        def best_append(count: int, repeats: int = 5) -> float:
+            # the fastest batch, so that a stalled CI runner doesn't count
+            return min(append(count) for _ in range(repeats))
+
+        first = best_append(400)
         append(40000)
         # 20 times slower if appending scanned the open transaction
-        assert append(2000) < 5 * first
+        assert best_append(400) < 5 * first
 
 
 class TestGetTransactions(unittest.TestCase):
