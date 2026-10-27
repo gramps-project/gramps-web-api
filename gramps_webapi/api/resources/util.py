@@ -565,26 +565,16 @@ def get_place_name_for_event(db_handle: DbReadBase, event: Event) -> str:
 def get_place_name_at_date(place: Place, date: Date) -> str:
     """Get the name of a place valid at a date.
 
-    A name whose date matches wins over one without a date, so that an
-    alternative name dated e.g. 1910-1945 is used for an event in 1930 even
-    if the primary name has no date. Gramps' place display, which builds the
-    full place title, only does so if the primary name is dated too, so the
-    title can differ from this name. If no dated name matches, the first name
-    without a date is used, and the primary name if there is none or if the
-    date is empty.
+    Follows Gramps' place display: the first name, in order, that has no date
+    or whose date matches. If none does, or if the date is empty, the primary
+    name is used.
     """
     primary = place.get_name()
     if not date.is_empty():
-        undated = None
         for place_name in place.get_all_names():
             name_date = place_name.get_date_object()
-            if name_date.is_empty():
-                if undated is None:
-                    undated = place_name
-            elif date.match_exact(name_date):
+            if name_date.is_empty() or date.match_exact(name_date):
                 return place_name.get_value()
-        if undated is not None:
-            return undated.get_value()
     return primary.get_value() if primary else ""
 
 

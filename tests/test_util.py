@@ -830,8 +830,8 @@ def _place(*names: tuple[str, str]) -> Place:
 @pytest.mark.parametrize(
     "names,date,expected",
     [
-        # primary name without a date: a matching dated name wins
-        ((("Gdansk", ""), ("Danzig", "between 1910 and 1945")), "1930", "Danzig"),
+        # primary name without a date: always used, as in Gramps
+        ((("Gdansk", ""), ("Danzig", "between 1910 and 1945")), "1930", "Gdansk"),
         ((("Gdansk", ""), ("Danzig", "between 1910 and 1945")), "1950", "Gdansk"),
         # dated primary name
         ((("Gdansk", "from 1945"), ("Danzig", "before 1945")), "1930", "Danzig"),
@@ -850,7 +850,7 @@ def test_get_place_name_at_date(names, date, expected):
 
 
 def test_get_place_name_for_event_uses_event_date():
-    place = _place(("Gdansk", ""), ("Danzig", "between 1910 and 1945"))
+    place = _place(("Gdansk", "from 1945"), ("Danzig", "before 1945"))
     db_handle = MagicMock()
     db_handle.get_place_from_handle.return_value = place
     event = Event()
