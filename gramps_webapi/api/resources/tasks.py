@@ -39,6 +39,7 @@ from ...util.task_state import (
     SUCCEEDED,
     UNKNOWN,
     reap,
+    read_progress,
 )
 from ..auth import has_permissions
 from ..blueprint import api_blueprint
@@ -208,11 +209,13 @@ def _row_meta(row: TaskTree | None, task_id: str) -> TaskMeta:
     """
     if row is None or row.status == UNKNOWN:
         return _task_meta(AsyncResult(task_id))
-    result = None if row.result is None else json.loads(row.result)
     if row.status == QUEUED:
         return TaskMeta("PENDING", None)
     if row.status == RUNNING:
-        return TaskMeta("STARTED" if result is None else "PROGRESS", result)
+        # progress is kept in the result backend, not in the row
+        progress = read_progress(task_id)
+        return TaskMeta("STARTED" if progress is None else "PROGRESS", progress)
+    result = None if row.result is None else json.loads(row.result)
     if row.status == SUCCEEDED:
         return TaskMeta("SUCCESS", result)
     return TaskMeta("FAILURE", result)

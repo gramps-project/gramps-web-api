@@ -293,7 +293,7 @@ def _search_reindex_full(
 
 
 def progress_callback_count(title: str = "", message: str = "") -> Callable:
-    """Build a progress callback that stores progress in the task's row.
+    """Build a progress callback that stores progress in the result backend.
 
     Throttled to (at most) one report per integer percentage point, the
     same way `__main__.py`'s CLI `progress_callback_count_factory` throttles
@@ -302,7 +302,7 @@ def progress_callback_count(title: str = "", message: str = "") -> Callable:
     That makes the throttle self-contained -- a producer that calls back
     once per object with no `prev` (most of them: check.py, media.py,
     media_importer.py, delete.py, restore.py, and reindex_incremental's own
-    per-object loop) still collapses to ~100 database writes regardless of
+    per-object loop) still collapses to ~100 progress reports regardless of
     tree size. A producer that *does* pass real `prev` values (reindex_full,
     batched by chunk_size) throttles the same way, just computed from its
     own strides instead of single-object steps.

@@ -443,14 +443,21 @@ class TestTaskEndpoints(unittest.TestCase):
         assert task["state"] == "PENDING"
 
     def test_get_tracked_task_running_with_progress(self):
-        task = self._get_tracked(
-            status="running",
-            heartbeat_at=datetime.utcnow(),
-            result='{"progress": 0.5, "title": "Importing"}',
-        )
+        progress = {"progress": 0.5, "title": "Importing"}
+        with patch(
+            "gramps_webapi.api.resources.tasks.read_progress", return_value=progress
+        ) as read:
+            task = self._get_tracked(status="running", heartbeat_at=datetime.utcnow())
+        read.assert_called_once_with(task["task_id"])
         assert task["status"] == "running"
         assert task["state"] == "PROGRESS"
-        assert task["result_object"] == {"progress": 0.5, "title": "Importing"}
+        assert task["result_object"] == progress
+
+    def test_get_tracked_task_running_without_progress(self):
+        task = self._get_tracked(status="running", heartbeat_at=datetime.utcnow())
+        assert task["status"] == "running"
+        assert task["state"] == "STARTED"
+        assert task["result_object"] is None
 
     def test_get_tracked_task_succeeded(self):
         task = self._get_tracked(status="succeeded", result='{"people": 3}')
