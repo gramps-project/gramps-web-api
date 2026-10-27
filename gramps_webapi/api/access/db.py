@@ -56,9 +56,9 @@ from gramps.gen.lib.json_utils import (
 )
 
 from ..resources.db_backend import (
-    SHARED_POSTGRES_CLASS_NAME,
-    SINGLE_TREE_POSTGRES_CLASS_NAME,
-    is_sqlite,
+    has_secondary_columns,
+    sql_count,
+    sql_sorted_handles,
 )
 from .policy import AccessPolicy
 from .sanitize import (
@@ -131,16 +131,6 @@ CUSTOM_TYPE_METHODS = [
     "get_source_media_types",
     "get_url_types",
 ]
-
-
-def _has_sql(db: DbReadBase) -> bool:
-    """Whether a backend has the DBAPI tables with secondary columns."""
-    if not hasattr(db, "dbapi"):
-        return False
-    return is_sqlite(db) or type(db).__name__ in (
-        SINGLE_TREE_POSTGRES_CLASS_NAME,
-        SHARED_POSTGRES_CLASS_NAME,
-    )
 
 
 class RestrictedDb(DbReadBase):
@@ -251,7 +241,7 @@ class RestrictedDb(DbReadBase):
         Without a column, the second value is None.
         """
         db = self.__db
-        if not _has_sql(db):
+        if not has_secondary_columns(db):
             return list(self.__select_visible_python(class_name, column, handle))
         sql = (
             f"SELECT handle, {column or 'NULL'} FROM {TABLES[class_name]} "
@@ -311,6 +301,48 @@ class RestrictedDb(DbReadBase):
             if not visible:
                 return False
         return True
+
+    def get_sorted_handles(
+        self,
+        class_name: str,
+        order: list[tuple[str, bool]],
+        locale: Optional[GrampsLocale] = None,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> Optional[tuple[list[str], int]]:
+        """Return a page of visible handles sorted in SQL, and their total number.
+
+        `order` is a list of (column, descending), most significant first, see
+        `db_backend.sql_sorted_handles`. Without `limit`, all handles are
+        returned. Return None if the backend can't sort this in SQL.
+        """
+        if not has_secondary_columns(self.__db):
+            return None
+        if class_name == "Tag":
+            # tags have no privacy
+            table, condition = "tag", "1 = 1"
+        elif class_name in TABLES:
+            table, condition = TABLES[class_name], self.__policy.sql_condition()
+        else:
+            return None
+        if class_name in EXTRA_COLUMNS and not self.__policy.sees_everything:
+            # visibility isn't decided by the private column alone, so page
+            # after filtering
+            handles = sql_sorted_handles(self.__db, table, order, condition, locale)
+            if handles is None:
+                return None
+            visible = self.__visible_handles(class_name)
+            handles = [handle for handle in handles if handle in visible]
+            end = None if limit is None else offset + limit
+            return handles[offset:end], len(handles)
+        handles = sql_sorted_handles(
+            self.__db, table, order, condition, locale, limit, offset
+        )
+        if handles is None:
+            return None
+        if limit is None and offset == 0:
+            return handles, len(handles)
+        return handles, sql_count(self.__db, table, condition)
 
     # raw data and objects
 

@@ -90,6 +90,7 @@ from .db_backend import (
     SHARED_POSTGRES_CLASS_NAME,
     SINGLE_TREE_POSTGRES_CLASS_NAME,
     is_sqlite,
+    resolve_collation,
 )
 from .schemas import ObjectQueryResponseSchema
 
@@ -717,25 +718,6 @@ def _resolve_after_proxied(
     )
 
 
-def _resolve_collation(basedb: Any, locale: Any) -> Optional[str]:
-    """Ensure the requested locale's collation exists, returning its name.
-
-    Mirrors gramps core's own `DBAPI._collation()` (used internally for
-    `get_person_handles(sort_handles=True, locale=...)`): call the backend
-    connection's `check_collation()`, which creates the collation if needed
-    and (on SQLite) returns the sanitized name it was registered under.
-    `SharedPostgreSQL`'s `check_collation()` doesn't return a name, so fall
-    back to the locale's raw collation name in that case -- Postgres, unlike
-    SQLite, needs no sanitization for `CREATE COLLATION`.
-
-    Returns `None` (no `COLLATE` clause; default ordering) if the backend's
-    connection object has no `check_collation` at all.
-    """
-    if not hasattr(basedb.dbapi, "check_collation"):
-        return None
-    return basedb.dbapi.check_collation(locale) or locale.get_collation()
-
-
 _DIALECT_BY_NAME: dict[str, Dialect] = {
     "sqlite": Dialect.SQLITE,
     "postgres": Dialect.POSTGRESQL,
@@ -953,7 +935,7 @@ class ObjectQueryResource(ProtectedResource):
         # order for callers who never asked for locale-aware sorting.
         # Locale-aware sorting is opt-in via an explicit `locale` param.
         locale = get_locale_for_language(args.get("locale"), default=False)
-        collation = _resolve_collation(basedb, locale) if locale is not None else None
+        collation = resolve_collation(basedb, locale) if locale is not None else None
 
         dialect = _resolve_dialect(basedb)
         try:

@@ -22,11 +22,11 @@
 
 """Sorting support."""
 
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from flask import abort
 from gramps.gen.const import GRAMPS_LOCALE as glocale
-from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP
+from gramps.gen.db.dbconst import CLASS_TO_KEY_MAP, KEY_TO_NAME_MAP
 from gramps.gen.display.name import NameDisplay
 from gramps.gen.display.place import PlaceDisplay
 from gramps.gen.lib import Date
@@ -34,6 +34,13 @@ from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.soundex import soundex
 from gramps.gen.utils.db import get_birth_or_fallback, get_death_or_fallback
 
+from ..access import RestrictedDb
+from .db_backend import (
+    SQL_SORT_COLUMNS,
+    has_secondary_columns,
+    sql_count,
+    sql_sorted_handles,
+)
 from .util import get_fallback_event, get_object_or_none
 
 
@@ -322,20 +329,10 @@ def get_raw_sort_key_functions(
     }
 
 
-def sort_handles_by_raw_data(
-    db_handle, gramps_class_name: str, handles: List[str], args, locale=glocale
-) -> Optional[List[str]]:
-    """Sort a given list of handles without instantiating the objects.
-
-    Uses the same sort keys as `sort_objects`, but objects with equal sort keys
-    are ordered by handle rather than keeping their order in `handles`, so the
-    result does not depend on the order of `handles`. Handles without raw data
-    (e.g. objects deleted after `handles` was fetched) are omitted.
-
-    Returns None if any of the sort keys requires the full objects or if the
-    raw data is not JSON data (e.g. for a database with an outdated schema).
-    """
-    key_functions = get_raw_sort_key_functions(gramps_class_name, locale=locale)
+def _parse_sort_keys(
+    args, key_functions: Dict[str, Callable[[Any], Any]]
+) -> Optional[List[Tuple[str, bool]]]:
+    """Return (key, descending) of sort arguments, or None if a key is unknown."""
     sort_keys = []
     for sort_key in args:
         sort_key = sort_key.strip()
@@ -346,6 +343,40 @@ def sort_handles_by_raw_data(
         if sort_key not in key_functions:
             return None
         sort_keys.append((sort_key, reverse))
+    return sort_keys
+
+
+def sort_handles_by_raw_data(
+    db_handle,
+    gramps_class_name: str,
+    handles: List[str],
+    args,
+    locale=glocale,
+    try_sql: bool = True,
+) -> Optional[List[str]]:
+    """Sort a given list of handles without instantiating the objects.
+
+    Uses the same sort keys as `sort_objects`, but objects with equal sort keys
+    are ordered by handle rather than keeping their order in `handles`, so the
+    result does not depend on the order of `handles`. Handles without raw data
+    (e.g. objects deleted after `handles` was fetched) are omitted. Sorts in
+    SQL if possible, unless `try_sql` is False (e.g. because the caller already
+    tried).
+
+    Returns None if any of the sort keys requires the full objects or if the
+    raw data is not JSON data (e.g. for a database with an outdated schema).
+    """
+    key_functions = get_raw_sort_key_functions(gramps_class_name, locale=locale)
+    sort_keys = _parse_sort_keys(args, key_functions)
+    if sort_keys is None:
+        return None
+    if try_sql:
+        sql_sorted = _sort_handles_in_sql(
+            db_handle, gramps_class_name, sort_keys, locale
+        )
+        if sql_sorted is not None:
+            wanted = set(handles)
+            return [handle for handle in sql_sorted[0] if handle in wanted]
     names = list(dict.fromkeys(name for name, _ in sort_keys))
     obj_key = CLASS_TO_KEY_MAP[gramps_class_name]
     values: Dict[str, Dict[str, Any]] = {name: {} for name in names}
@@ -360,3 +391,59 @@ def sort_handles_by_raw_data(
     for sort_key, reverse in sort_keys:
         handles.sort(key=values[sort_key].__getitem__, reverse=reverse)
     return handles
+
+
+def page_handles_in_sql(
+    db_handle,
+    gramps_class_name: str,
+    args,
+    offset: int,
+    limit: int,
+    locale=glocale,
+) -> Optional[Tuple[List[str], int]]:
+    """Return a page of all handles of a class, sorted, and their total number.
+
+    Sorts and pages in SQL, in the same order as `sort_handles_by_raw_data`.
+    Returns None if the database or a sort key doesn't allow that.
+    """
+    key_functions = get_raw_sort_key_functions(gramps_class_name, locale=locale)
+    sort_keys = _parse_sort_keys(args, key_functions)
+    if sort_keys is None:
+        return None
+    return _sort_handles_in_sql(
+        db_handle, gramps_class_name, sort_keys, locale, limit, offset
+    )
+
+
+def _sort_handles_in_sql(
+    db_handle,
+    gramps_class_name: str,
+    sort_keys: List[Tuple[str, bool]],
+    locale,
+    limit: Optional[int] = None,
+    offset: int = 0,
+) -> Optional[Tuple[List[str], int]]:
+    """Sort all handles of a class in SQL, if the database and the keys allow.
+
+    Return a page of handles in the order of `sort_handles_by_raw_data` (all
+    without `limit`) and the total number, or None.
+    """
+    if any(key not in SQL_SORT_COLUMNS for key, _ in sort_keys):
+        return None
+    # the keys are applied one after the other, so the last one counts most
+    order = list(reversed(sort_keys))
+    if isinstance(db_handle, RestrictedDb):
+        return db_handle.get_sorted_handles(
+            gramps_class_name, order, locale, limit, offset
+        )
+    if not has_secondary_columns(db_handle):
+        return None
+    table = KEY_TO_NAME_MAP[CLASS_TO_KEY_MAP[gramps_class_name]]
+    handles = sql_sorted_handles(
+        db_handle, table, order, locale=locale, limit=limit, offset=offset
+    )
+    if handles is None:
+        return None
+    if limit is None and offset == 0:
+        return handles, len(handles)
+    return handles, sql_count(db_handle, table)

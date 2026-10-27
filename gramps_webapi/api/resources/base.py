@@ -59,7 +59,7 @@ from .delete import delete_object, remove_deleted_from_search_indices
 from .emit import GrampsJSONEncoder
 from .filters import apply_filter
 from .match import match_dates
-from .sort import sort_handles_by_raw_data, sort_objects
+from .sort import page_handles_in_sql, sort_handles_by_raw_data, sort_objects
 from .util import (
     abort_with_message,
     add_object,
@@ -633,16 +633,32 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
             or args["dates"]
             or (self.gramps_class_name == "Media" and args.get("filemissing"))
         ):
-            sorted_handles = sort_handles_by_raw_data(
+            offset = (args["page"] - 1) * args["pagesize"]
+            # sort and page in SQL if possible
+            page = page_handles_in_sql(
                 self.db_handle,
                 self.gramps_class_name,
-                query_method(),
                 sort,
+                offset,
+                args["pagesize"],
                 locale=locale,
             )
-            if sorted_handles is not None:
-                offset = (args["page"] - 1) * args["pagesize"]
-                page_handles = sorted_handles[offset : offset + args["pagesize"]]
+            if page is None:
+                sorted_handles = sort_handles_by_raw_data(
+                    self.db_handle,
+                    self.gramps_class_name,
+                    query_method(),
+                    sort,
+                    locale=locale,
+                    try_sql=False,
+                )
+                if sorted_handles is not None:
+                    page = (
+                        sorted_handles[offset : offset + args["pagesize"]],
+                        len(sorted_handles),
+                    )
+            if page is not None:
+                page_handles, total_items = page
                 objects = []
                 for handle in page_handles:
                     try:
@@ -654,9 +670,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                         # object is no longer included by a proxy database
                         continue
                     objects.append(self.full_object(obj, args, locale=locale))
-                return self.response(
-                    200, objects, args, total_items=len(sorted_handles)
-                )
+                return self.response(200, objects, args, total_items=total_items)
 
         # load all objects to memory
         objects_name = GRAMPS_OBJECT_PLURAL[self.gramps_class_name]
