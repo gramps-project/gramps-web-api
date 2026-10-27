@@ -299,6 +299,12 @@ def close_db(db_handle: DbReadBase) -> None:
         # stay open and keep its lock, and every later write would fail.
         dbapi = getattr(basedb, "dbapi", None)
         if dbapi is not None:
+            # End the failed transaction first: on Python 3.11, close() alone
+            # leaves its lock held while the failed statement is pending.
+            try:
+                dbapi.rollback()
+            except Exception:  # pylint: disable=broad-except
+                pass
             dbapi.close()
         raise
     finally:

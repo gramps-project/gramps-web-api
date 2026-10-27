@@ -49,6 +49,7 @@ def test_close_db_closes_connection_when_close_fails():
     db = _db(fails=True)
     with pytest.raises(sqlite3.OperationalError):
         close_db(db)
+    db.dbapi.rollback.assert_called_once()
     db.dbapi.close.assert_called_once()
     db.undodb.close.assert_called_once()
 
@@ -57,6 +58,7 @@ def test_close_db_does_not_close_connection_twice():
     db = _db(fails=False)
     close_db(db)
     db.close.assert_called_once()
+    db.dbapi.rollback.assert_not_called()
     db.dbapi.close.assert_not_called()
     db.undodb.close.assert_called_once()
 
