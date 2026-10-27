@@ -650,6 +650,7 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                     query_method(),
                     sort,
                     locale=locale,
+                    try_sql=False,
                 )
                 if sorted_handles is not None:
                     page = (

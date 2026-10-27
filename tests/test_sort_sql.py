@@ -25,7 +25,7 @@ import pytest
 from gramps.gen.db.utils import open_database
 
 from gramps_webapi.api.access import AccessPolicy, RestrictedDb
-from gramps_webapi.api.resources import sort
+from gramps_webapi.api.resources import db_backend, sort
 from tests import ExampleDbSQLite
 from tests.test_privacy_canary import _plant
 
@@ -60,8 +60,9 @@ def test_same_order(db, restricted, class_name, args):
     database = RestrictedDb(db, AccessPolicy(view_private=False)) if restricted else db
     handles = database.method("get_%s_handles", class_name)()
     in_sql = sort.sort_handles_by_raw_data(database, class_name, handles, args)
-    with patch.object(sort, "_sort_handles_in_sql", return_value=None):
-        by_raw_data = sort.sort_handles_by_raw_data(database, class_name, handles, args)
+    by_raw_data = sort.sort_handles_by_raw_data(
+        database, class_name, handles, args, try_sql=False
+    )
     if class_name == "Tag" and args not in (["change"], ["-change"]):
         # tags can only be sorted by change
         assert in_sql is None and by_raw_data is None
@@ -97,3 +98,54 @@ def test_uses_sql(db):
         RestrictedDb, "_iter_raw_data", side_effect=AssertionError("read objects")
     ):
         sort.sort_handles_by_raw_data(restricted, "Person", handles, ["-change"])
+
+
+@pytest.mark.parametrize("restricted", [False, True])
+def test_collation_failure_falls_back(db, restricted):
+    """If the collation can't be created, Gramps IDs are sorted in Python."""
+    database = RestrictedDb(db, AccessPolicy(view_private=False)) if restricted else db
+    handles = database.get_person_handles()
+    expected = sort.sort_handles_by_raw_data(
+        database, "Person", handles, ["gramps_id"], try_sql=False
+    )
+    with patch.object(
+        db_backend, "resolve_collation", side_effect=RuntimeError("no locale")
+    ):
+        assert (
+            sort.page_handles_in_sql(database, "Person", ["gramps_id"], 0, 10) is None
+        )
+        assert (
+            sort.sort_handles_by_raw_data(database, "Person", handles, ["gramps_id"])
+            == expected
+        )
+        # sorting by numbers needs no collation
+        assert sort.page_handles_in_sql(database, "Person", ["-change"], 0, 10)
+
+
+def test_shared_postgres_needs_treeid():
+    """A shared backend whose tree can't be told apart isn't queried in SQL."""
+
+    class Dbapi:
+        pass
+
+    class SharedPostgreSQL:
+        def __init__(self, dbapi):
+            self.dbapi = dbapi
+
+    dbapi = Dbapi()
+    assert not db_backend.has_secondary_columns(SharedPostgreSQL(dbapi))
+    dbapi.treeid = 1
+    assert db_backend.has_secondary_columns(SharedPostgreSQL(dbapi))
+
+
+def test_collation_failure_logged_once(db, caplog, monkeypatch):
+    """The fallback is logged once per collation, not on every request."""
+    monkeypatch.setattr(db_backend, "_FAILED_COLLATIONS_LOGGED", set())
+    with patch.object(
+        db_backend, "resolve_collation", side_effect=RuntimeError("no locale")
+    ) as resolve:
+        for _ in range(3):
+            assert sort.page_handles_in_sql(db, "Person", ["gramps_id"], 0, 10) is None
+    # creating the collation is still tried every time
+    assert resolve.call_count == 3
+    assert len([r for r in caplog.records if "collation" in r.getMessage()]) == 1

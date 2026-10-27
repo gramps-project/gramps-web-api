@@ -39,9 +39,16 @@ failure policy for "unrecognized backend" (silent fallback in
 safe to do differs by call site.
 """
 
+import logging
 from typing import Any, Optional, Union
 
 from gramps.plugins.db.dbapi.sqlite import SQLite
+
+_LOG = logging.getLogger(__name__)
+
+# collations whose failure was logged already, so it isn't logged on every
+# request; creating them is still tried every time
+_FAILED_COLLATIONS_LOGGED: set[str] = set()
 
 SQLITE_CLASS_NAME = "SQLite"
 SINGLE_TREE_POSTGRES_CLASS_NAME = "PostgreSQL"
@@ -63,14 +70,15 @@ def has_secondary_columns(db: Any) -> bool:
     """Whether `db` is a DB-API backend whose tables have secondary columns.
 
     Secondary columns (`private`, `change`, `gramps_id`, ...) are kept in sync
-    with `json_data` by Gramps on every commit.
+    with `json_data` by Gramps on every commit. A `SharedPostgreSQL` backend
+    without a tree ID is refused, since its queries couldn't be scoped to the
+    tree.
     """
     if not hasattr(db, "dbapi"):
         return False
-    return is_sqlite(db) or type(db).__name__ in (
-        SINGLE_TREE_POSTGRES_CLASS_NAME,
-        SHARED_POSTGRES_CLASS_NAME,
-    )
+    if type(db).__name__ == SHARED_POSTGRES_CLASS_NAME:
+        return getattr(db.dbapi, "treeid", None) is not None
+    return is_sqlite(db) or type(db).__name__ == SINGLE_TREE_POSTGRES_CLASS_NAME
 
 
 def resolve_collation(basedb: Any, locale: Any) -> Optional[str]:
@@ -125,7 +133,7 @@ def sql_sorted_handles(
     broken by handle. `condition` restricts the rows, `limit` and `offset`
     select a page, and `db` must have secondary columns (see
     `has_secondary_columns`). Return None if a text column needs a collation
-    the backend doesn't provide.
+    the backend doesn't provide or can't create.
     """
     terms = []
     for column, descending in order:
@@ -133,7 +141,22 @@ def sql_sorted_handles(
             raise ValueError(f"Cannot sort by {column} in SQL")
         term = column
         if column in TEXT_SORT_COLUMNS:
-            collation = resolve_collation(db, locale) if locale is not None else None
+            if locale is None:
+                return None
+            try:
+                collation = resolve_collation(db, locale)
+            except Exception:  # pylint: disable=broad-except
+                # e.g. the database server has no OS locale for it; the
+                # backend has rolled back, so the caller can sort in Python
+                name = locale.get_collation()
+                if name not in _FAILED_COLLATIONS_LOGGED:
+                    _FAILED_COLLATIONS_LOGGED.add(name)
+                    _LOG.warning(
+                        "Cannot create the database collation for locale %s, "
+                        "sorting in Python instead",
+                        name,
+                    )
+                return None
             if collation is None:
                 return None
             term += f' COLLATE "{collation}"'

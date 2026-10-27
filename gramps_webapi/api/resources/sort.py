@@ -347,14 +347,21 @@ def _parse_sort_keys(
 
 
 def sort_handles_by_raw_data(
-    db_handle, gramps_class_name: str, handles: List[str], args, locale=glocale
+    db_handle,
+    gramps_class_name: str,
+    handles: List[str],
+    args,
+    locale=glocale,
+    try_sql: bool = True,
 ) -> Optional[List[str]]:
     """Sort a given list of handles without instantiating the objects.
 
     Uses the same sort keys as `sort_objects`, but objects with equal sort keys
     are ordered by handle rather than keeping their order in `handles`, so the
     result does not depend on the order of `handles`. Handles without raw data
-    (e.g. objects deleted after `handles` was fetched) are omitted.
+    (e.g. objects deleted after `handles` was fetched) are omitted. Sorts in
+    SQL if possible, unless `try_sql` is False (e.g. because the caller already
+    tried).
 
     Returns None if any of the sort keys requires the full objects or if the
     raw data is not JSON data (e.g. for a database with an outdated schema).
@@ -363,10 +370,13 @@ def sort_handles_by_raw_data(
     sort_keys = _parse_sort_keys(args, key_functions)
     if sort_keys is None:
         return None
-    sql_sorted = _sort_handles_in_sql(db_handle, gramps_class_name, sort_keys, locale)
-    if sql_sorted is not None:
-        wanted = set(handles)
-        return [handle for handle in sql_sorted[0] if handle in wanted]
+    if try_sql:
+        sql_sorted = _sort_handles_in_sql(
+            db_handle, gramps_class_name, sort_keys, locale
+        )
+        if sql_sorted is not None:
+            wanted = set(handles)
+            return [handle for handle in sql_sorted[0] if handle in wanted]
     names = list(dict.fromkeys(name for name, _ in sort_keys))
     obj_key = CLASS_TO_KEY_MAP[gramps_class_name]
     values: Dict[str, Dict[str, Any]] = {name: {} for name in names}
