@@ -90,6 +90,9 @@ class MediaFileResource(ProtectedResource):
             obj = db_handle.get_media_from_handle(handle)
         except HandleError:
             abort(HTTPStatus.NOT_FOUND)
+        if obj is None:
+            # the private proxy returns None for private objects
+            abort(HTTPStatus.NOT_FOUND)
         tree = get_tree_from_jwt()
         handler = get_media_handler(db_handle, tree).get_file_handler(
             handle, db_handle=db_handle

@@ -137,7 +137,8 @@ def skip_cache_missing_media(*args, **kwargs) -> bool:
         g.cached_media = get_db_handle().get_media_from_handle(kwargs["handle"])
     except HandleError:
         return True
-    return False
+    # the private proxy returns None for private objects
+    return g.cached_media is None
 
 
 _request_cached = request_cache.cached(

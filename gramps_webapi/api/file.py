@@ -85,10 +85,14 @@ class FileHandler:
     def _get_media_object(self) -> Media:
         """Get the media object from the database."""
         try:
-            return self.db_handle.get_media_from_handle(self.handle)
+            media = self.db_handle.get_media_from_handle(self.handle)
         except HandleError:
             abort_with_message(404, "Media object not found")
             raise  # unreachable - for type checker
+        if media is None:
+            # the private proxy returns None for private objects
+            abort_with_message(404, "Media object not found")
+        return media
 
     def get_file_object(self) -> BinaryIO:
         """Return a binary file object."""
