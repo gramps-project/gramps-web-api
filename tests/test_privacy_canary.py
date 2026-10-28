@@ -248,7 +248,12 @@ def _plant(db) -> Canaries:
         db.add_note(note, trans)
         c.private_objects.append(("Note", note.handle))
 
+        # a real image, so that the file and thumbnail endpoints serve it
+        example = next(db.iter_media())
         media = Media()
+        media.set_path(example.get_path())
+        media.set_mime_type(example.get_mime_type())
+        media.set_checksum(example.get_checksum())
         media.set_description(c.token("private media's description"))
         media.set_privacy(True)
         db.add_media(media, trans)
@@ -625,6 +630,9 @@ def _object_urls(class_name: str, handle: str) -> list[tuple[str, list[str]]]:
         urls.append((f"/api/living/{handle}/dates", [""]))
     if class_name == "Family":
         urls.append((base + "/timeline", [""]))
+    if class_name == "Media":
+        for suffix in ("/file", "/thumbnail/20"):
+            urls.append((base + suffix, [""]))
     return urls
 
 
@@ -802,6 +810,19 @@ def test_private_objects_look_missing(crawl):
                     f"missing object: {expected[0]} {expected[1][:200]!r}"
                 )
     assert not different, "\n".join(different)
+
+
+def test_owner_gets_private_media_files(crawl):
+    """Positive control: the private media's file URLs work with ViewPrivate."""
+    canaries, owner, _guest = crawl
+    failing = [
+        f"GET {url} returned {owner[url][0]}"
+        for class_name, handle in canaries.private_objects
+        if class_name == "Media"
+        for url, _ in _object_urls(class_name, handle)
+        if owner[url][0] != 200
+    ]
+    assert not failing, "\n".join(failing)
 
 
 def test_private_references_hidden(crawl):

@@ -63,8 +63,11 @@ class MediaOcrResource(ProtectedResource):
         """Execute OCR on a file."""
         db_handle = get_db_handle()
         try:
-            db_handle.get_media_from_handle(handle)
+            obj = db_handle.get_media_from_handle(handle)
         except HandleError:
+            abort(HTTPStatus.NOT_FOUND)
+        if obj is None:
+            # the private proxy returns None for private objects
             abort(HTTPStatus.NOT_FOUND)
         tree = get_tree_from_jwt()
         user_id = get_jwt_identity()
