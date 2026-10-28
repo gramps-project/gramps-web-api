@@ -230,6 +230,7 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
             change_op = None
             change_value = None
 
+        locale = get_locale_for_language(args["locale"], default=True)
         total, hits = searcher.search(
             query=args["query"],
             page=args["page"],
@@ -240,9 +241,9 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
             object_types=args.get("type") or None,
             change_op=change_op,
             change_value=change_value,
+            locale=locale,
         )
         if hits:
-            locale = get_locale_for_language(args["locale"], default=True)
             for hit in hits:
                 try:
                     hit["object"] = self.get_object_from_handle(

@@ -41,6 +41,7 @@ from gramps.gen.lib import (
 )
 from gramps.gen.lib.json_utils import object_to_dict
 
+from gramps_webapi.api.search.query import STANDARD_TYPES
 from gramps_webapi.api.search.text import (
     FIELD_SPECS,
     GENERIC_EXCLUDED,
@@ -188,6 +189,15 @@ def test_types():
     media.add_attribute(_attribute("x", type_=AttributeType.AGE))
     media.add_attribute(_attribute("y", type_=(AttributeType.CUSTOM, "Zqtype")))
     assert _words(own_strings(media)[1]) == {"x", "y", "zqtype"}
+
+
+def test_standard_types_are_the_indexed_types():
+    """The types searchable by translated name are those indexed in English."""
+    indexed = set()
+    for class_name, spec in FIELD_SPECS.items():
+        data = object_to_dict(getattr(lib, class_name)())
+        indexed |= {data[key]["_class"] for key in spec.types}
+    assert indexed == {type_class.__name__ for type_class in STANDARD_TYPES}
 
 
 def test_name_string():
