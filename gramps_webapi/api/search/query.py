@@ -21,6 +21,8 @@
 
 A query is an AND of clauses, and a clause is an OR of terms: words,
 "phrases" or prefixes (trailing `*`). `a OR b c` means `(a OR b) AND c`.
+A term that matches the translated name of a standard type also finds the
+type's indexed English name, so "Taufe" finds baptisms.
 
 An object is a hit when every clause matches one of its visible documents:
 its own text, or the name of a visible person connected to it through a
@@ -33,8 +35,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
+from gramps.gen.lib import EventType, FamilyRelType, PlaceType, RepositoryType
 from sqlalchemy import TextClause, bindparam, text
 from unidecode import unidecode
 
@@ -51,6 +54,44 @@ class Term:
 
 Clause = tuple[Term, ...]
 
+# the types whose standard values are indexed untranslated (`FieldSpec.types`)
+STANDARD_TYPES = (EventType, FamilyRelType, PlaceType, RepositoryType)
+
+# (tokens of a translated type name, tokens of its indexed name)
+TypeNames = list[tuple[tuple[str, ...], tuple[str, ...]]]
+
+
+def type_names(translate: Callable[[str], str]) -> TypeNames:
+    """Return the translated names of the standard types that differ from
+    their indexed (English) names, with and without transliteration."""
+    names: TypeNames = []
+    for type_class in STANDARD_TYPES:
+        for value, xml_str in type_class._I2EMAP.items():
+            if value in (type_class._CUSTOM, getattr(type_class, "UNKNOWN", None)):
+                continue
+            indexed = tuple(tokenize(xml_str))
+            translated = translate(xml_str)
+            for string in (translated, unidecode(translated)):
+                tokens = tuple(tokenize(string))
+                if tokens and tokens != indexed and (tokens, indexed) not in names:
+                    names.append((tokens, indexed))
+    return names
+
+
+def _matches_name(term: Term, name: tuple[str, ...]) -> bool:
+    """Whether a term matches a type name like it would match indexed text:
+    as a run of its tokens, the last one as a prefix if the term is one."""
+    n = len(term.tokens)
+    for start in range(len(name) - n + 1):
+        window = name[start : start + n]
+        if window[:-1] == term.tokens[:-1] and (
+            window[-1].startswith(term.tokens[-1])
+            if term.prefix
+            else window[-1] == term.tokens[-1]
+        ):
+            return True
+    return False
+
 
 def _split(query: str) -> list[tuple[str, bool]]:
     """Split a query at whitespace outside quotes into (token, quoted) pairs."""
@@ -63,8 +104,9 @@ def _split(query: str) -> list[tuple[str, bool]]:
     return parts
 
 
-def _terms(part: str) -> list[Term]:
-    """Return the term of a part of the query, and its transliteration.
+def _terms(part: str, types: TypeNames) -> list[Term]:
+    """Return the term of a part of the query, its transliteration, and the
+    indexed names of the types whose translated names it matches.
 
     Indexed text contains a transliteration of every string (see
     `process_strings`), so "Müller" finds "Muller" and vice versa, the same
@@ -76,11 +118,19 @@ def _terms(part: str) -> list[Term]:
         tokens = tuple(tokenize(string))
         if tokens and Term(tokens, prefix) not in terms:
             terms.append(Term(tokens=tokens, prefix=prefix))
+    typed = list(terms)
+    for name, indexed in types:
+        if any(_matches_name(term, name) for term in typed):
+            if Term(indexed) not in terms:
+                terms.append(Term(indexed))
     return terms
 
 
-def parse_query(query: str) -> list[Clause]:
-    """Parse a query into clauses (AND) of terms (OR)."""
+def parse_query(query: str, types: TypeNames | None = None) -> list[Clause]:
+    """Parse a query into clauses (AND) of terms (OR).
+
+    `types` are the translated type names of the user's language.
+    """
     clauses: list[list[Term]] = []
     join_next = False
     for part, quoted in _split(query):
@@ -90,7 +140,7 @@ def parse_query(query: str) -> list[Clause]:
         if not quoted and part.upper() == "AND":
             join_next = False
             continue
-        terms = _terms(part)
+        terms = _terms(part, types or [])
         if not terms:
             continue
         if join_next:

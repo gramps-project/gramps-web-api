@@ -26,10 +26,11 @@ from typing import Any, Dict, Iterable, List
 
 import sqlalchemy as sa
 from gramps.gen.db.base import DbReadBase
+from gramps.gen.utils.grampslocale import GrampsLocale
 
 from ...types import ProgressCallback
 from ..util import get_object_timestamps, get_total_number_of_objects
-from .query import build_list, build_search, parse_query
+from .query import build_list, build_search, parse_query, type_names
 from .schema import get_engine, search_doc, search_obj, search_ref
 from .text import ObjectRows, iter_object_rows, object_rows_from_handle
 
@@ -293,11 +294,13 @@ class SearchIndexer:
         object_types: List[str] | None = None,
         change_op: str | None = None,
         change_value: float | None = None,
+        locale: GrampsLocale | None = None,
     ):
         """Search the index.
 
         If `include_private` is true, include also private objects and
-        search in private fields.
+        search in private fields. If a `locale` is given, type names can
+        also be searched in its language.
         """
         offset = (page - 1) * pagesize
         options: Dict[str, Any] = {
@@ -312,7 +315,8 @@ class SearchIndexer:
                 return build_list(self.tree, **options, **kwargs)
 
         else:
-            clauses = parse_query(query)
+            types = type_names(locale.translation.sgettext) if locale else None
+            clauses = parse_query(query, types)
             if not clauses:
                 return 0, []
 

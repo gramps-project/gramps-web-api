@@ -32,7 +32,7 @@ import pytest
 
 from gramps_webapi.api.search import schema
 from gramps_webapi.api.search.indexer import SearchIndexer
-from gramps_webapi.api.search.query import Term, parse_query
+from gramps_webapi.api.search.query import Term, parse_query, type_names
 from gramps_webapi.api.search.schema import get_engine
 from gramps_webapi.api.search.text import ObjectRows, tokenize
 
@@ -101,6 +101,32 @@ def test_parse_query():
     assert parse_query("smi*") == [(Term(("smi",), prefix=True),)]
     assert parse_query("Müller") == [(word("müller"), word("muller"))]
     assert parse_query("OR !!! *") == []
+
+
+def test_parse_query_translated_types():
+    translations = {"Baptism": "Taufe", "Civil Union": "Lebenspartnerschaft"}
+    types = type_names(lambda string: translations.get(string, string))
+    word = lambda *tokens: Term(tokens)  # noqa: E731
+    assert parse_query("Taufe Müller", types) == [
+        (word("taufe"), word("baptism")),
+        (word("müller"), word("muller")),
+    ]
+    assert parse_query("tauf*", types) == [
+        (Term(("tauf",), prefix=True), word("baptism"))
+    ]
+    assert parse_query("Lebenspartnerschaft", types) == [
+        (word("lebenspartnerschaft"), word("civil", "union"))
+    ]
+    # a word within a translated name, like within indexed text
+    types = type_names(
+        lambda string: "Erste Kommunion" if string == "First Communion" else string
+    )
+    assert parse_query("kommunion", types) == [
+        (word("kommunion"), word("first", "communion"))
+    ]
+    assert parse_query("taufe") == [(word("taufe"),)]
+    # names equal to the indexed ones need no translation
+    assert type_names(lambda string: string) == []
 
 
 def test_family_and_events_found_by_names(indexer):

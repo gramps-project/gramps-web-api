@@ -333,6 +333,17 @@ class TestSearch(unittest.TestCase):
         self.assertEqual(rv[0]["object"]["profile"]["birth"]["type"], "Geburt")
         self.assertEqual(rv[0]["object"]["profile"]["death"]["type"], "Tod")
 
+    def test_get_search_translated_type(self):
+        """Test searching for a standard type by its name in the locale."""
+        rv = check_success(self, TEST_URL + "?query=Burial&type=event&pagesize=1000")
+        self.assertTrue(rv)
+        handles = {hit["handle"] for hit in rv}
+        url = TEST_URL + "?query=Beerdigung&type=event&pagesize=1000"
+        rv = check_success(self, url + "&locale=de")
+        self.assertEqual({hit["handle"] for hit in rv}, handles)
+        rv = check_success(self, url + "&locale=fr", full=True)
+        self.assertEqual(rv.json, [])
+
     def test_get_search_private_attribute_guest(self):
         """Search for a private attribute as owner."""
         header = fetch_header(self.client, role=ROLE_GUEST)
