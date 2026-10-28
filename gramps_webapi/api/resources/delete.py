@@ -630,6 +630,7 @@ def delete_objects_by_handle(
     db_handle: DbWriteBase,
     namespace: str,
     handles: List[str],
+    progress_cb: Optional[Callable] = None,
 ) -> List[Dict[str, Any]]:
     """Delete specific objects of a single type, given by namespace, by handle."""
     try:
@@ -643,7 +644,9 @@ def delete_objects_by_handle(
     with DbTxn(f"Delete {namespace}", db_handle) as trans:
         if unset_default_person:
             db_handle.set_default_person_handle(None)
-        for handle in handles:
+        for i, handle in enumerate(handles):
+            if progress_cb:
+                progress_cb(current=i, total=len(handles))
             del_method(db_handle=db_handle, handle=handle, trans=trans)
         trans_dict = transaction_to_json(trans)
     return trans_dict
