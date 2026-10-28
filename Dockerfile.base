@@ -6,11 +6,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
   build-essential pkg-config python3-dev python3-venv \
-  libcairo2-dev libgirepository-2.0-dev libicu-dev \
+  libcairo2-dev libgirepository1.0-dev libicu-dev \
   && rm -rf /var/lib/apt/lists/*
 
+# keep the PyGObject version in sync with pyproject.toml
 RUN python3 -m venv /venv \
-  && /venv/bin/pip wheel --no-cache-dir --wheel-dir /wheels PyGObject pycairo PyICU
+  && /venv/bin/pip wheel --no-cache-dir --wheel-dir /wheels 'PyGObject<=3.50.0' pycairo PyICU
 
 FROM debian:trixie
 
@@ -28,7 +29,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates \
   fonts-dejavu-core fonts-noto-core fonts-noto-cjk \
-  libcairo2 libcairo-gobject2 libgirepository-2.0-0 libicu76 \
+  libcairo2 libcairo-gobject2 libgirepository-1.0-1 libicu76 \
   gir1.2-gtk-3.0 gir1.2-pango-1.0 \
   graphviz gir1.2-gexiv2-0.10 gir1.2-osmgpsmap-1.0 \
   locales gettext wget python3-venv \
