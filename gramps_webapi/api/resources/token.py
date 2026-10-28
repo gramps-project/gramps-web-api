@@ -48,6 +48,7 @@ from ...auth.const import (
     ACCESS_TOKEN_SCOPE_PERMISSIONS,
     ACCESS_TOKEN_SCOPE_SYNC,
     CLAIM_LIMITED_SCOPE,
+    CLAIM_TOKEN_VERSION,
     PERM_VIEW_OTHER_TREE,
     SCOPE_CREATE_ADMIN,
     SCOPE_CREATE_OWNER,
@@ -102,7 +103,7 @@ def get_tokens(
         return {"access_token": access_token}
     _, token_version = get_name_and_token_version(str(user_id))
     refresh_token = create_refresh_token(
-        identity=str(user_id), additional_claims={"token_version": token_version}
+        identity=str(user_id), additional_claims={CLAIM_TOKEN_VERSION: token_version}
     )
     return {
         "access_token": access_token,
@@ -234,7 +235,7 @@ class TokenRefreshResource(RefreshProtectedResource):
         """Fetch a new token."""
         # refresh tokens issued before token versions existed count as version 0
         return issue_access_token(
-            get_jwt_identity(), token_version=get_jwt().get("token_version", 0)
+            get_jwt_identity(), token_version=get_jwt().get(CLAIM_TOKEN_VERSION, 0)
         )
 
 

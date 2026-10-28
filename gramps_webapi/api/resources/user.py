@@ -87,7 +87,7 @@ from ..util import (
 )
 from . import LimitedScopeProtectedResource, ProtectedResource, Resource
 from .schemas import UserSchema
-from .token import TokenPairSchema, get_tokens, get_tree_id_and_permissions
+from .token import get_tokens, get_tree_id_and_permissions
 
 
 def is_own_user(user_id) -> bool:
@@ -701,10 +701,27 @@ class UserChangePasswordBodyArgs(Schema):
     )
 
 
+class UserChangePasswordResponseSchema(Schema):
+    """Response schema for POST /users/<user_name>/password/change."""
+
+    access_token = fields.Str(
+        metadata={
+            "description": "A new JWT access token. Only present when users "
+            "change their own password."
+        },
+    )
+    refresh_token = fields.Str(
+        metadata={
+            "description": "A new JWT refresh token. Only present when users "
+            "change their own password."
+        },
+    )
+
+
 class UserChangePasswordResource(UserChangeBase):
     """Resource for changing a user password."""
 
-    @api_blueprint.response(201, TokenPairSchema)
+    @api_blueprint.response(201, UserChangePasswordResponseSchema)
     @api_blueprint.arguments(UserChangePasswordBodyArgs, location="json")
     def post(self, args, user_name: str):
         """Post new password.

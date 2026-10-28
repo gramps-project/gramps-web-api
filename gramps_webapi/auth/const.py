@@ -142,6 +142,7 @@ PERMISSIONS[ROLE_UNCONFIRMED] = set()
 
 # keys/values for user claims
 CLAIM_LIMITED_SCOPE = "limited_scope"
+CLAIM_TOKEN_VERSION = "token_version"
 SCOPE_RESET_PW = "reset_password"
 SCOPE_CONF_EMAIL = "confirm_email"
 SCOPE_CREATE_ADMIN = "create_admin"
