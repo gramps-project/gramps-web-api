@@ -1,3 +1,18 @@
+# Build stage: compile the Python packages that have no binary wheels,
+# so that the final image needs no compiler or development headers
+FROM debian:trixie AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  build-essential pkg-config python3-dev python3-venv \
+  libcairo2-dev libgirepository1.0-dev libicu-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+# keep the PyGObject version in sync with pyproject.toml
+RUN python3 -m venv /venv \
+  && /venv/bin/pip wheel --no-cache-dir --wheel-dir /wheels 'PyGObject<=3.50.0' pycairo PyICU
+
 FROM debian:trixie
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -10,17 +25,19 @@ WORKDIR /app
 # postgresql client (needed for PostgreSQL backend)
 # Noto fonts (needed to render non-Latin scripts in generated reports -
 # without them, Pango has no glyphs and PDF output is garbled)
-RUN apt-get update && apt-get install -y \
+# libcairo, libgirepository and libicu are needed by the wheels from the build stage
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  ca-certificates \
   fonts-dejavu-core fonts-noto-core fonts-noto-cjk \
-  appstream pkg-config libcairo2-dev \
-  gir1.2-gtk-3.0 libgirepository1.0-dev libicu-dev \
+  libcairo2 libcairo-gobject2 libgirepository-1.0-1 libicu76 \
+  gir1.2-gtk-3.0 gir1.2-pango-1.0 \
   graphviz gir1.2-gexiv2-0.10 gir1.2-osmgpsmap-1.0 \
-  locales gettext wget python3-pip python3-venv \
-  poppler-utils ffmpeg libavcodec-extra \
+  locales gettext wget python3-venv \
+  poppler-utils poppler-data ffmpeg libavcodec-extra \
   unzip \
-  libpq-dev postgresql-client postgresql-client-common python3-psycopg2 \
-  libgl1-mesa-dev libgtk2.0-dev \
+  postgresql-client postgresql-client-common \
   tesseract-ocr \
+  tesseract-ocr-osd \
   tesseract-ocr-ara \
   tesseract-ocr-bul \
   tesseract-ocr-bre \
@@ -85,8 +102,9 @@ RUN pip install --no-cache-dir gunicorn
 # install Pillow from PyPI (PyPI wheel includes AVIF support, unlike the apt package)
 RUN pip install --no-cache-dir Pillow
 
-# Install PyICU (slow to compile on ARM, so pre-install in base image)
-RUN pip install --no-cache-dir PyICU
+# Install the wheels compiled in the build stage
+RUN --mount=type=bind,from=builder,source=/wheels,target=/wheels \
+  pip install --no-cache-dir /wheels/*.whl
 
 # Install opencv
 # keep in sync with the "face" extra in pyproject.toml
