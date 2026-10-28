@@ -195,8 +195,9 @@ def answer_with_agent(
             base_url=base_url,
             system_prompt_override=system_prompt_override,
         )
-    except (UserError, ValueError, OpenAIError) as e:
-        # e.g. unknown provider prefix or missing provider API key/base URL
+    except (UserError, ValueError, ImportError, OpenAIError) as e:
+        # e.g. unknown provider prefix, missing provider API key/base URL
+        # or a provider whose optional dependency is not installed
         logger.error("Failed to set up the AI model '%s': %s", model_name, e)
         abort_with_message(500, "The AI model is not configured correctly.")
 

@@ -147,6 +147,10 @@ def _has_provider_prefix(model_name: str) -> bool:
             infer_provider_class(provider_name)
     except ValueError:
         return False
+    except ImportError:
+        # a known provider whose optional dependency is not installed;
+        # creating the model raises an ImportError that names the package
+        return True
     return True
 
 

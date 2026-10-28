@@ -34,6 +34,7 @@ from pydantic_ai.messages import ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from werkzeug.exceptions import HTTPException
 
+from gramps_webapi.api.llm import agent as agent_module
 from gramps_webapi.api.llm import answer_with_agent
 from gramps_webapi.api.llm.agent import create_agent
 
@@ -108,6 +109,31 @@ def test_agent_setup_error_status_code(app, monkeypatch, model_name, base_url):
             )
 
     assert excinfo.value.code == 500
+
+
+def test_provider_not_installed(app, monkeypatch, caplog):
+    """A provider whose optional dependency is missing is a setup error."""
+    message = "Please install the `cohere` package to use the Cohere provider"
+
+    def not_installed(*args, **kwargs):
+        raise ImportError(message)
+
+    # Pydantic AI raises when looking up the provider and creating the model
+    monkeypatch.setattr(agent_module, "infer_provider_class", not_installed)
+    monkeypatch.setattr(agent_module, "Agent", not_installed)
+    app.config.update(LLM_MODEL="cohere:command-r", LLM_BASE_URL=None)
+
+    with app.app_context():
+        with pytest.raises(HTTPException) as excinfo:
+            answer_with_agent(
+                prompt="Who was my grandmother?",
+                tree="tree",
+                include_private=False,
+                user_id="user",
+            )
+
+    assert excinfo.value.code == 500
+    assert message in caplog.text
 
 
 def _answer_with_response(app, monkeypatch, caplog, response: ModelResponse):

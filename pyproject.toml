@@ -56,11 +56,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ai = ["pydantic-ai[openai]>=1.101.0,<2.0.0"]
+# keep the providers in sync with Dockerfile.base
+ai = ["pydantic-ai-slim[openai,anthropic,google,mistral,groq,bedrock]>=1.101.0,<2.0.0"]
 face = ["opencv-python-headless>=4.8,<6"]
 sentry = ["sentry-sdk[flask]>=2.0.0"]
 test = ["pytest", "PyYAML"]
-all = ["pydantic-ai[openai]>=1.101.0,<2.0.0", "opencv-python-headless>=4.8,<6", "sentry-sdk[flask]>=2.0.0", "pytest", "PyYAML"]
+all = ["pydantic-ai-slim[openai,anthropic,google,mistral,groq,bedrock]>=1.101.0,<2.0.0", "opencv-python-headless>=4.8,<6", "sentry-sdk[flask]>=2.0.0", "pytest", "PyYAML"]
 
 [project.urls]
 homepage = "https://github.com/gramps-project/gramps-web-api"

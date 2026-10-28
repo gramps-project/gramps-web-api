@@ -111,7 +111,8 @@ RUN --mount=type=bind,from=builder,source=/wheels,target=/wheels \
 RUN pip install --no-cache-dir 'opencv-python-headless>=4.8,<6'
 
 # Install AI dependencies
-RUN pip install --no-cache-dir 'pydantic-ai[openai]>=1.0.0,<2.0.0'
+# keep in sync with the "ai" extra in pyproject.toml
+RUN pip install --no-cache-dir 'pydantic-ai-slim[openai,anthropic,google,mistral,groq,bedrock]>=1.101.0,<2.0.0'
 
 # install Gramps addons
 RUN mkdir -p /root/gramps/gramps$GRAMPS_VERSION/plugins && \
