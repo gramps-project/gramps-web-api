@@ -1,0 +1,63 @@
+name: test base image build
+
+# Build the base image from the pull request and run the test suite in it,
+# since base-image.yml publishes the image without testing it first
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile.base
+      - .github/workflows/base-image-pr.yml
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    services:
+      # used by tests/test_shared_postgresql.py
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: gramps
+          POSTGRES_PASSWORD: gramps
+          POSTGRES_DB: gramps
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v5
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo apt-get clean
+          df -h
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build base image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.base
+          load: true
+          tags: gramps-web-base:test
+          cache-from: type=gha
+          provenance: false
+      - name: Show image size
+        run: docker image ls gramps-web-base:test
+      - name: Test with pytest
+        # same steps as the test-base-image job in test.yml
+        run: |
+          docker run --rm --network host -v "$PWD":/src -w /src \
+            -e GRAMPSWEB_TEST_POSTGRES_URL=postgresql://gramps:gramps@localhost:5432/gramps \
+            gramps-web-base:test sh -c '
+              pip install --no-cache-dir -r requirements-dev.txt &&
+              pip install --no-cache-dir .[ai] &&
+              GRAMPSWEB_TEST_ADDONS_DIR=/root/gramps/gramps$GRAMPS_VERSION/plugins pytest -n auto --dist loadfile
+            '
