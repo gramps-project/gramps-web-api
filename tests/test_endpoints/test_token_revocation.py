@@ -81,7 +81,22 @@ class TestTokenRevocation(unittest.TestCase):
         tokens = self._login("member", "456")
         self.assertEqual(self._refresh(tokens["refresh_token"]).status_code, 200)
 
-    def test_own_password_change_ends_sessions(self):
+    def test_own_password_change_ends_other_sessions(self):
+        tokens = self._login("member", "456")
+        other_session = self._login("member", "456")
+        rv = self.client.post(
+            BASE_URL + "/users/-/password/change",
+            headers={"Authorization": f"Bearer {tokens['access_token']}"},
+            json={"old_password": "456", "new_password": "789"},
+        )
+        self.assertEqual(rv.status_code, 201)
+        self.assertEqual(self._refresh(tokens["refresh_token"]).status_code, 403)
+        self.assertEqual(self._refresh(other_session["refresh_token"]).status_code, 403)
+        # a new login with the new password gets a working refresh token
+        new_tokens = self._login("member", "789")
+        self.assertEqual(self._refresh(new_tokens["refresh_token"]).status_code, 200)
+
+    def test_own_password_change_keeps_this_session(self):
         tokens = self._login("member", "456")
         rv = self.client.post(
             BASE_URL + "/users/-/password/change",
@@ -89,17 +104,34 @@ class TestTokenRevocation(unittest.TestCase):
             json={"old_password": "456", "new_password": "789"},
         )
         self.assertEqual(rv.status_code, 201)
-        self.assertEqual(self._refresh(tokens["refresh_token"]).status_code, 401)
-        # a new login with the new password gets a working refresh token
-        new_tokens = self._login("member", "789")
-        self.assertEqual(self._refresh(new_tokens["refresh_token"]).status_code, 200)
+        # the response carries a new token pair for the session that changed it
+        self.assertEqual(self._refresh(rv.json["refresh_token"]).status_code, 200)
+        rv = self.client.get(
+            BASE_URL + "/users/-/",
+            headers={"Authorization": f"Bearer {rv.json['access_token']}"},
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.json["name"], "member")
+
+    def test_changing_another_users_password_returns_no_tokens(self):
+        owner_tokens = self._login("owner", "123")
+        member_tokens = self._login("member", "456")
+        rv = self.client.post(
+            BASE_URL + "/users/member/password/change",
+            headers={"Authorization": f"Bearer {owner_tokens['access_token']}"},
+            json={"old_password": "456", "new_password": "789"},
+        )
+        self.assertEqual(rv.status_code, 201)
+        self.assertNotIn("refresh_token", rv.json or {})
+        self.assertEqual(self._refresh(member_tokens["refresh_token"]).status_code, 403)
+        self.assertEqual(self._refresh(owner_tokens["refresh_token"]).status_code, 200)
 
     def test_password_set_elsewhere_ends_sessions(self):
         # the reset-password flow and any future admin path go through modify_user
         tokens = self._login("member", "456")
         with self.app.app_context():
             modify_user(name="member", password="789")
-        self.assertEqual(self._refresh(tokens["refresh_token"]).status_code, 401)
+        self.assertEqual(self._refresh(tokens["refresh_token"]).status_code, 403)
 
     def test_disabling_ends_sessions(self):
         member_tokens = self._login("member", "456")
@@ -110,14 +142,14 @@ class TestTokenRevocation(unittest.TestCase):
             json={"role": ROLE_DISABLED},
         )
         self.assertEqual(rv.status_code, 200)
-        self.assertEqual(self._refresh(member_tokens["refresh_token"]).status_code, 401)
+        self.assertEqual(self._refresh(member_tokens["refresh_token"]).status_code, 403)
 
     def test_enabling_again_does_not_revive_old_sessions(self):
         tokens = self._login("member", "456")
         with self.app.app_context():
             modify_user(name="member", role=ROLE_DISABLED)
             modify_user(name="member", role=ROLE_MEMBER)
-        self.assertEqual(self._refresh(tokens["refresh_token"]).status_code, 401)
+        self.assertEqual(self._refresh(tokens["refresh_token"]).status_code, 403)
         new_tokens = self._login("member", "456")
         self.assertEqual(self._refresh(new_tokens["refresh_token"]).status_code, 200)
 
@@ -143,4 +175,4 @@ class TestTokenRevocation(unittest.TestCase):
         self.assertEqual(self._refresh(old_token).status_code, 200)
         with self.app.app_context():
             modify_user(name="member", password="789")
-        self.assertEqual(self._refresh(old_token).status_code, 401)
+        self.assertEqual(self._refresh(old_token).status_code, 403)

@@ -123,16 +123,17 @@ def issue_access_token(
     the scope's allowlist in ``ACCESS_TOKEN_SCOPE_PERMISSIONS``; without one
     (token refresh), the user keeps all of their permissions.
 
-    With a ``token_version`` (from a refresh token), the token is refused if
-    the user's version has moved on since, i.e. after a password change or
-    after the account was disabled.
+    With a ``token_version`` (from a refresh token), the token is refused with
+    403 if the user's version has moved on since, i.e. after a password change
+    or after the account was disabled.
     """
     try:
         username, current_version = get_name_and_token_version(user_id)
     except ValueError:
         abort_with_message(401, "User not found for token ID")
     if token_version is not None and token_version != current_version:
-        abort_with_message(401, "Token has been revoked")
+        # 403, not 401: the frontend logs out on a 403 from refresh
+        abort_with_message(403, "Token has been revoked")
     tree_id, permissions = get_tree_id_and_permissions(
         user_id=user_id, username=username
     )
