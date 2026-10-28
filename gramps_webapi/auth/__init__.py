@@ -153,6 +153,18 @@ def get_tree(guid: str) -> Optional[str]:
     return tree
 
 
+def get_role(guid: str) -> int:
+    """Get the role of an existing user by GUID."""
+    try:
+        query = user_db.session.query(User.role)  # pylint: disable=no-member
+        role = query.filter_by(id=guid).scalar()
+    except StatementError as exc:
+        raise ValueError(f"User ID {guid} not found") from exc
+    if role is None:
+        raise ValueError(f"User ID {guid} not found")
+    return role
+
+
 def delete_user(name: str) -> None:
     """Delete a user and their OIDC accounts and push subscriptions."""
     query = user_db.session.query(User)  # pylint: disable=no-member

@@ -1536,6 +1536,26 @@ class TestUser(unittest.TestCase):
         assert details["email"] == "admin@example.com"
         assert details["role"] == ROLE_ADMIN
 
+    def test_edit_by_unknown_caller_forbidden(self):
+        """A caller whose own user cannot be found is refused, not let through."""
+        with self.app.app_context():
+            add_user(name="owner3", password="123", role=ROLE_OWNER, tree=self.tree)
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "owner3", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_owner = rv.json["access_token"]
+        with self.app.app_context():
+            delete_user("owner3")
+        rv = self.client.put(
+            BASE_URL + "/users/admin/",
+            headers={"Authorization": f"Bearer {token_owner}"},
+            json={"email": "takeover@example.com"},
+        )
+        assert rv.status_code == 403
+        assert get_user_details("admin")["email"] == "admin@example.com"
+
     def test_edit_equal_role_allowed(self):
         """An owner may edit and delete another owner of their tree."""
         with self.app.app_context():
