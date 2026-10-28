@@ -118,6 +118,20 @@ def abort_if_last_owner(user_name: str, message: str) -> None:
     abort_with_message(405, message)
 
 
+def abort_if_higher_role(user_name: str) -> None:
+    """Abort if the user has a higher role than the user making the request.
+
+    Otherwise an owner could, for instance, change a site admin's e-mail
+    address and take over the account with a password reset.
+    """
+    details = get_user_details(user_name)
+    own_details = get_user_details(get_name(get_jwt_identity()))
+    if not details or not own_details:
+        return
+    if details.get("role", 0) > own_details.get("role", 0):
+        abort_with_message(403, "Not allowed to modify a user with a higher role")
+
+
 def abort_if_local_auth_disabled() -> None:
     """Abort if local authentication is disabled.
 
@@ -153,6 +167,7 @@ class UserChangeBase(ProtectedResource):
             else:
                 require_permissions([PERM_EDIT_OTHER_TREE_USER])
                 other_tree = True
+            abort_if_higher_role(user_name)
         return user_name, other_tree
 
 
@@ -502,6 +517,7 @@ class UserResource(UserChangeBase):
             require_permissions([PERM_DEL_USER])
         else:
             require_permissions([PERM_DEL_OTHER_TREE_USER])
+        abort_if_higher_role(user_name)
         if is_own_user(user_id):
             # deleting oneself by name (deleting "-" is refused above): refuse
             # if this would leave the tree without an owner
