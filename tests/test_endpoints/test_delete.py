@@ -39,6 +39,7 @@ from gramps_webapi.auth.const import (
     ROLE_OWNER,
 )
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
+from gramps_webapi.util.task_state import LOCK_WRITE, acquire, mark_failed
 
 
 def get_headers(client, user: str, password: str) -> Dict[str, str]:
@@ -480,7 +481,7 @@ class TestDeleteObjectsByHandle(unittest.TestCase):
         cls.name = "Test Delete By Handle"
         cls.dbman = CLIDbManager(DbState())
         dirpath, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
-        tree = os.path.basename(dirpath)
+        tree = cls.tree = os.path.basename(dirpath)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
             cls.app = create_app(config_from_env=False)
         cls.app.config["TESTING"] = True
@@ -618,6 +619,34 @@ class TestDeleteObjectsByHandle(unittest.TestCase):
         assert rv.status_code == 404
         rv = self.client.get(f"/api/search/?query={gramps_id}", headers=headers)
         assert len(rv.json) == 0
+
+    def test_delete_by_handle_background_while_locked(self):
+        """Background deletion is rejected while another task writes to the tree."""
+        headers = get_headers(self.client, "editor_dbh", "123")
+        rv = self.client.post("/api/notes/", json={}, headers=headers)
+        handle = rv.json[0]["handle"]
+        holder = make_handle()
+        with self.app.app_context():
+            acquire(holder, "other_task", self.tree, None, LOCK_WRITE)
+        try:
+            rv = self.client.post(
+                "/api/objects/delete-by-handle/?background=1",
+                json={"namespace": "notes", "handles": [handle]},
+                headers=headers,
+            )
+            assert rv.status_code == 409
+            assert rv.json["error"]["task"]["id"] == holder
+        finally:
+            with self.app.app_context():
+                mark_failed(holder, "released by test")
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers)
+        assert rv.status_code == 200
+        rv = self.client.post(
+            "/api/objects/delete-by-handle/",
+            json={"namespace": "notes", "handles": [handle]},
+            headers=headers,
+        )
+        assert rv.status_code == 200
 
     def test_delete_by_handle_background_permissions(self):
         headers = get_headers(self.client, "contributor_dbh", "123")

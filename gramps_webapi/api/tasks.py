@@ -883,7 +883,7 @@ def delete_objects(
     )
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, lock_key=LOCK_WRITE)
 def delete_objects_by_handle_task(
     self, tree: str, user_id: str, namespace: str, handles: List[str]
 ) -> list[dict]:
