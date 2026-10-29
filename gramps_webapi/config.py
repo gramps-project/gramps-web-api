@@ -125,8 +125,8 @@ class DefaultConfig(object):
     MAX_MEDIA_ARCHIVE_UPLOAD_BYTES = None
 
 
-class DefaultConfigJWT(object):
-    """Default configuration for JWT auth."""
+class JWTConfig:
+    """JWT settings. Not user-configurable; the frontend relies on them."""
 
     JWT_TOKEN_LOCATION = ["headers", "query_string"]
     JWT_ACCESS_TOKEN_EXPIRES = datetime.timedelta(minutes=15)

@@ -57,7 +57,7 @@ from .api.telemetry import get_server_uuid, should_send_telemetry
 from .api.util import close_db, get_tree_from_jwt
 from .auth import user_db
 from .auth.oidc import init_oidc
-from .config import DefaultConfig, DefaultConfigJWT
+from .config import DefaultConfig, JWTConfig
 from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI, VERSION
 from .dbmanager import WebDbManager
 from .future_gramps import apply_patches as apply_future_gramps_patches
@@ -172,8 +172,8 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
         gramps_config.set("database.host", app.config["POSTGRES_HOST"])
         gramps_config.set("database.port", str(app.config["POSTGRES_PORT"]))
 
-    # load JWT default settings
-    app.config.from_object(DefaultConfigJWT)
+    # JWT settings
+    app.config.from_object(JWTConfig)
 
     # instantiate JWT manager
     JWTManager(app)
