@@ -21,6 +21,7 @@
 
 import logging
 import sys
+import types
 import urllib.request
 from unittest.mock import patch
 
@@ -107,6 +108,20 @@ class TestMetrics:
             app = create_test_app(METRICS_ENABLED=True)
         assert "prometheus-flask-exporter" in caplog.text
         assert EXTENSION_KEY not in app.extensions
+
+    def test_gunicorn_without_config_warns(self, monkeypatch, caplog):
+        """Without the hooks, nothing would serve the metrics."""
+        monkeypatch.setitem(sys.modules, "gunicorn", types.ModuleType("gunicorn"))
+        monkeypatch.delenv("PROMETHEUS_MULTIPROC_DIR", raising=False)
+        with caplog.at_level(logging.WARNING, logger="gramps_webapi.metrics"):
+            create_test_app(METRICS_ENABLED=True)
+        assert "python:gramps_webapi.gunicorn_config" in caplog.text
+
+    def test_no_gunicorn_warning_outside_gunicorn(self, monkeypatch, caplog):
+        monkeypatch.delitem(sys.modules, "gunicorn", raising=False)
+        with caplog.at_level(logging.WARNING, logger="gramps_webapi.metrics"):
+            create_test_app(METRICS_ENABLED=True)
+        assert "gunicorn" not in caplog.text
 
     def test_app_starts_without_the_package(self, missing_exporter):
         app = create_test_app(METRICS_ENABLED=True)

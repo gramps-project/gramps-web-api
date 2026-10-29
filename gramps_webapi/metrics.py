@@ -21,6 +21,7 @@
 
 import logging
 import os
+import sys
 
 _LOG = logging.getLogger(__name__)
 
@@ -62,6 +63,13 @@ def init_metrics(app) -> bool:
         # several worker processes, aggregated through files in that directory
         metrics = GunicornPrometheusMetrics(app, group_by=path)
     else:
+        if "gunicorn" in sys.modules:
+            # its hooks would have set the directory and started the server
+            _LOG.warning(
+                "METRICS_ENABLED is set but gunicorn was started without the "
+                "metrics config, so the metrics are not served. Add "
+                "`-c python:gramps_webapi.gunicorn_config` to the gunicorn command."
+            )
         # own registry, so that several apps in one process don't clash
         metrics = PrometheusMetrics(
             app, path=None, group_by=path, registry=CollectorRegistry()
