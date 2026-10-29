@@ -25,6 +25,7 @@ from flask import abort, current_app
 from flask_jwt_extended import (
     create_access_token,
     create_refresh_token,
+    get_jwt,
     get_jwt_identity,
 )
 from marshmallow import Schema
@@ -37,7 +38,7 @@ from ...auth import (
     get_all_user_details,
     get_auth_status,
     get_guid,
-    get_name,
+    get_name_and_token_version,
     get_permissions,
     is_tree_disabled,
     mark_access_token_used,
@@ -47,6 +48,7 @@ from ...auth.const import (
     ACCESS_TOKEN_SCOPE_PERMISSIONS,
     ACCESS_TOKEN_SCOPE_SYNC,
     CLAIM_LIMITED_SCOPE,
+    CLAIM_TOKEN_VERSION,
     PERM_VIEW_OTHER_TREE,
     SCOPE_CREATE_ADMIN,
     SCOPE_CREATE_OWNER,
@@ -99,14 +101,19 @@ def get_tokens(
     )
     if not include_refresh:
         return {"access_token": access_token}
-    refresh_token = create_refresh_token(identity=str(user_id))
+    _, token_version = get_name_and_token_version(str(user_id))
+    refresh_token = create_refresh_token(
+        identity=str(user_id), additional_claims={CLAIM_TOKEN_VERSION: token_version}
+    )
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
     }
 
 
-def issue_access_token(user_id: str, scope: str | None = None) -> dict[str, str]:
+def issue_access_token(
+    user_id: str, scope: str | None = None, token_version: int | None = None
+) -> dict[str, str]:
     """Create a non-fresh access token, without a refresh token, for a user.
 
     The tree, the permissions and whether the tree is disabled are looked up
@@ -116,11 +123,18 @@ def issue_access_token(user_id: str, scope: str | None = None) -> dict[str, str]
     With a persistent access token ``scope``, the permissions are narrowed to
     the scope's allowlist in ``ACCESS_TOKEN_SCOPE_PERMISSIONS``; without one
     (token refresh), the user keeps all of their permissions.
+
+    With a ``token_version`` (from a refresh token), the token is refused with
+    403 if the user's version has moved on since, i.e. after a password change
+    or after the account was disabled.
     """
     try:
-        username = get_name(user_id)
+        username, current_version = get_name_and_token_version(user_id)
     except ValueError:
         abort_with_message(401, "User not found for token ID")
+    if token_version is not None and token_version != current_version:
+        # 403, not 401: the frontend logs out on a 403 from refresh
+        abort_with_message(403, "Token has been revoked")
     tree_id, permissions = get_tree_id_and_permissions(
         user_id=user_id, username=username
     )
@@ -219,7 +233,10 @@ class TokenRefreshResource(RefreshProtectedResource):
     @api_blueprint.response(200, TokenSchema)
     def post(self):
         """Fetch a new token."""
-        return issue_access_token(get_jwt_identity())
+        # refresh tokens issued before token versions existed count as version 0
+        return issue_access_token(
+            get_jwt_identity(), token_version=get_jwt().get(CLAIM_TOKEN_VERSION, 0)
+        )
 
 
 class TokenSyncSchema(Schema):

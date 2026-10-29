@@ -1210,6 +1210,9 @@ class TestOIDCTokenClaims(unittest.TestCase):
         from gramps_webapi.api.resources.token import get_tokens
 
         with patch(
+            "gramps_webapi.api.resources.token.get_name_and_token_version",
+            return_value=("test-user", 0),
+        ), patch(
             "gramps_webapi.api.resources.token.create_access_token"
         ) as mock_access:
             with patch(

@@ -143,6 +143,20 @@ def get_name(guid: str) -> str:
     return user_name
 
 
+def get_name_and_token_version(guid: str) -> tuple[str, int]:
+    """Get the username and refresh token version of an existing user by GUID."""
+    try:
+        query = user_db.session.query(  # pylint: disable=no-member
+            User.name, User.token_version
+        )
+        row = query.filter_by(id=guid).one_or_none()
+    except StatementError as exc:
+        raise ValueError(f"User ID {guid} not found") from exc
+    if row is None:
+        raise ValueError(f"User ID {guid} not found")
+    return row.name, row.token_version or 0
+
+
 def get_tree(guid: str) -> Optional[str]:
     """Get the tree of an existing user by GUID."""
     try:
@@ -201,11 +215,16 @@ def modify_user(
         user.name = name_new
     if password is not None:
         user.pwhash = hash_password(password)
+        # a new password ends every existing session
+        user.token_version = (user.token_version or 0) + 1
     if fullname is not None:
         user.fullname = fullname
     if email is not None:
         user.email = email
     if role is not None:
+        if role < 0 <= (user.role or 0):
+            # disabling an account ends every existing session
+            user.token_version = (user.token_version or 0) + 1
         user.role = role
     if tree is not None:
         user.tree = tree
@@ -968,6 +987,10 @@ class User(user_db.Model):  # type: ignore
     # nullable in the schema, but always set via the default
     role: Mapped[int] = mapped_column(sa.Integer, nullable=True, default=0)
     tree: Mapped[str | None] = mapped_column(sa.String, index=True)
+    # copied into refresh tokens; increasing it makes all existing ones invalid
+    token_version: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=0, server_default="0"
+    )
 
     def __repr__(self):
         """Return string representation of instance."""

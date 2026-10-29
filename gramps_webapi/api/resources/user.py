@@ -88,6 +88,7 @@ from ..util import (
 )
 from . import LimitedScopeProtectedResource, ProtectedResource, Resource
 from .schemas import UserSchema
+from .token import get_tokens, get_tree_id_and_permissions
 
 
 def is_own_user(user_id) -> bool:
@@ -721,12 +722,35 @@ class UserChangePasswordBodyArgs(Schema):
     )
 
 
+class UserChangePasswordResponseSchema(Schema):
+    """Response schema for POST /users/<user_name>/password/change."""
+
+    access_token = fields.Str(
+        metadata={
+            "description": "A new JWT access token. Only present when users "
+            "change their own password."
+        },
+    )
+    refresh_token = fields.Str(
+        metadata={
+            "description": "A new JWT refresh token. Only present when users "
+            "change their own password."
+        },
+    )
+
+
 class UserChangePasswordResource(UserChangeBase):
     """Resource for changing a user password."""
 
+    @api_blueprint.response(201, UserChangePasswordResponseSchema)
     @api_blueprint.arguments(UserChangePasswordBodyArgs, location="json")
     def post(self, args, user_name: str):
-        """Post new password."""
+        """Post new password.
+
+        A new password ends every existing session of the user. When users
+        change their own password, the response carries a new access and
+        refresh token so that this session continues; otherwise it is empty.
+        """
         abort_if_local_auth_disabled()
         user_name, _ = self.prepare_edit(user_name)
         if not args["new_password"]:
@@ -734,7 +758,19 @@ class UserChangePasswordResource(UserChangeBase):
         if not authorized(user_name, args["old_password"]):
             abort_with_message(403, "Old password incorrect")
         modify_user(name=user_name, password=args["new_password"])
-        return "", 201
+        user_id = get_guid(user_name)
+        if not is_own_user(user_id):
+            return {}, 201
+        tree_id, permissions = get_tree_id_and_permissions(
+            user_id=str(user_id), username=user_name
+        )
+        tokens = get_tokens(
+            user_id=str(user_id),
+            permissions=permissions,
+            tree_id=tree_id,
+            include_refresh=True,
+        )
+        return tokens, 201
 
 
 class UserTriggerResetPasswordResource(Resource):
