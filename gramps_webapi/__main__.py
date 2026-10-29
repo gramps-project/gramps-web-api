@@ -42,6 +42,7 @@ from .auth import add_user, delete_user, fill_tree, user_db
 from .auth.const import ROLE_ADMIN
 from .const import ENV_CONFIG_FILE, TREE_MULTI
 from .dbmanager import WebDbManager
+from .metrics import start_metrics_server
 from .translogger import TransLogger
 from .undodb import migrate as migrate_undodb
 
@@ -130,6 +131,7 @@ def run(
         )
 
     print("    Control+C to quit")
+    start_metrics_server(app)
     if use_wsgi:
         waitress.serve(
             TransLogger(
