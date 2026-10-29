@@ -112,6 +112,9 @@ class DefaultConfig(object):
     SENTRY_ENVIRONMENT = ""
     SENTRY_TRACES_SAMPLE_RATE = 0.0
     SENTRY_SEND_DEFAULT_PII = False
+    METRICS_ENABLED = False
+    # own port, so the metrics aren't public wherever the API is
+    METRICS_PORT = 9100
     OIDC_ISSUER = ""
     OIDC_CLIENT_ID = ""
     OIDC_CLIENT_SECRET = ""

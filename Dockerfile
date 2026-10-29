@@ -25,7 +25,7 @@ ENV GRAMPS_DATABASE_PATH=/root/.gramps/grampsdb
 
 # copy package source and install
 COPY . /app/src
-RUN pip install --no-cache-dir /app/src[ai,sentry]
+RUN pip install --no-cache-dir /app/src[ai,sentry,metrics]
 
 # download and cache YFull tree for yclade
 RUN python3 -c "import yclade; yclade.tree.download_yfull_tree()"
@@ -34,5 +34,6 @@ EXPOSE 5000
 
 COPY docker-entrypoint.sh /
 ENTRYPOINT ["/docker-entrypoint.sh"]
-# --preload loads the app once before forking the workers, so they share its memory
-CMD exec gunicorn -w ${GUNICORN_NUM_WORKERS:-8} -b 0.0.0.0:5000 gramps_webapi.wsgi:app --timeout ${GUNICORN_TIMEOUT:-120} --limit-request-line 8190 --preload
+# --preload loads the app once before forking the workers, so they share its memory;
+# the config serves the metrics of all workers, if enabled
+CMD exec gunicorn -c python:gramps_webapi.gunicorn_config -w ${GUNICORN_NUM_WORKERS:-8} -b 0.0.0.0:5000 gramps_webapi.wsgi:app --timeout ${GUNICORN_TIMEOUT:-120} --limit-request-line 8190 --preload
