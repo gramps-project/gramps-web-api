@@ -38,6 +38,7 @@ from ...auth import (
     get_name,
     get_number_users,
     get_pwhash,
+    get_role,
     get_user_details,
     get_user_details_page,
     get_user_oidc_accounts,
@@ -118,6 +119,24 @@ def abort_if_last_owner(user_name: str, message: str) -> None:
     abort_with_message(405, message)
 
 
+def abort_if_higher_role(user_id: str) -> None:
+    """Abort if the user has a higher role than the user making the request.
+
+    Otherwise an owner could, for instance, change a site admin's e-mail
+    address and take over the account with a password reset.
+
+    Both users are looked up by GUID, since a name can change concurrently,
+    and a user that cannot be found is refused.
+    """
+    try:
+        role = get_role(str(user_id))
+        own_role = get_role(get_jwt_identity())
+    except ValueError:
+        abort_with_message(403, "Not allowed to modify a user with a higher role")
+    if role > own_role:
+        abort_with_message(403, "Not allowed to modify a user with a higher role")
+
+
 def abort_if_local_auth_disabled() -> None:
     """Abort if local authentication is disabled.
 
@@ -153,6 +172,7 @@ class UserChangeBase(ProtectedResource):
             else:
                 require_permissions([PERM_EDIT_OTHER_TREE_USER])
                 other_tree = True
+            abort_if_higher_role(user_id)
         return user_name, other_tree
 
 
@@ -502,6 +522,7 @@ class UserResource(UserChangeBase):
             require_permissions([PERM_DEL_USER])
         else:
             require_permissions([PERM_DEL_OTHER_TREE_USER])
+        abort_if_higher_role(user_id)
         if is_own_user(user_id):
             # deleting oneself by name (deleting "-" is refused above): refuse
             # if this would leave the tree without an owner

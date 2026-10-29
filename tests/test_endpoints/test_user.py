@@ -1503,6 +1503,80 @@ class TestUser(unittest.TestCase):
         assert rv.status_code == 200
         assert get_user_details("owner") is None
 
+    def test_edit_higher_role_forbidden(self):
+        """An owner may not edit, demote or delete a site admin in their tree."""
+        # "owner" and "admin" both belong to self.tree
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "owner", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_owner = rv.json["access_token"]
+        headers = {"Authorization": f"Bearer {token_owner}"}
+        # changing the e-mail address would allow a takeover by password reset
+        rv = self.client.put(
+            BASE_URL + "/users/admin/",
+            headers=headers,
+            json={"email": "takeover@example.com"},
+        )
+        assert rv.status_code == 403
+        rv = self.client.put(
+            BASE_URL + "/users/admin/", headers=headers, json={"role": ROLE_DISABLED}
+        )
+        assert rv.status_code == 403
+        rv = self.client.post(
+            BASE_URL + "/users/admin/password/change",
+            headers=headers,
+            json={"old_password": "123", "new_password": "456"},
+        )
+        assert rv.status_code == 403
+        rv = self.client.delete(BASE_URL + "/users/admin/", headers=headers)
+        assert rv.status_code == 403
+        details = get_user_details("admin")
+        assert details["email"] == "admin@example.com"
+        assert details["role"] == ROLE_ADMIN
+
+    def test_edit_by_unknown_caller_forbidden(self):
+        """A caller whose own user cannot be found is refused, not let through."""
+        with self.app.app_context():
+            add_user(name="owner3", password="123", role=ROLE_OWNER, tree=self.tree)
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "owner3", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_owner = rv.json["access_token"]
+        with self.app.app_context():
+            delete_user("owner3")
+        rv = self.client.put(
+            BASE_URL + "/users/admin/",
+            headers={"Authorization": f"Bearer {token_owner}"},
+            json={"email": "takeover@example.com"},
+        )
+        assert rv.status_code == 403
+        assert get_user_details("admin")["email"] == "admin@example.com"
+
+    def test_edit_equal_role_allowed(self):
+        """An owner may edit and delete another owner of their tree."""
+        with self.app.app_context():
+            add_user(name="owner3", password="123", role=ROLE_OWNER, tree=self.tree)
+        rv = self.client.post(
+            BASE_URL + "/token/",
+            json={"username": "owner", "password": "123"},
+        )
+        assert rv.status_code == 200
+        token_owner = rv.json["access_token"]
+        headers = {"Authorization": f"Bearer {token_owner}"}
+        rv = self.client.put(
+            BASE_URL + "/users/owner3/",
+            headers=headers,
+            json={"email": "owner3@example.com"},
+        )
+        assert rv.status_code == 200
+        rv = self.client.delete(BASE_URL + "/users/owner3/", headers=headers)
+        assert rv.status_code == 200
+        assert get_user_details("owner3") is None
+
     def test_add_users(self):
         rv = self.client.post(
             BASE_URL + "/token/",
