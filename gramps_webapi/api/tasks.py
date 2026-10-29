@@ -43,6 +43,7 @@ from werkzeug.exceptions import HTTPException
 from gramps_webapi.api.search.indexer import SearchIndexer
 
 from ..auth import TaskTree, get_owner_emails, user_db
+from ..const import GRAMPS_OBJECT_PLURAL
 from ..undodb import migrate as migrate_undodb
 from ..util.task_state import (
     LOCK_BACKUP,
@@ -78,7 +79,11 @@ from .media import (
 )
 from .media_importer import MediaImporter
 from .report import run_report
-from .resources.delete import delete_all_objects
+from .resources.delete import (
+    delete_all_objects,
+    delete_objects_by_handle,
+    remove_deleted_from_search_indices,
+)
 from .resources.restore import (
     apply_reset_changeset,
     changeset_people_delta,
@@ -876,6 +881,35 @@ def delete_objects(
         user_id=user_id,
         progress_cb=progress_callback_count(title="Updating full-text search index..."),
     )
+
+
+@shared_task(bind=True, lock_key=LOCK_WRITE)
+def delete_objects_by_handle_task(
+    self, tree: str, user_id: str, namespace: str, handles: List[str]
+) -> list[dict]:
+    """Delete specific objects of one type by handle, updating usage and search indices."""
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=True, readonly=False, user_id=user_id
+    )
+    try:
+        trans_dict = delete_objects_by_handle(
+            db_handle=db_handle,
+            namespace=namespace,
+            handles=handles,
+            progress_cb=progress_callback_count(),
+        )
+    finally:
+        close_db(db_handle)
+    if namespace == GRAMPS_OBJECT_PLURAL["Person"]:
+        update_usage_people(tree=tree, user_id=user_id)
+    elif namespace == GRAMPS_OBJECT_PLURAL["Media"]:
+        run_task(update_media_usage_task, tree=tree, user_id=user_id)
+    trans_dict_to_reindex = remove_deleted_from_search_indices(tree, trans_dict)
+    if trans_dict_to_reindex:
+        update_search_indices_from_transaction(
+            trans_dict=trans_dict_to_reindex, tree=tree, user_id=user_id
+        )
+    return trans_dict
 
 
 @shared_task(bind=True)

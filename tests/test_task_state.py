@@ -367,6 +367,7 @@ class TestRunTaskInline(TaskStateTestCase):
             tasks.import_file,
             tasks.restore_backup,
             tasks.delete_objects,
+            tasks.delete_objects_by_handle_task,
             tasks.check_repair_database,
             tasks.upgrade_database_schema,
             tasks.import_media_archive,

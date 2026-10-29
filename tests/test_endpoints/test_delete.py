@@ -23,8 +23,9 @@ import os
 import unittest
 import uuid
 from typing import Dict
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+from celery.result import AsyncResult
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
 
@@ -38,6 +39,7 @@ from gramps_webapi.auth.const import (
     ROLE_OWNER,
 )
 from gramps_webapi.const import ENV_CONFIG_FILE, TEST_AUTH_CONFIG
+from gramps_webapi.util.task_state import LOCK_WRITE, acquire, mark_failed
 
 
 def get_headers(client, user: str, password: str) -> Dict[str, str]:
@@ -479,7 +481,7 @@ class TestDeleteObjectsByHandle(unittest.TestCase):
         cls.name = "Test Delete By Handle"
         cls.dbman = CLIDbManager(DbState())
         dirpath, _name = cls.dbman.create_new_db_cli(cls.name, dbid="sqlite")
-        tree = os.path.basename(dirpath)
+        tree = cls.tree = os.path.basename(dirpath)
         with patch.dict("os.environ", {ENV_CONFIG_FILE: TEST_AUTH_CONFIG}):
             cls.app = create_app(config_from_env=False)
         cls.app.config["TESTING"] = True
@@ -590,3 +592,88 @@ class TestDeleteObjectsByHandle(unittest.TestCase):
         # other namespace untouched
         rv = self.client.get("/api/people/", headers=headers)
         assert rv.headers.pop("X-Total-Count") == "3"
+
+    def test_delete_by_handle_background_without_celery(self):
+        """Without a task queue, background deletion runs right away and
+        returns the transaction like the synchronous path."""
+        headers = get_headers(self.client, "editor_dbh", "123")
+        gramps_id = make_handle().replace("-", "")
+        rv = self.client.post(
+            "/api/notes/",
+            json={"_class": "Note", "gramps_id": gramps_id},
+            headers=headers,
+        )
+        handle = rv.json[0]["handle"]
+        rv = self.client.get(f"/api/search/?query={gramps_id}", headers=headers)
+        assert len(rv.json) == 1
+        rv = self.client.post(
+            "/api/objects/delete-by-handle/?background=1",
+            json={"namespace": "notes", "handles": [handle]},
+            headers=headers,
+        )
+        assert rv.status_code == 200
+        assert rv.headers.pop("X-Total-Count") == "1"
+        assert rv.json[0]["handle"] == handle
+        assert rv.json[0]["type"] == "delete"
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers)
+        assert rv.status_code == 404
+        rv = self.client.get(f"/api/search/?query={gramps_id}", headers=headers)
+        assert len(rv.json) == 0
+
+    def test_delete_by_handle_background_while_locked(self):
+        """Background deletion is rejected while another task writes to the tree."""
+        headers = get_headers(self.client, "editor_dbh", "123")
+        rv = self.client.post("/api/notes/", json={}, headers=headers)
+        handle = rv.json[0]["handle"]
+        holder = make_handle()
+        with self.app.app_context():
+            acquire(holder, "other_task", self.tree, None, LOCK_WRITE)
+        try:
+            rv = self.client.post(
+                "/api/objects/delete-by-handle/?background=1",
+                json={"namespace": "notes", "handles": [handle]},
+                headers=headers,
+            )
+            assert rv.status_code == 409
+            assert rv.json["error"]["task"]["id"] == holder
+        finally:
+            with self.app.app_context():
+                mark_failed(holder, "released by test")
+        rv = self.client.get(f"/api/notes/{handle}", headers=headers)
+        assert rv.status_code == 200
+        rv = self.client.post(
+            "/api/objects/delete-by-handle/",
+            json={"namespace": "notes", "handles": [handle]},
+            headers=headers,
+        )
+        assert rv.status_code == 200
+
+    def test_delete_by_handle_background_permissions(self):
+        headers = get_headers(self.client, "contributor_dbh", "123")
+        rv = self.client.post(
+            "/api/objects/delete-by-handle/?background=1",
+            json={"namespace": "notes", "handles": [make_handle()]},
+            headers=headers,
+        )
+        assert rv.status_code == 403
+
+    def test_delete_by_handle_background_returns_task(self):
+        """With a task queue, background deletion returns a task reference."""
+        headers = get_headers(self.client, "editor_dbh", "123")
+        mock_task = MagicMock(spec=AsyncResult)
+        mock_task.id = "fake-task-id-456"
+        with patch(
+            "gramps_webapi.api.resources.objects.run_task",
+            return_value=mock_task,
+        ) as mock_run_task:
+            rv = self.client.post(
+                "/api/objects/delete-by-handle/?background=1",
+                json={"namespace": "notes", "handles": ["h1", "h2"]},
+                headers=headers,
+            )
+        assert rv.status_code == 202
+        assert rv.json["task"]["id"] == "fake-task-id-456"
+        assert "/api/tasks/" in rv.json["task"]["href"]
+        kwargs = mock_run_task.call_args.kwargs
+        assert kwargs["namespace"] == "notes"
+        assert kwargs["handles"] == ["h1", "h2"]

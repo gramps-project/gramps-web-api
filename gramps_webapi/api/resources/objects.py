@@ -46,6 +46,7 @@ from ..blueprint import api_blueprint
 from ..tasks import (
     AsyncResult,
     delete_objects,
+    delete_objects_by_handle_task,
     make_task_response,
     run_task,
     update_media_usage_task,
@@ -176,14 +177,44 @@ class DeleteObjectsByHandleArgs(Schema):
     )
 
 
+class DeleteObjectsByHandleQueryArgs(Schema):
+    """Query arguments for POST /objects/delete-by-handle."""
+
+    background = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true and Celery is configured, delete the objects in the background and return HTTP 202. Use this for anything but a few objects.",
+        },
+    )
+
+
 class DeleteObjectsByHandleResource(ProtectedResource):
     """Resource for deleting specific objects of one type by handle."""
 
     @api_blueprint.response(200, TransactionSchema(many=True))
+    @api_blueprint.arguments(DeleteObjectsByHandleQueryArgs, location="query")
     @api_blueprint.arguments(DeleteObjectsByHandleArgs, location="json")
-    def post(self, args) -> ResponseReturnValue:
+    def post(self, query_args, args) -> ResponseReturnValue:
         """Delete the objects."""
         require_permissions([PERM_DEL_OBJ])
+        if query_args["background"]:
+            task = run_task(
+                delete_objects_by_handle_task,
+                tree=get_tree_from_jwt_or_fail(),
+                user_id=get_jwt_identity(),
+                namespace=args["namespace"],
+                handles=args["handles"],
+            )
+            if isinstance(task, AsyncResult):
+                return make_task_response(task)
+            trans_dict = task
+            res = Response(
+                response=json.dumps(trans_dict),
+                status=200,
+                mimetype="application/json",
+            )
+            res.headers.add("X-Total-Count", str(len(trans_dict)))
+            return res
         db_handle = get_db_handle(readonly=False)
         trans_dict = delete_objects_by_handle(
             db_handle=db_handle,
