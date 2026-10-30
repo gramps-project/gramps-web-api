@@ -27,18 +27,28 @@ from gramps.gen.db import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Person
 from gramps.gen.relationship import get_relationship_calculator
+from gramps.gen.types import PersonHandle
 from marshmallow import Schema
 from webargs import fields, validate
 
 from gramps_webapi.api.people_families_cache import CachePeopleFamiliesProxy
+from gramps_webapi.future_gramps.relationship_path import (
+    find_connections,
+    label_path,
+)
 
 from ...types import Handle
 from ..cache import request_cache_decorator
+from ..family_link_cache import get_family_link_graph
 from ..blueprint import api_blueprint
 from ..util import abort_with_message, get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
-from .schemas import RelationshipItemSchema, RelationshipSchema
+from .schemas import (
+    RelationshipItemSchema,
+    RelationshipPathSchema,
+    RelationshipSchema,
+)
 from .util import get_one_relationship
 
 
@@ -50,6 +60,38 @@ class RelationQueryArgs(Schema):
         validate=validate.Range(min=2),
         metadata={
             "description": "Maximum number of generations to search for a common ancestor (default 15)."
+        },
+    )
+    locale = fields.Str(
+        load_default=None,
+        validate=validate.Length(min=1, max=5),
+        metadata={
+            "description": "Language code of the locale to use where applicable. Must be a valid code from the available translations."
+        },
+    )
+
+
+class RelationPathsQueryArgs(Schema):
+    """Query arguments for the relation paths endpoint."""
+
+    depth = fields.Integer(
+        load_default=10,
+        validate=validate.Range(min=1, max=30),
+        metadata={
+            "description": "Maximum number of links in a path (default 10, at most 30)."
+        },
+    )
+    max = fields.Integer(
+        load_default=5,
+        validate=validate.Range(min=1, max=50),
+        metadata={
+            "description": "Maximum number of paths to return (default 5, at most 50)."
+        },
+    )
+    blood_only = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "Only return paths that go up to a common ancestor and down again (default false)."
         },
     )
     locale = fields.Str(
@@ -138,4 +180,50 @@ class RelationsResource(ProtectedResource, GrampsJSONEncoder):
             index = index + 1
         if result == []:
             result = [{}]
+        return self.response(200, result)
+
+
+class RelationPathsResource(ProtectedResource, GrampsJSONEncoder):
+    """Relation paths resource."""
+
+    @api_blueprint.response(200, RelationshipPathSchema(many=True))
+    @api_blueprint.arguments(RelationPathsQueryArgs, location="query")
+    @request_cache_decorator
+    def get(self, args: Dict, handle1: Handle, handle2: Handle) -> Response:
+        """Get the chains of family links between two people, shortest first.
+
+        Each step of a path is a person, how they are linked to the person
+        before them, and their relationship to the first person, which is
+        null when it has no name, for example through two marriages.
+        """
+        db_handle = get_db_handle()
+        _get_person_or_404(db_handle, handle1)
+        _get_person_or_404(db_handle, handle2)
+
+        graph = get_family_link_graph(db_handle)
+        paths = find_connections(
+            graph,
+            PersonHandle(handle1),
+            PersonHandle(handle2),
+            max_depth=args["depth"],
+            max_results=args["max"],
+            blood_only=args["blood_only"],
+        )
+        locale = get_locale_for_language(args["locale"], default=True)
+        calc = get_relationship_calculator(reinit=True, clocale=locale)
+        result = []
+        for path in paths:
+            labels = label_path(calc, db_handle, graph, path)
+            result.append(
+                {
+                    "steps": [
+                        {
+                            "handle": handle,
+                            "link": None if link is None else link.value,
+                            "relationship_string": label,
+                        }
+                        for (handle, link), label in zip(path, labels)
+                    ]
+                }
+            )
         return self.response(200, result)
