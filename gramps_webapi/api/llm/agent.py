@@ -22,10 +22,11 @@
 from __future__ import annotations
 
 import warnings
+from dataclasses import replace
 
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.capabilities import ProcessHistory
-from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
+from pydantic_ai.messages import ModelMessage, ModelRequest, ToolReturnPart
 from pydantic_ai.models.ollama import OllamaModel
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers import infer_provider_class
@@ -58,33 +59,42 @@ def _part_chars(part) -> int:
     return 0
 
 
-def _trim_history(
+OMITTED_TOOL_RESULT = (
+    "[Result omitted from history to save space. "
+    "Call the tool again if you need the details.]"
+)
+
+
+def _compact_history(
     ctx: RunContext[AgentDeps], messages: list[ModelMessage]
 ) -> list[ModelMessage]:
-    """Drop oldest complete user turns when history exceeds 3× the context budget.
+    """Shorten old tool results when history exceeds 3× the context budget.
 
-    A "turn" is everything from one ModelRequest[UserPromptPart] up to (but not
-    including) the next. Turns are always dropped as units to keep ToolCallPart /
-    ToolReturnPart pairs intact.
+    Tool results are replaced with a placeholder, oldest first, until the
+    history fits. The system prompt, user prompts, answers and tool calls are
+    never removed, so the model keeps its instructions and the question it is
+    answering, and every tool call keeps its result. The last message is left
+    untouched, as it holds the results the model is about to use.
     """
     budget = ctx.deps.max_context_length * 3
-
-    turn_starts = [
-        i
-        for i, msg in enumerate(messages)
-        if isinstance(msg, ModelRequest)
-        and any(isinstance(p, UserPromptPart) for p in msg.parts)
-    ]
-
     total = sum(_part_chars(p) for msg in messages for p in msg.parts)
 
-    while total > budget and len(turn_starts) > 1:
-        drop_to = turn_starts[1]
-        total -= sum(_part_chars(p) for msg in messages[:drop_to] for p in msg.parts)
-        messages = messages[drop_to:]
-        turn_starts = [i - drop_to for i in turn_starts[1:]]
+    compacted = list(messages)
+    for i, msg in enumerate(messages[:-1]):
+        if total <= budget:
+            break
+        if not isinstance(msg, ModelRequest):
+            continue
+        parts = []
+        for part in msg.parts:
+            size = _part_chars(part)
+            if isinstance(part, ToolReturnPart) and size > len(OMITTED_TOOL_RESULT):
+                total -= size - len(OMITTED_TOOL_RESULT)
+                part = replace(part, content=OMITTED_TOOL_RESULT)
+            parts.append(part)
+        compacted[i] = replace(msg, parts=parts)
 
-    return messages
+    return compacted
 
 
 SEARCH_STRATEGY_FULLTEXT = """search_genealogy_database matches exact names or
@@ -200,7 +210,7 @@ def create_agent(
         model,
         deps_type=AgentDeps,
         system_prompt=system_prompt,
-        capabilities=[ProcessHistory(_trim_history)],
+        capabilities=[ProcessHistory(_compact_history)],
     )
     agent.tool(get_current_date)
     agent.tool(search_genealogy_database)
