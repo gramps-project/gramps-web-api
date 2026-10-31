@@ -52,6 +52,7 @@ from gramps.gen.lib import (
     Event,
     EventRef,
     EventType,
+    Family,
     Note,
     Person,
     Place,
@@ -59,6 +60,8 @@ from gramps.gen.lib import (
     Surname,
 )
 
+from gramps_webapi.api.cache import get_db_last_change_timestamp
+from gramps_webapi.api.family_link_cache import clear_family_link_graphs
 from gramps_webapi.api.resources.util import preload_event_backlinks
 from gramps_webapi.api.search import get_search_indexer
 from gramps_webapi.api.snapshot import consistent_read
@@ -86,6 +89,7 @@ ONLY_A_PERSON = "PA001"
 ONLY_B_PERSON = "PB001"
 # added and removed again during a test
 LATE_PERSON = "PA002"
+LATE_FAMILY = "FA001"
 
 POSTGRES_URL = os.getenv(ENV_POSTGRES_URL)
 
@@ -504,6 +508,53 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
                     writer.remove_person(LATE_PERSON, trans)
             writer.close()
             reader.close()
+
+    def test_relation_paths(self):
+        """Each tree has its own family link graph, rebuilt when it changes."""
+        url = BASE_URL + "/relations/" + SHARED_PERSON + "/{}/paths"
+        headers_a = self._header("owner_a")
+        with self.app.app_context():
+            before = get_db_last_change_timestamp(self.tree_a)
+            self.assertIsNotNone(get_db_last_change_timestamp(self.tree_b))
+        self.assertIsNotNone(before)
+        clear_family_link_graphs()
+        rv = self.client.get(url.format(ONLY_A_PERSON), headers=headers_a)
+        self.assertEqual(rv.status_code, 200, rv.json)
+        self.assertEqual(rv.json, [])
+
+        writer = self.dbmgr_a.get_db(readonly=False).db
+        with DbTxn("add family", writer) as trans:
+            family = Family()
+            family.set_handle(LATE_FAMILY)
+            family.set_gramps_id("F0001")
+            family.set_father_handle(ONLY_A_PERSON)
+            family.set_mother_handle(SHARED_PERSON)
+            writer.add_family(family, trans)
+        # closing the database touches meta_data.db in the tree's directory
+        writer.close()
+        try:
+            with self.app.app_context():
+                self.assertGreater(get_db_last_change_timestamp(self.tree_a), before)
+            rv = self.client.get(url.format(ONLY_A_PERSON), headers=headers_a)
+            self.assertEqual(rv.status_code, 200, rv.json)
+            self.assertEqual(
+                [[step["link"] for step in path["steps"]] for path in rv.json],
+                [[None, "spouse"]],
+            )
+            self.assertEqual(rv.json[0]["steps"][1]["handle"], ONLY_A_PERSON)
+            # the same handles in the other tree are not linked
+            rv = self.client.get(
+                url.format(ONLY_B_PERSON), headers=self._header("owner_b")
+            )
+            self.assertEqual(rv.status_code, 200, rv.json)
+            self.assertEqual(rv.json, [])
+        finally:
+            writer = self.dbmgr_a.get_db(readonly=False).db
+            try:
+                with DbTxn("remove family", writer) as trans:
+                    writer.remove_family(LATE_FAMILY, trans)
+            finally:
+                writer.close()
 
     def test_backup_and_restore(self):
         """A tree's backup contains only that tree, and restoring it leaves the
