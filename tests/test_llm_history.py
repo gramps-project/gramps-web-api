@@ -155,3 +155,63 @@ def test_model_keeps_first_question(monkeypatch):
         "Y",
         "follow-up",
     ]
+
+
+def _text_conversation(turns: int) -> list:
+    """A long conversation without tool calls, as in the legacy history format."""
+    messages = [
+        ModelRequest(
+            parts=[SystemPromptPart(content="system"), UserPromptPart(content=BIG)]
+        ),
+        ModelResponse(parts=[TextPart(content=BIG)]),
+    ]
+    for i in range(turns - 1):
+        messages += [
+            ModelRequest(parts=[UserPromptPart(content=f"question {i}")]),
+            ModelResponse(parts=[TextPart(content=BIG)]),
+        ]
+    return messages + [ModelRequest(parts=[UserPromptPart(content="current")])]
+
+
+def _size(messages) -> int:
+    return sum(len(p.content) for m in messages for p in m.parts)
+
+
+def test_text_is_bounded():
+    """Without tool results to shorten, the oldest turns are dropped."""
+    compacted = _compact_history(_ctx(), _text_conversation(5))
+    assert _size(compacted) <= CONTEXT_LENGTH * 3
+    assert _contents(compacted, UserPromptPart)[-1] == "current"
+
+
+def test_system_prompt_survives_dropped_turns():
+    compacted = _compact_history(_ctx(), _text_conversation(5))
+    assert isinstance(compacted[0].parts[0], SystemPromptPart)
+    assert isinstance(compacted[0].parts[1], UserPromptPart)
+    assert _contents(compacted, SystemPromptPart) == ["system"]
+    assert len(_contents(compacted, UserPromptPart)) < 5
+
+
+def test_current_turn_is_kept_when_over_budget():
+    """The current turn is kept even if it alone exceeds the budget."""
+    messages = _text_conversation(2)[:-1] + [
+        ModelRequest(parts=[UserPromptPart(content="x" * (CONTEXT_LENGTH * 4))])
+    ]
+    compacted = _compact_history(_ctx(), messages)
+    assert _contents(compacted, SystemPromptPart) == ["system"]
+    assert _contents(compacted, UserPromptPart) == ["x" * (CONTEXT_LENGTH * 4)]
+
+
+def test_dropped_turns_keep_tool_calls_paired():
+    messages = _text_conversation(3)[:-1] + _conversation()[2:]
+    compacted = _compact_history(_ctx(), messages)
+    calls = [
+        p.tool_call_id for m in compacted for p in m.parts if p.part_kind == "tool-call"
+    ]
+    returns = [
+        p.tool_call_id
+        for m in compacted
+        for p in m.parts
+        if p.part_kind == "tool-return"
+    ]
+    assert calls == returns

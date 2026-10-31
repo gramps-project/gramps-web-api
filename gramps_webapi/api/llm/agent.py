@@ -26,7 +26,13 @@ from dataclasses import replace
 
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.capabilities import ProcessHistory
-from pydantic_ai.messages import ModelMessage, ModelRequest, ToolReturnPart
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    SystemPromptPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
 from pydantic_ai.models.ollama import OllamaModel
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers import infer_provider_class
@@ -68,13 +74,14 @@ OMITTED_TOOL_RESULT = (
 def _compact_history(
     ctx: RunContext[AgentDeps], messages: list[ModelMessage]
 ) -> list[ModelMessage]:
-    """Shorten old tool results when history exceeds 3× the context budget.
+    """Keep the history within 3× the context budget.
 
-    Tool results are replaced with a placeholder, oldest first, until the
-    history fits. The system prompt, user prompts, answers and tool calls are
-    never removed, so the model keeps its instructions and the question it is
-    answering, and every tool call keeps its result. The last message is left
-    untouched, as it holds the results the model is about to use.
+    First, tool results are replaced with a placeholder, oldest first, until
+    the history fits. The last message is left untouched, as it holds the
+    results the model is about to use. Only if that is not enough are the
+    oldest turns dropped. The system prompt and the current turn are always
+    kept, so the model keeps its instructions and the question it is
+    answering, and every tool call keeps its result.
     """
     budget = ctx.deps.max_context_length * 3
     total = sum(_part_chars(p) for msg in messages for p in msg.parts)
@@ -94,7 +101,48 @@ def _compact_history(
             parts.append(part)
         compacted[i] = replace(msg, parts=parts)
 
-    return compacted
+    if total <= budget:
+        return compacted
+    return _drop_old_turns(compacted, total, budget)
+
+
+def _drop_old_turns(
+    messages: list[ModelMessage], total: int, budget: int
+) -> list[ModelMessage]:
+    """Drop the oldest complete turns until the history fits the budget.
+
+    A turn starts with a request containing a user prompt. The current turn is
+    never dropped, and the system prompt is moved to the first kept request.
+    """
+    turn_starts = [
+        i
+        for i, msg in enumerate(messages)
+        if isinstance(msg, ModelRequest)
+        and any(isinstance(p, UserPromptPart) for p in msg.parts)
+    ]
+    start = 0
+    for turn_start in turn_starts[1:]:
+        if total <= budget:
+            break
+        total -= sum(
+            _part_chars(p)
+            for msg in messages[start:turn_start]
+            for p in msg.parts
+            if not isinstance(p, SystemPromptPart)
+        )
+        start = turn_start
+    if start == 0:
+        return messages
+
+    system_parts = [
+        p
+        for msg in messages[:start]
+        for p in msg.parts
+        if isinstance(p, SystemPromptPart)
+    ]
+    first = messages[start]
+    assert isinstance(first, ModelRequest)  # turns start with a request
+    return [replace(first, parts=[*system_parts, *first.parts]), *messages[start + 1 :]]
 
 
 SEARCH_STRATEGY_FULLTEXT = """search_genealogy_database matches exact names or
