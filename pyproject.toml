@@ -46,7 +46,7 @@ dependencies = [
     "psycopg2-binary",  # PostgreSQL driver for the user DB and search index
     "requests",
     "yclade>=0.5.0",
-    "Authlib>=1.6.4",
+    "Authlib>=1.9.0",
     "gramps-gedcom7>=0.4.0",
     "flask-smorest",
     "typing-extensions>=4.13.0",
