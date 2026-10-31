@@ -3,14 +3,13 @@
 import os
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
 from alembic import context
 from flask import Flask
+from sqlalchemy import engine_from_config, event, pool, text
+from sqlalchemy.engine import make_url
 
-from gramps_webapi.const import ENV_CONFIG_FILE
 from gramps_webapi.auth import User
+from gramps_webapi.const import ENV_CONFIG_FILE
 from gramps_webapi.util import pin_postgres_driver
 
 # this is the Alembic Config object, which provides
@@ -22,6 +21,12 @@ config = context.config
 fileConfig(config.config_file_name)
 
 target_metadata = User.metadata
+
+# seconds a migration waits for another process's migration (SQLite)
+SQLITE_LOCK_TIMEOUT = 300
+
+# arbitrary key of the advisory lock that serializes migrations (PostgreSQL)
+PG_MIGRATION_LOCK_KEY = 7302841965
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -79,19 +84,50 @@ def run_migrations_online():
     In this scenario we need to create an Engine
     and associate a connection with the context.
 
+    Several processes can migrate at the same time, e.g. the web and the
+    Celery container of a Docker Compose setup, which run the same
+    entrypoint. All migrations therefore run in one transaction that first
+    takes a lock: a second process waits for the first one and then finds
+    the database already upgraded.
     """
     configuration = config.get_section(config.config_ini_section)
-    configuration["sqlalchemy.url"] = get_url()
+    url = get_url()
+    configuration["sqlalchemy.url"] = url
+    is_sqlite = make_url(url).get_backend_name() == "sqlite"
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        # wait for another process's migration instead of failing with
+        # "database is locked" after the default of 5 seconds
+        connect_args={"timeout": SQLITE_LOCK_TIMEOUT} if is_sqlite else {},
     )
+    if is_sqlite:
+        # Python's sqlite3 module only begins transactions before DML, so
+        # the DDL would run outside of them. Begin them here instead, taking
+        # the write lock right away.
+        @event.listens_for(connectable, "connect")
+        def _disable_implicit_begin(dbapi_connection, connection_record):
+            dbapi_connection.isolation_level = None
+
+        @event.listens_for(connectable, "begin")
+        def _begin_immediate(conn):
+            conn.exec_driver_sql("BEGIN IMMEDIATE")
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            # SQLite supports transactional DDL, Alembic just doesn't assume it
+            transactional_ddl=True if is_sqlite else None,
+        )
 
         with context.begin_transaction():
+            if connection.dialect.name == "postgresql":
+                connection.execute(
+                    text("SELECT pg_advisory_xact_lock(:key)"),
+                    {"key": PG_MIGRATION_LOCK_KEY},
+                )
             context.run_migrations()
 
 
