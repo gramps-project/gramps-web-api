@@ -527,6 +527,32 @@ class TestObjectCreation(unittest.TestCase):
         obj_dict = rv.json
         self.assertEqual(obj_dict["page"], obj["page"])
 
+    def test_add_citation_profile_locale(self):
+        """Citation profile date is displayed in the requested locale."""
+        handle = make_handle()
+        obj = {
+            "handle": handle,
+            "date": {
+                "_class": "Date",
+                "modifier": 3,  # about
+                "dateval": [0, 0, 1855, False],
+            },
+        }
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/citations/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        rv = self.client.get(
+            f"/api/citations/{handle}?locale=de&profile=all", headers=headers
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.json["profile"]["date"], "um 1855")
+        rv = self.client.get(
+            f"/api/citations/?handles={handle}&locale=de&profile=all",
+            headers=headers,
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.json[0]["profile"]["date"], "um 1855")
+
     def test_add_repository(self):
         """Add a single repository."""
         handle = make_handle()
