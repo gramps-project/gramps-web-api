@@ -27,6 +27,7 @@ import gzip
 import logging
 import os
 import re
+import traceback
 from functools import lru_cache
 from hashlib import sha256
 from http import HTTPStatus
@@ -89,6 +90,7 @@ from ..util import (
     abort_with_message,
     get_db_handle,
     get_tree_from_jwt,
+    gramps_object_from_dict,
 )
 from .db_backend import SINGLE_TREE_DBAPI_CLASS_NAMES
 
@@ -1611,6 +1613,11 @@ def _validate_embedded(value: Any, path: str = "$") -> None:
     """
     if isinstance(value, dict):
         class_name = value.get("_class")
+        # `fix_object_dict` sets `_class` on every object Gramps Web sends, and
+        # completion and deserialization both depend on it. The Gramps schemas
+        # do not require it, so check it here rather than fail with a KeyError.
+        if class_name is None:
+            raise ValueError(f"{path}: object requires '_class'")
         if isinstance(class_name, str):
             _validate_keys(value, class_name, path)
         if class_name in REF_CLASSES and not value.get("ref"):
@@ -1680,6 +1687,34 @@ def validate_object_dict(obj_dict: dict[str, Any]) -> None:
         raise ValueError(message) from exc
 
     _validate_embedded(obj_dict_fixed)
+
+
+def parse_object_dict(obj_dict: dict[str, Any]) -> GrampsObject:
+    """Turn a client-supplied object dict into a Gramps object.
+
+    Raises ValueError for any payload that cannot be turned into an object.
+    No step touches the database, so an exception from any of them means the
+    payload is invalid and is reported as such, not as a server error.
+    """
+    try:
+        obj_dict = fix_object_dict(obj_dict)
+        validate_object_dict(obj_dict)
+        return gramps_object_from_dict(obj_dict)
+    except ValueError:
+        raise
+    except Exception as exc:
+        # validation should have rejected this payload, so keep it visible.
+        # Log only the exception type and where it was raised: its message
+        # may contain values from the payload.
+        frame = traceback.extract_tb(exc.__traceback__)[-1]
+        current_app.logger.warning(
+            "Object payload passed validation but failed to deserialize: "
+            "%s at %s:%s",
+            type(exc).__name__,
+            frame.filename,
+            frame.lineno,
+        )
+        raise ValueError("invalid object") from exc
 
 
 def xml_to_locale(gramps_type_name: str, string: str) -> str:

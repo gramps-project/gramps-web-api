@@ -528,6 +528,75 @@ def test_validate_object_dict_accepts_reference_with_target():
 
 
 @pytest.mark.parametrize(
+    "obj_dict, path",
+    [
+        (
+            {
+                "_class": "Source",
+                "reporef_list": [
+                    {"_class": "RepoRef", "ref": "r", "media_type": {"value": 2}}
+                ],
+            },
+            "$.reporef_list[0].media_type",
+        ),
+        (
+            {
+                "_class": "Source",
+                "attribute_list": [{"type": {"string": "x", "value": 0}}],
+            },
+            "$.attribute_list[0].type",
+        ),
+        (
+            {
+                "_class": "Person",
+                "event_ref_list": [{"ref": "e", "role": {"value": 1}}],
+            },
+            "$.event_ref_list[0].role",
+        ),
+    ],
+)
+def test_validate_object_dict_rejects_object_without_class(obj_dict, path):
+    """An embedded object without `_class` cannot be deserialized.
+
+    `fix_object_dict` only fills in the class of a type sent as a string, so a
+    type sent as a dict without `_class` used to reach `data_to_object`, which
+    raised KeyError (a 500 instead of a 400).
+    """
+    from flask import Flask
+
+    from gramps_webapi.api.resources.util import fix_object_dict, validate_object_dict
+
+    with Flask(__name__).app_context():
+        with pytest.raises(ValueError) as excinfo:
+            validate_object_dict(fix_object_dict(obj_dict))
+
+    assert f"{path}: object requires '_class'" in str(excinfo.value)
+
+
+def test_parse_object_dict_reports_deserialization_failure(monkeypatch, caplog):
+    """A payload that passes validation but cannot be deserialized is a 400.
+
+    The log names the exception but not its message, which may hold payload
+    values.
+    """
+    from flask import Flask
+
+    from gramps_webapi.api.resources import util
+
+    def fail(obj_dict):
+        raise KeyError("secret-value")
+
+    monkeypatch.setattr(util, "gramps_object_from_dict", fail)
+    with Flask(__name__).app_context():
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(ValueError, match="invalid object"):
+                util.parse_object_dict({"_class": "Note"})
+
+    assert "KeyError" in caplog.text
+    assert "secret-value" not in caplog.text
+
+
+@pytest.mark.parametrize(
     "date_dict",
     [
         # a range/span whose stop half is missing -- Date.get_stop_date() slices

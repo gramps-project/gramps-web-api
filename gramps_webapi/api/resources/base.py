@@ -51,7 +51,6 @@ from ..util import (
     get_db_handle,
     get_locale_for_language,
     get_tree_from_jwt_or_fail,
-    gramps_object_from_dict,
     update_usage_people,
 )
 from . import ProtectedResource, Resource
@@ -64,15 +63,14 @@ from .util import (
     abort_with_message,
     add_object,
     filter_missing_files,
-    fix_object_dict,
     get_backlinks,
     get_extended_attributes,
     get_reference_profile_for_object,
     get_soundex,
     hash_object,
+    parse_object_dict,
     transaction_to_json,
     update_object,
-    validate_object_dict,
 )
 
 T = TypeVar("T", bound=GrampsObject)
@@ -162,11 +160,9 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
         elif obj_dict["_class"] != self.gramps_class_name:
             abort_with_message(400, "Wrong object type")
         try:
-            obj_dict = fix_object_dict(obj_dict)
-            validate_object_dict(obj_dict)
+            return parse_object_dict(obj_dict)
         except ValueError as exc:
             abort_with_message(400, f"Error while processing object: {exc}")
-        return gramps_object_from_dict(obj_dict)
 
     def has_handle(self, handle: str) -> bool:
         """Check if the handle exists in the database."""

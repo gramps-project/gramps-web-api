@@ -147,6 +147,28 @@ class TestObjectUpdate(unittest.TestCase):
         # )
         # self.assertEqual(rv.status_code, 412)
 
+    def test_update_type_without_class(self):
+        """A type sent as a dict without `_class` is rejected with a 400."""
+        handle = make_handle()
+        obj = {"handle": handle, "_class": "Source", "title": "My source"}
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post("/api/sources/", json=obj, headers=headers)
+        self.assertEqual(rv.status_code, 201)
+        obj_new = {
+            **obj,
+            "reporef_list": [
+                {
+                    "_class": "RepoRef",
+                    "ref": make_handle(),
+                    "media_type": {"string": "", "value": 2},
+                }
+            ],
+        }
+        rv = self.client.put(f"/api/sources/{handle}", json=obj_new, headers=headers)
+        self.assertEqual(rv.status_code, 400)
+        rv = self.client.get(f"/api/sources/{handle}", headers=headers)
+        self.assertEqual(rv.json["reporef_list"], [])
+
     def test_update_permission_editor(self):
         """Test update permissions for an editor."""
         handle = make_handle()

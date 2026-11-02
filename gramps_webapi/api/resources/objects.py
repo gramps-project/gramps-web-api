@@ -57,13 +57,12 @@ from ..util import (
     check_quota_people,
     get_db_handle,
     get_tree_from_jwt_or_fail,
-    gramps_object_from_dict,
     update_usage_people,
 )
 from . import FreshProtectedResource, ProtectedResource
 from .delete import delete_objects_by_handle, remove_deleted_from_search_indices
 from .schemas import TaskReferenceSchema, TransactionSchema
-from .util import add_object, fix_object_dict, transaction_to_json, validate_object_dict
+from .util import add_object, parse_object_dict, transaction_to_json
 
 
 class CreateObjectsResource(ProtectedResource):
@@ -75,11 +74,9 @@ class CreateObjectsResource(ProtectedResource):
         objects = []
         for obj_dict in payload:
             try:
-                obj_dict = fix_object_dict(obj_dict)
-                validate_object_dict(obj_dict)
+                obj = parse_object_dict(obj_dict)
             except ValueError as exc:
                 abort_with_message(400, f"Error while processing objects: {exc}")
-            obj = gramps_object_from_dict(obj_dict)
             objects.append(obj)
         return objects
 
