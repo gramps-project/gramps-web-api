@@ -188,6 +188,7 @@ from .resources.user import (
     UsersResource,
     UserTriggerResetPasswordResource,
 )
+from .resources.user_merge import UserMergeResource
 from .resources.verify import VerifyResource
 from .resources.ydna import PersonYDnaResource
 from .util import abort_with_message, get_db_handle, get_tree_from_jwt, parser, use_args
@@ -874,6 +875,12 @@ register_endpt(
     UserAccessTokenItemResource,
     "/users/-/access-tokens/<string:scope>/tokens/<int:token_id>/",
     "user_access_token_item",
+    tags=["Users"],
+)
+register_endpt(
+    UserMergeResource,
+    "/users/<string:user_name>/merge/",
+    "user_merge",
     tags=["Users"],
 )
 register_endpt(

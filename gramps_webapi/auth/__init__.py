@@ -943,6 +943,105 @@ def unlink_oidc_account(user_id: str, account_id: int, allow_last: bool) -> str:
     return UNLINKED
 
 
+class UserMergeError(ValueError):
+    """Raised when two users can't be merged."""
+
+
+def _free_label(label: str, taken: set[str]) -> str:
+    """Return the label, or the label with a number appended, not in `taken`."""
+    if label not in taken:
+        return label
+    number = 2
+    while True:
+        suffix = f" ({number})"
+        candidate = label[: ACCESS_TOKEN_LABEL_MAX_LENGTH - len(suffix)] + suffix
+        if candidate not in taken:
+            return candidate
+        number += 1
+
+
+def merge_users(source_id: str, target_id: str) -> None:
+    """Merge the source user into the target user and delete the source.
+
+    The target keeps its own name, password, e-mail address, role and tree.
+    The source's OIDC accounts, persistent access tokens, push subscriptions
+    and tasks move to the target. Raise `ValueError` if a user doesn't exist
+    and `UserMergeError` if they can't be merged. The caller checks that both
+    belong to the same tree.
+    """
+    session = user_db.session  # pylint: disable=no-member
+    if str(source_id) == str(target_id):
+        raise UserMergeError("Cannot merge a user into itself")
+    # A no-op update takes the write lock before reading, as in
+    # `unlink_oidc_account`. Locking in a fixed order keeps two merges in
+    # opposite directions from deadlocking in PostgreSQL.
+    for user_id in sorted([str(source_id), str(target_id)]):
+        session.execute(
+            sa.update(User).where(User.id == user_id).values(name=User.name)
+        )
+    source = session.query(User).filter_by(id=source_id).scalar()
+    target = session.query(User).filter_by(id=target_id).scalar()
+    if source is None or target is None:
+        session.rollback()
+        raise ValueError("User not found")
+    if (source.role or 0) > (target.role or 0):
+        session.rollback()
+        raise UserMergeError("The user to merge has a higher role than the target")
+
+    try:
+        # The children are moved explicitly, as SQLite doesn't enforce the foreign
+        # keys here (see `delete_user`).
+        session.execute(
+            sa.update(OIDCAccount)
+            .where(OIDCAccount.user_id == source.id)
+            .values(user_id=target.id)
+        )
+        session.execute(
+            sa.update(PushSubscription)
+            .where(PushSubscription.user_id == source.id)
+            .values(user_id=target.id)
+        )
+        session.execute(
+            sa.update(TaskTree)
+            .where(TaskTree.user_id == str(source.id))
+            .values(user_id=str(target.id))
+        )
+
+        target_tokens = session.query(AccessToken).filter_by(user_id=target.id).all()
+        source_tokens = session.query(AccessToken).filter_by(user_id=source.id).all()
+        for token in source_tokens:
+            others = [other for other in target_tokens if other.scope == token.scope]
+            if token.scope in ACCESS_TOKEN_SCOPES_MULTIPLE:
+                # The maximum number of tokens can be exceeded here, as when
+                # creating tokens concurrently; it only limits the table's size.
+                token.label = _free_label(
+                    token.label, {other.label for other in others}
+                )
+            elif token.token_hash is None or any(
+                other.token_hash is not None for other in others
+            ):
+                # one token per user: keep the target's active one
+                session.delete(token)
+                continue
+            else:
+                # the target has none, or only a revoked one
+                for other in others:
+                    session.delete(other)
+            # the deletes must happen before the move, for the unique constraint
+            session.flush()
+            token.user_id = target.id
+            target_tokens.append(token)
+
+        # move the tokens before the user is deleted, which would cascade in
+        # PostgreSQL
+        session.flush()
+        session.delete(source)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+
+
 class User(user_db.Model):  # type: ignore
     """User table class for sqlalchemy."""
 
