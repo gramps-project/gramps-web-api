@@ -143,7 +143,10 @@ def _apply_gramps_filter(
             filter_dict["function"] = logic
 
         filter_rules = json.dumps(filter_dict)
-        logger.debug("%s filter rules: %s", namespace, filter_rules)
+        # rule values come from the chat, so only log the rule names
+        logger.debug(
+            "%s filter rules: %s", namespace, [rule["name"] for rule in rules]
+        )
 
         args = {"rules": filter_rules}
         matching_handles = apply_filter(
@@ -404,10 +407,9 @@ def search_genealogy_database(
         if len(context_parts) < total:
             result += f"\n\n---\nShowing {len(context_parts)} of {total} matches."
         logger.debug(
-            "Tool search_genealogy_database returned %d results (%d chars) for query: %r",
+            "Tool search_genealogy_database returned %d results (%d chars)",
             len(context_parts),
             len(result),
-            query,
         )
         return result
 

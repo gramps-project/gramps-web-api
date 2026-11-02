@@ -240,7 +240,8 @@ def answer_with_agent(
 
     messages: list[ModelMessage] = []
     try:
-        logger.debug("Running Pydantic AI agent with prompt: '%s'", prompt)
+        # never log the prompt or the answer, they contain private chat content
+        logger.debug("Running Pydantic AI agent")
         with capture_run_messages() as messages:
             result = agent.run_sync(
                 prompt,
@@ -254,7 +255,7 @@ def answer_with_agent(
                     else None
                 ),
             )
-        logger.debug("Agent response: '%s'", result.response.text or "")
+        logger.debug("Agent finished with reason: %s", result.response.finish_reason)
         if result.response.finish_reason == "length":
             logger.warning(
                 "AI answer cut off at the output token limit, see "
@@ -295,7 +296,11 @@ def answer_with_agent(
             abort_with_message(
                 400, "The AI model's response exceeded its output token limit."
             )
-        logger.error("Pydantic AI error: %s", e)
+        # str(e) can include the model's response body
+        logger.error(
+            "Pydantic AI error: %s",
+            e.message if isinstance(e, UnexpectedModelBehavior) else type(e).__name__,
+        )
         abort_with_message(500, "Error communicating with the AI model")
     except Exception:
         logger.exception("Unexpected error in agent")
