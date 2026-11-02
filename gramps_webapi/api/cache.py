@@ -141,8 +141,21 @@ def skip_cache_missing_media(*args, **kwargs) -> bool:
     return g.cached_media is None
 
 
+def is_cacheable_response(rv) -> bool:
+    """Only cache successful responses.
+
+    Since Flask-Caching 2.5.0, an exception raised by `abort()` is cached as
+    well. An error can depend on the server rather than the tree (e.g. an addon
+    that isn't installed yet), so it must not be served until the tree changes.
+    The view may return something other than a `Response`, e.g. a string.
+    """
+    return getattr(rv, "status_code", 200) < 400
+
+
 _request_cached = request_cache.cached(
-    make_cache_key=make_cache_key_request, unless=skip_cache_condition_request
+    make_cache_key=make_cache_key_request,
+    unless=skip_cache_condition_request,
+    response_filter=is_cacheable_response,
 )
 
 

@@ -116,6 +116,17 @@ class TestRequestCacheETag(unittest.TestCase):
             self._get_etag(path, self.headers_user),
         )
 
+    def test_error_not_cached(self):
+        """An error response is not served from the cache once its cause is
+        gone, e.g. an addon filter rule that was installed after the error."""
+        rules = '{"rules":[{"name":"HasIdOf","values":["N0000"]}]}'
+        path = f"/api/notes/?rules={rules}"
+        with patch("gramps_webapi.api.resources.filters.get_rule_map", return_value={}):
+            rv = self.client.get(path, headers=self.headers_admin)
+        self.assertEqual(rv.status_code, 404)
+        rv = self.client.get(path, headers=self.headers_admin)
+        self.assertEqual(rv.status_code, 200)
+
     def test_etag_without_timestamp(self):
         """Without a last change timestamp, the ETag is the hash of the body."""
         path = f"/api/notes/{self.handle}"
