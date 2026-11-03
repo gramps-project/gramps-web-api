@@ -960,14 +960,22 @@ def _free_label(label: str, taken: set[str]) -> str:
         number += 1
 
 
-def merge_users(source_id: str, target_id: str) -> None:
+def merge_users(
+    source_id: str,
+    target_id: str,
+    source_tree: Optional[str],
+    target_tree: Optional[str],
+) -> None:
     """Merge the source user into the target user and delete the source.
 
     The target keeps its own name, password, e-mail address, role and tree.
     The source's OIDC accounts, persistent access tokens, push subscriptions
     and tasks move to the target. Raise `ValueError` if a user doesn't exist
-    and `UserMergeError` if they can't be merged. The caller checks that both
-    belong to the same tree.
+    and `UserMergeError` if they can't be merged.
+
+    The caller checks that the users belong to the same tree, which needs the
+    app's tree configuration, and passes the trees it checked, as stored for
+    the users. The merge is refused if either has changed in the meantime.
     """
     session = user_db.session  # pylint: disable=no-member
     if str(source_id) == str(target_id):
@@ -984,6 +992,9 @@ def merge_users(source_id: str, target_id: str) -> None:
     if source is None or target is None:
         session.rollback()
         raise ValueError("User not found")
+    if source.tree != source_tree or target.tree != target_tree:
+        session.rollback()
+        raise UserMergeError("A user's tree has changed")
     if (source.role or 0) > (target.role or 0):
         session.rollback()
         raise UserMergeError("The user to merge has a higher role than the target")
@@ -1014,9 +1025,17 @@ def merge_users(source_id: str, target_id: str) -> None:
             if token.scope in ACCESS_TOKEN_SCOPES_MULTIPLE:
                 # The maximum number of tokens can be exceeded here, as when
                 # creating tokens concurrently; it only limits the table's size.
-                token.label = _free_label(
-                    token.label, {other.label for other in others}
-                )
+                # The source's other labels are taken as well: those not
+                # clashing with the target's keep their name, and a renamed
+                # token never clashes with one of the source's.
+                taken = {other.label for other in others} | {
+                    other.label
+                    for other in source_tokens
+                    if other is not token
+                    and other.scope == token.scope
+                    and other.user_id == source.id
+                }
+                token.label = _free_label(token.label, taken)
             elif token.token_hash is None or any(
                 other.token_hash is not None for other in others
             ):
@@ -1024,11 +1043,11 @@ def merge_users(source_id: str, target_id: str) -> None:
                 session.delete(token)
                 continue
             else:
-                # the target has none, or only a revoked one
+                # the target has none, or only a revoked one, which must be
+                # gone before the move, for the unique constraint
                 for other in others:
                     session.delete(other)
-            # the deletes must happen before the move, for the unique constraint
-            session.flush()
+                session.flush()
             token.user_id = target.id
             target_tokens.append(token)
 

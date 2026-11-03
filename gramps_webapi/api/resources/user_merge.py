@@ -26,6 +26,7 @@ from flask_jwt_extended import get_jwt_identity
 from ...auth import (
     UserMergeError,
     get_guid,
+    get_tree,
     get_user_details,
     get_user_oidc_accounts,
     merge_users,
@@ -91,11 +92,13 @@ class UserMergeResource(FreshProtectedResource):
             abort_with_message(400, "Cannot merge a user into itself")
         if source_id == get_jwt_identity():
             abort_with_message(409, "Cannot merge away the own user")
+        # as stored, which can be empty in a single-tree setup
+        source_tree, target_tree = get_tree(source_id), get_tree(target_id)
         tree = get_tree_id_or_none(target_id)
         if get_tree_id_or_none(source_id) != tree:
             abort_with_message(409, "The users belong to different trees")
         try:
-            merge_users(source_id, target_id)
+            merge_users(source_id, target_id, source_tree, target_tree)
         except UserMergeError as exc:
             abort_with_message(409, str(exc))
         except ValueError:

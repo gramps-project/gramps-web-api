@@ -35,6 +35,7 @@ from gramps_webapi.auth import (
     AccessToken,
     PushSubscription,
     TaskTree,
+    UserMergeError,
     add_user,
     create_oidc_account,
     create_user_access_token,
@@ -182,6 +183,26 @@ class TestUserMerge(unittest.TestCase):
             [("laptop", True), ("laptop (2)", True), ("phone", True)],
         )
 
+    def test_a_renamed_label_can_be_one_of_the_sources(self):
+        with self.app.app_context():
+            create_user_access_token("target", ACCESS_TOKEN_SCOPE_SYNC, "laptop")
+            create_user_access_token("source", ACCESS_TOKEN_SCOPE_SYNC, "laptop")
+            create_user_access_token("source", ACCESS_TOKEN_SCOPE_SYNC, "laptop (2)")
+        self.assertEqual(self._merge().status_code, 200)
+        self.assertEqual(
+            self._tokens(self.target_id, ACCESS_TOKEN_SCOPE_SYNC),
+            [("laptop", True), ("laptop (2)", True), ("laptop (3)", True)],
+        )
+
+    def test_a_tree_changed_before_the_lock_is_refused(self):
+        with self.app.app_context():
+            tree = get_user_details("target")["tree"]
+            with self.assertRaises(UserMergeError):
+                merge_users(self.source_id, self.target_id, "other", tree)
+            with self.assertRaises(UserMergeError):
+                merge_users(self.source_id, self.target_id, tree, "other")
+            self.assertIsNotNone(get_user_details("source"))
+
     def test_the_targets_calendar_token_is_kept(self):
         with self.app.app_context():
             kept = rotate_user_access_token(
@@ -320,7 +341,7 @@ class TestConcurrentMerge(unittest.TestCase):
             with self.app.app_context():
                 barrier.wait()
                 try:
-                    merge_users(source_id, target_id)
+                    merge_users(source_id, target_id, None, None)
                     results.append("merged")
                 except Exception as exc:  # noqa: BLE001
                     results.append(type(exc).__name__)
