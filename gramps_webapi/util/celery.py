@@ -1,5 +1,7 @@
 """Utility functions for celery."""
 
+import logging
+
 from celery import Task
 from celery import current_app as current_celery_app
 from werkzeug.exceptions import HTTPException
@@ -22,8 +24,31 @@ class TaskRejection(TaskError):
     """
 
 
+class HideTaskResultFilter(logging.Filter):
+    """Hide task return values in Celery's "Task ... succeeded" log records.
+
+    Results can contain private tree data, e.g. OCR text or AI chat answers.
+    Celery has no setting for this, but passes the log context as ``data`` in
+    ``extra`` for custom handlers, so the value is replaced there too.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        context = record.args
+        if isinstance(context, dict) and "return_value" in context:
+            context = {**context, "return_value": "<hidden>"}
+            record.args = context
+            if isinstance(getattr(record, "data", None), dict):
+                record.data = context
+        return True
+
+
+_hide_task_result_filter = HideTaskResultFilter()
+
+
 def create_celery(app):
     """App factory for celery."""
+    # no-op if already added, create_celery runs once per app
+    logging.getLogger("celery.app.trace").addFilter(_hide_task_result_filter)
     celery = current_celery_app
     celery.conf.name = app.import_name
     celery.conf.update(app.config["CELERY_CONFIG"])
