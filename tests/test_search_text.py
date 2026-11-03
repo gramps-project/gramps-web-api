@@ -22,6 +22,7 @@
 import gramps.gen.lib as lib
 import pytest
 from gramps.gen.lib import (
+    Address,
     Attribute,
     AttributeType,
     Event,
@@ -189,6 +190,14 @@ def test_types():
     media.add_attribute(_attribute("x", type_=AttributeType.AGE))
     media.add_attribute(_attribute("y", type_=(AttributeType.CUSTOM, "Zqtype")))
     assert _words(own_strings(media)[1]) == {"x", "y", "zqtype"}
+
+
+def test_non_string_text():
+    """Text fields holding numbers, as written by other tools, are indexed."""
+    address = Address()
+    address.set_postal_code(12345)
+    person = _person(add_address=address, add_attribute=_attribute(42))
+    assert {"12345", "42"} <= _words(own_strings(person)[1])
 
 
 def test_standard_types_are_the_indexed_types():

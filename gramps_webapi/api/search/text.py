@@ -241,7 +241,9 @@ def _collect(
     spec = FIELD_SPECS[data["_class"]]
     is_private = is_private or bool(data.get("private"))
     strings = private if is_private else public
-    strings += [data[key] for key in spec.text if data.get(key)]
+    # Gramps does not enforce types, so data written by other tools can hold
+    # e.g. a postal code as a number
+    strings += [str(data[key]) for key in spec.text if data.get(key)]
     strings += [_type_string(data.get(key), False) for key in spec.types]
     strings += [_type_string(data.get(key), True) for key in spec.custom_types]
     for key in spec.children:
