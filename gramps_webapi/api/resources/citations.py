@@ -50,7 +50,7 @@ class CitationResourceHelper(GrampsObjectResourceHelper):
         """Extend citation attributes as needed."""
         if "profile" in args:
             obj.profile = get_citation_profile_for_object(
-                self.db_handle, obj, args["profile"]
+                self.db_handle, obj, args["profile"], locale=locale
             )
         if "extend" in args:
             obj.extended = get_extended_attributes(self.db_handle, obj, args)
