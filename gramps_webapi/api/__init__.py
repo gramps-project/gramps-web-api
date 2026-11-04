@@ -1033,6 +1033,16 @@ def get_thumbnail(args, handle, size):
     return handler.send_thumbnail(size=size, square=args["square"])
 
 
+def _abort_if_invalid_crop(x1: int, y1: int, x2: int, y2: int) -> None:
+    """Abort unless the crop region (in percent) lies within the image.
+
+    Pillow pads crops outside the image, so unchecked coordinates could
+    allocate an arbitrarily large image.
+    """
+    if not (0 <= x1 < x2 <= 100 and 0 <= y1 < y2 <= 100):
+        abort_with_message(400, "Crop region must lie within 0 and 100 percent")
+
+
 @api_blueprint.route(
     "/media/<string:handle>/cropped/<int:x1>/<int:y1>/<int:x2>/<int:y2>"
 )
@@ -1049,6 +1059,7 @@ def get_thumbnail(args, handle, size):
 @thumbnail_cache_decorator
 def get_cropped(args, handle: str, x1: int, y1: int, x2: int, y2: int):
     """Get the thumbnail of a cropped file."""
+    _abort_if_invalid_crop(x1, y1, x2, y2)
     tree = get_tree_from_jwt()
     db_handle = get_db_handle()
     handler = get_media_handler(db_handle, tree=tree).get_file_handler(
@@ -1075,6 +1086,7 @@ def get_thumbnail_cropped(
     args, handle: str, x1: int, y1: int, x2: int, y2: int, size: int
 ):
     """Get the thumbnail of a cropped file."""
+    _abort_if_invalid_crop(x1, y1, x2, y2)
     tree = get_tree_from_jwt()
     db_handle = get_db_handle()
     handler = get_media_handler(db_handle, tree=tree).get_file_handler(

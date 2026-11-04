@@ -26,7 +26,7 @@ import os
 import time
 import zipfile
 from pathlib import Path
-from typing import TYPE_CHECKING, BinaryIO, Callable, List, Optional, Set
+from typing import IO, TYPE_CHECKING, Callable, List, Optional, Set
 
 from flask import current_app
 from flask_jwt_extended import get_jwt_identity
@@ -159,7 +159,7 @@ class MediaHandlerBase:
 
     def upload_file(
         self,
-        stream: BinaryIO,
+        stream: IO[bytes],
         checksum: str,
         mime: str,
         path: Optional[FilenameOrPath] = None,
@@ -203,7 +203,7 @@ class MediaHandlerLocal(MediaHandlerBase):
 
     def upload_file(
         self,
-        stream: BinaryIO,
+        stream: IO[bytes],
         checksum: str,
         mime: str,
         path: Optional[FilenameOrPath] = None,
@@ -347,7 +347,7 @@ class MediaHandlerS3(MediaHandlerBase):
 
     def upload_file(
         self,
-        stream: BinaryIO,
+        stream: IO[bytes],
         checksum: str,
         mime: str,
         path: Optional[FilenameOrPath] = None,
