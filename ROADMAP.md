@@ -18,10 +18,16 @@ and API parameters are then still accepted but ignored.
 | Version | Target | Gramps | Breaking changes |
 |---|---|---|---|
 | 3.25.x | current | 6.0 | semantic search removed |
-| 3.26.0 | late November 2026 | 6.0 | none |
+| 3.26.0 | late November 2026 | 6.0 | Gramps QL removed |
 | 3.x | as needed | 6.0 | none |
 | 4.0.0 | TBD | 6.1 | multi-tree by default, removals below |
 | 5.0.0 | TBD | 6.2 | TBD |
+
+## Breaking in 3.26
+
+The `gql` query parameter on object list endpoints (Gramps QL) is removed, together with
+the `gramps_ql` key in `GET /api/metadata/`. Requests using `gql` are rejected with 422.
+Use the `MatchesQuery` filter rule with a GOQL query in `rules` instead.
 
 ## Breaking in 4.0
 

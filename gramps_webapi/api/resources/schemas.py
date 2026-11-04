@@ -2584,9 +2584,6 @@ class MetadataServerSchema(_Base):
     gramps_webapi = fields.Dict(
         metadata={"description": "Information about the Gramps Web API version."},
     )
-    gramps_ql = fields.Dict(
-        metadata={"description": "Information about the Gramps QL library."},
-    )
     gramps_object_query_language = fields.Dict(
         metadata={
             "description": "Information about the Gramps Object Query Language library."
