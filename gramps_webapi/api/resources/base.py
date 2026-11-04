@@ -59,6 +59,7 @@ from .delete import delete_object, remove_deleted_from_search_indices
 from .emit import GrampsJSONEncoder
 from .filters import apply_filter
 from .match import match_dates
+from .schemas import DateFormatQueryArgs
 from .sort import page_handles_in_sql, sort_handles_by_raw_data, sort_objects
 from .util import (
     abort_with_message,
@@ -174,7 +175,7 @@ class GrampsObjectResourceHelper(GrampsJSONEncoder):
         return query_method(handle)
 
 
-class GrampsObjectQueryArgs(Schema):
+class GrampsObjectQueryArgs(DateFormatQueryArgs):
     """Query arguments for GET /object/<handle>."""
 
     backlinks = fields.Boolean(
@@ -332,7 +333,9 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         if obj is None:
             # the private proxy returns None for private objects
             abort(404)
-        locale = get_locale_for_language(args["locale"], default=True)
+        locale = get_locale_for_language(
+            args["locale"], default=True, date_format=args["date_format"]
+        )
         return self.response(
             200,
             self.full_object(obj, args, locale=locale),
@@ -399,7 +402,7 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         return self.response(200, trans_dict, total_items=len(trans_dict))
 
 
-class GrampsObjectsQueryArgs(Schema):
+class GrampsObjectsQueryArgs(DateFormatQueryArgs):
     """Query arguments for GET /objects/."""
 
     backlinks = fields.Boolean(
@@ -594,7 +597,9 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
     @request_cache_decorator
     def get(self, args: dict) -> ResponseReturnValue:
         """Get all objects."""
-        locale = get_locale_for_language(args["locale"], default=True)
+        locale = get_locale_for_language(
+            args["locale"], default=True, date_format=args["date_format"]
+        )
         if "gramps_id" in args:
             obj = self.get_object_from_gramps_id(args["gramps_id"])
             if obj is None:

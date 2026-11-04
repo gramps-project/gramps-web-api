@@ -22,6 +22,7 @@
 
 from __future__ import annotations
 
+import copy
 import io
 import json
 import logging
@@ -50,6 +51,7 @@ from flask_jwt_extended.exceptions import WrongTokenError
 from gramps.cli.clidbman import NAME_FILE, CLIDbManager
 from gramps.gen.config import config
 from gramps.gen.const import GRAMPS_LOCALE
+from gramps.gen.datehandler import get_date_formats
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.db.dbconst import DBBACKEND
 from gramps.gen.db.exceptions import DbUpgradeRequiredError
@@ -391,9 +393,12 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
 
 
 def get_locale_for_language(
-    language: Optional[str], default: bool = False
+    language: Optional[str],
+    default: bool = False,
+    date_format: Optional[int] = None,
 ) -> GrampsLocale:
     """Get GrampsLocale set to specified language."""
+    locale = None
     if language is not None:
         catalog = GRAMPS_LOCALE.get_language_dict()
         for entry in catalog:
@@ -402,10 +407,22 @@ def get_locale_for_language(
                 locale_code = LOCALE_MAP.get(language, language)
                 if "UTF" not in locale_code.upper():
                     locale_code = f"{locale_code}.UTF-8"
-                return GrampsLocale(lang=locale_code)
-    if default:
-        return GRAMPS_LOCALE
-    return None
+                locale = GrampsLocale(lang=locale_code)
+                break
+    if locale is None and default:
+        locale = GRAMPS_LOCALE
+    if locale is not None and date_format is not None:
+        if date_format < 0 or date_format >= len(get_date_formats(locale)):
+            abort_with_message(422, f"Invalid date_format for locale: {date_format}")
+        # GrampsLocale instances are cached; isolate the mutable date formatter
+        # so concurrent requests cannot change each other's output.
+        locale = copy.copy(locale)
+        locale.date_displayer = copy.copy(locale.date_displayer)
+        try:
+            locale.date_displayer.set_format(date_format)
+        except (IndexError, ValueError):
+            abort_with_message(422, f"Invalid date_format for locale: {date_format}")
+    return locale
 
 
 def get_buffer_for_file(filename: str, delete=True, not_found=False) -> BinaryIO:
