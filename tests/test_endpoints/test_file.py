@@ -27,7 +27,7 @@ from PIL import Image
 from gramps_webapi.const import MIME_AVIF
 
 from . import BASE_URL, get_test_client
-from .checks import check_requires_token, check_success
+from .checks import check_invalid_syntax, check_requires_token, check_success
 from .util import fetch_header
 
 TEST_URL = BASE_URL + "/media/"
@@ -185,6 +185,15 @@ class TestCropped(unittest.TestCase):
             # allow 1 px difference due to rounding
             self.assertAlmostEqual(img.width, 0.1 * full_img.width, delta=1)
             self.assertAlmostEqual(img.height, 0.2 * full_img.height, delta=1)
+
+    def test_get_cropped_invalid_region(self):
+        """Test that crop regions outside the image are rejected."""
+        handle = check_success(self, TEST_URL)[0]["handle"]
+        for region in ["0/0/1000/100", "0/0/100/1000", "20/0/10/100", "0/50/100/50"]:
+            for suffix in ["", "/thumbnail/100"]:
+                check_invalid_syntax(
+                    self, f"{TEST_URL}{handle}/cropped/{region}{suffix}"
+                )
 
     def test_get_cropped_with_checksum(self):
         """Test that the checksum query param is accepted and does not alter the response."""

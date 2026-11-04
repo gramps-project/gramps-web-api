@@ -75,11 +75,13 @@ def _fix_xmp(image: ImageType) -> None:
 
 
 def exif_transpose(image: ImageType) -> ImageType:
-    """Return a copy of the image rotated according to its EXIF orientation."""
+    """Rotate the image in place according to its EXIF orientation and return it.
+
+    Pillow's default returns a full copy even when no rotation is needed.
+    """
     _fix_xmp(image)
-    transposed = ImageOps.exif_transpose(image)
-    assert transposed is not None  # for type checker
-    return transposed
+    ImageOps.exif_transpose(image, in_place=True)
+    return image
 
 
 def open_image(fp: Union[BinaryIO, FilenameOrPath]) -> ImageType:
