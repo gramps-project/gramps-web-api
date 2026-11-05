@@ -22,7 +22,6 @@
 
 from __future__ import annotations
 
-import copy
 import io
 import json
 import logging
@@ -414,10 +413,13 @@ def get_locale_for_language(
     if locale is not None and date_format is not None:
         if date_format < 0 or date_format >= len(get_date_formats(locale)):
             abort_with_message(422, f"Invalid date_format for locale: {date_format}")
-        # GrampsLocale instances are cached; isolate the mutable date formatter
-        # so concurrent requests cannot change each other's output.
-        locale = copy.copy(locale)
-        locale.date_displayer = copy.copy(locale.date_displayer)
+        # GrampsLocale is cached by __new__, and copy.copy returns the cached
+        # instance. Clone its state directly to isolate the formatter.
+        date_displayer_type = type(locale.date_displayer)
+        locale_copy = object.__new__(GrampsLocale)
+        locale_copy.__dict__.update(locale.__dict__)
+        locale_copy._dd = date_displayer_type(date_format, blocale=locale_copy)
+        locale = locale_copy
         try:
             locale.date_displayer.set_format(date_format)
         except (IndexError, ValueError):
