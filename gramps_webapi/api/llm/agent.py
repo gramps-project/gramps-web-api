@@ -40,6 +40,11 @@ from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from .deps import AgentDeps
+from .propose import (
+    WRITE_PROPOSALS_PROMPT,
+    propose_change,
+    propose_delete,
+)
 from .tools import (
     filter_events,
     filter_families,
@@ -216,6 +221,7 @@ def create_agent(
     model_name: str,
     base_url: str | None = None,
     system_prompt_override: str | None = None,
+    allow_write_proposals: bool = False,
 ) -> Agent[AgentDeps, str]:
     """Create a Pydantic AI agent with the specified model.
 
@@ -229,6 +235,8 @@ def create_agent(
             model_name contains a provider prefix, except for "ollama:", where
             it takes precedence over the OLLAMA_BASE_URL environment variable.
         system_prompt_override: Optional override for the system prompt
+        allow_write_proposals: Whether to add the tools that propose changes,
+            and their instructions to the system prompt
 
     Returns:
         A configured Pydantic AI agent
@@ -253,6 +261,8 @@ def create_agent(
     system_prompt = system_prompt_override or SYSTEM_PROMPT_TEMPLATE.format(
         search_strategy=SEARCH_STRATEGY_FULLTEXT
     )
+    if allow_write_proposals:
+        system_prompt += WRITE_PROPOSALS_PROMPT
 
     agent = Agent(
         model,
@@ -270,4 +280,9 @@ def create_agent(
     agent.tool(filter_people)
     agent.tool(filter_events)
     agent.tool(filter_families)
+    if allow_write_proposals:
+        # invalid arguments are returned to the model, which may need a few
+        # attempts to get the format right
+        agent.tool(retries=3)(propose_change)
+        agent.tool(retries=3)(propose_delete)
     return agent
