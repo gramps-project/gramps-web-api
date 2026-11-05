@@ -138,6 +138,24 @@ def abort_if_higher_role(user_id: str) -> None:
         abort_with_message(403, "Not allowed to modify a user with a higher role")
 
 
+def abort_unless_lower_role(user_id: str) -> None:
+    """Abort unless the user has a strictly lower role than the requester.
+
+    Stricter than `abort_if_higher_role`, for setting another user's password
+    without their old one: that is an immediate login as them, while the
+    other edits allowed between equal roles (an e-mail address, say) still
+    need a reset e-mail before anyone can sign in.
+    """
+    message = "Not allowed to set the password of a user with an equal or higher role"
+    try:
+        role = get_role(str(user_id))
+        own_role = get_role(get_jwt_identity())
+    except ValueError:
+        abort_with_message(403, message)
+    if role >= own_role:
+        abort_with_message(403, message)
+
+
 def abort_if_local_auth_disabled() -> None:
     """Abort if local authentication is disabled.
 
@@ -330,6 +348,15 @@ class UserPutBodyArgs(Schema):
         required=False,
         metadata={"description": "Tree ID the user belongs to."},
     )
+    password = fields.Str(
+        required=False,
+        metadata={
+            "description": "A new password for another user, set without their old"
+            " one. Only for a user with a strictly lower role than yours, and not"
+            " for your own user (use the password change endpoint). Ends all of"
+            " the user's sessions."
+        },
+    )
 
 
 class UserPostBodyArgs(Schema):
@@ -401,8 +428,24 @@ class UserResource(UserChangeBase):
 
     @api_blueprint.arguments(UserPutBodyArgs, location="json")
     def put(self, args, user_name: str):
-        """Update a user's details."""
+        """Update a user's details.
+
+        With `password`, sets another user's password without their old one,
+        for example a service account's, and ends all of their sessions. The
+        response never carries the password.
+        """
         user_name, other_tree = self.prepare_edit(user_name)
+
+        if "password" in args:
+            user_id = get_guid(user_name)
+            if is_own_user(user_id):
+                abort_with_message(
+                    400, "Use the password change endpoint for your own password"
+                )
+            abort_if_local_auth_disabled()
+            if not args["password"]:
+                abort_with_message(400, "Empty password provided")
+            abort_unless_lower_role(user_id)
 
         if "name_new" in args:
             new_name = args["name_new"].strip()
@@ -460,6 +503,7 @@ class UserResource(UserChangeBase):
             modify_user(
                 name=user_name,
                 name_new=args.get("name_new"),
+                password=args.get("password"),
                 email=args.get("email"),
                 fullname=args.get("full_name"),
                 role=args.get("role"),
