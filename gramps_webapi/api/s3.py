@@ -20,7 +20,7 @@
 """Object storage (e.g. S3) handling utilities."""
 
 from io import BytesIO
-from typing import BinaryIO, Dict, Optional
+from typing import IO, BinaryIO, Dict, Optional
 
 from flask import current_app, redirect, send_file
 from gramps.gen.db.base import DbReadBase
@@ -210,7 +210,7 @@ class ObjectStorageFileHandler(FileHandler):
 
 def upload_file_s3(
     bucket_name: str,
-    stream: BinaryIO,
+    stream: IO[bytes],
     checksum: str,
     mime: str,
     prefix: Optional[str] = None,

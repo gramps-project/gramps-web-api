@@ -87,8 +87,13 @@ class PersonDnaMatchesResource(ProtectedResource):
             abort(404)
             raise AssertionError  # for type checker
 
-        db_handle.cache_people()
-        db_handle.cache_families()
+        # caching the whole tree is only worth it if there are matches to compute
+        if any(
+            association.get_relation() == "DNA"
+            for association in person.get_person_ref_list()
+        ):
+            db_handle.cache_people()
+            db_handle.cache_families()
 
         locale = get_locale_for_language(args["locale"], default=True)
 
