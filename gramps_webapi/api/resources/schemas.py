@@ -2338,6 +2338,34 @@ class RelationshipItemSchema(_Base):
     )
 
 
+class RelationshipPathStepSchema(_Base):
+    """One person on a chain of family links."""
+
+    handle = fields.Str(metadata={"description": "Handle of the person."})
+    link = fields.Str(
+        allow_none=True,
+        validate=validate.OneOf(["parent", "child", "spouse", "sibling"]),
+        metadata={
+            "description": "How the person is linked to the person before them (null for the first person)."
+        },
+    )
+    relationship_string = fields.Str(
+        allow_none=True,
+        metadata={
+            "description": "Relationship to the first person, or null when it has no name."
+        },
+    )
+
+
+class RelationshipPathSchema(_Base):
+    """A chain of family links between two people."""
+
+    steps = fields.List(
+        fields.Nested(RelationshipPathStepSchema),
+        metadata={"description": "The people on the path, starting with person 1."},
+    )
+
+
 class ObjectCountsSchema(_Base):
     """Counts of primary object types in the database."""
 
