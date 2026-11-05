@@ -38,7 +38,7 @@ from .api.tasks import send_email_confirm_email, send_email_reset_password
 from .types import ProgressCallback
 from .api.util import close_db, get_db_manager, list_trees
 from .app import create_app
-from .auth import add_user, delete_user, fill_tree, user_db
+from .auth import add_user, delete_user, fill_tree, get_guid, modify_user, user_db
 from .auth.const import ROLE_ADMIN
 from .const import ENV_CONFIG_FILE, TREE_MULTI
 from .dbmanager import WebDbManager
@@ -205,6 +205,27 @@ def user_add(ctx, name, password, fullname, email, role, tree):
     with app.app_context():
         user_db.create_all()
         add_user(name, password, fullname, email, role, tree)
+
+
+@user.command("set-password")
+@click.argument("name")
+@click.password_option(
+    help="The new password. Prompted for (hidden, twice) if not given, so that"
+    " it stays out of the shell history."
+)
+@click.pass_context
+def user_set_password(ctx, name, password):
+    """Set a user's password and end all of their sessions."""
+    app = ctx.obj["app"]
+    if not password:
+        raise click.UsageError("The password must not be empty.")
+    with app.app_context():
+        try:
+            get_guid(name)
+        except ValueError:
+            raise click.ClickException(f"User {name} does not exist.")
+        app.logger.info(f"Setting the password of user {name} ...")
+        modify_user(name=name, password=password)
 
 
 @user.command("delete")

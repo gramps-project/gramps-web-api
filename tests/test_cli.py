@@ -30,7 +30,7 @@ from gramps.gen.dbstate import DbState
 
 from gramps_webapi.__main__ import cli
 from gramps_webapi.app import create_app
-from gramps_webapi.auth import get_user_details
+from gramps_webapi.auth import User, authorized, get_user_details, user_db
 from gramps_webapi.const import ENV_CONFIG_FILE
 from gramps_webapi.dbmanager import WebDbManager
 
@@ -144,6 +144,104 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
             cli, ["--config", self.config_file.name, "user", "delete", "user"]
         )
         assert result.exception
+
+    def _token_version(self, name):
+        with self.app.app_context():
+            user = user_db.session.query(User).filter_by(name=name).one()
+            return user.token_version or 0
+
+    def test_set_password_prompted(self):
+        result = self.runner.invoke(
+            cli, ["--config", self.config_file.name, "user", "add", "pwUser1", "old"]
+        )
+        assert result.exit_code == 0
+        version = self._token_version("pwUser1")
+        # prompted twice with hidden input, so the password stays out of history
+        result = self.runner.invoke(
+            cli,
+            ["--config", self.config_file.name, "user", "set-password", "pwUser1"],
+            input="new\nnew\n",
+        )
+        assert result.exit_code == 0, result.output
+        assert "new" not in result.output
+        with self.app.app_context():
+            assert authorized("pwUser1", "new")
+            assert not authorized("pwUser1", "old")
+        # existing sessions end, as with any other password change
+        assert self._token_version("pwUser1") == version + 1
+
+    def test_set_password_prompt_mismatch(self):
+        result = self.runner.invoke(
+            cli, ["--config", self.config_file.name, "user", "add", "pwUser2", "old"]
+        )
+        assert result.exit_code == 0
+        result = self.runner.invoke(
+            cli,
+            ["--config", self.config_file.name, "user", "set-password", "pwUser2"],
+            input="new\nother\n",
+        )
+        # click asks again after a mismatch; with no more input it aborts
+        assert result.exit_code != 0
+        with self.app.app_context():
+            assert authorized("pwUser2", "old")
+
+    def test_set_password_option(self):
+        result = self.runner.invoke(
+            cli, ["--config", self.config_file.name, "user", "add", "pwUser3", "old"]
+        )
+        assert result.exit_code == 0
+        result = self.runner.invoke(
+            cli,
+            [
+                "--config",
+                self.config_file.name,
+                "user",
+                "set-password",
+                "pwUser3",
+                "--password",
+                "new",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        with self.app.app_context():
+            assert authorized("pwUser3", "new")
+
+    def test_set_password_empty(self):
+        result = self.runner.invoke(
+            cli, ["--config", self.config_file.name, "user", "add", "pwUser4", "old"]
+        )
+        assert result.exit_code == 0
+        result = self.runner.invoke(
+            cli,
+            [
+                "--config",
+                self.config_file.name,
+                "user",
+                "set-password",
+                "pwUser4",
+                "--password",
+                "",
+            ],
+        )
+        assert result.exit_code != 0
+        with self.app.app_context():
+            assert authorized("pwUser4", "old")
+
+    def test_set_password_unknown_user(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "--config",
+                self.config_file.name,
+                "user",
+                "set-password",
+                "noSuchUser",
+                "--password",
+                "new",
+            ],
+        )
+        assert result.exit_code != 0
+        assert "does not exist" in result.output
 
     def test_search_reindex_incremental(self):
         tree = WebDbManager(name=self.name).dirname
