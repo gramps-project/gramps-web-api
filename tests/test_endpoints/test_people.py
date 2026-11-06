@@ -394,34 +394,9 @@ class TestPeople(unittest.TestCase):
             if item["gender"] == 1:
                 self.assertLess(len(item["family_list"]), 2)
 
-    def test_get_people_parameter_gql_validate_semantics(self):
-        """Test invalid rules syntax."""
-        check_invalid_semantics(self, TEST_URL + "?gql=()")
-
-    def test_get_people_parameter_gql_handle(self):
-        """Test invalid rules syntax."""
-        rv = check_success(
-            self,
-            TEST_URL + "?gql=" + quote("gramps_id=I0044"),
-        )
-        assert len(rv) == 1
-        assert rv[0]["gramps_id"] == "I0044"
-
-    def test_get_people_parameter_gql_like(self):
-        """Test invalid rules syntax."""
-        rv = check_success(
-            self,
-            TEST_URL + "?gql=" + quote("gramps_id ~ I004"),
-        )
-        assert len(rv) == 10
-
-    def test_get_people_parameter_gql_or(self):
-        """Test invalid rules syntax."""
-        rv = check_success(
-            self,
-            TEST_URL + "?gql=" + quote("(gramps_id ~ I004 or gramps_id ~ I003)"),
-        )
-        assert len(rv) == 20
+    def test_get_people_parameter_gql_removed(self):
+        """Test the removed gql parameter is rejected."""
+        check_invalid_semantics(self, TEST_URL + "?gql=" + quote("gramps_id=I0044"))
 
     def test_get_people_parameter_oql_removed(self):
         """Test the removed oql parameter is rejected."""
