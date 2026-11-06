@@ -1199,6 +1199,26 @@ class TestPeopleHandle(unittest.TestCase):
         rv = check_success(self, TEST_URL + "GNUJQCL9MD64AM56OH?profile=self")
         self.assertEqual(rv["profile"]["addresses"], [{"date_str": "2000-01-02"}])
 
+    def test_get_people_handle_parameter_date_format(self):
+        """Test custom date formatting and request isolation."""
+        custom = check_success(
+            self, TEST_URL + "0PWJQCZYFXOS0HGREE?profile=self&date_format=1"
+        )
+        self.assertNotEqual(custom["profile"]["birth"]["date"], "1906-09-05")
+
+        default = check_success(self, TEST_URL + "0PWJQCZYFXOS0HGREE?profile=self")
+        self.assertEqual(default["profile"]["birth"]["date"], "1906-09-05")
+
+    def test_get_people_handle_parameter_date_format_german_locale(self):
+        """Test German date formats use German indices and numeric formatting."""
+        base_url = TEST_URL + "0PWJQCZYFXOS0HGREE?profile=self&locale=de"
+
+        numeric = check_success(self, base_url + "&date_format=1")
+        self.assertEqual(numeric["profile"]["birth"]["date"], "5.9.1906")
+
+        padded_numeric = check_success(self, base_url + "&date_format=6")
+        self.assertEqual(padded_numeric["profile"]["birth"]["date"], "05.09.1906")
+
     def test_get_people_handle_parameter_profile_expected_result_age(self):
         """Test profile parameter age option."""
         rv = check_success(self, TEST_URL + "0PWJQCZYFXOS0HGREE?profile=age")

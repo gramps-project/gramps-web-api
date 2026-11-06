@@ -77,7 +77,7 @@ def _preserve_date_format():
 
     Gramps changes the format of the report locale's date displayer when
     building the date format option and when running a report. For the
-    default language, that is the date displayer used by all API responses.
+    default language, this is shared with API code using the global locale.
     """
     date_displayer = glocale.date_displayer
     date_format = date_displayer.format

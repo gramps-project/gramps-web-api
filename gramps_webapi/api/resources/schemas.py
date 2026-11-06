@@ -1,9 +1,10 @@
-"""Response schemas for the Gramps Web API.
+"""Shared request and response schemas for the Gramps Web API.
 
-Each class defines the shape of a response object and is used exclusively for
-OpenAPI documentation via flask-smorest ``@api_blueprint.response()``; they do
-**not** perform serialisation because most endpoints return a pre-built Flask
-``Response`` object that flask-smorest passes through unchanged.
+Response schemas define the shape of a response object and are used exclusively
+for OpenAPI documentation via flask-smorest ``@api_blueprint.response()``; they
+do **not** perform serialisation because most endpoints return a pre-built Flask
+``Response`` object that flask-smorest passes through unchanged. Reusable request
+schemas define and validate query arguments.
 
 All schemas set ``Meta.unknown = INCLUDE`` so that no data is silently dropped
 if one of these schemas is accidentally used for de-serialisation, and to avoid
@@ -29,6 +30,21 @@ class _Base(Schema):
 
     class Meta:
         unknown = INCLUDE
+
+
+class DateFormatQueryArgs(Schema):
+    """Query argument for choosing a Gramps date display format."""
+
+    date_format = fields.Integer(
+        load_default=0,
+        validate=validate.Range(min=0),
+        metadata={
+            "description": (
+                "Gramps date format index. 0 is ISO YYYY-MM-DD; "
+                "higher values select locale-specific formats."
+            )
+        },
+    )
 
 
 def validate_push_endpoint(value: str) -> str:

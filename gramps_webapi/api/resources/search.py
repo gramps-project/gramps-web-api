@@ -52,7 +52,7 @@ from ..util import (
 )
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
-from .schemas import SearchResultSchema
+from .schemas import DateFormatQueryArgs, SearchResultSchema
 from .util import (
     abort_with_message,
     get_citation_profile_for_object,
@@ -65,7 +65,7 @@ from .util import (
 )
 
 
-class SearchQueryArgs(Schema):
+class SearchQueryArgs(DateFormatQueryArgs):
     """Query arguments for GET /search/."""
 
     locale = fields.Str(
@@ -230,7 +230,9 @@ class SearchResource(GrampsJSONEncoder, ProtectedResource):
             change_op = None
             change_value = None
 
-        locale = get_locale_for_language(args["locale"], default=True)
+        locale = get_locale_for_language(
+            args["locale"], default=True, date_format=args["date_format"]
+        )
         total, hits = searcher.search(
             query=args["query"],
             page=args["page"],

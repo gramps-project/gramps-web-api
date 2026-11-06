@@ -232,6 +232,14 @@ class TestTimelinesPeople(unittest.TestCase):
         rv = check_success(self, TEST_URL + "people/?anchor=GNUJQCL9MD64AM56OH&first=0")
         self.assertEqual(rv[0]["date"], "5")
 
+    def test_get_timelines_people_parameter_date_format(self):
+        """Test timeline dates use the requested Gramps format."""
+        rv = check_success(
+            self,
+            TEST_URL + "people/?anchor=GNUJQCL9MD64AM56OH&date_format=1",
+        )
+        self.assertNotEqual(rv[0]["date"], "1855-06-21")
+
     def test_get_timelines_people_parameter_last_validate_semantics(self):
         """Test invalid last parameter and values."""
         check_invalid_semantics(

@@ -53,6 +53,7 @@ from ..util import (
 from . import Resource
 from .access_tokens import get_active_user_from_access_token
 from .filters import apply_filter, get_custom_filters
+from .schemas import DateFormatQueryArgs
 from .util import get_family_name_localized
 
 # Bump this when the ICS representation changes so old server cache entries expire.
@@ -498,7 +499,7 @@ def _build_ics(
     return "\r\n".join(_fold_ics_line(line) for line in lines) + "\r\n"
 
 
-class AnniversariesIcsQueryArgs(Schema):
+class AnniversariesIcsQueryArgs(DateFormatQueryArgs):
     """Query arguments for GET /anniversaries.ics.
 
     Exact dates with a known day and month are included. Annual recurrence
@@ -596,7 +597,9 @@ class AnniversariesIcsResource(Resource):
 
         permissions = get_permissions(username=user.name, tree=tree_id)
         view_private = PERM_VIEW_PRIVATE in permissions
-        locale = get_locale_for_language(args["locale"], default=True)
+        locale = get_locale_for_language(
+            args["locale"], default=True, date_format=args["date_format"]
+        )
         tree_name = get_db_manager(tree_id).name
         timestamp = get_db_last_change_timestamp(tree_id)
         current_year = datetime.now(timezone.utc).year
