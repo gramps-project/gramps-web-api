@@ -582,7 +582,7 @@ def get_event_profile_for_object(
 
 
 def get_place_name_for_event(db_handle: DbReadBase, event: Event) -> str:
-    """Get place name for an event."""
+    """Get the name a place had at the date of an event."""
     place_handle = event.get_place_handle()
     if not place_handle:
         return ""
@@ -592,10 +592,23 @@ def get_place_name_for_event(db_handle: DbReadBase, event: Event) -> str:
         return ""
     if not place:
         return ""
-    place_name = place.get_name()
-    if not place_name:
-        return ""
-    return place_name.value
+    return get_place_name_at_date(place, event.get_date_object())
+
+
+def get_place_name_at_date(place: Place, date: Date) -> str:
+    """Get the name of a place valid at a date.
+
+    Follows Gramps' place display: the first name, in order, that has no date
+    or whose date matches. If none does, or if the date is empty, the primary
+    name is used.
+    """
+    primary = place.get_name()
+    if not date.is_empty():
+        for place_name in place.get_all_names():
+            name_date = place_name.get_date_object()
+            if name_date.is_empty() or date.match_exact(name_date):
+                return place_name.get_value()
+    return primary.get_value() if primary else ""
 
 
 def get_event_profile_for_handle(
