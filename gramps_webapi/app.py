@@ -35,6 +35,7 @@ from gramps.gen.config import set as setconfig
 from gramps.gen.db.utils import get_dbid_from_path
 from gramps.gen.errors import HandleError
 from PIL import Image
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .api import api_blueprint
 from .api.cache import persistent_cache, request_cache, thumbnail_cache
@@ -111,6 +112,13 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
     for option in required_options:
         if not app.config.get(option):
             raise ValueError(f"{option} must be specified")
+
+    # trust X-Forwarded-For from this many reverse proxies, so that
+    # request.remote_addr (used e.g. as rate limiting key) is the client's IP
+    if proxy_fix_x_for := int(app.config.get("PROXY_FIX_X_FOR") or 0):
+        app.wsgi_app = ProxyFix(  # type: ignore[method-assign]
+            app.wsgi_app, x_for=proxy_fix_x_for
+        )
 
     # pin the driver once, so every user of the config gets psycopg2
     app.config["USER_DB_URI"] = pin_postgres_driver(app.config["USER_DB_URI"])

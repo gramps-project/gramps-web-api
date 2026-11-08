@@ -52,6 +52,9 @@ class DefaultConfig(object):
     EMAIL_USE_STARTTLS = None
     DEFAULT_FROM_EMAIL = ""
     BASE_URL = "http://localhost/"
+    # number of trusted reverse proxies setting X-Forwarded-For; only set this
+    # if the app is reachable exclusively through them, else IPs can be spoofed
+    PROXY_FIX_X_FOR = 0
     CORS_EXPOSE_HEADERS = ["X-Total-Count"]
     STATIC_PATH = "static"
     REQUEST_CACHE_CONFIG = {
