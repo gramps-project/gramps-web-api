@@ -366,7 +366,7 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
             PEOPLE_QUERY_URL,
             {
                 "select": ["handle", "birth.place.title"],
-                "order_by": ["birth.place.title desc"],
+                "order_by": ["-birth.place.title"],
             },
         )
         self.assertEqual(

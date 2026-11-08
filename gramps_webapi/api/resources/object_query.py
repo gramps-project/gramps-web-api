@@ -149,9 +149,9 @@ class QueryBodyArgs(Schema):
         metadata={
             "description": "Sort order, most significant first. Each entry is a "
             "column written as in 'select' -- a column name ('surname'), a path "
-            "('birth.date.sortval'), or count(...)/len(...) -- optionally "
-            "followed by 'asc' or 'desc' (default 'asc'), e.g. "
-            "['surname', 'birth.date.sortval desc']. Note the cost: flat columns "
+            "('birth.date.sortval'), or count(...)/len(...) -- sorted ascending, "
+            "or descending with a leading '-', e.g. "
+            "['surname', '-birth.date.sortval']. Note the cost: flat columns "
             "like 'surname' and 'given_name' are indexed, while nothing indexes "
             "inside a record, so sorting by a path reads and parses every row "
             "in the tree, and a relationship path ('birth.date.sortval') adds a "
@@ -214,7 +214,7 @@ def _parse_select_entry(raw: str, spec: ObjectTypeSpec) -> Tuple[SelectRef, str]
 
 def _parse_order_by(args: dict, spec: ObjectTypeSpec) -> Sequence[OrderBy]:
     """Parse the `order_by` strings with GOQL's `parse_order_by`. A sort
-    column may be a path (`birth.date.sortval desc`), resolved exactly as
+    column may be a path (`-birth.date.sortval`), resolved exactly as
     the same text is in `select`; an unknown one raises here.
     """
     try:

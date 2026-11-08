@@ -232,7 +232,7 @@ def _combo_where_filtered_and_sorted(column):
 def _combo_order_by_handle_desc(column):
     return {
         "select": ["handle", column],
-        "order_by": ["handle desc"],
+        "order_by": ["-handle"],
     }
 
 

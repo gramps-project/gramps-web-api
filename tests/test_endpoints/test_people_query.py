@@ -911,10 +911,12 @@ class TestPeopleQuery(unittest.TestCase):
             self.assertEqual(rv.status_code, 200, rv.json)
             return [item["handle"] for item in rv.json["items"]]
 
-        self.assertEqual(handles(["handle"]), handles(["handle asc"]))
-        self.assertEqual(handles(["handle DESC"]), handles(["handle desc"]))
-        self.assertNotEqual(handles(["handle"]), handles(["handle desc"]))
-        for bad in ["surname as s", "surname sideways", "gender > 1"]:
+        ascending = handles(["handle"])
+        descending = handles(["-handle"])
+        self.assertEqual(ascending, sorted(ascending))
+        self.assertEqual(descending, sorted(descending, reverse=True))
+        self.assertNotEqual(ascending, descending)
+        for bad in ["surname as s", "surname desc", "--surname", "gender > 1"]:
             rv = self.client.post(TEST_URL, json={"order_by": [bad]}, headers=header)
             self.assertEqual(rv.status_code, 422, bad)
 
