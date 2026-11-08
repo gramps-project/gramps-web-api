@@ -2247,8 +2247,11 @@ def run_import(
             if delete:
                 os.remove(file_name)
             if not result:
+                # The importers report unreadable input (corrupt file, invalid
+                # XML, unsupported version) via notify_error and an empty
+                # result, so this is the client's file, not a server fault.
                 abort_with_message(
-                    500, "\n\n".join(["Import failed", *user.error_messages])
+                    422, "\n\n".join(["Import failed", *user.error_messages])
                 )
             return truncate_import_report(user.error_messages + user.info_messages)
     return []

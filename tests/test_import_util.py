@@ -668,6 +668,30 @@ class TestImportErrorReported(unittest.TestCase):
             if os.path.exists(temp_file):
                 os.unlink(temp_file)
 
+    def test_invalid_gramps_xml_returns_422(self):
+        """A file the importer cannot read is a client error, not a 500."""
+        # XML declaration not at the start of the file
+        content = (
+            b'\n<?xml version="1.0" encoding="UTF-8"?>\n'
+            b'<database xmlns="http://gramps-project.org/xml/1.7.1/"></database>\n'
+        )
+        with tempfile.NamedTemporaryFile(suffix=".gramps", delete=False) as f:
+            f.write(content)
+            temp_file = f.name
+        try:
+            with APP.app_context():
+                with self.assertRaises(HTTPException) as context:
+                    dry_run_import(file_name=temp_file, extension="gramps")
+            self.assertEqual(context.exception.code, 422)
+            response = context.exception.response
+            assert response is not None
+            message = response.get_json()["error"]["message"]
+            self.assertIn("Import failed", message)
+            self.assertIn("XML or text declaration", message)
+        finally:
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
+
     def test_recoverable_error_does_not_fail_import(self):
         """An error the importer recovered from is reported, not raised."""
         content = (
