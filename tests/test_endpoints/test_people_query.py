@@ -238,6 +238,92 @@ class TestPeopleQuery(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 422)
 
+    def _some_handles(self, header, n):
+        rv = self.client.post(
+            TEST_URL,
+            json={
+                "select": ["handle"],
+                "order_by": [{"column": "handle", "direction": "asc"}],
+                "limit": n,
+            },
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 200)
+        return [item["handle"] for item in rv.json["items"]]
+
+    def _env_query(self, header, where_expr, env, **extra):
+        return self.client.post(
+            TEST_URL,
+            json={"select": ["handle"], "where_expr": where_expr, "env": env, **extra},
+            headers=header,
+        )
+
+    def test_env_single_value(self):
+        header = fetch_header(self.client)
+        handle = self._some_handles(header, 1)[0]
+        rv = self._env_query(header, "handle == Env.HOME_PERSON", {"HOME_PERSON": handle})
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual([i["handle"] for i in rv.json["items"]], [handle])
+
+    def test_env_list_and_empty_list(self):
+        header = fetch_header(self.client)
+        handles = self._some_handles(header, 3)
+        rv = self._env_query(header, "handle in Env.BOOKMARKS", {"BOOKMARKS": handles})
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(sorted(i["handle"] for i in rv.json["items"]), sorted(handles))
+        rv = self._env_query(header, "handle in Env.BOOKMARKS", {"BOOKMARKS": []})
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.json["items"], [])
+        rv = self._env_query(
+            header, "handle not in Env.BOOKMARKS", {"BOOKMARKS": []}, count=True
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(int(rv.headers["X-Total-Count"]), get_object_count("people"))
+
+    def test_env_value_with_quotes_is_not_parsed(self):
+        header = fetch_header(self.client)
+        rv = self._env_query(
+            header, "surname == Env.NAME", {"NAME": "x' or handle != '"}
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.json["items"], [])
+
+    def test_env_errors_are_422(self):
+        header = fetch_header(self.client)
+        cases = [
+            ("handle == Env.HOME", None, "unknown Env value"),
+            ("handle == Env.HOME", {"OTHER": "x"}, "Env.OTHER"),
+            ("handle == Env.BOOKMARKS", {"BOOKMARKS": ["a"]}, "is a list"),
+            ("handle in Env.HOME", {"HOME": "a"}, "is a single value"),
+            ("handle == Env.HOME", {"HOME": {"a": 1}}, "must be a string"),
+            ("handle == Env", {}, "needs a name"),
+        ]
+        for where_expr, env, message in cases:
+            with self.subTest(where_expr=where_expr, env=env):
+                rv = self._env_query(header, where_expr, env)
+                self.assertEqual(rv.status_code, 422)
+                self.assertIn(message, str(rv.json))
+
+    def test_env_on_the_proxied_path(self):
+        header = fetch_header(self.client)
+        handles = self._some_handles(header, 2)
+
+        def fake_get_db_handle(readonly=True):
+            db = get_db_handle(readonly=readonly)
+            base = db.basedb if isinstance(db, ProxyDbBase) else db
+            return _FakeNonPrivateProxy(base)
+
+        with patch(
+            "gramps_webapi.api.resources.object_query.get_db_handle",
+            side_effect=fake_get_db_handle,
+        ):
+            rv = self._env_query(header, "handle in Env.SELECTION", {"SELECTION": handles})
+            self.assertEqual(rv.status_code, 200)
+            self.assertEqual(sorted(i["handle"] for i in rv.json["items"]), sorted(handles))
+            rv = self._env_query(header, "handle in Env.SELECTION", {"SELECTION": []})
+            self.assertEqual(rv.status_code, 200)
+            self.assertEqual(rv.json["items"], [])
+
     def test_order_by_surname_is_sorted(self):
         header = fetch_header(self.client)
         rv = self.client.post(

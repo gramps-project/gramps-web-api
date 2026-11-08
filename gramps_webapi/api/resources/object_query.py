@@ -153,6 +153,21 @@ class QueryBodyArgs(Schema):
             "Omitted, every row is returned."
         },
     )
+    env = wf.Dict(
+        keys=wf.Str(),
+        values=wf.Raw(allow_none=True),
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Values for `Env.NAME` references in `where_expr`, "
+            "e.g. {'HOME_PERSON': '<handle>', 'BOOKMARKS': ['<handle>', ...]} "
+            "for \"handle == Env.HOME_PERSON or handle in Env.BOOKMARKS\". "
+            "Each value is a string, number, boolean, null, or a list of those "
+            "(used with `in`). The names are up to the client: the server "
+            "defines none of its own, and passes these through unchanged. An "
+            "`Env.NAME` with no value here is rejected."
+        },
+    )
     order_by = wf.List(
         wf.Nested(QueryOrderByArgs),
         required=False,
@@ -229,7 +244,8 @@ def _check_no_duplicate_keys(parsed_select: Sequence[Tuple[SelectRef, str]]) -> 
 
 
 def _build_where(args: dict, spec: ObjectTypeSpec):
-    """Compile `where_expr`, if given, into a `query.py` WHERE expression.
+    """Compile `where_expr`, if given, into a `query.py` WHERE expression,
+    with `env` supplying its `Env.NAME` values.
 
     The parsing and translation are all GOQL's (`compile_expr_for_spec`);
     the endpoint already knows its own type from `self.spec`, so the client
@@ -239,7 +255,7 @@ def _build_where(args: dict, spec: ObjectTypeSpec):
     if not where_expr:
         return None
     try:
-        return compile_expr_for_spec(spec, where_expr)
+        return compile_expr_for_spec(spec, where_expr, env=args.get("env"))
     except (QueryLangError, QueryError) as error:
         abort_with_message(422, str(error))
 
