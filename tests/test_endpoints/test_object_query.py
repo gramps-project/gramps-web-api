@@ -174,7 +174,7 @@ class TestObjectQueryMedia(unittest.TestCase):
             BASE_URL + "/media/query/",
             json={
                 "select": ["handle"],
-                "where": [{"column": "desc", "op": "ne", "value": ""}],
+                "where_expr": "desc != ''",
                 "limit": 1000,
             },
             headers=header,
@@ -224,7 +224,7 @@ def _combo_where_filtered_and_sorted(column):
     # covered elsewhere (e.g. test_private_people_excluded_without_permission).
     return {
         "select": ["handle", column],
-        "where": [{"column": "handle", "op": "ne", "value": "does-not-exist"}],
+        "where_expr": "handle != 'does-not-exist'",
         "order_by": [{"column": column, "direction": "asc"}],
     }
 

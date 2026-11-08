@@ -31,8 +31,6 @@ import pytest
 from gramps.plugins.db.dbapi.sqlite import SQLite
 from werkzeug.exceptions import HTTPException
 
-from marshmallow import ValidationError
-
 from gramps_object_query_language.query import (
     EVENT,
     FAMILY,
@@ -53,135 +51,19 @@ from gramps_object_query_language.query import (
     Query,
     QueryError,
     RelatedObject,
-    Regex,
     compile_count_query,
     compile_query,
     default_ref_key,
     resolve_column_path,
 )
-from gramps_object_query_language.query_lang import VALID_LEAF_OPS
 from gramps_webapi.api.resources.object_query import (
-    QueryExistsPayloadArgs,
-    QueryWhereConditionArgs,
     _build_where,
     _check_no_duplicate_keys,
-    _parse_column_ref,
     _parse_select_entry,
     _resolve_after,
     _resolve_dialect,
     _resolve_treeid,
-    _resolve_where_conditions,
 )
-
-
-# --- _parse_column_ref -------------------------------------------------------
-
-
-def test_parse_column_ref_plain_string():
-    assert _parse_column_ref("gramps_id", PERSON) == "gramps_id"
-
-
-def test_parse_column_ref_json_path():
-    ref = _parse_column_ref({"json_path": ["primary_name", "first_name"]}, PERSON)
-    assert ref == JsonPath(("primary_name", "first_name"))
-
-
-def test_parse_column_ref_relationship_crossing_path():
-    ref = _parse_column_ref({"json_path": ["birth", "date", "sortval"]}, PERSON)
-    assert ref == resolve_column_path(PERSON, ["birth", "date", "sortval"])
-    assert isinstance(ref, RelatedObject)
-
-
-def test_parse_column_ref_family_father_surname():
-    ref = _parse_column_ref({"json_path": ["father", "surname"]}, FAMILY)
-    assert ref == resolve_column_path(FAMILY, ["father", "surname"])
-
-
-def test_parse_column_ref_rejects_non_str_non_dict():
-    with pytest.raises(QueryError):
-        _parse_column_ref(123, PERSON)
-
-
-def test_parse_column_ref_rejects_dict_without_json_path_key():
-    with pytest.raises(QueryError):
-        _parse_column_ref({"column": "gramps_id"}, PERSON)
-
-
-def test_parse_column_ref_rejects_non_list_json_path():
-    with pytest.raises(QueryError):
-        _parse_column_ref({"json_path": "primary_name.first_name"}, PERSON)
-
-
-def test_parse_column_ref_rejects_empty_json_path():
-    with pytest.raises(QueryError):
-        _parse_column_ref({"json_path": []}, PERSON)
-
-
-def test_parse_column_ref_rejects_bad_segment_type():
-    # Bubbles up from JsonPath.__post_init__ -- bool disguised as int, float,
-    # None, nested list, etc. are all rejected there.
-    with pytest.raises(QueryError):
-        _parse_column_ref({"json_path": ["primary_name", True]}, PERSON)
-    with pytest.raises(QueryError):
-        _parse_column_ref({"json_path": ["primary_name", 1.5]}, PERSON)
-
-
-def test_parse_column_ref_rejects_bare_relationship_name():
-    # "birth" alone isn't a value -- needs a further path (resolve_column_path).
-    with pytest.raises(QueryError):
-        _parse_column_ref({"json_path": ["birth"]}, PERSON)
-
-
-def test_parse_column_ref_count_of():
-    # count(events) > 2's column side -- previously only reachable via
-    # where_expr (which bypasses _parse_column_ref entirely); this is the
-    # regression test for that gap.
-    ref = _parse_column_ref({"count_of": {"relationship": "events"}}, PERSON)
-    assert isinstance(ref, CollectionCount)
-    assert ref.collection.name == "events"
-    assert ref.condition is None
-
-
-def test_parse_column_ref_count_of_with_where():
-    ref = _parse_column_ref(
-        {
-            "count_of": {
-                "relationship": "events",
-                "where": [{"column": {"json_path": ["type", "value"]}, "op": "eq", "value": 12}],
-            }
-        },
-        PERSON,
-    )
-    assert isinstance(ref, CollectionCount)
-    assert isinstance(ref.condition, Eq)
-
-
-def test_parse_column_ref_rejects_count_of_missing_relationship():
-    with pytest.raises(QueryError):
-        _parse_column_ref({"count_of": {}}, PERSON)
-
-
-def test_parse_column_ref_rejects_count_of_non_list_where():
-    with pytest.raises(QueryError):
-        _parse_column_ref(
-            {"count_of": {"relationship": "events", "where": "not-a-list"}}, PERSON
-        )
-
-
-def test_parse_column_ref_rejects_count_of_malformed_nested_leaf():
-    # The same value/value_column XOR check a top-level `where` leaf gets --
-    # count_of's nested `where` is just as untrusted (select/order_by have
-    # no schema shape at all), so it needs the same guard.
-    with pytest.raises(HTTPException):
-        _parse_column_ref(
-            {
-                "count_of": {
-                    "relationship": "events",
-                    "where": [{"column": "gramps_id", "op": "eq"}],
-                }
-            },
-            PERSON,
-        )
 
 
 # --- default_ref_key (moved into the library; see gramps_object_query_language) ---
@@ -232,73 +114,48 @@ def test_parse_select_entry_plain_string():
     assert _parse_select_entry("surname", PERSON) == ("surname", "surname")
 
 
-def test_parse_select_entry_json_path_without_alias_uses_derived_key():
-    ref, key = _parse_select_entry(
-        {"json_path": ["primary_name", "surname_list", 0, "surname"]}, PERSON
-    )
+def test_parse_select_entry_path_uses_its_own_text_as_key():
+    ref, key = _parse_select_entry("primary_name.surname_list[0].surname", PERSON)
     assert ref == JsonPath(("primary_name", "surname_list", 0, "surname"))
     assert key == "primary_name.surname_list[0].surname"
 
 
-def test_parse_select_entry_json_path_with_alias():
-    ref, key = _parse_select_entry(
-        {"json_path": ["primary_name", "first_name"], "as": "first"}, PERSON
-    )
+def test_parse_select_entry_path_with_alias():
+    ref, key = _parse_select_entry("primary_name.first_name as first", PERSON)
     assert ref == JsonPath(("primary_name", "first_name"))
     assert key == "first"
 
 
-def test_parse_select_entry_rejects_handle_alias_on_json_path():
-    # The response's "handle" key is load-bearing for next_after -- letting a
-    # client shadow it with unrelated JSON content would corrupt pagination
+def test_parse_select_entry_rejects_handle_alias():
+    # The response's "handle" key is what next_after is read from --
+    # letting a client shadow it with other content would break pagination
     # silently.
     with pytest.raises(QueryError):
-        _parse_select_entry(
-            {"json_path": ["primary_name", "first_name"], "as": "handle"}, PERSON
-        )
+        _parse_select_entry("primary_name.first_name as handle", PERSON)
+    with pytest.raises(QueryError):
+        _parse_select_entry("count(events) as handle", PERSON)
 
 
 def test_parse_select_entry_plain_handle_column_is_fine():
     assert _parse_select_entry("handle", PERSON) == ("handle", "handle")
 
 
-def test_parse_select_entry_rejects_invalid_shape():
+def test_parse_select_entry_rejects_unknown_field():
     with pytest.raises(QueryError):
-        _parse_select_entry(123, PERSON)
+        _parse_select_entry("no_such_field", PERSON)
 
 
-def test_parse_select_entry_count_of_with_alias():
-    ref, key = _parse_select_entry(
-        {"count_of": {"relationship": "events"}, "as": "event_count"}, PERSON
-    )
+def test_parse_select_entry_count_with_alias():
+    ref, key = _parse_select_entry("count(events) as event_count", PERSON)
     assert isinstance(ref, CollectionCount)
     assert key == "event_count"
 
 
-def test_parse_select_entry_count_of_requires_alias():
-    # Unlike json_path, there's no natural dotted-name default to derive.
-    with pytest.raises(QueryError):
-        _parse_select_entry({"count_of": {"relationship": "events"}}, PERSON)
-
-
-def test_parse_select_entry_count_of_rejects_handle_alias():
-    with pytest.raises(QueryError):
-        _parse_select_entry(
-            {"count_of": {"relationship": "events"}, "as": "handle"}, PERSON
-        )
-
-
-def test_parse_select_entry_relationship_crossing_default_key():
-    ref, key = _parse_select_entry({"json_path": ["birth", "date"]}, PERSON)
+def test_parse_select_entry_relationship_crossing():
+    ref, key = _parse_select_entry("birth.date", PERSON)
     assert isinstance(ref, RelatedObject)
     assert key == "birth.date"
-
-
-def test_parse_select_entry_relationship_crossing_with_alias():
-    ref, key = _parse_select_entry(
-        {"json_path": ["father", "surname"], "as": "father_surname"}, FAMILY
-    )
-    assert key == "father_surname"
+    assert _parse_select_entry("father.surname as father_surname", FAMILY)[1] == "father_surname"
 
 
 # --- _check_no_duplicate_keys --------------------------------------------------
@@ -496,584 +353,67 @@ def test_resolve_after_compiles_a_path_sort_column():
     assert sql.count("?") == len(params)
 
 
-# --- _resolve_where_conditions (where / where_expr mutual exclusivity) ----------
-
-
-def test_resolve_where_conditions_plain_where_passthrough():
-    conditions = [{"column": "gender", "op": "eq", "value": 1}]
-    assert _resolve_where_conditions({"where": conditions}, PERSON) == conditions
-
-
-def test_resolve_where_conditions_neither_given_returns_none():
-    assert _resolve_where_conditions({}, PERSON) is None
-
-
-def test_resolve_where_conditions_where_expr_parsed_against_spec():
-    result = _resolve_where_conditions({"where_expr": "gender == 1"}, PERSON)
-    assert result == [{"column": "gender", "op": "eq", "value": 1}]
-
-
-def test_resolve_where_conditions_where_expr_json_path():
-    result = _resolve_where_conditions(
-        {"where_expr": "primary_name.surname_list[0].surname == 'Smith'"}, PERSON
-    )
-    assert result == [
-        {
-            "column": {"json_path": ["primary_name", "surname_list", 0, "surname"]},
-            "op": "eq",
-            "value": "Smith",
-        }
-    ]
-
-
-def test_resolve_where_conditions_both_given_rejected():
-    with pytest.raises(HTTPException) as exc_info:
-        _resolve_where_conditions(
-            {"where": [{"column": "gender", "op": "eq", "value": 1}], "where_expr": "gender == 1"},
-            PERSON,
-        )
-    assert exc_info.value.code == 422
-
-
-def test_resolve_where_conditions_where_expr_or_group():
-    # `or` (and `not`) compile to a nested {"or": [...]}/{"not": ...} node
-    # rather than a QueryLangError -- see _build_where's "or"/"not" tests
-    # below for what happens to this shape next.
-    result = _resolve_where_conditions({"where_expr": "gender == 1 or gender == 2"}, PERSON)
-    assert result == [
-        {
-            "or": [
-                {"column": "gender", "op": "eq", "value": 1},
-                {"column": "gender", "op": "eq", "value": 2},
-            ]
-        }
-    ]
-
-
-# --- _build_where: value / value_column (field-vs-field comparisons) -----------
-
-
-def test_build_where_field_vs_field():
-    conditions = [
-        {
-            "column": {"json_path": ["mother", "death", "date", "sortval"]},
-            "op": "lt",
-            "value_column": {"json_path": ["father", "death", "date", "sortval"]},
-        }
-    ]
-    where = _build_where(conditions, FAMILY)
-    assert where.column == resolve_column_path(
-        FAMILY, ["mother", "death", "date", "sortval"]
-    )
-    assert where.value == resolve_column_path(
-        FAMILY, ["father", "death", "date", "sortval"]
-    )
-
-
-def test_build_where_both_value_and_value_column_rejected():
-    conditions = [
-        {"column": "gramps_id", "op": "eq", "value": "F1", "value_column": {"json_path": ["father", "surname"]}}
-    ]
-    with pytest.raises(HTTPException) as exc_info:
-        _build_where(conditions, FAMILY)
-    assert exc_info.value.code == 422
-
-
-def test_build_where_neither_value_nor_value_column_rejected():
-    conditions = [{"column": "gramps_id", "op": "eq"}]
-    with pytest.raises(HTTPException) as exc_info:
-        _build_where(conditions, FAMILY)
-    assert exc_info.value.code == 422
-
-
-def test_build_where_value_column_rejected_for_in():
-    conditions = [
-        {"column": "gramps_id", "op": "in", "value_column": {"json_path": ["father", "surname"]}}
-    ]
-    with pytest.raises(HTTPException) as exc_info:
-        _build_where(conditions, FAMILY)
-    assert exc_info.value.code == 422
-
-
-def test_build_where_value_column_rejected_for_like():
-    conditions = [
-        {"column": "gramps_id", "op": "like", "value_column": {"json_path": ["father", "surname"]}}
-    ]
-    with pytest.raises(HTTPException) as exc_info:
-        _build_where(conditions, FAMILY)
-    assert exc_info.value.code == 422
-
-
-def test_build_where_value_column_rejected_for_regex():
-    # A pattern only known at row-execution time can't be validated as a
-    # compilable regex ahead of time, same reasoning as "in"/"like" above --
-    # this is the guard that keeps a hand-crafted raw `where` JSON leaf from
-    # reaching Regex(column, RelatedObject(...)) with no field-vs-field
-    # support of its own for this op.
-    conditions = [
-        {"column": "gramps_id", "op": "regex", "value_column": {"json_path": ["father", "surname"]}}
-    ]
-    with pytest.raises(HTTPException) as exc_info:
-        _build_where(conditions, FAMILY)
-    assert exc_info.value.code == 422
-
-
-def test_build_where_regex_with_plain_value_accepted():
-    # The value_column guard above is scoped to `value_column` specifically
-    # -- a plain literal pattern (the normal case) must still build fine.
-    conditions = [{"column": "gramps_id", "op": "regex", "value": "^F.*"}]
-    where = _build_where(conditions, FAMILY)
-    assert isinstance(where, Regex)
-    assert where.column == resolve_column_path(FAMILY, ["gramps_id"])
-    assert where.value == "^F.*"
-
-
-# --- _build_where: 'or'/'not' groups (from where_expr's "a or b"/"not a") ------
-
-
-def test_build_where_or_group():
-    conditions = [
-        {
-            "or": [
-                {"column": "gender", "op": "eq", "value": 1},
-                {"column": "gender", "op": "eq", "value": 2},
-            ]
-        }
-    ]
-    where = _build_where(conditions, PERSON)
-    assert isinstance(where, Or)
-    assert len(where.exprs) == 2
-    assert all(isinstance(e, Eq) and e.column == "gender" for e in where.exprs)
-    assert [e.value for e in where.exprs] == [1, 2]
-
-
-def test_build_where_not_group():
-    conditions = [{"not": {"column": "gender", "op": "eq", "value": 1}}]
-    where = _build_where(conditions, PERSON)
-    assert isinstance(where, Not)
-    assert isinstance(where.expr, Eq)
-    assert where.expr.column == "gender"
-    assert where.expr.value == 1
-
-
-def test_build_where_or_empty_rejected():
-    with pytest.raises(HTTPException) as exc_info:
-        _build_where([{"or": []}], PERSON)
-    assert exc_info.value.code == 422
-
-
-def test_build_where_nested_or_and_leaf():
-    # "gender == 1 and (surname == 'Smith' or surname == 'Jones')" --
-    # top-level list item 0 is a plain leaf, item 1 is an 'or' group; the
-    # two combine via the same implicit-AND _build_where already does for
-    # an all-leaf conditions list.
-    conditions = [
-        {"column": "gender", "op": "eq", "value": 1},
-        {
-            "or": [
-                {"column": "surname", "op": "eq", "value": "Smith"},
-                {"column": "surname", "op": "eq", "value": "Jones"},
-            ]
-        },
-    ]
-    where = _build_where(conditions, PERSON)
-    assert len(where.exprs) == 2
-    assert isinstance(where.exprs[0], Eq)
-    assert isinstance(where.exprs[1], Or)
-
-
-# --- _build_where: end-to-end via where_expr and via raw `where` JSON ---------
-#
-# These go through the real _resolve_where_conditions -> _build_where pair
-# together, the same as _post_sql. 'and'/'or'/'not'/'exists'/'count_of' used
-# to only be reachable via where_expr -- QueryWhereConditionArgs' schema
-# rejected them for a raw `where` body (a 422, "Unknown field: exists" etc.,
-# for *any* collection, not just a new one -- confirmed live against
-# test_build_where_exists() below before the schema was widened). That gap
-# is exactly how it went unnoticed for as long as it did: every test in this
-# section only ever exercised `_where()`/where_expr, so a regression on the
-# `where` side had nothing here to catch it. Every case below now goes
-# through `_assert_expr_and_where_agree`, which checks both paths produce
-# the *identical* AST, not just "both don't crash" -- see that helper's own
-# docstring.
+# --- _build_where: where_expr, compiled by GOQL --------------------------------
 
 
 def _where(expr: str, spec=PERSON):
-    return _build_where(_resolve_where_conditions({"where_expr": expr}, spec), spec)
+    return _build_where({"where_expr": expr}, spec)
 
 
-def _assert_expr_and_where_agree(expr: str, where_json: list, spec=PERSON):
-    """Asserts `where_expr` and the equivalent raw `where` JSON produce the
-    identical `query.py` AST, and returns it (so a caller can still make
-    its own assertions on the shape, same as `_where()`'s callers already
-    do). `where_json` is loaded through `QueryWhereConditionArgs` first
-    (`many=True`, matching how `QueryBodyArgs.where`'s own `wf.List(wf.Nested(
-    QueryWhereConditionArgs))` field loads a request body) rather than
-    handed to `_build_where` as a raw dict -- so this also exercises the
-    schema's own `attribute`/`data_key` mapping for `and`/`or`/`not`, not
-    just `_build_where`'s AST-building logic.
-    """
-    loaded = QueryWhereConditionArgs(many=True).load(where_json)
-    where_from_json = _build_where(loaded, spec)
-    where_from_expr = _where(expr, spec)
-    assert repr(where_from_json) == repr(where_from_expr), (
-        f"where={where_from_json!r} but where_expr={where_from_expr!r}"
-    )
-    return where_from_expr
+def test_build_where_none_without_where_expr():
+    assert _build_where({}, PERSON) is None
+    assert _build_where({"where_expr": None}, PERSON) is None
+    assert _build_where({"where_expr": ""}, PERSON) is None
 
 
-def test_build_where_and_group_nested_under_not():
-    where = _assert_expr_and_where_agree(
-        "not (gender == 1 and gramps_id == 'I1')",
-        [{"not": {"and": [
-            {"column": "gender", "op": "eq", "value": 1},
-            {"column": "gramps_id", "op": "eq", "value": "I1"},
-        ]}}],
-    )
-    assert isinstance(where, Not)
-    assert isinstance(where.expr, And)
-    assert all(isinstance(e, Eq) for e in where.expr.exprs)
+def test_build_where_simple_comparison():
+    where = _where("gender == 1")
+    assert isinstance(where, Eq)
+    assert where.value == 1
 
 
-def test_build_where_or_group_via_where_expr_and_json():
-    where = _assert_expr_and_where_agree(
-        "gender == 1 or gender == 2",
-        [{"or": [
-            {"column": "gender", "op": "eq", "value": 1},
-            {"column": "gender", "op": "eq", "value": 2},
-        ]}],
-    )
+def test_build_where_and_or_not():
+    where = _where("not (gender == 1 and gramps_id == 'I1') or gender == 2")
     assert isinstance(where, Or)
-    assert len(where.exprs) == 2
+    assert isinstance(where.exprs[0], Not)
+    assert isinstance(where.exprs[0].expr, And)
 
 
-def test_build_where_not_group_via_where_expr_and_json():
-    where = _assert_expr_and_where_agree(
-        "not (gender == 1)",
-        [{"not": {"column": "gender", "op": "eq", "value": 1}}],
-    )
-    assert isinstance(where, Not)
-    assert isinstance(where.expr, Eq)
-
-
-def test_build_where_exists():
-    where = _assert_expr_and_where_agree(
-        "exists(events, type.value == 12)",
-        [{"exists": {
-            "relationship": "events",
-            "where": [{"column": {"json_path": ["type", "value"]}, "op": "eq", "value": 12}],
-        }}],
-    )
+def test_build_where_exists_and_any_sugar():
+    where = _where("exists(events, type.value == 12)")
     assert isinstance(where, Exists)
     assert where.collection.name == "events"
-    assert where.condition is not None
+    assert repr(where) == repr(_where("any(e.type.value == 12 for e in events)"))
+    assert _where("exists(events)").condition is None
 
 
-def test_build_where_exists_no_condition():
-    where = _assert_expr_and_where_agree(
-        "exists(events)",
-        [{"exists": {"relationship": "events"}}],
-    )
-    assert isinstance(where, Exists)
-    assert where.condition is None
-
-
-def test_build_where_exists_any_sugar_equivalent():
-    assert repr(_where("exists(events, type.value == 12)")) == repr(
-        _where("any(e.type.value == 12 for e in events)")
-    )
-
-
-def test_build_where_count_of():
-    where = _assert_expr_and_where_agree(
-        "count(events) > 2",
-        [{"column": {"count_of": {"relationship": "events"}}, "op": "gt", "value": 2}],
-    )
+def test_build_where_count():
+    where = _where("count(events) > 2")
     assert isinstance(where, Gt)
     assert isinstance(where.column, CollectionCount)
-    assert where.column.collection.name == "events"
     assert where.value == 2
 
 
-def test_build_where_backlinks_not_exists():
-    where = _assert_expr_and_where_agree(
-        "not exists(backlinks)",
-        [{"not": {"exists": {"relationship": "backlinks"}}}],
-        spec=NOTE,
-    )
-    assert isinstance(where, Not)
-    assert isinstance(where.expr, Exists)
+def test_build_where_backlinks():
+    assert isinstance(_where("not exists(backlinks)", NOTE), Not)
+    assert isinstance(_where('exists(backlinks, _class == "Person")', NOTE), Exists)
+    assert isinstance(_where("count(backlinks) == 0", NOTE).column, CollectionCount)
 
 
-def test_build_where_backlinks_class_filter():
-    where = _assert_expr_and_where_agree(
-        'exists(backlinks, _class == "Person")',
-        [{"exists": {
-            "relationship": "backlinks",
-            "where": [{"column": "_class", "op": "eq", "value": "Person"}],
-        }}],
-        spec=NOTE,
-    )
-    assert isinstance(where, Exists)
-    assert where.collection.name == "backlinks"
-
-
-def test_build_where_backlinks_count():
-    where = _assert_expr_and_where_agree(
-        "count(backlinks) == 0",
-        [{"column": {"count_of": {"relationship": "backlinks"}}, "op": "eq", "value": 0}],
-        spec=NOTE,
-    )
-    assert isinstance(where.column, CollectionCount)
-
-
-def test_build_where_value_column_same_table_wrapped_as_flat_column_ref():
-    # Regression test: a same-table plain-string value_column ("given_name
-    # == surname") must resolve to a FlatColumnRef, not a bare str -- a bare
-    # str is indistinguishable from an ordinary literal to Comparison/
-    # Contains, so without this wrapping the query would silently compare
-    # given_name against the *literal text* "surname" instead of the two
-    # columns against each other (see FlatColumnRef's docstring).
-    conditions = [{"column": "given_name", "op": "eq", "value_column": "surname"}]
-    where = _build_where(conditions, PERSON)
+def test_build_where_field_vs_field():
+    where = _where("given_name == surname")
     assert isinstance(where, Eq)
     assert isinstance(where.value, FlatColumnRef)
     assert where.value.name == "surname"
 
 
-# --- QueryWhereConditionArgs.op: derived from VALID_LEAF_OPS, not hand-copied --
-
-
-def test_where_op_schema_matches_valid_leaf_ops():
-    # Regression test for the whole point of VALID_LEAF_OPS existing: a new
-    # op added to gramps_object_query_language should become valid for a raw
-    # `where` JSON body automatically, with no gramps-web-api edit needed --
-    # this fails the moment the schema's allowed set and VALID_LEAF_OPS
-    # diverge, whichever direction that happens.
-    op_field = QueryWhereConditionArgs().fields["op"]
-    allowed = {choice for validator in op_field.validators for choice in validator.choices}
-    assert allowed == set(VALID_LEAF_OPS)
-
-
-# --- QueryWhereConditionArgs: schema-level shape validation -------------------
-#
-# A condition node must be exactly one of: a leaf (column+op[+value/
-# value_column]), or one combinator (and/or/not/exists) -- checked in
-# _check_shape, since no single field's own `required`/`validate` can
-# express "required unless X is present" on its own.
-
-
-def test_where_schema_accepts_plain_leaf():
-    loaded = QueryWhereConditionArgs().load({"column": "gender", "op": "eq", "value": 1})
-    assert loaded == {"column": "gender", "op": "eq", "value": 1}
-
-
-def test_where_schema_accepts_and_or_not_exists():
-    assert "and" in QueryWhereConditionArgs().load(
-        {"and": [{"column": "gender", "op": "eq", "value": 1}]}
-    )
-    assert "or" in QueryWhereConditionArgs().load(
-        {"or": [{"column": "gender", "op": "eq", "value": 1}]}
-    )
-    assert "not" in QueryWhereConditionArgs().load(
-        {"not": {"column": "gender", "op": "eq", "value": 1}}
-    )
-    assert "exists" in QueryWhereConditionArgs().load(
-        {"exists": {"relationship": "notes"}}
-    )
-
-
-def test_where_schema_loaded_dict_uses_wire_keys_not_python_attribute_names():
-    # Regression test for the schema's own and_/or_/not_ Python attribute
-    # names (and/or/not are reserved words, can't be literal attribute
-    # names) -- without `attribute="and"` etc. on each field, .load() would
-    # return "and_"/"or_"/"not_" keys, which where_list_to_ast's
-    # _node_from_json (checking `"and" in node`, never `"and_"`) would
-    # silently fail to recognize as a combinator at all.
-    loaded = QueryWhereConditionArgs().load(
-        {"and": [{"column": "gender", "op": "eq", "value": 1}]}
-    )
-    assert set(loaded) == {"and"}
-
-
-def test_where_schema_rejects_empty_condition():
-    with pytest.raises(ValidationError):
-        QueryWhereConditionArgs().load({})
-
-
-def test_where_schema_rejects_leaf_missing_op():
-    with pytest.raises(ValidationError):
-        QueryWhereConditionArgs().load({"column": "gender"})
-
-
-def test_where_schema_rejects_leaf_missing_column():
-    with pytest.raises(ValidationError):
-        QueryWhereConditionArgs().load({"op": "eq", "value": 1})
-
-
-def test_where_schema_rejects_combinator_mixed_with_leaf():
-    with pytest.raises(ValidationError):
-        QueryWhereConditionArgs().load(
-            {
-                "column": "gender",
-                "op": "eq",
-                "value": 1,
-                "not": {"column": "gender", "op": "eq", "value": 0},
-            }
-        )
-
-
-def test_where_schema_rejects_two_combinators():
-    with pytest.raises(ValidationError):
-        QueryWhereConditionArgs().load(
-            {
-                "and": [{"column": "a", "op": "eq", "value": 1}],
-                "or": [{"column": "b", "op": "eq", "value": 1}],
-            }
-        )
-
-
-def test_exists_payload_schema_requires_relationship():
-    with pytest.raises(ValidationError):
-        QueryExistsPayloadArgs().load({})
-
-
-# --- nested-leaf validation: _validate_leaf_condition applied at any depth ---
-#
-# Regression tests for a gap found while widening QueryWhereConditionArgs:
-# _build_where's leaf-validation used to only ever walk the *top-level*
-# `where` list -- a leaf nested inside `count_of`'s own `where` already
-# silently bypassed it (confirmed live: a malformed non-list "in" value
-# there was accepted and iterated character-by-character instead of
-# rejected); widening the schema for and/or/not/exists made this far more
-# reachable (any nested leaf, at any depth), so _validate_where_tree walks
-# the full tree now, not just the top level.
-
-
-def test_malformed_in_rejected_when_nested_in_or():
-    conditions = QueryWhereConditionArgs(many=True).load(
-        [{"or": [{"column": "gender", "op": "in", "value": "not-a-list"}]}]
-    )
+@pytest.mark.parametrize(
+    "expr",
+    ["gender ==", "no_such_field == 1", "gender in []", "handle == Env.HOME"],
+)
+def test_build_where_bad_expression_is_422(expr):
     with pytest.raises(HTTPException) as exc_info:
-        _build_where(conditions, PERSON)
-    assert exc_info.value.code == 422
-
-
-def test_malformed_in_rejected_when_nested_in_exists_where():
-    conditions = QueryWhereConditionArgs(many=True).load(
-        [{"exists": {
-            "relationship": "backlinks",
-            "where": [{"column": "_class", "op": "in", "value": "not-a-list"}],
-        }}]
-    )
-    with pytest.raises(HTTPException) as exc_info:
-        _build_where(conditions, NOTE)
-    assert exc_info.value.code == 422
-
-
-def test_malformed_in_rejected_when_nested_in_count_of_where():
-    conditions = [
-        {
-            "column": {
-                "count_of": {
-                    "relationship": "children",
-                    "where": [{"column": "gender", "op": "in", "value": "not-a-list"}],
-                }
-            },
-            "op": "gt",
-            "value": 0,
-        }
-    ]
-    with pytest.raises(HTTPException) as exc_info:
-        _build_where(conditions, FAMILY)
-    assert exc_info.value.code == 422
-
-
-def test_non_list_count_of_where_rejected_with_422():
-    # count_of's `where` is untyped (wf.Raw()), so a caller can send a
-    # non-list value there -- must 422, not be silently skipped and reach
-    # where_list_to_ast (or crash trying to iterate/index into it).
-    conditions = [
-        {
-            "column": {
-                "count_of": {"relationship": "children", "where": "not-a-list"}
-            },
-            "op": "gt",
-            "value": 0,
-        }
-    ]
-    with pytest.raises(HTTPException) as exc_info:
-        _build_where(conditions, FAMILY)
-    assert exc_info.value.code == 422
-
-
-def test_non_dict_count_of_rejected_with_422():
-    conditions = [
-        {"column": {"count_of": "not-a-dict"}, "op": "gt", "value": 0}
-    ]
-    with pytest.raises(HTTPException) as exc_info:
-        _build_where(conditions, FAMILY)
-    assert exc_info.value.code == 422
-
-
-def test_non_dict_exists_rejected_with_422():
-    # Bypasses QueryWhereConditionArgs.load() -- its own `exists` field is a
-    # typed Nested(QueryExistsPayloadArgs), so a non-dict there never reaches
-    # _build_where through the schema; this exercises _validate_where_tree's
-    # own defensive check directly, the same way the count_of tests above do.
-    conditions = [{"exists": "not-a-dict"}]
-    with pytest.raises(HTTPException) as exc_info:
-        _build_where(conditions, NOTE)
-    assert exc_info.value.code == 422
-
-
-def test_non_list_exists_where_rejected_with_422():
-    # Same rationale: QueryExistsPayloadArgs.where is a typed wf.List, so
-    # this bypasses .load() to exercise _validate_where_tree's own check.
-    conditions = [
-        {"exists": {"relationship": "backlinks", "where": "not-a-list"}}
-    ]
-    with pytest.raises(HTTPException) as exc_info:
-        _build_where(conditions, NOTE)
-    assert exc_info.value.code == 422
-
-
-def test_non_dict_condition_in_and_rejected_with_422():
-    conditions = QueryWhereConditionArgs(many=True).load(
-        [{"and": [{"column": "gender", "op": "eq", "value": "M"}]}]
-    )
-    # Tamper post-load to simulate a non-dict leaf slipping into the tree.
-    conditions[0]["and"].append("not-a-dict")
-    with pytest.raises(HTTPException) as exc_info:
-        _build_where(conditions, PERSON)
-    assert exc_info.value.code == 422
-
-
-# `count_of.where`/`exists.where` used to default via `.get("where") or []`,
-# which treats any *falsy* value -- not just a missing/None key -- as if the
-# `where` had been omitted. A caller-supplied "" or {} is falsy but still
-# malformed, and would have silently skipped straight past the non-list
-# check below instead of 422ing. Only a missing/None key should default to
-# [].
-
-
-def test_falsy_non_list_count_of_where_rejected_with_422():
-    conditions = [
-        {
-            "column": {"count_of": {"relationship": "children", "where": ""}},
-            "op": "gt",
-            "value": 0,
-        }
-    ]
-    with pytest.raises(HTTPException) as exc_info:
-        _build_where(conditions, FAMILY)
-    assert exc_info.value.code == 422
-
-
-def test_falsy_non_list_exists_where_rejected_with_422():
-    conditions = [{"exists": {"relationship": "backlinks", "where": {}}}]
-    with pytest.raises(HTTPException) as exc_info:
-        _build_where(conditions, NOTE)
+        _where(expr)
     assert exc_info.value.code == 422
 
 

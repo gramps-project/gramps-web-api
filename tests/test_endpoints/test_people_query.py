@@ -154,7 +154,7 @@ class TestPeopleQuery(unittest.TestCase):
             TEST_URL,
             json={
                 "select": ["handle"],
-                "where": [{"column": "gender", "op": "eq", "value": 1}],
+                "where_expr": "gender == 1",
                 "limit": 5,
                 "count": True,
             },
@@ -198,7 +198,7 @@ class TestPeopleQuery(unittest.TestCase):
             header,
             {
                 "select": ["handle"],
-                "where": [{"column": "gender", "op": "eq", "value": 1}],
+                "where_expr": "gender == 1",
             },
         )
         self.assertGreater(len(male_items), 0)
@@ -208,7 +208,7 @@ class TestPeopleQuery(unittest.TestCase):
         header = fetch_header(self.client)
         rv = self.client.post(
             TEST_URL,
-            json={"where": [{"column": "not_a_column", "op": "eq", "value": 1}]},
+            json={"where_expr": "not_a_column == 1"},
             headers=header,
         )
         self.assertEqual(rv.status_code, 422)
@@ -233,7 +233,7 @@ class TestPeopleQuery(unittest.TestCase):
         header = fetch_header(self.client)
         rv = self.client.post(
             TEST_URL,
-            json={"where": [{"column": "gender", "op": "in", "value": []}]},
+            json={"where_expr": "gender in []"},
             headers=header,
         )
         self.assertEqual(rv.status_code, 422)
@@ -315,10 +315,10 @@ class TestPeopleQuery(unittest.TestCase):
         # than the endpoint's max `limit` (1000) -- a where filter is needed
         # to get a matching count small enough to request in a single page.
         header = fetch_header(self.client)
-        where = [{"column": "gender", "op": "eq", "value": 0}]
+        where_expr = "gender == 0"
         probe = self.client.post(
             TEST_URL,
-            json={"select": ["handle"], "where": where, "limit": 1, "count": True},
+            json={"select": ["handle"], "where_expr": where_expr, "limit": 1, "count": True},
             headers=header,
         )
         self.assertEqual(probe.status_code, 200)
@@ -329,7 +329,7 @@ class TestPeopleQuery(unittest.TestCase):
             TEST_URL,
             json={
                 "select": ["handle"],
-                "where": where,
+                "where_expr": where_expr,
                 "order_by": [{"column": "handle", "direction": "asc"}],
                 "limit": total,
             },
@@ -488,7 +488,7 @@ class TestPeopleQuery(unittest.TestCase):
             header,
             {
                 "select": ["handle"],
-                "where": [{"column": "gramps_id", "op": "eq", "value": "I0000"}],
+                "where_expr": "gramps_id == 'I0000'",
                 "limit": 50,
                 "count": True,
             },
@@ -576,7 +576,7 @@ class TestPeopleQuery(unittest.TestCase):
                 self.assertEqual(rv.status_code, 422, after)
             body = {
                 "select": ["handle"],
-                "where": [{"column": "surname", "op": "eq", "value": surname}],
+                "where_expr": f"surname == {surname!r}",
                 "count": True,
             }
             rv = self.client.post(TEST_URL, json=body, headers=header_owner)
@@ -795,25 +795,23 @@ class TestPeopleQuery(unittest.TestCase):
             compared += 1
         self.assertGreater(compared, 0)
 
-    def test_select_string_and_json_path_forms_agree(self):
-        """The expression string and the older {"json_path": [...]} wire form
-        are two spellings of one reference -- same values, same default key.
-        """
+    def test_non_string_select_entry_rejected(self):
         header = fetch_header(self.client)
-        as_string = self.client.post(
+        rv = self.client.post(
             TEST_URL,
-            json={"select": ["handle", "birth.date.sortval"], "limit": 10},
+            json={"select": ["handle", {"json_path": ["birth", "date", "sortval"]}]},
             headers=header,
-        ).json["items"]
-        as_json = self.client.post(
+        )
+        self.assertEqual(rv.status_code, 422)
+
+    def test_json_where_body_rejected(self):
+        header = fetch_header(self.client)
+        rv = self.client.post(
             TEST_URL,
-            json={
-                "select": ["handle", {"json_path": ["birth", "date", "sortval"]}],
-                "limit": 10,
-            },
+            json={"where": [{"column": "gender", "op": "eq", "value": 1}]},
             headers=header,
-        ).json["items"]
-        self.assertEqual(as_string, as_json)
+        )
+        self.assertEqual(rv.status_code, 422)
 
     def test_select_count_of_collection(self):
         header = fetch_header(self.client)
@@ -882,7 +880,7 @@ class TestPeopleQuery(unittest.TestCase):
                 # People with no recorded birth date sort first (NULL is the
                 # smallest value), so filter to those that have one --
                 # otherwise the first page is all nulls and proves nothing.
-                "where": [{"column": "birth.date.sortval", "op": "gt", "value": 0}],
+                "where_expr": "birth.date.sortval > 0",
                 "order_by": [{"column": "birth.date.sortval", "direction": "asc"}],
                 "limit": 30,
             },
@@ -905,7 +903,7 @@ class TestPeopleQuery(unittest.TestCase):
         header = fetch_header(self.client)
         body = {
             "select": ["handle", "birth.date.sortval"],
-            "where": [{"column": "birth.date.sortval", "op": "gt", "value": 0}],
+            "where_expr": "birth.date.sortval > 0",
             "order_by": [{"column": "birth.date.sortval", "direction": "asc"}],
             "limit": 10,
         }
@@ -941,7 +939,7 @@ class TestPeopleQuery(unittest.TestCase):
             TEST_URL,
             json={
                 "select": ["handle"],
-                "where": [{"column": "birth.date.sortval", "op": "gt", "value": 0}],
+                "where_expr": "birth.date.sortval > 0",
                 "limit": 10,
             },
             headers=header,
@@ -959,7 +957,7 @@ class TestPeopleQuery(unittest.TestCase):
             TEST_URL,
             json={
                 "select": ["handle", "birth.date.sortval"],
-                "where": [{"column": "birth.date.sortval", "op": "gt", "value": 0}],
+                "where_expr": "birth.date.sortval > 0",
                 "order_by": [{"column": "birth.date.sortval", "direction": "asc"}],
                 "limit": 20,
             },
