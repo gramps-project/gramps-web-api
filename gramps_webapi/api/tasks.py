@@ -79,6 +79,7 @@ from .media import (
 )
 from .media_importer import MediaImporter
 from .report import run_report
+from .resources.bulk_edit import edit_objects_by_handle
 from .resources.delete import (
     delete_all_objects,
     delete_objects_by_handle,
@@ -908,6 +909,36 @@ def delete_objects_by_handle_task(
     if trans_dict_to_reindex:
         update_search_indices_from_transaction(
             trans_dict=trans_dict_to_reindex, tree=tree, user_id=user_id
+        )
+    return trans_dict
+
+
+@shared_task(bind=True, lock_key=LOCK_WRITE)
+def edit_objects_by_handle_task(
+    self,
+    tree: str,
+    user_id: str,
+    namespace: str,
+    handles: List[str],
+    operations: List[dict],
+) -> list[dict]:
+    """Edit specific objects of one type by handle, updating search indices."""
+    db_handle = get_db_outside_request(
+        tree=tree, view_private=True, readonly=False, user_id=user_id
+    )
+    try:
+        trans_dict = edit_objects_by_handle(
+            db_handle=db_handle,
+            namespace=namespace,
+            handles=handles,
+            operations=operations,
+            progress_cb=progress_callback_count(),
+        )
+    finally:
+        close_db(db_handle)
+    if trans_dict:
+        update_search_indices_from_transaction(
+            trans_dict=trans_dict, tree=tree, user_id=user_id
         )
     return trans_dict
 
