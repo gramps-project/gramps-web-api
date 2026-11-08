@@ -68,12 +68,12 @@ from gramps_object_query_language.query import (
     compile_after_lookup,
     compile_count_query,
     compile_query,
-    resolve_order_by,
     select_normalizer,
 )
 from gramps_object_query_language.query_lang import (
     QueryLangError,
     compile_expr_for_spec,
+    parse_order_by,
     parse_select_entry,
 )
 
@@ -90,31 +90,6 @@ from .db_backend import (
     resolve_collation,
 )
 from .schemas import ObjectQueryResponseSchema
-
-
-class QueryOrderByArgs(Schema):
-    """A single ORDER BY column."""
-
-    column = wf.Str(
-        required=True,
-        metadata={
-            "description": "Column to sort by: a flat column name ('surname'), "
-            "or a path ('birth.date.sortval', "
-            "'primary_name.surname_list[0].surname'), resolved exactly as the "
-            "same text is in 'select'. Note the cost: flat columns like "
-            "'surname' and 'given_name' are indexed, while nothing indexes "
-            "inside a record, so sorting by a path reads and parses every row "
-            "in the tree, and a relationship path ('birth.date.sortval') adds a "
-            "lookup per row on top. That work repeats for every page. Fine for "
-            "a result set 'where_expr' has already narrowed; slow as the default "
-            "order of a large tree."
-        },
-    )
-    direction = wf.Str(
-        load_default="asc",
-        validate=validate.OneOf(["asc", "desc"]),
-        metadata={"description": "Sort direction: 'asc' or 'desc'."},
-    )
 
 
 class QueryBodyArgs(Schema):
@@ -169,9 +144,21 @@ class QueryBodyArgs(Schema):
         },
     )
     order_by = wf.List(
-        wf.Nested(QueryOrderByArgs),
+        wf.Str(),
         required=False,
-        metadata={"description": "Sort order, most significant column first."},
+        metadata={
+            "description": "Sort order, most significant first. Each entry is a "
+            "column written as in 'select' -- a column name ('surname'), a path "
+            "('birth.date.sortval'), or count(...)/len(...) -- optionally "
+            "followed by 'asc' or 'desc' (default 'asc'), e.g. "
+            "['surname', 'birth.date.sortval desc']. Note the cost: flat columns "
+            "like 'surname' and 'given_name' are indexed, while nothing indexes "
+            "inside a record, so sorting by a path reads and parses every row "
+            "in the tree, and a relationship path ('birth.date.sortval') adds a "
+            "lookup per row on top. That work repeats for every page. Fine for "
+            "a result set 'where_expr' has already narrowed; slow as the default "
+            "order of a large tree."
+        },
     )
     limit = wf.Int(
         load_default=50,
@@ -223,6 +210,17 @@ def _parse_select_entry(raw: str, spec: ObjectTypeSpec) -> Tuple[SelectRef, str]
         raise QueryError(str(error)) from error
     _check_response_key(key, column)
     return column, key
+
+
+def _parse_order_by(args: dict, spec: ObjectTypeSpec) -> Sequence[OrderBy]:
+    """Parse the `order_by` strings with GOQL's `parse_order_by`. A sort
+    column may be a path (`birth.date.sortval desc`), resolved exactly as
+    the same text is in `select`; an unknown one raises here.
+    """
+    try:
+        return parse_order_by(spec, args.get("order_by") or [])
+    except QueryLangError as error:
+        raise QueryError(str(error)) from error
 
 
 def _check_response_key(key: str, column: SelectRef) -> None:
@@ -512,16 +510,7 @@ class ObjectQueryResource(ProtectedResource):
         treeid = _resolve_treeid(basedb)
 
         try:
-            # Resolved, not whitelist-checked: a sort column may be a path
-            # (`birth.date.sortval`), which resolves exactly as the same text
-            # does in `select`/`where_expr`. Unknown paths raise here.
-            order_by = resolve_order_by(
-                self.spec,
-                [
-                    OrderBy(item["column"], item.get("direction", "asc"))
-                    for item in args.get("order_by") or []
-                ],
-            )
+            order_by = _parse_order_by(args, self.spec)
         except QueryError as error:
             abort_with_message(422, str(error))
 
@@ -620,7 +609,7 @@ class ObjectQueryResource(ProtectedResource):
         deserialized and tested in Python (no SQL push-down), so this is
         intentionally not fast -- see `proxied_query.py`'s module docstring.
 
-        `order_by` is resolved via `resolve_order_by`, the same as the SQL
+        `order_by` is parsed by `_parse_order_by`, the same as the SQL
         path, so `OrderBy.column` may carry a `JsonPath`/`RelatedObject`
         path (e.g. `birth.date.sortval`) here too, not just a flat
         top-level column -- `run_query`'s own sort (`_sort_key_row`)
@@ -641,13 +630,7 @@ class ObjectQueryResource(ProtectedResource):
                 "path (no COLLATE equivalent there)",
             )
         try:
-            order_by = resolve_order_by(
-                self.spec,
-                [
-                    OrderBy(item["column"], item.get("direction", "asc"))
-                    for item in args.get("order_by") or []
-                ],
-            )
+            order_by = _parse_order_by(args, self.spec)
             where = _build_where(args, self.spec)
             parsed_select = (
                 [_parse_select_entry(item, self.spec) for item in args["select"]]

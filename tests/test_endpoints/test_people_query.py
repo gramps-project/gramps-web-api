@@ -79,7 +79,7 @@ class TestPeopleQuery(unittest.TestCase):
         max `limit` (1000), so a single request can't retrieve everything.
         """
         body = dict(body_without_paging)
-        body.setdefault("order_by", [{"column": "handle", "direction": "asc"}])
+        body.setdefault("order_by", ["handle"])
         body["limit"] = page_size
         items = []
         after = None
@@ -170,7 +170,7 @@ class TestPeopleQuery(unittest.TestCase):
         header = fetch_header(self.client)
         body = {
             "select": ["handle"],
-            "order_by": [{"column": "handle", "direction": "asc"}],
+            "order_by": ["handle"],
             "limit": 5,
             "count": True,
         }
@@ -224,7 +224,7 @@ class TestPeopleQuery(unittest.TestCase):
         header = fetch_header(self.client)
         rv = self.client.post(
             TEST_URL,
-            json={"order_by": [{"column": "not_a_column"}]},
+            json={"order_by": ["not_a_column"]},
             headers=header,
         )
         self.assertEqual(rv.status_code, 422)
@@ -243,7 +243,7 @@ class TestPeopleQuery(unittest.TestCase):
             TEST_URL,
             json={
                 "select": ["handle"],
-                "order_by": [{"column": "handle", "direction": "asc"}],
+                "order_by": ["handle"],
                 "limit": n,
             },
             headers=header,
@@ -330,7 +330,7 @@ class TestPeopleQuery(unittest.TestCase):
             TEST_URL,
             json={
                 "select": ["surname"],
-                "order_by": [{"column": "surname", "direction": "asc"}],
+                "order_by": ["surname"],
                 "limit": 1000,
             },
             headers=header,
@@ -354,7 +354,7 @@ class TestPeopleQuery(unittest.TestCase):
             header,
             {
                 "select": ["surname"],
-                "order_by": [{"column": "surname", "direction": "asc"}],
+                "order_by": ["surname"],
             },
         )
         surnames = [item["surname"] or "" for item in items]
@@ -376,7 +376,7 @@ class TestPeopleQuery(unittest.TestCase):
         for _ in range(total + 1):  # safety bound against an infinite loop
             body = {
                 "select": ["handle"],
-                "order_by": [{"column": "surname", "direction": "asc"}],
+                "order_by": ["surname"],
                 "limit": page_size,
             }
             if after is not None:
@@ -416,7 +416,7 @@ class TestPeopleQuery(unittest.TestCase):
             json={
                 "select": ["handle"],
                 "where_expr": where_expr,
-                "order_by": [{"column": "handle", "direction": "asc"}],
+                "order_by": ["handle"],
                 "limit": total,
             },
             headers=header,
@@ -447,7 +447,7 @@ class TestPeopleQuery(unittest.TestCase):
             header,
             {
                 "select": ["surname"],
-                "order_by": [{"column": "surname", "direction": "asc"}],
+                "order_by": ["surname"],
                 "locale": "de",
             },
         )
@@ -463,7 +463,7 @@ class TestPeopleQuery(unittest.TestCase):
             TEST_URL,
             json={
                 "select": ["handle"],
-                "order_by": [{"column": "surname", "direction": "asc"}],
+                "order_by": ["surname"],
                 "locale": "zz",
                 "limit": 5,
             },
@@ -477,7 +477,7 @@ class TestPeopleQuery(unittest.TestCase):
             TEST_URL,
             json={
                 "select": ["handle"],
-                "order_by": [{"column": "gender", "direction": "asc"}],
+                "order_by": ["gender"],
                 "locale": "de",
                 "limit": 5,
             },
@@ -506,7 +506,7 @@ class TestPeopleQuery(unittest.TestCase):
                 TEST_URL,
                 json={
                     "select": ["handle"],
-                    "order_by": [{"column": "surname", "direction": "asc"}],
+                    "order_by": ["surname"],
                     "locale": "de",
                     "limit": 5,
                 },
@@ -654,7 +654,7 @@ class TestPeopleQuery(unittest.TestCase):
                 rv = self.client.post(
                     TEST_URL,
                     json={
-                        "order_by": [{"column": "handle", "direction": "asc"}],
+                        "order_by": ["handle"],
                         "after": after,
                     },
                     headers=header_guest,
@@ -890,6 +890,34 @@ class TestPeopleQuery(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 422)
 
+    def test_order_by_object_rejected(self):
+        header = fetch_header(self.client)
+        rv = self.client.post(
+            TEST_URL,
+            json={"order_by": [{"column": "surname", "direction": "asc"}]},
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 422)
+
+    def test_order_by_direction_and_bad_entries(self):
+        header = fetch_header(self.client)
+
+        def handles(order_by):
+            rv = self.client.post(
+                TEST_URL,
+                json={"select": ["handle"], "order_by": order_by, "limit": 20},
+                headers=header,
+            )
+            self.assertEqual(rv.status_code, 200, rv.json)
+            return [item["handle"] for item in rv.json["items"]]
+
+        self.assertEqual(handles(["handle"]), handles(["handle asc"]))
+        self.assertEqual(handles(["handle DESC"]), handles(["handle desc"]))
+        self.assertNotEqual(handles(["handle"]), handles(["handle desc"]))
+        for bad in ["surname as s", "surname sideways", "gender > 1"]:
+            rv = self.client.post(TEST_URL, json={"order_by": [bad]}, headers=header)
+            self.assertEqual(rv.status_code, 422, bad)
+
     def test_json_where_body_rejected(self):
         header = fetch_header(self.client)
         rv = self.client.post(
@@ -967,7 +995,7 @@ class TestPeopleQuery(unittest.TestCase):
                 # smallest value), so filter to those that have one --
                 # otherwise the first page is all nulls and proves nothing.
                 "where_expr": "birth.date.sortval > 0",
-                "order_by": [{"column": "birth.date.sortval", "direction": "asc"}],
+                "order_by": ["birth.date.sortval"],
                 "limit": 30,
             },
             headers=header,
@@ -990,7 +1018,7 @@ class TestPeopleQuery(unittest.TestCase):
         body = {
             "select": ["handle", "birth.date.sortval"],
             "where_expr": "birth.date.sortval > 0",
-            "order_by": [{"column": "birth.date.sortval", "direction": "asc"}],
+            "order_by": ["birth.date.sortval"],
             "limit": 10,
         }
         walked = []
@@ -1014,7 +1042,7 @@ class TestPeopleQuery(unittest.TestCase):
         header = fetch_header(self.client)
         rv = self.client.post(
             TEST_URL,
-            json={"order_by": [{"column": "primary_name.frist_name"}]},
+            json={"order_by": ["primary_name.frist_name"]},
             headers=header,
         )
         self.assertEqual(rv.status_code, 422)
@@ -1044,7 +1072,7 @@ class TestPeopleQuery(unittest.TestCase):
             json={
                 "select": ["handle", "birth.date.sortval"],
                 "where_expr": "birth.date.sortval > 0",
-                "order_by": [{"column": "birth.date.sortval", "direction": "asc"}],
+                "order_by": ["birth.date.sortval"],
                 "limit": 20,
             },
             headers=header_guest,
