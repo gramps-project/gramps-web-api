@@ -922,9 +922,14 @@ def process_transactions(
     message: str = "Raw transaction",
 ):
     """Process a set of database transactions, updating search indices as needed."""
-    trans_dict = apply_transactions(
-        tree=tree, user_id=user_id, payload=payload, force=force, message=message
-    )
+    try:
+        trans_dict = apply_transactions(
+            tree=tree, user_id=user_id, payload=payload, force=force, message=message
+        )
+    except ValueError as exc:
+        # a rejected transaction is the client's error, as in the synchronous
+        # endpoint; aborting makes the task report it as a 400 rejection
+        abort_with_message(400, str(exc))
     update_search_indices_from_transaction(
         trans_dict=trans_dict, tree=tree, user_id=user_id
     )

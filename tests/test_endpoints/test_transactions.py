@@ -202,6 +202,31 @@ class TestTransactionResource(unittest.TestCase):
             "/api/transactions/?undo=1&background=1", json=trans_dict, headers=headers
         )
 
+    def test_conflict_is_rejected_in_background(self):
+        """A changed object rejects the transaction as a client error.
+
+        The background task must report the same 400 as the synchronous path
+        rather than failing like a fault.
+        """
+        handle = make_handle()
+        obj = {
+            "_class": "Note",
+            "handle": handle,
+            "text": {"_class": "StyledText", "string": "Conflicting note."},
+            "gramps_id": "N41",
+        }
+        trans = [
+            {"type": "add", "_class": "Note", "handle": handle, "old": None, "new": obj}
+        ]
+        headers = get_headers(self.client, "editor", "123")
+        rv = self.client.post("/api/transactions/", json=trans, headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        # adding the same object again conflicts with the existing one
+        for url in ["/api/transactions/", "/api/transactions/?background=1"]:
+            rv = self.client.post(url, json=trans, headers=headers)
+            self.assertEqual(rv.status_code, 400, url)
+            self.assertEqual(rv.json["error"]["message"], "Object has changed")
+
     def test_family_undo(self):
         """Undo update and subequent deletion of a single note."""
         father = {
@@ -382,7 +407,7 @@ class TestTransactionResource(unittest.TestCase):
         rv = self.client.post(
             "/api/transactions/?background=1", json=trans, headers=headers
         )
-        self.assertEqual(rv.status_code, 500)
+        self.assertEqual(rv.status_code, 400)
 
     def test_missing_gramps_id(self):
         """Add with missing gramps ID."""
@@ -400,7 +425,7 @@ class TestTransactionResource(unittest.TestCase):
         rv = self.client.post(
             "/api/transactions/?background=1", json=trans, headers=headers
         )
-        self.assertEqual(rv.status_code, 500)
+        self.assertEqual(rv.status_code, 400)
 
     def test_background_returns_task_object(self):
         """When Celery is active, POST /transactions/?background=1 must return
