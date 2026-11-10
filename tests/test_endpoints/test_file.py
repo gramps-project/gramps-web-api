@@ -21,9 +21,11 @@
 
 import unittest
 from io import BytesIO
+from unittest.mock import patch
 
 from PIL import Image
 
+from gramps_webapi.api.cache import thumbnail_cache
 from gramps_webapi.const import MIME_AVIF
 
 from . import BASE_URL, get_test_client
@@ -440,3 +442,17 @@ class TestFaceDetection(unittest.TestCase):
         assert 67 < x2 < 90
         assert 0 <= y1 < 15
         assert 57 < y2 < 90
+
+    def test_error_not_cached(self):
+        """An error response is not served from the cache once its cause is
+        gone, e.g. OpenCV that was installed after the error."""
+        with self.client.application.app_context():
+            thumbnail_cache.clear()
+        path = f"{TEST_URL}F8JYGQFL2PKLSYH79X/face_detection"
+        headers = fetch_header(self.client)
+        with patch("gramps_webapi.api.file.detect_faces", side_effect=ImportError):
+            rv = self.client.get(path, headers=headers)
+        self.assertEqual(rv.status_code, 501)
+        rv = self.client.get(path, headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(len(rv.json), 1)
