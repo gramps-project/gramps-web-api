@@ -1949,6 +1949,13 @@ class OIDCTokenExchangeSchema(_Base):
             " redirect."
         },
     )
+    code_verifier = fields.Str(
+        required=False,
+        metadata={
+            "description": "PKCE code verifier, required for a code issued to a"
+            " native app redirect URI."
+        },
+    )
 
 
 class OIDCLinkSchema(_Base):
