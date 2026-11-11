@@ -2965,6 +2965,23 @@ class SearchResultSchema(_Base):
     )
 
 
+class ChatProposalSchema(_Base):
+    """Changes proposed by the AI assistant, awaiting the user's approval."""
+
+    summary = fields.List(
+        fields.Str(),
+        metadata={"description": "Plain-language description of each change."},
+    )
+    transaction = fields.List(
+        fields.Nested(TransactionSchema),
+        metadata={
+            "description": "Dry run of all changes. Nothing has been written; "
+            "to apply the changes, POST this to /transactions/, which rejects "
+            "them if any object has been modified in the meantime."
+        },
+    )
+
+
 class ChatResponseSchema(_Base):
     """Response from the AI chat endpoint."""
 
@@ -2980,6 +2997,14 @@ class ChatResponseSchema(_Base):
         metadata={
             "description": "Serialized full message history for multi-turn conversations. "
             "Pass back in subsequent requests as message_history_raw to preserve tool call context."
+        },
+    )
+    proposal = fields.Nested(
+        ChatProposalSchema,
+        metadata={
+            "description": "Changes the assistant proposes, if any. Only "
+            "present if the server allows write proposals and the user may "
+            "add, edit and delete objects."
         },
     )
 

@@ -1136,8 +1136,13 @@ def process_chat(
     history: list | None = None,
     verbose: bool = False,
     message_history_raw: str | None = None,
+    allow_write_proposals: bool = False,
 ) -> dict[str, Any]:
-    """Process a chat query with the AI agent."""
+    """Process a chat query with the AI agent.
+
+    If `allow_write_proposals` is true, the agent may propose changes, which
+    are returned for the user to approve.
+    """
     # import here to avoid error if AI dependencies are not installed
     from pydantic_ai import ModelMessagesTypeAdapter
 
@@ -1146,6 +1151,7 @@ def process_chat(
         clean_answer,
         extract_metadata_from_result,
     )
+    from gramps_webapi.api.llm.deps import Proposal
 
     # Create the reporter in the main worker thread: run_sync hands off tool
     # calls to a thread-pool executor, which has no task context.
@@ -1158,6 +1164,7 @@ def process_chat(
         step += 1
         report({"step": step, "tool": tool_name, "message": message})
 
+    proposal = Proposal() if allow_write_proposals else None
     result = answer_with_agent(
         prompt=query,
         tree=tree,
@@ -1166,6 +1173,7 @@ def process_chat(
         history=history,
         progress_callback=progress_callback,
         message_history_raw=message_history_raw,
+        proposal=proposal,
     )
 
     response_text = clean_answer(
@@ -1180,6 +1188,12 @@ def process_chat(
             result.all_messages()
         ).decode(),
     }
+
+    if proposal and proposal.changes:
+        response_dict["proposal"] = {
+            "summary": proposal.summaries,
+            "transaction": proposal.transaction,
+        }
 
     if verbose:
         response_dict["metadata"] = extract_metadata_from_result(result)

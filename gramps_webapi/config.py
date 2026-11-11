@@ -106,6 +106,7 @@ class DefaultConfig(object):
     LLM_MAX_TOKENS = 200_000
     LLM_MAX_OUTPUT_TOKENS = None
     LLM_SYSTEM_PROMPT = None
+    LLM_ALLOW_WRITE_PROPOSALS = False
     # ignored since semantic search was removed in 3.25.0, see deprecations.py
     VECTOR_EMBEDDING_MODEL = ""
     VECTOR_EMBEDDING_BASE_URL = None
