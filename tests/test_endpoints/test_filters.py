@@ -31,6 +31,7 @@ import unittest
 from unittest.mock import patch
 
 import gramps.gen.filters.rules.person as person_rules
+from gramps.gen.db.generic import DbGeneric
 from gramps.gen.filters.rules import Rule
 from gramps.gen.plug import BasePluginManager
 from gramps.gen.utils.grampslocale import GrampsLocale
@@ -1326,6 +1327,57 @@ class TestMatchesQuery(unittest.TestCase):
         assert status == 200
         assert self.secret_name_handle in handles
         assert self.private_handle not in handles
+
+    def test_list_loads_only_matching_objects(self):
+        """A list filtered in SQL loads no other object."""
+        loaded = []
+        get_event_from_handle = DbGeneric.get_event_from_handle
+
+        def get_event(db, handle):
+            loaded.append(handle)
+            return get_event_from_handle(db, handle)
+
+        def iter_events(db):
+            raise AssertionError("all events loaded")
+
+        with (
+            patch.object(DbGeneric, "get_event_from_handle", get_event),
+            patch.object(DbGeneric, "iter_events", iter_events),
+        ):
+            status, handles = self._query(
+                "/api/events/", self._rule(f"description == '{self.description}'")
+            )
+        assert status == 200
+        assert handles == {self.event_handle}
+        assert set(loaded) == {self.event_handle}
+
+    def test_list_sorted_and_counted_after_filter(self):
+        """A filtered list is sorted and paged as before."""
+        headers = fetch_header(self.client)
+        rules = json.dumps(self._rule("date.dateval[1] == 10"))
+        rv = self.client.get(
+            "/api/events/",
+            query_string={"rules": rules, "keys": "gramps_id"},
+            headers=headers,
+        )
+        assert rv.status_code == 200
+        ids = [obj["gramps_id"] for obj in rv.json]
+        assert len(ids) > 10
+        assert ids == sorted(ids)
+        rv = self.client.get(
+            "/api/events/",
+            query_string={
+                "rules": rules,
+                "keys": "gramps_id",
+                "sort": "-gramps_id",
+                "page": 2,
+                "pagesize": 5,
+            },
+            headers=headers,
+        )
+        assert rv.status_code == 200
+        assert rv.headers["X-Total-Count"] == str(len(ids))
+        assert [obj["gramps_id"] for obj in rv.json] == ids[::-1][5:10]
 
     def test_invalid_expression_returns_422(self):
         """Unparsable expressions and unknown fields return 422."""

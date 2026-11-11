@@ -672,19 +672,32 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                     objects.append(self.full_object(obj, args, locale=locale))
                 return self.response(200, objects, args, total_items=total_items)
 
-        # load all objects to memory
-        objects_name = GRAMPS_OBJECT_PLURAL[self.gramps_class_name]
-        iter_objects_method = self.db_handle.method("iter_%s", objects_name)
-        assert iter_objects_method is not None  # type checker
         # ordered by handle, so ties are broken like in sort_handles_by_raw_data
-        objects = sorted(iter_objects_method(), key=lambda obj: obj.handle)
-
         if "filter" in args or "rules" in args:
-            handles = [obj.handle for obj in objects]
+            # filter the handles before loading objects, so that only the
+            # matching objects are loaded (rules evaluated in SQL, like
+            # MatchesQuery, load no other object at all)
+            handles = sorted(query_method())
             matching = set(
                 apply_filter(self.db_handle, args, self.gramps_class_name, handles)
             )
-            objects = [obj for obj in objects if obj.handle in matching]
+            objects = []
+            for handle in handles:
+                if handle not in matching:
+                    continue
+                try:
+                    obj = self.get_object_from_handle(handle)
+                except HandleError:
+                    # object was deleted after the handles were fetched
+                    continue
+                if obj is not None:
+                    objects.append(obj)
+        else:
+            # load all objects to memory
+            objects_name = GRAMPS_OBJECT_PLURAL[self.gramps_class_name]
+            iter_objects_method = self.db_handle.method("iter_%s", objects_name)
+            assert iter_objects_method is not None  # type checker
+            objects = sorted(iter_objects_method(), key=lambda obj: obj.handle)
 
         if "gql" in args:
             try:
