@@ -1070,6 +1070,50 @@ class TestUser(unittest.TestCase):
             assert rv.status_code == 201
             mock_smtp_instance.send_message.assert_called_once()
 
+    def test_registration_config(self):
+        url = BASE_URL + "/register/config/"
+        # no authentication needed; without a tree, owners of any tree count
+        rv = self.client.get(url)
+        assert rv.status_code == 200
+        assert rv.json == {"enabled": True}
+        rv = self.client.get(url, query_string={"tree": self.tree})
+        assert rv.status_code == 200
+        assert rv.json == {"enabled": True}
+        # unknown tree: disabled rather than an error
+        rv = self.client.get(url, query_string={"tree": "doesnotexist"})
+        assert rv.status_code == 200
+        assert rv.json == {"enabled": False}
+        with patch.dict(self.app.config, {"REGISTRATION_DISABLED": True}):
+            rv = self.client.get(url, query_string={"tree": self.tree})
+            assert rv.json == {"enabled": False}
+        with patch.dict(
+            self.app.config,
+            {"OIDC_ENABLED": True, "OIDC_DISABLE_LOCAL_AUTH": True},
+        ):
+            rv = self.client.get(url, query_string={"tree": self.tree})
+            assert rv.json == {"enabled": False}
+
+    def test_registration_config_tree_without_owner(self):
+        with self.app.app_context():
+            dbpath, _ = self.dbman.create_new_db_cli("No Owner", dbid="sqlite")
+            tree = os.path.basename(dbpath)
+        rv = self.client.get(
+            BASE_URL + "/register/config/", query_string={"tree": tree}
+        )
+        assert rv.status_code == 200
+        assert rv.json == {"enabled": False}
+        # agrees with an actual registration attempt
+        rv = self.client.post(
+            BASE_URL + "/users/new_user_5/register/",
+            json={
+                "email": "new_5@example.com",
+                "full_name": "New Name",
+                "password": "abc",
+                "tree": tree,
+            },
+        )
+        assert rv.status_code == 405
+
     def test_add_user_local_auth_disabled(self):
         rv = self.client.post(
             BASE_URL + "/token/", json={"username": "owner", "password": "123"}

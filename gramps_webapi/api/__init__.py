@@ -179,6 +179,7 @@ from .resources.types import (
     TypesResource,
 )
 from .resources.user import (
+    RegistrationConfigResource,
     UserChangePasswordResource,
     UserConfirmEmailResource,
     UserCreateOwnerResource,
@@ -880,6 +881,12 @@ register_endpt(
     UserRegisterResource,
     "/users/<string:user_name>/register/",
     "register",
+    tags=["Users"],
+)
+register_endpt(
+    RegistrationConfigResource,
+    "/register/config/",
+    "register_config",
     tags=["Users"],
 )
 register_endpt(

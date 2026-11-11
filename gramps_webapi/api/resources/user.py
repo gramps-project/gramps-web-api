@@ -87,7 +87,7 @@ from ..util import (
     tree_exists,
 )
 from . import LimitedScopeProtectedResource, ProtectedResource, Resource
-from .schemas import UserSchema
+from .schemas import RegistrationConfigSchema, UserSchema
 from .token import get_tokens, get_tree_id_and_permissions
 
 
@@ -556,27 +556,56 @@ class UserRegisterBodyArgs(Schema):
     )
 
 
+def is_registration_disabled(tree: Optional[str]) -> bool:
+    """Check if the registration is disabled.
+
+    Without a tree, owners of any tree count.
+    """
+    if current_app.config["REGISTRATION_DISABLED"]:
+        return True
+    # without local authentication, a registered user could never log in
+    if is_local_auth_disabled():
+        return True
+    # check if there are tree owners or, in a single-tree setup,
+    # tree admins
+    if current_app.config["TREE"] == TREE_MULTI:
+        roles = [ROLE_OWNER]
+    else:
+        roles = [ROLE_OWNER, ROLE_ADMIN]
+    if get_number_users(tree=tree, roles=roles) == 0:
+        # no users authorized to enable new accounts:
+        # registration disabled
+        return True
+    return False
+
+
+class RegistrationConfigQueryArgs(Schema):
+    """Query arguments for GET /register/config/."""
+
+    tree = fields.Str(
+        required=False,
+        metadata={"description": "Tree ID the user would register for."},
+    )
+
+
+class RegistrationConfigResource(Resource):
+    """Resource telling clients whether registration is possible."""
+
+    @limiter.limit("60/minute")
+    @api_blueprint.arguments(RegistrationConfigQueryArgs, location="query")
+    @api_blueprint.response(200, RegistrationConfigSchema())
+    def get(self, args):
+        """Get whether new users can register.
+
+        Gives the same answer as a registration attempt would: an unknown
+        tree is reported as disabled rather than as an error, so that the
+        endpoint does not reveal which trees exist.
+        """
+        return {"enabled": not is_registration_disabled(tree=args.get("tree"))}
+
+
 class UserRegisterResource(Resource):
     """Resource for registering a new user."""
-
-    def _is_disabled(self, tree: Optional[str]) -> bool:
-        """Check if the registration is disabled."""
-        if current_app.config["REGISTRATION_DISABLED"]:
-            return True
-        # without local authentication, a registered user could never log in
-        if is_local_auth_disabled():
-            return True
-        # check if there are tree owners or, in a single-tree setup,
-        # tree admins
-        if current_app.config["TREE"] == TREE_MULTI:
-            roles = [ROLE_OWNER]
-        else:
-            roles = [ROLE_OWNER, ROLE_ADMIN]
-        if get_number_users(tree=tree, roles=roles) == 0:
-            # no users authorized to enable new accounts:
-            # registration disabled
-            return True
-        return False
 
     @limiter.limit("1/second")
     @api_blueprint.arguments(UserRegisterBodyArgs, location="json")
@@ -588,7 +617,7 @@ class UserRegisterResource(Resource):
         # do not allow registration if no tree owner account exists!
         # Checked before the tree argument, so that a disabled registration
         # returns 405 in every setup. Without a tree, owners of any tree count.
-        if self._is_disabled(tree=args.get("tree")):
+        if is_registration_disabled(tree=args.get("tree")):
             abort_with_message(405, "Registration is disabled")
         if not args.get("tree") and current_app.config["TREE"] == TREE_MULTI:
             # if multi-tree is enabled, tree is required
