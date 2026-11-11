@@ -142,11 +142,13 @@ def _validate_tree_id(tree_id: str | None) -> str | None:
 
     Mirrors the checks the registration endpoint applies, so that an OIDC login
     cannot create an account somewhere a registration could not.
+
+    The tree is optional even in a multi-tree setup: an identity that is already
+    linked to an account logs into that account's tree. Only creating a new
+    account needs one, which create_or_update_oidc_user() enforces.
     """
     is_multi = current_app.config["TREE"] == TREE_MULTI
     if not tree_id:
-        if is_multi:
-            abort_with_message(422, "tree is required")
         return None
     if not is_multi:
         # In a single-tree setup TREE holds the tree *name*, not the tree ID.
@@ -384,8 +386,9 @@ class OIDCLoginQueryArgs(Schema):
         required=False,
         metadata={
             "description": (
-                "ID of the tree to associate with the OIDC login. Required for"
-                " multi-tree installations, optional in single-tree ones."
+                "ID of the tree to associate with the OIDC login. In multi-tree"
+                " installations, required to create a new account, but not to"
+                " log into an existing one. Optional in single-tree ones."
                 " Ignored when linking."
             )
         },
