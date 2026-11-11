@@ -88,20 +88,20 @@ class TestRequestCacheETag(unittest.TestCase):
 
     def test_etag_stable(self):
         """Repeated requests get the same ETag."""
-        path = f"/api/notes/{self.handle}"
+        path = "/api/notes/"
         etag = self._get_etag(path, self.headers_admin)
         self.assertEqual(etag, self._get_etag(path, self.headers_admin))
 
     def test_etag_changes_after_write(self):
         """Any change to the tree changes the ETag."""
-        path = f"/api/notes/{self.handle}"
+        path = "/api/notes/"
         etag = self._get_etag(path, self.headers_admin)
         self._add_note("Another note.")
         self.assertNotEqual(etag, self._get_etag(path, self.headers_admin))
 
     def test_etag_depends_on_args(self):
         """Different query arguments get different ETags."""
-        path = f"/api/notes/{self.handle}"
+        path = "/api/notes/"
         etag = self._get_etag(path, self.headers_admin)
         self.assertNotEqual(
             etag, self._get_etag(f"{path}?keys=handle", self.headers_admin)
@@ -110,7 +110,7 @@ class TestRequestCacheETag(unittest.TestCase):
     def test_etag_depends_on_permission(self):
         """Users with and without permission to view private records get
         different ETags."""
-        path = f"/api/notes/{self.handle}"
+        path = "/api/notes/"
         self.assertNotEqual(
             self._get_etag(path, self.headers_admin),
             self._get_etag(path, self.headers_user),
@@ -129,10 +129,25 @@ class TestRequestCacheETag(unittest.TestCase):
 
     def test_etag_without_timestamp(self):
         """Without a last change timestamp, the ETag is the hash of the body."""
-        path = f"/api/notes/{self.handle}"
+        path = "/api/notes/"
         with patch(
             "gramps_webapi.api.cache.get_db_last_change_timestamp", return_value=None
         ):
             rv = self.client.get(path, headers=self.headers_admin)
         self.assertEqual(rv.status_code, 200)
         self.assertEqual(rv.headers["ETag"], f'"{hashlib.sha256(rv.data).hexdigest()}"')
+
+    def test_plain_object_etag_unchanged_by_other_writes(self):
+        """A plain single-object GET uses the per-object hash as ETag, so
+        unrelated writes to the tree do not change it, whereas requests with
+        query parameters use the request-cache-key ETag."""
+        plain_path = f"/api/notes/{self.handle}"
+        extended_path = f"/api/notes/{self.handle}?extend=all"
+        plain_etag = self._get_etag(plain_path, self.headers_admin)
+        extended_etag = self._get_etag(extended_path, self.headers_admin)
+        self.assertNotEqual(plain_etag, extended_etag)
+        self._add_note("Unrelated note.")
+        self.assertEqual(plain_etag, self._get_etag(plain_path, self.headers_admin))
+        self.assertNotEqual(
+            extended_etag, self._get_etag(extended_path, self.headers_admin)
+        )
