@@ -22,6 +22,7 @@
 import unittest
 from unittest.mock import patch
 
+from flask import request
 from flask_limiter.util import get_remote_address
 from gramps.cli.clidbman import CLIDbManager
 from gramps.gen.dbstate import DbState
@@ -41,6 +42,7 @@ def _make_client(config):
         )
     # expose the key the IP-based rate limiter uses
     app.add_url_rule("/test-rate-limit-key", "rate_limit_key", get_remote_address)
+    app.add_url_rule("/test-scheme", "scheme", lambda: request.scheme)
     return app.test_client()
 
 
@@ -83,6 +85,17 @@ class TestProxyFix(unittest.TestCase):
     def test_one_proxy_without_header(self):
         client = _make_client({"PROXY_FIX_X_FOR": 1})
         assert self._get_key(client, {}) == SOCKET_ADDR
+
+    def test_one_proxy_ignores_forwarded_proto(self):
+        """Only X-Forwarded-For is trusted, not X-Forwarded-Proto."""
+        client = _make_client({"PROXY_FIX_X_FOR": 1})
+        rv = client.get(
+            "/test-scheme",
+            headers={"X-Forwarded-For": CLIENT_ADDR, "X-Forwarded-Proto": "https"},
+            environ_base={"REMOTE_ADDR": SOCKET_ADDR},
+        )
+        assert rv.status_code == 200
+        assert rv.get_data(as_text=True) == "http"
 
     def test_string_value(self):
         """A value read from a config file can be a string."""

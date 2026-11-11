@@ -114,10 +114,11 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
             raise ValueError(f"{option} must be specified")
 
     # trust X-Forwarded-For from this many reverse proxies, so that
-    # request.remote_addr (used e.g. as rate limiting key) is the client's IP
+    # request.remote_addr (used e.g. as rate limiting key) is the client's IP;
+    # x_proto defaults to 1 in ProxyFix, so disable it explicitly
     if proxy_fix_x_for := int(app.config.get("PROXY_FIX_X_FOR") or 0):
         app.wsgi_app = ProxyFix(  # type: ignore[method-assign]
-            app.wsgi_app, x_for=proxy_fix_x_for
+            app.wsgi_app, x_for=proxy_fix_x_for, x_proto=0
         )
 
     # pin the driver once, so every user of the config gets psycopg2
