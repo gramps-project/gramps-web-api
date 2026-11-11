@@ -41,6 +41,7 @@ from gramps_webapi.auth.oidc import (
     get_usable_email,
     init_oidc,
 )
+from gramps_webapi.const import TREE_MULTI
 
 
 class TestGetUsableEmail:
@@ -778,6 +779,58 @@ class TestCreateOrUpdateOidcUser:
 
         with pytest.raises(ValueError, match="not configured"):
             create_or_update_oidc_user(userinfo, None, "invalid_provider")
+
+    @patch("gramps_webapi.auth.oidc.get_oidc_account")
+    @patch("gramps_webapi.auth.oidc.get_name", return_value="testuser")
+    @patch("gramps_webapi.auth.oidc.modify_user")
+    @patch(
+        "gramps_webapi.auth.oidc.get_provider_config",
+        return_value={"username_claim": "preferred_username"},
+    )
+    def test_existing_user_multi_tree_without_tree(
+        self, mock_get_config, mock_modify, mock_get_name, mock_get_oidc
+    ):
+        """A linked identity logs in without a tree, keeping the account's tree."""
+        mock_get_oidc.return_value = "existing-user-guid"
+        mock_app = MagicMock()
+        mock_app.config = {"TREE": TREE_MULTI}
+
+        with (
+            patch("gramps_webapi.auth.oidc.current_app", mock_app),
+            patch("gramps_webapi.auth.oidc.get_role_from_claims", return_value=None),
+            patch(
+                "gramps_webapi.api.util.get_tree_id_or_none",
+                return_value="users_tree",
+            ),
+        ):
+            result = create_or_update_oidc_user({"sub": "sub-123"}, None, "google")
+
+        assert result == "existing-user-guid"
+        assert mock_modify.call_args[1]["tree"] is None
+
+    @patch("gramps_webapi.auth.oidc.get_oidc_account", return_value=None)
+    @patch("gramps_webapi.auth.oidc.add_user")
+    @patch("gramps_webapi.auth.oidc.create_oidc_account")
+    @patch(
+        "gramps_webapi.auth.oidc.get_provider_config",
+        return_value={"username_claim": "preferred_username"},
+    )
+    def test_new_user_multi_tree_without_tree(
+        self, mock_get_config, mock_create_oidc, mock_add_user, mock_get_oidc
+    ):
+        """No account is created without a tree in a multi-tree setup."""
+        mock_app = MagicMock()
+        mock_app.config = {"TREE": TREE_MULTI}
+
+        with (
+            patch("gramps_webapi.auth.oidc.current_app", mock_app),
+            patch("gramps_webapi.auth.oidc.get_role_from_claims", return_value=None),
+        ):
+            with pytest.raises(ValueError, match="registration link"):
+                create_or_update_oidc_user({"sub": "sub-123"}, None, "google")
+
+        mock_add_user.assert_not_called()
+        mock_create_oidc.assert_not_called()
 
 
 class TestInitOidc:
