@@ -174,7 +174,12 @@ def request_cache_decorator(f: Callable) -> Callable:
         g.pop("request_cache_key", None)
         rv = cached_f(*args, **kwargs)
         cache_key = g.pop("request_cache_key", None)
-        if cache_key and isinstance(rv, Response) and rv.status_code == 200:
+        if (
+            cache_key
+            and isinstance(rv, Response)
+            and rv.status_code == 200
+            and not getattr(rv, "_has_custom_etag", False)
+        ):
             rv.set_etag(hashlib.sha256(cache_key.encode()).hexdigest())
         return rv
 
