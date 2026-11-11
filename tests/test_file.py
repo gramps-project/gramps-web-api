@@ -19,6 +19,7 @@
 
 """Tests for file handling utilities."""
 
+import tempfile
 from io import BytesIO
 
 import pytest
@@ -38,6 +39,20 @@ def test_upload_file_local(base_dir):
     """A relative path is written inside the base directory."""
     upload_file_local(base_dir, "sub/dir/file.txt", BytesIO(b"content"))
     assert (base_dir / "sub" / "dir" / "file.txt").read_bytes() == b"content"
+
+
+def test_upload_file_local_spooled_rolled_over(base_dir):
+    """A spooled temporary file that spilled to disk is written (#1165).
+
+    Once rolled over, the file's ``name`` is an int file descriptor.
+    """
+    content = b"x" * 100
+    with tempfile.SpooledTemporaryFile(max_size=10) as fp:
+        fp.write(content)
+        fp.seek(0)
+        assert isinstance(fp.name, int)
+        upload_file_local(base_dir, "file.bin", fp)
+    assert (base_dir / "file.bin").read_bytes() == content
 
 
 @pytest.mark.parametrize("rel_path", ["../escaped.txt", "sub/../../escaped.txt"])

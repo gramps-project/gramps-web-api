@@ -33,7 +33,6 @@ from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Media
 from PIL import Image
-from werkzeug.datastructures import FileStorage
 
 from gramps_webapi.const import MIME_AVIF, MIME_PNG
 
@@ -341,8 +340,8 @@ def upload_file_local(
         raise ValueError(f"File {path} is not within the base directory.")
     # create folders if necessary
     os.makedirs(path.parent, exist_ok=True)
-    fs = FileStorage(stream)
-    fs.save(path)
+    with open(path, "wb") as out:
+        shutil.copyfileobj(stream, out)
 
 
 def get_checksum(fp) -> str:
