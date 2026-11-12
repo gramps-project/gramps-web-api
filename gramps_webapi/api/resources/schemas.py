@@ -1939,6 +1939,14 @@ class OIDCConfigSchema(_Base):
     )
 
 
+class RegistrationConfigSchema(_Base):
+    """Registration configuration returned by the /register/config/ endpoint."""
+
+    enabled = fields.Bool(
+        metadata={"description": "Whether new users can register."},
+    )
+
+
 class OIDCTokenExchangeSchema(_Base):
     """Body of a POST to the /oidc/tokens/ exchange endpoint."""
 
