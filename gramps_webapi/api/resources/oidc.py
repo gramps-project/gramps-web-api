@@ -19,8 +19,12 @@
 
 """OIDC authentication resources."""
 
+import base64
+import hashlib
 import logging
+import re
 import secrets
+from collections.abc import Callable
 from gettext import gettext as _
 from urllib.parse import urlencode
 
@@ -100,6 +104,13 @@ OIDC_LINK_CODE_PREFIX = "oidc_link_code:"
 
 # Seconds a link ticket stays valid.
 OIDC_LINK_TICKET_TIMEOUT = 120
+
+# Session key holding where a native app wants the login result, and the PKCE
+# challenge binding the exchange code to the app instance that started the login.
+SESSION_APP_REDIRECT_KEY = "oidc_app_redirect"
+
+# RFC 7636: an S256 code challenge is a base64url SHA-256 digest, 43 characters.
+CODE_CHALLENGE_RE = re.compile(r"^[A-Za-z0-9_-]{43}$")
 
 
 def _get_oidc_client(provider_id: str | None) -> tuple[object, dict]:
@@ -182,18 +193,87 @@ def _store_exchange_code(tokens: dict) -> str:
     return _store_code(tokens, OIDC_CODE_PREFIX, "oidc-exchange-code")
 
 
-def _redeem_exchange_code(code: str) -> dict:
-    """Return the tokens for a code, consuming it so it works only once."""
+def _redeem_exchange_code(code: str, code_verifier: str | None = None) -> dict:
+    """Return the tokens for a code, consuming it so it works only once.
+
+    A code issued to a native app carries a PKCE challenge; it is only redeemed
+    with the matching verifier.
+    """
+
+    def check(entry: dict) -> str | None:
+        challenge = entry.get("code_challenge")
+        if challenge and _s256(code_verifier or "") != challenge:
+            return "Invalid code verifier"
+        return None
+
     return _redeem_code(
-        code, OIDC_CODE_PREFIX, "oidc-exchange-code", "OIDC exchange code", "log in"
+        code,
+        OIDC_CODE_PREFIX,
+        "oidc-exchange-code",
+        "OIDC exchange code",
+        "log in",
+        check=check,
     )
 
 
-def _redeem_code(code: str, prefix: str, salt: str, name: str, retry: str) -> dict:
+def _s256(verifier: str) -> str:
+    """Return the S256 code challenge for a PKCE code verifier (RFC 7636)."""
+    digest = hashlib.sha256(verifier.encode("ascii", "ignore")).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
+def _allowed_app_redirects() -> list[str]:
+    """Return the redirect URIs native apps may ask for (exact matches only)."""
+    value = get_config("OIDC_ALLOWED_REDIRECT_URIS") or []
+    if isinstance(value, str):
+        value = value.replace(",", " ").split()
+    return [uri for uri in value if uri]
+
+
+def _app_redirect_from_args(args: dict) -> dict | None:
+    """Validate a native app's redirect URI and PKCE challenge from the login args.
+
+    Returns None for an ordinary login through the web frontend.
+    """
+    uri = args.get("redirect_uri")
+    challenge = args.get("code_challenge")
+    if not uri and not challenge:
+        return None
+    if not uri or not challenge:
+        abort_with_message(
+            400, "redirect_uri and code_challenge must be given together"
+        )
+    if uri not in _allowed_app_redirects():
+        abort_with_message(400, "redirect_uri is not allowed on this server")
+    if args.get("code_challenge_method", "S256") != "S256":
+        abort_with_message(400, "Only the S256 code challenge method is supported")
+    if not CODE_CHALLENGE_RE.match(challenge):
+        abort_with_message(400, "Invalid code_challenge")
+    return {"uri": uri, "challenge": challenge}
+
+
+def _app_error_redirect(app_redirect: dict, error: str):
+    """Tell the native app that started the login why it gets no code.
+
+    Without this the browser would show the error and the app would wait forever.
+    """
+    return redirect(f"{app_redirect['uri']}#{urlencode({'error': error})}")
+
+
+def _redeem_code(
+    code: str,
+    prefix: str,
+    salt: str,
+    name: str,
+    retry: str,
+    check: Callable[[dict], str | None] | None = None,
+) -> dict:
     """Return the entry for a code, consuming it so it works only once.
 
     `name` and `retry` describe the code and what to do again in error messages.
     The salt differs per kind of code, so one kind can't be redeemed as another.
+    `check` may reject the entry with a message before the code is consumed, so
+    that a failed attempt does not use up the code.
     """
     try:
         code_id = _code_serializer(salt).loads(code, max_age=OIDC_CODE_TIMEOUT)
@@ -205,6 +285,11 @@ def _redeem_code(code: str, prefix: str, salt: str, name: str, retry: str) -> di
     key = f"{prefix}{code_id}"
     claim_key = f"{key}:claimed"
     entry = persistent_cache.get(key)
+
+    if entry is not None and check is not None:
+        error = check(entry)
+        if error:
+            abort_with_message(400, error)
 
     # Claiming with add() rather than checking and then writing, so that two
     # simultaneous requests cannot both redeem the same code.
@@ -402,6 +487,31 @@ class OIDCLoginQueryArgs(Schema):
             )
         },
     )
+    redirect_uri = fields.Str(
+        required=False,
+        metadata={
+            "description": (
+                "For native apps: where to send the login result instead of the"
+                " frontend. Must exactly match an entry of"
+                " OIDC_ALLOWED_REDIRECT_URIS and requires code_challenge."
+                " Ignored when linking."
+            )
+        },
+    )
+    code_challenge = fields.Str(
+        required=False,
+        metadata={
+            "description": (
+                "PKCE code challenge (RFC 7636) of the app. The exchange code is"
+                " then only redeemed with the matching code_verifier."
+            )
+        },
+    )
+    code_challenge_method = fields.Str(
+        required=False,
+        load_default="S256",
+        metadata={"description": "PKCE code challenge method; only S256."},
+    )
 
 
 class OIDCLoginResource(Resource):
@@ -416,10 +526,12 @@ class OIDCLoginResource(Resource):
         """Redirect to OIDC provider for authentication."""
         provider_id = args.get("provider")
         oidc_client, _config = _get_oidc_client(provider_id)
+        app_redirect: dict | None = None
 
         if args.get("link"):
             session[SESSION_LINK_KEY] = _redeem_link_ticket(args["link"], provider_id)
             session.pop(SESSION_TREE_KEY, None)
+            session.pop(SESSION_APP_REDIRECT_KEY, None)
         else:
             # A link started earlier in this browser and never completed must
             # not turn this login into a link.
@@ -430,6 +542,13 @@ class OIDCLoginResource(Resource):
             # up. It cannot be passed on the redirect URI, which has to match
             # the registered one.
             session[SESSION_TREE_KEY] = _validate_tree_id(args.get("tree"))
+            # A native app that cannot read the frontend's redirect names its own,
+            # checked against the allow list before the round trip to the provider.
+            app_redirect = _app_redirect_from_args(args)
+            if app_redirect:
+                session[SESSION_APP_REDIRECT_KEY] = app_redirect
+            else:
+                session.pop(SESSION_APP_REDIRECT_KEY, None)
 
         # Build redirect URI with provider in path (Microsoft-compatible)
         # Using path parameter instead of query parameter for broader compatibility
@@ -437,7 +556,14 @@ class OIDCLoginResource(Resource):
         redirect_uri = f"{base_url.rstrip('/')}/api/oidc/callback/{provider_id}"
 
         configure_pkce(oidc_client, _config)
-        authorization_url = oidc_client.authorize_redirect(redirect_uri)
+        extra_params = {}
+        if app_redirect:
+            # PKCE does not stop another app on the device from registering the
+            # same custom scheme and starting a login itself. With a session at
+            # the provider that would complete silently, so always ask the
+            # provider for user interaction (RFC 8252, section 8.6).
+            extra_params["prompt"] = "login"
+        authorization_url = oidc_client.authorize_redirect(redirect_uri, **extra_params)
         return authorization_url
 
 
@@ -505,6 +631,7 @@ class OIDCCallbackResource(Resource):
         provider_id = provider_id or args.get("provider")
         oidc_client, provider_config = _get_oidc_client(provider_id)
         link = session.pop(SESSION_LINK_KEY, None)
+        app_redirect = session.pop(SESSION_APP_REDIRECT_KEY, None)
 
         try:
             # Some providers issue tokens whose `iss` claim does not match the
@@ -539,6 +666,8 @@ class OIDCCallbackResource(Resource):
             logger.exception("OIDC callback error for provider '%s'", provider_id)
             if link:
                 return redirect(_complete_url(error="link_failed"))
+            if app_redirect:
+                return _app_error_redirect(app_redirect, "login_failed")
             abort_with_message(401, f"OIDC authentication failed for {provider_id}")
 
         if link:
@@ -564,6 +693,8 @@ class OIDCCallbackResource(Resource):
             # Check if user account is disabled (same as local auth flow)
             user_details = get_user_details(username)
             if user_details and user_details["role"] < 0:
+                if app_redirect:
+                    return _app_error_redirect(app_redirect, "account_not_active")
                 # User account is disabled - show confirmation page like local registration
                 title = _("Account Under Review")
                 message = _(
@@ -592,6 +723,14 @@ class OIDCCallbackResource(Resource):
             if token.get("id_token"):
                 exchange_tokens["id_token"] = token["id_token"]
 
+            if app_redirect:
+                # Bind the code to the app that started the login (PKCE): an
+                # app that catches the redirect without the verifier gets nothing.
+                exchange_tokens["code_challenge"] = app_redirect["challenge"]
+                code = _store_exchange_code(exchange_tokens)
+                logger.debug("Redirecting to the app redirect URI with code")
+                return redirect(f"{app_redirect['uri']}#code={code}")
+
             code = _store_exchange_code(exchange_tokens)
 
             # In the fragment, which is not sent to the frontend's web server.
@@ -605,6 +744,8 @@ class OIDCCallbackResource(Resource):
             logger.exception(
                 f"Error creating/updating OIDC user for provider '{provider_id}'"
             )
+            if app_redirect:
+                return _app_error_redirect(app_redirect, "login_failed")
             abort_with_message(400, f"Error processing user: {str(e)}")
 
 
@@ -616,7 +757,7 @@ class OIDCTokenExchangeResource(Resource):
     @limiter.limit("10/minute")
     def post(self, args):
         """Exchange the code from the login redirect for tokens."""
-        tokens = _redeem_exchange_code(args["code"])
+        tokens = _redeem_exchange_code(args["code"], args.get("code_verifier"))
 
         response_data = {
             "access_token": tokens["access_token"],
