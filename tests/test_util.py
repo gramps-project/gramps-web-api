@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from gramps.gen.errors import HandleError
 from gramps.gen.datehandler import parser as date_parser
+from gramps.gen.display.place import displayer as place_displayer
 from gramps.gen.lib import Citation, Date, Event, EventType, Place, PlaceName
 from gramps.gen.lib.json_utils import data_to_object
 
@@ -11,7 +12,6 @@ from gramps_webapi.api import util
 from gramps_webapi.api.resources.util import (
     fix_object_dict,
     get_citation_profile_for_object,
-    get_place_name_at_date,
     get_place_name_for_event,
 )
 from gramps_webapi.api.util import send_email
@@ -827,10 +827,20 @@ def _place(*names: tuple[str, str]) -> Place:
     return place
 
 
+def _event_at(place: Place, date: str) -> tuple[MagicMock, Event]:
+    """Return a mock database holding `place` and an event there at `date`."""
+    db_handle = MagicMock()
+    db_handle.get_place_from_handle.return_value = place
+    event = Event()
+    event.set_place_handle("place")
+    event.set_date_object(date_parser.parse(date) if date else Date())
+    return db_handle, event
+
+
 @pytest.mark.parametrize(
     "names,date,expected",
     [
-        # primary name without a date: always used, as in Gramps
+        # primary name without a date: always used
         ((("Gdansk", ""), ("Danzig", "between 1910 and 1945")), "1930", "Gdansk"),
         ((("Gdansk", ""), ("Danzig", "between 1910 and 1945")), "1950", "Gdansk"),
         # dated primary name
@@ -838,26 +848,30 @@ def _place(*names: tuple[str, str]) -> Place:
         ((("Gdansk", "from 1945"), ("Danzig", "before 1945")), "1950", "Gdansk"),
         # no dated name matches: the first name without a date
         ((("Gdansk", "from 1945"), ("Danzig", "")), "1930", "Danzig"),
-        # nothing matches: the primary name
-        ((("Gdansk", "from 1945"),), "1930", "Gdansk"),
-        # no date: the primary name
-        ((("Gdansk", "from 1945"), ("Danzig", "before 1945")), "", "Gdansk"),
     ],
 )
-def test_get_place_name_at_date(names, date, expected):
-    date_obj = date_parser.parse(date) if date else Date()
-    assert get_place_name_at_date(_place(*names), date_obj) == expected
+def test_get_place_name_for_event(names, date, expected):
+    db_handle, event = _event_at(_place(*names), date)
+    assert get_place_name_for_event(db_handle, event) == expected
 
 
-def test_get_place_name_for_event_uses_event_date():
-    place = _place(("Gdansk", "from 1945"), ("Danzig", "before 1945"))
-    db_handle = MagicMock()
-    db_handle.get_place_from_handle.return_value = place
-    event = Event()
-    event.set_place_handle("place")
-    event.set_date_object(date_parser.parse("1930"))
-    assert get_place_name_for_event(db_handle, event) == "Danzig"
-    event.set_date_object(Date())
-    assert get_place_name_for_event(db_handle, event) == "Gdansk"
+@pytest.mark.parametrize(
+    "names,date",
+    [
+        ((("Gdansk", ""), ("Danzig", "between 1910 and 1945")), "1930"),
+        ((("Gdansk", "from 1945"), ("Danzig", "before 1945")), "1930"),
+        ((("Gdansk", "from 1945"), ("Danzig", "before 1945")), ""),
+        ((("Gdansk", "from 1945"),), "1930"),
+    ],
+)
+def test_get_place_name_for_event_agrees_with_place_display(names, date):
+    db_handle, event = _event_at(_place(*names), date)
+    assert get_place_name_for_event(db_handle, event) == place_displayer.display_event(
+        db_handle, event
+    )
+
+
+def test_get_place_name_for_event_without_place():
+    db_handle, event = _event_at(_place(("Gdansk", "")), "1930")
     event.set_place_handle("")
     assert get_place_name_for_event(db_handle, event) == ""
