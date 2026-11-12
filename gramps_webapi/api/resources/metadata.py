@@ -26,7 +26,6 @@ from importlib import metadata
 from importlib.util import find_spec
 from typing import Any
 
-import gramps_ql as gql
 import limits
 from flask import Response, current_app
 from flask_jwt_extended import get_jwt_identity
@@ -196,7 +195,6 @@ def _get_server_metadata() -> dict[str, Any]:
             "schema": VERSION,
             "version": VERSION,
         },
-        "gramps_ql": {"version": gql.__version__},
         "gramps_object_query_language": {
             "version": metadata.version("gramps-object-query-language")
         },
