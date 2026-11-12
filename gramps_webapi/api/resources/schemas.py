@@ -3348,6 +3348,19 @@ class UserOIDCUnlinkSchema(_Base):
     )
 
 
+class UserMergeSchema(_Base):
+    """Request body for merging a user into another one."""
+
+    source = fields.Str(
+        required=True,
+        validate=validate.Length(min=1),
+        metadata={
+            "description": "Name of the user to merge into the user in the path."
+            " This user is deleted."
+        },
+    )
+
+
 class UserSchema(_Base):
     """Details about a user."""
 

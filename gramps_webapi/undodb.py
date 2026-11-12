@@ -687,6 +687,14 @@ class DbUndoSQL(DbUndo):
 class DbUndoSQLWeb(DbUndoSQL):
     """SQL-based undo database with additional methods for Web API."""
 
+    def reassign_user(self, old_user_id: str, new_user_id: str) -> None:
+        """Attribute one user's changes in this tree to another user."""
+        with self.session_scope() as session:
+            query = session.query(Connection).filter(Connection.user_id == old_user_id)
+            if self.tree_id is not None:
+                query = query.filter(Connection.tree_id == self.tree_id)
+            query.update({Connection.user_id: new_user_id}, synchronize_session=False)
+
     def _transactions_query(
         self,
         session: Session,
