@@ -1227,13 +1227,15 @@ class TestOIDCAppRedirect(unittest.TestCase):
             )
         return rv, mock_oidc_client
 
-    def _callback(self):
-        """Run a successful callback; return the redirect location."""
+    def _callback(self, provider_fails=False, role=0):
+        """Run a callback; return the redirect location."""
         mock_oauth = MagicMock()
         mock_oidc_client = MagicMock()
         mock_oauth.gramps_custom = mock_oidc_client
         mock_oidc_client.authorize_access_token.return_value = {"access_token": "t"}
         mock_oidc_client.userinfo.return_value = {"sub": "user123"}
+        if provider_fails:
+            mock_oidc_client.authorize_access_token.side_effect = Exception("denied")
         with (
             patch(
                 "gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True
@@ -1247,6 +1249,10 @@ class TestOIDCAppRedirect(unittest.TestCase):
                 return_value="user-guid",
             ),
             patch("gramps_webapi.api.resources.oidc.get_name", return_value="testuser"),
+            patch(
+                "gramps_webapi.api.resources.oidc.get_user_details",
+                return_value={"role": role},
+            ),
             patch(
                 "gramps_webapi.api.resources.oidc.get_tree_id_and_permissions",
                 return_value=("t", set()),
@@ -1347,6 +1353,38 @@ class TestOIDCAppRedirect(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 200)
         self.assertEqual(rv.get_json()["access_token"], "a")
+
+    def test_app_login_asks_the_provider_for_interaction(self):
+        """Another app could start a login itself; it must not complete silently."""
+        _, mock_client = self._login(
+            self.APP_URI, redirect_uri=self.APP_URI, code_challenge=self.CHALLENGE
+        )
+        self.assertEqual(
+            mock_client.authorize_redirect.call_args.kwargs.get("prompt"), "login"
+        )
+
+        _, mock_client = self._login(self.APP_URI)
+        self.assertNotIn("prompt", mock_client.authorize_redirect.call_args.kwargs)
+
+    def _app_session(self):
+        """Put a pending app login into the session."""
+        with self.client.session_transaction() as sess:
+            sess["oidc_app_redirect"] = {
+                "uri": self.APP_URI,
+                "challenge": self.CHALLENGE,
+            }
+
+    def test_failed_provider_login_is_reported_to_the_app(self):
+        """The app must not keep waiting when the provider login fails."""
+        self._app_session()
+        location = self._callback(provider_fails=True)
+        self.assertEqual(location, self.APP_URI + "#error=login_failed")
+
+    def test_inactive_account_is_reported_to_the_app(self):
+        """A new account awaiting approval gets no code, and the app is told."""
+        self._app_session()
+        location = self._callback(role=-1)
+        self.assertEqual(location, self.APP_URI + "#error=account_not_active")
 
     def test_frontend_login_ignores_the_verifier(self):
         """Codes for the web frontend carry no challenge and behave as before."""

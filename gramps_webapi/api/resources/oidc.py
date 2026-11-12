@@ -252,6 +252,14 @@ def _app_redirect_from_args(args: dict) -> dict | None:
     return {"uri": uri, "challenge": challenge}
 
 
+def _app_error_redirect(app_redirect: dict, error: str):
+    """Tell the native app that started the login why it gets no code.
+
+    Without this the browser would show the error and the app would wait forever.
+    """
+    return redirect(f"{app_redirect['uri']}#{urlencode({'error': error})}")
+
+
 def _redeem_code(
     code: str,
     prefix: str,
@@ -518,6 +526,7 @@ class OIDCLoginResource(Resource):
         """Redirect to OIDC provider for authentication."""
         provider_id = args.get("provider")
         oidc_client, _config = _get_oidc_client(provider_id)
+        app_redirect: dict | None = None
 
         if args.get("link"):
             session[SESSION_LINK_KEY] = _redeem_link_ticket(args["link"], provider_id)
@@ -547,7 +556,14 @@ class OIDCLoginResource(Resource):
         redirect_uri = f"{base_url.rstrip('/')}/api/oidc/callback/{provider_id}"
 
         configure_pkce(oidc_client, _config)
-        authorization_url = oidc_client.authorize_redirect(redirect_uri)
+        extra_params = {}
+        if app_redirect:
+            # PKCE does not stop another app on the device from registering the
+            # same custom scheme and starting a login itself. With a session at
+            # the provider that would complete silently, so always ask the
+            # provider for user interaction (RFC 8252, section 8.6).
+            extra_params["prompt"] = "login"
+        authorization_url = oidc_client.authorize_redirect(redirect_uri, **extra_params)
         return authorization_url
 
 
@@ -650,6 +666,8 @@ class OIDCCallbackResource(Resource):
             logger.exception("OIDC callback error for provider '%s'", provider_id)
             if link:
                 return redirect(_complete_url(error="link_failed"))
+            if app_redirect:
+                return _app_error_redirect(app_redirect, "login_failed")
             abort_with_message(401, f"OIDC authentication failed for {provider_id}")
 
         if link:
@@ -675,6 +693,8 @@ class OIDCCallbackResource(Resource):
             # Check if user account is disabled (same as local auth flow)
             user_details = get_user_details(username)
             if user_details and user_details["role"] < 0:
+                if app_redirect:
+                    return _app_error_redirect(app_redirect, "account_not_active")
                 # User account is disabled - show confirmation page like local registration
                 title = _("Account Under Review")
                 message = _(
@@ -724,6 +744,8 @@ class OIDCCallbackResource(Resource):
             logger.exception(
                 f"Error creating/updating OIDC user for provider '{provider_id}'"
             )
+            if app_redirect:
+                return _app_error_redirect(app_redirect, "login_failed")
             abort_with_message(400, f"Error processing user: {str(e)}")
 
 
