@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import shutil
 import time
 import zipfile
 from pathlib import Path
@@ -400,8 +401,18 @@ class MediaHandlerS3(MediaHandlerBase):
         include_private: bool,
         progress_cb: Optional[Callable] = None,
     ) -> None:
-        """Create a ZIP archive on disk containing all media files."""
+        """Create a ZIP archive on disk containing all media files.
+
+        Files are streamed into the archive in chunks with a single client,
+        so memory use does not grow with the size of the largest file.
+        """
+        from botocore.exceptions import ClientError
+
+        from .s3 import get_client, get_object_name
+
         remote_keys = self.get_remote_keys()
+        client = get_client(self.endpoint_url)
+        names_seen = set()
         if progress_cb:
             total = db_handle.get_number_of_media()
         with zipfile.ZipFile(zip_filename, "w") as zip_file:
@@ -415,9 +426,30 @@ class MediaHandlerS3(MediaHandlerBase):
                 media_path = os.path.normpath(obj.path)
                 if os.path.isabs(media_path) or is_parent_path(media_path):
                     continue  # ignore paths that would escape the archive
-                file_handler = self.get_file_handler(obj.handle, db_handle=db_handle)
-                fobj = file_handler.get_file_object()
-                zip_file.writestr(media_path, fobj.read())
+                if media_path in names_seen:
+                    continue
+                try:
+                    response = client.get_object(
+                        Bucket=self.bucket_name,
+                        Key=get_object_name(obj.checksum, self.prefix),
+                    )
+                except ClientError as exc:
+                    if exc.response["Error"]["Code"] == "NoSuchKey":
+                        continue  # deleted since listing the bucket
+                    raise
+                # the current time, as writestr sets it (the default is 1980)
+                zinfo = zipfile.ZipInfo(
+                    media_path, date_time=time.localtime(time.time())[:6]
+                )
+                # zipfile decides on zip64 before writing, from the size
+                zinfo.file_size = response["ContentLength"]
+                body = response["Body"]
+                try:
+                    with zip_file.open(zinfo, "w") as dest:
+                        shutil.copyfileobj(body, dest)
+                finally:
+                    body.close()
+                names_seen.add(media_path)
 
     def _get_archive_key(self, tree: str, file_name: str) -> str:
         """Get the object name of a media archive."""

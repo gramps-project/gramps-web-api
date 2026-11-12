@@ -27,9 +27,11 @@ import unittest
 import uuid
 import zipfile
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
+import boto3
 from gramps.gen.lib import Media
+from moto import mock_aws
 
 from gramps_webapi.api.media import (
     ARCHIVE_GRACE_SECONDS,
@@ -263,15 +265,13 @@ class TestMediaOutsideBaseDir(unittest.TestCase):
 
     def test_archive_s3(self):
         """Object storage archives contain no names that escape the archive."""
-        handler = MediaHandlerS3("s3://bucket")
-        file_handler = Mock()
-        file_handler.get_file_object.side_effect = lambda: io.BytesIO(b"content")
         zip_filename = Path(self.temp_dir.name, "archive.zip")
-        remote_keys = {"0", "2", "3", "5", "8"}
-        with (
-            patch.object(handler, "get_remote_keys", return_value=remote_keys),
-            patch.object(handler, "get_file_handler", return_value=file_handler),
-        ):
+        with mock_aws():
+            client = boto3.client("s3", region_name="us-east-1")
+            client.create_bucket(Bucket="bucket")
+            for key in ["0", "2", "3", "5", "8"]:
+                client.put_object(Bucket="bucket", Key=key, Body=b"content")
+            handler = MediaHandlerS3("s3://bucket")
             handler.create_file_archive(self.db, zip_filename, include_private=True)
         with zipfile.ZipFile(zip_filename) as zip_file:
             assert zip_file.namelist() == self.names
