@@ -592,8 +592,8 @@ class RegistrationConfigResource(Resource):
     """Resource telling clients whether registration is possible."""
 
     @limiter.limit("60/minute")
-    @api_blueprint.arguments(RegistrationConfigQueryArgs, location="query")
     @api_blueprint.response(200, RegistrationConfigSchema())
+    @api_blueprint.arguments(RegistrationConfigQueryArgs, location="query")
     def get(self, args):
         """Get whether new users can register.
 
