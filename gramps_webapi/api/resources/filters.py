@@ -321,6 +321,7 @@ def get_filter_rules(args: dict[str, Any], namespace: str) -> list[dict[str, Any
     (those of our own rules) stay as they are.
     """
     locale = get_locale_for_language(args.get("locale"), default=True)
+    assert locale is not None
 
     def translator(rule_class: type[Rule]) -> Callable[[str], str]:
         addon_translation = get_addon_translation(rule_class, locale.language)

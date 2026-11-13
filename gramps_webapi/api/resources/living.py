@@ -31,7 +31,7 @@ from ..blueprint import api_blueprint
 from ..util import get_db_handle, get_locale_for_language
 from . import ProtectedResource
 from .emit import GrampsJSONEncoder
-from .schemas import LivingDatesSchema, LivingSchema
+from .schemas import DateFormatQueryArgs, LivingDatesSchema, LivingSchema
 from .util import display_date, get_person_by_handle
 
 
@@ -83,7 +83,7 @@ class LivingResource(ProtectedResource, GrampsJSONEncoder):
         return self.response(200, {"living": data})
 
 
-class LivingDatesQueryArgs(Schema):
+class LivingDatesQueryArgs(DateFormatQueryArgs):
     """Query arguments for GET /people/<handle>/alive/dates."""
 
     average_generation_gap = fields.Integer(
@@ -124,7 +124,9 @@ class LivingDatesResource(ProtectedResource, GrampsJSONEncoder):
     def get(self, args: Dict, handle: Handle) -> Response:
         """Determine estimated birth and death dates."""
         db_handle = get_db_handle()
-        locale = get_locale_for_language(args["locale"], default=True)
+        locale = get_locale_for_language(
+            args["locale"], default=True, date_format=args["date_format"]
+        )
         person = get_person_by_handle(db_handle, handle)
         if person == {}:
             abort(404)

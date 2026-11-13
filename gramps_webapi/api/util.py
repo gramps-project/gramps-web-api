@@ -398,10 +398,51 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
     return g.db
 
 
+class _DateFormatLocale:
+    """Delegate a locale with a request-specific date displayer.
+
+    GrampsLocale instances are cached, so changing their displayer would leak
+    the requested format into other requests.
+    """
+
+    def __init__(self, base: GrampsLocale, date_format: int) -> None:
+        self._base = base
+        base_date_displayer = base.date_displayer
+        self.date_displayer = type(base_date_displayer)(date_format, blocale=base)
+        # Preserve the locale pattern if Gramps normalized its locale code.
+        self.date_displayer.dhformat = base_date_displayer.dhformat
+
+    def get_date(self, date: Any) -> str:
+        return self.date_displayer.display(date)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._base, name)
+
+
 def get_locale_for_language(
-    language: Optional[str], default: bool = False
-) -> GrampsLocale:
-    """Get GrampsLocale set to specified language."""
+    language: Optional[str],
+    default: bool = False,
+    date_format: Optional[int] = None,
+) -> Optional[GrampsLocale]:
+    """Get a GrampsLocale for a language, optionally with a date format.
+
+    Args:
+        language: Language code recognized by Gramps (for example, ``"de"``).
+            If it is None or unavailable, no locale is created from it.
+        default: If True and no locale was found for ``language``, use the
+            server's default locale (``GRAMPS_LOCALE``); otherwise return None.
+        date_format: Index of the date format in the selected locale's
+            ``date_displayer.formats``. If None, leave date formatting unchanged.
+            Ignored if no locale is available.
+
+    Returns:
+        The selected locale, or None if no locale was found and ``default`` is
+        False.
+
+    Aborts with HTTP 422 if ``date_format`` is outside the selected locale's
+    available formats.
+    """
+    locale = None
     if language is not None:
         catalog = GRAMPS_LOCALE.get_language_dict()
         for entry in catalog:
@@ -410,10 +451,15 @@ def get_locale_for_language(
                 locale_code = LOCALE_MAP.get(language, language)
                 if "UTF" not in locale_code.upper():
                     locale_code = f"{locale_code}.UTF-8"
-                return GrampsLocale(lang=locale_code)
-    if default:
-        return GRAMPS_LOCALE
-    return None
+                locale = GrampsLocale(lang=locale_code)
+                break
+    if locale is None and default:
+        locale = GRAMPS_LOCALE
+    if locale is not None and date_format is not None:
+        if date_format < 0 or date_format >= len(locale.date_displayer.formats):
+            abort_with_message(422, f"Invalid date_format for locale: {date_format}")
+        locale = _DateFormatLocale(locale, date_format)
+    return locale
 
 
 def get_buffer_for_file(filename: str, delete=True, not_found=False) -> BinaryIO:
