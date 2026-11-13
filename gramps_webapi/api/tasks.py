@@ -841,6 +841,7 @@ def verify_database(
     translate = None
     if locale:
         gramps_locale = get_locale_for_language(locale, default=True)
+        assert gramps_locale is not None
         translate = gramps_locale.translation.sgettext
     db_handle = get_db_outside_request(
         tree=tree, view_private=True, readonly=True, user_id=user_id

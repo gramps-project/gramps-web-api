@@ -147,6 +147,7 @@ class TranslationsResource(ProtectedResource, GrampsJSONEncoder):
         """Get available translations."""
         default_locale = GrampsLocale(lang="en")
         current_locale = get_locale_for_language(args["locale"], default=True)
+        assert current_locale is not None
         catalog = default_locale.get_language_dict()
         translations = []
         for entry in catalog:

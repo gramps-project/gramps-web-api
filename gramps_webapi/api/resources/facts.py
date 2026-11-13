@@ -164,6 +164,7 @@ class FactsResource(ProtectedResource, GrampsJSONEncoder):
         """Get statistics from records."""
         db_handle = get_db_handle()
         locale = get_locale_for_language(args["locale"], default=True)
+        assert locale is not None
         person_filter = get_person_filter(db_handle, args)
 
         database = db_handle
