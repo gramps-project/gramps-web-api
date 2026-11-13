@@ -386,3 +386,63 @@ def test_match_unsafe_member_names():
     members = ["../evil.jpg", "/abs/evil2.jpg", "C:/evil3.jpg"]
     paths = [r"C:\x\evil.jpg", r"C:\x\evil2.jpg", r"C:\x\evil3.jpg"]
     assert match_members_to_paths(paths, members) == {}
+
+
+def test_match_double_slash_member():
+    """A member with a double-slash absolute path never matches by name."""
+    assert match_members_to_paths([r"C:\x\photo.jpg"], ["//outside/photo.jpg"]) == {}
+
+
+def test_file_name_fallback_existing_different_file(setup):
+    """A different file already at the ZIP member's path is not overwritten."""
+    tree, db_handle, temp_dir = setup
+    create_zip(["photo.jpg"], temp_dir)
+    existing = os.path.join(media_dir(temp_dir), "photo.jpg")
+    with open(existing, "wb") as f:
+        f.write(b"someone else's photo")
+    path = r"C:\Pictures\photo.jpg"
+    create_media(db_handle, [path], [""])
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    mi = MediaImporter(tree, "uid", db_handle, zip_file_name)
+    result = mi()
+    assert counts(result) == (1, 0, 0)
+    assert not_found_paths(result) == {path}
+    obj = get_media_by_id(db_handle, "O0000")
+    assert obj.get_path() == path
+    assert obj.get_checksum() == ""
+    assert not mi.paths_changed
+    with open(existing, "rb") as f:
+        assert f.read() == b"someone else's photo"
+
+
+def test_file_name_fallback_existing_same_file(setup):
+    """The same file already at the ZIP member's path is linked."""
+    tree, db_handle, temp_dir = setup
+    checksums = create_zip(["photo.jpg"], temp_dir)
+    shutil.copy(
+        os.path.join(temp_dir, "photo.jpg"),
+        os.path.join(media_dir(temp_dir), "photo.jpg"),
+    )
+    create_media(db_handle, [r"C:\Pictures\photo.jpg"], [""])
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    mi = MediaImporter(tree, "uid", db_handle, zip_file_name)
+    mi()
+    obj = get_media_by_id(db_handle, "O0000")
+    assert obj.get_path() == "photo.jpg"
+    assert obj.get_checksum() == checksums[0]
+    assert mi.paths_changed
+
+
+def test_archive_not_read_without_checksums_to_find(setup):
+    """Without missing media objects, the archive is not hashed."""
+    tree, db_handle, temp_dir = setup
+    create_zip(["f1.jpg"], temp_dir)
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    mi = MediaImporter(tree, "uid", db_handle, zip_file_name)
+    with patch.object(
+        MediaImporter,
+        "_identify_files_to_upload",
+        side_effect=AssertionError("archive read"),
+    ):
+        result = mi()
+    assert counts(result) == (0, 0, 0)

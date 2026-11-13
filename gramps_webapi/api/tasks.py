@@ -789,7 +789,11 @@ def import_media_archive(
         result = importer(progress_cb=progress_callback_count())
     finally:
         close_db(db_handle)
-    return result
+    # media paths are indexed, and matching files by name can change them
+    index_tasks: list[dict[str, str]] = []
+    if importer.paths_changed:
+        index_tasks = update_search_indices_after_import(tree=tree, user_id=user_id)
+    return {**result, "index_tasks": index_tasks}
 
 
 @shared_task()

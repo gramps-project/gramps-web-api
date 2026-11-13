@@ -15,7 +15,12 @@ from gramps.gen.lib import Media
 from ..auth import set_tree_usage
 from ..types import FilenameOrPath
 from .file import get_checksum
-from .media import check_quota_media, get_media_handler
+from .media import (
+    MediaHandlerLocal,
+    check_quota_media,
+    get_contained_path,
+    get_media_handler,
+)
 from .resources.util import update_object
 
 MissingFiles = Dict[str, List[Dict[str, str]]]
@@ -36,8 +41,13 @@ def _file_name(path: str) -> str:
 
 def _is_safe_relative_path(path: str) -> bool:
     """Whether a ZIP member name can serve as a path inside the media folder."""
-    parts = PurePosixPath(path.replace("\\", "/")).parts
-    return bool(parts) and parts[0] != "/" and ".." not in parts and ":" not in path
+    posix_path = PurePosixPath(path.replace("\\", "/"))
+    return (
+        bool(posix_path.parts)
+        and not posix_path.is_absolute()
+        and ".." not in posix_path.parts
+        and ":" not in path
+    )
 
 
 def match_members_to_paths(
@@ -117,6 +127,8 @@ class MediaImporter:
         self.delete = delete
         self.media_handler = get_media_handler(self.db_handle, tree=self.tree)
         self.objects: List[Media] = self._get_objects()
+        # whether the import changed the path of any media object
+        self.paths_changed = False
 
     def _get_objects(self) -> List[Media]:
         """Get a list of all media objects in the database."""
@@ -196,12 +208,21 @@ class MediaImporter:
             member_by_path = match_members_to_paths(
                 handles_by_path, (info.filename for info in members)
             )
+            matched_members = set(member_by_path.values())
             checksums_by_member: Dict[str, str] = {}
             for file_info in members:
-                if file_info.filename not in member_by_path.values():
+                if file_info.filename not in matched_members:
                     continue
                 with zip_file.open(file_info, "r") as f:
                     checksums_by_member[file_info.filename] = get_checksum(f)
+        member_by_path = {
+            path: member
+            for path, member in member_by_path.items()
+            if member == path
+            or not self._conflicts_with_existing_file(
+                member, checksums_by_member[member]
+            )
+        }
         if not member_by_path:
             return 0
         objects_by_handle = {obj.handle: obj for obj in self.objects}
@@ -213,10 +234,27 @@ class MediaImporter:
                     new_object.set_checksum(checksums_by_member[member])
                     if member != path:
                         new_object.set_path(member)
+                        self.paths_changed = True
                     update_object(self.db_handle, new_object, trans)
                     num_updated += 1
 
         return num_updated
+
+    def _conflicts_with_existing_file(self, path: str, checksum: str) -> bool:
+        """Whether a different file than the one expected exists at a path.
+
+        Only local storage keeps files by path; object storage keeps them by
+        checksum, so there can be no conflict.
+        """
+        if not isinstance(self.media_handler, MediaHandlerLocal):
+            return False
+        file_path = get_contained_path(self.media_handler.base_dir, path)
+        if file_path is None or not file_path.exists():
+            return False
+        if not file_path.is_file():
+            return True
+        with open(file_path, "rb") as f:
+            return get_checksum(f) != checksum
 
     def _identify_files_to_upload(
         self, missing_files: MissingFiles
@@ -341,9 +379,14 @@ class MediaImporter:
                 )
 
         # objects still without checksum have no file in the ZIP
-        to_upload = self._identify_files_to_upload(
-            {checksum: objs for checksum, objs in missing_files.items() if checksum}
-        )
+        with_checksum = {
+            checksum: objs for checksum, objs in missing_files.items() if checksum
+        }
+        if not with_checksum:
+            # nothing left to look for - don't read the archive
+            return self._result(missing_files, {}, num_failures=0)
+
+        to_upload = self._identify_files_to_upload(with_checksum)
 
         if not to_upload:
             # no files to upload
