@@ -35,7 +35,11 @@ from gramps.gen.lib import Media
 
 from gramps_webapi.api.file import get_checksum
 from gramps_webapi.api.media import get_media_handler
-from gramps_webapi.api.media_importer import MediaImporter
+from gramps_webapi.api.media_importer import (
+    MAX_NOT_FOUND_LISTED,
+    MediaImporter,
+    match_members_to_paths,
+)
 from gramps_webapi.api.resources.util import add_object
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import user_db
@@ -60,6 +64,16 @@ def create_zip(names, temp_dir, delete_files: bool = False) -> List[str]:
             if delete_files:
                 os.remove(path)
     return checksums
+
+
+def counts(result) -> tuple[int, int, int]:
+    """Return the missing, uploaded and failed counts of a result."""
+    return result["missing"], result["uploaded"], result["failures"]
+
+
+def not_found_paths(result) -> set[str]:
+    """Return the paths of the media objects whose file was not found."""
+    return {obj["path"] for obj in result["not_found"]}
 
 
 def create_media(db_handle, file_paths, checksums):
@@ -108,7 +122,7 @@ def test_no_media(setup):
     zip_file_name = os.path.join(temp_dir, ZIP_NAME)
     mi = MediaImporter(tree, "uid", db_handle, zip_file_name)
     result = mi()
-    assert result == {"missing": 0, "uploaded": 0, "failures": 0}
+    assert result == {"missing": 0, "uploaded": 0, "failures": 0, "not_found": []}
 
 
 def test_two_files(setup):
@@ -122,7 +136,8 @@ def test_two_files(setup):
     zip_file_name = os.path.join(temp_dir, ZIP_NAME)
     mi = MediaImporter(tree, "uid", db_handle, zip_file_name)
     result = mi()
-    assert result == {"missing": 2, "uploaded": 2, "failures": 0}
+    assert counts(result) == (2, 2, 0)
+    assert result["not_found"] == []
 
 
 def test_wrong_checksums(setup):
@@ -134,7 +149,8 @@ def test_wrong_checksums(setup):
     zip_file_name = os.path.join(temp_dir, ZIP_NAME)
     mi = MediaImporter(tree, "uid", db_handle, zip_file_name)
     result = mi()
-    assert result == {"missing": 2, "uploaded": 0, "failures": 0}
+    assert counts(result) == (2, 0, 0)
+    assert not_found_paths(result) == {"f1.jpg", "subfolder/f2.jpg"}
 
 
 def test_wrong_filenames(setup):
@@ -146,7 +162,8 @@ def test_wrong_filenames(setup):
     zip_file_name = os.path.join(temp_dir, ZIP_NAME)
     mi = MediaImporter(tree, "uid", db_handle, zip_file_name)
     result = mi()
-    assert result == {"missing": 2, "uploaded": 2, "failures": 0}
+    assert counts(result) == (2, 2, 0)
+    assert result["not_found"] == []
 
 
 def test_empty_checksums(setup):
@@ -158,7 +175,8 @@ def test_empty_checksums(setup):
     zip_file_name = os.path.join(temp_dir, ZIP_NAME)
     mi = MediaImporter(tree, "uid", db_handle, zip_file_name)
     result = mi()
-    assert result == {"missing": 2, "uploaded": 2, "failures": 0}
+    assert counts(result) == (2, 2, 0)
+    assert result["not_found"] == []
 
 
 def test_mixed(setup):
@@ -172,7 +190,9 @@ def test_mixed(setup):
     zip_file_name = os.path.join(temp_dir, ZIP_NAME)
     mi = MediaImporter(tree, "uid", db_handle, zip_file_name)
     result = mi()
-    assert result == {"missing": 4, "uploaded": 2, "failures": 0}
+    assert counts(result) == (4, 2, 0)
+    # a wrong checksum is not fixed by matching the path
+    assert not_found_paths(result) == {"subfolder/subsub/f3.jpg", "doesntexist.jpg"}
 
 
 def test_quota_checked_before_extraction(setup):
@@ -209,7 +229,7 @@ def test_only_missing_files_extracted(setup):
     usage = shutil.disk_usage(temp_dir)._replace(free=1500)
     with patch("shutil.disk_usage", return_value=usage):
         result = mi()
-    assert result == {"missing": 1, "uploaded": 1, "failures": 0}
+    assert counts(result) == (1, 1, 0)
 
 
 def test_not_enough_disk_space(setup):
@@ -238,3 +258,131 @@ def test_zip_file_deleted_on_error(setup):
         with pytest.raises(ValueError, match="boom"):
             mi()
     assert not os.path.exists(zip_file_name)
+
+
+def get_media_by_id(db_handle, gramps_id: str) -> Media:
+    """Return the media object with a Gramps ID."""
+    return db_handle.get_media_from_gramps_id(gramps_id)
+
+
+def media_dir(temp_dir: str) -> str:
+    """Return the media base directory of the `setup` fixture."""
+    return os.path.join(temp_dir, "media")
+
+
+@pytest.mark.parametrize(
+    "original_path",
+    [
+        r"C:\Users\Anna\Pictures\Family\grandpa.jpg",
+        "/Users/anna/Pictures/Family/grandpa.jpg",
+        r"C:\Users\Anna\Pictures\Family\GRANDPA.JPG",
+    ],
+)
+def test_file_name_fallback(setup, original_path):
+    """A file is matched by its name, and the media path set to the ZIP's."""
+    tree, db_handle, temp_dir = setup
+    files = ["Family/grandpa.jpg"]
+    checksums = create_zip(files, temp_dir)
+    create_media(db_handle, [original_path], [""])
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    result = MediaImporter(tree, "uid", db_handle, zip_file_name)()
+    assert counts(result) == (1, 1, 0)
+    assert result["not_found"] == []
+    obj = get_media_by_id(db_handle, "O0000")
+    assert obj.get_path() == "Family/grandpa.jpg"
+    assert obj.get_checksum() == checksums[0]
+    assert os.path.isfile(os.path.join(media_dir(temp_dir), "Family", "grandpa.jpg"))
+
+
+def test_file_name_fallback_ambiguous_paths(setup):
+    """Two media paths with the same file name are not matched by name."""
+    tree, db_handle, temp_dir = setup
+    create_zip(["Dad/photo.jpg", "Mum/photo.jpg"], temp_dir)
+    paths = [r"C:\Pictures\Dad\photo.jpg", r"C:\Pictures\Mum\photo.jpg"]
+    create_media(db_handle, paths, ["", ""])
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    result = MediaImporter(tree, "uid", db_handle, zip_file_name)()
+    assert counts(result) == (2, 0, 0)
+    assert not_found_paths(result) == set(paths)
+    assert get_media_by_id(db_handle, "O0000").get_path() == paths[0]
+
+
+def test_file_name_fallback_ambiguous_members(setup):
+    """A file name occurring twice in the ZIP is not matched by name."""
+    tree, db_handle, temp_dir = setup
+    create_zip(["Dad/photo.jpg", "Mum/photo.jpg"], temp_dir)
+    create_media(db_handle, [r"C:\Pictures\photo.jpg"], [""])
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    result = MediaImporter(tree, "uid", db_handle, zip_file_name)()
+    assert counts(result) == (1, 0, 0)
+    assert not_found_paths(result) == {r"C:\Pictures\photo.jpg"}
+
+
+def test_same_path_shared_by_objects(setup):
+    """Media objects sharing a path all get the file matched by name."""
+    tree, db_handle, temp_dir = setup
+    create_zip(["photo.jpg"], temp_dir)
+    path = r"C:\Pictures\photo.jpg"
+    create_media(db_handle, [path, path], ["", ""])
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    result = MediaImporter(tree, "uid", db_handle, zip_file_name)()
+    assert counts(result) == (2, 2, 0)
+    for gramps_id in ["O0000", "O0001"]:
+        assert get_media_by_id(db_handle, gramps_id).get_path() == "photo.jpg"
+
+
+def test_unmatched_empty_checksums_counted(setup):
+    """Objects without checksum and file each count, and are listed."""
+    tree, db_handle, temp_dir = setup
+    create_zip(["f1.jpg"], temp_dir)
+    paths = ["f1.jpg", "a.jpg", "b.jpg", "c.jpg"]
+    create_media(db_handle, paths, ["", "", "", ""])
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    result = MediaImporter(tree, "uid", db_handle, zip_file_name)()
+    assert counts(result) == (4, 1, 0)
+    assert not_found_paths(result) == {"a.jpg", "b.jpg", "c.jpg"}
+    assert {obj["gramps_id"] for obj in result["not_found"]} == {
+        "O0001",
+        "O0002",
+        "O0003",
+    }
+
+
+def test_not_found_list_is_capped(setup):
+    """The list of objects whose file was not found is bounded."""
+    tree, db_handle, temp_dir = setup
+    create_zip(["f1.jpg"], temp_dir)
+    num = MAX_NOT_FOUND_LISTED + 5
+    create_media(db_handle, [f"{i}.jpg" for i in range(num)], ["x"] * num)
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    result = MediaImporter(tree, "uid", db_handle, zip_file_name)()
+    assert counts(result) == (num, 0, 0)
+    assert len(result["not_found"]) == MAX_NOT_FOUND_LISTED
+
+
+def test_match_exact_path():
+    """A member with the media path matches."""
+    assert match_members_to_paths(["a/b.jpg"], ["a/b.jpg", "b.jpg"]) == {
+        "a/b.jpg": "a/b.jpg"
+    }
+
+
+def test_match_exact_path_takes_its_member_out_of_the_fallback():
+    """A member matched exactly is not also matched by file name."""
+    matches = match_members_to_paths(["a/b.jpg", r"C:\x\b.jpg"], ["a/b.jpg"])
+    assert matches == {"a/b.jpg": "a/b.jpg"}
+
+
+def test_match_file_name():
+    """Windows and POSIX paths match by file name, ignoring case."""
+    matches = match_members_to_paths(
+        [r"C:\x\One.JPG", "/home/x/two.jpg"], ["pics/one.jpg", "two.jpg"]
+    )
+    assert matches == {r"C:\x\One.JPG": "pics/one.jpg", "/home/x/two.jpg": "two.jpg"}
+
+
+def test_match_unsafe_member_names():
+    """Members that would end up outside the media folder never match by name."""
+    members = ["../evil.jpg", "/abs/evil2.jpg", "C:/evil3.jpg"]
+    paths = [r"C:\x\evil.jpg", r"C:\x\evil2.jpg", r"C:\x\evil3.jpg"]
+    assert match_members_to_paths(paths, members) == {}

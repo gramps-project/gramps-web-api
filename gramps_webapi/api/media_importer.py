@@ -4,7 +4,9 @@ import os
 import shutil
 import tempfile
 import zipfile
-from typing import Callable, Dict, List, Optional, Tuple
+from collections.abc import Iterable
+from pathlib import PurePosixPath
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from gramps.gen.db import DbTxn
 from gramps.gen.db.base import DbReadBase
@@ -17,6 +19,55 @@ from .media import check_quota_media, get_media_handler
 from .resources.util import update_object
 
 MissingFiles = Dict[str, List[Dict[str, str]]]
+
+# media objects listed by name in the result when their file was not found;
+# the result ends up in the task result backend, so its size must be bounded
+MAX_NOT_FOUND_LISTED = 1000
+
+
+def _file_name(path: str) -> str:
+    """Return the last component of a path, ignoring case.
+
+    Both separators are accepted, since media paths imported from other
+    programs are often Windows paths.
+    """
+    return path.replace("\\", "/").rsplit("/", 1)[-1].casefold()
+
+
+def _is_safe_relative_path(path: str) -> bool:
+    """Whether a ZIP member name can serve as a path inside the media folder."""
+    parts = PurePosixPath(path.replace("\\", "/")).parts
+    return bool(parts) and parts[0] != "/" and ".." not in parts and ":" not in path
+
+
+def match_members_to_paths(
+    paths: Iterable[str], members: Iterable[str]
+) -> Dict[str, str]:
+    """Map media paths to the names of the ZIP members holding their files.
+
+    A member matches a path if its name equals the path. Failing that, it
+    matches if the two have the same file name, ignoring case, and that file
+    name occurs only once among the members and once among the paths not
+    matched so far - otherwise there is no telling which file is which.
+    """
+    paths = list(paths)
+    members = list(members)
+    member_set = set(members)
+    matches = {path: path for path in paths if path in member_set}
+    used = set(matches.values())
+    members_by_name: Dict[str, List[str]] = {}
+    for member in members:
+        if member not in used and _is_safe_relative_path(member):
+            members_by_name.setdefault(_file_name(member), []).append(member)
+    paths_by_name: Dict[str, List[str]] = {}
+    for path in paths:
+        if path not in matches:
+            paths_by_name.setdefault(_file_name(path), []).append(path)
+    for name, unmatched in paths_by_name.items():
+        candidates = members_by_name.get(name, [])
+        if name and len(unmatched) == 1 and len(candidates) == 1:
+            matches[unmatched[0]] = candidates[0]
+    return matches
 
 
 class MediaImporter:
@@ -37,9 +88,17 @@ class MediaImporter:
       storage, it is uploaded by checksum).
     - For any media objects that have an empty checksum (and, in the case of local file
       storage, do not have a file at the right path), the ZIP archive is searched for
-      a file with the right (relative) path. If one is found, the media object is
-      updated with that file's checksum. Then, in a second step, the file is uploaded.
+      a file with the right (relative) path, or failing that, with the same file
+      name (see `match_members_to_paths`). If one is found, the media object is
+      updated with that file's checksum. If it was found by file name only, the
+      object's path is also set to the file's path in the ZIP: the original path,
+      often an absolute one from another computer, cannot be used on the server.
+      Then, in a second step, the file is uploaded.
 
+    The result counts media objects: those without a file before the import
+    (`missing`), those whose file was uploaded (`uploaded`) and those whose
+    upload failed (`failures`). The others, for which the ZIP held no file, are
+    listed in `not_found`, up to `MAX_NOT_FOUND_LISTED` of them.
     """
 
     def __init__(
@@ -83,6 +142,7 @@ class MediaImporter:
                 missing_files[obj.checksum] = []
             obj_details = {
                 "handle": obj.handle,
+                "gramps_id": obj.gramps_id,
                 "media_path": obj.get_path(),
                 "mime": obj.get_mime_type(),
             }
@@ -122,36 +182,41 @@ class MediaImporter:
         return temp_dir, extracted
 
     def _fix_missing_checksums(self, missing_files: MissingFiles) -> int:
-        """Fix objects with missing checksums if we have a file with matching path."""
+        """Fix objects with missing checksums if we have a matching file.
+
+        See `match_members_to_paths` for which file matches. Returns the number
+        of media objects updated.
+        """
         handles_by_path: Dict[str, List[str]] = {}
         for obj_details in missing_files[""]:
             path = obj_details["media_path"]
-            if path not in handles_by_path:
-                handles_by_path[path] = []
-            handles_by_path[path].append(obj_details["handle"])
-        checksums_by_handle: Dict[str, str] = {}
+            handles_by_path.setdefault(path, []).append(obj_details["handle"])
         with zipfile.ZipFile(self.file_name, "r") as zip_file:
-            for file_info in zip_file.infolist():
-                if file_info.is_dir() or file_info.filename not in handles_by_path:
+            members = [info for info in zip_file.infolist() if not info.is_dir()]
+            member_by_path = match_members_to_paths(
+                handles_by_path, (info.filename for info in members)
+            )
+            checksums_by_member: Dict[str, str] = {}
+            for file_info in members:
+                if file_info.filename not in member_by_path.values():
                     continue
                 with zip_file.open(file_info, "r") as f:
-                    checksum = get_checksum(f)
-                for handle in handles_by_path[file_info.filename]:
-                    checksums_by_handle[handle] = checksum
-        if not checksums_by_handle:
+                    checksums_by_member[file_info.filename] = get_checksum(f)
+        if not member_by_path:
             return 0
+        objects_by_handle = {obj.handle: obj for obj in self.objects}
+        num_updated = 0
         with DbTxn("Updating checksums on media", self.db_handle) as trans:
-            objects_by_handle = {
-                obj.handle: obj
-                for obj in self.objects
-                if obj.handle in checksums_by_handle
-            }
-            for handle, checksum in checksums_by_handle.items():
-                new_object = objects_by_handle[handle]
-                new_object.set_checksum(checksum)
-                update_object(self.db_handle, new_object, trans)
+            for path, member in member_by_path.items():
+                for handle in handles_by_path[path]:
+                    new_object = objects_by_handle[handle]
+                    new_object.set_checksum(checksums_by_member[member])
+                    if member != path:
+                        new_object.set_path(member)
+                    update_object(self.db_handle, new_object, trans)
+                    num_updated += 1
 
-        return len(checksums_by_handle)
+        return num_updated
 
     def _identify_files_to_upload(
         self, missing_files: MissingFiles
@@ -216,9 +281,35 @@ class MediaImporter:
         usage_media = self.media_handler.get_media_size(db_handle=self.db_handle)
         set_tree_usage(self.tree, usage_media=usage_media)
 
+    @staticmethod
+    def _result(
+        missing_files: MissingFiles,
+        to_upload: Dict[str, Tuple[str, int]],
+        num_failures: int,
+    ) -> Dict[str, Any]:
+        """Summarize the import, counting media objects."""
+        num_missing = sum(len(objects) for objects in missing_files.values())
+        num_to_upload = sum(len(missing_files[checksum]) for checksum in to_upload)
+        not_found = [
+            {
+                "handle": obj_details["handle"],
+                "gramps_id": obj_details["gramps_id"],
+                "path": obj_details["media_path"],
+            }
+            for checksum, objects in missing_files.items()
+            if checksum not in to_upload
+            for obj_details in objects
+        ]
+        return {
+            "missing": num_missing,
+            "uploaded": num_to_upload - num_failures,
+            "failures": num_failures,
+            "not_found": not_found[:MAX_NOT_FOUND_LISTED],
+        }
+
     def __call__(
         self, fix_missing_checksums: bool = True, progress_cb: Optional[Callable] = None
-    ) -> Dict[str, int]:
+    ) -> Dict[str, Any]:
         """Import a media archive file."""
         try:
             return self._import(
@@ -230,7 +321,7 @@ class MediaImporter:
 
     def _import(
         self, fix_missing_checksums: bool = True, progress_cb: Optional[Callable] = None
-    ) -> Dict[str, int]:
+    ) -> Dict[str, Any]:
         """Import a media archive file.
 
         The ZIP file is deleted as soon as it is no longer needed; `__call__`
@@ -238,30 +329,25 @@ class MediaImporter:
         """
         missing_files = self._identify_missing_files()
 
-        if not missing_files:
-            # no missing files
-            return {"missing": 0, "uploaded": 0, "failures": 0}
+        if "" in missing_files and fix_missing_checksums:
+            # files without checksum! Need to fix that first
+            fixed = self._fix_missing_checksums(missing_files)
+            # after fixing checksums, we need fetch media objects again and re-run
+            if fixed:
+                self._update_objects()
+                # set fix_missing_checksums to False to avoid an infinite loop
+                return self._import(
+                    fix_missing_checksums=False, progress_cb=progress_cb
+                )
 
-        if "" in missing_files:
-            if fix_missing_checksums:
-                # files without checksum! Need to fix that first
-                fixed = self._fix_missing_checksums(missing_files)
-                # after fixing checksums, we need fetch media objects again and re-run
-                if fixed:
-                    self._update_objects()
-                    # set fix_missing_checksums to False to avoid an infinite loop
-                    return self._import(
-                        fix_missing_checksums=False, progress_cb=progress_cb
-                    )
-            else:
-                # we already tried fixing checksums - ignore the 2nd time
-                missing_files.pop("")
-
-        to_upload = self._identify_files_to_upload(missing_files)
+        # objects still without checksum have no file in the ZIP
+        to_upload = self._identify_files_to_upload(
+            {checksum: objs for checksum, objs in missing_files.items() if checksum}
+        )
 
         if not to_upload:
             # no files to upload
-            return {"missing": len(missing_files), "uploaded": 0, "failures": 0}
+            return self._result(missing_files, to_upload, num_failures=0)
 
         # check the quota before writing anything to disk
         upload_size = sum(file_size for (_, file_size) in to_upload.values())
@@ -282,11 +368,7 @@ class MediaImporter:
 
         self._update_media_usage()
 
-        return {
-            "missing": len(missing_files),
-            "uploaded": len(to_upload) - num_failures,
-            "failures": num_failures,
-        }
+        return self._result(missing_files, to_upload, num_failures=num_failures)
 
 
 # _identify_missing_files -> missing_files = {checksum: [(handle, media_path, mime), ...]}
