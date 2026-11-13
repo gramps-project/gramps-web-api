@@ -442,7 +442,11 @@ def import_file(
     dry_run: bool = False,
 ):
     """Import a file."""
-    dry_run_result = dry_run_import(file_name=file_name, extension=extension)
+    dry_run_result = dry_run_import(
+        file_name=file_name,
+        extension=extension,
+        progress_cb=progress_callback_count(title="Reading file..."),
+    )
     if dry_run_result is None:
         raise ValueError(f"Failed importing {extension} file")
     # the dry run's own messages are only reported for a dry run; for a real
@@ -468,6 +472,7 @@ def import_file(
             extension=extension.lower(),
             delete=delete,
             task=self,
+            progress_cb=progress_callback_count(title="Importing..."),
         )
     finally:
         close_db(db_handle)
