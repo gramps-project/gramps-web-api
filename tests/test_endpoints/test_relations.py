@@ -21,8 +21,6 @@
 
 import unittest
 
-from gramps_webapi.api import family_link_cache
-from gramps_webapi.api.family_link_cache import clear_family_link_graphs
 from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
 
 from . import BASE_URL, get_test_client
@@ -357,14 +355,11 @@ class TestRelationPaths(unittest.TestCase):
             ],
         )
 
-    def test_get_relation_paths_graph_per_permission(self):
-        """Test owners and guests get their own cached graph."""
-        clear_family_link_graphs()
-        # an argument no other test uses, so the responses are not cached
-        check_success(self, self.url + "?max=7")
-        check_success(self, self.url + "?max=7", role=ROLE_GUEST)
+    def test_get_relation_paths_guest(self):
+        """Test guests get the same paths when no one on them is private."""
+        url = self.url + "?max=7"
         self.assertEqual(
-            sorted(key[2] for key in family_link_cache._graphs), [False, True]
+            check_success(self, url, role=ROLE_GUEST), check_success(self, url)
         )
 
     def test_get_relation_paths_private_person(self):
