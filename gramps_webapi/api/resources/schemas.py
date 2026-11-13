@@ -36,12 +36,13 @@ class DateFormatQueryArgs(Schema):
     """Query argument for choosing a Gramps date display format."""
 
     date_format = fields.Integer(
-        load_default=0,
+        load_default=None,
         validate=validate.Range(min=0),
         metadata={
             "description": (
-                "Gramps date format index. 0 is ISO YYYY-MM-DD; "
-                "higher values select locale-specific formats."
+                "Gramps date format index. If omitted, the server's default "
+                "date format is used. 0 is ISO YYYY-MM-DD; higher values select "
+                "locale-specific formats."
             )
         },
     )

@@ -1182,7 +1182,13 @@ class TestPeopleHandle(unittest.TestCase):
         self.assertNotEqual(custom["profile"]["birth"]["date"], "1906-09-05")
 
         default = check_success(self, TEST_URL + "0PWJQCZYFXOS0HGREE?profile=self")
+        format_zero = check_success(
+            self, TEST_URL + "0PWJQCZYFXOS0HGREE?profile=self&date_format=0"
+        )
         self.assertEqual(default["profile"]["birth"]["date"], "1906-09-05")
+        self.assertEqual(
+            default["profile"]["birth"]["date"], format_zero["profile"]["birth"]["date"]
+        )
 
     def test_get_people_handle_parameter_date_format_german_locale(self):
         """Test German date formats use German indices and numeric formatting."""
