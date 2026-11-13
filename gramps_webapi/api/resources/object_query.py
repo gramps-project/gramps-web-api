@@ -34,7 +34,7 @@ the same pattern `GrampsObjectResourceHelper` subclasses already use with
 `gramps_class_name` (see `resources/people.py`/`families.py`).
 """
 
-from typing import Any, Optional, Sequence, Tuple
+from typing import Any, NoReturn, Optional, Sequence, Tuple
 
 from gramps.gen.errors import HandleError
 from gramps.gen.proxy.proxybase import ProxyDbBase
@@ -73,7 +73,7 @@ from gramps_object_query_language.query import (
 from gramps_object_query_language.query_lang import (
     QueryLangError,
     compile_expr_for_spec,
-    parse_order_by,
+    parse_order_by_entry,
     parse_select_entry,
 )
 
@@ -136,7 +136,7 @@ class QueryBodyArgs(Schema):
         metadata={
             "description": "Values for `Env.NAME` references in `where_expr`, "
             "e.g. {'HOME_PERSON': '<handle>', 'BOOKMARKS': ['<handle>', ...]} "
-            "for \"handle == Env.HOME_PERSON or handle in Env.BOOKMARKS\". "
+            'for "handle == Env.HOME_PERSON or handle in Env.BOOKMARKS". '
             "Each value is a string, number, boolean, null, or a list of those "
             "(used with `in`). The names are up to the client: the server "
             "defines none of its own, and passes these through unchanged. An "
@@ -192,6 +192,47 @@ class QueryBodyArgs(Schema):
     )
 
 
+class InvalidQueryArgument(QueryError):
+    """A `QueryError` that knows which body field -- and, for a list field,
+    which entry -- it came from, so the 422 can say so (see
+    `_abort_invalid_query`).
+    """
+
+    def __init__(self, message: str, field: str, index: Optional[int] = None):
+        super().__init__(message)
+        self.field = field
+        self.index = index
+
+
+def _abort_invalid_query(error: Exception, field: Optional[str] = None) -> NoReturn:
+    """Abort with a 422 whose `message` is short and generic ("Invalid
+    'where_expr'") and whose `messages` holds GOQL's full text, keyed the
+    way marshmallow keys a schema error: `{"json": {field: [text]}}`, with
+    a list field's entry index in between (`{"select": {"1": [text]}}`).
+    An error no single field caused goes under `_schema`, as in marshmallow.
+
+    GOQL's messages can be long (an unknown field lists every field that
+    exists), so a client can show `message` and offer `messages` as
+    details rather than showing a paragraph.
+    """
+    field = getattr(error, "field", field)
+    index = getattr(error, "index", None)
+    detail: Any = [str(error)]
+    if field is None:
+        message = "Invalid query"
+        field = "_schema"
+    else:
+        message = f"Invalid '{field}'"
+        if index is not None:
+            detail = {str(index): detail}
+    abort_with_message(
+        422,
+        message,
+        error_type="invalid_query",
+        extra={"messages": {"json": {field: detail}}},
+    )
+
+
 def _parse_select_entry(raw: str, spec: ObjectTypeSpec) -> Tuple[SelectRef, str]:
     """Parse one `select` entry into `(column_ref, response_key)`, using
     `query_lang.parse_select_entry`: a flat column (`gramps_id`), a path
@@ -212,15 +253,41 @@ def _parse_select_entry(raw: str, spec: ObjectTypeSpec) -> Tuple[SelectRef, str]
     return column, key
 
 
-def _parse_order_by(args: dict, spec: ObjectTypeSpec) -> Sequence[OrderBy]:
-    """Parse the `order_by` strings with GOQL's `parse_order_by`. A sort
-    column may be a path (`-birth.date.sortval`), resolved exactly as
-    the same text is in `select`; an unknown one raises here.
+def _parse_select(args: dict, spec: ObjectTypeSpec) -> list[Tuple[SelectRef, str]]:
+    """Parse the `select` strings (see `_parse_select_entry`), or every
+    column of the type when `select` is omitted. A bad entry raises an
+    `InvalidQueryArgument` naming its index.
     """
+    entries = args.get("select")
+    if not entries:
+        return [(col, col) for col in sorted(spec.columns)]
+    parsed = []
+    for index, raw in enumerate(entries):
+        try:
+            parsed.append(_parse_select_entry(raw, spec))
+        except QueryError as error:
+            raise InvalidQueryArgument(str(error), "select", index) from error
     try:
-        return parse_order_by(spec, args.get("order_by") or [])
-    except QueryLangError as error:
-        raise QueryError(str(error)) from error
+        _check_no_duplicate_keys(parsed)
+    except QueryError as error:
+        raise InvalidQueryArgument(str(error), "select") from error
+    return parsed
+
+
+def _parse_order_by(args: dict, spec: ObjectTypeSpec) -> Sequence[OrderBy]:
+    """Parse the `order_by` strings, one by one with GOQL's
+    `parse_order_by_entry` so a bad one can be named by its index. A sort
+    column may be a path (`-birth.date.sortval`), resolved exactly as the
+    same text is in `select`; an unknown one raises an
+    `InvalidQueryArgument` here.
+    """
+    order_by = []
+    for index, entry in enumerate(args.get("order_by") or []):
+        try:
+            order_by.append(parse_order_by_entry(spec, entry))
+        except (QueryLangError, QueryError) as error:
+            raise InvalidQueryArgument(str(error), "order_by", index) from error
+    return order_by
 
 
 def _check_response_key(key: str, column: SelectRef) -> None:
@@ -255,7 +322,7 @@ def _build_where(args: dict, spec: ObjectTypeSpec):
     try:
         return compile_expr_for_spec(spec, where_expr, env=args.get("env"))
     except (QueryLangError, QueryError) as error:
-        abort_with_message(422, str(error))
+        _abort_invalid_query(error, "where_expr")
 
 
 def _resolve_after(
@@ -288,7 +355,7 @@ def _resolve_after(
             spec, order_by, after_handle, dialect=dialect, treeid=treeid
         )
     except QueryError as error:
-        abort_with_message(422, str(error))
+        _abort_invalid_query(error)
     basedb.dbapi.execute(sql, params)
     row = basedb.dbapi.fetchone()
     if row is None:
@@ -512,7 +579,7 @@ class ObjectQueryResource(ProtectedResource):
         try:
             order_by = _parse_order_by(args, self.spec)
         except QueryError as error:
-            abort_with_message(422, str(error))
+            _abort_invalid_query(error)
 
         after = None
         if args.get("after"):
@@ -534,12 +601,7 @@ class ObjectQueryResource(ProtectedResource):
 
         dialect = _resolve_dialect(basedb)
         try:
-            parsed_select = (
-                [_parse_select_entry(item, self.spec) for item in args["select"]]
-                if args.get("select")
-                else [(col, col) for col in sorted(self.spec.columns)]
-            )
-            _check_no_duplicate_keys(parsed_select)
+            parsed_select = _parse_select(args, self.spec)
             fetch_refs = [ref for ref, _ in parsed_select]
             fetch_keys = [key for _, key in parsed_select]
             if not any(ref == "handle" for ref in fetch_refs):
@@ -571,7 +633,7 @@ class ObjectQueryResource(ProtectedResource):
                 else (None, None)
             )
         except QueryError as error:
-            abort_with_message(422, str(error))
+            _abort_invalid_query(error)
 
         basedb.dbapi.execute(sql, params)
         rows = basedb.dbapi.fetchall()
@@ -632,14 +694,9 @@ class ObjectQueryResource(ProtectedResource):
         try:
             order_by = _parse_order_by(args, self.spec)
             where = _build_where(args, self.spec)
-            parsed_select = (
-                [_parse_select_entry(item, self.spec) for item in args["select"]]
-                if args.get("select")
-                else [(col, col) for col in sorted(self.spec.columns)]
-            )
-            _check_no_duplicate_keys(parsed_select)
+            parsed_select = _parse_select(args, self.spec)
         except QueryError as error:
-            abort_with_message(422, str(error))
+            _abort_invalid_query(error)
 
         fetch_refs = [ref for ref, _ in parsed_select]
         fetch_keys = [key for _, key in parsed_select]

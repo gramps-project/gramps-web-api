@@ -261,7 +261,9 @@ class TestPeopleQuery(unittest.TestCase):
     def test_env_single_value(self):
         header = fetch_header(self.client)
         handle = self._some_handles(header, 1)[0]
-        rv = self._env_query(header, "handle == Env.HOME_PERSON", {"HOME_PERSON": handle})
+        rv = self._env_query(
+            header, "handle == Env.HOME_PERSON", {"HOME_PERSON": handle}
+        )
         self.assertEqual(rv.status_code, 200)
         self.assertEqual([i["handle"] for i in rv.json["items"]], [handle])
 
@@ -317,9 +319,13 @@ class TestPeopleQuery(unittest.TestCase):
             "gramps_webapi.api.resources.object_query.get_db_handle",
             side_effect=fake_get_db_handle,
         ):
-            rv = self._env_query(header, "handle in Env.SELECTION", {"SELECTION": handles})
+            rv = self._env_query(
+                header, "handle in Env.SELECTION", {"SELECTION": handles}
+            )
             self.assertEqual(rv.status_code, 200)
-            self.assertEqual(sorted(i["handle"] for i in rv.json["items"]), sorted(handles))
+            self.assertEqual(
+                sorted(i["handle"] for i in rv.json["items"]), sorted(handles)
+            )
             rv = self._env_query(header, "handle in Env.SELECTION", {"SELECTION": []})
             self.assertEqual(rv.status_code, 200)
             self.assertEqual(rv.json["items"], [])
@@ -404,7 +410,12 @@ class TestPeopleQuery(unittest.TestCase):
         where_expr = "gender == 0"
         probe = self.client.post(
             TEST_URL,
-            json={"select": ["handle"], "where_expr": where_expr, "limit": 1, "count": True},
+            json={
+                "select": ["handle"],
+                "where_expr": where_expr,
+                "limit": 1,
+                "count": True,
+            },
             headers=header,
         )
         self.assertEqual(probe.status_code, 200)
@@ -920,6 +931,54 @@ class TestPeopleQuery(unittest.TestCase):
             rv = self.client.post(TEST_URL, json={"order_by": [bad]}, headers=header)
             self.assertEqual(rv.status_code, 422, bad)
 
+    def test_query_errors_are_structured(self):
+        """A GOQL error is a short `message` naming the body field, with
+        GOQL's own text in `messages`, keyed like a marshmallow schema
+        error -- by field, and by entry index for a list field. The same
+        on the SQL and the proxied path.
+        """
+        header = fetch_header(self.client)
+        cases = [
+            ({"where_expr": "not_a_column == 1"}, "where_expr", None),
+            ({"where_expr": "gender =="}, "where_expr", None),
+            ({"where_expr": "handle == Env.HOME"}, "where_expr", None),
+            ({"select": ["handle", "not_a_column"]}, "select", "1"),
+            ({"select": ["surname", "surname"]}, "select", None),
+            ({"select": ["gramps_id as handle"]}, "select", "0"),
+            ({"order_by": ["surname", "-", "given_name"]}, "order_by", "1"),
+        ]
+
+        def fake_get_db_handle(readonly=True):
+            db = get_db_handle(readonly=readonly)
+            base = db.basedb if isinstance(db, ProxyDbBase) else db
+            return _FakeNonPrivateProxy(base)
+
+        for proxied in (False, True):
+            for body, field, index in cases:
+                with self.subTest(proxied=proxied, body=body):
+                    if proxied:
+                        with patch(
+                            "gramps_webapi.api.resources.object_query.get_db_handle",
+                            side_effect=fake_get_db_handle,
+                        ):
+                            rv = self.client.post(TEST_URL, json=body, headers=header)
+                    else:
+                        rv = self.client.post(TEST_URL, json=body, headers=header)
+                    self.assertEqual(rv.status_code, 422)
+                    error = rv.json["error"]
+                    self.assertEqual(error["code"], 422)
+                    self.assertEqual(error["type"], "invalid_query")
+                    self.assertEqual(error["message"], f"Invalid '{field}'")
+                    details = error["messages"]["json"]
+                    self.assertEqual(list(details), [field])
+                    detail = details[field]
+                    if index is not None:
+                        self.assertEqual(list(detail), [index])
+                        detail = detail[index]
+                    self.assertEqual(len(detail), 1)
+                    self.assertIsInstance(detail[0], str)
+                    self.assertTrue(detail[0])
+
     def test_json_where_body_rejected(self):
         header = fetch_header(self.client)
         rv = self.client.post(
@@ -984,8 +1043,11 @@ class TestPeopleQuery(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 422)
         # The error names the field that would have worked, rather than
-        # returning a column of nulls.
-        self.assertIn("frist_name", rv.json["error"]["message"])
+        # returning a column of nulls -- in the details, not the message.
+        error = rv.json["error"]
+        self.assertEqual(error["message"], "Invalid 'select'")
+        (detail,) = error["messages"]["json"]["select"]["0"]
+        self.assertIn("frist_name", detail)
 
     def test_order_by_path_expression(self):
         header = fetch_header(self.client)
