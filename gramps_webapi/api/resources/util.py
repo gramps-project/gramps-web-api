@@ -75,6 +75,7 @@ from gramps.gen.utils.db import (
 )
 from gramps.gen.utils.grampslocale import GrampsLocale
 from gramps.gen.utils.id import create_id
+from gramps.gen.utils.location import get_location_list
 from gramps.gen.utils.place import conv_lat_lon
 from gramps.gen.display.name import displayer as default_name_displayer
 
@@ -582,7 +583,7 @@ def get_event_profile_for_object(
 
 
 def get_place_name_for_event(db_handle: DbReadBase, event: Event) -> str:
-    """Get place name for an event."""
+    """Get the name a place had at the date of an event."""
     place_handle = event.get_place_handle()
     if not place_handle:
         return ""
@@ -592,10 +593,9 @@ def get_place_name_for_event(db_handle: DbReadBase, event: Event) -> str:
         return ""
     if not place:
         return ""
-    place_name = place.get_name()
-    if not place_name:
-        return ""
-    return place_name.value
+    # as in Gramps' place display, the first entry is the place itself,
+    # named as it was at the event's date
+    return get_location_list(db_handle, place, event.get_date_object())[0][0]
 
 
 def get_event_profile_for_handle(
@@ -2194,17 +2194,23 @@ def run_import(
     extension: str,
     delete: bool = True,
     task: Optional[Task] = None,
+    progress_cb: Optional[Callable[[int, int], None]] = None,
 ) -> list[str]:
     """Import a file.
 
     Returns the importer's diagnostic messages, if it emitted any, truncated to
     `MAX_IMPORT_REPORT_CHARS`. The GEDCOM 5.x importer reports every line it
-    could not parse this way; other importers, including the GEDCOM 7 one,
-    generally return an empty list.
+    could not parse this way, the GEDCOM 7 importer everything it left out.
+    Other importers generally return an empty list.
+
+    Gramps' own importers report progress to `task`; the GEDCOM 7 importer
+    calls `progress_cb` with the current and total number of steps instead.
     """
     if extension.lower() == "ged" and detect_gedcom_major_version(str(file_name)) == 7:
         try:
-            gramps_gedcom7.import_gedcom(input_file=file_name, db=db_handle)
+            report = gramps_gedcom7.import_gedcom(
+                input_file=file_name, db=db_handle, progress=progress_cb
+            )
         except ValueError as e:
             # ValueError indicates invalid file format or encoding (e.g., not UTF-8)
             abort_with_message(422, f"Invalid GEDCOM file: {e}")
@@ -2221,7 +2227,7 @@ def run_import(
                     current_app.logger.warning(
                         f"Failed to delete temporary file {file_name}: {e}"
                     )
-        return []
+        return truncate_import_report(report.messages())
     if extension.lower() == "gramps":
         # Remove mediapath tag from Gramps XML files before import
         # This is necessary because the mediapath tag can cause import failures
@@ -2247,8 +2253,11 @@ def run_import(
             if delete:
                 os.remove(file_name)
             if not result:
+                # The importers report unreadable input (corrupt file, invalid
+                # XML, unsupported version) via notify_error and an empty
+                # result, so this is the client's file, not a server fault.
                 abort_with_message(
-                    500, "\n\n".join(["Import failed", *user.error_messages])
+                    422, "\n\n".join(["Import failed", *user.error_messages])
                 )
             return truncate_import_report(user.error_messages + user.info_messages)
     return []
@@ -2257,12 +2266,14 @@ def run_import(
 def dry_run_import(
     file_name: FilenameOrPath,
     extension: str,
+    progress_cb: Optional[Callable[[int, int], None]] = None,
 ) -> Optional[dict[str, Any]]:
     """Import a file into an in-memory database.
 
     Returns the resulting object counts plus the importer's diagnostic
     messages under `messages`, so a dry run can show what the real import
     would complain about before anything is written to the tree.
+    `progress_cb` is passed on to `run_import`.
     """
     db_handle = make_database("sqlite")
     db_handle.load(":memory:")
@@ -2279,7 +2290,11 @@ def dry_run_import(
         config.get("preferences.nprefix"),
     )
     messages = run_import(
-        db_handle=db_handle, file_name=file_name, extension=extension, delete=False
+        db_handle=db_handle,
+        file_name=file_name,
+        extension=extension,
+        delete=False,
+        progress_cb=progress_cb,
     )
     result: dict[str, Any] = {
         "people": db_handle.get_number_of_people(),

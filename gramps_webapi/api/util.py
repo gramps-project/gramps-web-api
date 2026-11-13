@@ -105,19 +105,30 @@ use_args = parser.use_args
 
 
 class InfoCollectorMixin:
-    """Mixin collecting `info` messages instead of discarding them.
+    """Mixin collecting `info` and `warn` messages instead of discarding them.
 
     Gramps delivers end-of-run reports - most notably the GEDCOM import report
     listing every line that could not be parsed - by calling `User.info()`,
-    whose default implementation does nothing. Classes using this mixin keep
-    the messages in `info_messages` so they can be returned to the client.
+    whose default implementation does nothing. Importers also call
+    `User.warn()` for problems they work around, like an outdated Gramps XML
+    version or a GEDCOM file exported by Legacy. Classes using this mixin keep
+    both kinds of message, in the order they were emitted, in `info_messages`
+    so they can be returned to the client.
     """
 
     info_messages: list[str]
 
     def info(self, msg1, infotext, parent=None, monospaced=False) -> None:
         """Collect information intended for the user."""
-        message = "\n".join(str(part) for part in (msg1, infotext) if part)
+        self._collect(msg1, infotext)
+
+    def warn(self, title, warning="") -> None:
+        """Collect a warning intended for the user."""
+        self._collect(title, warning)
+
+    def _collect(self, *parts) -> None:
+        """Join the non-empty parts into one message and keep it."""
+        message = "\n".join(str(part) for part in parts if part)
         if message:
             self.info_messages.append(message)
 
@@ -237,9 +248,6 @@ class UserTaskProgress(ErrorRaisingMixin, InfoCollectorMixin, UserBase):
         """Prompt the user with a message to select an alternative."""
         # Not needed for Web API
         return True
-
-    def warn(self, title: str, warning: str = "") -> None:
-        """Warn the user."""
 
 
 def get_db_manager(tree: str | None) -> WebDbManager:

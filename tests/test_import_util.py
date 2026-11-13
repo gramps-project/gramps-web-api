@@ -603,6 +603,97 @@ class TestDryRunImportReport(unittest.TestCase):
                 os.unlink(temp_file)
 
 
+GEDCOM7_WITH_EXTENSION = b"""0 HEAD
+1 GEDC
+2 VERS 7.0
+0 @I1@ INDI
+1 NAME John /Doe/
+1 _FOO bar
+0 @I2@ INDI
+1 NAME Jane /Doe/
+1 _FOO baz
+0 TRLR
+"""
+
+
+class TestGedcom7ImportReport(unittest.TestCase):
+    """Test cases for the GEDCOM 7 importer's report and progress."""
+
+    def setUp(self):
+        """Write the GEDCOM 7 file."""
+        with tempfile.NamedTemporaryFile(suffix=".ged", delete=False) as f:
+            f.write(GEDCOM7_WITH_EXTENSION)
+            self.temp_file = f.name
+
+    def tearDown(self):
+        """Remove the GEDCOM 7 file."""
+        if os.path.exists(self.temp_file):
+            os.unlink(self.temp_file)
+
+    def test_report_is_returned(self):
+        """What the importer left out ends up in the messages."""
+        with APP.app_context():
+            result = dry_run_import(file_name=self.temp_file, extension="ged")
+        assert result is not None
+        self.assertEqual(result["people"], 2)
+        report = "\n".join(result["messages"])
+        self.assertIn("_FOO", report)
+        self.assertIn("not imported", report)
+
+    def test_progress_is_reported(self):
+        """The progress callback is called up to completion."""
+        calls: list[tuple[int, int]] = []
+        with APP.app_context():
+            dry_run_import(
+                file_name=self.temp_file,
+                extension="ged",
+                progress_cb=lambda current, total: calls.append((current, total)),
+            )
+        self.assertTrue(calls)
+        current, total = calls[-1]
+        self.assertGreater(total, 0)
+        self.assertEqual(current, total)
+
+
+GRAMPS_XML_CONFLICTING_NAME_GROUPS = b"""<?xml version="1.0" encoding="UTF-8"?>
+<database xmlns="http://gramps-project.org/xml/1.7.2/">
+  <header>
+    <created date="2024-01-01" version="6.0.0"/>
+  </header>
+  <people>
+    <person handle="_123" id="I0001">
+      <gender>M</gender>
+    </person>
+  </people>
+  <namemaps>
+    <map type="group_as" key="Smith" value="Smyth"/>
+    <map type="group_as" key="Smith" value="Schmidt"/>
+  </namemaps>
+</database>
+"""
+
+
+class TestImportWarnings(unittest.TestCase):
+    """Test cases for reporting the importer's warnings."""
+
+    def test_warning_is_returned(self):
+        """A warning the importer emits ends up in the messages."""
+        with tempfile.NamedTemporaryFile(suffix=".gramps", delete=False) as f:
+            f.write(GRAMPS_XML_CONFLICTING_NAME_GROUPS)
+            temp_file = f.name
+        try:
+            with APP.app_context():
+                result = dry_run_import(file_name=temp_file, extension="gramps")
+            assert result is not None
+            self.assertEqual(result["people"], 1)
+            report = "\n".join(result["messages"])
+            self.assertIn("ignored a name grouping", report)
+            self.assertIn("Schmidt", report)
+        finally:
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
+
+
 class TestDetectGedcomMajorVersion(unittest.TestCase):
     """Test cases for detecting the GEDCOM version of a file."""
 
@@ -664,6 +755,30 @@ class TestImportErrorReported(unittest.TestCase):
             self.assertIn("not a GEDCOM file", message)
             self.assertIn(os.path.basename(temp_file), message)
             self.assertNotIn(os.path.dirname(temp_file), message)
+        finally:
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
+
+    def test_invalid_gramps_xml_returns_422(self):
+        """A file the importer cannot read is a client error, not a 500."""
+        # XML declaration not at the start of the file
+        content = (
+            b'\n<?xml version="1.0" encoding="UTF-8"?>\n'
+            b'<database xmlns="http://gramps-project.org/xml/1.7.1/"></database>\n'
+        )
+        with tempfile.NamedTemporaryFile(suffix=".gramps", delete=False) as f:
+            f.write(content)
+            temp_file = f.name
+        try:
+            with APP.app_context():
+                with self.assertRaises(HTTPException) as context:
+                    dry_run_import(file_name=temp_file, extension="gramps")
+            self.assertEqual(context.exception.code, 422)
+            response = context.exception.response
+            assert response is not None
+            message = response.get_json()["error"]["message"]
+            self.assertIn("Import failed", message)
+            self.assertIn("XML or text declaration", message)
         finally:
             if os.path.exists(temp_file):
                 os.unlink(temp_file)

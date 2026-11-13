@@ -1955,6 +1955,14 @@ class OIDCConfigSchema(_Base):
     )
 
 
+class RegistrationConfigSchema(_Base):
+    """Registration configuration returned by the /register/config/ endpoint."""
+
+    enabled = fields.Bool(
+        metadata={"description": "Whether new users can register."},
+    )
+
+
 class OIDCTokenExchangeSchema(_Base):
     """Body of a POST to the /oidc/tokens/ exchange endpoint."""
 
@@ -2599,9 +2607,6 @@ class MetadataServerSchema(_Base):
     )
     gramps_webapi = fields.Dict(
         metadata={"description": "Information about the Gramps Web API version."},
-    )
-    gramps_ql = fields.Dict(
-        metadata={"description": "Information about the Gramps QL library."},
     )
     gramps_object_query_language = fields.Dict(
         metadata={
@@ -3363,6 +3368,19 @@ class UserOIDCUnlinkSchema(_Base):
         metadata={
             "description": "The user's current password. Required to unlink their"
             " last OIDC account."
+        },
+    )
+
+
+class UserMergeSchema(_Base):
+    """Request body for merging a user into another one."""
+
+    source = fields.Str(
+        required=True,
+        validate=validate.Length(min=1),
+        metadata={
+            "description": "Name of the user to merge into the user in the path."
+            " This user is deleted."
         },
     )
 

@@ -681,18 +681,58 @@ class TestOIDCMultiTree(unittest.TestCase):
         "gramps_webapi.api.resources.oidc.get_available_oidc_providers",
         return_value=["custom"],
     )
-    def test_login_requires_tree(self, mock_providers, mock_oidc_enabled):
-        """Multi-tree login without a tree fails at /oidc/login/, not later."""
+    @patch("gramps_webapi.api.resources.oidc.create_or_update_oidc_user")
+    @patch("gramps_webapi.api.resources.oidc.get_name", return_value="testuser")
+    @patch(
+        "gramps_webapi.api.resources.oidc.get_tree_id_and_permissions",
+        return_value=("users_tree", {"EditObject"}),
+    )
+    @patch("gramps_webapi.api.resources.oidc.get_tokens")
+    def test_login_without_tree(
+        self,
+        mock_get_tokens,
+        mock_tree_and_perms,
+        mock_get_name,
+        mock_create_user,
+        mock_providers,
+        mock_oidc_enabled,
+    ):
+        """A login without a tree reaches the provider and the callback.
+
+        The login page does not know the tree in a multi-tree setup, so this is
+        how a user with a linked identity logs in: the account's own tree is
+        used. Regression test for gramps-project/gramps-web#1661.
+        """
         mock_oauth = MagicMock()
-        mock_oauth.gramps_custom = MagicMock()
+        mock_oidc_client = MagicMock()
+        mock_oauth.gramps_custom = mock_oidc_client
+        mock_oidc_client.authorize_redirect.return_value = redirect(
+            "https://idp.example.com/authorize"
+        )
+        mock_oidc_client.authorize_access_token.return_value = {
+            "access_token": "test_token"
+        }
+        mock_oidc_client.userinfo.return_value = {"sub": "user123"}
+        mock_create_user.return_value = "user-guid-123"
+        mock_get_tokens.return_value = {
+            "access_token": "jwt_access_token",
+            "refresh_token": "jwt_refresh_token",
+        }
+
         with patch.dict(
             self.client.application.extensions,
             {"authlib.integrations.flask_client": mock_oauth},
             clear=False,
         ):
             rv = self.client.get(BASE_URL + "/oidc/login/?provider=custom")
-        self.assertEqual(rv.status_code, 422)
-        self.assertIn("tree is required", rv.get_json()["error"]["message"])
+            self.assertEqual(rv.status_code, 302)
+            rv = self.client.get(BASE_URL + "/oidc/callback/custom?code=auth_code")
+
+        self.assertEqual(rv.status_code, 302)
+        self.assertIn("/oidc/complete", rv.location)
+        # no tree is handed on, so the account's stored tree applies
+        self.assertIsNone(mock_create_user.call_args[0][1])
+        self.assertEqual(mock_get_tokens.call_args[1]["tree_id"], "users_tree")
 
     @patch("gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True)
     @patch(
@@ -789,8 +829,21 @@ class TestOIDCMultiTree(unittest.TestCase):
         "gramps_webapi.api.resources.oidc.get_available_oidc_providers",
         return_value=["custom"],
     )
-    def test_callback_without_login_is_refused(self, mock_providers, mock_oidc_enabled):
-        """A callback with no tree in the session must not fall through."""
+    @patch(
+        "gramps_webapi.auth.oidc.get_provider_config",
+        return_value={"username_claim": "preferred_username"},
+    )
+    @patch("gramps_webapi.auth.oidc.get_oidc_account", return_value=None)
+    @patch("gramps_webapi.auth.oidc.add_user")
+    def test_new_identity_without_tree_is_refused(
+        self,
+        mock_add_user,
+        mock_get_oidc_account,
+        mock_get_provider_config,
+        mock_providers,
+        mock_oidc_enabled,
+    ):
+        """An unknown identity without a tree must not get a treeless account."""
         mock_oauth = MagicMock()
         mock_oidc_client = MagicMock()
         mock_oauth.gramps_custom = mock_oidc_client
@@ -803,7 +856,9 @@ class TestOIDCMultiTree(unittest.TestCase):
             clear=False,
         ):
             rv = self.client.get(BASE_URL + "/oidc/callback/custom?code=auth_code")
-        self.assertEqual(rv.status_code, 422)
+        self.assertEqual(rv.status_code, 400)
+        self.assertIn("registration link", rv.get_json()["error"]["message"])
+        mock_add_user.assert_not_called()
 
 
 class TestOIDCSingleTree(unittest.TestCase):

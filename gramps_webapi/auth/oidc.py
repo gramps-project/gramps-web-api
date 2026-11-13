@@ -384,6 +384,16 @@ def create_or_update_oidc_user(
         return existing_user_id
 
     # Step 2: Create new user account (email linking removed for security)
+
+    # In a multi-tree setup a new account must belong to a tree, and only the
+    # login request can say which one (e.g. from a tree's registration link).
+    # Without it, refuse rather than create an account that belongs to no tree.
+    if not tree_id and current_app.config["TREE"] == TREE_MULTI:
+        raise ValueError(
+            "No account is linked to this identity. To create a new account,"
+            " use the registration link of your family tree."
+        )
+
     logger.info(f"Creating new OIDC user for {provider_id}:{subject_id}")
 
     # Generate a clean username - for custom providers use the display username as-is,

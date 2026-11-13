@@ -442,7 +442,11 @@ def import_file(
     dry_run: bool = False,
 ):
     """Import a file."""
-    dry_run_result = dry_run_import(file_name=file_name, extension=extension)
+    dry_run_result = dry_run_import(
+        file_name=file_name,
+        extension=extension,
+        progress_cb=progress_callback_count(title="Reading file..."),
+    )
     if dry_run_result is None:
         raise ValueError(f"Failed importing {extension} file")
     # the dry run's own messages are only reported for a dry run; for a real
@@ -468,6 +472,7 @@ def import_file(
             extension=extension.lower(),
             delete=delete,
             task=self,
+            progress_cb=progress_callback_count(title="Importing..."),
         )
     finally:
         close_db(db_handle)
@@ -784,7 +789,11 @@ def import_media_archive(
         result = importer(progress_cb=progress_callback_count())
     finally:
         close_db(db_handle)
-    return result
+    # media paths are indexed, and matching files by name can change them
+    index_tasks: list[dict[str, str]] = []
+    if importer.paths_changed:
+        index_tasks = update_search_indices_after_import(tree=tree, user_id=user_id)
+    return {**result, "index_tasks": index_tasks}
 
 
 @shared_task()
@@ -922,9 +931,14 @@ def process_transactions(
     message: str = "Raw transaction",
 ):
     """Process a set of database transactions, updating search indices as needed."""
-    trans_dict = apply_transactions(
-        tree=tree, user_id=user_id, payload=payload, force=force, message=message
-    )
+    try:
+        trans_dict = apply_transactions(
+            tree=tree, user_id=user_id, payload=payload, force=force, message=message
+        )
+    except ValueError as exc:
+        # a rejected transaction is the client's error, as in the synchronous
+        # endpoint; aborting makes the task report it as a 400 rejection
+        abort_with_message(400, str(exc))
     update_search_indices_from_transaction(
         trans_dict=trans_dict, tree=tree, user_id=user_id
     )

@@ -21,7 +21,6 @@
 
 from typing import TypeVar
 
-import gramps_ql as gql
 from flask import abort, request
 from flask_jwt_extended import get_jwt_identity
 from gramps.gen.const import GRAMPS_LOCALE as glocale
@@ -31,7 +30,6 @@ from gramps.gen.errors import HandleError
 from gramps.gen.lib.primaryobj import BasicPrimaryObject as GrampsObject
 from gramps.gen.utils.grampslocale import GrampsLocale
 from marshmallow import Schema
-from pyparsing.exceptions import ParseBaseException
 from webargs import fields, validate
 
 from gramps_webapi.types import ResponseReturnValue
@@ -466,16 +464,6 @@ class GrampsObjectsQueryArgs(DateFormatQueryArgs):
         validate=validate.Length(min=1),
         metadata={"description": "Options for media format processing."},
     )
-    gql = fields.Str(
-        validate=validate.Length(min=1),
-        metadata={
-            "description": (
-                "A Gramps QL (GQL) query string used to filter the objects "
-                "(e.g. 'media_list.length >= 10'). Full syntax reference: "
-                "https://github.com/DavidMStraub/gramps-ql/blob/main/README.md"
-            )
-        },
-    )
     gramps_id = fields.Str(
         validate=validate.Length(min=1),
         metadata={
@@ -634,7 +622,6 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
         if args["page"] > 0 and not (
             "filter" in args
             or "rules" in args
-            or "gql" in args
             or args["dates"]
             or (self.gramps_class_name == "Media" and args.get("filemissing"))
         ):
@@ -677,29 +664,32 @@ class GrampsObjectsResource(GrampsObjectResourceHelper, Resource):
                     objects.append(self.full_object(obj, args, locale=locale))
                 return self.response(200, objects, args, total_items=total_items)
 
-        # load all objects to memory
-        objects_name = GRAMPS_OBJECT_PLURAL[self.gramps_class_name]
-        iter_objects_method = self.db_handle.method("iter_%s", objects_name)
-        assert iter_objects_method is not None  # type checker
         # ordered by handle, so ties are broken like in sort_handles_by_raw_data
-        objects = sorted(iter_objects_method(), key=lambda obj: obj.handle)
-
         if "filter" in args or "rules" in args:
-            handles = [obj.handle for obj in objects]
+            # filter the handles before loading objects, so that only the
+            # matching objects are loaded (rules evaluated in SQL, like
+            # MatchesQuery, load no other object at all)
+            handles = sorted(query_method())
             matching = set(
                 apply_filter(self.db_handle, args, self.gramps_class_name, handles)
             )
-            objects = [obj for obj in objects if obj.handle in matching]
-
-        if "gql" in args:
-            try:
-                objects = [
-                    obj
-                    for obj in objects
-                    if gql.match(query=args["gql"], obj=obj, db=self.db_handle)
-                ]
-            except (ParseBaseException, ValueError, TypeError) as e:
-                abort_with_message(422, str(e))
+            objects = []
+            for handle in handles:
+                if handle not in matching:
+                    continue
+                try:
+                    obj = self.get_object_from_handle(handle)
+                except HandleError:
+                    # object was deleted after the handles were fetched
+                    continue
+                if obj is not None:
+                    objects.append(obj)
+        else:
+            # load all objects to memory
+            objects_name = GRAMPS_OBJECT_PLURAL[self.gramps_class_name]
+            iter_objects_method = self.db_handle.method("iter_%s", objects_name)
+            assert iter_objects_method is not None  # type checker
+            objects = sorted(iter_objects_method(), key=lambda obj: obj.handle)
 
         if self.gramps_class_name == "Media" and args.get("filemissing"):
             objects = filter_missing_files(objects)
