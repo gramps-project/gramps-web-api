@@ -75,6 +75,7 @@ from gramps.gen.utils.db import (
 )
 from gramps.gen.utils.grampslocale import GrampsLocale
 from gramps.gen.utils.id import create_id
+from gramps.gen.utils.location import get_location_list
 from gramps.gen.utils.place import conv_lat_lon
 from gramps.gen.display.name import displayer as default_name_displayer
 
@@ -582,7 +583,7 @@ def get_event_profile_for_object(
 
 
 def get_place_name_for_event(db_handle: DbReadBase, event: Event) -> str:
-    """Get place name for an event."""
+    """Get the name a place had at the date of an event."""
     place_handle = event.get_place_handle()
     if not place_handle:
         return ""
@@ -592,10 +593,9 @@ def get_place_name_for_event(db_handle: DbReadBase, event: Event) -> str:
         return ""
     if not place:
         return ""
-    place_name = place.get_name()
-    if not place_name:
-        return ""
-    return place_name.value
+    # as in Gramps' place display, the first entry is the place itself,
+    # named as it was at the event's date
+    return get_location_list(db_handle, place, event.get_date_object())[0][0]
 
 
 def get_event_profile_for_handle(
