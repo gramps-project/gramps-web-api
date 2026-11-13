@@ -507,3 +507,33 @@ def test_failed_upload_not_committed(setup):
     assert obj.get_path() == path
     assert obj.get_checksum() == ""
     assert not mi.paths_changed
+
+
+def test_duplicate_member_names_ignored(setup):
+    """Members sharing a name in the archive are ambiguous and not matched."""
+    tree, db_handle, temp_dir = setup
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    with zipfile.ZipFile(zip_file_name, "w") as fzip:
+        with pytest.warns(UserWarning, match="Duplicate name"):
+            fzip.writestr("Family/photo.jpg", os.urandom(1000))
+            fzip.writestr("Family/photo.jpg", os.urandom(1000))
+    paths = [r"C:\Pictures\photo.jpg", "Family/photo.jpg"]
+    create_media(db_handle, paths, ["", ""])
+    result = MediaImporter(tree, "uid", db_handle, zip_file_name)()
+    assert counts(result) == (2, 0, 0)
+    assert not_found_paths(result) == set(paths)
+
+
+def test_only_candidates_hashed_without_checksums(setup):
+    """Without checksums to match, only the candidate members are hashed."""
+    tree, db_handle, temp_dir = setup
+    create_zip(["photo.jpg", "unrelated.jpg"], temp_dir)
+    # two objects sharing a path, neither with a checksum
+    create_media(db_handle, ["photo.jpg", "photo.jpg"], ["", ""])
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    with patch(
+        "gramps_webapi.api.media_importer.get_checksum", wraps=get_checksum
+    ) as hashed:
+        result = MediaImporter(tree, "uid", db_handle, zip_file_name)()
+    assert counts(result) == (2, 2, 0)
+    assert hashed.call_count == 1

@@ -4,6 +4,7 @@ import os
 import shutil
 import tempfile
 import zipfile
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -166,19 +167,22 @@ class MediaImporter:
         """Find the ZIP member holding the file of each missing object.
 
         The archive is read as a stream, so nothing is written to disk yet.
-        Members are only hashed if they can match. Returns the matches and the
-        uncompressed sizes of the members, by name.
+        Members are only hashed if they can match. A name occurring more than
+        once in the archive is ambiguous, so its members are ignored. Returns
+        the matches and the uncompressed sizes of the members, by name.
         """
         without_checksum: Dict[str, List[Media]] = {}
         for obj in missing:
             if not obj.checksum:
                 without_checksum.setdefault(obj.get_path(), []).append(obj)
         with zipfile.ZipFile(self.file_name, "r") as zip_file:
+            files = [info for info in zip_file.infolist() if not info.is_dir()]
+            name_counts = Counter(info.filename for info in files)
             infos = {
-                info.filename: info for info in zip_file.infolist() if not info.is_dir()
+                info.filename: info for info in files if name_counts[info.filename] == 1
             }
             member_by_path = match_members_to_paths(without_checksum, infos)
-            if len(without_checksum) < len(missing):
+            if any(obj.checksum for obj in missing):
                 # some objects can match any member by checksum
                 to_hash: Iterable[str] = infos
             else:
