@@ -17,7 +17,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""Object creation API resource."""
+"""Bulk object API resources: create, delete and edit."""
 
 import json
 from typing import Sequence
@@ -47,6 +47,7 @@ from ..tasks import (
     AsyncResult,
     delete_objects,
     delete_objects_by_handle_task,
+    edit_objects_by_handle_task,
     make_task_response,
     run_task,
     update_media_usage_task,
@@ -61,8 +62,14 @@ from ..util import (
     update_usage_people,
 )
 from . import FreshProtectedResource, ProtectedResource
+from .bulk_edit import edit_objects_by_handle, validate_edit_operations
 from .delete import delete_objects_by_handle, remove_deleted_from_search_indices
-from .schemas import TaskReferenceSchema, TransactionSchema
+from .schemas import (
+    EditObjectsByHandleArgs,
+    EditObjectsByHandleQueryArgs,
+    TaskReferenceSchema,
+    TransactionSchema,
+)
 from .util import add_object, fix_object_dict, transaction_to_json, validate_object_dict
 
 
@@ -235,6 +242,59 @@ class DeleteObjectsByHandleResource(ProtectedResource):
                 tree=tree,
                 user_id=get_jwt_identity(),
             )
+        res = Response(
+            response=json.dumps(trans_dict),
+            status=200,
+            mimetype="application/json",
+        )
+        res.headers.add("X-Total-Count", str(len(trans_dict)))
+        return res
+
+
+class EditObjectsByHandleResource(ProtectedResource):
+    """Resource for applying the same edits to specific objects of one type."""
+
+    @api_blueprint.response(200, TransactionSchema(many=True))
+    @api_blueprint.arguments(EditObjectsByHandleQueryArgs, location="query")
+    @api_blueprint.arguments(EditObjectsByHandleArgs, location="json")
+    def post(self, query_args, args) -> ResponseReturnValue:
+        """Edit the objects.
+
+        Only objects that actually change are committed, so the returned
+        transaction lists the changed objects only.
+        """
+        require_permissions([PERM_EDIT_OBJ])
+        try:
+            validate_edit_operations(get_db_handle(), args["operations"])
+        except ValueError as exc:
+            abort_with_message(422, str(exc))
+        tree = get_tree_from_jwt_or_fail()
+        if query_args["background"]:
+            task = run_task(
+                edit_objects_by_handle_task,
+                tree=tree,
+                user_id=get_jwt_identity(),
+                namespace=args["namespace"],
+                handles=args["handles"],
+                operations=args["operations"],
+            )
+            if isinstance(task, AsyncResult):
+                return make_task_response(task)
+            trans_dict = task
+        else:
+            trans_dict = edit_objects_by_handle(
+                db_handle=get_db_handle(readonly=False),
+                namespace=args["namespace"],
+                handles=args["handles"],
+                operations=args["operations"],
+            )
+            if trans_dict:
+                run_task(
+                    update_search_indices_from_transaction,
+                    trans_dict=trans_dict,
+                    tree=tree,
+                    user_id=get_jwt_identity(),
+                )
         res = Response(
             response=json.dumps(trans_dict),
             status=200,

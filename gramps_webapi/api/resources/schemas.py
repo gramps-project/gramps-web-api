@@ -18,7 +18,14 @@ import base64
 import binascii
 from urllib.parse import urlsplit
 
-from marshmallow import INCLUDE, Schema, ValidationError, fields, validate
+from marshmallow import (
+    INCLUDE,
+    Schema,
+    ValidationError,
+    fields,
+    validate,
+    validates_schema,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -3429,6 +3436,85 @@ class UserSchema(_Base):
             "description": "Where the account comes from: `Local` or the"
             " OIDC provider's display name. Only present in the user list"
             " if OIDC is enabled."
+        },
+    )
+
+
+# ===========================================================================
+# Bulk edit
+# ===========================================================================
+
+from .bulk_edit import EDIT_OPS, EDITABLE_NAMESPACES, TAG_OPS  # noqa: E402
+
+
+class EditOperationSchema(Schema):
+    """A single edit operation for POST /objects/edit-by-handle."""
+
+    op = fields.Str(
+        required=True,
+        validate=validate.OneOf(list(EDIT_OPS)),
+        metadata={
+            "description": "Operation: 'add_tag' or 'remove_tag' (require 'handle'), or 'set_private' (requires 'value')."
+        },
+    )
+    handle = fields.Str(
+        validate=validate.Length(min=1),
+        metadata={"description": "Handle of the tag to add or remove."},
+    )
+    value = fields.Boolean(
+        metadata={
+            "description": "Privacy to set. Only the primary object's privacy is changed, not that of its secondary objects (e.g. references)."
+        },
+    )
+
+    @validates_schema
+    def validate_fields(self, data, **kwargs):
+        """Require exactly the fields the operation uses."""
+        if data["op"] in TAG_OPS:
+            required, forbidden = "handle", "value"
+        else:
+            required, forbidden = "value", "handle"
+        if required not in data:
+            raise ValidationError(f"Missing for '{data['op']}'.", field_name=required)
+        if forbidden in data:
+            raise ValidationError(
+                f"Not allowed for '{data['op']}'.", field_name=forbidden
+            )
+
+
+class EditObjectsByHandleArgs(Schema):
+    """Request body for POST /objects/edit-by-handle."""
+
+    namespace = fields.Str(
+        required=True,
+        validate=validate.OneOf(EDITABLE_NAMESPACES),
+        metadata={"description": "Object type of the objects to edit (e.g. 'people')."},
+    )
+    handles = fields.List(
+        fields.Str(validate=validate.Length(min=1)),
+        required=True,
+        validate=validate.Length(min=1),
+        metadata={
+            "description": "List of handles of the objects to edit. Handles of objects that do not exist are skipped."
+        },
+    )
+    operations = fields.List(
+        fields.Nested(EditOperationSchema),
+        required=True,
+        validate=validate.Length(min=1),
+        metadata={
+            "description": "Operations to apply to each object, in order, in a single transaction."
+        },
+    )
+
+
+class EditObjectsByHandleQueryArgs(Schema):
+    """Query arguments for POST /objects/edit-by-handle."""
+
+    background = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": "If true and Celery is configured, edit the objects in the background and return HTTP 202. Use this for anything but a few objects.",
         },
     )
 

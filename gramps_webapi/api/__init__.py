@@ -116,6 +116,7 @@ from .resources.objects import (
     CreateObjectsResource,
     DeleteObjectsByHandleResource,
     DeleteObjectsResource,
+    EditObjectsByHandleResource,
 )
 from .resources.ocr import MediaOcrResource
 from .resources.oidc import (
@@ -273,6 +274,12 @@ register_endpt(
     DeleteObjectsByHandleResource,
     "/objects/delete-by-handle/",
     "delete_objects_by_handle",
+    tags=["Transactions"],
+)
+register_endpt(
+    EditObjectsByHandleResource,
+    "/objects/edit-by-handle/",
+    "edit_objects_by_handle",
     tags=["Transactions"],
 )
 # Transactions
