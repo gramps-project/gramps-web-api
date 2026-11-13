@@ -197,3 +197,35 @@ class TestImporterMedia(unittest.TestCase):
         assert rv.status_code == 400
         assert "received 4 of 1000 bytes" in rv.json["error"]["message"]
         assert [fn for fn in os.listdir(self.export_dir) if fn.endswith(".zip")] == []
+
+    def test_path_changed_by_file_name_match_is_searchable(self):
+        """A media path rewritten by the import is updated in the search index."""
+        headers = get_headers(self.client, "owner", "owner")
+        rv = self.client.post(
+            "/api/objects/",
+            headers=headers,
+            json=[
+                {
+                    "_class": "Media",
+                    "path": r"C:\Pictures\grandpa-fallback.jpg",
+                    "checksum": "",
+                    "mime": "image/jpeg",
+                }
+            ],
+        )
+        assert rv.status_code == 201
+        zip_path = os.path.join(self.tmp_dir, "fallback.zip")
+        with zipfile.ZipFile(zip_path, "w") as fzip:
+            fzip.writestr("Scanned/grandpa-fallback.jpg", os.urandom(1000))
+        with open(zip_path, "rb") as f:
+            rv = self.client.post(
+                "/api/media/archive/upload/zip", headers=headers, data=f.read()
+            )
+        assert rv.status_code == 201
+        assert rv.json["uploaded"] == 1
+        # without a task queue, the index is updated inline
+        assert rv.json["index_tasks"] == []
+        rv = self.client.get("/api/search/?query=Scanned", headers=headers)
+        assert rv.status_code == 200
+        paths = [hit["object"]["path"] for hit in rv.json]
+        assert paths == ["Scanned/grandpa-fallback.jpg"]
