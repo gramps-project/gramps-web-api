@@ -426,23 +426,84 @@ def test_file_name_fallback_existing_same_file(setup):
     create_media(db_handle, [r"C:\Pictures\photo.jpg"], [""])
     zip_file_name = os.path.join(temp_dir, ZIP_NAME)
     mi = MediaImporter(tree, "uid", db_handle, zip_file_name)
-    mi()
+    with patch("gramps_webapi.api.media_importer.set_tree_usage") as set_usage:
+        result = mi()
+    assert counts(result) == (1, 1, 0)
     obj = get_media_by_id(db_handle, "O0000")
     assert obj.get_path() == "photo.jpg"
     assert obj.get_checksum() == checksums[0]
     assert mi.paths_changed
+    # the linked file now counts towards the media usage
+    set_usage.assert_called_once()
 
 
-def test_archive_not_read_without_checksums_to_find(setup):
-    """Without missing media objects, the archive is not hashed."""
+def test_archive_not_read_without_missing_media(setup):
+    """Without missing media objects, the archive is not read."""
     tree, db_handle, temp_dir = setup
     create_zip(["f1.jpg"], temp_dir)
     zip_file_name = os.path.join(temp_dir, ZIP_NAME)
     mi = MediaImporter(tree, "uid", db_handle, zip_file_name)
     with patch.object(
         MediaImporter,
-        "_identify_files_to_upload",
+        "_match_archive",
         side_effect=AssertionError("archive read"),
     ):
         result = mi()
     assert counts(result) == (0, 0, 0)
+
+
+def test_file_name_fallback_destination_claimed(setup):
+    """A match by name is dropped if another match stores a different file there."""
+    tree, db_handle, temp_dir = setup
+    checksums = create_zip(["photo.jpg", "other/b.jpg"], temp_dir)
+    # matched by name to photo.jpg
+    create_media(db_handle, [r"C:\Pictures\photo.jpg"], [""])
+    # matched by checksum to other/b.jpg, but stored at photo.jpg
+    create_media(db_handle, ["photo.jpg"], [checksums[1]])
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    result = MediaImporter(tree, "uid", db_handle, zip_file_name)()
+    assert counts(result) == (2, 1, 0)
+    assert not_found_paths(result) == {r"C:\Pictures\photo.jpg"}
+    assert get_media_by_id(db_handle, "O0000").get_checksum() == ""
+    with open(os.path.join(media_dir(temp_dir), "photo.jpg"), "rb") as f:
+        assert get_checksum(f) == checksums[1]
+
+
+def test_nothing_committed_if_quota_exceeded(setup):
+    """Matched checksums and paths are not saved if the import fails."""
+    tree, db_handle, temp_dir = setup
+    create_zip(["f1.jpg", "Family/grandpa.jpg"], temp_dir)
+    create_media(db_handle, ["f1.jpg", r"C:\Pictures\grandpa.jpg"], ["", ""])
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    mi = MediaImporter(tree, "uid", db_handle, zip_file_name)
+    with patch(
+        "gramps_webapi.api.media_importer.check_quota_media",
+        side_effect=ValueError("quota exceeded"),
+    ):
+        with pytest.raises(ValueError, match="quota exceeded"):
+            mi()
+    assert not mi.paths_changed
+    assert get_media_by_id(db_handle, "O0000").get_checksum() == ""
+    obj = get_media_by_id(db_handle, "O0001")
+    assert obj.get_path() == r"C:\Pictures\grandpa.jpg"
+    assert obj.get_checksum() == ""
+
+
+def test_failed_upload_not_committed(setup):
+    """An object whose upload failed keeps its path and checksum."""
+    tree, db_handle, temp_dir = setup
+    create_zip(["Family/grandpa.jpg"], temp_dir)
+    path = r"C:\Pictures\grandpa.jpg"
+    create_media(db_handle, [path], [""])
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    mi = MediaImporter(tree, "uid", db_handle, zip_file_name)
+    with patch.object(
+        mi.media_handler, "upload_file", side_effect=OSError("disk full")
+    ):
+        result = mi()
+    assert counts(result) == (1, 0, 1)
+    assert result["not_found"] == []
+    obj = get_media_by_id(db_handle, "O0000")
+    assert obj.get_path() == path
+    assert obj.get_checksum() == ""
+    assert not mi.paths_changed
