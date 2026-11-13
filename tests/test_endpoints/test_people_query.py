@@ -79,7 +79,7 @@ class TestPeopleQuery(unittest.TestCase):
         max `limit` (1000), so a single request can't retrieve everything.
         """
         body = dict(body_without_paging)
-        body.setdefault("order_by", [{"column": "handle", "direction": "asc"}])
+        body.setdefault("order_by", ["handle"])
         body["limit"] = page_size
         items = []
         after = None
@@ -154,7 +154,7 @@ class TestPeopleQuery(unittest.TestCase):
             TEST_URL,
             json={
                 "select": ["handle"],
-                "where": [{"column": "gender", "op": "eq", "value": 1}],
+                "where_expr": "gender == 1",
                 "limit": 5,
                 "count": True,
             },
@@ -170,7 +170,7 @@ class TestPeopleQuery(unittest.TestCase):
         header = fetch_header(self.client)
         body = {
             "select": ["handle"],
-            "order_by": [{"column": "handle", "direction": "asc"}],
+            "order_by": ["handle"],
             "limit": 5,
             "count": True,
         }
@@ -198,7 +198,7 @@ class TestPeopleQuery(unittest.TestCase):
             header,
             {
                 "select": ["handle"],
-                "where": [{"column": "gender", "op": "eq", "value": 1}],
+                "where_expr": "gender == 1",
             },
         )
         self.assertGreater(len(male_items), 0)
@@ -208,7 +208,7 @@ class TestPeopleQuery(unittest.TestCase):
         header = fetch_header(self.client)
         rv = self.client.post(
             TEST_URL,
-            json={"where": [{"column": "not_a_column", "op": "eq", "value": 1}]},
+            json={"where_expr": "not_a_column == 1"},
             headers=header,
         )
         self.assertEqual(rv.status_code, 422)
@@ -224,7 +224,7 @@ class TestPeopleQuery(unittest.TestCase):
         header = fetch_header(self.client)
         rv = self.client.post(
             TEST_URL,
-            json={"order_by": [{"column": "not_a_column"}]},
+            json={"order_by": ["not_a_column"]},
             headers=header,
         )
         self.assertEqual(rv.status_code, 422)
@@ -233,10 +233,102 @@ class TestPeopleQuery(unittest.TestCase):
         header = fetch_header(self.client)
         rv = self.client.post(
             TEST_URL,
-            json={"where": [{"column": "gender", "op": "in", "value": []}]},
+            json={"where_expr": "gender in []"},
             headers=header,
         )
         self.assertEqual(rv.status_code, 422)
+
+    def _some_handles(self, header, n):
+        rv = self.client.post(
+            TEST_URL,
+            json={
+                "select": ["handle"],
+                "order_by": ["handle"],
+                "limit": n,
+            },
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 200)
+        return [item["handle"] for item in rv.json["items"]]
+
+    def _env_query(self, header, where_expr, env, **extra):
+        return self.client.post(
+            TEST_URL,
+            json={"select": ["handle"], "where_expr": where_expr, "env": env, **extra},
+            headers=header,
+        )
+
+    def test_env_single_value(self):
+        header = fetch_header(self.client)
+        handle = self._some_handles(header, 1)[0]
+        rv = self._env_query(
+            header, "handle == Env.HOME_PERSON", {"HOME_PERSON": handle}
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual([i["handle"] for i in rv.json["items"]], [handle])
+
+    def test_env_list_and_empty_list(self):
+        header = fetch_header(self.client)
+        handles = self._some_handles(header, 3)
+        rv = self._env_query(header, "handle in Env.BOOKMARKS", {"BOOKMARKS": handles})
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(sorted(i["handle"] for i in rv.json["items"]), sorted(handles))
+        rv = self._env_query(header, "handle in Env.BOOKMARKS", {"BOOKMARKS": []})
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.json["items"], [])
+        rv = self._env_query(
+            header, "handle not in Env.BOOKMARKS", {"BOOKMARKS": []}, count=True
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(int(rv.headers["X-Total-Count"]), get_object_count("people"))
+
+    def test_env_value_with_quotes_is_not_parsed(self):
+        header = fetch_header(self.client)
+        rv = self._env_query(
+            header, "surname == Env.NAME", {"NAME": "x' or handle != '"}
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.json["items"], [])
+
+    def test_env_errors_are_422(self):
+        header = fetch_header(self.client)
+        cases = [
+            ("handle == Env.HOME", None, "unknown Env value"),
+            ("handle == Env.HOME", {"OTHER": "x"}, "Env.OTHER"),
+            ("handle == Env.BOOKMARKS", {"BOOKMARKS": ["a"]}, "is a list"),
+            ("handle in Env.HOME", {"HOME": "a"}, "is a single value"),
+            ("handle == Env.HOME", {"HOME": {"a": 1}}, "must be a string"),
+            ("handle == Env", {}, "needs a name"),
+        ]
+        for where_expr, env, message in cases:
+            with self.subTest(where_expr=where_expr, env=env):
+                rv = self._env_query(header, where_expr, env)
+                self.assertEqual(rv.status_code, 422)
+                self.assertIn(message, str(rv.json))
+
+    def test_env_on_the_proxied_path(self):
+        header = fetch_header(self.client)
+        handles = self._some_handles(header, 2)
+
+        def fake_get_db_handle(readonly=True):
+            db = get_db_handle(readonly=readonly)
+            base = db.basedb if isinstance(db, ProxyDbBase) else db
+            return _FakeNonPrivateProxy(base)
+
+        with patch(
+            "gramps_webapi.api.resources.object_query.get_db_handle",
+            side_effect=fake_get_db_handle,
+        ):
+            rv = self._env_query(
+                header, "handle in Env.SELECTION", {"SELECTION": handles}
+            )
+            self.assertEqual(rv.status_code, 200)
+            self.assertEqual(
+                sorted(i["handle"] for i in rv.json["items"]), sorted(handles)
+            )
+            rv = self._env_query(header, "handle in Env.SELECTION", {"SELECTION": []})
+            self.assertEqual(rv.status_code, 200)
+            self.assertEqual(rv.json["items"], [])
 
     def test_order_by_surname_is_sorted(self):
         header = fetch_header(self.client)
@@ -244,7 +336,7 @@ class TestPeopleQuery(unittest.TestCase):
             TEST_URL,
             json={
                 "select": ["surname"],
-                "order_by": [{"column": "surname", "direction": "asc"}],
+                "order_by": ["surname"],
                 "limit": 1000,
             },
             headers=header,
@@ -268,7 +360,7 @@ class TestPeopleQuery(unittest.TestCase):
             header,
             {
                 "select": ["surname"],
-                "order_by": [{"column": "surname", "direction": "asc"}],
+                "order_by": ["surname"],
             },
         )
         surnames = [item["surname"] or "" for item in items]
@@ -290,7 +382,7 @@ class TestPeopleQuery(unittest.TestCase):
         for _ in range(total + 1):  # safety bound against an infinite loop
             body = {
                 "select": ["handle"],
-                "order_by": [{"column": "surname", "direction": "asc"}],
+                "order_by": ["surname"],
                 "limit": page_size,
             }
             if after is not None:
@@ -315,10 +407,15 @@ class TestPeopleQuery(unittest.TestCase):
         # than the endpoint's max `limit` (1000) -- a where filter is needed
         # to get a matching count small enough to request in a single page.
         header = fetch_header(self.client)
-        where = [{"column": "gender", "op": "eq", "value": 0}]
+        where_expr = "gender == 0"
         probe = self.client.post(
             TEST_URL,
-            json={"select": ["handle"], "where": where, "limit": 1, "count": True},
+            json={
+                "select": ["handle"],
+                "where_expr": where_expr,
+                "limit": 1,
+                "count": True,
+            },
             headers=header,
         )
         self.assertEqual(probe.status_code, 200)
@@ -329,8 +426,8 @@ class TestPeopleQuery(unittest.TestCase):
             TEST_URL,
             json={
                 "select": ["handle"],
-                "where": where,
-                "order_by": [{"column": "handle", "direction": "asc"}],
+                "where_expr": where_expr,
+                "order_by": ["handle"],
                 "limit": total,
             },
             headers=header,
@@ -361,7 +458,7 @@ class TestPeopleQuery(unittest.TestCase):
             header,
             {
                 "select": ["surname"],
-                "order_by": [{"column": "surname", "direction": "asc"}],
+                "order_by": ["surname"],
                 "locale": "de",
             },
         )
@@ -377,7 +474,7 @@ class TestPeopleQuery(unittest.TestCase):
             TEST_URL,
             json={
                 "select": ["handle"],
-                "order_by": [{"column": "surname", "direction": "asc"}],
+                "order_by": ["surname"],
                 "locale": "zz",
                 "limit": 5,
             },
@@ -391,7 +488,7 @@ class TestPeopleQuery(unittest.TestCase):
             TEST_URL,
             json={
                 "select": ["handle"],
-                "order_by": [{"column": "gender", "direction": "asc"}],
+                "order_by": ["gender"],
                 "locale": "de",
                 "limit": 5,
             },
@@ -420,7 +517,7 @@ class TestPeopleQuery(unittest.TestCase):
                 TEST_URL,
                 json={
                     "select": ["handle"],
-                    "order_by": [{"column": "surname", "direction": "asc"}],
+                    "order_by": ["surname"],
                     "locale": "de",
                     "limit": 5,
                 },
@@ -488,7 +585,7 @@ class TestPeopleQuery(unittest.TestCase):
             header,
             {
                 "select": ["handle"],
-                "where": [{"column": "gramps_id", "op": "eq", "value": "I0000"}],
+                "where_expr": "gramps_id == 'I0000'",
                 "limit": 50,
                 "count": True,
             },
@@ -568,7 +665,7 @@ class TestPeopleQuery(unittest.TestCase):
                 rv = self.client.post(
                     TEST_URL,
                     json={
-                        "order_by": [{"column": "handle", "direction": "asc"}],
+                        "order_by": ["handle"],
                         "after": after,
                     },
                     headers=header_guest,
@@ -576,7 +673,7 @@ class TestPeopleQuery(unittest.TestCase):
                 self.assertEqual(rv.status_code, 422, after)
             body = {
                 "select": ["handle"],
-                "where": [{"column": "surname", "op": "eq", "value": surname}],
+                "where_expr": f"surname == {surname!r}",
                 "count": True,
             }
             rv = self.client.post(TEST_URL, json=body, headers=header_owner)
@@ -795,25 +892,101 @@ class TestPeopleQuery(unittest.TestCase):
             compared += 1
         self.assertGreater(compared, 0)
 
-    def test_select_string_and_json_path_forms_agree(self):
-        """The expression string and the older {"json_path": [...]} wire form
-        are two spellings of one reference -- same values, same default key.
+    def test_non_string_select_entry_rejected(self):
+        header = fetch_header(self.client)
+        rv = self.client.post(
+            TEST_URL,
+            json={"select": ["handle", {"json_path": ["birth", "date", "sortval"]}]},
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 422)
+
+    def test_order_by_object_rejected(self):
+        header = fetch_header(self.client)
+        rv = self.client.post(
+            TEST_URL,
+            json={"order_by": [{"column": "surname", "direction": "asc"}]},
+            headers=header,
+        )
+        self.assertEqual(rv.status_code, 422)
+
+    def test_order_by_direction_and_bad_entries(self):
+        header = fetch_header(self.client)
+
+        def handles(order_by):
+            rv = self.client.post(
+                TEST_URL,
+                json={"select": ["handle"], "order_by": order_by, "limit": 20},
+                headers=header,
+            )
+            self.assertEqual(rv.status_code, 200, rv.json)
+            return [item["handle"] for item in rv.json["items"]]
+
+        ascending = handles(["handle"])
+        descending = handles(["-handle"])
+        self.assertEqual(ascending, sorted(ascending))
+        self.assertEqual(descending, sorted(descending, reverse=True))
+        self.assertNotEqual(ascending, descending)
+        for bad in ["surname as s", "surname desc", "--surname", "gender > 1"]:
+            rv = self.client.post(TEST_URL, json={"order_by": [bad]}, headers=header)
+            self.assertEqual(rv.status_code, 422, bad)
+
+    def test_query_errors_are_structured(self):
+        """A GOQL error is a short `message` naming the body field, with
+        GOQL's own text in `messages`, keyed like a marshmallow schema
+        error -- by field, and by entry index for a list field. The same
+        on the SQL and the proxied path.
         """
         header = fetch_header(self.client)
-        as_string = self.client.post(
+        cases = [
+            ({"where_expr": "not_a_column == 1"}, "where_expr", None),
+            ({"where_expr": "gender =="}, "where_expr", None),
+            ({"where_expr": "handle == Env.HOME"}, "where_expr", None),
+            ({"select": ["handle", "not_a_column"]}, "select", "1"),
+            ({"select": ["surname", "surname"]}, "select", None),
+            ({"select": ["gramps_id as handle"]}, "select", "0"),
+            ({"order_by": ["surname", "-", "given_name"]}, "order_by", "1"),
+        ]
+
+        def fake_get_db_handle(readonly=True):
+            db = get_db_handle(readonly=readonly)
+            base = db.basedb if isinstance(db, ProxyDbBase) else db
+            return _FakeNonPrivateProxy(base)
+
+        for proxied in (False, True):
+            for body, field, index in cases:
+                with self.subTest(proxied=proxied, body=body):
+                    if proxied:
+                        with patch(
+                            "gramps_webapi.api.resources.object_query.get_db_handle",
+                            side_effect=fake_get_db_handle,
+                        ):
+                            rv = self.client.post(TEST_URL, json=body, headers=header)
+                    else:
+                        rv = self.client.post(TEST_URL, json=body, headers=header)
+                    self.assertEqual(rv.status_code, 422)
+                    error = rv.json["error"]
+                    self.assertEqual(error["code"], 422)
+                    self.assertEqual(error["type"], "invalid_query")
+                    self.assertEqual(error["message"], f"Invalid '{field}'")
+                    details = error["messages"]["json"]
+                    self.assertEqual(list(details), [field])
+                    detail = details[field]
+                    if index is not None:
+                        self.assertEqual(list(detail), [index])
+                        detail = detail[index]
+                    self.assertEqual(len(detail), 1)
+                    self.assertIsInstance(detail[0], str)
+                    self.assertTrue(detail[0])
+
+    def test_json_where_body_rejected(self):
+        header = fetch_header(self.client)
+        rv = self.client.post(
             TEST_URL,
-            json={"select": ["handle", "birth.date.sortval"], "limit": 10},
+            json={"where": [{"column": "gender", "op": "eq", "value": 1}]},
             headers=header,
-        ).json["items"]
-        as_json = self.client.post(
-            TEST_URL,
-            json={
-                "select": ["handle", {"json_path": ["birth", "date", "sortval"]}],
-                "limit": 10,
-            },
-            headers=header,
-        ).json["items"]
-        self.assertEqual(as_string, as_json)
+        )
+        self.assertEqual(rv.status_code, 422)
 
     def test_select_count_of_collection(self):
         header = fetch_header(self.client)
@@ -870,8 +1043,11 @@ class TestPeopleQuery(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 422)
         # The error names the field that would have worked, rather than
-        # returning a column of nulls.
-        self.assertIn("frist_name", rv.json["error"]["message"])
+        # returning a column of nulls -- in the details, not the message.
+        error = rv.json["error"]
+        self.assertEqual(error["message"], "Invalid 'select'")
+        (detail,) = error["messages"]["json"]["select"]["0"]
+        self.assertIn("frist_name", detail)
 
     def test_order_by_path_expression(self):
         header = fetch_header(self.client)
@@ -882,8 +1058,8 @@ class TestPeopleQuery(unittest.TestCase):
                 # People with no recorded birth date sort first (NULL is the
                 # smallest value), so filter to those that have one --
                 # otherwise the first page is all nulls and proves nothing.
-                "where": [{"column": "birth.date.sortval", "op": "gt", "value": 0}],
-                "order_by": [{"column": "birth.date.sortval", "direction": "asc"}],
+                "where_expr": "birth.date.sortval > 0",
+                "order_by": ["birth.date.sortval"],
                 "limit": 30,
             },
             headers=header,
@@ -905,8 +1081,8 @@ class TestPeopleQuery(unittest.TestCase):
         header = fetch_header(self.client)
         body = {
             "select": ["handle", "birth.date.sortval"],
-            "where": [{"column": "birth.date.sortval", "op": "gt", "value": 0}],
-            "order_by": [{"column": "birth.date.sortval", "direction": "asc"}],
+            "where_expr": "birth.date.sortval > 0",
+            "order_by": ["birth.date.sortval"],
             "limit": 10,
         }
         walked = []
@@ -930,7 +1106,7 @@ class TestPeopleQuery(unittest.TestCase):
         header = fetch_header(self.client)
         rv = self.client.post(
             TEST_URL,
-            json={"order_by": [{"column": "primary_name.frist_name"}]},
+            json={"order_by": ["primary_name.frist_name"]},
             headers=header,
         )
         self.assertEqual(rv.status_code, 422)
@@ -941,7 +1117,7 @@ class TestPeopleQuery(unittest.TestCase):
             TEST_URL,
             json={
                 "select": ["handle"],
-                "where": [{"column": "birth.date.sortval", "op": "gt", "value": 0}],
+                "where_expr": "birth.date.sortval > 0",
                 "limit": 10,
             },
             headers=header,
@@ -959,8 +1135,8 @@ class TestPeopleQuery(unittest.TestCase):
             TEST_URL,
             json={
                 "select": ["handle", "birth.date.sortval"],
-                "where": [{"column": "birth.date.sortval", "op": "gt", "value": 0}],
-                "order_by": [{"column": "birth.date.sortval", "direction": "asc"}],
+                "where_expr": "birth.date.sortval > 0",
+                "order_by": ["birth.date.sortval"],
                 "limit": 20,
             },
             headers=header_guest,

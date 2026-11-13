@@ -336,7 +336,7 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
             PEOPLE_QUERY_URL,
             {
                 "select": ["handle"],
-                "where": [{"column": "gender", "op": "eq", "value": Person.MALE}],
+                "where_expr": f"gender == {Person.MALE!r}",
                 "count": True,
             },
         )
@@ -352,7 +352,7 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
                 PEOPLE_QUERY_URL,
                 {
                     "select": ["handle", "birth.place.title"],
-                    "where": [{"column": "handle", "op": "eq", "value": SHARED_PERSON}],
+                    "where_expr": f"handle == {SHARED_PERSON!r}",
                 },
             )
             self.assertEqual(
@@ -366,7 +366,7 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
             PEOPLE_QUERY_URL,
             {
                 "select": ["handle", "birth.place.title"],
-                "order_by": [{"column": "birth.place.title", "direction": "desc"}],
+                "order_by": ["-birth.place.title"],
             },
         )
         self.assertEqual(
@@ -380,7 +380,7 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
             PEOPLE_QUERY_URL,
             {
                 "select": ["handle"],
-                "where": [{"exists": {"relationship": "notes"}}],
+                "where_expr": "exists(notes)",
                 "count": True,
             },
         )
@@ -393,16 +393,7 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
             NOTES_QUERY_URL,
             {
                 "select": ["handle", "text"],
-                "where": [
-                    {
-                        "exists": {
-                            "relationship": "backlinks",
-                            "where": [
-                                {"column": "_class", "op": "eq", "value": "Person"}
-                            ],
-                        }
-                    }
-                ],
+                "where_expr": 'exists(backlinks, _class == "Person")',
             },
         )
         self.assertEqual(len(rv.json["items"]), 1)

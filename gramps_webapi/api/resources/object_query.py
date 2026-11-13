@@ -34,11 +34,11 @@ the same pattern `GrampsObjectResourceHelper` subclasses already use with
 `gramps_class_name` (see `resources/people.py`/`families.py`).
 """
 
-from typing import Any, Optional, Sequence, Tuple
+from typing import Any, NoReturn, Optional, Sequence, Tuple
 
 from gramps.gen.errors import HandleError
 from gramps.gen.proxy.proxybase import ProxyDbBase
-from marshmallow import Schema, ValidationError, validate, validates_schema
+from marshmallow import Schema, validate
 from webargs import fields as wf
 
 from gramps_object_query_language.evaluator import (
@@ -58,7 +58,6 @@ from gramps_object_query_language.query import (
     REPOSITORY,
     SOURCE,
     TAG,
-    ColumnRef,
     Dialect,
     ObjectTypeSpec,
     OrderBy,
@@ -69,17 +68,13 @@ from gramps_object_query_language.query import (
     compile_after_lookup,
     compile_count_query,
     compile_query,
-    default_ref_key,
-    resolve_order_by,
     select_normalizer,
 )
 from gramps_object_query_language.query_lang import (
-    VALID_LEAF_OPS,
     QueryLangError,
-    json_column_to_ref,
-    parse_expr_for_spec,
+    compile_expr_for_spec,
+    parse_order_by_entry,
     parse_select_entry,
-    where_list_to_ast,
 )
 
 from ...auth.const import PERM_VIEW_PRIVATE
@@ -97,204 +92,16 @@ from .db_backend import (
 from .schemas import ObjectQueryResponseSchema
 
 
-class QueryExistsPayloadArgs(Schema):
-    """The payload of a WHERE condition node's `exists` combinator --
-    `{"relationship": ..., "where": [...]}`, the same shape `where_expr`'s
-    `exists(relationship, condition)` already produces (see
-    `gramps_object_query_language.query_lang`'s `_node_from_json`). Defined
-    before `QueryWhereConditionArgs` so its own `exists` field can reference
-    this directly, with no forward-reference lambda needed; the reverse
-    reference (`where`, here) still needs one, since `QueryWhereConditionArgs`
-    isn't defined yet at this point in the file.
-    """
-
-    relationship = wf.Str(
-        required=True,
-        metadata={
-            "description": "A registered collection name on the enclosing "
-            "condition's own object type, e.g. 'notes', 'children', "
-            "'backlinks' -- the same names `where_expr`'s `exists(...)`/"
-            "`count(...)` accept."
-        },
-    )
-    where = wf.List(
-        wf.Nested(lambda: QueryWhereConditionArgs()),
-        required=False,
-        metadata={
-            "description": "Condition narrowing which related rows count, "
-            "evaluated against the collection's own target type -- the same "
-            "shape as the outer 'where'. Omitted entirely means 'at least "
-            "one related row at all,' with no further condition."
-        },
-    )
-
-
-class QueryWhereConditionArgs(Schema):
-    """A single WHERE condition *node*: either a leaf (`column`+`op`,
-    optionally `value`/`value_column`) or exactly one combinator (`and`/
-    `or`/`not`/`exists`) wrapping further nodes of this same shape -- the
-    same boolean-tree grammar `where_expr` already has (see
-    `gramps_object_query_language.query_lang`'s `where_list_to_ast`/
-    `_node_from_json`, which this schema's output is built to feed
-    unchanged; see `_build_where` below).
-
-    `column`/`op` are optional at the field level (unlike before) because
-    they're only required for a leaf, not a combinator -- that and every
-    other shape rule (`_check_shape` below) needs more than one field's own
-    validators can express on their own, so it's checked cross-field.
-    """
-
-    column = wf.Raw(
-        required=False,
-        metadata={
-            "description": "Column to compare: either a plain column name (e.g. "
-            "'gramps_id'), or {'json_path': [...]} for a path, e.g. "
-            "{'json_path': ['primary_name', 'first_name']}. A path may cross a "
-            "relationship (Family->Person, Person->Event, Event->Place, ...), "
-            "e.g. {'json_path': ['father', 'surname']} or "
-            "{'json_path': ['birth', 'date', 'sortval']}. A plain string may "
-            "also be a path ('birth.date.sortval'), not only a flat column "
-            "name. Required for a leaf condition (one with no 'and'/'or'/"
-            "'not'/'exists'); not allowed otherwise."
-        },
-    )
-    op = wf.Str(
-        required=False,
-        validate=validate.OneOf(list(VALID_LEAF_OPS)),
-        metadata={
-            "description": "Comparison operator: eq, ne, lt, lte, gt, gte, like, "
-            "regex, contains, or in. Required for a leaf condition; not "
-            "allowed otherwise."
-        },
-    )
-    value = wf.Raw(
-        required=False,
-        metadata={
-            "description": "Value to compare against. Must be a list when op is "
-            "'in'. Mutually exclusive with 'value_column'; for a leaf condition "
-            "exactly one is required."
-        },
-    )
-    value_column = wf.Raw(
-        required=False,
-        metadata={
-            "description": "Alternative to 'value': compare 'column' against "
-            "another column/path instead of a literal, e.g. families where the "
-            "mother died before the father -- column: {'json_path': ['mother', "
-            "'death', 'date', 'sortval']}, op: 'lt', value_column: {'json_path': "
-            "['father', 'death', 'date', 'sortval']}. Same shape as 'column' "
-            "(plain name or {'json_path': [...]}). Not supported for "
-            "'in'/'like'/'regex'."
-        },
-    )
-    and_ = wf.List(
-        wf.Nested(lambda: QueryWhereConditionArgs()),
-        required=False,
-        data_key="and",
-        # `attribute` (not just `data_key`) so the *loaded* dict this schema
-        # produces -- what actually reaches _build_where/where_list_to_ast --
-        # is keyed "and", matching the wire shape where_expr's own parser
-        # already emits (query_lang.py's _node_from_json checks `"and" in
-        # node`, never `"and_"`). `and`/`or`/`not` are reserved words only as
-        # Python *identifiers*; a plain string dict key has no such
-        # restriction, so this is legal and does exactly what's needed.
-        attribute="and",
-        metadata={"description": "True only if every condition in this list is."},
-    )
-    or_ = wf.List(
-        wf.Nested(lambda: QueryWhereConditionArgs()),
-        required=False,
-        data_key="or",
-        attribute="or",
-        metadata={"description": "True if any condition in this list is."},
-    )
-    not_ = wf.Nested(
-        lambda: QueryWhereConditionArgs(),
-        required=False,
-        data_key="not",
-        attribute="not",
-        metadata={"description": "True only if the wrapped condition is false."},
-    )
-    exists = wf.Nested(
-        QueryExistsPayloadArgs,
-        required=False,
-        metadata={
-            "description": "True if at least one row in the named collection "
-            "(optionally narrowed by 'where') exists -- the JSON-body "
-            "equivalent of where_expr's exists(relationship[, condition])."
-        },
-    )
-
-    @validates_schema
-    def _check_shape(self, data: dict, **kwargs: Any) -> None:
-        """Exactly one of: a leaf (`column`+`op`), or one combinator key --
-        matching `where_expr`'s own grammar, where a condition is always
-        unambiguously one or the other. `data` is already keyed by each
-        field's `attribute` (`"and"`/`"or"`/`"not"`, not the `and_`/`or_`/
-        `not_` Python names those fields have to use instead of the
-        reserved words -- see those fields' own comments), so these checks
-        and their error messages both use the same spelling a client
-        actually sent.
-        """
-        combinators = [key for key in ("and", "or", "not", "exists") if key in data]
-        if len(combinators) > 1:
-            raise ValidationError(
-                f"at most one of 'and'/'or'/'not'/'exists' is allowed per "
-                f"condition, got: {sorted(combinators)}"
-            )
-        is_leaf_ish = any(
-            key in data for key in ("column", "op", "value", "value_column")
-        )
-        if combinators and is_leaf_ish:
-            raise ValidationError(
-                "a condition can't combine 'and'/'or'/'not'/'exists' with "
-                "'column'/'op'/'value'/'value_column'"
-            )
-        if not combinators and not ("column" in data and "op" in data):
-            raise ValidationError(
-                "a condition must be either a leaf ('column' and 'op' "
-                "required) or exactly one of 'and'/'or'/'not'/'exists'"
-            )
-
-
-class QueryOrderByArgs(Schema):
-    """A single ORDER BY column."""
-
-    column = wf.Str(
-        required=True,
-        metadata={
-            "description": "Column to sort by: a flat column name ('surname'), "
-            "or a path ('birth.date.sortval', "
-            "'primary_name.surname_list[0].surname'), resolved exactly as the "
-            "same text is in 'select'. Note the cost: flat columns like "
-            "'surname' and 'given_name' are indexed, while nothing indexes "
-            "inside a record, so sorting by a path reads and parses every row "
-            "in the tree, and a relationship path ('birth.date.sortval') adds a "
-            "lookup per row on top. That work repeats for every page. Fine for "
-            "a result set 'where' has already narrowed; slow as the default "
-            "order of a large tree."
-        },
-    )
-    direction = wf.Str(
-        load_default="asc",
-        validate=validate.OneOf(["asc", "desc"]),
-        metadata={"description": "Sort direction: 'asc' or 'desc'."},
-    )
-
-
 class QueryBodyArgs(Schema):
     """Body arguments shared by every `POST .../query/` endpoint."""
 
     select = wf.List(
-        wf.Raw(),
+        wf.Str(),
         required=False,
         metadata={
             "description": "Columns to return. Defaults to all available columns. "
-            "Each entry is either an expression string or a {'json_path': [...]} "
-            "object, optionally with 'as': '<key>' -- omitted, the response key "
-            "falls back to the path's own dotted/bracket spelling, same as the "
-            "expression string form. An expression is a column name "
-            "('gramps_id'), a path ('primary_name.surname_list[0].surname'), or "
+            "Each entry is a column name ('gramps_id'), a path "
+            "('primary_name.surname_list[0].surname'), or "
             "count(relationship[, condition]) ('count(events)'), each optionally "
             "followed by 'as <key>' to name it in the response, e.g. "
             "'birth.place.title as birthplace' or 'count(events) as n_events'. "
@@ -311,33 +118,47 @@ class QueryBodyArgs(Schema):
             "cost."
         },
     )
-    where = wf.List(
-        wf.Nested(QueryWhereConditionArgs),
-        required=False,
-        metadata={
-            "description": "Top-level conditions, implicitly combined with AND "
-            "(the list itself is never wrapped in an extra 'and'). Each entry "
-            "is a full condition tree -- a leaf, or an 'and'/'or'/'not'/'exists' "
-            "combinator nesting further conditions of this same shape -- the "
-            "JSON-native equivalent of `where_expr` below (same grammar, two "
-            "wire formats; pick whichever a given client finds easier to "
-            "construct, a string or a JSON tree). See `QueryWhereConditionArgs`."
-        },
-    )
     where_expr = wf.Str(
         required=False,
         allow_none=True,
         metadata={
-            "description": 'Alternative to `where`: an "almost Python" expression, '
-            "e.g. \"gender == 1 and primary_name.surname_list[0].surname == 'Smith'\". "
-            "See `query_lang.py`. Mutually exclusive with `where` -- a request "
-            "setting both is rejected."
+            "description": 'Which rows to return: an "almost Python" expression, '
+            "e.g. \"gender == Person.MALE and surname == 'Smith'\". The grammar "
+            "is gramps-object-query-language's; see its docs/where_expr.md. "
+            "Omitted, every row is returned."
+        },
+    )
+    env = wf.Dict(
+        keys=wf.Str(),
+        values=wf.Raw(allow_none=True),
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Values for `Env.NAME` references in `where_expr`, "
+            "e.g. {'HOME_PERSON': '<handle>', 'BOOKMARKS': ['<handle>', ...]} "
+            'for "handle == Env.HOME_PERSON or handle in Env.BOOKMARKS". '
+            "Each value is a string, number, boolean, null, or a list of those "
+            "(used with `in`). The names are up to the client: the server "
+            "defines none of its own, and passes these through unchanged. An "
+            "`Env.NAME` with no value here is rejected."
         },
     )
     order_by = wf.List(
-        wf.Nested(QueryOrderByArgs),
+        wf.Str(),
         required=False,
-        metadata={"description": "Sort order, most significant column first."},
+        metadata={
+            "description": "Sort order, most significant first. Each entry is a "
+            "column written as in 'select' -- a column name ('surname'), a path "
+            "('birth.date.sortval'), or count(...)/len(...) -- sorted ascending, "
+            "or descending with a leading '-', e.g. "
+            "['surname', '-birth.date.sortval']. Note the cost: flat columns "
+            "like 'surname' and 'given_name' are indexed, while nothing indexes "
+            "inside a record, so sorting by a path reads and parses every row "
+            "in the tree, and a relationship path ('birth.date.sortval') adds a "
+            "lookup per row on top. That work repeats for every page. Fine for "
+            "a result set 'where_expr' has already narrowed; slow as the default "
+            "order of a large tree."
+        },
     )
     limit = wf.Int(
         load_default=50,
@@ -364,111 +185,109 @@ class QueryBodyArgs(Schema):
         load_default=False,
         metadata={
             "description": "If true, also compute the total number of rows matching "
-            "`where` (and privacy), independent of `limit`/`after`, and return it "
+            "`where_expr` (and privacy), independent of `limit`/`after`, and return it "
             "in the `X-Total-Count` response header (the same convention used "
             "elsewhere in this API). Costs a second query, so it's opt-in."
         },
     )
 
 
-def _parse_column_ref(raw: Any, spec: ObjectTypeSpec) -> ColumnRef:
-    """Parse a `select`/`where`/`order_by` column reference: a plain column
-    name, `{"json_path": [...]}` (may cross a relationship, e.g.
-    `{"json_path": ["birth", "date", "sortval"]}`, or stay a plain `JsonPath`
-    into `json_data`), or `{"count_of": {"relationship": ..., "where": [...]}}`
-    (a `Collection`'s cardinality, optionally narrowed -- `count(events) > 2`'s
-    column side).
-
-    Delegates the actual resolution to
-    `gramps_object_query_language.query_lang`'s `json_column_to_ref` -- the
-    same function `where_expr`'s column references go through -- rather than
-    a second, hand-maintained copy (see `_build_where`'s equivalent note for
-    why: that's exactly how `count_of` ended up supported for filtering via
-    `where_expr` but not for a `select`/plain `where` column reference, before
-    this function was rewritten to delegate too). Only the validation below
-    stays local: `json_column_to_ref`/`resolve_column_path` trust their input
-    (always well-formed when it comes from `parse_expr_for_spec`), but this
-    function's caller is raw, untrusted client JSON -- `select`/`order_by`
-    entries in particular have no schema shape at all (`wf.Raw()` all the
-    way down), so a `json_path`/`count_of` payload could arrive as anything.
+class InvalidQueryArgument(QueryError):
+    """A `QueryError` that knows which body field -- and, for a list field,
+    which entry -- it came from, so the 422 can say so (see
+    `_abort_invalid_query`).
     """
-    if isinstance(raw, str):
-        return json_column_to_ref(raw, spec)
-    if isinstance(raw, dict) and "json_path" in raw:
-        segments = raw["json_path"]
-        if not isinstance(segments, list) or not segments:
-            raise QueryError("'json_path' must be a non-empty list")
-        return json_column_to_ref(raw, spec)
-    if isinstance(raw, dict) and "count_of" in raw:
-        payload = raw["count_of"]
-        if not isinstance(payload, dict) or "relationship" not in payload:
-            raise QueryError("'count_of' requires a 'relationship' field")
-        where = payload.get("where")
-        if where is not None:
-            if not isinstance(where, list):
-                raise QueryError("'count_of.where' must be a list of conditions")
-            for condition in where:
-                if isinstance(condition, dict) and "column" in condition:
-                    _validate_leaf_condition(condition)
-        return json_column_to_ref(raw, spec)
-    raise QueryError(f"invalid column reference: {raw!r}")
+
+    def __init__(self, message: str, field: str, index: Optional[int] = None):
+        super().__init__(message)
+        self.field = field
+        self.index = index
 
 
-def _parse_select_entry(raw: Any, spec: ObjectTypeSpec) -> Tuple[SelectRef, str]:
-    """Parse one `select` entry into `(column_ref, response_key)`.
+def _abort_invalid_query(error: Exception, field: Optional[str] = None) -> NoReturn:
+    """Abort with a 422 whose `message` is short and generic ("Invalid
+    'where_expr'") and whose `messages` holds GOQL's full text, keyed the
+    way marshmallow keys a schema error: `{"json": {field: [text]}}`, with
+    a list field's entry index in between (`{"select": {"1": [text]}}`).
+    An error no single field caused goes under `_schema`, as in marshmallow.
 
-    A **string** is an expression in the same "almost Python" grammar
-    `where_expr` uses for a comparison's column side, delegated wholesale to
+    GOQL's messages can be long (an unknown field lists every field that
+    exists), so a client can show `message` and offer `messages` as
+    details rather than showing a paragraph.
+    """
+    field = getattr(error, "field", field)
+    index = getattr(error, "index", None)
+    detail: Any = [str(error)]
+    if field is None:
+        message = "Invalid query"
+        field = "_schema"
+    else:
+        message = f"Invalid '{field}'"
+        if index is not None:
+            detail = {str(index): detail}
+    abort_with_message(
+        422,
+        message,
+        error_type="invalid_query",
+        extra={"messages": {"json": {field: detail}}},
+    )
+
+
+def _parse_select_entry(raw: str, spec: ObjectTypeSpec) -> Tuple[SelectRef, str]:
+    """Parse one `select` entry into `(column_ref, response_key)`, using
     `query_lang.parse_select_entry`: a flat column (`gramps_id`), a path
     (`birth.place.title`, `primary_name.surname_list[0].surname`), or a
     `count(relationship[, condition])` call, each optionally followed by
-    `as <key>`. Delegating rather than re-deriving is the same fix
-    `_parse_column_ref` and `_build_where` already got: a hand-maintained
-    second copy is exactly how `count_of` ended up supported for filtering
-    but not for a plain column reference. It is also what makes a response
-    value's *type* knowable -- see `select_normalizer` in `_post_sql`, which
-    needs a resolved reference, not the raw string.
+    `as <key>`.
 
-    A **`{"json_path": [...], "as": "..."}`** object resolves the path the
-    same way `_parse_column_ref` does, and uses `as` as the response key if
-    given, otherwise the path's own dotted/bracket spelling
-    (`default_ref_key`). This is the older, more explicit wire form; it stays
-    supported, and it remains the way to reach anything the expression
-    grammar can't spell.
-
-    `as: "handle"` is rejected unless the entry *is* the real `handle`
-    column -- the response's `handle` key is load-bearing for the
-    `next_after` cursor (see `post()`), so silently shadowing it with
-    unrelated content would corrupt pagination for the caller without any
-    visible error.
-
-    `{"count_of": {"relationship": ..., "where": [...]}, "as": "..."}`
-    selects a `Collection`'s cardinality directly as a result column (e.g.
-    "how many events does each person have"), not just as a `where_expr`
-    filter target. `as` is required in *this* form, since a JSON payload has
-    no source text to fall back on -- the string form (`"count(events)"`)
-    does, and uses it.
+    `as handle` is rejected unless the entry *is* the real `handle` column
+    -- the response's `handle` key is what `next_after` is read from (see
+    `post()`), so shadowing it would break pagination without any visible
+    error.
     """
-    if isinstance(raw, str):
+    try:
+        column, key = parse_select_entry(spec, raw)
+    except QueryLangError as error:
+        raise QueryError(str(error)) from error
+    _check_response_key(key, column)
+    return column, key
+
+
+def _parse_select(args: dict, spec: ObjectTypeSpec) -> list[Tuple[SelectRef, str]]:
+    """Parse the `select` strings (see `_parse_select_entry`), or every
+    column of the type when `select` is omitted. A bad entry raises an
+    `InvalidQueryArgument` naming its index.
+    """
+    entries = args.get("select")
+    if not entries:
+        return [(col, col) for col in sorted(spec.columns)]
+    parsed = []
+    for index, raw in enumerate(entries):
         try:
-            column, key = parse_select_entry(spec, raw)
-        except QueryLangError as error:
-            raise QueryError(str(error)) from error
-        _check_response_key(key, column)
-        return column, key
-    if isinstance(raw, dict) and "json_path" in raw:
-        column = _parse_column_ref(raw, spec)
-        key = raw.get("as") or default_ref_key(column)
-        _check_response_key(key, column)
-        return column, key
-    if isinstance(raw, dict) and "count_of" in raw:
-        column = _parse_column_ref(raw, spec)
-        key = raw.get("as") or ""
-        if not key:
-            raise QueryError("'count_of' select entries require an explicit 'as'")
-        _check_response_key(key, column)
-        return column, key
-    raise QueryError(f"invalid column reference: {raw!r}")
+            parsed.append(_parse_select_entry(raw, spec))
+        except QueryError as error:
+            raise InvalidQueryArgument(str(error), "select", index) from error
+    try:
+        _check_no_duplicate_keys(parsed)
+    except QueryError as error:
+        raise InvalidQueryArgument(str(error), "select") from error
+    return parsed
+
+
+def _parse_order_by(args: dict, spec: ObjectTypeSpec) -> Sequence[OrderBy]:
+    """Parse the `order_by` strings, one by one with GOQL's
+    `parse_order_by_entry` so a bad one can be named by its index. A sort
+    column may be a path (`-birth.date.sortval`), resolved exactly as the
+    same text is in `select`; an unknown one raises an
+    `InvalidQueryArgument` here.
+    """
+    order_by = []
+    for index, entry in enumerate(args.get("order_by") or []):
+        try:
+            order_by.append(parse_order_by_entry(spec, entry))
+        except (QueryLangError, QueryError) as error:
+            raise InvalidQueryArgument(str(error), "order_by", index) from error
+    return order_by
 
 
 def _check_response_key(key: str, column: SelectRef) -> None:
@@ -489,132 +308,21 @@ def _check_no_duplicate_keys(parsed_select: Sequence[Tuple[SelectRef, str]]) -> 
         seen.add(key)
 
 
-def _validate_leaf_condition(condition: dict) -> None:
-    """Cross-field checks `QueryWhereConditionArgs`'s schema can't express on
-    its own -- "exactly one of value/value_column", `value_column` not
-    supported for `in`/`like`/`regex`, `in` needing a non-empty list -- the
-    same reasoning `where`/`where_expr` mutual exclusivity is checked here
-    rather than in the schema.
+def _build_where(args: dict, spec: ObjectTypeSpec):
+    """Compile `where_expr`, if given, into a `query.py` WHERE expression,
+    with `env` supplying its `Env.NAME` values.
 
-    Applied to every leaf reachable in a `where` tree, at any depth, by
-    `_validate_where_tree` -- never called directly on something that might
-    not be a leaf (`and`/`or`/`not`/`exists` nodes have none of `column`/
-    `value`/`value_column`), which this function assumes. A `where_expr`
-    -sourced condition is always well-formed already, by construction of
-    `parse_expr_for_spec`'s own translation, so re-checking it here is
-    redundant but harmless, not a correctness requirement of that path.
+    The parsing and translation are all GOQL's (`compile_expr_for_spec`);
+    the endpoint already knows its own type from `self.spec`, so the client
+    doesn't name it again.
     """
-    has_value = "value" in condition
-    has_value_column = "value_column" in condition
-    if has_value == has_value_column:
-        abort_with_message(422, "exactly one of 'value'/'value_column' is required")
-    op = condition["op"]
-    if has_value_column and op in ("in", "like", "regex"):
-        abort_with_message(422, f"'value_column' is not supported for op {op!r}")
-    if op == "in":
-        value = condition.get("value")
-        if not isinstance(value, list) or not value:
-            abort_with_message(422, "'in' operator requires a non-empty list value")
-
-
-def _validate_where_tree(conditions: Sequence[dict]) -> None:
-    """Applies `_validate_leaf_condition` to every leaf reachable at *any*
-    depth, not just the top level -- a leaf can now be nested inside `and`/
-    `or`/`not`/`exists`'s own `where` (`QueryWhereConditionArgs`'s
-    combinators), and inside a `count_of` column's own `where` (has been
-    possible since `count(...)` shipped, `column`/`value_column` being
-    untyped `wf.Raw()` -- confirmed live, before this function existed, that
-    a malformed leaf nested there already silently bypassed validation
-    rather than 422ing).
-
-    Recurses into `and`/`or`'s own lists, `not`'s single wrapped condition,
-    `exists.where`, and `count_of.where` reached through either `column` or
-    `value_column` -- every place this schema (or `where_expr`, which
-    reaches this same function) can nest a further condition list.
-
-    Type-checks every level: a non-list `conditions` (e.g. a nested `where`
-    that arrived as a string or dict instead of a list) or a non-dict
-    condition aborts with 422 rather than silently skipping validation --
-    both `count_of.where` and `exists.where` are untyped (`wf.Raw()`), so
-    malformed values there would otherwise reach `where_list_to_ast`
-    unchecked and risk a 500 instead of a clean 422.
-    """
-    if not isinstance(conditions, (list, tuple)):
-        abort_with_message(422, "a 'where' condition list must be an array")
-    for condition in conditions:
-        if not isinstance(condition, dict):
-            abort_with_message(422, "each 'where' condition must be an object")
-        if "column" in condition:
-            _validate_leaf_condition(condition)
-            for column_ref in (condition.get("column"), condition.get("value_column")):
-                if isinstance(column_ref, dict) and "count_of" in column_ref:
-                    count_of = column_ref["count_of"]
-                    if not isinstance(count_of, dict):
-                        abort_with_message(422, "'count_of' must be an object")
-                    count_of_where = count_of.get("where")
-                    _validate_where_tree(
-                        [] if count_of_where is None else count_of_where
-                    )
-        elif "and" in condition:
-            _validate_where_tree(condition["and"])
-        elif "or" in condition:
-            _validate_where_tree(condition["or"])
-        elif "not" in condition:
-            _validate_where_tree([condition["not"]])
-        elif "exists" in condition:
-            exists = condition["exists"]
-            if not isinstance(exists, dict):
-                abort_with_message(422, "'exists' must be an object")
-            exists_where = exists.get("where")
-            _validate_where_tree([] if exists_where is None else exists_where)
-
-
-def _build_where(conditions: Optional[Sequence[dict]], spec: ObjectTypeSpec):
-    """Build a `query.py` WHERE expression from top-level conditions,
-    implicitly AND-combined (see `QueryBodyArgs.where`'s docstring).
-
-    The actual JSON -> `query.py` AST translation -- leaves, and
-    `and`/`or`/`not`/`exists`/`count(...)` nesting (now reachable from a raw
-    `where` JSON body the same way `where_expr` always could -- see
-    `QueryWhereConditionArgs`), and same-table field-vs-field
-    `FlatColumnRef` wrapping -- is `where_list_to_ast`'s job
-    (gramps_object_query_language.query_lang), not reimplemented here; see
-    that function's docstring for why. Only the leaf-shape validation stays
-    local, since it's specific to the raw, untrusted `where` JSON body (see
-    `_validate_leaf_condition`/`_validate_where_tree`) -- a `where_expr`
-    -sourced condition is always well-formed already by construction, so
-    this is redundant-but-harmless work for that path, not a correctness
-    requirement of it.
-    """
-    if not conditions:
+    where_expr = args.get("where_expr")
+    if not where_expr:
         return None
-    _validate_where_tree(conditions)
     try:
-        return where_list_to_ast(list(conditions), spec)
-    except QueryError as error:
-        abort_with_message(422, str(error))
-
-
-def _resolve_where_conditions(
-    args: dict, spec: ObjectTypeSpec
-) -> Optional[Sequence[dict]]:
-    """Get the leaf-condition list to feed `_build_where`, from `where` or `where_expr`.
-
-    Mutually exclusive: a request setting both is rejected rather than
-    defining merge semantics nobody asked for. `where_expr` is parsed
-    directly against `spec` (`parse_expr_for_spec`, not the namespace-string
-    `parse_expr`) -- the endpoint already knows its own type from `self.spec`,
-    so asking the client to also name it via a namespace string would be
-    redundant.
-    """
-    if args.get("where") and args.get("where_expr"):
-        abort_with_message(422, "'where' and 'where_expr' are mutually exclusive")
-    if args.get("where_expr"):
-        try:
-            return parse_expr_for_spec(spec, args["where_expr"])
-        except QueryLangError as error:
-            abort_with_message(422, str(error))
-    return args.get("where")
+        return compile_expr_for_spec(spec, where_expr, env=args.get("env"))
+    except (QueryLangError, QueryError) as error:
+        _abort_invalid_query(error, "where_expr")
 
 
 def _resolve_after(
@@ -647,7 +355,7 @@ def _resolve_after(
             spec, order_by, after_handle, dialect=dialect, treeid=treeid
         )
     except QueryError as error:
-        abort_with_message(422, str(error))
+        _abort_invalid_query(error)
     basedb.dbapi.execute(sql, params)
     row = basedb.dbapi.fetchone()
     if row is None:
@@ -869,18 +577,9 @@ class ObjectQueryResource(ProtectedResource):
         treeid = _resolve_treeid(basedb)
 
         try:
-            # Resolved, not whitelist-checked: a sort column may be a path
-            # (`birth.date.sortval`), which resolves exactly as the same text
-            # does in `select`/`where_expr`. Unknown paths raise here.
-            order_by = resolve_order_by(
-                self.spec,
-                [
-                    OrderBy(item["column"], item.get("direction", "asc"))
-                    for item in args.get("order_by") or []
-                ],
-            )
+            order_by = _parse_order_by(args, self.spec)
         except QueryError as error:
-            abort_with_message(422, str(error))
+            _abort_invalid_query(error)
 
         after = None
         if args.get("after"):
@@ -902,12 +601,7 @@ class ObjectQueryResource(ProtectedResource):
 
         dialect = _resolve_dialect(basedb)
         try:
-            parsed_select = (
-                [_parse_select_entry(item, self.spec) for item in args["select"]]
-                if args.get("select")
-                else [(col, col) for col in sorted(self.spec.columns)]
-            )
-            _check_no_duplicate_keys(parsed_select)
+            parsed_select = _parse_select(args, self.spec)
             fetch_refs = [ref for ref, _ in parsed_select]
             fetch_keys = [key for _, key in parsed_select]
             if not any(ref == "handle" for ref in fetch_refs):
@@ -921,9 +615,7 @@ class ObjectQueryResource(ProtectedResource):
             # trimmed back off below and never reaches the response.
             query = Query(
                 select=fetch_refs,
-                where=_build_where(
-                    _resolve_where_conditions(args, self.spec), self.spec
-                ),
+                where=_build_where(args, self.spec),
                 order_by=order_by,
                 limit=args["limit"] + 1,
                 after=after,
@@ -941,7 +633,7 @@ class ObjectQueryResource(ProtectedResource):
                 else (None, None)
             )
         except QueryError as error:
-            abort_with_message(422, str(error))
+            _abort_invalid_query(error)
 
         basedb.dbapi.execute(sql, params)
         rows = basedb.dbapi.fetchall()
@@ -979,7 +671,7 @@ class ObjectQueryResource(ProtectedResource):
         deserialized and tested in Python (no SQL push-down), so this is
         intentionally not fast -- see `proxied_query.py`'s module docstring.
 
-        `order_by` is resolved via `resolve_order_by`, the same as the SQL
+        `order_by` is parsed by `_parse_order_by`, the same as the SQL
         path, so `OrderBy.column` may carry a `JsonPath`/`RelatedObject`
         path (e.g. `birth.date.sortval`) here too, not just a flat
         top-level column -- `run_query`'s own sort (`_sort_key_row`)
@@ -1000,22 +692,11 @@ class ObjectQueryResource(ProtectedResource):
                 "path (no COLLATE equivalent there)",
             )
         try:
-            order_by = resolve_order_by(
-                self.spec,
-                [
-                    OrderBy(item["column"], item.get("direction", "asc"))
-                    for item in args.get("order_by") or []
-                ],
-            )
-            where = _build_where(_resolve_where_conditions(args, self.spec), self.spec)
-            parsed_select = (
-                [_parse_select_entry(item, self.spec) for item in args["select"]]
-                if args.get("select")
-                else [(col, col) for col in sorted(self.spec.columns)]
-            )
-            _check_no_duplicate_keys(parsed_select)
+            order_by = _parse_order_by(args, self.spec)
+            where = _build_where(args, self.spec)
+            parsed_select = _parse_select(args, self.spec)
         except QueryError as error:
-            abort_with_message(422, str(error))
+            _abort_invalid_query(error)
 
         fetch_refs = [ref for ref, _ in parsed_select]
         fetch_keys = [key for _, key in parsed_select]

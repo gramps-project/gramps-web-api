@@ -159,7 +159,7 @@ class TestObjectQueryMedia(unittest.TestCase):
             BASE_URL + "/media/query/",
             json={
                 "select": ["desc"],
-                "order_by": [{"column": "desc", "direction": "asc"}],
+                "order_by": ["desc"],
                 "limit": 1000,
             },
             headers=header,
@@ -174,7 +174,7 @@ class TestObjectQueryMedia(unittest.TestCase):
             BASE_URL + "/media/query/",
             json={
                 "select": ["handle"],
-                "where": [{"column": "desc", "op": "ne", "value": ""}],
+                "where_expr": "desc != ''",
                 "limit": 1000,
             },
             headers=header,
@@ -224,15 +224,15 @@ def _combo_where_filtered_and_sorted(column):
     # covered elsewhere (e.g. test_private_people_excluded_without_permission).
     return {
         "select": ["handle", column],
-        "where": [{"column": "handle", "op": "ne", "value": "does-not-exist"}],
-        "order_by": [{"column": column, "direction": "asc"}],
+        "where_expr": "handle != 'does-not-exist'",
+        "order_by": [column],
     }
 
 
 def _combo_order_by_handle_desc(column):
     return {
         "select": ["handle", column],
-        "order_by": [{"column": "handle", "direction": "desc"}],
+        "order_by": ["-handle"],
     }
 
 
