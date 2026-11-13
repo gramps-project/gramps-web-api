@@ -33,13 +33,13 @@ from webargs import fields, validate
 
 from gramps_webapi.api.people_families_cache import CachePeopleFamiliesProxy
 from gramps_webapi.future_gramps.relationship_path import (
+    FamilyLinkGraph,
     find_connections,
     label_path,
 )
 
 from ...types import Handle
 from ..cache import request_cache_decorator
-from ..family_link_cache import get_family_link_graph
 from ..blueprint import api_blueprint
 from ..util import abort_with_message, get_db_handle, get_locale_for_language
 from . import ProtectedResource
@@ -200,7 +200,7 @@ class RelationPathsResource(ProtectedResource, GrampsJSONEncoder):
         _get_person_or_404(db_handle, handle1)
         _get_person_or_404(db_handle, handle2)
 
-        graph = get_family_link_graph(db_handle)
+        graph = FamilyLinkGraph.from_db(db_handle)
         paths = find_connections(
             graph,
             PersonHandle(handle1),

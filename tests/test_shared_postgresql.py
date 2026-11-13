@@ -61,7 +61,6 @@ from gramps.gen.lib import (
 )
 
 from gramps_webapi.api.cache import get_db_last_change_timestamp
-from gramps_webapi.api.family_link_cache import clear_family_link_graphs
 from gramps_webapi.api.resources.util import preload_event_backlinks
 from gramps_webapi.api.search import get_search_indexer
 from gramps_webapi.api.snapshot import consistent_read
@@ -510,14 +509,13 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
             reader.close()
 
     def test_relation_paths(self):
-        """Each tree has its own family link graph, rebuilt when it changes."""
+        """Relation paths read only the tree of the request, as it is now."""
         url = BASE_URL + "/relations/" + SHARED_PERSON + "/{}/paths"
         headers_a = self._header("owner_a")
         with self.app.app_context():
             before = get_db_last_change_timestamp(self.tree_a)
             self.assertIsNotNone(get_db_last_change_timestamp(self.tree_b))
         self.assertIsNotNone(before)
-        clear_family_link_graphs()
         rv = self.client.get(url.format(ONLY_A_PERSON), headers=headers_a)
         self.assertEqual(rv.status_code, 200, rv.json)
         self.assertEqual(rv.json, [])
