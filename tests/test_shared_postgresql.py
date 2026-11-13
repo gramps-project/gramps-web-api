@@ -61,7 +61,10 @@ from gramps.gen.lib import (
 )
 
 from gramps_webapi.api.cache import get_db_last_change_timestamp
-from gramps_webapi.api.resources.util import preload_event_backlinks
+from gramps_webapi.api.resources.util import (
+    add_family_update_refs,
+    preload_event_backlinks,
+)
 from gramps_webapi.api.search import get_search_indexer
 from gramps_webapi.api.snapshot import consistent_read
 from gramps_webapi.app import create_app
@@ -528,6 +531,8 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
             family.set_father_handle(ONLY_A_PERSON)
             family.set_mother_handle(SHARED_PERSON)
             writer.add_family(family, trans)
+            # list the family on both people, as the API and Gramps do
+            add_family_update_refs(writer, family, trans)
         # closing the database touches meta_data.db in the tree's directory
         writer.close()
         try:
@@ -549,8 +554,7 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
         finally:
             writer = self.dbmgr_a.get_db(readonly=False).db
             try:
-                with DbTxn("remove family", writer) as trans:
-                    writer.remove_family(LATE_FAMILY, trans)
+                writer.remove_family_relationships(LATE_FAMILY)
             finally:
                 writer.close()
 
