@@ -85,7 +85,11 @@ def detect_faces(stream: BinaryIO) -> list[tuple[float, float, float, float]]:
     import numpy as np
 
     file_bytes = np.asarray(bytearray(stream.read()), dtype=np.uint8)
-    cv_image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+    try:
+        cv_image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+    except cv2.error:
+        # e.g. an empty file; other undecodable data returns None instead
+        cv_image = None
     if cv_image is None:
         abort_with_message(422, "File is not a valid image file")
     return detect_faces_in_array(cv_image)
