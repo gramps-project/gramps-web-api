@@ -1130,6 +1130,130 @@ class TestCrossNamespaceFilters(unittest.TestCase):
         assert status == 400
 
 
+class TestGoqlRulesPrivacy(unittest.TestCase):
+    """HasAssociationType and IsReferencedByObjectType respect privacy.
+
+    The owner's query runs in SQL, the guest's is evaluated per object on
+    the restricted database.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = get_test_client()
+        headers = fetch_header(cls.client)
+        cls.rel = "GoqlRuleRel" + make_handle()[:8]
+        cls.target = make_handle()
+        cls.public_assoc = make_handle()
+        cls.private_assoc = make_handle()
+        cls.public_media = make_handle()
+        cls.private_media = make_handle()
+        cls.public_referrer = make_handle()
+        cls.private_referrer = make_handle()
+        # media objects without a file, as POST /api/media/ uploads a file
+        rv = cls.client.post(
+            "/api/objects/",
+            json=[
+                {"_class": "Media", "handle": cls.public_media},
+                {"_class": "Media", "handle": cls.private_media},
+            ],
+            headers=headers,
+        )
+        assert rv.status_code == 201
+        cls.objects = [
+            ("/api/people/", {"_class": "Person", "handle": cls.target}),
+            (
+                "/api/people/",
+                {
+                    "_class": "Person",
+                    "handle": cls.public_assoc,
+                    "person_ref_list": [
+                        {"_class": "PersonRef", "rel": cls.rel, "ref": cls.target}
+                    ],
+                },
+            ),
+            (
+                "/api/people/",
+                {
+                    "_class": "Person",
+                    "handle": cls.private_assoc,
+                    "person_ref_list": [
+                        {
+                            "_class": "PersonRef",
+                            "rel": cls.rel,
+                            "ref": cls.target,
+                            "private": True,
+                        }
+                    ],
+                },
+            ),
+            (
+                "/api/people/",
+                {
+                    "_class": "Person",
+                    "handle": cls.public_referrer,
+                    "media_list": [{"_class": "MediaRef", "ref": cls.public_media}],
+                },
+            ),
+            (
+                "/api/people/",
+                {
+                    "_class": "Person",
+                    "handle": cls.private_referrer,
+                    "private": True,
+                    "media_list": [{"_class": "MediaRef", "ref": cls.private_media}],
+                },
+            ),
+        ]
+        for endpoint, payload in cls.objects:
+            rv = cls.client.post(endpoint, json=payload, headers=headers)
+            assert rv.status_code == 201
+
+    @classmethod
+    def tearDownClass(cls):
+        headers = fetch_header(cls.client)
+        for endpoint, payload in reversed(cls.objects):
+            rv = cls.client.delete(f"{endpoint}{payload['handle']}", headers=headers)
+            assert rv.status_code in (200, 204)
+        for handle in (cls.public_media, cls.private_media):
+            rv = cls.client.delete(f"/api/media/{handle}", headers=headers)
+            assert rv.status_code in (200, 204)
+
+    def _handles(self, endpoint: str, rule: str, value: str, role: str) -> set:
+        filter_dict = {"rules": [{"name": rule, "values": [value]}]}
+        rv = self.client.get(
+            endpoint,
+            query_string={"rules": json.dumps(filter_dict)},
+            headers=fetch_header(self.client, role=role),
+        )
+        assert rv.status_code == 200
+        return {obj["handle"] for obj in rv.json}
+
+    def test_has_association_type(self):
+        owner = self._handles(
+            "/api/people/", "HasAssociationType", self.rel, ROLE_OWNER
+        )
+        assert owner == {self.public_assoc, self.private_assoc}
+        guest = self._handles(
+            "/api/people/", "HasAssociationType", self.rel, ROLE_GUEST
+        )
+        assert guest == {self.public_assoc}
+
+    def test_is_referenced_by_object_type(self):
+        new_media = {self.public_media, self.private_media}
+        owner = self._handles(
+            "/api/media/", "IsReferencedByObjectType", "Person", ROLE_OWNER
+        )
+        assert owner & new_media == new_media
+        guest = self._handles(
+            "/api/media/", "IsReferencedByObjectType", "Person", ROLE_GUEST
+        )
+        assert guest & new_media == {self.public_media}
+        # no media is referenced by a tag
+        assert not self._handles(
+            "/api/media/", "IsReferencedByObjectType", "Tag", ROLE_OWNER
+        )
+
+
 class TestMatchesQuery(unittest.TestCase):
     """Test cases for the MatchesQuery (GOQL expression) rule."""
 
