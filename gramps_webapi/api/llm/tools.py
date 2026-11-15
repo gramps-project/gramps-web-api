@@ -27,6 +27,7 @@ from functools import wraps
 from typing import Any
 
 from pydantic_ai import RunContext
+from werkzeug.exceptions import HTTPException
 
 from ..resources.filters import apply_filter
 from ..resources.util import get_one_relationship
@@ -91,6 +92,23 @@ def _get_relationship_prefix(db_handle, anchor_person, result_person, logger) ->
     return ""
 
 
+def _describe_error(error: Exception) -> str:
+    """Return an error's text for the model, including the details an API
+    error carries in `messages` (e.g. why a rule value didn't parse), which
+    `str(error)` leaves out.
+    """
+    if isinstance(error, HTTPException) and error.response is not None:
+        try:
+            body = json.loads(error.get_response().get_data(as_text=True))["error"]
+        except (ValueError, KeyError, TypeError):
+            return str(error)
+        details = body.get("messages")
+        if details:
+            return f"{body.get('message', '')}: {json.dumps(details)}"
+        return str(body.get("message", error))
+    return str(error)
+
+
 def _apply_gramps_filter(
     ctx: RunContext[AgentDeps],
     namespace: str,
@@ -144,9 +162,7 @@ def _apply_gramps_filter(
 
         filter_rules = json.dumps(filter_dict)
         # rule values come from the chat, so only log the rule names
-        logger.debug(
-            "%s filter rules: %s", namespace, [rule["name"] for rule in rules]
-        )
+        logger.debug("%s filter rules: %s", namespace, [rule["name"] for rule in rules])
 
         args = {"rules": filter_rules}
         matching_handles = apply_filter(
@@ -260,7 +276,7 @@ def _apply_gramps_filter(
                 db_handle.close()
             except Exception:  # pylint: disable=broad-except
                 pass
-        return f"Error filtering {namespace.lower()}s: {str(e)}"
+        return f"Error filtering {namespace.lower()}s: {_describe_error(e)}"
 
 
 def _truncate_content(

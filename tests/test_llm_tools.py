@@ -26,9 +26,12 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
+from werkzeug.exceptions import HTTPException
+
 from gramps_webapi.api.llm import clean_answer
 from gramps_webapi.api.llm.tools import (
     _build_date_expression,
+    _describe_error,
     _page,
     _truncate_content,
     filter_events,
@@ -43,6 +46,7 @@ from gramps_webapi.api.llm.tools import (
 )
 from gramps_webapi.api.llm.deps import AgentDeps
 from gramps_webapi.api.search import get_search_indexer
+from gramps_webapi.api.util import abort_with_message
 from gramps_webapi.app import create_app
 from gramps_webapi.auth import add_user, user_db
 from gramps_webapi.auth.const import ROLE_OWNER
@@ -147,6 +151,31 @@ class TestDateExpressionBuilder(unittest.TestCase):
                     parsed.get_text(),
                     f"Date expression '{date_expr}' didn't parse correctly",
                 )
+
+
+class TestDescribeError(unittest.TestCase):
+    """The filter tools pass an API error's details on to the model."""
+
+    def _raise(self, **kwargs):
+        try:
+            abort_with_message(422, "Rule HasBirth could not be evaluated", **kwargs)
+        except HTTPException as error:
+            return error
+        raise AssertionError("no exception raised")
+
+    def test_includes_messages(self):
+        messages = {"query": {"rules": {"rules": {"0": ["invalid date"]}}}}
+        text = _describe_error(self._raise(extra={"messages": messages}))
+        self.assertTrue(text.startswith("Rule HasBirth could not be evaluated: "))
+        self.assertIn("invalid date", text)
+
+    def test_message_only(self):
+        self.assertEqual(
+            _describe_error(self._raise()), "Rule HasBirth could not be evaluated"
+        )
+
+    def test_other_exception(self):
+        self.assertEqual(_describe_error(ValueError("boom")), "boom")
 
 
 class TestFilterPeopleTool(unittest.TestCase):
@@ -590,11 +619,13 @@ class TestFilterEventsTool(unittest.TestCase):
     def test_date_range_1892_1900_with_db_check(self):
         """Test that events in 1892-1900 range can be found."""
         with TEST_APP.app_context():
-            from gramps_webapi.api.util import get_db_outside_request
-            from gramps_webapi.api.resources.filters import apply_filter
-            from gramps.gen.lib.date import Date
-            from gramps.gen.datehandler import parser
             import json
+
+            from gramps.gen.datehandler import parser
+            from gramps.gen.lib.date import Date
+
+            from gramps_webapi.api.resources.filters import apply_filter
+            from gramps_webapi.api.util import get_db_outside_request
 
             db = get_db_outside_request(TEST_TREE, True, True, "test_user")
 
