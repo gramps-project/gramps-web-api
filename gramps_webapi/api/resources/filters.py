@@ -37,7 +37,6 @@ from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import FilterError
 from gramps.gen.filters import GenericFilter
 from gramps.gen.filters.rules import Rule
-from gramps.gen.lib import Media, Person
 from gramps.gen.lib.primaryobj import PrimaryObject
 from gramps.gen.proxy.proxybase import ProxyDbBase
 from gramps_object_query_language.evaluator import evaluate_where
@@ -55,7 +54,10 @@ from gramps_object_query_language.query import (
     Query,
     compile_query,
 )
-from gramps_object_query_language.query_lang import compile_expr_for_spec
+from gramps_object_query_language.query_lang import (
+    compile_expr_for_spec,
+    where_list_to_ast,
+)
 from marshmallow import Schema
 from webargs import ValidationError, fields, validate
 
@@ -81,39 +83,8 @@ from .schemas import (
 )
 
 
-class HasAssociationType(Rule):
-    """Rule that checks for a person with an association of a given type."""
-
-    labels = ["Type:"]
-    name = "People with association of type <type>"
-    description = "Matches people with a certain association type"
-    category = "General filters"
-
-    def apply_to_one(self, db: DbReadBase, person: Person) -> bool:  # type: ignore
-        for person_ref in person.get_person_ref_list():
-            if person_ref.get_relation() == self.list[0]:
-                return True
-        return False
-
-
-class IsReferencedByObjectType(Rule):
-    """Rule that checks if a media object is referenced by a given object type."""
-
-    labels = ["Type:"]
-    name = "Media referenced by <type>"
-    description = "Matches media objects referenced by a specific object type"
-    category = "General filters"
-
-    def apply_to_one(self, db: DbReadBase, media: Media) -> bool:  # type: ignore
-        object_type = self.list[0]
-        for class_name, _ in db.find_backlink_handles(media.handle):
-            if class_name == object_type:
-                return True
-        return False
-
-
-class MatchesQuery(Rule):
-    """Rule that matches objects against a GOQL expression.
+class GoqlRule(Rule):
+    """Base class for rules evaluated as a GOQL condition.
 
     On an unrestricted DB-API database, the matching handles are computed with
     a single SQL query in `prepare` and exposed as `selected_handles`, which
@@ -123,17 +94,15 @@ class MatchesQuery(Rule):
     the database returns.
     """
 
-    labels = ["Expression:"]
-    description = (
-        "Matches objects for which the given Gramps Object Query Language "
-        "(GOQL) expression is true"
-    )
     category = "General filters"
     spec: ObjectTypeSpec
 
+    def get_where(self) -> Any:
+        """Return the GOQL condition of this rule."""
+        raise NotImplementedError
+
     def prepare(self, db: Database, user) -> None:
-        # raises QueryLangError (a ValueError) for invalid expressions
-        self.where = compile_expr_for_spec(self.spec, self.list[0])
+        self.where = self.get_where()
         self.selected_handles: set[Handle] | None = None
         dbapi = getattr(db, "dbapi", None)
         # SQL would match private data of a restricted database
@@ -161,6 +130,72 @@ class MatchesQuery(Rule):
         if self.selected_handles is not None:
             return obj.handle in self.selected_handles
         return evaluate_where(db, obj, self.where, self.spec)
+
+
+class HasAssociationType(GoqlRule):
+    """Rule that checks for a person with an association of a given type."""
+
+    labels = ["Type:"]
+    name = "People with association of type <type>"
+    description = "Matches people with a certain association type"
+    spec = PERSON
+
+    def get_where(self) -> Any:
+        return where_list_to_ast(
+            [
+                {
+                    "any": {
+                        "path": ["person_ref_list"],
+                        "where": [
+                            {
+                                "column": {"json_path": ["rel"]},
+                                "op": "eq",
+                                "value": self.list[0],
+                            }
+                        ],
+                    }
+                }
+            ],
+            self.spec,
+        )
+
+
+class IsReferencedByObjectType(GoqlRule):
+    """Rule that checks if a media object is referenced by a given object type."""
+
+    labels = ["Type:"]
+    name = "Media referenced by <type>"
+    description = "Matches media objects referenced by a specific object type"
+    spec = MEDIA
+
+    def get_where(self) -> Any:
+        return where_list_to_ast(
+            [
+                {
+                    "exists": {
+                        "relationship": "backlinks",
+                        "where": [
+                            {"column": "_class", "op": "eq", "value": self.list[0]}
+                        ],
+                    }
+                }
+            ],
+            self.spec,
+        )
+
+
+class MatchesQuery(GoqlRule):
+    """Rule that matches objects against a GOQL expression."""
+
+    labels = ["Expression:"]
+    description = (
+        "Matches objects for which the given Gramps Object Query Language "
+        "(GOQL) expression is true"
+    )
+
+    def get_where(self) -> Any:
+        # raises QueryLangError (a ValueError) for invalid expressions
+        return compile_expr_for_spec(self.spec, self.list[0])
 
 
 def _matches_query_rule(spec: ObjectTypeSpec, objects: str) -> type[Rule]:
