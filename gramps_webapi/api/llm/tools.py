@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 from datetime import datetime
 from functools import wraps
@@ -37,26 +38,106 @@ from .deps import AgentDeps
 from .render import render_handle, render_object
 
 
-def _build_date_expression(before: str, after: str) -> str:
-    """Build a date string from before/after parameters.
+def _query_rule(query: str) -> dict[str, Any]:
+    """Return a filter rule matching objects with a GOQL expression."""
+    return {"name": "MatchesQuery", "values": [query]}
 
-    Args:
-        before: Year before which to filter (e.g., "1900")
-        after: Year after which to filter (e.g., "1850")
 
-    Returns:
-        A date string for Gramps filters:
-        - "between 1850 and 1900" for date ranges
-        - "after 1850" for only after
-        - "before 1900" for only before
+def _place_handles(db_handle, text: str) -> list[str]:
+    """Return the handles of the places whose full name contains the text.
+
+    The full name includes the enclosing places, e.g. "Copenhagen, Denmark",
+    like the place matching of the Gramps filter rules. The names are
+    resolved in memory, after reading all places once.
     """
-    if before and after:
-        return f"between {after} and {before}"
-    if after:
-        return f"after {after}"
-    if before:
-        return f"before {before}"
-    return ""
+    names: dict[str, str] = {}
+    parents: dict[str, str] = {}
+    for place in db_handle.iter_places():
+        names[place.handle] = place.get_name().get_value() or place.get_title()
+        placeref_list = place.get_placeref_list()
+        if placeref_list:
+            parents[place.handle] = placeref_list[0].ref
+
+    def full_name(handle: str) -> str:
+        parts, seen = [], set()
+        while handle in names and handle not in seen:
+            seen.add(handle)
+            parts.append(names[handle])
+            handle = parents.get(handle, "")
+        return ", ".join(parts)
+
+    text = text.casefold()
+    return [handle for handle in names if text in full_name(handle).casefold()]
+
+
+class _LocatedIn(ast.NodeTransformer):
+    """Rewrite `located_in(path, 'name')` to `path.handle in [...]`."""
+
+    def __init__(self, db_handle):
+        self.db_handle = db_handle
+
+    def visit_Attribute(self, node: ast.Attribute) -> ast.AST:
+        # e.g. birth.place.name: the name of a place does not include the
+        # enclosing places, so matching it misses e.g. cities in a country
+        parent = node.value
+        parent_name = (
+            parent.attr
+            if isinstance(parent, ast.Attribute)
+            else parent.id if isinstance(parent, ast.Name) else ""
+        )
+        if node.attr in ("name", "title") and parent_name in ("place", "enclosed_by"):
+            raise ValueError(
+                "do not match place names directly; use located_in(path, 'name'),"
+                " e.g. located_in(birth.place, 'Denmark'), which also matches"
+                " enclosing places"
+            )
+        return self.generic_visit(node)
+
+    def visit_Call(self, node: ast.Call) -> ast.AST:
+        self.generic_visit(node)
+        if not (isinstance(node.func, ast.Name) and node.func.id == "located_in"):
+            return node
+        if (
+            len(node.args) != 2
+            or node.keywords
+            or not isinstance(node.args[1], ast.Constant)
+            or not isinstance(node.args[1].value, str)
+        ):
+            raise ValueError(
+                "located_in takes a place path and a place name,"
+                " e.g. located_in(birth.place, 'Boston')"
+            )
+        name = node.args[1].value
+        handles = _place_handles(self.db_handle, name)
+        if not handles:
+            raise ValueError(f"no place in the tree matches '{name}'")
+        return ast.Compare(
+            left=ast.Attribute(value=node.args[0], attr="handle", ctx=ast.Load()),
+            ops=[ast.In()],
+            comparators=[
+                ast.List(
+                    elts=[ast.Constant(handle) for handle in handles],
+                    ctx=ast.Load(),
+                )
+            ],
+        )
+
+
+def _resolve_places(db_handle, query: str) -> str:
+    """Replace the `located_in(path, 'name')` calls of a query.
+
+    GOQL can only match the name of a place itself, not of its enclosing
+    places, so a place is matched by the handles of all places whose full
+    name contains the name. Matching place names directly is rejected.
+    """
+    if "located_in" not in query and "place" not in query:
+        return query
+    try:
+        tree = ast.parse(query, mode="eval")
+    except SyntaxError:
+        # GOQL reports the error
+        return query
+    return ast.unparse(_LocatedIn(db_handle).visit(tree))
 
 
 def _get_relationship_prefix(db_handle, anchor_person, result_person, logger) -> str:
@@ -116,7 +197,6 @@ def _apply_gramps_filter(
     max_results: int,
     empty_message: str = "No results found matching the filter criteria.",
     show_relation_with: str = "",
-    logic: str = "and",
     handles: list | None = None,
 ) -> str:
     """Apply a Gramps filter and return formatted results.
@@ -137,7 +217,6 @@ def _apply_gramps_filter(
         max_results: Maximum number of results to return (already validated)
         empty_message: Message to return when no results found
         show_relation_with: Gramps ID of anchor person for relationship calculation (Person namespace only)
-        logic: How to combine multiple rules: "and" (default) or "or"
         handles: Optional pre-filtered list of handles to restrict the search space
 
     Returns:
@@ -156,21 +235,36 @@ def _apply_gramps_filter(
             user_id=ctx.deps.user_id,
         )
 
-        filter_dict: dict[str, Any] = {"rules": rules}
-        if len(rules) > 1 or logic == "or":
-            filter_dict["function"] = logic
-
-        filter_rules = json.dumps(filter_dict)
         # rule values come from the chat, so only log the rule names
         logger.debug("%s filter rules: %s", namespace, [rule["name"] for rule in rules])
 
-        args = {"rules": filter_rules}
-        matching_handles = apply_filter(
-            db_handle=db_handle,
-            args=args,
-            namespace=namespace,
-            handles=handles,
-        )
+        try:
+            rules = [
+                (
+                    {**rule, "values": [_resolve_places(db_handle, rule["values"][0])]}
+                    if rule["name"] == "MatchesQuery"
+                    else rule
+                )
+                for rule in rules
+            ]
+        except ValueError as e:
+            db_handle.close()
+            return f"Invalid filter: {e}"
+
+        args = {"rules": json.dumps({"rules": rules})}
+        try:
+            matching_handles = apply_filter(
+                db_handle=db_handle,
+                args=args,
+                namespace=namespace,
+                handles=handles,
+            )
+        except HTTPException as e:
+            # e.g. an invalid query; the message tells the model how to fix it
+            # but contains the query, so it is not logged
+            logger.debug("%s filter failed with status %s", namespace, e.code)
+            db_handle.close()
+            return f"Invalid filter: {e.description}"
 
         if not matching_handles:
             db_handle.close()
@@ -440,56 +534,66 @@ def search_genealogy_database(
 @log_tool_call
 def filter_people(
     ctx: RunContext[AgentDeps],
-    given_name: str = "",
-    surname: str = "",
-    birth_year_before: str = "",
-    birth_year_after: str = "",
+    query: str = "",
     birth_place: str = "",
-    death_year_before: str = "",
-    death_year_after: str = "",
     death_place: str = "",
     ancestor_of: str = "",
     ancestor_generations: int = 10,
     descendant_of: str = "",
     descendant_generations: int = 10,
-    is_male: bool = False,
-    is_female: bool = False,
     probably_alive_on_date: str = "",
     has_common_ancestor_with: str = "",
     degrees_of_separation_from: str = "",
     degrees_of_separation: int = 2,
-    combine_filters: str = "and",
     max_results: int = 50,
     show_relation_with: str = "",
 ) -> str:
-    """Filters people in the family tree based on simple criteria.
+    """Filter people in the family tree with a query and relationship criteria.
+
+    All given criteria must match.
 
     IMPORTANT: When filtering by relationships (ancestor_of, descendant_of, degrees_of_separation_from),
     ALWAYS set show_relation_with to the same Gramps ID to get relationship labels in results.
     Without it, you cannot determine specific relationships like "grandfather" vs "father".
 
+    Query fields of a person: given_name, surname (the primary name),
+    gender (Person.MALE, Person.FEMALE, Person.UNKNOWN), birth and death (the
+    birth and death events, e.g. birth.date.sortval, death.description).
+    Collections for any()/len(): events (all events, e.g. burial), families
+    (as a spouse), parent_families (as a child), alternate_names,
+    associations, notes, citations, media.
+
+    Query examples:
+        - surname Smith: "'Smith' in surname"
+        - women named Mary: "gender == Person.FEMALE and 'Mary' in given_name"
+        - born in 1850: "Date('1850') <= birth.date.sortval < Date('1851')"
+        - born before 1900: "0 < birth.date.sortval < Date('1900')"
+        - died between 1890 and 1899: "Date('1890') <= death.date.sortval < Date('1900')"
+        - no birth date recorded: "birth.date.sortval is None or birth.date.sortval == 0"
+        - buried: "any(events, type.value == EventType.BURIAL)"
+        - buried at Windsor: "any(events, type.value == EventType.BURIAL and located_in(place, 'Windsor'))"
+        - born in Denmark or Norway: "located_in(birth.place, 'Denmark') or located_in(birth.place, 'Norway')"
+        - with a custom event type: "any(events, type.string == 'Coronation')"
+        - married more than once: "len(families) > 1"
+        - no parents recorded: "not any(parent_families)"
+        - an alternate name Doyle: "any(alternate_names, 'Doyle' in surname_list[0].surname)"
+
     Args:
-        given_name: Given/first name to search for (partial match)
-        surname: Surname/last name to search for (partial match)
-        birth_year_before: Year before which people were born (e.g., "1900"). Use only the year.
-        birth_year_after: Year after which people were born (e.g., "1850"). Use only the year.
-        birth_place: Place name where person was born (partial match)
-        death_year_before: Year before which people died (e.g., "1950"). Use only the year.
-        death_year_after: Year after which people died (e.g., "1800"). Use only the year.
-        death_place: Place name where person died (partial match)
+        query: A query expression, see the system prompt and the examples
+        birth_place: Place name where the person was born (partial match,
+            including enclosing places, e.g. the country)
+        death_place: Place name where the person died (partial match,
+            including enclosing places)
         ancestor_of: Gramps ID of person to find ancestors of (e.g., "I0044")
         ancestor_generations: Maximum generations to search for ancestors (default: 10)
         descendant_of: Gramps ID of person to find descendants of (e.g., "I0044")
         descendant_generations: Maximum generations to search for descendants (default: 10)
-        is_male: Filter to only males (True/False)
-        is_female: Filter to only females (True/False)
         probably_alive_on_date: Date to check if person was likely alive (YYYY-MM-DD)
         has_common_ancestor_with: Gramps ID to find people sharing an ancestor (e.g., "I0044")
         degrees_of_separation_from: Gramps ID of person to find relatives connected to (e.g., "I0044")
         degrees_of_separation: Maximum relationship path length (default: 2). Each parent-child
             or spousal connection counts as 1. Examples: sibling=2, grandparent=2, uncle=3,
             first cousin=4, brother-in-law=2
-        combine_filters: How to combine multiple filters: "and" (default) or "or"
         max_results: Maximum results to return (default: 50, max: 100)
         show_relation_with: Gramps ID of person to show relationships relative to (e.g., "I0044").
             When set, each result will include the relationship to this anchor person.
@@ -498,15 +602,13 @@ def filter_people(
         Formatted list of people matching the filter criteria.
 
     Examples:
-        - Find people with surname Smith: surname="Smith"
-        - Find people born before 1900: birth_year_before="1900"
-        - Find people born between 1850-1900: birth_year_after="1850", birth_year_before="1900"
         - Find who was alive in 1880: probably_alive_on_date="1880-01-01"
         - Find cousins: has_common_ancestor_with="I0044"
         - Find someone's parents (with labels): ancestor_of="I0044", ancestor_generations=1, show_relation_with="I0044"
-        - Find someone's grandfathers (with labels): ancestor_of="I0044", ancestor_generations=2, is_male=True, show_relation_with="I0044"
+        - Find someone's grandfathers (with labels): ancestor_of="I0044", ancestor_generations=2, query="gender == Person.MALE", show_relation_with="I0044"
         - Find siblings (with labels): degrees_of_separation_from="I0044", degrees_of_separation=2, show_relation_with="I0044"
         - Find extended family (uncles, aunts): degrees_of_separation_from="I0044", degrees_of_separation=3
+        - Find ancestors born in Germany: ancestor_of="I0044", birth_place="Germany", show_relation_with="I0044"
     """
     if ctx.deps.progress_callback:
         ctx.deps.progress_callback(
@@ -519,21 +621,14 @@ def filter_people(
 
     rules: list[dict[str, Any]] = []
 
-    if given_name or surname:
-        rules.append(
-            {
-                "name": "HasNameOf",
-                "values": [given_name, surname, "", "", "", "", "", "", "", "", ""],
-            }
-        )
+    if query:
+        rules.append(_query_rule(query))
 
-    if birth_year_before or birth_year_after or birth_place:
-        date_expr = _build_date_expression(birth_year_before, birth_year_after)
-        rules.append({"name": "HasBirth", "values": [date_expr, birth_place, ""]})
+    if birth_place:
+        rules.append({"name": "HasBirth", "values": ["", birth_place, ""]})
 
-    if death_year_before or death_year_after or death_place:
-        date_expr = _build_date_expression(death_year_before, death_year_after)
-        rules.append({"name": "HasDeath", "values": [date_expr, death_place, ""]})
+    if death_place:
+        rules.append({"name": "HasDeath", "values": ["", death_place, ""]})
 
     if ancestor_of:
         rules.append(
@@ -578,12 +673,6 @@ def filter_people(
                 "The FilterRules addon must be installed to use this feature."
             )
 
-    if is_male:
-        rules.append({"name": "IsMale", "values": []})
-
-    if is_female:
-        rules.append({"name": "IsFemale", "values": []})
-
     if probably_alive_on_date:
         rules.append({"name": "ProbablyAlive", "values": [probably_alive_on_date]})
 
@@ -599,35 +688,42 @@ def filter_people(
         max_results=max_results,
         empty_message="No people found matching the filter criteria.",
         show_relation_with=show_relation_with,
-        logic=combine_filters.lower(),
     )
 
 
 @log_tool_call
 def filter_events(
     ctx: RunContext[AgentDeps],
-    event_type: str = "",
-    date_before: str = "",
-    date_after: str = "",
+    query: str = "",
     place: str = "",
-    description_contains: str = "",
     participant_id: str = "",
     max_results: int = 50,
 ) -> str:
-    """Filter events in the genealogy database.
+    """Filter events in the genealogy database with a query and a place.
 
-    Use this tool to find events matching specific criteria. Events are occurrences in
-    people's lives (births, deaths, marriages, etc.) or general historical events.
+    Events are occurrences in people's lives (births, deaths, marriages, etc.)
+    or general historical events. Results list the participants of each event.
+    All given criteria must match.
+
+    Query fields of an event: type (type.value for standard types, e.g.
+    EventType.BIRTH, EventType.DEATH, EventType.MARRIAGE, EventType.BAPTISM,
+    EventType.BURIAL, EventType.CENSUS, EventType.OCCUPATION,
+    EventType.RESIDENCE; type.string for custom types), date (date.sortval),
+    description.
+
+    Query examples:
+        - marriages: "type.value == EventType.MARRIAGE"
+        - births in 1850: "type.value == EventType.BIRTH and Date('1850') <= date.sortval < Date('1851')"
+        - events between 1892 and 1900: "Date('1892') <= date.sortval < Date('1901')"
+        - events before 1900: "0 < date.sortval < Date('1900')"
+        - coronations (a custom type): "type.string == 'Coronation'"
+        - description mentions a war: "'war' in description"
+        - in Boston or Cambridge: "located_in(place, 'Boston') or located_in(place, 'Cambridge')"
 
     Args:
-        event_type: Type of event (e.g., "Birth", "Death", "Marriage", "Baptism",
-            "Census", "Emigration", "Burial", "Occupation", "Residence")
-        date_before: Latest year to include (inclusive). For "between 1892 and 1900", use "1900".
-            Use only the year as a string.
-        date_after: Earliest year to include (inclusive). For "between 1892 and 1900", use "1892".
-            Use only the year as a string.
-        place: Location name to search for (e.g., "Boston", "Massachusetts")
-        description_contains: Text that should appear in the event description
+        query: A query expression, see the system prompt and the examples
+        place: Place name where the event took place (partial match,
+            including enclosing places, e.g. "Boston" or "Massachusetts")
         participant_id: Gramps ID of a person who participated in the event (e.g., "I0001")
         max_results: Maximum number of results to return (1-100, default 50)
 
@@ -635,12 +731,9 @@ def filter_events(
         A formatted string containing matching events with their details, or an error message.
 
     Examples:
-        - "births in 1850": filter_events(event_type="Birth", date_after="1850", date_before="1850")
-        - "marriages in Boston": filter_events(event_type="Marriage", place="Boston")
-        - "events between 1892 and 1900": filter_events(date_after="1892", date_before="1900")
-        - "events after 1850": filter_events(date_after="1850")
-        - "events before 1900": filter_events(date_before="1900")
-        - "events for person I0044": filter_events(participant_id="I0044")
+        - "marriages in Boston": query="type.value == EventType.MARRIAGE", place="Boston"
+        - "burials at Windsor": query="type.value == EventType.BURIAL", place="Windsor"
+        - "events for person I0044": participant_id="I0044"
     """
     if ctx.deps.progress_callback:
         ctx.deps.progress_callback("filter_events", "Filtering events...")
@@ -649,24 +742,16 @@ def filter_events(
 
     rules: list[dict[str, Any]] = []
 
-    if event_type or date_before or date_after or place or description_contains:
-        date_expr = _build_date_expression(before=date_before, after=date_after)
-        rules.append(
-            {
-                "name": "HasData",
-                "values": [
-                    event_type or "",
-                    date_expr,
-                    place or "",
-                    description_contains or "",
-                ],
-            }
-        )
+    if query:
+        rules.append(_query_rule(query))
+
+    if place:
+        rules.append({"name": "HasData", "values": ["", "", place, ""]})
 
     if not rules and not participant_id:
         return (
             "No filter criteria provided. Please specify at least one filter parameter "
-            "(event_type, date_before, date_after, place, description_contains, or participant_id)."
+            "(query, place, or participant_id)."
         )
 
     # Resolve participant_id to a set of event handles before filtering.
@@ -855,45 +940,40 @@ def get_note(ctx: RunContext[AgentDeps], gramps_id: str, offset: int = 0) -> str
 @log_tool_call
 def filter_families(
     ctx: RunContext[AgentDeps],
-    father_given_name: str = "",
-    father_surname: str = "",
-    mother_given_name: str = "",
-    mother_surname: str = "",
-    marriage_year_before: str = "",
-    marriage_year_after: str = "",
+    query: str = "",
     marriage_place: str = "",
-    relationship_type: str = "",
-    combine_filters: str = "and",
     max_results: int = 50,
 ) -> str:
-    """Filter families in the genealogy database.
+    """Filter families in the genealogy database with a query and a marriage place.
 
     A "family" in Gramps represents a couple (with or without children) and may
-    include marriage events, children, and notes. Use this to find families by
-    the names of spouses, marriage date/place, or relationship type.
+    include marriage events, children, and notes. All given criteria must match.
+
+    Query fields of a family: father and mother (the two partners, people with
+    the fields of filter_people, e.g. father.surname, mother.birth.date.sortval),
+    type (type.value: FamilyRelType.MARRIED, FamilyRelType.UNMARRIED,
+    FamilyRelType.CIVIL_UNION, FamilyRelType.UNKNOWN). Collections for
+    any()/len(): children (people), events (e.g. the marriage).
+
+    Query examples:
+        - father named Smith: "'Smith' in father.surname"
+        - Smith father and Jones mother: "'Smith' in father.surname and 'Jones' in mother.surname"
+        - married in the 1860s: "any(events, type.value == EventType.MARRIAGE and Date('1860') <= date.sortval < Date('1870'))"
+        - married before 1900: "any(events, type.value == EventType.MARRIAGE and 0 < date.sortval < Date('1900'))"
+        - unmarried couples: "type.value == FamilyRelType.UNMARRIED"
+        - five or more children: "len(children) >= 5"
+        - a child named Steve: "any(children, 'Steve' in given_name)"
+        - mother born in 1850: "Date('1850') <= mother.birth.date.sortval < Date('1851')"
+        - mother born in Denmark: "located_in(mother.birth.place, 'Denmark')"
 
     Args:
-        father_given_name: Given name of the father/first spouse (partial match)
-        father_surname: Surname of the father/first spouse (partial match)
-        mother_given_name: Given name of the mother/second spouse (partial match)
-        mother_surname: Surname of the mother/second spouse (partial match)
-        marriage_year_before: Latest year of marriage to include (e.g., "1900")
-        marriage_year_after: Earliest year of marriage to include (e.g., "1850")
-        marriage_place: Place of marriage (partial match, e.g., "Boston")
-        relationship_type: Family relationship type (e.g., "Married", "Unmarried",
-            "Civil Union", "Unknown")
-        combine_filters: How to combine multiple filters: "and" (default) or "or"
+        query: A query expression, see the system prompt and the examples
+        marriage_place: Place of marriage (partial match, including enclosing
+            places, e.g. "Boston")
         max_results: Maximum results to return (default: 50, max: 100)
 
     Returns:
         Formatted list of families matching the filter criteria.
-
-    Examples:
-        - Find families where father is named Smith: father_surname="Smith"
-        - Find families married in Boston: marriage_place="Boston"
-        - Find marriages before 1900: marriage_year_before="1900"
-        - Find families with a Smith father and Jones mother:
-            father_surname="Smith", mother_surname="Jones"
     """
     if ctx.deps.progress_callback:
         ctx.deps.progress_callback("filter_families", "Filtering families...")
@@ -902,57 +982,13 @@ def filter_families(
 
     rules: list[dict[str, Any]] = []
 
-    if father_given_name or father_surname:
-        rules.append(
-            {
-                "name": "FatherHasNameOf",
-                "values": [
-                    father_given_name,
-                    father_surname,
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                ],
-            }
-        )
+    if query:
+        rules.append(_query_rule(query))
 
-    if mother_given_name or mother_surname:
+    if marriage_place:
         rules.append(
-            {
-                "name": "MotherHasNameOf",
-                "values": [
-                    mother_given_name,
-                    mother_surname,
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                ],
-            }
+            {"name": "HasEvent", "values": ["Marriage", "", marriage_place, "", ""]}
         )
-
-    if marriage_year_before or marriage_year_after or marriage_place:
-        date_expr = _build_date_expression(marriage_year_before, marriage_year_after)
-        rules.append(
-            {
-                "name": "HasEvent",
-                "values": ["Marriage", date_expr, marriage_place, "", ""],
-            }
-        )
-
-    if relationship_type:
-        rules.append({"name": "HasRelType", "values": [relationship_type]})
 
     if not rules:
         return (
@@ -965,5 +1001,4 @@ def filter_families(
         rules=rules,
         max_results=max_results,
         empty_message="No families found matching the filter criteria.",
-        logic=combine_filters.lower(),
     )
