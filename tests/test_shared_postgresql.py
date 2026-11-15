@@ -343,6 +343,20 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
         self.assertEqual(rv.json["items"], [{"handle": ONLY_B_PERSON}])
         self.assertEqual(rv.headers["X-Total-Count"], "1")
 
+    def test_query_data_error_is_422(self):
+        """A regex Python's `re` accepts but PostgreSQL's dialect doesn't
+        (a named group) fails only when the query runs: a 422, not a 500,
+        and the next query on the same connection still works."""
+        rv = self._query(
+            "owner_b",
+            PEOPLE_QUERY_URL,
+            {"where_expr": "regex(gramps_id, Env.P)", "env": {"P": "(?P<n>I)"}},
+            status=422,
+        )
+        self.assertEqual(rv.json["error"]["type"], "invalid_query")
+        self.assertIn("regular expression", str(rv.json))
+        self._query("owner_b", PEOPLE_QUERY_URL, {"select": ["handle"]})
+
     def test_query_path_join(self):
         """A path column joins person -> event -> place; each hop must stay
         in the caller's tree, or the shared handles produce extra rows."""

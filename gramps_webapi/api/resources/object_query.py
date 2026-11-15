@@ -34,8 +34,9 @@ the same pattern `GrampsObjectResourceHelper` subclasses already use with
 `gramps_class_name` (see `resources/people.py`/`families.py`).
 """
 
-from typing import Any, NoReturn, Optional, Sequence, Tuple
+from typing import Any, Iterator, Mapping, NoReturn, Optional, Sequence, Tuple
 
+import psycopg2
 from gramps.gen.errors import HandleError
 from gramps.gen.proxy.proxybase import ProxyDbBase
 from marshmallow import Schema, validate
@@ -135,12 +136,16 @@ class QueryBodyArgs(Schema):
         allow_none=True,
         metadata={
             "description": "Values for `Env.NAME` references in `where_expr`, "
+            "and in `count(...)`/`len(...)` conditions in `select` and `order_by`, "
             "e.g. {'HOME_PERSON': '<handle>', 'BOOKMARKS': ['<handle>', ...]} "
             'for "handle == Env.HOME_PERSON or handle in Env.BOOKMARKS". '
             "Each value is a string, number, boolean, null, or a list of those "
             "(used with `in`). The names are up to the client: the server "
             "defines none of its own, and passes these through unchanged. An "
-            "`Env.NAME` with no value here is rejected."
+            "`Env.NAME` with no value here is rejected, and so is a value of the "
+            "wrong type for the field it's compared with. Without `where_expr`, "
+            "`env` must be used by `select` or `order_by`: otherwise it would "
+            "be ignored and every row returned."
         },
     )
     order_by = wf.List(
@@ -233,12 +238,14 @@ def _abort_invalid_query(error: Exception, field: Optional[str] = None) -> NoRet
     )
 
 
-def _parse_select_entry(raw: str, spec: ObjectTypeSpec) -> Tuple[SelectRef, str]:
+def _parse_select_entry(
+    raw: str, spec: ObjectTypeSpec, env: Optional[Mapping[str, Any]] = None
+) -> Tuple[SelectRef, str]:
     """Parse one `select` entry into `(column_ref, response_key)`, using
     `query_lang.parse_select_entry`: a flat column (`gramps_id`), a path
     (`birth.place.title`, `primary_name.surname_list[0].surname`), or a
     `count(relationship[, condition])` call, each optionally followed by
-    `as <key>`.
+    `as <key>`. `env` supplies `Env.NAME` values, as in `where_expr`.
 
     `as handle` is rejected unless the entry *is* the real `handle` column
     -- the response's `handle` key is what `next_after` is read from (see
@@ -246,14 +253,16 @@ def _parse_select_entry(raw: str, spec: ObjectTypeSpec) -> Tuple[SelectRef, str]
     error.
     """
     try:
-        column, key = parse_select_entry(spec, raw)
+        column, key = parse_select_entry(spec, raw, env)
     except QueryLangError as error:
         raise QueryError(str(error)) from error
     _check_response_key(key, column)
     return column, key
 
 
-def _parse_select(args: dict, spec: ObjectTypeSpec) -> list[Tuple[SelectRef, str]]:
+def _parse_select(
+    args: dict, spec: ObjectTypeSpec, env: Optional[Mapping[str, Any]] = None
+) -> list[Tuple[SelectRef, str]]:
     """Parse the `select` strings (see `_parse_select_entry`), or every
     column of the type when `select` is omitted. A bad entry raises an
     `InvalidQueryArgument` naming its index.
@@ -264,7 +273,7 @@ def _parse_select(args: dict, spec: ObjectTypeSpec) -> list[Tuple[SelectRef, str
     parsed = []
     for index, raw in enumerate(entries):
         try:
-            parsed.append(_parse_select_entry(raw, spec))
+            parsed.append(_parse_select_entry(raw, spec, env))
         except QueryError as error:
             raise InvalidQueryArgument(str(error), "select", index) from error
     try:
@@ -274,7 +283,9 @@ def _parse_select(args: dict, spec: ObjectTypeSpec) -> list[Tuple[SelectRef, str
     return parsed
 
 
-def _parse_order_by(args: dict, spec: ObjectTypeSpec) -> Sequence[OrderBy]:
+def _parse_order_by(
+    args: dict, spec: ObjectTypeSpec, env: Optional[Mapping[str, Any]] = None
+) -> Sequence[OrderBy]:
     """Parse the `order_by` strings, one by one with GOQL's
     `parse_order_by_entry` so a bad one can be named by its index. A sort
     column may be a path (`-birth.date.sortval`), resolved exactly as the
@@ -284,7 +295,7 @@ def _parse_order_by(args: dict, spec: ObjectTypeSpec) -> Sequence[OrderBy]:
     order_by = []
     for index, entry in enumerate(args.get("order_by") or []):
         try:
-            order_by.append(parse_order_by_entry(spec, entry))
+            order_by.append(parse_order_by_entry(spec, entry, env))
         except (QueryLangError, QueryError) as error:
             raise InvalidQueryArgument(str(error), "order_by", index) from error
     return order_by
@@ -308,7 +319,9 @@ def _check_no_duplicate_keys(parsed_select: Sequence[Tuple[SelectRef, str]]) -> 
         seen.add(key)
 
 
-def _build_where(args: dict, spec: ObjectTypeSpec):
+def _build_where(
+    args: dict, spec: ObjectTypeSpec, env: Optional[Mapping[str, Any]] = None
+):
     """Compile `where_expr`, if given, into a `query.py` WHERE expression,
     with `env` supplying its `Env.NAME` values.
 
@@ -320,9 +333,51 @@ def _build_where(args: dict, spec: ObjectTypeSpec):
     if not where_expr:
         return None
     try:
-        return compile_expr_for_spec(spec, where_expr, env=args.get("env"))
+        return compile_expr_for_spec(spec, where_expr, env=env)
     except (QueryLangError, QueryError) as error:
         _abort_invalid_query(error, "where_expr")
+
+
+class _RecordingEnv(Mapping):
+    """The request's `env`, recording which names an expression looked up,
+    so `_check_env_used` can tell whether any expression used it.
+    """
+
+    def __init__(self, env: Mapping[str, Any]):
+        self._env = env
+        self.used: set = set()
+
+    def __getitem__(self, name: str) -> Any:
+        value = self._env[name]
+        self.used.add(name)
+        return value
+
+    def __contains__(self, name: object) -> bool:
+        return name in self._env
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._env)
+
+    def __len__(self) -> int:
+        return len(self._env)
+
+
+def _request_env(args: dict) -> Optional[_RecordingEnv]:
+    env = args.get("env")
+    return None if env is None else _RecordingEnv(env)
+
+
+def _check_env_used(args: dict, env: Optional[_RecordingEnv]) -> None:
+    """Reject a non-empty `env` that no expression used when there is no
+    `where_expr`: the caller meant to filter (by bookmarks, say), and
+    ignoring `env` would return every row instead.
+    """
+    if env and not env.used and not args.get("where_expr"):
+        raise InvalidQueryArgument(
+            "'env' is only used by Env.NAME references, but there is no "
+            "'where_expr' and no 'select' or 'order_by' entry uses it",
+            "env",
+        )
 
 
 def _resolve_after(
@@ -576,8 +631,9 @@ class ObjectQueryResource(ProtectedResource):
             )
         treeid = _resolve_treeid(basedb)
 
+        env = _request_env(args)
         try:
-            order_by = _parse_order_by(args, self.spec)
+            order_by = _parse_order_by(args, self.spec, env)
         except QueryError as error:
             _abort_invalid_query(error)
 
@@ -601,7 +657,7 @@ class ObjectQueryResource(ProtectedResource):
 
         dialect = _resolve_dialect(basedb)
         try:
-            parsed_select = _parse_select(args, self.spec)
+            parsed_select = _parse_select(args, self.spec, env)
             fetch_refs = [ref for ref, _ in parsed_select]
             fetch_keys = [key for _, key in parsed_select]
             if not any(ref == "handle" for ref in fetch_refs):
@@ -615,7 +671,7 @@ class ObjectQueryResource(ProtectedResource):
             # trimmed back off below and never reaches the response.
             query = Query(
                 select=fetch_refs,
-                where=_build_where(args, self.spec),
+                where=_build_where(args, self.spec, env),
                 order_by=order_by,
                 limit=args["limit"] + 1,
                 after=after,
@@ -632,18 +688,26 @@ class ObjectQueryResource(ProtectedResource):
                 if args["count"]
                 else (None, None)
             )
+            _check_env_used(args, env)
         except QueryError as error:
             _abort_invalid_query(error)
 
-        basedb.dbapi.execute(sql, params)
-        rows = basedb.dbapi.fetchall()
-        has_more = len(rows) > args["limit"]
-        rows = rows[: args["limit"]]
+        # GOQL rejects a wrong-type value or a bad regex before this point,
+        # but PostgreSQL's regex dialect still refuses some patterns Python's
+        # `re` accepts (`(?P<name>...)`): a data error is the request's
+        # fault, so a 422, not a 500.
+        try:
+            basedb.dbapi.execute(sql, params)
+            rows = basedb.dbapi.fetchall()
+            has_more = len(rows) > args["limit"]
+            rows = rows[: args["limit"]]
 
-        headers = {}
-        if count_sql is not None:
-            basedb.dbapi.execute(count_sql, count_params)
-            headers["X-Total-Count"] = str(basedb.dbapi.fetchone()[0])
+            headers = {}
+            if count_sql is not None:
+                basedb.dbapi.execute(count_sql, count_params)
+                headers["X-Total-Count"] = str(basedb.dbapi.fetchone()[0])
+        except psycopg2.DataError as error:
+            _abort_invalid_query(QueryError(str(error).splitlines()[0]))
 
         handle_index = fetch_refs.index("handle")
         # The database returns some values in its own form: a boolean as
@@ -691,10 +755,12 @@ class ObjectQueryResource(ProtectedResource):
                 "locale-aware sorting is not supported on the proxied query "
                 "path (no COLLATE equivalent there)",
             )
+        env = _request_env(args)
         try:
-            order_by = _parse_order_by(args, self.spec)
-            where = _build_where(args, self.spec)
-            parsed_select = _parse_select(args, self.spec)
+            order_by = _parse_order_by(args, self.spec, env)
+            where = _build_where(args, self.spec, env)
+            parsed_select = _parse_select(args, self.spec, env)
+            _check_env_used(args, env)
         except QueryError as error:
             _abort_invalid_query(error)
 

@@ -306,6 +306,73 @@ class TestPeopleQuery(unittest.TestCase):
                 self.assertEqual(rv.status_code, 422)
                 self.assertIn(message, str(rv.json))
 
+    def _on_both_paths(self, header, body):
+        """`body`'s response on the SQL path, then on the proxied path."""
+
+        def fake_get_db_handle(readonly=True):
+            db = get_db_handle(readonly=readonly)
+            base = db.basedb if isinstance(db, ProxyDbBase) else db
+            return _FakeNonPrivateProxy(base)
+
+        responses = [self.client.post(TEST_URL, json=body, headers=header)]
+        with patch(
+            "gramps_webapi.api.resources.object_query.get_db_handle",
+            side_effect=fake_get_db_handle,
+        ):
+            responses.append(self.client.post(TEST_URL, json=body, headers=header))
+        return responses
+
+    def test_env_value_of_the_wrong_type_is_422(self):
+        header = fetch_header(self.client)
+        cases = [
+            ("len(event_ref_list) > Env.N", {"N": "a"}, "cannot compare"),
+            ("gramps_id == Env.N", {"N": 3}, "cannot compare"),
+            ("regex(gramps_id, Env.P)", {"P": "("}, "invalid regex pattern"),
+        ]
+        for where_expr, env, message in cases:
+            body = {"where_expr": where_expr, "env": env}
+            for rv in self._on_both_paths(header, body):
+                with self.subTest(where_expr=where_expr):
+                    self.assertEqual(rv.status_code, 422)
+                    self.assertEqual(
+                        rv.json["error"]["message"], "Invalid 'where_expr'"
+                    )
+                    self.assertIn(message, str(rv.json))
+
+    def test_env_in_select_and_order_by(self):
+        header = fetch_header(self.client)
+        body = {
+            "select": ["handle", "count(events, description == Env.D) as n"],
+            "order_by": ["-count(events, description == Env.D)", "handle"],
+            "env": {"D": "no such description"},
+            "limit": 5,
+        }
+        for rv in self._on_both_paths(header, body):
+            self.assertEqual(rv.status_code, 200)
+            self.assertEqual([i["n"] for i in rv.json["items"]], [0] * 5)
+
+    def test_env_nothing_uses_is_422_without_where_expr(self):
+        header = fetch_header(self.client)
+        for body in (
+            {"env": {"BOOKMARKS": ["a"]}},
+            {"where_expr": "", "env": {"BOOKMARKS": ["a"]}},
+            {"select": ["handle"], "env": {"BOOKMARKS": ["a"]}},
+        ):
+            for rv in self._on_both_paths(header, body):
+                with self.subTest(body=body):
+                    self.assertEqual(rv.status_code, 422)
+                    self.assertEqual(rv.json["error"]["message"], "Invalid 'env'")
+        # An empty env has nothing to ignore; one a where_expr is given with
+        # is the caller's to pass, used or not.
+        for body in (
+            {"env": {}},
+            {"env": None},
+            {"where_expr": "gender == Person.MALE", "env": {"HOME": "x"}},
+        ):
+            for rv in self._on_both_paths(header, body):
+                with self.subTest(body=body):
+                    self.assertEqual(rv.status_code, 200)
+
     def test_env_on_the_proxied_path(self):
         header = fetch_header(self.client)
         handles = self._some_handles(header, 2)

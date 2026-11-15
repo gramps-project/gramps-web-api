@@ -42,7 +42,7 @@ forms repeated GOQL's grammar, and no known client used them except gramps-conne
 | `order_by` entries as objects (`{"column": ..., "direction": ...}`) | strings, `-` for descending, e.g. `"-change"` |
 
 A request with a removed form gets a 422. New: an `env` field supplies values for
-`Env.NAME` in `where_expr`.
+`Env.NAME` in `where_expr`, `select` and `order_by`.
 
 A 422 for a query string now has a short `message` naming the body field
 (`"Invalid 'where_expr'"`), `type: "invalid_query"`, and GOQL's full text in
