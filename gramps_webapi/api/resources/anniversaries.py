@@ -276,7 +276,9 @@ def _apply_selected_filters(
     for parameter in ("filter", "rules"):
         value = args.get(prefix + parameter)
         if value:
-            handles = apply_filter(db_handle, {parameter: value}, namespace, handles)
+            handles = apply_filter(
+                db_handle, {parameter: value}, namespace, handles, param_prefix=prefix
+            )
     return handles
 
 

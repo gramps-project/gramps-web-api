@@ -665,6 +665,22 @@ class TestAnniversariesIcs(unittest.TestCase):
             all_births.data.count(b"BEGIN:VEVENT"),
         )
 
+    def test_invalid_person_rules_error_names_the_parameter(self):
+        """An error in `person_rules` is reported under that name."""
+        _, token = self._create_token()
+        query = {
+            "token": token,
+            "person_rules": json.dumps(
+                {"rules": [{"name": "MatchesQuery", "values": ["not_a_field == 1"]}]}
+            ),
+        }
+        rv = self.client.get(f"{ICS_URL}?{urlencode(query)}")
+        self.assertEqual(rv.status_code, 422)
+        error = rv.json["error"]
+        self.assertEqual(error["message"], "Invalid MatchesQuery expression")
+        rules = error["messages"]["query"]["person_rules"]["rules"]
+        self.assertIn("not_a_field", rules["0"]["values"]["0"][0])
+
     def test_missing_saved_filter_returns_empty_calendar(self):
         """A deleted saved filter does not permanently break a subscription."""
         _, token = self._create_token()

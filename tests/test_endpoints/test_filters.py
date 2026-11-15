@@ -388,6 +388,54 @@ def make_handle() -> str:
     return str(uuid.uuid4())
 
 
+class TestSavedFilterErrorDetails(unittest.TestCase):
+    """Saving and applying custom filters (single-tree only) with errors."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = get_single_tree_test_client()
+
+    def test_saving_invalid_goql_is_rejected(self):
+        header = fetch_header(self.client)
+        name = "InvalidGoqlTestFilter"
+        payload = {
+            "name": name,
+            "rules": [
+                {"name": "HasNote"},
+                {"name": "MatchesQuery", "values": ["not_a_field == 1"]},
+            ],
+        }
+        for method in (self.client.post, self.client.put):
+            rv = method(TEST_URL + "people", json=payload, headers=header)
+            self.assertEqual(rv.status_code, 422)
+            error = rv.json["error"]
+            self.assertEqual(error["message"], "Invalid MatchesQuery expression")
+            self.assertEqual(error["type"], "invalid_query")
+            (detail,) = error["messages"]["json"]["rules"]["1"]["values"]["0"]
+            self.assertIn("not_a_field", detail)
+        rv = self.client.get(TEST_URL + "people/" + name, headers=header)
+        self.assertEqual(rv.status_code, 404)
+
+    def test_saved_filter_evaluation_error(self):
+        header = fetch_header(self.client)
+        name = "UnparsableValueDetailsTestFilter"
+        payload = {
+            "name": name,
+            "rules": [{"name": "HasAddress", "values": ["x", "y"]}],
+        }
+        rv = self.client.post(TEST_URL + "people", json=payload, headers=header)
+        self.assertEqual(rv.status_code, 201)
+        try:
+            rv = self.client.get(BASE_URL + "/people/?filter=" + name, headers=header)
+            self.assertEqual(rv.status_code, 422)
+            error = rv.json["error"]
+            self.assertEqual(error["message"], f"Filter {name} could not be evaluated")
+            (detail,) = error["messages"]["query"]["filter"]
+            self.assertTrue(detail)
+        finally:
+            self.client.delete(TEST_URL + "people/" + name, headers=header)
+
+
 class TestHasAssociationType(unittest.TestCase):
     """Test cases for the HasAssociationType filter."""
 
@@ -820,6 +868,74 @@ class TestNestedFilters(unittest.TestCase):
             }
         )
         assert "HasBirth values must be strings, numbers or booleans" in message
+
+
+class TestFilterErrorDetails(unittest.TestCase):
+    """A filter error is a short `message`, with the error's own text in
+    `messages` at the place in the request that caused it, keyed like a
+    marshmallow schema error.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = get_test_client()
+
+    def _error(self, filter_dict: dict) -> dict:
+        rv = self.client.get(
+            BASE_URL + "/people/",
+            query_string={"rules": json.dumps(filter_dict)},
+            headers=fetch_header(self.client),
+        )
+        assert rv.status_code == 422, rv.json
+        return rv.json["error"]
+
+    def test_invalid_goql_expression(self):
+        for expression, text in [
+            ("primary_name.frist_name == 'x'", "unknown field 'frist_name'"),
+            ("gramps_id ==", "invalid syntax"),
+        ]:
+            error = self._error(
+                {"rules": [{"name": "MatchesQuery", "values": [expression]}]}
+            )
+            assert error["message"] == "Invalid MatchesQuery expression"
+            assert error["type"] == "invalid_query"
+            (detail,) = error["messages"]["query"]["rules"]["rules"]["0"]["values"]["0"]
+            assert text in detail
+
+    def test_invalid_goql_in_sub_filter(self):
+        """The path leads to the rule inside the nested filter, and the
+        expression is rejected before anything is evaluated."""
+        error = self._error(
+            {
+                "rules": [
+                    {"name": "HasNote"},
+                    {
+                        "rules": [
+                            {"name": "MatchesQuery", "values": ["gramps_id == 'x'"]},
+                            {"name": "MatchesQuery", "values": ["not_a_field == 1"]},
+                        ]
+                    },
+                ]
+            }
+        )
+        assert error["message"] == "Invalid MatchesQuery expression"
+        rule = error["messages"]["query"]["rules"]["rules"]["1"]["rules"]["1"]
+        assert "not_a_field" in rule["values"]["0"][0]
+
+    def test_rule_evaluation_error(self):
+        """A rule that fails while evaluated names itself in `message`; the
+        rule's own error is in `messages`, with no `type`."""
+        error = self._error({"rules": [{"name": "HasAddress", "values": ["x", "y"]}]})
+        assert error["message"] == "Rule HasAddress could not be evaluated"
+        assert "type" not in error
+        (detail,) = error["messages"]["query"]["rules"]["rules"]["0"]
+        assert detail
+
+    def test_schema_error_messages(self):
+        error = self._error({"function": "xor", "rules": []})
+        assert error["message"] == "Filter does not adhere to schema"
+        messages = error["messages"]["query"]["rules"]
+        assert set(messages) == {"function", "rules"}
 
 
 class TestExcludedRules(unittest.TestCase):
