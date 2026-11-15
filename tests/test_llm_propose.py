@@ -23,9 +23,11 @@ import re
 from unittest.mock import MagicMock, patch
 
 import pytest
+from gramps.gen.lib import PlaceType
 from pydantic import TypeAdapter, ValidationError
 from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from werkzeug.exceptions import HTTPException
 
 from gramps_webapi.api.llm import answer_with_agent
 from gramps_webapi.api.llm.agent import create_agent
@@ -251,6 +253,205 @@ def test_delete_event(ctx):
     ]
 
 
+def test_name_fields(ctx):
+    """Call name, nickname, title and suffix are set on the primary name."""
+    result = propose_change(
+        ctx,
+        gramps_id="I0044",
+        data=_data(
+            object_type="person",
+            call_name="Lewis",
+            nickname="Lew",
+            title="Rev.",
+            suffix="Jr.",
+        ),
+    )
+    assert result.startswith("Proposed"), result
+    (person,) = _items(ctx.deps.proposal, "Person", "update")
+    name = person["new"]["primary_name"]
+    assert name["call"] == "Lewis"
+    assert name["nick"] == "Lew"
+    assert name["title"] == "Rev."
+    assert name["suffix"] == "Jr."
+    # the other fields are kept
+    assert name["first_name"] == person["old"]["primary_name"]["first_name"]
+
+
+def test_add_place(ctx, tree):
+    """A new place inside an existing one can be referenced by a new fact."""
+    result = propose_change(
+        ctx,
+        _data(
+            object_type="place",
+            name="Black Eagle",
+            place_type="Village",
+            enclosed_by="P0066",  # MT, USA
+            latitude="47.52",
+            longitude="-111.27",
+        ),
+    )
+    assert result.startswith("Proposed (not applied yet): add place"), result
+    place_id = _new_id(result)
+    result = propose_change(
+        ctx,
+        _data(object_type="person", given_name="Anna", birth={"place": place_id}),
+    )
+    assert result.startswith("Proposed"), result
+    proposal = ctx.deps.proposal
+    (place,) = _items(proposal, "Place", "add")
+    assert place["new"]["name"]["value"] == "Black Eagle"
+    assert place["new"]["place_type"]["value"] == PlaceType.VILLAGE
+    assert place["new"]["title"] == ""
+    assert place["new"]["lat"] == "47.52000000"
+    assert place["new"]["long"] == "-111.27000000"
+    mt_handle = _read(tree, lambda db: db.get_place_from_gramps_id("P0066").handle)
+    assert [ref["ref"] for ref in place["new"]["placeref_list"]] == [mt_handle]
+    (event,) = _items(proposal, "Event", "add")
+    assert event["new"]["place"] == place["handle"]
+
+
+def test_duplicate_place(ctx):
+    """A place that exists already is not added again."""
+    # Great Falls (P1435) is a city in MT (P0066)
+    result = propose_change(
+        ctx,
+        _data(
+            object_type="place",
+            name="great falls",
+            place_type="City",
+            enclosed_by="P0066",
+        ),
+    )
+    assert result.startswith("Nothing was proposed: The place P1435"), result
+    # a city of the same name elsewhere is another place
+    result = propose_change(
+        ctx,
+        _data(
+            object_type="place",
+            name="Great Falls",
+            place_type="City",
+            enclosed_by="P0957",  # USA
+        ),
+    )
+    assert result.startswith("Proposed"), result
+
+
+def test_duplicate_place_in_proposal(ctx):
+    """A place added without the place it lies in is not added again in it."""
+    city_id = _new_id(
+        propose_change(
+            ctx, _data(object_type="place", name="Ulaanbaatar", place_type="City")
+        )
+    )
+    country_id = _new_id(
+        propose_change(
+            ctx, _data(object_type="place", name="Mongolia", place_type="Country")
+        )
+    )
+    result = propose_change(
+        ctx,
+        _data(
+            object_type="place",
+            name="Ulaanbaatar",
+            place_type="City",
+            enclosed_by=country_id,
+        ),
+    )
+    assert result.startswith(f"Nothing was proposed: The place {city_id}"), result
+    # instead, the place proposed earlier is changed
+    result = propose_change(
+        ctx,
+        gramps_id=city_id,
+        data=_data(object_type="place", enclosed_by=country_id),
+    )
+    assert result.startswith("Proposed"), result
+    assert len(_items(ctx.deps.proposal, "Place", "add")) == 2
+
+
+def test_enclose_existing_place(ctx):
+    """Enclosing places are added once, not replaced."""
+    result = propose_change(
+        ctx,
+        gramps_id="P1435",  # Great Falls, in MT
+        data=_data(object_type="place", enclosed_by="P0957"),  # USA
+    )
+    assert result.startswith("Proposed"), result
+    (place,) = _items(ctx.deps.proposal, "Place", "update")
+    assert len(place["new"]["placeref_list"]) == 2
+    assert place["new"]["placeref_list"][0] == place["old"]["placeref_list"][0]
+    result = propose_change(
+        ctx,
+        gramps_id="P1435",
+        data=_data(object_type="place", enclosed_by="P0066"),
+    )
+    assert result == "Nothing was proposed: this would not change anything."
+
+
+def test_delete_place(ctx):
+    """Deleting a place removes it from the events that reference it."""
+    result = propose_delete(ctx, "place", "P1435")
+    assert result == "Proposed (not applied yet): delete place P1435.", result
+    proposal = ctx.deps.proposal
+    (place,) = _items(proposal, "Place", "delete")
+    events = _items(proposal, "Event", "update")
+    assert events
+    assert all(event["new"]["place"] != place["handle"] for event in events)
+
+
+@pytest.mark.parametrize(
+    "call, message",
+    [
+        (
+            lambda ctx: propose_change(
+                ctx, _data(object_type="place", place_type="City")
+            ),
+            "needs a name",
+        ),
+        (
+            lambda ctx: propose_change(
+                ctx, _data(object_type="place", name="X", place_type="Planet")
+            ),
+            "Unknown type",
+        ),
+        (
+            lambda ctx: propose_change(
+                ctx, _data(object_type="place", name="X", latitude="47.5")
+            ),
+            "latitude and longitude together",
+        ),
+        (
+            lambda ctx: propose_change(
+                ctx, _data(object_type="place", name="X", enclosed_by="P9999")
+            ),
+            "No place",
+        ),
+        (
+            # MT cannot lie in Great Falls, which lies in MT
+            lambda ctx: propose_change(
+                ctx,
+                gramps_id="P0066",
+                data=_data(object_type="place", enclosed_by="P1435"),
+            ),
+            "cannot enclose it",
+        ),
+        (
+            lambda ctx: propose_change(
+                ctx,
+                gramps_id="P1435",
+                data=_data(object_type="place", enclosed_by="P1435"),
+            ),
+            "cannot enclose it",
+        ),
+    ],
+)
+def test_place_errors(ctx, call, message):
+    """Invalid places are reported to the model and not proposed."""
+    result = call(ctx)
+    assert result.startswith("Nothing was proposed"), result
+    assert message in result
+    assert not ctx.deps.proposal.changes
+
+
 @pytest.mark.parametrize(
     "call, message",
     [
@@ -279,6 +480,17 @@ def test_delete_event(ctx):
         (
             lambda ctx: propose_change(ctx, _data(object_type="citation", page="1")),
             "needs a source",
+        ),
+        (
+            # meant to add the event to an existing person
+            lambda ctx: propose_change(
+                ctx,
+                _data(
+                    object_type="person",
+                    events=[{"event_type": "Residence", "date": "1975"}],
+                ),
+            ),
+            "pass their Gramps ID",
         ),
         (
             lambda ctx: propose_change(ctx, _data(object_type="event")),
@@ -370,20 +582,23 @@ def test_tools_only_when_allowed(monkeypatch):
     assert "propose_change" in prompt
 
 
-def _answer(app, monkeypatch, tree, proposal):
-    """Run the agent with a model that proposes a change."""
+CHANGE_GENDER = {
+    "gramps_id": "I0044",
+    "data": {"object_type": "person", "gender": "unknown"},
+}
+
+
+def _answer(app, monkeypatch, tree, proposal, args=None, repeat=False):
+    """Run the agent with a model that proposes a change.
+
+    With `repeat`, the model calls the tool again after every result.
+    """
 
     def model_function(messages, info: AgentInfo) -> ModelResponse:
-        if len(messages) == 1:
+        if len(messages) == 1 or repeat:
             return ModelResponse(
                 parts=[
-                    ToolCallPart(
-                        tool_name="propose_change",
-                        args={
-                            "gramps_id": "I0044",
-                            "data": {"object_type": "person", "gender": "unknown"},
-                        },
-                    )
+                    ToolCallPart(tool_name="propose_change", args=args or CHANGE_GENDER)
                 ]
             )
         return ModelResponse(parts=[TextPart(content="Proposed.")])
@@ -409,6 +624,16 @@ def test_agent_proposes(app, monkeypatch, tree):
     _answer(app, monkeypatch, tree, proposal)
     (person,) = _items(proposal, "Person", "update")
     assert person["new"]["gender"] == 2
+
+
+def test_agent_gives_up_on_invalid_arguments(app, monkeypatch, tree):
+    """A model that keeps sending invalid arguments gets a clear error."""
+    # the Gramps ID inside the data, which doesn't have it
+    args = {"data": {"object_type": "person", "gramps_id": "I0044", "gender": "male"}}
+    with pytest.raises(HTTPException) as excinfo:
+        _answer(app, monkeypatch, tree, Proposal(), args=args, repeat=True)
+    assert excinfo.value.code == 502
+    assert "could not use its tools" in excinfo.value.description
 
 
 def test_agent_proposals_disabled(app, monkeypatch, tree):
@@ -444,8 +669,8 @@ def test_duplicate_event(ctx):
 
 def test_unknown_field():
     """Fields the format doesn't have are errors, so the model learns of them."""
-    with pytest.raises(ValidationError, match="nickname"):
-        _data(object_type="person", nickname="Lilibet")
+    with pytest.raises(ValidationError, match="alternate_name"):
+        _data(object_type="person", alternate_name="Lilibet")
 
 
 @pytest.mark.parametrize(

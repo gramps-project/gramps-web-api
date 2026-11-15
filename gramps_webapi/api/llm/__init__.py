@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 from flask import current_app
 from openai import OpenAIError
+from pydantic import ValidationError
 from pydantic_ai import ModelMessagesTypeAdapter, capture_run_messages
 from pydantic_ai.exceptions import (
     IncompleteToolCall,
@@ -302,6 +303,15 @@ def answer_with_agent(
             )
             abort_with_message(
                 400, "The AI model's response exceeded its output token limit."
+            )
+        if isinstance(e.__cause__, (ValidationError, ModelRetry)):
+            # the model kept calling a tool with invalid arguments, despite
+            # the error messages it got back; the message names the tool
+            logger.warning("AI model gave up on a tool: %s", e)
+            abort_with_message(
+                502,
+                "The AI model could not use its tools correctly. "
+                "Please try again or rephrase your request.",
             )
         # str(e) can include the model's response body
         logger.error(

@@ -50,10 +50,14 @@ from gramps.gen.lib import (
     Note,
     NoteType,
     Person,
+    Place,
+    PlaceRef,
+    PlaceType,
     Source,
     StyledText,
 )
 from gramps.gen.lib.grampstype import GrampsType
+from gramps.gen.utils.place import conv_lat_lon
 from gramps.gen.utils.id import create_id
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import RunContext
@@ -68,7 +72,7 @@ from .tools import log_tool_call
 
 WRITE_PROPOSALS_PROMPT = """
 
-You can propose changes to the database with the propose_change and propose_delete tools. Only propose changes when the user explicitly asks for a modification. Always look up the records involved before proposing a change, and if more than one record could be meant, ask the user which one instead of proposing anything. To cite a source, first add a citation (and the source, if it is not in the database), then reference the citation's Gramps ID. To change a record, send only the fields that change. If any part of the request can't be expressed with the fields of the tools, propose nothing and tell the user what you can't do; they can make that change in the app themselves. Never put information into a field it doesn't belong in. Proposed changes are not applied: the user reviews and approves them in the app, so never claim that a change has been made. After proposing, describe the changes in plain language."""
+You can propose changes to the database with the propose_change and propose_delete tools. Only propose changes when the user explicitly asks for a modification. Always look up the records involved before proposing a change, and if more than one record could be meant, ask the user which one instead of proposing anything. To cite a source, first add a citation (and the source, if it is not in the database), then reference the citation's Gramps ID. Likewise, if a place is not in the database, search for it and the places it lies in, add only the missing places, each enclosed by the next larger one, then reference the place's Gramps ID. To change a record, send only the fields that change. If any part of the request can't be expressed with the fields of the tools, propose nothing and tell the user what you can't do; they can make that change in the app themselves. Never put information into a field it doesn't belong in. Proposed changes are not applied: the user reviews and approves them in the app, so never claim that a change has been made. After proposing, describe the changes in plain language."""
 
 DATE_HELP = (
     "date in English, e.g. '3 May 1850', 'about 1842', 'before 1900' or "
@@ -111,6 +115,12 @@ class PersonData(_Data):
     object_type: Literal["person"]
     given_name: str | None = None
     surname: str | None = None
+    call_name: str | None = Field(
+        default=None, description="the given name the person was known by"
+    )
+    nickname: str | None = None
+    title: str | None = Field(default=None, description="e.g. 'Dr.' or 'Sir'")
+    suffix: str | None = Field(default=None, description="e.g. 'Jr.' or 'III'")
     gender: Literal["male", "female", "unknown"] | None = Field(
         default=None,
         description="set it whenever the request implies it, e.g. 'son', "
@@ -207,8 +217,47 @@ class NoteData(_Data):
     )
 
 
+class PlaceData(_Data):
+    """A place, e.g. a city or a parish, usually inside another place."""
+
+    object_type: Literal["place"]
+    name: str | None = Field(
+        default=None,
+        description="the place's own name without the places it lies in, e.g. "
+        "'Copenhagen', not 'Copenhagen, Denmark'; required for new places",
+    )
+    place_type: str | None = Field(
+        default=None,
+        description="standard place type in English, e.g. 'City', 'Village', "
+        "'Parish', 'County', 'State', 'Country'",
+    )
+    enclosed_by: str | None = Field(
+        default=None,
+        description="Gramps ID of the place it lies in, e.g. the country of a "
+        "city; added to the places it lies in",
+    )
+    latitude: str | None = Field(
+        default=None, description="e.g. '55.68'; give it with the longitude"
+    )
+    longitude: str | None = Field(
+        default=None, description="e.g. '12.57'; give it with the latitude"
+    )
+    citations: list[str] | None = Field(
+        default=None, description="Gramps IDs of citations to add"
+    )
+    notes: list[str] | None = Field(
+        default=None, description="Gramps IDs of notes to add"
+    )
+
+
 ObjectData = Annotated[
-    PersonData | FamilyData | EventData | SourceData | CitationData | NoteData,
+    PersonData
+    | FamilyData
+    | EventData
+    | PlaceData
+    | SourceData
+    | CitationData
+    | NoteData,
     Field(discriminator="object_type"),
 ]
 
@@ -385,6 +434,14 @@ def _apply_person(
         name.set_first_name(data.given_name)
     if data.surname is not None:
         name.get_primary_surname().set_surname(data.surname)
+    if data.call_name is not None:
+        name.set_call_name(data.call_name)
+    if data.nickname is not None:
+        name.set_nick_name(data.nickname)
+    if data.title is not None:
+        name.set_title(data.title)
+    if data.suffix is not None:
+        name.set_suffix(data.suffix)
     if data.gender is not None:
         person.set_gender(GENDER[data.gender])
     if data.birth is not None:
@@ -430,6 +487,74 @@ def _apply_event(db: DbWriteBase, event: Event, data: EventData) -> None:
     _add_references(db, event, "Note", data.notes)
 
 
+def _enclose(db: DbWriteBase, place: Place, gramps_id: str) -> None:
+    """Add a place that encloses the place, unless it does already."""
+    enclosing = _get(db, "Place", gramps_id)
+    # the place must not end up enclosing itself
+    handle, seen = enclosing.handle, set()
+    while handle and handle not in seen:
+        if handle == place.handle:
+            raise ProposalError(
+                f"Place {gramps_id} lies in this place, so it cannot enclose it."
+            )
+        seen.add(handle)
+        refs = db.get_place_from_handle(handle).get_placeref_list()
+        handle = refs[0].ref if refs else ""
+    if enclosing.handle in {ref.ref for ref in place.get_placeref_list()}:
+        return
+    place_ref = PlaceRef()
+    place_ref.set_reference_handle(enclosing.handle)
+    place.add_placeref(place_ref)
+
+
+def _check_new_place(db: DbWriteBase, data: PlaceData) -> None:
+    """Fail if the new place exists already, in the tree or the proposal.
+
+    A place with the same name and type is the same place if both lie in the
+    same place, or either lies in no place. Places of the same name in
+    different places, e.g. two cities called Springfield, are not.
+    """
+    name = (data.name or "").strip().casefold()
+    place_type = _standard_type(PlaceType, data.place_type) if data.place_type else None
+    enclosing = _handle(db, "Place", data.enclosed_by or "")
+    for place in db.iter_places():
+        if place.get_name().get_value().strip().casefold() != name:
+            continue
+        if place_type is not None and place.get_type() != place_type:
+            continue
+        enclosed_by = {ref.ref for ref in place.get_placeref_list()}
+        if enclosing and enclosed_by and enclosing not in enclosed_by:
+            continue
+        raise ProposalError(
+            f"The place {place.gramps_id} ({place.get_name().get_value()}) exists "
+            "already. Reference it instead, or change it by its Gramps ID, e.g. "
+            "to set the place it lies in."
+        )
+
+
+def _apply_place(db: DbWriteBase, place: Place, data: PlaceData) -> None:
+    """Set the given fields of a place, without committing it."""
+    if data.name is not None:
+        place.get_name().set_value(data.name)
+    if data.place_type is not None:
+        place.set_type(_standard_type(PlaceType, data.place_type))
+    if data.enclosed_by is not None:
+        _enclose(db, place, data.enclosed_by)
+    if data.latitude is not None or data.longitude is not None:
+        latitude, longitude = conv_lat_lon(
+            data.latitude or "", data.longitude or "", "D.D8"
+        )
+        if latitude is None or longitude is None:
+            raise ProposalError(
+                "Give the latitude and longitude together, in degrees, "
+                "e.g. '55.68' and '12.57'."
+            )
+        place.set_latitude(latitude)
+        place.set_longitude(longitude)
+    _add_references(db, place, "Citation", data.citations)
+    _add_references(db, place, "Note", data.notes)
+
+
 def _apply_source(db: DbWriteBase, source: Source, data: SourceData) -> None:
     """Set the given fields of a source, without committing it."""
     if data.title is not None:
@@ -465,6 +590,7 @@ def _apply_note(note: Note, data: NoteData) -> None:
 NEW_OBJECTS = {
     "person": Person,
     "family": Family,
+    "place": Place,
     "source": Source,
     "citation": Citation,
     "note": Note,
@@ -479,6 +605,8 @@ def _apply(db: DbWriteBase, trans: DbTxn, obj: Any, data: ObjectData) -> None:
         _apply_family(db, trans, obj, data)
     elif isinstance(data, EventData):
         _apply_event(db, obj, data)
+    elif isinstance(data, PlaceData):
+        _apply_place(db, obj, data)
     elif isinstance(data, SourceData):
         _apply_source(db, obj, data)
     elif isinstance(data, CitationData):
@@ -489,6 +617,14 @@ def _apply(db: DbWriteBase, trans: DbTxn, obj: Any, data: ObjectData) -> None:
 
 def _check_required(data: ObjectData) -> None:
     """Fail if a field required for new objects is missing."""
+    if isinstance(data, PersonData) and not (data.given_name or data.surname):
+        # usually meant to change an existing person
+        raise ProposalError(
+            "A new person needs a given name or surname. To change an existing "
+            "person, e.g. to add an event, pass their Gramps ID."
+        )
+    if isinstance(data, PlaceData) and not data.name:
+        raise ProposalError("A new place needs a name.")
     if isinstance(data, SourceData) and not data.title:
         raise ProposalError("A new source needs a title.")
     if isinstance(data, CitationData) and not data.source:
@@ -567,6 +703,9 @@ def _add(ctx: RunContext[AgentDeps], data: ObjectData) -> str:
     handle = create_id()
 
     def change(db: DbWriteBase, trans: DbTxn) -> None:
+        if isinstance(data, PlaceData):
+            # the database includes the places proposed earlier
+            _check_new_place(db, data)
         obj = NEW_OBJECTS[data.object_type]()
         obj.set_handle(handle)
         _apply(db, trans, obj, data)
@@ -608,10 +747,10 @@ def propose_change(
     """Propose adding a new record, or changing an existing one.
 
     Nothing is written: the user reviews and approves the change in the app.
-    Without a Gramps ID, a new person, family, source, citation or note is
-    added; events are added through the person or family they belong to
+    Without a Gramps ID, a new person, family, place, source, citation or note
+    is added; events are added through the person or family they belong to
     (birth, death, marriage or events). With a Gramps ID, the existing person,
-    family, event, source, citation or note is changed: only the fields given
+    family, event, place, source, citation or note is changed: only the fields given
     are changed, and list items are added to the existing ones. For a
     person's birth or death, or a family's marriage, the existing event is
     changed, or a new one is added if there is none. A changed event changes
@@ -635,10 +774,12 @@ def propose_change(
 @log_tool_call
 def propose_delete(
     ctx: RunContext[AgentDeps],
-    object_type: Literal["person", "family", "event", "source", "citation", "note"],
+    object_type: Literal[
+        "person", "family", "event", "place", "source", "citation", "note"
+    ],
     gramps_id: str,
 ) -> str:
-    """Propose deleting a person, family, event, source, citation or note.
+    """Propose deleting a person, family, event, place, source, citation or note.
 
     Nothing is written: the user reviews and approves the change in the app.
     References to the object are removed from other records. Only propose
