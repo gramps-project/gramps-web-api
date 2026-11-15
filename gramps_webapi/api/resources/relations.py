@@ -33,6 +33,8 @@ from webargs import fields, validate
 
 from gramps_webapi.api.people_families_cache import CachePeopleFamiliesProxy
 from gramps_webapi.future_gramps.relationship_path import (
+    DEFAULT_MAX_DEPTH,
+    MAX_DEPTH,
     FamilyLinkGraph,
     find_connections,
     label_path,
@@ -75,10 +77,10 @@ class RelationPathsQueryArgs(Schema):
     """Query arguments for the relation paths endpoint."""
 
     depth = fields.Integer(
-        load_default=10,
-        validate=validate.Range(min=1, max=30),
+        load_default=DEFAULT_MAX_DEPTH,
+        validate=validate.Range(min=1, max=MAX_DEPTH),
         metadata={
-            "description": "Maximum number of links in a path (default 10, at most 30)."
+            "description": f"Maximum number of links in a path (default {DEFAULT_MAX_DEPTH}, at most {MAX_DEPTH})."
         },
     )
     max = fields.Integer(

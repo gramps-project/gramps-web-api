@@ -218,6 +218,10 @@ class WebDbSessionManager:
                 dbid = file_handle.read().strip()
 
         db = make_database(dbid)
+        # imported here, since the API package imports this module
+        from .api.resources.db_backend import add_scoped_raw_data_many
+
+        add_scoped_raw_data_many(db)
 
         def create_undo_manager():
             if dbid == "sqlite":

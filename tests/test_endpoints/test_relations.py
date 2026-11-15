@@ -303,7 +303,7 @@ class TestRelationPaths(unittest.TestCase):
         check_invalid_semantics(self, self.url + "?junk=1")
         check_invalid_semantics(self, self.url + "?depth", check="number")
         check_invalid_semantics(self, self.url + "?depth=0")
-        check_invalid_semantics(self, self.url + "?depth=31")
+        check_invalid_semantics(self, self.url + "?depth=16")
         check_invalid_semantics(self, self.url + "?max", check="number")
         check_invalid_semantics(self, self.url + "?max=0")
         check_invalid_semantics(self, self.url + "?max=51")

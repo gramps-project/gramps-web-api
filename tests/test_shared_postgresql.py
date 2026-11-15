@@ -516,6 +516,31 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
             writer.close()
             reader.close()
 
+    def test_raw_data_many(self):
+        """Batch reads see only the tree's own objects, a batch per query."""
+        for dbmgr, label, own, other in (
+            (self.dbmgr_a, "Alpha", ONLY_A_PERSON, ONLY_B_PERSON),
+            (self.dbmgr_b, "Beta", ONLY_B_PERSON, ONLY_A_PERSON),
+        ):
+            db = dbmgr.get_db().db
+            try:
+                handles = [SHARED_PERSON, own, other, "missing", SHARED_PERSON]
+                with patch.object(
+                    db.dbapi, "execute", wraps=db.dbapi.execute
+                ) as execute:
+                    found = dict(db.get_raw_person_data_many(handles))
+                    self.assertEqual(execute.call_count, 1)
+                self.assertEqual(sorted(found), sorted([SHARED_PERSON, own]))
+                self.assertEqual(
+                    found[SHARED_PERSON]["primary_name"]["surname_list"][0]["surname"],
+                    label,
+                )
+                self.assertEqual(
+                    list(db.get_raw_family_data_many([LATE_FAMILY, "missing"])), []
+                )
+            finally:
+                db.close()
+
     def test_relation_paths(self):
         """Relation paths read only the tree of the request, as it is now."""
         url = BASE_URL + "/relations/" + SHARED_PERSON + "/{}/paths"

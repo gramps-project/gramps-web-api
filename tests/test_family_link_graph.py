@@ -27,6 +27,7 @@ from gramps.gen.lib import ChildRefType
 from gramps.gen.relationship import get_relationship_calculator
 
 from gramps_webapi.api.access import AccessPolicy, RestrictedDb
+from gramps_webapi.future_gramps.raw_data_many import apply_patch
 from gramps_webapi.future_gramps.relationship_path import (
     FamilyLinkGraph,
     find_connections,
@@ -41,6 +42,8 @@ TREE_NAME = "example_family_link_graph"
 @pytest.fixture(scope="module")
 def db():
     """The example tree, with private canaries."""
+    # the batch reads the graph uses, as the app adds them
+    apply_patch()
     ExampleDbSQLite(name=TREE_NAME)
     database = open_database(TREE_NAME, force_unlock=True)
     _plant(database)
@@ -120,3 +123,55 @@ def test_hidden_people_are_not_read(db):
     for handle in sorted(visible)[:200]:
         graph.distances(handle, 3)
     assert not set(graph._gender) & hidden
+
+
+@pytest.mark.parametrize("view_private", [False, True])
+def test_batch_reads_same_as_single(db, view_private):
+    """A RestrictedDb reads many objects as it reads each one."""
+    policy = AccessPolicy(view_private=view_private)
+    for table in ("person", "family"):
+        handles = sorted(db.method("get_%s_handles", table)())
+        # missing, repeated and empty handles
+        asked = handles + ["missing", handles[0], ""]
+        # separate databases, so that neither reuses what the other looked up
+        single = RestrictedDb(db, policy)
+        read_one = getattr(single, f"get_raw_{table}_data")
+        expected = {
+            handle: dict(data)
+            for handle in dict.fromkeys(asked)
+            if handle and (data := read_one(handle)) is not None
+        }
+        many = RestrictedDb(db, policy)
+        found = list(getattr(many, f"get_raw_{table}_data_many")(asked))
+        assert len(found) == len(expected)
+        assert {handle: dict(data) for handle, data in found} == expected
+        if not view_private:
+            assert len(expected) < len(handles)
+
+
+def test_restricted_search_queries(db):
+    """A search through a RestrictedDb looks up many objects per query."""
+    restricted = RestrictedDb(db, AccessPolicy(view_private=False))
+    full = _full_graph(restricted)
+    queries = 0
+    execute = db.dbapi.execute
+
+    def counting_execute(*args, **kwargs):
+        nonlocal queries
+        queries += 1
+        return execute(*args, **kwargs)
+
+    db.dbapi.execute = counting_execute
+    try:
+        for start, end in _pairs(full)[:10]:
+            graph = FamilyLinkGraph.from_db(
+                RestrictedDb(db, AccessPolicy(view_private=False))
+            )
+            queries = 0
+            find_connections(graph, start, end, max_depth=10)
+            if len(graph) > 100:
+                # fewer queries than people read, where reading them one by
+                # one takes several per person
+                assert queries < len(graph), (queries, len(graph))
+    finally:
+        db.dbapi.execute = execute

@@ -31,7 +31,7 @@ move into Gramps core unchanged.
 See https://gramps.discourse.group/t/proposal-process-for-upstreaming-web-api-improvements-into-gramps-core/9940
 """
 
-from . import alive, relationship
+from . import alive, raw_data_many, relationship
 
 
 def apply_patches() -> None:
@@ -40,3 +40,5 @@ def apply_patches() -> None:
     relationship.apply_patch()
     # https://github.com/gramps-project/gramps/pull/2565
     alive.apply_patch()
+    # https://github.com/gramps-project/gramps/pull/2574
+    raw_data_many.apply_patch()

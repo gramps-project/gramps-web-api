@@ -20,7 +20,9 @@
 """Tests for gramps_webapi.future_gramps.relationship_path.
 
 Copied from gramps/gen/test/relationship_path_test.py in
-https://github.com/gramps-project/gramps/pull/2574.
+https://github.com/gramps-project/gramps/pull/2574, with its relative
+imports made absolute, and the batch reads of that PR added to the
+database classes.
 """
 
 # -------------------------------------------------------------------------
@@ -28,7 +30,9 @@ https://github.com/gramps-project/gramps/pull/2574.
 # Standard Python modules
 #
 # -------------------------------------------------------------------------
+import random
 import unittest
+from collections.abc import Iterable, Iterator
 from typing import Any, ClassVar
 
 # -------------------------------------------------------------------------
@@ -36,12 +40,14 @@ from typing import Any, ClassVar
 # Gramps modules
 #
 # -------------------------------------------------------------------------
-from gramps.gen.db import DbTxn
+from gramps.gen.db import DbReadBase, DbTxn
 from gramps.gen.db.utils import make_database
 from gramps.gen.lib import ChildRef, ChildRefType, Family, FamilyRelType, Person
-from gramps.gen.proxy import PrivateProxyDb
+from gramps.gen.proxy import LivingProxyDb, PrivateProxyDb
 from gramps.gen.relationship import RelationshipCalculator
 from gramps_webapi.future_gramps.relationship_path import (
+    ALL_LINKS,
+    MAX_DEPTH,
     FamilyLinkGraph,
     LinkType,
     find_connections,
@@ -49,7 +55,49 @@ from gramps_webapi.future_gramps.relationship_path import (
 )
 from gramps.gen.types import PersonHandle
 
+from gramps_webapi.future_gramps.raw_data_many import apply_patch
+
+
+def setUpModule():
+    apply_patch()
+
+
 M, F = Person.MALE, Person.FEMALE
+
+
+def _full_graph(db: Any, reverse: bool = False) -> FamilyLinkGraph:
+    """
+    Build a graph of all people and families at once.
+
+    People and families are read one by one, since proxies only clean what
+    they return that way: their ``iter_people()`` and ``iter_families()``
+    return private child references, for example.
+
+    :param reverse: Add families, and the children of each family, in
+                    reverse database order.
+    """
+    graph = FamilyLinkGraph()
+    for handle in db.iter_person_handles():
+        graph.add_person(handle, db.get_person_from_handle(handle).get_gender())
+    families = [db.get_family_from_handle(h) for h in db.iter_family_handles()]
+    for family in families[::-1] if reverse else families:
+        refs = family.get_child_ref_list()
+        graph.add_family(
+            family.handle,
+            family.get_father_handle(),
+            family.get_mother_handle(),
+            [
+                (
+                    ref.ref,
+                    ref.get_mother_relation() == ChildRefType.BIRTH,
+                    ref.get_father_relation() == ChildRefType.BIRTH,
+                )
+                for ref in (refs[::-1] if reverse else refs)
+            ],
+        )
+    return graph
+
+
 P, C, S, SP = LinkType.PARENT, LinkType.CHILD, LinkType.SIBLING, LinkType.SPOUSE
 
 
@@ -201,7 +249,6 @@ class RelationshipPathTest(unittest.TestCase):
         )
         self.assertEqual(self.graph.gender(people["wife"]), F)
         self.assertIn(people["stranger"], self.graph)
-        self.assertEqual(len(self.graph), len(self.people))
 
     def test_ancestor_chain(self) -> None:
         """
@@ -384,31 +431,7 @@ class RelationshipPathTest(unittest.TestCase):
         The results do not depend on the order families were added in.
         """
         people = self.people
-        # families and children in database order, and reversed
-        families = [
-            (family.handle, family.father_handle, family.mother_handle, family)
-            for family in self.db.iter_families()
-        ]
-        graphs = []
-        for order in (families, families[::-1]):
-            graph = FamilyLinkGraph()
-            for person in self.db.iter_people():
-                graph.add_person(person.handle, person.get_gender())
-            for handle, father, mother, family in order:
-                graph.add_family(
-                    handle,
-                    father,
-                    mother,
-                    [
-                        (
-                            ref.ref,
-                            ref.get_mother_relation() == ChildRefType.BIRTH,
-                            ref.get_father_relation() == ChildRefType.BIRTH,
-                        )
-                        for ref in family.get_child_ref_list()[::-1]
-                    ],
-                )
-            graphs.append(graph)
+        graphs = [_full_graph(self.db), _full_graph(self.db, reverse=True)]
         for handle in people.values():
             self.assertEqual(
                 list(graphs[0].neighbors(handle)), list(graphs[1].neighbors(handle))
@@ -424,6 +447,37 @@ class RelationshipPathTest(unittest.TestCase):
                     ]
                     self.assertEqual(results[0], results[1])
 
+    def test_same_as_full_graph(self) -> None:
+        """
+        A graph read on demand gives the same paths and labels as a graph
+        of the whole tree.
+        """
+        full = _full_graph(self.db)
+        for start in self.people.values():
+            for end in self.people.values():
+                for blood_only in (False, True):
+                    graph = FamilyLinkGraph.from_db(self.db)
+                    paths = find_connections(graph, start, end, blood_only=blood_only)
+                    expected = find_connections(full, start, end, blood_only=blood_only)
+                    self.assertEqual(paths, expected)
+                    self.assertEqual(
+                        [label_path(self.calc, self.db, graph, p) for p in paths],
+                        [label_path(self.calc, self.db, full, p) for p in expected],
+                    )
+        self.assertEqual(len(full), len(self.people))
+
+    def test_reads_on_demand(self) -> None:
+        """
+        A search reads only the people within reach.
+        """
+        graph = FamilyLinkGraph.from_db(self.db)
+        self.assertEqual(len(graph), 0)
+        find_connections(graph, self.people["me"], self.people["father"], max_depth=1)
+        self.assertIn(self.people["mother"], graph._gender)
+        self.assertNotIn(self.people["stranger"], graph._gender)
+        self.assertNotIn(self.people["son_wife"], graph._gender)
+        self.assertLess(len(graph), len(self.people))
+
     def test_private_proxy(self) -> None:
         """
         People hidden by a proxy are not in the graph.
@@ -434,6 +488,342 @@ class RelationshipPathTest(unittest.TestCase):
         self.assertEqual(
             find_connections(graph, self.people["me"], self.people["private"]), []
         )
+
+    def test_living_proxy(self) -> None:
+        """
+        People hidden by a living proxy are not in the graph.
+        """
+        db = LivingProxyDb(self.db, LivingProxyDb.MODE_EXCLUDE_ALL)
+        graph = FamilyLinkGraph.from_db(db)
+        self.assertNotIn(self.people["me"], graph)
+        self.assertEqual(
+            find_connections(graph, self.people["son"], self.people["father"]), []
+        )
+
+
+# -------------------------------------------------------------------------
+#
+# LargeTreeTest
+#
+# -------------------------------------------------------------------------
+class _CountingDb(DbReadBase):
+    """
+    A database that records which people and families are read from it,
+    and how many times it is asked for them.
+    """
+
+    def __init__(self, db: Any) -> None:
+        self.db = db
+        self.people: set[str] = set()
+        self.families: set[str] = set()
+        self.reads = 0
+
+    def get_raw_person_data(self, handle: str) -> Any:
+        return dict(self.get_raw_person_data_many([handle])).get(handle)
+
+    def get_raw_family_data(self, handle: str) -> Any:
+        return dict(self.get_raw_family_data_many([handle])).get(handle)
+
+    def get_raw_person_data_many(self, handles: Iterable[str]) -> Iterator:
+        handles = list(handles)
+        self.reads += 1
+        self.people.update(handles)
+        return self.db.get_raw_person_data_many(handles)
+
+    def get_raw_family_data_many(self, handles: Iterable[str]) -> Iterator:
+        handles = list(handles)
+        self.reads += 1
+        self.families.update(handles)
+        return self.db.get_raw_family_data_many(handles)
+
+
+def _generate_tree(db: Any, seed: int) -> None:
+    """
+    Add a generated tree of a few thousand people.
+
+    Several generations descend from founding couples. People marry into
+    other branches and remarry, some children are adopted, and some people
+    and child references are private, so the tree has a densely linked
+    core. A few unrelated families stand apart from it.
+    """
+    rng = random.Random(seed)
+    genders: list[int] = []
+    private: list[bool] = []
+    # (father, mother, [(child, birth child, private reference)])
+    families: list[tuple[int, int, list[tuple[int, bool, bool]]]] = []
+
+    def new_person(gender: int) -> int:
+        genders.append(gender)
+        private.append(rng.random() < 0.08)
+        return len(genders) - 1
+
+    def add_children(father: int, mother: int, count: int) -> list[int]:
+        children = []
+        for _ in range(count):
+            child = new_person(rng.choice((M, F)))
+            children.append((child, rng.random() < 0.95, rng.random() < 0.05))
+        families.append((father, mother, children))
+        return [child for child, _, _ in children]
+
+    cohort = [new_person(rng.choice((M, F))) for _ in range(60)]
+    for _ in range(7):
+        rng.shuffle(cohort)
+        unmarried = list(cohort)
+        next_cohort: list[int] = []
+        while unmarried:
+            person = unmarried.pop()
+            if rng.random() < 0.15:
+                continue
+            other = F if genders[person] == M else M
+            partner = None
+            if rng.random() < 0.3:
+                # marry into another branch of the tree
+                for index, candidate in enumerate(unmarried):
+                    if genders[candidate] == other:
+                        partner = unmarried.pop(index)
+                        break
+            for marriage in range(2 if rng.random() < 0.15 else 1):
+                if partner is None or marriage:
+                    partner = new_person(other)
+                father, mother = (
+                    (person, partner) if genders[person] == M else (partner, person)
+                )
+                next_cohort += add_children(
+                    father, mother, rng.choice((0, 1, 2, 2, 3, 3, 4, 5))
+                )
+        cohort = rng.sample(next_cohort, min(len(next_cohort), 700))
+    for _ in range(20):
+        add_children(new_person(M), new_person(F), rng.randint(0, 3))
+
+    person_objects = []
+    for index, gender in enumerate(genders):
+        person_object = Person()
+        person_object.set_handle(f"P{index:05d}")
+        person_object.set_gramps_id(f"I{index:05d}")
+        person_object.set_gender(gender)
+        person_object.set_privacy(private[index])
+        person_objects.append(person_object)
+    family_objects = []
+    for index, (father, mother, children) in enumerate(families):
+        family = Family()
+        handle = f"F{index:05d}"
+        family.set_handle(handle)
+        family.set_gramps_id(f"F{index:05d}")
+        family.set_relationship(FamilyRelType.MARRIED)
+        family.set_father_handle(person_objects[father].handle)
+        family.set_mother_handle(person_objects[mother].handle)
+        person_objects[father].add_family_handle(handle)
+        person_objects[mother].add_family_handle(handle)
+        for child, birth, private_ref in children:
+            ref = ChildRef()
+            ref.set_reference_handle(person_objects[child].handle)
+            if not birth:
+                ref.set_mother_relation(ChildRefType.ADOPTED)
+                ref.set_father_relation(ChildRefType.ADOPTED)
+            ref.set_privacy(private_ref)
+            family.add_child_ref(ref)
+            person_objects[child].add_parent_family_handle(handle)
+        family_objects.append(family)
+    with DbTxn("Generate tree", db) as trans:
+        for person_object in person_objects:
+            db.add_person(person_object, trans)
+        for family in family_objects:
+            db.add_family(family, trans)
+
+
+class LargeTreeTest(unittest.TestCase):
+    """
+    Test searches in a generated tree of a few thousand people.
+
+    Graphs read on demand must give the same results as a graph of the
+    whole tree, while reading only the people near the two people searched
+    for.
+    """
+
+    db: ClassVar[Any]
+    full: ClassVar[FamilyLinkGraph]
+    pairs: ClassVar[list[tuple[PersonHandle, PersonHandle]]]
+    calc: ClassVar[RelationshipCalculator]
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.db = make_database("sqlite")
+        cls.db.load(":memory:")
+        _generate_tree(cls.db, seed=1)
+        cls.full = _full_graph(cls.db)
+        cls.calc = RelationshipCalculator()
+        rng = random.Random(2)
+        people = sorted(cls.full._gender)
+        # the people with the most relatives within 4 links, where a
+        # search reaches furthest
+        hubs = sorted(
+            rng.sample(people, 300),
+            key=lambda handle: (-len(cls.full.distances(handle, 4)), handle),
+        )[:4]
+        pairs = []
+        for hub in hubs:
+            near = cls.full.distances(hub, 12)
+            by_distance: dict[int, list[PersonHandle]] = {}
+            for handle, distance in near.items():
+                by_distance.setdefault(distance, []).append(handle)
+            for distance in (1, 2, 4, 7, 10, 12):
+                if distance in by_distance:
+                    pairs.append((hub, rng.choice(sorted(by_distance[distance]))))
+            unconnected = sorted(set(people) - near.keys())
+            if unconnected:
+                pairs.append((hub, rng.choice(unconnected)))
+        pairs += [(rng.choice(people), rng.choice(people)) for _ in range(10)]
+        cls.pairs = pairs
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.db.close()
+
+    def test_tree_shape(self) -> None:
+        """
+        The generated tree is large and has a densely linked core.
+        """
+        self.assertGreater(len(self.full), 2000)
+        hub = self.pairs[0][0]
+        self.assertGreater(len(self.full.distances(hub, 10)), len(self.full) // 4)
+
+    def test_same_as_full_graph(self) -> None:
+        """
+        A graph read on demand finds the same paths as a graph of the whole
+        tree, for any depth, number of results and kinds of links.
+        """
+        for start, end in self.pairs:
+            for max_depth in (1, 3, 6, 10):
+                for max_results in (1, 5):
+                    for kwargs in (
+                        {},
+                        {"blood_only": True},
+                        {"links": {LinkType.PARENT}},
+                        {"links": {LinkType.CHILD, LinkType.SPOUSE}},
+                    ):
+                        with self.subTest(
+                            start=start, end=end, max_depth=max_depth, **kwargs
+                        ):
+                            graph = FamilyLinkGraph.from_db(self.db)
+                            self.assertEqual(
+                                find_connections(
+                                    graph,
+                                    start,
+                                    end,
+                                    max_depth=max_depth,
+                                    max_results=max_results,
+                                    **kwargs,
+                                ),
+                                find_connections(
+                                    self.full,
+                                    start,
+                                    end,
+                                    max_depth=max_depth,
+                                    max_results=max_results,
+                                    **kwargs,
+                                ),
+                            )
+
+    def test_same_labels(self) -> None:
+        """
+        The paths found on demand are labelled as in the whole tree.
+        """
+        for start, end in self.pairs:
+            graph = FamilyLinkGraph.from_db(self.db)
+            paths = find_connections(graph, start, end)
+            self.assertEqual(
+                [label_path(self.calc, self.db, graph, path) for path in paths],
+                [label_path(self.calc, self.db, self.full, path) for path in paths],
+            )
+
+    def test_reads_stay_near(self) -> None:
+        """
+        A search reads only the people within about half of max_depth links
+        of the two people, not everyone within max_depth links of either.
+        """
+        for start, end in self.pairs:
+            for max_depth in (4, 7, 10):
+                with self.subTest(start=start, end=end, max_depth=max_depth):
+                    db = _CountingDb(self.db)
+                    find_connections(
+                        FamilyLinkGraph.from_db(db), start, end, max_depth=max_depth
+                    )
+                    radius = (max_depth + 1) // 2 + 1
+                    near = set(self.full.distances(start, radius, ALL_LINKS))
+                    near |= set(self.full.distances(end, radius, ALL_LINKS))
+                    self.assertEqual(sorted(db.people - near - {start, end}), [])
+
+    def test_parent_reads_little(self) -> None:
+        """
+        Finding a parent of a well-connected person reads a small part of
+        the people within max_depth links of them.
+        """
+        start, end = self.pairs[0]
+        self.assertIn(
+            end,
+            self.full.parents(start)
+            + self.full.children(start)
+            + self.full.siblings(start)
+            + self.full.spouses(start),
+        )
+        db = _CountingDb(self.db)
+        find_connections(FamilyLinkGraph.from_db(db), start, end)
+        self.assertLess(len(db.people), len(self.full.distances(end, 10)) // 4)
+
+    def test_queries_depend_on_depth(self) -> None:
+        """
+        A search reads a layer of people at a time, so the number of
+        database queries depends on max_depth, not on the people read.
+        """
+        for max_depth in (4, 10, MAX_DEPTH):
+            radius = max_depth // 2
+            # reading the two people, then at most three queries (people,
+            # families, their members) for each layer around the end, each
+            # layer of the search, and each layer of finding the distance
+            # to the end from the people the search reaches
+            bound = 2 + 3 * radius
+            for depth in range(max_depth):
+                bound += 3 * (1 + max(0, max_depth - depth - 1 - radius))
+            for start, end in self.pairs:
+                with self.subTest(start=start, end=end, max_depth=max_depth):
+                    db = _CountingDb(self.db)
+                    find_connections(
+                        FamilyLinkGraph.from_db(db), start, end, max_depth=max_depth
+                    )
+                    self.assertLessEqual(db.reads, bound)
+        # the bound is far below one query per person
+        start, end = self.pairs[0]
+        db = _CountingDb(self.db)
+        find_connections(FamilyLinkGraph.from_db(db), start, end)
+        self.assertLess(db.reads * 10, len(db.people))
+
+    def test_max_depth_limit(self) -> None:
+        """
+        A search may follow at most MAX_DEPTH links.
+        """
+        start, end = self.pairs[0]
+        graph = FamilyLinkGraph.from_db(self.db)
+        self.assertTrue(find_connections(graph, start, end, max_depth=MAX_DEPTH))
+        with self.assertRaises(ValueError):
+            find_connections(graph, start, end, max_depth=MAX_DEPTH + 1)
+
+    def test_private_proxy(self) -> None:
+        """
+        Through a private proxy, the results are those of the whole visible
+        tree, and hidden people are never in the graph.
+        """
+        db = PrivateProxyDb(self.db)
+        full = _full_graph(db)
+        hidden = set(self.full._gender) - set(full._gender)
+        self.assertTrue(hidden)
+        for start, end in self.pairs:
+            graph = FamilyLinkGraph.from_db(db)
+            for blood_only in (False, True):
+                self.assertEqual(
+                    find_connections(graph, start, end, blood_only=blood_only),
+                    find_connections(full, start, end, blood_only=blood_only),
+                )
+            self.assertFalse(set(graph._gender) & hidden)
 
 
 if __name__ == "__main__":
