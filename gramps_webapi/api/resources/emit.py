@@ -85,10 +85,12 @@ class GrampsJSONEncoder:
         if total_items > -1:
             res.headers.add("X-Total-Count", str(total_items))
 
-        if not etag:
+        if etag:
+            res.set_etag(etag)
+            res._has_custom_etag = True  # type: ignore[attr-defined]
+        else:
             # by default, use the hash of the response as ETag
-            etag = hashlib.sha256(response_string.encode("utf-8")).hexdigest()
-        res.headers.add("ETag", f'"{etag}"')
+            res.set_etag(hashlib.sha256(response_string.encode("utf-8")).hexdigest())
 
         if cache_control:
             res.headers.add("Cache-Control", cache_control)

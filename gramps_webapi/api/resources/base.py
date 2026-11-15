@@ -334,10 +334,13 @@ class GrampsObjectResource(GrampsObjectResourceHelper, Resource):
         locale = get_locale_for_language(
             args["locale"], default=True, date_format=args["date_format"]
         )
+        is_plain = not (set(request.args) - {"jwt"})
+        etag = hash_object(obj) if is_plain else None
         return self.response(
             200,
             self.full_object(obj, args, locale=locale),
             args,
+            etag=etag,
         )
 
     def delete(self, handle: str) -> ResponseReturnValue:
