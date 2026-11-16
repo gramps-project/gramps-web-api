@@ -21,6 +21,7 @@
 
 import unittest
 from unittest.mock import MagicMock, patch
+from urllib.parse import urlencode
 
 from flask import redirect
 
@@ -1180,11 +1181,10 @@ class TestOIDCCodeExchange(unittest.TestCase):
         self.assertIn("not shared", rv.get_json()["error"]["message"])
 
 
-
 class TestOIDCAppRedirect(unittest.TestCase):
-    """Native apps get the login result at an allowed redirect URI, bound by PKCE."""
+    """Native apps get the login result at an allowed https redirect URI."""
 
-    APP_URI = "org.example.app:/oidc/complete"
+    APP_URI = "https://app.example.org/oidc/complete"
     # Example from RFC 7636, appendix B
     VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
     CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
@@ -1194,6 +1194,11 @@ class TestOIDCAppRedirect(unittest.TestCase):
         """Test class setup."""
         cls.client = get_test_client()
 
+    def setUp(self):
+        """Start every test with an empty session."""
+        with self.client.session_transaction() as sess:
+            sess.clear()
+
     def _login(self, allowed, **params):
         """Start a login with extra query parameters; return response, client."""
         mock_oauth = MagicMock()
@@ -1202,7 +1207,7 @@ class TestOIDCAppRedirect(unittest.TestCase):
         mock_oidc_client.authorize_redirect.return_value = redirect(
             "https://idp.example.com/auth"
         )
-        query = "&".join(f"{k}={v}" for k, v in params.items())
+        query = urlencode(params)
         with (
             patch(
                 "gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True
@@ -1226,6 +1231,14 @@ class TestOIDCAppRedirect(unittest.TestCase):
                 BASE_URL + f"/oidc/login/?provider=custom&tree=t&{query}"
             )
         return rv, mock_oidc_client
+
+    def _app_session(self):
+        """Put a pending app login into the session."""
+        with self.client.session_transaction() as sess:
+            sess["oidc_app_redirect"] = {
+                "uri": self.APP_URI,
+                "challenge": self.CHALLENGE,
+            }
 
     def _callback(self, provider_fails=False, role=0):
         """Run a callback; return the redirect location."""
@@ -1281,29 +1294,42 @@ class TestOIDCAppRedirect(unittest.TestCase):
     def test_redirect_uri_not_on_allow_list_is_rejected(self):
         """Without an admin's allow list entry, no app may ask for the result."""
         rv, mock_client = self._login(
-            "", redirect_uri=self.APP_URI, code_challenge=self.CHALLENGE
+            [], redirect_uri=self.APP_URI, code_challenge=self.CHALLENGE
         )
         self.assertEqual(rv.status_code, 400)
         mock_client.authorize_redirect.assert_not_called()
 
         rv, mock_client = self._login(
-            "org.example.other:/oidc/complete",
+            ["https://other.example.org/oidc/complete"],
             redirect_uri=self.APP_URI,
             code_challenge=self.CHALLENGE,
         )
         self.assertEqual(rv.status_code, 400)
         mock_client.authorize_redirect.assert_not_called()
 
+    def test_non_https_allow_list_entry_is_rejected(self):
+        """Custom schemes can be claimed by any app, so the list only takes https."""
+        for allowed in (
+            ["org.example.app:/oidc/complete"],
+            [self.APP_URI, "http://app.example.org/oidc/complete"],
+            self.APP_URI,
+        ):
+            rv, mock_client = self._login(
+                allowed, redirect_uri=self.APP_URI, code_challenge=self.CHALLENGE
+            )
+            self.assertEqual(rv.status_code, 500, allowed)
+            mock_client.authorize_redirect.assert_not_called()
+
     def test_redirect_uri_requires_a_code_challenge(self):
-        """An app redirect without PKCE would let any app catch the code."""
-        rv, mock_client = self._login(self.APP_URI, redirect_uri=self.APP_URI)
+        """An app redirect without PKCE is refused."""
+        rv, mock_client = self._login([self.APP_URI], redirect_uri=self.APP_URI)
         self.assertEqual(rv.status_code, 400)
         mock_client.authorize_redirect.assert_not_called()
 
     def test_only_s256_is_accepted(self):
         """The plain method would hand the verifier to anyone who sees the URL."""
         rv, _ = self._login(
-            self.APP_URI,
+            [self.APP_URI],
             redirect_uri=self.APP_URI,
             code_challenge=self.CHALLENGE,
             code_challenge_method="plain",
@@ -1311,9 +1337,9 @@ class TestOIDCAppRedirect(unittest.TestCase):
         self.assertEqual(rv.status_code, 400)
 
     def test_allowed_redirect_is_kept_for_the_callback(self):
-        """The allow list may hold several URIs, separated by commas or spaces."""
+        """An allowed URI and its challenge are kept in the session."""
         rv, mock_client = self._login(
-            f"org.example.other:/oidc/complete, {self.APP_URI}",
+            ["https://other.example.org/oidc/complete", self.APP_URI],
             redirect_uri=self.APP_URI,
             code_challenge=self.CHALLENGE,
         )
@@ -1327,11 +1353,7 @@ class TestOIDCAppRedirect(unittest.TestCase):
 
     def test_callback_sends_code_to_app_and_exchange_needs_verifier(self):
         """The code goes to the app; only the matching verifier redeems it."""
-        with self.client.session_transaction() as sess:
-            sess["oidc_app_redirect"] = {
-                "uri": self.APP_URI,
-                "challenge": self.CHALLENGE,
-            }
+        self._app_session()
         location = self._callback()
         self.assertTrue(location.startswith(self.APP_URI + "#code="))
         code = location.partition("#code=")[2]
@@ -1354,25 +1376,16 @@ class TestOIDCAppRedirect(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         self.assertEqual(rv.get_json()["access_token"], "a")
 
-    def test_app_login_asks_the_provider_for_interaction(self):
-        """Another app could start a login itself; it must not complete silently."""
-        _, mock_client = self._login(
-            self.APP_URI, redirect_uri=self.APP_URI, code_challenge=self.CHALLENGE
-        )
-        self.assertEqual(
-            mock_client.authorize_redirect.call_args.kwargs.get("prompt"), "login"
-        )
-
-        _, mock_client = self._login(self.APP_URI)
-        self.assertNotIn("prompt", mock_client.authorize_redirect.call_args.kwargs)
-
-    def _app_session(self):
-        """Put a pending app login into the session."""
-        with self.client.session_transaction() as sess:
-            sess["oidc_app_redirect"] = {
-                "uri": self.APP_URI,
-                "challenge": self.CHALLENGE,
-            }
+    def test_malformed_verifier_is_rejected(self):
+        """A verifier outside RFC 7636 (43-128 unreserved characters) is invalid."""
+        self._app_session()
+        code = self._callback().partition("#code=")[2]
+        for verifier in ("short", "x" * 129, "ä" * 43):
+            rv = self.client.post(
+                BASE_URL + "/oidc/tokens/",
+                json={"code": code, "code_verifier": verifier},
+            )
+            self.assertEqual(rv.status_code, 422, verifier)
 
     def test_failed_provider_login_is_reported_to_the_app(self):
         """The app must not keep waiting when the provider login fails."""
@@ -1388,8 +1401,6 @@ class TestOIDCAppRedirect(unittest.TestCase):
 
     def test_frontend_login_ignores_the_verifier(self):
         """Codes for the web frontend carry no challenge and behave as before."""
-        with self.client.session_transaction() as sess:
-            sess.pop("oidc_app_redirect", None)
         location = self._callback()
         self.assertTrue(
             location.startswith("https://web.example.com/oidc/complete#code=")
@@ -1397,6 +1408,7 @@ class TestOIDCAppRedirect(unittest.TestCase):
         code = location.partition("#code=")[2]
         rv = self.client.post(BASE_URL + "/oidc/tokens/", json={"code": code})
         self.assertEqual(rv.status_code, 200)
+
 
 class TestOIDCLogoutEndpoint(unittest.TestCase):
     """Test cases for OIDC logout endpoint."""

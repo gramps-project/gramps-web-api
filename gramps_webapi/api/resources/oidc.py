@@ -26,7 +26,7 @@ import re
 import secrets
 from collections.abc import Callable
 from gettext import gettext as _
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from flask import (
     current_app,
@@ -218,16 +218,34 @@ def _redeem_exchange_code(code: str, code_verifier: str | None = None) -> dict:
 
 def _s256(verifier: str) -> str:
     """Return the S256 code challenge for a PKCE code verifier (RFC 7636)."""
-    digest = hashlib.sha256(verifier.encode("ascii", "ignore")).digest()
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
     return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 
+def _is_https_uri(uri: object) -> bool:
+    """Whether a value is an absolute https URI with a host."""
+    if not isinstance(uri, str):
+        return False
+    parts = urlsplit(uri)
+    return parts.scheme == "https" and bool(parts.netloc)
+
+
 def _allowed_app_redirects() -> list[str]:
-    """Return the redirect URIs native apps may ask for (exact matches only)."""
-    value = get_config("OIDC_ALLOWED_REDIRECT_URIS") or []
-    if isinstance(value, str):
-        value = value.replace(",", " ").split()
-    return [uri for uri in value if uri]
+    """Return the redirect URIs native apps may ask for (exact matches only).
+
+    Only claimed https links (RFC 8252, section 7.2) are accepted: no other app can
+    receive them. A value that is not a list of https URIs is a configuration
+    error, not something to interpret.
+    """
+    value = get_config("OIDC_ALLOWED_REDIRECT_URIS")
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(_is_https_uri(uri) for uri in value):
+        logger.error("OIDC_ALLOWED_REDIRECT_URIS must be a JSON list of https URIs")
+        abort_with_message(
+            500, "OIDC_ALLOWED_REDIRECT_URIS must be a list of https URIs"
+        )
+    return value
 
 
 def _app_redirect_from_args(args: dict) -> dict | None:
@@ -491,10 +509,10 @@ class OIDCLoginQueryArgs(Schema):
         required=False,
         metadata={
             "description": (
-                "For native apps: where to send the login result instead of the"
-                " frontend. Must exactly match an entry of"
-                " OIDC_ALLOWED_REDIRECT_URIS and requires code_challenge."
-                " Ignored when linking."
+                "For native apps: an https URI (claimed link) where to send the"
+                " login result instead of the frontend. Must exactly match an"
+                " entry of OIDC_ALLOWED_REDIRECT_URIS and requires"
+                " code_challenge. Ignored when linking."
             )
         },
     )
@@ -526,7 +544,6 @@ class OIDCLoginResource(Resource):
         """Redirect to OIDC provider for authentication."""
         provider_id = args.get("provider")
         oidc_client, _config = _get_oidc_client(provider_id)
-        app_redirect: dict | None = None
 
         if args.get("link"):
             session[SESSION_LINK_KEY] = _redeem_link_ticket(args["link"], provider_id)
@@ -556,14 +573,7 @@ class OIDCLoginResource(Resource):
         redirect_uri = f"{base_url.rstrip('/')}/api/oidc/callback/{provider_id}"
 
         configure_pkce(oidc_client, _config)
-        extra_params = {}
-        if app_redirect:
-            # PKCE does not stop another app on the device from registering the
-            # same custom scheme and starting a login itself. With a session at
-            # the provider that would complete silently, so always ask the
-            # provider for user interaction (RFC 8252, section 8.6).
-            extra_params["prompt"] = "login"
-        authorization_url = oidc_client.authorize_redirect(redirect_uri, **extra_params)
+        authorization_url = oidc_client.authorize_redirect(redirect_uri)
         return authorization_url
 
 
