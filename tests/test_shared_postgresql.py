@@ -47,7 +47,7 @@ from urllib.parse import urlparse
 from flask import Flask
 from flask.testing import FlaskClient
 from gramps.gen.const import USER_DIRLIST, USER_PLUGINS
-from gramps.gen.db import DbTxn
+from gramps.gen.db import DbGeneric, DbTxn
 from gramps.gen.lib import (
     Event,
     EventRef,
@@ -517,18 +517,24 @@ class TestSharedPostgreSQLIsolation(unittest.TestCase):
             reader.close()
 
     def test_raw_data_many(self):
-        """Batch reads see only the tree's own objects, a batch per query."""
+        """Batch reads see only the tree's own objects, a batch per query if
+        the addon can read many at once."""
         for dbmgr, label, own, other in (
             (self.dbmgr_a, "Alpha", ONLY_A_PERSON, ONLY_B_PERSON),
             (self.dbmgr_b, "Beta", ONLY_B_PERSON, ONLY_A_PERSON),
         ):
             db = dbmgr.get_db().db
+            # older versions of the addon read one object per query
+            batched = type(db)._get_raw_data_many is not getattr(
+                DbGeneric, "_get_raw_data_many", None
+            )
             try:
                 handles = [SHARED_PERSON, own, other, "missing", SHARED_PERSON]
                 with patch.object(
                     db.dbapi, "execute", wraps=db.dbapi.execute
                 ) as execute:
                     found = dict(db.get_raw_person_data_many(handles))
+                if batched:
                     self.assertEqual(execute.call_count, 1)
                 self.assertEqual(sorted(found), sorted([SHARED_PERSON, own]))
                 self.assertEqual(

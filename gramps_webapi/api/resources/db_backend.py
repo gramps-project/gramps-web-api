@@ -40,13 +40,9 @@ safe to do differs by call site.
 """
 
 import logging
-from types import MethodType
-from typing import Any, Iterable, Iterator, Optional, Union
+from typing import Any, Optional, Union
 
-from gramps.gen.db.dbconst import KEY_TO_NAME_MAP
 from gramps.plugins.db.dbapi.sqlite import SQLite
-
-from ...future_gramps.raw_data_many import RAW_DATA_BATCH_SIZE
 
 _LOG = logging.getLogger(__name__)
 
@@ -182,35 +178,3 @@ def sql_count(db: Any, table: str, condition: str = "1 = 1") -> int:
     where, params = _where(db, condition)
     db.dbapi.execute(f"SELECT COUNT(*) FROM {table}{where}", params)
     return db.dbapi.fetchone()[0]
-
-
-def add_scoped_raw_data_many(db: Any) -> None:
-    """Let a `SharedPostgreSQL` database read many objects in one query.
-
-    `SharedPostgreSQL` scopes its reads of single objects to its tree, so
-    Gramps' batch read falls back to one query per object for it. This adds
-    a batch read that is scoped in the same way. Other backends are left
-    alone.
-    """
-    if type(db).__name__ == SHARED_POSTGRES_CLASS_NAME:
-        db._get_raw_data_many = MethodType(_scoped_raw_data_many, db)
-
-
-def _scoped_raw_data_many(
-    db: Any, obj_key: int, handles: Iterable[str]
-) -> Iterator[tuple[str, Any]]:
-    """Like Gramps' `DBAPI._get_raw_data_many`, scoped to the tree."""
-    table = KEY_TO_NAME_MAP[obj_key]
-    unique = list(dict.fromkeys(handles))
-    for start in range(0, len(unique), RAW_DATA_BATCH_SIZE):
-        batch = unique[start : start + RAW_DATA_BATCH_SIZE]
-        marks = ", ".join("?" * len(batch))
-        db.dbapi.execute(
-            f"SELECT handle, {db.serializer.data_field} FROM {table} "
-            f"WHERE handle IN ({marks}) AND treeid = ?",
-            [*batch, db.dbapi.treeid],
-        )
-        # all rows are fetched before yielding, so callers may query the
-        # database in between
-        for handle, data in db.dbapi.fetchall():
-            yield handle, db.serializer.string_to_data(data)
