@@ -124,6 +124,7 @@ class DefaultConfig(object):
     OIDC_AUTO_REDIRECT = False
     OIDC_USERNAME_CLAIM = "preferred_username"
     OIDC_NAME = "OIDC"
+    OIDC_ALLOWED_REDIRECT_URIS: list[str] = []
     PILLOW_MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
     MAX_THUMBNAIL_FILE_BYTES = 50 * 1024 * 1024  # 50 MB
     MAX_MEDIA_ARCHIVE_UPLOAD_BYTES = None

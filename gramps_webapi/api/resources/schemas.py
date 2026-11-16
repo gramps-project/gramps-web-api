@@ -1981,6 +1981,15 @@ class OIDCTokenExchangeSchema(_Base):
             " redirect."
         },
     )
+    code_verifier = fields.Str(
+        required=False,
+        # RFC 7636, section 4.1
+        validate=validate.Regexp(r"^[A-Za-z0-9._~-]{43,128}$"),
+        metadata={
+            "description": "PKCE code verifier (RFC 7636), required for a code"
+            " issued to a native app redirect URI."
+        },
+    )
 
 
 class OIDCLinkSchema(_Base):

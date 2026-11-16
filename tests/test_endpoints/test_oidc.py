@@ -21,6 +21,7 @@
 
 import unittest
 from unittest.mock import MagicMock, patch
+from urllib.parse import urlencode
 
 from flask import redirect
 
@@ -1178,6 +1179,235 @@ class TestOIDCCodeExchange(unittest.TestCase):
         rv = self.client.post(BASE_URL + "/oidc/tokens/", json={"code": code})
         self.assertEqual(rv.status_code, 500)
         self.assertIn("not shared", rv.get_json()["error"]["message"])
+
+
+class TestOIDCAppRedirect(unittest.TestCase):
+    """Native apps get the login result at an allowed https redirect URI."""
+
+    APP_URI = "https://app.example.org/oidc/complete"
+    # Example from RFC 7636, appendix B
+    VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+    CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+
+    @classmethod
+    def setUpClass(cls):
+        """Test class setup."""
+        cls.client = get_test_client()
+
+    def setUp(self):
+        """Start every test with an empty session."""
+        with self.client.session_transaction() as sess:
+            sess.clear()
+
+    def _login(self, allowed, **params):
+        """Start a login with extra query parameters; return response, client."""
+        mock_oauth = MagicMock()
+        mock_oidc_client = MagicMock()
+        mock_oauth.gramps_custom = mock_oidc_client
+        mock_oidc_client.authorize_redirect.return_value = redirect(
+            "https://idp.example.com/auth"
+        )
+        query = urlencode(params)
+        with (
+            patch(
+                "gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True
+            ),
+            patch(
+                "gramps_webapi.api.resources.oidc.get_available_oidc_providers",
+                return_value=["custom"],
+            ),
+            patch("gramps_webapi.api.resources.oidc.tree_exists", return_value=True),
+            patch.dict(
+                self.client.application.extensions,
+                {"authlib.integrations.flask_client": mock_oauth},
+                clear=False,
+            ),
+            patch.dict(
+                self.client.application.config,
+                {"OIDC_ALLOWED_REDIRECT_URIS": allowed},
+            ),
+        ):
+            rv = self.client.get(
+                BASE_URL + f"/oidc/login/?provider=custom&tree=t&{query}"
+            )
+        return rv, mock_oidc_client
+
+    def _app_session(self):
+        """Put a pending app login into the session."""
+        with self.client.session_transaction() as sess:
+            sess["oidc_app_redirect"] = {
+                "uri": self.APP_URI,
+                "challenge": self.CHALLENGE,
+            }
+
+    def _callback(self, provider_fails=False, role=0):
+        """Run a callback; return the redirect location."""
+        mock_oauth = MagicMock()
+        mock_oidc_client = MagicMock()
+        mock_oauth.gramps_custom = mock_oidc_client
+        mock_oidc_client.authorize_access_token.return_value = {"access_token": "t"}
+        mock_oidc_client.userinfo.return_value = {"sub": "user123"}
+        if provider_fails:
+            mock_oidc_client.authorize_access_token.side_effect = Exception("denied")
+        with (
+            patch(
+                "gramps_webapi.api.resources.oidc.is_oidc_enabled", return_value=True
+            ),
+            patch(
+                "gramps_webapi.api.resources.oidc.get_available_oidc_providers",
+                return_value=["custom"],
+            ),
+            patch(
+                "gramps_webapi.api.resources.oidc.create_or_update_oidc_user",
+                return_value="user-guid",
+            ),
+            patch("gramps_webapi.api.resources.oidc.get_name", return_value="testuser"),
+            patch(
+                "gramps_webapi.api.resources.oidc.get_user_details",
+                return_value={"role": role},
+            ),
+            patch(
+                "gramps_webapi.api.resources.oidc.get_tree_id_and_permissions",
+                return_value=("t", set()),
+            ),
+            patch(
+                "gramps_webapi.api.resources.oidc.get_tokens",
+                return_value={"access_token": "a", "refresh_token": "r"},
+            ),
+            patch("gramps_webapi.api.resources.oidc.tree_exists", return_value=True),
+            patch.dict(
+                self.client.application.extensions,
+                {"authlib.integrations.flask_client": mock_oauth},
+                clear=False,
+            ),
+            patch.dict(
+                self.client.application.config,
+                {"TREE": "t", "FRONTEND_URL": "https://web.example.com"},
+            ),
+        ):
+            rv = self.client.get(
+                BASE_URL + "/oidc/callback/custom?code=auth_code&tree=t"
+            )
+        self.assertEqual(rv.status_code, 302)
+        return rv.location
+
+    def test_redirect_uri_not_on_allow_list_is_rejected(self):
+        """Without an admin's allow list entry, no app may ask for the result."""
+        rv, mock_client = self._login(
+            [], redirect_uri=self.APP_URI, code_challenge=self.CHALLENGE
+        )
+        self.assertEqual(rv.status_code, 400)
+        mock_client.authorize_redirect.assert_not_called()
+
+        rv, mock_client = self._login(
+            ["https://other.example.org/oidc/complete"],
+            redirect_uri=self.APP_URI,
+            code_challenge=self.CHALLENGE,
+        )
+        self.assertEqual(rv.status_code, 400)
+        mock_client.authorize_redirect.assert_not_called()
+
+    def test_non_https_allow_list_entry_is_rejected(self):
+        """Custom schemes can be claimed by any app, so the list only takes https."""
+        for allowed in (
+            ["org.example.app:/oidc/complete"],
+            [self.APP_URI, "http://app.example.org/oidc/complete"],
+            self.APP_URI,
+        ):
+            rv, mock_client = self._login(
+                allowed, redirect_uri=self.APP_URI, code_challenge=self.CHALLENGE
+            )
+            self.assertEqual(rv.status_code, 500, allowed)
+            mock_client.authorize_redirect.assert_not_called()
+
+    def test_redirect_uri_requires_a_code_challenge(self):
+        """An app redirect without PKCE is refused."""
+        rv, mock_client = self._login([self.APP_URI], redirect_uri=self.APP_URI)
+        self.assertEqual(rv.status_code, 400)
+        mock_client.authorize_redirect.assert_not_called()
+
+    def test_only_s256_is_accepted(self):
+        """The plain method would hand the verifier to anyone who sees the URL."""
+        rv, _ = self._login(
+            [self.APP_URI],
+            redirect_uri=self.APP_URI,
+            code_challenge=self.CHALLENGE,
+            code_challenge_method="plain",
+        )
+        self.assertEqual(rv.status_code, 400)
+
+    def test_allowed_redirect_is_kept_for_the_callback(self):
+        """An allowed URI and its challenge are kept in the session."""
+        rv, mock_client = self._login(
+            ["https://other.example.org/oidc/complete", self.APP_URI],
+            redirect_uri=self.APP_URI,
+            code_challenge=self.CHALLENGE,
+        )
+        self.assertEqual(rv.status_code, 302)
+        mock_client.authorize_redirect.assert_called_once()
+        with self.client.session_transaction() as sess:
+            self.assertEqual(
+                sess["oidc_app_redirect"],
+                {"uri": self.APP_URI, "challenge": self.CHALLENGE},
+            )
+
+    def test_callback_sends_code_to_app_and_exchange_needs_verifier(self):
+        """The code goes to the app; only the matching verifier redeems it."""
+        self._app_session()
+        location = self._callback()
+        self.assertTrue(location.startswith(self.APP_URI + "#code="))
+        code = location.partition("#code=")[2]
+
+        rv = self.client.post(BASE_URL + "/oidc/tokens/", json={"code": code})
+        self.assertEqual(rv.status_code, 400)
+        self.assertIn("code verifier", rv.get_json()["error"]["message"])
+
+        rv = self.client.post(
+            BASE_URL + "/oidc/tokens/",
+            json={"code": code, "code_verifier": "x" * 43},
+        )
+        self.assertEqual(rv.status_code, 400)
+
+        # Failed attempts must not use up the code
+        rv = self.client.post(
+            BASE_URL + "/oidc/tokens/",
+            json={"code": code, "code_verifier": self.VERIFIER},
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.get_json()["access_token"], "a")
+
+    def test_malformed_verifier_is_rejected(self):
+        """A verifier outside RFC 7636 (43-128 unreserved characters) is invalid."""
+        self._app_session()
+        code = self._callback().partition("#code=")[2]
+        for verifier in ("short", "x" * 129, "ä" * 43):
+            rv = self.client.post(
+                BASE_URL + "/oidc/tokens/",
+                json={"code": code, "code_verifier": verifier},
+            )
+            self.assertEqual(rv.status_code, 422, verifier)
+
+    def test_failed_provider_login_is_reported_to_the_app(self):
+        """The app must not keep waiting when the provider login fails."""
+        self._app_session()
+        location = self._callback(provider_fails=True)
+        self.assertEqual(location, self.APP_URI + "#error=login_failed")
+
+    def test_inactive_account_is_reported_to_the_app(self):
+        """A new account awaiting approval gets no code, and the app is told."""
+        self._app_session()
+        location = self._callback(role=-1)
+        self.assertEqual(location, self.APP_URI + "#error=account_not_active")
+
+    def test_frontend_login_ignores_the_verifier(self):
+        """Codes for the web frontend carry no challenge and behave as before."""
+        location = self._callback()
+        self.assertTrue(
+            location.startswith("https://web.example.com/oidc/complete#code=")
+        )
+        code = location.partition("#code=")[2]
+        rv = self.client.post(BASE_URL + "/oidc/tokens/", json={"code": code})
+        self.assertEqual(rv.status_code, 200)
 
 
 class TestOIDCLogoutEndpoint(unittest.TestCase):
