@@ -142,9 +142,7 @@ def abort_unless_lower_role(user_id: str) -> None:
     """Abort unless the user has a strictly lower role than the requester.
 
     Stricter than `abort_if_higher_role`, for setting another user's password
-    without their old one: that is an immediate login as them, while the
-    other edits allowed between equal roles (an e-mail address, say) still
-    need a reset e-mail before anyone can sign in.
+    without their old one, which lets the requester sign in as that user.
     """
     message = "Not allowed to set the password of a user with an equal or higher role"
     try:
