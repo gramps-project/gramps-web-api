@@ -24,6 +24,7 @@ import os
 
 import pytest
 from gramps.gen.utils.resourcepath import ResourcePath
+from werkzeug.exceptions import HTTPException
 
 from gramps_webapi.api.faces import (
     HEAD_SHOT_HEIGHT_FACTOR,
@@ -105,6 +106,13 @@ def test_boxes_clamped_to_image():
     faces = detect(cropped)
     assert len(faces) == 1
     assert all(0 <= value <= 100 for value in faces[0])
+
+
+@pytest.mark.parametrize("data", [b"", b"not an image"])
+def test_invalid_image(data):
+    with pytest.raises(HTTPException) as exc_info:
+        detect_faces(io.BytesIO(data))
+    assert exc_info.value.code == 422
 
 
 def test_head_shot_region_encloses_face():
