@@ -28,7 +28,7 @@ import re
 from collections import defaultdict
 from collections.abc import Callable
 from functools import lru_cache
-from typing import Any
+from typing import Any, NoReturn
 
 import gramps.gen.filters as filters
 from flask import Response, abort, current_app
@@ -52,9 +52,11 @@ from gramps_object_query_language.query import (
     SOURCE,
     ObjectTypeSpec,
     Query,
+    QueryError,
     compile_query,
 )
 from gramps_object_query_language.query_lang import (
+    QueryLangError,
     compile_expr_for_spec,
     where_list_to_ast,
 )
@@ -259,6 +261,39 @@ _RULE_VALUE_ERRORS = (
     re.error,
 )
 
+# Errors GOQL raises for an expression it can't compile or evaluate
+_GOQL_ERRORS = (QueryLangError, QueryError)
+
+# A location in a request, as marshmallow reports it: where the value came
+# from ("query", "json"), then the field, then the keys and list indexes
+# down to the value at fault
+RequestPath = tuple[str | int, ...]
+
+
+def _nest_messages(path: RequestPath, messages: Any) -> Any:
+    """Return `messages` nested under `path`, the shape marshmallow uses for
+    a schema error's `messages`: `{"query": {"rules": {"0": [detail]}}}`.
+    """
+    for key in reversed(path):
+        messages = {str(key): messages}
+    return messages
+
+
+def _abort_rule_error(message: str, path: RequestPath, error: Exception) -> NoReturn:
+    """Abort with a 422 whose `message` is short and whose `messages` holds
+    the error's own text at `path`. GOQL's messages can be long (an unknown
+    field lists every field that exists), so a client can show `message`
+    and offer `messages` as details. A GOQL error has `type`
+    "invalid_query", as on the `/query/` endpoints.
+    """
+    abort_with_message(
+        422,
+        message,
+        error_type="invalid_query" if isinstance(error, _GOQL_ERRORS) else None,
+        extra={"messages": _nest_messages(path, [str(error)])},
+    )
+
+
 _RULE_CLASS_CACHE: dict[str, dict[str, type[Rule]]] = {}
 
 # Maps (parent_namespace, sub_namespace) to a function (db, obj) -> [sub_handle, ...]
@@ -438,7 +473,7 @@ def get_custom_filters(
 
 
 def _validate_rule_parms(
-    rule_parms: dict[str, Any], namespace: str
+    rule_parms: dict[str, Any], namespace: str, path: RequestPath = ()
 ) -> tuple[type[Rule], list[str]]:
     """Return the rule class and its values as strings, aborting on invalid input.
 
@@ -447,6 +482,10 @@ def _validate_rule_parms(
     saved filters, extra values are ignored. Missing values are passed through:
     some rules supply defaults (e.g. HasNote), the others fail during evaluation,
     which returns 422.
+
+    A `MatchesQuery` expression is compiled here, so a bad one is a 422
+    before anything is evaluated or saved, with GOQL's text in `messages`
+    at `path` (the rule's location in the request).
     """
     name = rule_parms["name"]
     rule_class = get_rule_map(namespace).get(name)
@@ -464,18 +503,27 @@ def _validate_rule_parms(
             abort_with_message(
                 422, f"Rule {name} values must be strings, numbers or booleans"
             )
-    return rule_class, str_values[: len(rule_class.labels)]
+    str_values = str_values[: len(rule_class.labels)]
+    if issubclass(rule_class, MatchesQuery) and str_values:
+        try:
+            compile_expr_for_spec(rule_class.spec, str_values[0])
+        except _GOQL_ERRORS as error:
+            _abort_rule_error(f"Invalid {name} expression", path + ("values", 0), error)
+    return rule_class, str_values
 
 
 def _validate_filter_parms(
-    filter_parms: dict[str, Any], namespace: str, depth: int = 0
+    filter_parms: dict[str, Any], namespace: str, path: RequestPath, depth: int = 0
 ) -> None:
-    """Validate a (possibly nested) filter spec before evaluating it."""
+    """Validate a (possibly nested) filter spec, found at `path` in the
+    request, before evaluating it.
+    """
     if depth >= MAX_FILTER_DEPTH:
         abort_with_message(400, "Filter nesting depth exceeded")
-    for item in filter_parms["rules"]:
+    for index, item in enumerate(filter_parms["rules"]):
+        item_path = path + ("rules", index)
         if "name" in item:
-            _validate_rule_parms(item, namespace)
+            _validate_rule_parms(item, namespace, item_path)
             continue
         sub_namespace = item.get("namespace", namespace)
         if (
@@ -485,12 +533,14 @@ def _validate_filter_parms(
             abort_with_message(
                 400, f"Unsupported namespace bridge: {namespace} → {sub_namespace}"
             )
-        _validate_filter_parms(item, sub_namespace, depth + 1)
+        _validate_filter_parms(item, sub_namespace, item_path, depth + 1)
 
 
-def _build_rule_instance(rule_parms: dict[str, Any], namespace: str) -> Rule:
-    """Instantiate a single rule from its parameter dict."""
-    rule_class, values = _validate_rule_parms(rule_parms, namespace)
+def _build_rule_instance(
+    rule_parms: dict[str, Any], namespace: str, path: RequestPath = ()
+) -> Rule:
+    """Instantiate a single rule from its parameter dict, found at `path`."""
+    rule_class, values = _validate_rule_parms(rule_parms, namespace, path)
     return rule_class(values, use_regex=rule_parms.get("regex", False))
 
 
@@ -499,9 +549,12 @@ def _apply_filter_parms(
     db_handle: DbReadBase,
     namespace: str,
     handles: list[Handle],
+    path: RequestPath,
     depth: int = 0,
 ) -> list[Handle]:
-    """Recursively evaluate a filter spec and return matching handles."""
+    """Recursively evaluate a filter spec, found at `path` in the request,
+    and return matching handles.
+    """
     if depth >= MAX_FILTER_DEPTH:
         abort_with_message(400, "Filter nesting depth exceeded")
 
@@ -510,15 +563,16 @@ def _apply_filter_parms(
     handle_set = set(handles)
     result_sets = []
 
-    for item in filter_parms["rules"]:
+    for index, item in enumerate(filter_parms["rules"]):
+        item_path = path + ("rules", index)
         if "name" in item:
             single = filters.GenericFilterFactory(namespace)()
-            single.add_rule(_build_rule_instance(item, namespace))
+            single.add_rule(_build_rule_instance(item, namespace, item_path))
             try:
                 result_sets.append(set(single.apply(db_handle, id_list=handles)))
             except _RULE_VALUE_ERRORS as exc:
-                abort_with_message(
-                    422, f"Rule {item['name']} could not be evaluated: {exc}"
+                _abort_rule_error(
+                    f"Rule {item['name']} could not be evaluated", item_path, exc
                 )
         elif item.get("namespace", namespace) != namespace:
             sub_namespace = item["namespace"]
@@ -538,7 +592,12 @@ def _apply_filter_parms(
                     sub_to_parents[sub_handle].append(handle)
             matching_sub = set(
                 _apply_filter_parms(
-                    item, db_handle, sub_namespace, list(sub_to_parents), depth + 1
+                    item,
+                    db_handle,
+                    sub_namespace,
+                    list(sub_to_parents),
+                    item_path,
+                    depth + 1,
                 )
             )
             matched: set[Handle] = set()
@@ -547,7 +606,11 @@ def _apply_filter_parms(
             result_sets.append(matched)
         else:
             result_sets.append(
-                set(_apply_filter_parms(item, db_handle, namespace, handles, depth + 1))
+                set(
+                    _apply_filter_parms(
+                        item, db_handle, namespace, handles, item_path, depth + 1
+                    )
+                )
             )
 
     if not result_sets:
@@ -576,8 +639,10 @@ def build_filter(filter_parms: dict[str, Any], namespace: str) -> GenericFilter:
         filter_object.set_logical_op(filter_parms["function"])
     if "invert" in filter_parms:
         filter_object.set_invert(filter_parms["invert"])
-    for rule_parms in filter_parms["rules"]:
-        filter_object.add_rule(_build_rule_instance(rule_parms, namespace))
+    for index, rule_parms in enumerate(filter_parms["rules"]):
+        filter_object.add_rule(
+            _build_rule_instance(rule_parms, namespace, ("json", "rules", index))
+        )
     return filter_object
 
 
@@ -586,8 +651,15 @@ def apply_filter(
     args: dict[str, Any],
     namespace: str,
     handles: list[Handle] | None = None,
+    param_prefix: str = "",
 ) -> list[Handle]:
-    """Apply an existing or dynamically defined filter."""
+    """Apply an existing or dynamically defined filter.
+
+    `args` holds `filter` (a saved filter's name) or `rules` (a filter as
+    JSON), as the query parameters `<param_prefix>filter` and
+    `<param_prefix>rules`; an error's `messages` names the parameter the
+    client sent.
+    """
     filters.reload_custom_filters()
     if args.get("filter"):
         for filter_class in filters.CustomFilters.get_filters(namespace):
@@ -595,25 +667,31 @@ def apply_filter(
                 try:
                     return filter_class.apply(db_handle, id_list=handles)
                 except _RULE_VALUE_ERRORS as exc:
-                    abort_with_message(
-                        422,
-                        f"Filter {args['filter']} could not be evaluated: {exc}",
+                    _abort_rule_error(
+                        f"Filter {args['filter']} could not be evaluated",
+                        ("query", f"{param_prefix}filter"),
+                        exc,
                     )
         abort(404)
 
+    rules_path: RequestPath = ("query", f"{param_prefix}rules")
     try:
         filter_parms = FilterSchema().load(json.loads(args["rules"]))
     except json.JSONDecodeError:
         abort_with_message(400, "Error decoding JSON")
-    except ValidationError:
-        abort_with_message(422, "Filter does not adhere to schema")
-    _validate_filter_parms(filter_parms, namespace)
+    except ValidationError as error:
+        abort_with_message(
+            422,
+            "Filter does not adhere to schema",
+            extra={"messages": _nest_messages(rules_path, error.messages)},
+        )
+    _validate_filter_parms(filter_parms, namespace, rules_path)
 
     if handles is None:
         query_method = db_handle.method("get_%s_handles", namespace)
         assert query_method is not None, f"No handle query for namespace '{namespace}'"
         handles = list(query_method())
-    return _apply_filter_parms(filter_parms, db_handle, namespace, handles)
+    return _apply_filter_parms(filter_parms, db_handle, namespace, handles, rules_path)
 
 
 class RuleSchema(Schema):
