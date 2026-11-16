@@ -30,7 +30,10 @@ from gramps.gen.const import GRAMPS_LOCALE as glocale
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Citation, Note, Person
-from gramps.gen.relationship import get_relationship_calculator
+from gramps.gen.relationship import (
+    RelationshipCalculator,
+    get_relationship_calculator,
+)
 from gramps.gen.utils.grampslocale import GrampsLocale
 from marshmallow import Schema
 from webargs import fields, validate
@@ -159,9 +162,7 @@ def get_match_data(
     if loop_detected:
         # a relationship loop returns a single tuple even with all_dist=True
         data = [data]
-    min_rank = min(row[0] for row in data)
-    # rank is the number of generations from the common ancestor to both persons
-    distance = None if loop_detected or min_rank <= 0 else min_rank
+    distance = None if loop_detected else get_distance(data)
     side = get_side(data)
     # a male's X chromosome always comes from his mother
     side_x = SIDE_MATERNAL if person.gender == Person.MALE else side
@@ -227,6 +228,27 @@ def get_match_data(
                 raw_data.append(note.get())
         result["raw_data"] = raw_data
     return result
+
+
+def get_distance(data: list[tuple]) -> int | None:
+    """Get the number of generations between two persons via a common ancestor.
+
+    `data` is the list returned by `get_relationship_distance_new` with
+    `all_dist=True`. The rank of a path is the number of generations from the
+    common ancestor to both persons, except that a step to a sibling in a
+    family without parents counts as one although it stands for two
+    generations, up to the unknown parents and down again. Gramps core
+    corrects for it the same way in `get_all_relationships`.
+
+    Return None if the persons are unrelated.
+    """
+    min_rank = min(
+        row[0] + 1 if row[2].endswith(RelationshipCalculator.REL_SIBLING) else row[0]
+        for row in data
+    )
+    if min_rank <= 0:  # Unrelated
+        return None
+    return min_rank
 
 
 def get_side(data: list[tuple]) -> str:

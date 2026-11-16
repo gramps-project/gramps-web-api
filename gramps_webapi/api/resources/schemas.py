@@ -3192,7 +3192,8 @@ class DnaMatchSchema(_Base):
         metadata={
             "description": "Number of generations from the closest common ancestor "
             "to the person plus the number to the matching person, or null if "
-            "they are unrelated or a relationship loop was detected."
+            "they are unrelated or no relationship could be computed, e.g. "
+            "because the calculation aborted on a relationship loop."
         },
     )
     ancestor_handles = fields.List(

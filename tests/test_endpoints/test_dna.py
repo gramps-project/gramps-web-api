@@ -320,6 +320,7 @@ class TestDnaMatches(unittest.TestCase):
         )
         # the sibling's DNA can come from either of P's parents
         assert self._get_sides(h_p) == {("1", "U"), ("5", "U")}
+        assert self._get_distances(h_p) == {h_s: 2}
 
     def test_side_parentless_nephew(self):
         """Test a nephew through a sibling in a family without parents."""
@@ -339,6 +340,8 @@ class TestDnaMatches(unittest.TestCase):
         # the uncle's side is unknown, the nephew's is his mother's
         assert self._get_sides(h_p) == {("1", "U"), ("5", "U")}
         assert self._get_sides(h_m) == {("1", "M"), ("5", "M")}
+        assert self._get_distances(h_p) == {h_m: 3}
+        assert self._get_distances(h_m) == {h_p: 3}
 
     def test_side_double_first_cousins(self):
         """Test double first cousins."""
