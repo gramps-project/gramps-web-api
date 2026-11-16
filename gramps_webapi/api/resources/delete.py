@@ -575,6 +575,16 @@ def delete_object(
     db_handle: DbWriteBase, handle: str, gramps_class_name: str
 ) -> List[Dict[str, Any]]:
     """Delete the object and its references."""
+    with DbTxn(f"Delete {gramps_class_name}", db_handle) as trans:
+        delete_object_in_transaction(db_handle, handle, gramps_class_name, trans)
+        trans_dict = transaction_to_json(trans)
+    return trans_dict
+
+
+def delete_object_in_transaction(
+    db_handle: DbWriteBase, handle: str, gramps_class_name: str, trans: DbTxn
+) -> None:
+    """Delete the object and its references within a transaction."""
     key = gramps_class_name.lower()
     try:
         method = delete_methods[key]
@@ -583,12 +593,9 @@ def delete_object(
     unset_default_person = (
         gramps_class_name == "Person" and handle == db_handle.get_default_handle()
     )
-    with DbTxn(f"Delete {gramps_class_name}", db_handle) as trans:
-        method(db_handle, handle, trans=trans)
-        if unset_default_person:
-            db_handle.set_default_person_handle(None)
-        trans_dict = transaction_to_json(trans)
-    return trans_dict
+    method(db_handle, handle, trans=trans)
+    if unset_default_person:
+        db_handle.set_default_person_handle(None)
 
 
 def remove_deleted_from_search_indices(

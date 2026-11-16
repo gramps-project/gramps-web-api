@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 from flask import current_app
 from openai import OpenAIError
+from pydantic import ValidationError
 from pydantic_ai import ModelMessagesTypeAdapter, capture_run_messages
 from pydantic_ai.exceptions import (
     IncompleteToolCall,
@@ -33,7 +34,7 @@ from pydantic_ai.usage import UsageLimits
 
 from ..util import abort_with_message, close_db, get_db_outside_request, get_logger
 from .agent import create_agent
-from .deps import AgentDeps
+from .deps import AgentDeps, Proposal
 
 # e.g. https://www.example.com, followed by the path of a link
 _PLACEHOLDER_ORIGIN = re.compile(r"https?://(?:[\w-]+\.)*example\.(?:com|org|net)(?=/)")
@@ -157,6 +158,7 @@ def answer_with_agent(
     history: list | None = None,
     progress_callback: Callable[[str, str], None] | None = None,
     message_history_raw: str | None = None,
+    proposal: Proposal | None = None,
 ):
     """Answer a prompt using Pydantic AI agent.
 
@@ -169,6 +171,8 @@ def answer_with_agent(
         progress_callback: Optional callback fired at the start of each tool call
         message_history_raw: Serialized message history from a previous response.
             When provided, takes precedence over history.
+        proposal: If given, the agent may propose changes, which are
+            collected here. Ignored unless LLM_ALLOW_WRITE_PROPOSALS is set.
 
     Returns:
         AgentRunResult containing the response and metadata
@@ -184,6 +188,8 @@ def answer_with_agent(
     max_requests = config.get("LLM_MAX_REQUESTS", 15)
     max_tokens = config.get("LLM_MAX_TOKENS", 200_000)
     max_output_tokens = config.get("LLM_MAX_OUTPUT_TOKENS")
+    if not config.get("LLM_ALLOW_WRITE_PROPOSALS"):
+        proposal = None
 
     if not model_name:
         logger.error("No LLM model specified")
@@ -194,6 +200,7 @@ def answer_with_agent(
             model_name=model_name,
             base_url=base_url,
             system_prompt_override=system_prompt_override,
+            allow_write_proposals=proposal is not None,
         )
     except (UserError, ValueError, ImportError, OpenAIError) as e:
         # e.g. unknown provider prefix, missing provider API key/base URL
@@ -207,6 +214,7 @@ def answer_with_agent(
         max_context_length=max_context_length,
         user_id=user_id,
         progress_callback=progress_callback,
+        proposal=proposal,
     )
 
     message_history: list[ModelRequest | ModelResponse] = []
@@ -295,6 +303,15 @@ def answer_with_agent(
             )
             abort_with_message(
                 400, "The AI model's response exceeded its output token limit."
+            )
+        if isinstance(e.__cause__, (ValidationError, ModelRetry)):
+            # the model kept calling a tool with invalid arguments, despite
+            # the error messages it got back; the message names the tool
+            logger.warning("AI model gave up on a tool: %s", e)
+            abort_with_message(
+                502,
+                "The AI model could not use its tools correctly. "
+                "Please try again or rephrase your request.",
             )
         # str(e) can include the model's response body
         logger.error(

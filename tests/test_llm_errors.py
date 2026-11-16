@@ -28,6 +28,7 @@ from pydantic_ai.exceptions import (
     IncompleteToolCall,
     ModelAPIError,
     ModelHTTPError,
+    ModelRetry,
     UnexpectedModelBehavior,
 )
 from pydantic_ai.messages import ModelResponse, TextPart
@@ -47,9 +48,19 @@ def fixture_app():
     return app
 
 
+def _tool_retries_exceeded(cause: Exception) -> UnexpectedModelBehavior:
+    """The error Pydantic AI raises when a tool's retries are used up."""
+    error = UnexpectedModelBehavior(
+        "Tool 'propose_change' exceeded max retries count of 3"
+    )
+    error.__cause__ = cause
+    return error
+
+
 @pytest.mark.parametrize(
     "error,status",
     [
+        (_tool_retries_exceeded(ModelRetry("invalid arguments")), 502),
         (httpx.ReadTimeout(""), 504),
         (httpx.ConnectError("connection refused"), 503),
         (ModelAPIError(model_name="test-model", message="connection error"), 503),

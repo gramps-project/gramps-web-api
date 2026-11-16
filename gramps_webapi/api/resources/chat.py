@@ -33,7 +33,13 @@ from ..blueprint import api_blueprint
 from ..tasks import AsyncResult, make_task_response, process_chat, run_task
 from . import ProtectedResource
 from .schemas import ChatResponseSchema
-from ...auth.const import PERM_USE_CHAT, PERM_VIEW_PRIVATE
+from ...auth.const import (
+    PERM_ADD_OBJ,
+    PERM_DEL_OBJ,
+    PERM_EDIT_OBJ,
+    PERM_USE_CHAT,
+    PERM_VIEW_PRIVATE,
+)
 from ..auth import has_permissions, require_permissions
 
 
@@ -106,6 +112,10 @@ class ChatResource(ProtectedResource):
         tree = get_tree_from_jwt_or_fail()
         user_id = get_jwt_identity()
         include_private = has_permissions({PERM_VIEW_PRIVATE})
+        # proposals are applied as one transaction, which needs all three
+        allow_write_proposals = has_permissions(
+            {PERM_ADD_OBJ, PERM_EDIT_OBJ, PERM_DEL_OBJ}
+        )
 
         if args_query["background"]:
             task = run_task(
@@ -117,6 +127,7 @@ class ChatResource(ProtectedResource):
                 history=args_json.get("history"),
                 verbose=args_query["verbose"],
                 message_history_raw=args_json.get("message_history_raw"),
+                allow_write_proposals=allow_write_proposals,
             )
             if isinstance(task, AsyncResult):
                 return make_task_response(task)
@@ -132,6 +143,7 @@ class ChatResource(ProtectedResource):
                 history=args_json.get("history"),
                 verbose=args_query["verbose"],
                 message_history_raw=args_json.get("message_history_raw"),
+                allow_write_proposals=allow_write_proposals,
             )
         except ValueError:
             abort_with_message(422, "Invalid message format")
