@@ -320,6 +320,7 @@ class TestDnaMatches(unittest.TestCase):
         )
         # the sibling's DNA can come from either of P's parents
         assert self._get_sides(h_p) == {("1", "U"), ("5", "U")}
+        assert self._get_distances(h_p) == {h_s: 2}
 
     def test_side_parentless_nephew(self):
         """Test a nephew through a sibling in a family without parents."""
@@ -339,6 +340,8 @@ class TestDnaMatches(unittest.TestCase):
         # the uncle's side is unknown, the nephew's is his mother's
         assert self._get_sides(h_p) == {("1", "U"), ("5", "U")}
         assert self._get_sides(h_m) == {("1", "M"), ("5", "M")}
+        assert self._get_distances(h_p) == {h_m: 3}
+        assert self._get_distances(h_m) == {h_p: 3}
 
     def test_side_double_first_cousins(self):
         """Test double first cousins."""
@@ -371,6 +374,7 @@ class TestDnaMatches(unittest.TestCase):
             ]
         )
         assert self._get_sides(h_a) == {("1", "U"), ("5", "U")}
+        assert self._get_distances(h_a) == {h_b: 4}
 
     def test_side_relationship_loop(self):
         """Test the single tuple returned when a relationship loop is detected."""
@@ -388,6 +392,35 @@ class TestDnaMatches(unittest.TestCase):
             return_value=loop_result,
         ):
             assert self._get_sides(h_a) == {("1", "U"), ("5", "U")}
+            assert self._get_distances(h_a) == {h_b: None}
+
+    def _get_distances(self, handle):
+        """Get the distance of each of the person's matches by match handle."""
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.get(f"/api/people/{handle}/dna/matches", headers=headers)
+        assert rv.status_code == 200
+        return {match["handle"]: match["distance"] for match in rv.json}
+
+    def test_distance(self):
+        """Test the distance for related and unrelated matches."""
+        # G is the father of A and P; P is the father of N; U is unrelated
+        h_g, h_a, h_p, h_n, h_u = (make_handle() for _ in range(5))
+        h_f1, h_f2, h_note = (make_handle() for _ in range(3))
+        self._post_objects(
+            [
+                make_person(h_g, "G", 1),
+                make_person(h_a, "A", 0),
+                make_person(h_p, "P", 1),
+                make_person(
+                    h_n, "N", 0, matches=[h_a, h_g, h_p, h_u], note_handle=h_note
+                ),
+                make_person(h_u, "U", 1),
+                make_family(h_f1, father=h_g, children=[h_a, h_p]),
+                make_family(h_f2, father=h_p, children=[h_n]),
+                make_note(h_note, MATCH1),
+            ]
+        )
+        assert self._get_distances(h_n) == {h_a: 3, h_g: 2, h_p: 1, h_u: None}
 
     def test_side_x_chromosome(self):
         """Test that a male's X chromosome is maternal."""
@@ -565,6 +598,7 @@ class TestDnaMatches(unittest.TestCase):
         assert data["ancestor_profiles"][0]["name_given"] == "Grandfather"
         assert data["ancestor_profiles"][0]["name_surname"] == "Doe"
         assert data["relation"] == "le premier cousin"
+        assert data["distance"] == 4
         assert len(data["segments"]) == 4
         assert data["segments"][0] == {
             "chromosome": "1",
