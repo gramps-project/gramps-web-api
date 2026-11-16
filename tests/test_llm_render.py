@@ -91,6 +91,15 @@ class TestRender(unittest.TestCase):
         text = _render(self.db, "Event", "E1656")
         self.assertIn("Participants:\n- [Lewis Anderson Garner", text)
 
+    def test_family_event_participants(self):
+        text = _render(self.db, "Event", "E2815")
+        self.assertRegex(
+            text,
+            r"- \[family\]\(/family/F0017\): \[Lewis Anderson Garner[^\]]*\]"
+            r"\(/person/I0044\) \([^)]*\) and \[Luella Jacques Martel\]"
+            r"\(/person/I0045\)",
+        )
+
     def test_private_attribute(self):
         person = self.db.get_person_from_gramps_id("I0044")
         full = render_object(self.db, "Person", person)

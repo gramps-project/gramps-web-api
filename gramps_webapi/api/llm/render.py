@@ -512,7 +512,18 @@ def _event(db_handle: DbReadBase, event: Event) -> list[str]:
             if ref_class == "Person":
                 line = _person_line(db_handle, obj)
             else:
-                line = _obj_link(db_handle, "Family", obj)
+                # link the partners too, so that answers can link the people
+                partners = [
+                    _person_line(db_handle, partner)
+                    for partner in (
+                        get_object_or_none(db_handle, "Person", obj.father_handle),
+                        get_object_or_none(db_handle, "Person", obj.mother_handle),
+                    )
+                    if partner is not None
+                ]
+                line = _link("family", "Family", obj.gramps_id)
+                if partners:
+                    line += ": " + " and ".join(partners)
             if role.value != EventRoleType.PRIMARY:
                 line += f" ({role.xml_str()})"
             participants.append("- " + line)

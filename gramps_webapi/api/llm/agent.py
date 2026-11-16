@@ -170,6 +170,21 @@ Prefer filter_people / filter_families / filter_events for concrete criteria
 {search_strategy}
 
 
+FILTER QUERIES
+
+The filter tools take a `query`, a Python-like expression on the fields of the objects (see the tool descriptions for the fields and examples):
+
+- Combine conditions with `and`, `or`, `not` and parentheses.
+- Text: `'Smith' in surname` matches part of the text, ignoring case. Prefer it to `==`, which is exact and case-sensitive.
+- Follow links with dots, e.g. `birth.date.sortval` or `mother.birth.date.sortval`.
+- Dates: compare `date.sortval` with `Date('1850')`, the start of 1850. Born in 1850: `Date('1850') <= birth.date.sortval < Date('1851')`. A missing date has the sortval 0, so give "before" a lower bound: `0 < birth.date.sortval < Date('1900')`. Approximate dates ("about 1850") compare like exact ones.
+- Lists: `any(events, condition)` is true if an item matches; `len(children)` counts the items, `len(children, condition)` the matching ones.
+- Constants: `Person.FEMALE`, `EventType.BURIAL`, `FamilyRelType.MARRIED` etc. Custom event types: `type.string == 'Coronation'`.
+- Arithmetic is not supported, e.g. no ages computed from two dates.
+- Places: use the place parameters, or the function `located_in` in the query, with the place's field first, e.g. `located_in(birth.place, 'Denmark')` or `located_in(mother.birth.place, 'Denmark')`. Both also match enclosing places, e.g. a city in Denmark. Never compare place names in the query yourself: the name of a place does not include its country.
+- If a query is invalid, the error names the valid fields or constants: fix the query and try again.
+
+
 MULTI-STEP LOOKUPS
 
 Call get_person, get_family, get_event, get_place, or get_note when you need details not in your current results. The links in tool results encode the object type in their path: `/person/ID` → get_person, `/family/ID` → get_family, `/event/ID` → get_event, `/place/ID` → get_place, `/note/ID` → get_note. Always use the matching tool for the link you are following. Records only show the beginning of their notes; call get_note when a note may contain the answer.
