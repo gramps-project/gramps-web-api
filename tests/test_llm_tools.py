@@ -122,8 +122,7 @@ class TestDescribeError(unittest.TestCase):
     def test_includes_messages(self):
         messages = {"query": {"rules": {"rules": {"0": ["invalid date"]}}}}
         text = _describe_error(self._raise(extra={"messages": messages}))
-        self.assertTrue(text.startswith("Rule HasBirth could not be evaluated: "))
-        self.assertIn("invalid date", text)
+        self.assertEqual(text, "Rule HasBirth could not be evaluated: invalid date")
 
     def test_message_only(self):
         self.assertEqual(
@@ -228,6 +227,24 @@ class TestFilterPeopleTool(FilterToolTestCase):
                     result,
                 )
 
+    def test_place_name_rejection_names_the_field(self):
+        result = self._call(
+            filter_families, query="'Denmark' in mother.birth.place.name.value"
+        )
+        self.assertIn("located_in(mother.birth.place, 'Denmark')", result)
+
+    def test_located_in_as_method(self):
+        # as a model wrote it, with the placeholder of the documentation
+        result = self._call(
+            filter_people, query="birth.place.located_in(path, 'Llano')"
+        )
+        self.assertEqual(
+            result,
+            "Invalid filter: located_in is a function, not a field; pass the"
+            " place's field as the first argument:"
+            " located_in(birth.place, 'Llano')",
+        )
+
     def test_located_in_invalid_arguments(self):
         result = self._call(filter_people, query="located_in('Llano')")
         self.assertTrue(result.startswith("Invalid filter: located_in takes"), result)
@@ -257,7 +274,12 @@ class TestFilterPeopleTool(FilterToolTestCase):
 
     def test_unknown_field(self):
         result = self._call(filter_people, query="'Garner' in last_name")
-        self.assertTrue(result.startswith("Invalid filter: "), result)
+        self.assertTrue(
+            result.startswith(
+                "Invalid filter: Invalid MatchesQuery expression: unknown field"
+            ),
+            result,
+        )
         self.assertIn("primary_name", result)
 
     def test_no_criteria(self):

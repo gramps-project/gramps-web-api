@@ -176,7 +176,7 @@ The filter tools take a `query`, a Python-like expression on the fields of the o
 - Lists: `any(events, condition)` is true if an item matches; `len(children)` counts the items, `len(children, condition)` the matching ones.
 - Constants: `Person.FEMALE`, `EventType.BURIAL`, `FamilyRelType.MARRIED` etc. Custom event types: `type.string == 'Coronation'`.
 - Arithmetic is not supported, e.g. no ages computed from two dates.
-- Places: use the place parameters or `located_in(path, 'name')` in the query, e.g. `located_in(mother.birth.place, 'Denmark')`. Both also match enclosing places, e.g. a city in Denmark. Never compare place names in the query yourself: the name of a place does not include its country.
+- Places: use the place parameters, or the function `located_in` in the query, with the place's field first, e.g. `located_in(birth.place, 'Denmark')` or `located_in(mother.birth.place, 'Denmark')`. Both also match enclosing places, e.g. a city in Denmark. Never compare place names in the query yourself: the name of a place does not include its country.
 - If a query is invalid, the error names the valid fields or constants: fix the query and try again.
 
 

@@ -87,14 +87,27 @@ class _LocatedIn(ast.NodeTransformer):
         )
         if node.attr in ("name", "title") and parent_name in ("place", "enclosed_by"):
             raise ValueError(
-                "do not match place names directly; use located_in(path, 'name'),"
-                " e.g. located_in(birth.place, 'Denmark'), which also matches"
-                " enclosing places"
+                "do not match place names directly; use the function located_in"
+                f" with the place's field first, e.g. located_in({ast.unparse(parent)},"
+                " 'Denmark'), which also matches enclosing places"
             )
         return self.generic_visit(node)
 
     def visit_Call(self, node: ast.Call) -> ast.AST:
         self.generic_visit(node)
+        if isinstance(node.func, ast.Attribute) and node.func.attr == "located_in":
+            # e.g. birth.place.located_in('Denmark')
+            names = [
+                arg.value
+                for arg in node.args
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+            ]
+            example = f"located_in({ast.unparse(node.func.value)}, "
+            example += f"'{names[0]}')" if names else "'Denmark')"
+            raise ValueError(
+                "located_in is a function, not a field; pass the place's field"
+                f" as the first argument: {example}"
+            )
         if not (isinstance(node.func, ast.Name) and node.func.id == "located_in"):
             return node
         if (
@@ -104,7 +117,7 @@ class _LocatedIn(ast.NodeTransformer):
             or not isinstance(node.args[1].value, str)
         ):
             raise ValueError(
-                "located_in takes a place path and a place name,"
+                "located_in takes the place's field and a place name,"
                 " e.g. located_in(birth.place, 'Boston')"
             )
         name = node.args[1].value
@@ -173,19 +186,31 @@ def _get_relationship_prefix(db_handle, anchor_person, result_person, logger) ->
     return ""
 
 
+def _leaf_messages(messages: Any) -> list[str]:
+    """Return the texts in an API error's `messages`, without the keys that
+    locate them in the request: the tools build the request, so the model
+    can't relate those keys to anything it wrote.
+    """
+    if isinstance(messages, dict):
+        return [text for value in messages.values() for text in _leaf_messages(value)]
+    if isinstance(messages, list):
+        return [text for value in messages for text in _leaf_messages(value)]
+    return [str(messages)]
+
+
 def _describe_error(error: Exception) -> str:
     """Return an error's text for the model, including the details an API
-    error carries in `messages` (e.g. why a rule value didn't parse), which
-    `str(error)` leaves out.
+    error carries in `messages` (e.g. why a rule value didn't parse, or
+    GOQL's explanation of an invalid query), which `str(error)` leaves out.
     """
     if isinstance(error, HTTPException) and error.response is not None:
         try:
             body = json.loads(error.get_response().get_data(as_text=True))["error"]
         except (ValueError, KeyError, TypeError):
             return str(error)
-        details = body.get("messages")
+        details = _leaf_messages(body.get("messages") or [])
         if details:
-            return f"{body.get('message', '')}: {json.dumps(details)}"
+            return f"{body.get('message', '')}: {'; '.join(details)}"
         return str(body.get("message", error))
     return str(error)
 
@@ -264,7 +289,7 @@ def _apply_gramps_filter(
             # but contains the query, so it is not logged
             logger.debug("%s filter failed with status %s", namespace, e.code)
             db_handle.close()
-            return f"Invalid filter: {e.description}"
+            return f"Invalid filter: {_describe_error(e)}"
 
         if not matching_handles:
             db_handle.close()
