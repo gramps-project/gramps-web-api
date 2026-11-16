@@ -51,10 +51,7 @@ QUERY_VIEWS: Dict[str, Dict[str, Any]] = {
             "event_ref_list as event_refs",
             "family_list",
         ],
-        "order_by": [
-            {"column": "surname", "direction": "asc"},
-            {"column": "given_name", "direction": "asc"},
-        ],
+        "order_by": ["surname", "given_name"],
     },
     "Families": {
         "path": "/api/families/query/",
@@ -67,7 +64,7 @@ QUERY_VIEWS: Dict[str, Dict[str, Any]] = {
             "father_handle",
             "mother_handle",
         ],
-        "order_by": [{"column": "gramps_id", "direction": "asc"}],
+        "order_by": ["gramps_id"],
     },
     "Events": {
         "path": "/api/events/query/",
@@ -81,7 +78,7 @@ QUERY_VIEWS: Dict[str, Dict[str, Any]] = {
             "place",
             "change",
         ],
-        "order_by": [{"column": "gramps_id", "direction": "asc"}],
+        "order_by": ["gramps_id"],
     },
 }
 
@@ -91,7 +88,7 @@ def _query_body(
     limit: int = QUERY_PAGE_SIZE,
     count: bool = False,
     where_expr: Optional[str] = None,
-    order_by: Optional[List[Dict[str, str]]] = None,
+    order_by: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Build a /query/ request body."""
     body: Dict[str, Any] = {
@@ -446,7 +443,7 @@ def get_query_endpoints() -> List[Dict[str, Any]]:
                 "json": _query_body(
                     people,
                     limit=8,
-                    order_by=[{"column": "change", "direction": "desc"}],
+                    order_by=["-change"],
                 ),
             },
         ]
