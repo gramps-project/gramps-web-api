@@ -159,6 +159,9 @@ def get_match_data(
     if loop_detected:
         # a relationship loop returns a single tuple even with all_dist=True
         data = [data]
+    min_rank = min(row[0] for row in data)
+    # rank is the number of generations from the common ancestor to both persons
+    distance = None if loop_detected or min_rank <= 0 else min_rank
     side = get_side(data)
     # a male's X chromosome always comes from his mother
     side_x = SIDE_MATERNAL if person.gender == Person.MALE else side
@@ -210,6 +213,7 @@ def get_match_data(
         "handle": association.ref,
         "segments": segments,
         "relation": rel_string,
+        "distance": distance,
         "ancestor_handles": ancestor_handles,
         "ancestor_profiles": ancestor_profiles,
         "person_ref_idx": association_index,

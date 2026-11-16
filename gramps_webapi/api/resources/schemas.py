@@ -3187,6 +3187,14 @@ class DnaMatchSchema(_Base):
     relation = fields.Str(
         metadata={"description": "Estimated relationship to the matching person."},
     )
+    distance = fields.Int(
+        allow_none=True,
+        metadata={
+            "description": "Number of generations from the closest common ancestor "
+            "to the person plus the number to the matching person, or null if "
+            "they are unrelated or a relationship loop was detected."
+        },
+    )
     ancestor_handles = fields.List(
         fields.Str(),
         metadata={"description": "Handles of latest common ancestors."},
