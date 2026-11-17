@@ -26,7 +26,6 @@ from __future__ import annotations
 import mimetypes
 import os
 import uuid
-from pathlib import Path
 from typing import Callable, Dict, Optional
 
 import gramps_gedcom7
@@ -44,7 +43,6 @@ from gramps.gen.proxy import (
     ReferencedBySelectionProxyDb,
 )
 from gramps.gen.user import User
-from gramps.gen.utils.resourcepath import ResourcePath
 
 from ..const import DISABLED_EXPORTERS
 from .resources.util import truncate_import_report
@@ -305,8 +303,6 @@ def run_export(
             )
     file_name = f"{uuid.uuid4()}.{extension}"
     file_path = os.path.join(export_path, file_name)
-    _resources = ResourcePath()
-    os.environ["GRAMPS_RESOURCES"] = str(Path(_resources.data_dir).parent)
     filters.reload_custom_filters()
     plugin_manager = BasePluginManager.get_instance()
     for plugin in plugin_manager.get_export_plugins():
