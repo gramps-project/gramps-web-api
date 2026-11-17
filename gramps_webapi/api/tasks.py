@@ -439,40 +439,44 @@ def import_file(
     dry_run: bool = False,
 ):
     """Import a file."""
-    dry_run_result = dry_run_import(
-        file_name=file_name,
-        extension=extension,
-        progress_cb=progress_callback_count(title="Reading file..."),
-    )
-    if dry_run_result is None:
-        raise ValueError(f"Failed importing {extension} file")
-    # the dry run's own messages are only reported for a dry run; for a real
-    # import they are replaced below by the ones the actual import emitted
-    object_counts = {k: v for k, v in dry_run_result.items() if k != "messages"}
-    if dry_run:
-        if delete:
+    try:
+        dry_run_result = dry_run_import(
+            file_name=file_name,
+            extension=extension,
+            progress_cb=progress_callback_count(title="Reading file..."),
+        )
+        if dry_run_result is None:
+            raise ValueError(f"Failed importing {extension} file")
+        # the dry run's own messages are only reported for a dry run; for a real
+        # import they are replaced below by the ones the actual import emitted
+        object_counts = {k: v for k, v in dry_run_result.items() if k != "messages"}
+        if dry_run:
+            return dry_run_result
+        check_quota_people(to_add=object_counts["people"], tree=tree, user_id=user_id)
+        db_handle = get_db_outside_request(
+            tree=tree, view_private=True, readonly=False, user_id=user_id
+        )
+        try:
+            messages = run_import(
+                db_handle=db_handle,
+                file_name=file_name,
+                extension=extension.lower(),
+                delete=delete,
+                task=self,
+                progress_cb=progress_callback_count(title="Importing..."),
+            )
+        finally:
+            close_db(db_handle)
+    finally:
+        # a rejected file (malformed, over quota) never reaches the import
+        # that would otherwise delete it
+        if delete and os.path.isfile(file_name):
             try:
                 os.remove(file_name)
             except OSError as e:
                 logging.getLogger(__name__).warning(
                     "Failed to delete temporary file %s: %s", file_name, e
                 )
-        return dry_run_result
-    check_quota_people(to_add=object_counts["people"], tree=tree, user_id=user_id)
-    db_handle = get_db_outside_request(
-        tree=tree, view_private=True, readonly=False, user_id=user_id
-    )
-    try:
-        messages = run_import(
-            db_handle=db_handle,
-            file_name=file_name,
-            extension=extension.lower(),
-            delete=delete,
-            task=self,
-            progress_cb=progress_callback_count(title="Importing..."),
-        )
-    finally:
-        close_db(db_handle)
     update_usage_people(tree=tree, user_id=user_id)
     # imported media objects can refer to files already on disk
     run_task(update_media_usage_task, tree=tree, user_id=user_id)

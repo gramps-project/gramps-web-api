@@ -37,6 +37,7 @@ from gramps_webapi.api.resources.util import (
     run_import,
     truncate_import_report,
 )
+from gramps_webapi.api.tasks import import_file
 from gramps_webapi.app import create_app
 
 APP = create_app(
@@ -440,6 +441,31 @@ class TestGedcom7ErrorHandling(unittest.TestCase):
             if os.path.exists(temp_file):
                 os.unlink(temp_file)
 
+    def test_gedcom7_syntax_error_hides_directory(self):
+        """A malformed line is reported by number without the server path."""
+        content = (
+            b"0 HEAD\n1 GEDC\n2 VERS 7.0\n0 @I1@ INDI\n1 NAME John /Doe/\n"
+            b"this is not a GEDCOM line\n0 TRLR\n"
+        )
+        with tempfile.NamedTemporaryFile(suffix=".ged", delete=False) as f:
+            f.write(content)
+            temp_file = f.name
+        try:
+            with APP.app_context():
+                with self.assertRaises(HTTPException) as cm:
+                    dry_run_import(file_name=temp_file, extension="ged")
+            self.assertEqual(cm.exception.code, 422)
+            response = cm.exception.response
+            assert response is not None
+            message = response.get_json()["error"]["message"]
+            self.assertIn("line 6", message)
+            self.assertIn("malformed line", message)
+            self.assertIn(os.path.basename(temp_file), message)
+            self.assertNotIn(os.path.dirname(temp_file), message)
+        finally:
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
+
     @patch("gramps_webapi.api.resources.util.detect_gedcom_major_version")
     @patch("gramps_webapi.api.resources.util.gramps_gedcom7")
     def test_gedcom7_no_delete_preserves_file(self, mock_gedcom7, mock_detect_version):
@@ -556,25 +582,55 @@ class TestTruncateImportReport(unittest.TestCase):
         lines = [f"Error on line {i}: something went wrong" for i in range(10000)]
         result = truncate_import_report(["\n".join(lines)], max_chars=1000)
         self.assertLess(sum(len(m) for m in result), 1200)
-        self.assertIn("Report truncated", result[-1])
+        self.assertEqual(len(result), 3)
+        self.assertIn("Report truncated", result[1])
         # the beginning is kept, so the importer's summary line survives
         self.assertIn("Error on line 0:", result[0])
+        # and so is the end, where the synthesised records are reported
+        self.assertIn("Error on line 9999:", result[2])
+
+    def test_findings_at_end_survive(self):
+        """Findings reported after a long report body are kept."""
+        report = "\n".join(
+            [
+                "GEDCOM import report: 2000 errors detected",
+                *(f"Line ignored as not understood   Line {i}" for i in range(2000)),
+                "Error: FAM 'F0001' (input as @F1@) not in input GEDCOM. "
+                "Record synthesised",
+                "The imported file was not self-contained.",
+            ]
+        )
+        result = "\n".join(truncate_import_report([report], max_chars=10_000))
+        self.assertIn("2000 errors detected", result)
+        self.assertIn("Record synthesised", result)
+        self.assertIn("not self-contained", result)
 
     def test_truncation_counts_all_omitted_lines(self):
         """The omitted count covers every line that was dropped."""
         lines = [f"line {i}" for i in range(500)]
         result = truncate_import_report(["\n".join(lines)], max_chars=100)
-        match = re.search(r"(\d+) further lines omitted", result[-1])
+        match = re.search(r"(\d+) further lines omitted", result[1])
         assert match is not None
-        kept = sum(m.count("\n") + 1 for m in result[:-1])
+        kept = sum(m.count("\n") + 1 for m in (result[0], result[2]))
         self.assertEqual(int(match.group(1)) + kept, 500)
 
     def test_truncation_cuts_at_line_boundary(self):
         """Truncation never leaves a partial line."""
         lines = [f"line {i}" for i in range(500)]
         result = truncate_import_report(["\n".join(lines)], max_chars=100)
-        for line in result[0].split("\n"):
-            self.assertRegex(line, r"^line \d+$")
+        for message in (result[0], result[2]):
+            for line in message.split("\n"):
+                self.assertRegex(line, r"^line \d+$")
+
+    def test_message_boundaries_are_kept(self):
+        """Separate messages are not merged when truncating."""
+        warning = "Legacy GEDCOM detected"
+        report = "\n".join(f"line {i}" for i in range(500))
+        result = truncate_import_report([warning, report], max_chars=200)
+        self.assertEqual(result[0], warning)
+        self.assertTrue(result[1].startswith("line 0\n"))
+        self.assertIn("Report truncated", result[2])
+        self.assertTrue(result[3].endswith("line 499"))
 
     def test_default_cap_is_applied(self):
         """The default budget is used when none is given."""
@@ -780,6 +836,77 @@ class TestImportErrorReported(unittest.TestCase):
             message = response.get_json()["error"]["message"]
             self.assertIn("Import failed", message)
             self.assertIn("XML or text declaration", message)
+        finally:
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
+
+    @patch("gramps_webapi.api.resources.util.make_database")
+    def test_dry_run_closes_database_on_failure(self, mock_make_database):
+        """The scratch database is closed when the import is rejected."""
+        with tempfile.NamedTemporaryFile(suffix=".ged", delete=False) as f:
+            f.write(b"0 @I1@ INDI\n1 NAME John /Doe/\n0 TRLR\n")
+            temp_file = f.name
+        try:
+            with APP.app_context():
+                with patch(
+                    "gramps_webapi.api.resources.util.run_import",
+                    side_effect=RuntimeError("boom"),
+                ):
+                    with self.assertRaises(RuntimeError):
+                        dry_run_import(file_name=temp_file, extension="ged")
+            mock_make_database.return_value.close.assert_called_once()
+        finally:
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
+
+    def test_rejected_file_is_removed_by_task(self):
+        """The import task deletes an upload that fails the dry run."""
+        with tempfile.NamedTemporaryFile(suffix=".ged", delete=False) as f:
+            f.write(b"0 @I1@ INDI\n1 NAME John /Doe/\n0 TRLR\n")
+            temp_file = f.name
+        try:
+            with APP.app_context():
+                with self.assertRaises(HTTPException):
+                    import_file(
+                        tree="test",
+                        user_id="user",
+                        file_name=temp_file,
+                        extension="ged",
+                        delete=True,
+                        dry_run=True,
+                    )
+            self.assertFalse(os.path.exists(temp_file))
+        finally:
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
+
+    @patch("gramps_webapi.api.resources.util.os.remove")
+    def test_cleanup_failure_doesnt_mask_importer_error(self, mock_remove):
+        """A failed deletion does not replace the importer's own exception."""
+        mock_remove.side_effect = PermissionError("Permission denied")
+        importer = MagicMock()
+        importer.get_extension.return_value = "ged"
+        importer.get_import_function.return_value = MagicMock(
+            side_effect=RuntimeError("importer failed")
+        )
+        with tempfile.NamedTemporaryFile(suffix=".ged", delete=False) as f:
+            temp_file = f.name
+        try:
+            with APP.app_context():
+                with patch(
+                    "gramps_webapi.api.resources.util.BasePluginManager"
+                ) as mock_manager:
+                    mock_manager.get_instance.return_value.get_import_plugins.return_value = [
+                        importer
+                    ]
+                    with self.assertRaisesRegex(RuntimeError, "importer failed"):
+                        run_import(
+                            db_handle=MagicMock(),
+                            file_name=temp_file,
+                            extension="ged",
+                            delete=True,
+                        )
+            mock_remove.assert_called_once_with(temp_file)
         finally:
             if os.path.exists(temp_file):
                 os.unlink(temp_file)
