@@ -145,6 +145,17 @@ def extract_metadata_from_result(result) -> dict[str, Any]:
     return metadata
 
 
+_CHECK_DATABASE = "Check the database before you rely on those records."
+
+# what the user did with the changes proposed in the previous answer
+PREVIOUS_PROPOSAL_NOTES = {
+    "applied": "The user applied the changes you proposed in your previous "
+    f"answer. {_CHECK_DATABASE}",
+    "not_applied": "The user did not apply the changes you proposed in your "
+    f"previous answer; they are not in the database. {_CHECK_DATABASE}",
+}
+
+
 def _output_limit_reached(messages: list[ModelMessage]) -> bool:
     """Whether the last model response was cut off at the output token limit."""
     responses = [msg for msg in messages if isinstance(msg, ModelResponse)]
@@ -161,6 +172,7 @@ def answer_with_agent(
     message_history_raw: str | None = None,
     proposal: Proposal | None = None,
     images: list[str] | None = None,
+    previous_proposal: str | None = None,
 ):
     """Answer a prompt using Pydantic AI agent.
 
@@ -177,6 +189,9 @@ def answer_with_agent(
             collected here. Ignored unless LLM_ALLOW_WRITE_PROPOSALS is set.
         images: Optional images attached to the prompt, as returned by
             normalize_image.
+        previous_proposal: "applied" or "not_applied", what the user did with
+            the changes proposed in the previous answer. The frontend strips
+            tool calls from the history, so the model can't tell otherwise.
 
     Returns:
         AgentRunResult containing the response and metadata
@@ -260,6 +275,8 @@ def answer_with_agent(
                 [prompt, *image_parts(images)] if images else prompt,
                 deps=deps,
                 message_history=message_history,
+                # only sent with this turn, later turns don't repeat it
+                instructions=PREVIOUS_PROPOSAL_NOTES.get(previous_proposal or ""),
                 usage_limits=usage_limits,
                 # no default, as providers reject values above the model's limit
                 model_settings=(
