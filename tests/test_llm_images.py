@@ -24,11 +24,12 @@ import io
 
 import pytest
 from flask import Flask
-from PIL import Image
+from PIL import Image, PngImagePlugin
 from pydantic_ai import ModelMessagesTypeAdapter
 from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.messages import (
     BinaryContent,
+    FilePart,
     ImageUrl,
     ModelRequest,
     ModelResponse,
@@ -114,6 +115,16 @@ def test_normalize_accepts_data_url():
 def test_normalize_rejects_invalid_images(data):
     with pytest.raises(InvalidImageError):
         normalize_image(data)
+
+
+def test_normalize_rejects_png_with_large_text():
+    """Pillow raises ValueError for some invalid files, e.g. huge PNG text."""
+    info = PngImagePlugin.PngInfo()
+    info.add_text("comment", "a" * (PngImagePlugin.MAX_TEXT_CHUNK + 1), zip=True)
+    output = io.BytesIO()
+    Image.new("RGB", (1, 1)).save(output, format="PNG", pnginfo=info)
+    with pytest.raises(InvalidImageError, match="Invalid image"):
+        normalize_image(base64.b64encode(output.getvalue()).decode())
 
 
 def test_normalize_rejects_large_files(monkeypatch):
@@ -276,3 +287,40 @@ def test_provider_rejecting_images(app, monkeypatch, with_images, status):
                 images=images if with_images else None,
             )
     assert excinfo.value.code == status
+
+
+def test_files_in_history_responses_are_stripped(app, monkeypatch):
+    """Files in model responses can't bypass the image checks via the history."""
+    seen = []
+
+    def model_function(messages, info: AgentInfo) -> ModelResponse:
+        seen.extend(part for msg in messages for part in msg.parts)
+        return ModelResponse(parts=[TextPart(content="Ok.")])
+
+    _use_model(monkeypatch, model_function)
+    charged = []
+    monkeypatch.setattr(
+        "gramps_webapi.api.tasks.update_usage_ai",
+        lambda new, tree: charged.append(new),
+    )
+    image = BinaryContent(data=b"image", media_type="image/png")
+    history = ModelMessagesTypeAdapter.dump_json(
+        [
+            ModelRequest(parts=[UserPromptPart(content="Draw a tree")]),
+            ModelResponse(parts=[TextPart(content="Here:"), FilePart(content=image)]),
+        ]
+    ).decode()
+
+    with app.app_context():
+        result = process_chat(
+            tree="tree",
+            user_id="user",
+            query="What is this?",
+            include_private=False,
+            message_history_raw=history,
+        )
+
+    assert not any(isinstance(part, FilePart) for part in seen)
+    assert OMITTED_IMAGE in [getattr(part, "content", None) for part in seen]
+    assert base64.b64encode(b"image").decode() not in result["message_history_raw"]
+    assert charged == [1]
