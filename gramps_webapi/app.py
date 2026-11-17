@@ -54,7 +54,12 @@ from .api.resources.schemas import (
     TagSchema,
 )
 from .api.tasks import run_task, send_telemetry_task
-from .api.telemetry import get_server_uuid, should_send_telemetry
+from .api.telemetry import (
+    get_server_uuid,
+    get_telemetry_payload,
+    should_send_telemetry,
+    update_telemetry_timestamp,
+)
 from .api.util import close_db, get_tree_from_jwt
 from .auth import user_db
 from .auth.oidc import init_oidc
@@ -380,7 +385,13 @@ def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = 
             return None
         try:
             if should_send_telemetry():
-                run_task(send_telemetry_task, tree=tree_id)
+                # Update the timestamp before queueing, so that the next
+                # request doesn't queue another task (and a failed send does
+                # not trigger an immediate retry). Build the payload here, so
+                # the server UUID comes from the web process's cache.
+                update_telemetry_timestamp()
+                payload = get_telemetry_payload(tree_id)
+                run_task(send_telemetry_task, tree=tree_id, payload=payload)
         except Exception as exc:
             _LOG.warning("Telemetry error: %s", exc)
 
