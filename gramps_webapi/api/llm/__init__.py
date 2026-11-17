@@ -147,10 +147,10 @@ def extract_metadata_from_result(result) -> dict[str, Any]:
 
 _CHECK_DATABASE = "Check the database before you rely on those records."
 
-# what the user did with the changes proposed in the previous answer
+# what the user did with proposed changes since the last prompt
 PREVIOUS_PROPOSAL_NOTES = {
-    "applied": "The user applied the changes you proposed in your previous "
-    f"answer. {_CHECK_DATABASE}",
+    "applied": "The user applied changes you proposed earlier in this "
+    f"conversation. {_CHECK_DATABASE}",
     "not_applied": "The user did not apply the changes you proposed in your "
     f"previous answer; they are not in the database. {_CHECK_DATABASE}",
 }
@@ -189,9 +189,11 @@ def answer_with_agent(
             collected here. Ignored unless LLM_ALLOW_WRITE_PROPOSALS is set.
         images: Optional images attached to the prompt, as returned by
             normalize_image.
-        previous_proposal: "applied" or "not_applied", what the user did with
-            the changes proposed in the previous answer. The frontend strips
-            tool calls from the history, so the model can't tell otherwise.
+        previous_proposal: "applied" if the user applied changes proposed in
+            any earlier answer since the last prompt; "not_applied" if nothing
+            was applied and the previous answer had a proposal. The frontend
+            strips tool calls from the history, so the model can't tell
+            otherwise.
 
     Returns:
         AgentRunResult containing the response and metadata

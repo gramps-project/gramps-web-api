@@ -1177,8 +1177,9 @@ def process_chat(
     If `allow_write_proposals` is true, the agent may propose changes, which
     are returned for the user to approve. `images` are base64 JPEGs as
     returned by `normalize_image`; they are not kept in the returned history.
-    `previous_proposal` ("applied" or "not_applied") says what the user did
-    with the changes proposed in the previous answer.
+    `previous_proposal` is "applied" if the user applied changes proposed in
+    any earlier answer since the last prompt, and "not_applied" if nothing
+    was applied and the previous answer had a proposal.
     """
     # import here to avoid error if AI dependencies are not installed
     from pydantic_ai import ModelMessagesTypeAdapter

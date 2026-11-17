@@ -90,9 +90,11 @@ class ChatBodyArgs(Schema):
         load_default=None,
         validate=validate.OneOf(["applied", "not_applied"]),
         metadata={
-            "description": "Whether the user applied the changes proposed in the "
-            "assistant's immediately preceding response: 'applied' or "
-            "'not_applied'. Omit it if that response had no proposal."
+            "description": "'applied' if, since the last prompt, the user "
+            "applied changes the assistant proposed in any earlier response. "
+            "'not_applied' if nothing was applied since the last prompt and "
+            "the assistant's immediately preceding response had a proposal. "
+            "Omit it otherwise."
         },
     )
     images = fields.List(

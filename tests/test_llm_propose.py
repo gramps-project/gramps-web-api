@@ -675,12 +675,12 @@ def _instructions_seen(monkeypatch, tree, previous_proposal, message_history_raw
 @pytest.mark.parametrize(
     "previous_proposal, expected",
     [
-        ("applied", "The user applied the changes"),
+        ("applied", "The user applied changes you proposed earlier"),
         ("not_applied", "they are not in the database"),
     ],
 )
 def test_previous_proposal_note(app, monkeypatch, tree, previous_proposal, expected):
-    """The model is told whether the user applied its last proposal."""
+    """The model is told whether the user applied its proposals."""
     (instructions,), result = _instructions_seen(monkeypatch, tree, previous_proposal)
     assert expected in instructions
     assert "Check the database" in instructions
