@@ -135,7 +135,11 @@ from .resources.places import (
     PlacesResource,
 )
 from .resources.push_subscriptions import UserPushSubscriptionsResource
-from .resources.relations import RelationResource, RelationsResource
+from .resources.relations import (
+    RelationPathsResource,
+    RelationResource,
+    RelationsResource,
+)
 from .resources.reports import (
     ReportFileResource,
     ReportFileResultResource,
@@ -749,6 +753,12 @@ register_endpt(
     RelationsResource,
     "/relations/<string:handle1>/<string:handle2>/all",
     "relations",
+    tags=["Relations"],
+)
+register_endpt(
+    RelationPathsResource,
+    "/relations/<string:handle1>/<string:handle2>/paths",
+    "relation-paths",
     tags=["Relations"],
 )
 # Living

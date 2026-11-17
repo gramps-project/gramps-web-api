@@ -34,9 +34,11 @@ from typing import (
     Callable,
     ContextManager,
     Generator,
+    Iterable,
     Iterator,
     NoReturn,
     Optional,
+    Sequence,
     Union,
 )
 
@@ -55,6 +57,7 @@ from gramps.gen.lib.json_utils import (
     string_to_data,
 )
 
+from ...future_gramps.raw_data_many import RAW_DATA_BATCH_SIZE
 from ..resources.db_backend import (
     has_secondary_columns,
     sql_count,
@@ -108,7 +111,7 @@ EXTRA_COLUMNS = {
     "Note": "CASE WHEN json_data LIKE ? THEN json_data END",
 }
 # Lookups of single handles in a table, after which all visible handles of the
-# table are read at once.
+# table are read at once. Handles looked up in batches don't count.
 SINGLE_LOOKUPS = 200
 
 CUSTOM_TYPE_METHODS = [
@@ -145,13 +148,17 @@ class RestrictedDb(DbReadBase):
         self.__policy = policy
         # class name -> all visible handles
         self.__visible: dict[str, frozenset[str]] = {}
-        # class name -> handle -> visible, for single lookups
+        # class name -> handle -> visible, for single and batch lookups
         self.__single: dict[str, dict[str, bool]] = {}
+        # class name -> number of single lookups
+        self.__lookups: dict[str, int] = {}
         # family handle -> handles of children with a public child reference,
         # read at once when iterating over all people
         self.__child_refs: Optional[dict[str, frozenset[str]]] = None
         # the same for single families, until a request needs many
         self.__single_child_refs: dict[str, frozenset[str]] = {}
+        # number of single families read for their child references
+        self.__child_ref_lookups = 0
         self.name_formats = db.name_formats
         # the tree's title, set by Gramps when opening it
         self.db_name = getattr(db, "db_name", "")
@@ -196,11 +203,35 @@ class RestrictedDb(DbReadBase):
         cache = self.__single.setdefault(class_name, {})
         if handle in cache:
             return cache[handle]
-        if len(cache) >= SINGLE_LOOKUPS:
+        lookups = self.__lookups.get(class_name, 0)
+        if lookups >= SINGLE_LOOKUPS:
             return handle in self.__visible_handles(class_name)
-        rows = self.__select_visible(class_name, EXTRA_COLUMNS.get(class_name), handle)
+        self.__lookups[class_name] = lookups + 1
+        rows = self.__select_visible(
+            class_name, EXTRA_COLUMNS.get(class_name), [handle]
+        )
         cache[handle] = bool(rows) and self.__row_visible(class_name, rows[0])
         return cache[handle]
+
+    def __check_visible_many(self, class_name: str, handles: Iterable[str]) -> None:
+        """Look up whether many handles are visible, a batch per query.
+
+        Afterwards, `is_visible` answers for them without a query.
+        """
+        if class_name == "Tag" or class_name in self.__visible:
+            return
+        cache = self.__single.setdefault(class_name, {})
+        todo = [handle for handle in dict.fromkeys(handles) if handle not in cache]
+        column = EXTRA_COLUMNS.get(class_name)
+        for start in range(0, len(todo), RAW_DATA_BATCH_SIZE):
+            batch = todo[start : start + RAW_DATA_BATCH_SIZE]
+            rows = self.__select_visible(class_name, column, batch)
+            if class_name == "Citation":
+                # their sources decide whether they are visible
+                self.__check_visible_many("Source", [row[1] for row in rows if row[1]])
+            visible = {row[0]: self.__row_visible(class_name, row) for row in rows}
+            for handle in batch:
+                cache[handle] = visible.get(handle, False)
 
     def __visible_handles(self, class_name: str) -> frozenset[str]:
         if class_name not in self.__visible:
@@ -233,16 +264,16 @@ class RestrictedDb(DbReadBase):
         self,
         class_name: str,
         column: Optional[str] = None,
-        handle: Optional[str] = None,
+        handles: Optional[Sequence[str]] = None,
     ) -> list[Row]:
         """Return (handle, column) rows of objects that are visible on their own.
 
-        Filters on the `private` secondary column, and on the handle if given.
-        Without a column, the second value is None.
+        Filters on the `private` secondary column, and on the handles if
+        given. Without a column, the second value is None.
         """
         db = self.__db
         if not has_secondary_columns(db):
-            return list(self.__select_visible_python(class_name, column, handle))
+            return list(self.__select_visible_python(class_name, column, handles))
         sql = (
             f"SELECT handle, {column or 'NULL'} FROM {TABLES[class_name]} "
             f"WHERE {self.__policy.sql_condition()}"
@@ -250,9 +281,11 @@ class RestrictedDb(DbReadBase):
         params: list[Union[str, int]] = (
             [f"%{LINK_PREFIX}%"] if column and "?" in column else []
         )
-        if handle is not None:
-            sql += " AND handle = ?"
-            params.append(handle)
+        if handles is not None:
+            if not handles:
+                return []
+            sql += f" AND handle IN ({', '.join('?' * len(handles))})"
+            params.extend(handles)
         treeid = getattr(db.dbapi, "treeid", None)
         if treeid is not None:
             sql += " AND treeid = ?"
@@ -261,15 +294,14 @@ class RestrictedDb(DbReadBase):
         return db.dbapi.fetchall()
 
     def __select_visible_python(
-        self, class_name: str, column: Optional[str], handle: Optional[str]
+        self, class_name: str, column: Optional[str], handles: Optional[Sequence[str]]
     ) -> Iterator[Row]:
         """Like `__select_visible`, for backends without SQL."""
         key = CLASS_TO_KEY_MAP[class_name]
-        if handle is None:
-            items = self.__db._iter_raw_data(key)
+        if handles is None:
+            items: Iterable[tuple[str, RawData]] = self.__db._iter_raw_data(key)
         else:
-            data = self.__db._get_raw_data(key, handle)
-            items = [] if data is None else [(handle, data)]
+            items = _raw_data_many(self.__db, key, handles)
         for item_handle, data in items:
             if not self.__policy.is_visible(data):
                 continue
@@ -294,7 +326,7 @@ class RestrictedDb(DbReadBase):
             if class_name == "Note":
                 # only the note's own privacy, to avoid cycles
                 visible = bool(value) and bool(
-                    self.__select_visible("Note", handle=value)
+                    self.__select_visible("Note", handles=[value or ""])
                 )
             else:
                 visible = self.is_visible(class_name, value)
@@ -364,9 +396,10 @@ class RestrictedDb(DbReadBase):
         """Whether the family's reference to the child isn't private."""
         cache = self.__single_child_refs
         if self.__child_refs is None and family_handle not in cache:
-            if len(cache) >= SINGLE_LOOKUPS:
+            if self.__child_ref_lookups >= SINGLE_LOOKUPS:
                 self.__load_child_refs()
             else:
+                self.__child_ref_lookups += 1
                 family = self.__db._get_raw_data(
                     CLASS_TO_KEY_MAP["Family"], family_handle
                 )
@@ -376,6 +409,19 @@ class RestrictedDb(DbReadBase):
         if self.__child_refs is not None:
             return person_handle in self.__child_refs.get(family_handle, ())
         return person_handle in cache[family_handle]
+
+    def __check_child_refs_many(self, family_handles: Iterable[str]) -> None:
+        """Read the public child references of many families, a batch per query."""
+        if self.__child_refs is not None:
+            return
+        cache = self.__single_child_refs
+        todo = [
+            handle for handle in dict.fromkeys(family_handles) if handle not in cache
+        ]
+        for handle, data in _raw_data_many(self.__db, CLASS_TO_KEY_MAP["Family"], todo):
+            cache[handle] = _public_children(data)
+        for handle in todo:
+            cache.setdefault(handle, frozenset())
 
     def __load_child_refs(self) -> None:
         """Read the public child references of all families at once."""
@@ -392,6 +438,51 @@ class RestrictedDb(DbReadBase):
         if data is None:
             return None
         return self.__sanitize(class_name, data)
+
+    def __get_raw_many(
+        self, class_name: str, handles: Iterable[str]
+    ) -> Iterator[tuple[str, DataDict]]:
+        """Yield (handle, sanitized raw data) of the visible objects, in batches.
+
+        Whether the objects, and everything they reference, are visible is
+        looked up for a whole batch at once.
+        """
+        todo = [handle for handle in dict.fromkeys(handles) if handle]
+        self.__check_visible_many(class_name, todo)
+        visible = [handle for handle in todo if self.is_visible(class_name, handle)]
+        key = CLASS_TO_KEY_MAP[class_name]
+        for start in range(0, len(visible), RAW_DATA_BATCH_SIZE):
+            batch = list(
+                _raw_data_many(
+                    self.__db, key, visible[start : start + RAW_DATA_BATCH_SIZE]
+                )
+            )
+            if not self.__policy.sees_everything:
+                self.__check_references_many(class_name, [data for _, data in batch])
+            for handle, data in batch:
+                yield handle, self.__sanitize(class_name, data)
+
+    def __check_references_many(self, class_name: str, items: list[RawData]) -> None:
+        """Look up whether everything the objects reference is visible."""
+        wanted: dict[str, list[str]] = {}
+
+        def record(target: str, handle: Optional[str]) -> bool:
+            if handle:
+                wanted.setdefault(target, []).append(handle)
+            # as if visible, so that everything that might be asked is seen
+            return True
+
+        for data in items:
+            sanitize(data, record)
+        for target, handles in wanted.items():
+            self.__check_visible_many(target, handles)
+        if class_name == "Person":
+            self.__check_child_refs_many(
+                handle
+                for data in items
+                for value in as_list(data["parent_family_list"])
+                if (handle := as_handle(value))
+            )
 
     def __get_object(
         self, class_name: str, handle: Optional[str]
@@ -474,6 +565,10 @@ class RestrictedDb(DbReadBase):
                 self.__visible_handles(class_name)
             ),
         }
+        if class_name in ("Person", "Family"):
+            methods[f"get_raw_{table}_data_many"] = partial(
+                self.__get_raw_many, class_name
+            )
         if class_name == "Media":
             # Gramps' name for `has_media_handle`
             methods["has_object_handle"] = methods["has_media_handle"]
@@ -706,6 +801,24 @@ class RestrictedDb(DbReadBase):
         from ..util import close_db  # pylint: disable=import-outside-toplevel
 
         close_db(self.__db)
+
+
+def _raw_data_many(
+    db: DbReadBase, obj_key: int, handles: Iterable[str]
+) -> Iterator[tuple[str, RawData]]:
+    """Yield (handle, raw data) of the objects that exist, a batch per query.
+
+    Reads one by one if the database can't read many at once, which needs the
+    future_gramps patches.
+    """
+    read_many = getattr(db, "_get_raw_data_many", None)
+    if read_many is not None:
+        yield from read_many(obj_key, handles)
+        return
+    for handle in dict.fromkeys(handles):
+        data = db._get_raw_data(obj_key, handle)
+        if data is not None:
+            yield handle, data
 
 
 def _public_children(family: RawData) -> frozenset[str]:
