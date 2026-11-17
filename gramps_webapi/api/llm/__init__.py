@@ -35,6 +35,7 @@ from pydantic_ai.usage import UsageLimits
 from ..util import abort_with_message, close_db, get_db_outside_request, get_logger
 from .agent import create_agent
 from .deps import AgentDeps, Proposal
+from .images import image_parts, strip_images
 
 # e.g. https://www.example.com, followed by the path of a link
 _PLACEHOLDER_ORIGIN = re.compile(r"https?://(?:[\w-]+\.)*example\.(?:com|org|net)(?=/)")
@@ -159,6 +160,7 @@ def answer_with_agent(
     progress_callback: Callable[[str, str], None] | None = None,
     message_history_raw: str | None = None,
     proposal: Proposal | None = None,
+    images: list[str] | None = None,
 ):
     """Answer a prompt using Pydantic AI agent.
 
@@ -173,6 +175,8 @@ def answer_with_agent(
             When provided, takes precedence over history.
         proposal: If given, the agent may propose changes, which are
             collected here. Ignored unless LLM_ALLOW_WRITE_PROPOSALS is set.
+        images: Optional images attached to the prompt, as returned by
+            normalize_image.
 
     Returns:
         AgentRunResult containing the response and metadata
@@ -225,6 +229,7 @@ def answer_with_agent(
             )
         except Exception as e:  # pylint: disable=broad-except
             raise ValueError(f"Invalid message_history_raw: {e}") from e
+        message_history = strip_images(message_history)
     elif history:
         for message in history:
             if "role" not in message or "message" not in message:
@@ -252,7 +257,7 @@ def answer_with_agent(
         logger.debug("Running Pydantic AI agent")
         with capture_run_messages() as messages:
             result = agent.run_sync(
-                prompt,
+                [prompt, *image_parts(images)] if images else prompt,
                 deps=deps,
                 message_history=message_history,
                 usage_limits=usage_limits,
@@ -285,6 +290,14 @@ def answer_with_agent(
         if e.status_code in (502, 503, 504, 529):
             # 529 is Anthropic's "overloaded"
             abort_with_message(503, "The AI model provider is temporarily unavailable.")
+        if images and e.status_code in (400, 415, 422):
+            # providers reject images with different messages, if the model
+            # does not support them
+            abort_with_message(
+                400,
+                "The AI model could not process the attached images. "
+                "It may not support images.",
+            )
         abort_with_message(502, "The AI model provider returned an error.")
     except httpx.TimeoutException as e:
         logger.error("Model provider request timed out: %r", e)

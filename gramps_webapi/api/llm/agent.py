@@ -58,10 +58,18 @@ from .tools import (
     search_genealogy_database,
 )
 
+# rough character equivalent of an image's tokens
+IMAGE_CHARS = 6000
+
 
 def _part_chars(part) -> int:
     """Rough character count of a message part."""
     content = getattr(part, "content", None)
+    if isinstance(content, list) and isinstance(part, UserPromptPart):
+        # text and images; str() of an image would count its bytes
+        return sum(
+            len(item) if isinstance(item, str) else IMAGE_CHARS for item in content
+        )
     if content is not None:
         return len(content) if isinstance(content, str) else len(str(content))
     args = getattr(part, "args", None)

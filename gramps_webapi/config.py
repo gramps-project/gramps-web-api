@@ -107,6 +107,7 @@ class DefaultConfig(object):
     LLM_MAX_OUTPUT_TOKENS = None
     LLM_SYSTEM_PROMPT = None
     LLM_ALLOW_WRITE_PROPOSALS = False
+    LLM_VISION = False  # whether the model accepts images
     # ignored since semantic search was removed in 3.25.0, see deprecations.py
     VECTOR_EMBEDDING_MODEL = ""
     VECTOR_EMBEDDING_BASE_URL = None

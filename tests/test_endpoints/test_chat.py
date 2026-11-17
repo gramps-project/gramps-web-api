@@ -307,3 +307,52 @@ class TestChat(unittest.TestCase):
                 tree=tree_id, user_id="user", query="Hello", include_private=False
             )
         assert usage() == before + 3
+
+    @patch("gramps_webapi.api.llm.create_agent")
+    def test_chat_images_usage(self, mock_create_agent):
+        """Each attached image counts as one more unit of AI usage."""
+        import base64
+        import io
+        from dataclasses import dataclass
+
+        from PIL import Image
+        from pydantic_ai import Agent
+
+        from gramps_webapi.auth import get_tree_usage
+
+        @dataclass
+        class TestDeps:
+            value: str = "test"
+
+        mock_create_agent.return_value = Agent("test", deps_type=TestDeps)
+        header = fetch_header(self.client, empty_db=True)
+        rv = self.client.get("/api/trees/", headers=header)
+        tree_id = rv.json[0]["id"]
+        rv = self.client.put(
+            f"/api/trees/{tree_id}", json={"min_role_ai": ROLE_OWNER}, headers=header
+        )
+        assert rv.status_code == 200
+        clear_token_cache()
+        header = fetch_header(self.client, empty_db=True)
+
+        output = io.BytesIO()
+        Image.new("RGB", (8, 8)).save(output, format="PNG")
+        image = base64.b64encode(output.getvalue()).decode()
+        payload = {"query": "What is this?", "images": [image, image]}
+        app = self.client.application
+
+        def usage():
+            with app.app_context():
+                return get_tree_usage(tree_id)["usage_ai"] or 0
+
+        before = usage()
+        rv = self.client.post(TEST_URL, json=payload, headers=header)
+        assert rv.status_code == 422  # LLM_VISION is off
+        assert usage() == before
+        app.config["LLM_VISION"] = True
+        try:
+            rv = self.client.post(TEST_URL, json=payload, headers=header)
+            assert rv.status_code == 200
+            assert usage() == before + 3
+        finally:
+            app.config["LLM_VISION"] = False
