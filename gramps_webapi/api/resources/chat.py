@@ -85,6 +85,18 @@ class ChatBodyArgs(Schema):
             "Takes precedence over history when both are provided."
         },
     )
+    previous_proposal = fields.Str(
+        required=False,
+        load_default=None,
+        validate=validate.OneOf(["applied", "not_applied"]),
+        metadata={
+            "description": "'applied' if, since the last prompt, the user "
+            "applied changes the assistant proposed in any earlier response. "
+            "'not_applied' if nothing was applied since the last prompt and "
+            "the assistant's immediately preceding response had a proposal. "
+            "Omit it otherwise."
+        },
+    )
     images = fields.List(
         fields.Str(validate=validate.Length(max=_MAX_IMAGE_CHARS)),
         required=False,
@@ -164,6 +176,7 @@ class ChatResource(ProtectedResource):
                 message_history_raw=args_json.get("message_history_raw"),
                 allow_write_proposals=allow_write_proposals,
                 images=images,
+                previous_proposal=args_json.get("previous_proposal"),
             )
             if isinstance(task, AsyncResult):
                 return make_task_response(task)
@@ -180,6 +193,7 @@ class ChatResource(ProtectedResource):
                 message_history_raw=args_json.get("message_history_raw"),
                 allow_write_proposals=allow_write_proposals,
                 images=images,
+                previous_proposal=args_json.get("previous_proposal"),
             )
         except ValueError:
             abort_with_message(422, "Invalid message format")

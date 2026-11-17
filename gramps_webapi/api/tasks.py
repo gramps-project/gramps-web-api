@@ -1170,12 +1170,16 @@ def process_chat(
     message_history_raw: str | None = None,
     allow_write_proposals: bool = False,
     images: list[str] | None = None,
+    previous_proposal: str | None = None,
 ) -> dict[str, Any]:
     """Process a chat query with the AI agent.
 
     If `allow_write_proposals` is true, the agent may propose changes, which
     are returned for the user to approve. `images` are base64 JPEGs as
     returned by `normalize_image`; they are not kept in the returned history.
+    `previous_proposal` is "applied" if the user applied changes proposed in
+    any earlier answer since the last prompt, and "not_applied" if nothing
+    was applied and the previous answer had a proposal.
     """
     # import here to avoid error if AI dependencies are not installed
     from pydantic_ai import ModelMessagesTypeAdapter
@@ -1210,6 +1214,7 @@ def process_chat(
         message_history_raw=message_history_raw,
         proposal=proposal,
         images=images,
+        previous_proposal=previous_proposal,
     )
     # charged here rather than by the endpoint, so a chat run on the task
     # queue is charged too; each image is sent with every model request of

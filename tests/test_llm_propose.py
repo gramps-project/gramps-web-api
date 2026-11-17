@@ -25,6 +25,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from gramps.gen.lib import PlaceType
 from pydantic import TypeAdapter, ValidationError
+from pydantic_ai import ModelMessagesTypeAdapter
 from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from werkzeug.exceptions import HTTPException
@@ -642,6 +643,56 @@ def test_agent_proposals_disabled(app, monkeypatch, tree):
     proposal = Proposal()
     _answer(app, monkeypatch, tree, proposal)
     assert not proposal.changes
+
+
+def _instructions_seen(monkeypatch, tree, previous_proposal, message_history_raw=None):
+    """Instructions the model got, and the run's result."""
+    seen = []
+
+    def model_function(messages, info: AgentInfo) -> ModelResponse:
+        seen.append(info.instructions)
+        return ModelResponse(parts=[TextPart(content="done")])
+
+    def create(**kwargs):
+        agent = create_agent(**kwargs)
+        agent.model = FunctionModel(model_function)
+        return agent
+
+    monkeypatch.setenv("OPENAI_API_KEY", "key")
+    monkeypatch.setattr("gramps_webapi.api.llm.create_agent", create)
+    result = answer_with_agent(
+        prompt="Also add his birth date",
+        tree=tree,
+        include_private=True,
+        user_id=USER_ID,
+        proposal=Proposal(),
+        message_history_raw=message_history_raw,
+        previous_proposal=previous_proposal,
+    )
+    return seen, result
+
+
+@pytest.mark.parametrize(
+    "previous_proposal, expected",
+    [
+        ("applied", "The user applied changes you proposed earlier"),
+        ("not_applied", "they are not in the database"),
+    ],
+)
+def test_previous_proposal_note(app, monkeypatch, tree, previous_proposal, expected):
+    """The model is told whether the user applied its proposals."""
+    (instructions,), result = _instructions_seen(monkeypatch, tree, previous_proposal)
+    assert expected in instructions
+    assert "Check the database" in instructions
+    # only for this turn
+    history = ModelMessagesTypeAdapter.dump_json(result.all_messages()).decode()
+    (instructions,), _ = _instructions_seen(monkeypatch, tree, None, history)
+    assert instructions is None
+
+
+def test_no_previous_proposal_note(app, monkeypatch, tree):
+    (instructions,), _ = _instructions_seen(monkeypatch, tree, None)
+    assert instructions is None
 
 
 def test_duplicate_event(ctx):
