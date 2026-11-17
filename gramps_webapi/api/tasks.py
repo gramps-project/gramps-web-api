@@ -115,6 +115,7 @@ from .util import (
     get_locale_for_language,
     gramps_object_from_dict,
     send_email,
+    update_usage_ai,
     update_usage_people,
     upgrade_gramps_database,
 )
@@ -1216,6 +1217,9 @@ def process_chat(
         message_history_raw=message_history_raw,
         proposal=proposal,
     )
+    # charged here rather than by the endpoint, so a chat run on the task
+    # queue is charged too
+    update_usage_ai(new=1, tree=tree)
 
     response_text = clean_answer(
         result.response.text or "",

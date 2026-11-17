@@ -27,7 +27,6 @@ from ..util import (
     get_tree_from_jwt_or_fail,
     abort_with_message,
     check_quota_ai,
-    update_usage_ai,
 )
 from ..blueprint import api_blueprint
 from ..tasks import AsyncResult, make_task_response, process_chat, run_task
@@ -131,7 +130,6 @@ class ChatResource(ProtectedResource):
             )
             if isinstance(task, AsyncResult):
                 return make_task_response(task)
-            update_usage_ai(new=1)
             return task, 200
 
         try:
@@ -148,5 +146,4 @@ class ChatResource(ProtectedResource):
         except ValueError:
             abort_with_message(422, "Invalid message format")
 
-        update_usage_ai(new=1)
         return result
