@@ -879,6 +879,37 @@ class TestImportErrorReported(unittest.TestCase):
             if os.path.exists(temp_file):
                 os.unlink(temp_file)
 
+    @patch("gramps_webapi.api.resources.util.os.remove")
+    def test_cleanup_failure_doesnt_mask_importer_error(self, mock_remove):
+        """A failed deletion does not replace the importer's own exception."""
+        mock_remove.side_effect = PermissionError("Permission denied")
+        importer = MagicMock()
+        importer.get_extension.return_value = "ged"
+        importer.get_import_function.return_value = MagicMock(
+            side_effect=RuntimeError("importer failed")
+        )
+        with tempfile.NamedTemporaryFile(suffix=".ged", delete=False) as f:
+            temp_file = f.name
+        try:
+            with APP.app_context():
+                with patch(
+                    "gramps_webapi.api.resources.util.BasePluginManager"
+                ) as mock_manager:
+                    mock_manager.get_instance.return_value.get_import_plugins.return_value = [
+                        importer
+                    ]
+                    with self.assertRaisesRegex(RuntimeError, "importer failed"):
+                        run_import(
+                            db_handle=MagicMock(),
+                            file_name=temp_file,
+                            extension="ged",
+                            delete=True,
+                        )
+            mock_remove.assert_called_once_with(temp_file)
+        finally:
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
+
     def test_recoverable_error_does_not_fail_import(self):
         """An error the importer recovered from is reported, not raised."""
         content = (

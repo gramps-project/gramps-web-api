@@ -2275,8 +2275,14 @@ def run_import(
             try:
                 result = import_function(db_handle, str(file_name), user)
             finally:
-                if delete and os.path.isfile(file_name):
-                    os.remove(file_name)
+                if delete:
+                    try:
+                        os.remove(file_name)
+                    except OSError as e:
+                        # don't let cleanup failures mask the importer's error
+                        current_app.logger.warning(
+                            f"Failed to delete temporary file {file_name}: {e}"
+                        )
             if not result:
                 # The importers report unreadable input (corrupt file, invalid
                 # XML, unsupported version) via notify_error and an empty
