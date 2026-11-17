@@ -21,6 +21,13 @@ from gramps_webapi.const import (
 
 _LOG = logging.getLogger(__name__)
 
+# In-process fallbacks for when the persistent cache is unusable. A
+# FileSystemCache on a read-only directory does not raise: set() logs a
+# warning and returns False, and get() returns None. Without these, such an
+# instance would send telemetry with a fresh server UUID on every request.
+_last_sent: float = 0.0
+_fallback_server_uuid: str | None = None
+
 
 def send_telemetry(data: dict[str, str | int | float]) -> None:
     """Send telemetry, logging any network or HTTP errors."""
@@ -33,7 +40,8 @@ def send_telemetry(data: dict[str, str | int | float]) -> None:
 
 def telemetry_sent_last_24h() -> bool:
     """Check if telemetry has been sent in the last 24 hours."""
-    return time.time() - telemetry_last_sent() < 24 * 60 * 60
+    last_sent = max(_last_sent, telemetry_last_sent())
+    return time.time() - last_sent < 24 * 60 * 60
 
 
 def should_send_telemetry() -> bool:
@@ -68,8 +76,11 @@ def telemetry_last_sent() -> float:
 
 def update_telemetry_timestamp() -> None:
     """Record the current time as the last telemetry send attempt."""
+    global _last_sent
+    # set the in-process value first, so it applies even if the cache is broken
+    _last_sent = time.time()
     try:
-        persistent_cache.set(TELEMETRY_TIMESTAMP_KEY, time.time())
+        persistent_cache.set(TELEMETRY_TIMESTAMP_KEY, _last_sent)
     except Exception as exc:
         _LOG.warning("Could not write telemetry timestamp to cache: %s", exc)
 
@@ -85,7 +96,12 @@ def get_server_uuid() -> str:
     Performs a re-read after write so that concurrent workers that race on
     first startup all converge to the same stored value rather than each
     using a locally-generated UUID that differs from what ended up in cache.
+
+    If the cache is unusable, a UUID is generated once per process and reused.
+    Since create_app calls this before gunicorn forks, all workers of an
+    instance share it.
     """
+    global _fallback_server_uuid
     try:
         server_uuid = persistent_cache.get(TELEMETRY_SERVER_ID_KEY)
         if not server_uuid:
@@ -96,8 +112,11 @@ def get_server_uuid() -> str:
         _LOG.warning("Could not read/write telemetry server UUID from cache: %s", exc)
         server_uuid = None
     if not server_uuid:
-        # Cache unavailable (e.g. NullCache or backend outage); use an ephemeral UUID.
-        server_uuid = generate_server_uuid()
+        # Cache unavailable (e.g. read-only directory, NullCache or backend
+        # outage): use a UUID that is stable for the lifetime of the process.
+        if _fallback_server_uuid is None:
+            _fallback_server_uuid = generate_server_uuid()
+        server_uuid = _fallback_server_uuid
     return server_uuid
 
 
