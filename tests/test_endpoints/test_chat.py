@@ -261,3 +261,49 @@ class TestChat(unittest.TestCase):
         assert "message_history_raw" in rv.json
         assert isinstance(rv.json["message_history_raw"], str)
         assert len(rv.json["message_history_raw"]) > 0
+
+    @patch("gramps_webapi.api.llm.create_agent")
+    def test_chat_usage(self, mock_create_agent):
+        """Each chat is charged once, also when run by the task queue."""
+        from dataclasses import dataclass
+
+        from pydantic_ai import Agent
+
+        from gramps_webapi.api.tasks import process_chat
+        from gramps_webapi.auth import get_tree_usage
+
+        @dataclass
+        class TestDeps:
+            value: str = "test"
+
+        mock_create_agent.return_value = Agent("test", deps_type=TestDeps)
+        header = fetch_header(self.client, empty_db=True)
+        rv = self.client.get("/api/trees/", headers=header)
+        tree_id = rv.json[0]["id"]
+        rv = self.client.put(
+            f"/api/trees/{tree_id}", json={"min_role_ai": ROLE_OWNER}, headers=header
+        )
+        assert rv.status_code == 200
+        clear_token_cache()
+        header = fetch_header(self.client, empty_db=True)
+        app = self.client.application
+
+        def usage():
+            with app.app_context():
+                return get_tree_usage(tree_id)["usage_ai"] or 0
+
+        before = usage()
+        rv = self.client.post(TEST_URL, json={"query": "Hello"}, headers=header)
+        assert rv.status_code == 200
+        assert usage() == before + 1
+        rv = self.client.post(
+            TEST_URL + "?background=true", json={"query": "Hello"}, headers=header
+        )
+        assert rv.status_code == 200
+        assert usage() == before + 2
+        # as called by a Celery worker, without a request
+        with app.app_context():
+            process_chat(
+                tree=tree_id, user_id="user", query="Hello", include_private=False
+            )
+        assert usage() == before + 3
