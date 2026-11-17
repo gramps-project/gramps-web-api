@@ -1179,11 +1179,13 @@ def process_chat(
     verbose: bool = False,
     message_history_raw: str | None = None,
     allow_write_proposals: bool = False,
+    images: list[str] | None = None,
 ) -> dict[str, Any]:
     """Process a chat query with the AI agent.
 
     If `allow_write_proposals` is true, the agent may propose changes, which
-    are returned for the user to approve.
+    are returned for the user to approve. `images` are base64 JPEGs as
+    returned by `normalize_image`; they are not kept in the returned history.
     """
     # import here to avoid error if AI dependencies are not installed
     from pydantic_ai import ModelMessagesTypeAdapter
@@ -1194,6 +1196,7 @@ def process_chat(
         extract_metadata_from_result,
     )
     from gramps_webapi.api.llm.deps import Proposal
+    from gramps_webapi.api.llm.images import strip_images
 
     # Create the reporter in the main worker thread: run_sync hands off tool
     # calls to a thread-pool executor, which has no task context.
@@ -1216,10 +1219,12 @@ def process_chat(
         progress_callback=progress_callback,
         message_history_raw=message_history_raw,
         proposal=proposal,
+        images=images,
     )
     # charged here rather than by the endpoint, so a chat run on the task
-    # queue is charged too
-    update_usage_ai(new=1, tree=tree)
+    # queue is charged too; each image is sent with every model request of
+    # the turn, costing about as much as another message
+    update_usage_ai(new=1 + len(images or []), tree=tree)
 
     response_text = clean_answer(
         result.response.text or "",
@@ -1230,7 +1235,7 @@ def process_chat(
     response_dict: dict[str, Any] = {
         "response": response_text,
         "message_history_raw": ModelMessagesTypeAdapter.dump_json(
-            result.all_messages()
+            strip_images(result.all_messages())
         ).decode(),
     }
 

@@ -19,6 +19,7 @@
 
 """AI chat endpoint."""
 
+from flask import current_app
 from flask_jwt_extended import get_jwt_identity
 from marshmallow import Schema, validate
 from webargs import fields
@@ -40,6 +41,11 @@ from ...auth.const import (
     PERM_VIEW_PRIVATE,
 )
 from ..auth import has_permissions, require_permissions
+
+# keep in sync with gramps_webapi.api.llm.images, which needs the AI dependencies
+_MAX_IMAGES = 4
+# base64 of 10 MiB, plus room for a data URL header
+_MAX_IMAGE_CHARS = 4 * (10 * 1024 * 1024) // 3 + 100
 
 
 class ChatMessageSchema(Schema):
@@ -79,6 +85,18 @@ class ChatBodyArgs(Schema):
             "Takes precedence over history when both are provided."
         },
     )
+    images = fields.List(
+        fields.Str(validate=validate.Length(max=_MAX_IMAGE_CHARS)),
+        required=False,
+        load_default=None,
+        validate=validate.Length(max=_MAX_IMAGES),
+        metadata={
+            "description": f"Up to {_MAX_IMAGES} JPEG, PNG, WebP or GIF images "
+            "attached to the query, base64 encoded, optionally as data URLs. "
+            "Only allowed if the server metadata reports chat_vision. Images "
+            "are not kept in the returned message_history_raw."
+        },
+    )
 
 
 class ChatQueryArgs(Schema):
@@ -98,6 +116,22 @@ class ChatQueryArgs(Schema):
     )
 
 
+def _normalize_images(images: list[str] | None) -> list[str] | None:
+    """Validate and downscale attached images, or abort."""
+    if not images:
+        return None
+    if not current_app.config["LLM_VISION"]:
+        abort_with_message(422, "The AI model does not accept images.")
+    # import here to avoid error if AI dependencies are not installed
+    from ..llm.images import InvalidImageError, normalize_image
+
+    try:
+        return [normalize_image(image) for image in images]
+    except InvalidImageError as e:
+        abort_with_message(422, str(e))
+    return None  # unreachable, for type checkers
+
+
 class ChatResource(ProtectedResource):
     """AI chat resource."""
 
@@ -107,7 +141,8 @@ class ChatResource(ProtectedResource):
     def post(self, args_json, args_query):
         """Create a chat response."""
         require_permissions({PERM_USE_CHAT})
-        check_quota_ai(requested=1)
+        # each image counts as another message, see process_chat
+        check_quota_ai(requested=1 + len(args_json.get("images") or []))
         tree = get_tree_from_jwt_or_fail()
         user_id = get_jwt_identity()
         include_private = has_permissions({PERM_VIEW_PRIVATE})
@@ -115,6 +150,7 @@ class ChatResource(ProtectedResource):
         allow_write_proposals = has_permissions(
             {PERM_ADD_OBJ, PERM_EDIT_OBJ, PERM_DEL_OBJ}
         )
+        images = _normalize_images(args_json.get("images"))
 
         if args_query["background"]:
             task = run_task(
@@ -127,6 +163,7 @@ class ChatResource(ProtectedResource):
                 verbose=args_query["verbose"],
                 message_history_raw=args_json.get("message_history_raw"),
                 allow_write_proposals=allow_write_proposals,
+                images=images,
             )
             if isinstance(task, AsyncResult):
                 return make_task_response(task)
@@ -142,6 +179,7 @@ class ChatResource(ProtectedResource):
                 verbose=args_query["verbose"],
                 message_history_raw=args_json.get("message_history_raw"),
                 allow_write_proposals=allow_write_proposals,
+                images=images,
             )
         except ValueError:
             abort_with_message(422, "Invalid message format")

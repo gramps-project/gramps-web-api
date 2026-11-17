@@ -2568,6 +2568,9 @@ class ServerSchema(_Base):
     chat = fields.Bool(
         metadata={"description": "Whether the AI chat endpoint is available."},
     )
+    chat_vision = fields.Bool(
+        metadata={"description": "Whether images can be attached to AI chat queries."},
+    )
     face_detection = fields.Bool(
         metadata={
             "description": "Whether face detection in images is available"
