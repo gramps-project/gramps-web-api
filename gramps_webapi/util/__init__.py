@@ -20,8 +20,11 @@
 """Utility functions."""
 
 import mimetypes
+import os
+from pathlib import Path
 from typing import Optional
 
+from gramps.gen.utils.resourcepath import ResourcePath
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
 
@@ -65,3 +68,14 @@ def pin_postgres_driver(uri: str) -> str:
     return url.set(drivername="postgresql+psycopg2").render_as_string(
         hide_password=False
     )
+
+
+def set_gramps_resources_env() -> None:
+    """Set `GRAMPS_RESOURCES` unless it is set already, as Gramps does on startup.
+
+    Gramps expands `{GRAMPS_RESOURCES}` in paths from the environment, e.g. in
+    the media path of the example tree, which importers resolve. Without it,
+    such an import fails with a `KeyError`.
+    """
+    if "GRAMPS_RESOURCES" not in os.environ:
+        os.environ["GRAMPS_RESOURCES"] = str(Path(ResourcePath().data_dir).parent)

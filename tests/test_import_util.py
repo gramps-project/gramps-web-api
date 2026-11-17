@@ -26,6 +26,7 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
+from gramps.gen.db.utils import make_database
 from werkzeug.exceptions import HTTPException
 
 from gramps_webapi.api.resources.util import (
@@ -804,3 +805,47 @@ class TestImportErrorReported(unittest.TestCase):
         finally:
             if os.path.exists(temp_file):
                 os.unlink(temp_file)
+
+
+class TestGrampsResourcesEnv(unittest.TestCase):
+    """Test cases for `GRAMPS_RESOURCES`, which media paths may refer to."""
+
+    def setUp(self):
+        self.saved = os.environ.pop("GRAMPS_RESOURCES", None)
+
+    def tearDown(self):
+        os.environ.pop("GRAMPS_RESOURCES", None)
+        if self.saved is not None:
+            os.environ["GRAMPS_RESOURCES"] = self.saved
+
+    def test_import_into_tree_with_example_media_path(self):
+        """A media path using `{GRAMPS_RESOURCES}` does not break imports."""
+        app = create_app(
+            {"TREE": "test", "SECRET_KEY": "test", "USER_DB_URI": "sqlite://"},
+            config_from_env=False,
+        )
+        self.assertIn("GRAMPS_RESOURCES", os.environ)
+        db_handle = make_database("sqlite")
+        db_handle.load(":memory:")
+        # the media path of the Gramps example tree
+        db_handle.set_mediapath("{GRAMPS_RESOURCES}/example/gramps")
+        with tempfile.NamedTemporaryFile(suffix=".ged", delete=False) as f:
+            f.write(GEDCOM_WITH_PROBLEMS)
+            temp_file = f.name
+        try:
+            with app.app_context():
+                run_import(db_handle=db_handle, file_name=temp_file, extension="ged")
+            self.assertEqual(db_handle.get_number_of_people(), 2)
+        finally:
+            db_handle.close()
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
+
+    def test_existing_value_is_kept(self):
+        """A value set in the environment is not overwritten."""
+        os.environ["GRAMPS_RESOURCES"] = "/custom/resources"
+        create_app(
+            {"TREE": "test", "SECRET_KEY": "test", "USER_DB_URI": "sqlite://"},
+            config_from_env=False,
+        )
+        self.assertEqual(os.environ["GRAMPS_RESOURCES"], "/custom/resources")

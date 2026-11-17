@@ -26,7 +26,6 @@ import os
 import sys
 import uuid
 from contextlib import contextmanager
-from pathlib import Path
 from typing import Dict, Optional
 
 from flask import abort, current_app
@@ -61,7 +60,6 @@ from gramps.gen.plug.report import (
     CATEGORY_TEXT,
     CATEGORY_TREE,
 )
-from gramps.gen.utils.resourcepath import ResourcePath
 
 from ..const import MIME_TYPES, REPORT_DEFAULTS, REPORT_FILTERS
 from .util import abort_with_message
@@ -370,8 +368,6 @@ def run_report(
     """Generate the report."""
     if "off" in report_options and report_options["off"] in REPORT_FILTERS:
         abort(422)
-    _resources = ResourcePath()
-    os.environ["GRAMPS_RESOURCES"] = str(Path(_resources.data_dir).parent)
     reload_custom_filters()
     plugin_manager = BasePluginManager.get_instance()
     for report_data in plugin_manager.get_reg_reports(gui=False):

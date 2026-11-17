@@ -68,7 +68,7 @@ from .const import API_PREFIX, ENV_CONFIG_FILE, TREE_MULTI, VERSION
 from .dbmanager import WebDbManager
 from .future_gramps import apply_patches as apply_future_gramps_patches
 from .sentry import init_sentry
-from .util import pin_postgres_driver
+from .util import pin_postgres_driver, set_gramps_resources_env
 from .util.celery import create_celery
 
 _LOG = logging.getLogger(__name__)
@@ -89,6 +89,7 @@ def deprecated_config_from_env(app):
 def create_app(config: Optional[Dict[str, Any]] = None, config_from_env: bool = True):
     """Flask application factory."""
     apply_future_gramps_patches()
+    set_gramps_resources_env()
 
     app = Flask(__name__)
 
