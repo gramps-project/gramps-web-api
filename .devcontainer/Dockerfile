@@ -27,5 +27,10 @@ RUN mkdir -p $GRAMPSHOME/gramps/gramps$GRAMPS_VERSION/plugins && \
 # fails
 RUN mkdir -p /home/vscode/.cache && chown -R vscode:vscode /home/vscode/.cache
 
+# Mount points for the persistent Claude Code / Codex volumes (see
+# docker-compose.yml). Creating them here makes fresh volumes owned by vscode.
+RUN mkdir -p /home/vscode/.claude /home/vscode/.codex \
+  && chown vscode:vscode /home/vscode/.claude /home/vscode/.codex
+
 USER vscode
 
