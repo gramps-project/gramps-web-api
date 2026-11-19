@@ -19,6 +19,7 @@
 
 """Tests for reporting aborts that happen inside a background task."""
 
+import logging
 import unittest
 
 import pytest
@@ -138,6 +139,16 @@ class TestAbortClassification(unittest.TestCase):
         with pytest.raises(TaskError) as info:
             _failed_task.apply(throw=True)
         assert not isinstance(info.value, TaskRejection)
+
+    def test_rejection_logged_without_traceback(self):
+        with self.assertLogs("celery.app.trace", level="INFO") as logs:
+            _rejected_task.apply()
+        assert all(r.levelno < logging.WARNING for r in logs.records)
+        assert all(r.exc_info is None for r in logs.records)
+
+    def test_failure_logged_as_error(self):
+        with self.assertLogs("celery.app.trace", level="ERROR"):
+            _failed_task.apply()
 
 
 class _PoisonedAsyncResult:
