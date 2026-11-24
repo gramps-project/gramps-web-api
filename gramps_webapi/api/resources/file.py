@@ -38,7 +38,7 @@ from ...auth.const import PERM_EDIT_OBJ
 from ...util import get_extension
 from ..auth import require_permissions
 from ..blueprint import api_blueprint
-from ..file import process_file
+from ..file import normalize_media_path, process_file
 from ..media import check_quota_media, get_media_handler
 from ..tasks import run_task, update_media_usage_task
 from ..util import (
@@ -98,7 +98,7 @@ class MediaFileResource(ProtectedResource):
             handle, db_handle=db_handle
         )
         download = bool(args.get("download"))
-        filename = os.path.basename(obj.path)
+        filename = os.path.basename(normalize_media_path(obj.path))
         return handler.send_file(
             etag=obj.checksum, download=download, filename=filename
         )

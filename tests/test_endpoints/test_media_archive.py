@@ -228,6 +228,7 @@ class TestMediaOutsideBaseDir(unittest.TestCase):
         (self.base_dir / "sub").mkdir(parents=True)
         (self.base_dir / "sub" / "inside.jpg").write_bytes(b"inside")
         (self.base_dir / "..dots.jpg").write_bytes(b"dots")
+        (self.base_dir / "sub" / "win.jpg").write_bytes(b"win")
         (self.base_dir / "alias.jpg").symlink_to(self.base_dir / "sub" / "inside.jpg")
         (self.base_dir / "loop").symlink_to(self.base_dir / "loop")
         (root / "link").symlink_to(self.base_dir)
@@ -244,8 +245,11 @@ class TestMediaOutsideBaseDir(unittest.TestCase):
             "..dots.jpg",
             # escapes the media folder by name, but not when resolved
             str(root / "link" / "sub" / "inside.jpg"),
+            # Windows paths: backslashes are separators
+            "..\\secret.txt",
+            "sub\\win.jpg",
         )
-        self.names = ["sub/inside.jpg", "alias.jpg", "..dots.jpg"]
+        self.names = ["sub/inside.jpg", "alias.jpg", "..dots.jpg", "sub/win.jpg"]
         self.handler = MediaHandlerLocal(str(self.base_dir))
 
     def tearDown(self):
@@ -261,7 +265,7 @@ class TestMediaOutsideBaseDir(unittest.TestCase):
     def test_media_size(self):
         # the symlink's target only counts once
         size = self.handler.get_media_size(db_handle=self.db)
-        assert size == len(b"inside") + len(b"dots")
+        assert size == len(b"inside") + len(b"dots") + len(b"win")
 
     def test_archive_s3(self):
         """Object storage archives contain no names that escape the archive."""
@@ -269,7 +273,7 @@ class TestMediaOutsideBaseDir(unittest.TestCase):
         with mock_aws():
             client = boto3.client("s3", region_name="us-east-1")
             client.create_bucket(Bucket="bucket")
-            for key in ["0", "2", "3", "5", "8"]:
+            for key in ["0", "2", "3", "5", "8", "10", "11"]:
                 client.put_object(Bucket="bucket", Key=key, Body=b"content")
             handler = MediaHandlerS3("s3://bucket")
             handler.create_file_archive(self.db, zip_filename, include_private=True)

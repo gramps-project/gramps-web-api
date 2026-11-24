@@ -24,7 +24,7 @@ from io import BytesIO
 
 import pytest
 
-from gramps_webapi.api.file import upload_file_local
+from gramps_webapi.api.file import media_path_to_fs, upload_file_local
 
 
 @pytest.fixture
@@ -70,3 +70,27 @@ def test_upload_file_local_absolute_path(base_dir):
     with pytest.raises(ValueError):
         upload_file_local(base_dir, str(escaped), BytesIO(b"pwned"))
     assert not escaped.exists()
+
+
+def test_media_path_to_fs_posix_path(base_dir):
+    """A path without backslashes is unchanged."""
+    assert media_path_to_fs(base_dir, "a/b.jpg") == "a/b.jpg"
+
+
+def test_media_path_to_fs_windows_path(base_dir):
+    """Backslashes are read as separators (#187)."""
+    assert media_path_to_fs(base_dir, "a\\b.jpg") == "a/b.jpg"
+
+
+def test_media_path_to_fs_literal_file(base_dir):
+    """A file stored under the literal name by earlier versions is still found."""
+    (base_dir / "a\\b.jpg").write_bytes(b"old")
+    assert media_path_to_fs(base_dir, "a\\b.jpg") == "a\\b.jpg"
+
+
+def test_media_path_to_fs_converted_file_preferred(base_dir):
+    """If files exist at both paths, the converted path wins."""
+    (base_dir / "a\\b.jpg").write_bytes(b"old")
+    (base_dir / "a").mkdir()
+    (base_dir / "a" / "b.jpg").write_bytes(b"new")
+    assert media_path_to_fs(base_dir, "a\\b.jpg") == "a/b.jpg"

@@ -38,7 +38,13 @@ from gramps.gen.utils.file import expand_media_path
 from ..auth import get_tree_usage, set_tree_usage
 from ..types import FilenameOrPath
 from ..util import get_extension
-from .file import FileHandler, LocalFileHandler, upload_file_local
+from .file import (
+    FileHandler,
+    LocalFileHandler,
+    media_path_to_fs,
+    normalize_media_path,
+    upload_file_local,
+)
 from .util import (
     abort_with_message,
     close_db,
@@ -106,11 +112,14 @@ def get_local_archive_dir(tree: str | None = None) -> str:
     return os.path.abspath(os.path.join(archive_dir, tree))
 
 
-def get_contained_path(base_dir: FilenameOrPath, path: FilenameOrPath) -> Path | None:
-    """Return the resolved path of a media file, or None if outside the base dir."""
+def get_contained_path(base_dir: FilenameOrPath, path: str) -> Path | None:
+    """Return the resolved path of a media file, or None if outside the base dir.
+
+    `path` is a media object's path; see `media_path_to_fs`.
+    """
     try:
         base_path = Path(base_dir).resolve()
-        file_path = Path(base_path, path).resolve()
+        file_path = Path(base_path, media_path_to_fs(base_path, path)).resolve()
     except (OSError, RuntimeError, ValueError):
         return None  # e.g. symlink loop or NUL byte
     if base_path not in file_path.parents:
@@ -211,13 +220,10 @@ class MediaHandlerLocal(MediaHandlerBase):
     ) -> None:
         """Upload a file from a stream."""
         if path is not None:
-            if Path(path).is_absolute():
-                # Don't allow absolute paths! This will raise
-                # if path is not relative to base_dir
-                rel_path: FilenameOrPath = Path(path).relative_to(self.base_dir)
-            else:
-                rel_path = path
-            upload_file_local(self.base_dir, rel_path, stream)
+            file_path = get_contained_path(self.base_dir, str(path))
+            if file_path is None:
+                raise ValueError(f"File {path} is not within the base directory.")
+            upload_file_local(self.base_dir, file_path, stream)
         else:
             rel_path = self.get_default_filename(checksum, mime)
             upload_file_local(self.base_dir, rel_path, stream)
@@ -276,7 +282,8 @@ class MediaHandlerLocal(MediaHandlerBase):
                 # name the file as the media object does, e.g. not after
                 # a symlink's target, unless that name would escape the archive
                 rel_path = os.path.relpath(
-                    os.path.join(self.base_dir, obj.path), self.base_dir
+                    os.path.join(self.base_dir, normalize_media_path(obj.path)),
+                    self.base_dir,
                 )
                 if is_parent_path(rel_path):
                     rel_path = str(path.relative_to(Path(self.base_dir).resolve()))
@@ -423,7 +430,7 @@ class MediaHandlerS3(MediaHandlerBase):
                     continue
                 if obj.checksum not in remote_keys:
                     continue
-                media_path = os.path.normpath(obj.path)
+                media_path = os.path.normpath(normalize_media_path(obj.path))
                 if os.path.isabs(media_path) or is_parent_path(media_path):
                     continue  # ignore paths that would escape the archive
                 if media_path in names_seen:

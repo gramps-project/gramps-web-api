@@ -201,6 +201,43 @@ class TestUpload(unittest.TestCase):
         rv = self.client.get(f"/api/media/{handle}/file", headers=headers)
         self.assertEqual(rv.status_code, 200)
 
+    def test_upload_missing_file_windows_path(self):
+        """A missing file with a Windows path is stored in a folder (#187)."""
+        img, checksum, size = get_image(6)
+        headers = get_headers(self.client, "admin", "123")
+        rv = self.client.post(
+            "/api/media/", data=img.read(), headers=headers, content_type="image/jpeg"
+        )
+        self.assertEqual(rv.status_code, 201)
+        handle = rv.json[0]["new"]["handle"]
+        rv = self.client.get(f"/api/media/{handle}", headers=headers)
+        media_object = rv.json
+        media_object["path"] = "births\\certificate.jpg"
+        rv = self.client.put(f"/api/media/{handle}", json=media_object, headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        img.seek(0)
+        rv = self.client.put(
+            f"/api/media/{handle}/file?uploadmissing=1",
+            data=img.read(),
+            headers=headers,
+            content_type="image/jpeg",
+        )
+        self.assertEqual(rv.status_code, 200)
+        path = os.path.join(self.media_base_dir, "births", "certificate.jpg")
+        self.assertTrue(os.path.isfile(path))
+        self.assertFalse(
+            os.path.exists(os.path.join(self.media_base_dir, "births\\certificate.jpg"))
+        )
+        rv = self.client.get(f"/api/media/{handle}/file", headers=headers)
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.headers["ETag"], checksum)
+        # the path in the database is unchanged
+        rv = self.client.get(f"/api/media/{handle}", headers=headers)
+        self.assertEqual(rv.json["path"], "births\\certificate.jpg")
+        rv = self.client.get(f"/api/media/{handle}/file?download=1", headers=headers)
+        self.assertIn("certificate.jpg", rv.headers["Content-Disposition"])
+        self.assertNotIn("births", rv.headers["Content-Disposition"])
+
     def test_upload_unsupported_media_type(self):
         """A MIME type without a known file extension is rejected."""
         img, checksum, size = get_image(4)
@@ -396,11 +433,12 @@ class TestUploadUsageBackgroundUpdate(unittest.TestCase):
 
         headers = get_headers(self.client, "admin", "123")
         img, checksum, size = get_image(0)
-        with patch(
-            "gramps_webapi.api.resources.media.run_task"
-        ) as mock_run_task:
+        with patch("gramps_webapi.api.resources.media.run_task") as mock_run_task:
             rv = self.client.post(
-                "/api/media/", data=img.read(), headers=headers, content_type="image/jpeg"
+                "/api/media/",
+                data=img.read(),
+                headers=headers,
+                content_type="image/jpeg",
             )
         self.assertEqual(rv.status_code, 201)
         mock_run_task.assert_called_once()

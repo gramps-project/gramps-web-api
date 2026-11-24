@@ -537,3 +537,22 @@ def test_only_candidates_hashed_without_checksums(setup):
         result = MediaImporter(tree, "uid", db_handle, zip_file_name)()
     assert counts(result) == (2, 2, 0)
     assert hashed.call_count == 1
+
+
+def test_match_windows_path():
+    """A Windows path matches the member with the same path."""
+    assert match_members_to_paths(["a\\b.jpg"], ["a/b.jpg"]) == {"a\\b.jpg": "a/b.jpg"}
+
+
+def test_windows_path_kept(setup):
+    """A file matched by its Windows path is stored in a folder, path unchanged."""
+    tree, db_handle, temp_dir = setup
+    checksums = create_zip(["Family/grandpa.jpg"], temp_dir)
+    create_media(db_handle, ["Family\\grandpa.jpg"], [""])
+    zip_file_name = os.path.join(temp_dir, ZIP_NAME)
+    result = MediaImporter(tree, "uid", db_handle, zip_file_name)()
+    assert counts(result) == (1, 1, 0)
+    obj = get_media_by_id(db_handle, "O0000")
+    assert obj.get_path() == "Family\\grandpa.jpg"
+    assert obj.get_checksum() == checksums[0]
+    assert os.path.isfile(os.path.join(media_dir(temp_dir), "Family", "grandpa.jpg"))

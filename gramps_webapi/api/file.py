@@ -28,7 +28,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import IO, Any, BinaryIO, Optional, Tuple, Union
 
-from flask import jsonify, make_response, send_file, send_from_directory, current_app
+from flask import current_app, jsonify, make_response, send_file, send_from_directory
 from gramps.gen.db.base import DbReadBase
 from gramps.gen.errors import HandleError
 from gramps.gen.lib import Media
@@ -187,6 +187,38 @@ class FileHandler:
         return data
 
 
+def normalize_media_path(path: str) -> str:
+    """Return a media object's path with `/` as the only separator.
+
+    Gramps stores media paths as written on the computer that added them,
+    so paths added on Windows use backslashes. The database keeps them that
+    way, so that syncing with that computer sees no change; code that turns
+    a media path into a name (a ZIP member, a download, a comparison with
+    one) uses this function, and code looking for the file on disk uses
+    `media_path_to_fs`.
+    """
+    return path.replace("\\", "/")
+
+
+def media_path_to_fs(base_dir: FilenameOrPath, path: str) -> str:
+    """Return the file system path of a media file, relative to the base dir.
+
+    Backslashes are read as separators, so `a\\b.jpg` is the file `b.jpg` in
+    the folder `a`. A backslash is a valid character in POSIX file names,
+    though, and earlier versions stored such files under their literal name.
+    If there is no file at the converted path but one at the literal path,
+    the literal path is returned.
+    """
+    converted = normalize_media_path(path)
+    if converted == path:
+        return path
+    if not os.path.lexists(os.path.join(base_dir, converted)) and os.path.lexists(
+        os.path.join(base_dir, path)
+    ):
+        return path
+    return converted
+
+
 class LocalFileHandler(FileHandler):
     """Handler for local files."""
 
@@ -194,12 +226,13 @@ class LocalFileHandler(FileHandler):
         """Initialize self given a handle and media base directory."""
         super().__init__(handle, db_handle=db_handle)
         self.base_dir = base_dir
-        if os.path.isabs(self.path):
-            self.path_abs = self.path
-            self.path_rel = os.path.relpath(self.path, self.base_dir)
+        fs_path = media_path_to_fs(self.base_dir, self.path)
+        if os.path.isabs(fs_path):
+            self.path_abs = fs_path
+            self.path_rel = os.path.relpath(fs_path, self.base_dir)
         else:
-            self.path_abs = os.path.join(self.base_dir, self.path)
-            self.path_rel = self.path
+            self.path_abs = os.path.join(self.base_dir, fs_path)
+            self.path_rel = fs_path
 
     def _check_path(self) -> None:
         """Check whether the file path is contained within the base dir.
