@@ -16,7 +16,7 @@ from gramps.gen.lib import Media
 
 from ..auth import set_tree_usage
 from ..types import FilenameOrPath
-from .file import get_checksum
+from .file import get_checksum, normalize_media_path
 from .media import (
     MediaHandlerLocal,
     check_quota_media,
@@ -55,15 +55,21 @@ def match_members_to_paths(
 ) -> Dict[str, str]:
     """Map media paths to the names of the ZIP members holding their files.
 
-    A member matches a path if its name equals the path. Failing that, it
-    matches if the two have the same file name, ignoring case, and that file
-    name occurs only once among the members and once among the paths not
-    matched so far - otherwise there is no telling which file is which.
+    A member matches a path if its name equals the path, with backslashes
+    read as separators. Failing that, it matches if the two have the same file
+    name, ignoring case, and that file name occurs only once among the members
+    and once among the paths not matched so far - otherwise there is no
+    telling which file is which.
     """
     paths = list(paths)
     members = list(members)
     member_set = set(members)
-    matches = {path: path for path in paths if path in member_set}
+    matches = {}
+    for path in paths:
+        for candidate in (path, normalize_media_path(path)):
+            if candidate in member_set:
+                matches[path] = candidate
+                break
     used = set(matches.values())
     members_by_name: Dict[str, List[str]] = {}
     for member in members:
@@ -203,10 +209,15 @@ class MediaImporter:
                         _Match(obj, member, obj.checksum, obj.get_path(), False)
                     )
                 continue
-            member = member_by_path.get(obj.get_path())
+            path = obj.get_path()
+            member = member_by_path.get(path)
             if member is not None:
-                renamed = member != obj.get_path()
-                matches.append(_Match(obj, member, checksums[member], member, renamed))
+                # a Windows path naming the member is kept: it is the same path
+                renamed = member not in (path, normalize_media_path(path))
+                new_path = member if renamed else path
+                matches.append(
+                    _Match(obj, member, checksums[member], new_path, renamed)
+                )
         sizes = {name: info.file_size for name, info in infos.items()}
         return matches, sizes
 
