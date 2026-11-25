@@ -153,27 +153,27 @@ def main() -> None:
 
         user_db.create_all()
         example_tree = legacy_tree or "example"
-        users = [("admin", ROLE_ADMIN, None)]
+        users: list[tuple[str, int, str | None]] = [("admin", ROLE_ADMIN, None)]
         for tree_id in TREES:
             # example tree users keep the short names used so far
             prefix = "" if tree_id == "example" else f"{tree_id}_"
             target = example_tree if tree_id == "example" else tree_id
             users += [(f"{prefix}{r}", role, target) for r, role in ROLES.items()]
         existing = dict(user_db.session.query(User.name, User.tree))
-        for username, role, tree_id in users:
+        for username, role, user_tree in users:
             if username not in existing:
                 add_user(
                     username,
                     username,
                     fullname=username.replace("_", " ").title(),
                     role=role,
-                    tree=tree_id,
+                    tree=user_tree,
                 )
-            elif tree_id and not existing[username]:
+            elif user_tree and not existing[username]:
                 # Users of the old single-tree setup have no tree, which
                 # locks them out in multi-tree mode
-                modify_user(username, tree=tree_id)
-                print(f"Assigned user '{username}' to tree '{tree_id}'")
+                modify_user(username, tree=user_tree)
+                print(f"Assigned user '{username}' to tree '{user_tree}'")
             else:
                 print(f"User '{username}' exists, skipping")
 
