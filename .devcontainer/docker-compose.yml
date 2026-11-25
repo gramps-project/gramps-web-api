@@ -35,9 +35,9 @@ services:
       # Do not use this value in production!!
       GRAMPSWEB_SECRET_KEY: QAVoeYDzkQves9iDZ5PkxfdUoVElVMVYPqz-QXha6yE
       GRAMPSWEB_CORS_ORIGINS: "*"
-      # To test the AI assistant with a local model, see CONTRIBUTING.md
+      # The Mistral model needs MISTRAL_API_KEY in .devcontainer/.env.
+      # To test the AI assistant with a local model instead, see CONTRIBUTING.md
       # GRAMPSWEB_LLM_BASE_URL: http://ollama:11434/v1/
-      # GRAMPSWEB_LLM_MODEL: qwen2.5:7b
       GRAMPSWEB_LLM_ALLOW_WRITE_PROPOSALS: true
       GRAMPSWEB_LLM_MODEL: mistral:mistral-medium-latest
       GRAMPSWEB_LLM_VISION: true

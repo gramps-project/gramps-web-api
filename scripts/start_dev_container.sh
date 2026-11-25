@@ -15,10 +15,6 @@ if [ -d /home/vscode/gramps/gramps60/plugins ] && [ "$(ls -A /home/vscode/gramps
 fi
 
 mkdir -p /workspaces/web-api/data/grampsdb
-# Check if the grampsdb directory is empty
-if [ -z "$(ls -A /workspaces/web-api/data/grampsdb)" ]; then
-    echo "Database directory is empty, initializing..."
-    python3 scripts/init_dev_trees.py
-else
-    echo "Database directory already contains data, skipping initialization"
-fi
+# Set up the dev trees and users. Safe to rerun: it finishes an interrupted
+# setup, migrates the old single-tree setup and leaves everything else alone.
+python3 scripts/init_dev_trees.py
