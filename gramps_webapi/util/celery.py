@@ -58,6 +58,10 @@ def create_celery(app):
     class ContextTask(Task):
         """Celery task which is aware of the flask app context."""
 
+        # expected outcomes: logged at INFO without a traceback, still stored
+        # as a failure in the result backend
+        throws = (TaskRejection,)
+
         def __call__(self, *args, **kwargs):
             if self.request.called_directly:
                 return self.run(*args, **kwargs)
