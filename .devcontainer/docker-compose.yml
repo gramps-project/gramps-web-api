@@ -5,8 +5,18 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ../..:/workspaces:cached
+      # Keep AI coding agent auth, settings and memory across container rebuilds
+      - claude-config:/home/vscode/.claude
+      - codex-config:/home/vscode/.codex
     command: sleep infinity
+    # Optional, gitignored file for secrets such as LLM API keys
+    env_file:
+      - path: .env
+        required: false
     environment:
+      # Store ~/.claude.json inside the persistent ~/.claude volume as well
+      CLAUDE_CONFIG_DIR: /home/vscode/.claude
+      CODEX_HOME: /home/vscode/.codex
       LANGUAGE: en
       GRAMPSWEB_BASE_URL: http://localhost:8001
       GRAMPSWEB_USER_DB_URI: sqlite:////workspaces/web-api/data/users.sqlite
@@ -19,13 +29,18 @@ services:
       GRAMPSWEB_BACKUP_DIR: /workspaces/web-api/data/backup
       GRAMPSHOME: /workspaces/web-api/data/
       GRAMPS_DATABASE_PATH: /workspaces/web-api/data/grampsdb
-      GRAMPSWEB_TREE: "Gramps Web"
+      # Multi-tree mode; trees and users are set up by scripts/init_dev_trees.py
+      GRAMPSWEB_TREE: "*"
+      GRAMPSWEB_MEDIA_PREFIX_TREE: true
       # Do not use this value in production!!
       GRAMPSWEB_SECRET_KEY: QAVoeYDzkQves9iDZ5PkxfdUoVElVMVYPqz-QXha6yE
       GRAMPSWEB_CORS_ORIGINS: "*"
-      # To test the AI assistant with a local model, see CONTRIBUTING.md
+      # The Mistral model needs MISTRAL_API_KEY in .devcontainer/.env.
+      # To test the AI assistant with a local model instead, see CONTRIBUTING.md
       # GRAMPSWEB_LLM_BASE_URL: http://ollama:11434/v1/
-      # GRAMPSWEB_LLM_MODEL: qwen2.5:7b
+      GRAMPSWEB_LLM_ALLOW_WRITE_PROPOSALS: true
+      GRAMPSWEB_LLM_MODEL: mistral:mistral-medium-latest
+      GRAMPSWEB_LLM_VISION: true
       GRAMPSWEB_CELERY_CONFIG__broker_url: redis://redis:6379/0
       GRAMPSWEB_CELERY_CONFIG__result_backend: redis://redis:6379/0
       GRAMPSWEB_LOG_LEVEL: DEBUG
@@ -49,3 +64,5 @@ services:
 
 volumes:
   ollama-data:
+  claude-config:
+  codex-config:

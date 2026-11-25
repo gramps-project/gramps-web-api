@@ -64,10 +64,11 @@ The devcontainer includes an optional [Ollama](https://ollama.com/) service for 
    docker compose -f .devcontainer/docker-compose.yml exec ollama ollama pull qwen2.5:7b
    ```
 
-3. In `.devcontainer/docker-compose.yml`, uncomment the `GRAMPSWEB_LLM_*` lines:
+3. In `.devcontainer/docker-compose.yml`, uncomment `GRAMPSWEB_LLM_BASE_URL`, change the value of `GRAMPSWEB_LLM_MODEL` (do not add a second one), and turn off vision, which this model does not support:
    ```yaml
    GRAMPSWEB_LLM_BASE_URL: http://ollama:11434/v1/
    GRAMPSWEB_LLM_MODEL: qwen2.5:7b
+   GRAMPSWEB_LLM_VISION: false
    ```
 
 4. Restart the devcontainer to pick up the new environment variables.
